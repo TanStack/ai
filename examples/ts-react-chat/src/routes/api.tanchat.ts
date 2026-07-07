@@ -7,15 +7,20 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { createOpenaiChat, openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { openRouterText } from '@tanstack/ai-openrouter'
-import { grokText } from '@tanstack/ai-grok'
-import { groqText } from '@tanstack/ai-groq'
+import { anthropicText, createAnthropicChat } from '@tanstack/ai-anthropic'
+import { createGeminiChat, geminiText } from '@tanstack/ai-gemini'
+import {
+  createGeminiTextInteractions,
+  geminiTextInteractions,
+} from '@tanstack/ai-gemini/experimental'
+import { createOpenRouterText, openRouterText } from '@tanstack/ai-openrouter'
+import { createGrokText, grokText } from '@tanstack/ai-grok'
+import { createGroqText, groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
+import { getByokKey } from '@tanstack/ai-byok/server'
+import type { ProviderId } from '@tanstack/ai-byok/server'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -248,6 +253,19 @@ export const Route = createFileRoute('/api/tanchat')({
             ? params.forwardedProps.previousInteractionId
             : undefined
 
+        // BYOK: prefer a per-request key from the request header, falling back
+        // to the env-configured adapter. The key is read from the header only,
+        // never persisted or logged.
+        function withByok<M extends string>(
+          provider: ProviderId,
+          m: M,
+          byok: (model: M, apiKey: string) => AnyTextAdapter,
+          env: (model: M) => AnyTextAdapter,
+        ): AnyTextAdapter {
+          const key = getByokKey(request, provider)
+          return key ? byok(m, key) : env(m)
+        }
+
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
         const adapterConfig: Record<
@@ -256,14 +274,20 @@ export const Route = createFileRoute('/api/tanchat')({
         > = {
           anthropic: () =>
             createChatOptions({
-              adapter: anthropicText(
+              adapter: withByok(
+                'anthropic',
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
+                createAnthropicChat,
+                anthropicText,
               ),
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText(
+              adapter: withByok(
+                'openrouter',
                 (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+                createOpenRouterText,
+                openRouterText,
               ),
               modelOptions: {
                 reasoning: {
@@ -273,8 +297,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           gemini: () =>
             createChatOptions({
-              adapter: geminiText(
+              adapter: withByok(
+                'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                createGeminiChat,
+                geminiText,
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -285,8 +312,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           'gemini-interactions': () =>
             createChatOptions({
-              adapter: geminiTextInteractions(
+              adapter: withByok(
+                'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                createGeminiTextInteractions,
+                geminiTextInteractions,
               ),
               modelOptions: {
                 previous_interaction_id: previousInteractionId,
@@ -295,15 +325,21 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: grokText(
+              adapter: withByok(
+                'grok',
                 (model || 'grok-build-0.1') as 'grok-build-0.1',
+                createGrokText,
+                grokText,
               ),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
-              adapter: groqText(
+              adapter: withByok(
+                'groq',
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
+                createGroqText,
+                groqText,
               ),
             }),
           bedrock: () =>
@@ -330,7 +366,12 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
+              adapter: withByok(
+                'openai',
+                (model || 'gpt-5.2') as 'gpt-5.2',
+                createOpenaiChat,
+                openaiText,
+              ),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',
                 prompt_cache_retention: '24h',
