@@ -423,7 +423,7 @@ export default function VideoGenerator({
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Reference video{' '}
               <span className="text-gray-500 font-normal">
-                (optional — Gemini Omni Flash only, short clips)
+                (optional — Gemini Omni Flash only, clips of 3s or less)
               </span>
             </label>
             {attachedVideo ? (

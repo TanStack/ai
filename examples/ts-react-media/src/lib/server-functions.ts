@@ -11,6 +11,7 @@ import type {
   TextPart,
   VideoPart,
 } from '@tanstack/ai/client'
+import type { OmniTaskMode } from './models'
 
 /** A prompt restricted to text — accepted by every (incl. text-only) model. */
 type TextPrompt = string | Array<TextPart>
@@ -240,6 +241,17 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
        * of a prior Omni generation to refine. Ignored by other models.
        */
       previousInteractionId?: string
+      /**
+       * Gemini Omni Flash generation controls (ignored by other models):
+       * clip duration in seconds (3-10, fractional OK, default 10), output
+       * aspect ratio, and an optional task-mode pin — omit `task` to let
+       * the model infer the mode from the prompt and attachments.
+       */
+      omniOptions?: {
+        duration?: number
+        aspectRatio?: '16:9' | '9:16'
+        task?: OmniTaskMode
+      }
     }) => {
       if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
       if (!data.model) throw new Error('Model is required')
@@ -370,14 +382,21 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         ) {
           throw new Error('Start image is required for image-to-video')
         }
+        const { duration, aspectRatio, task } = data.omniOptions ?? {}
         return generateVideo({
           adapter: geminiVideo('gemini-omni-flash-preview'),
           prompt,
-          size: '16:9',
-          ...(data.previousInteractionId
+          size: aspectRatio ?? '16:9',
+          ...(duration !== undefined ? { duration } : {}),
+          ...(data.previousInteractionId || task
             ? {
                 modelOptions: {
-                  previous_interaction_id: data.previousInteractionId,
+                  ...(data.previousInteractionId
+                    ? { previous_interaction_id: data.previousInteractionId }
+                    : {}),
+                  ...(task
+                    ? { generation_config: { video_config: { task } } }
+                    : {}),
                 },
               }
             : {}),

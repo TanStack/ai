@@ -166,7 +166,7 @@ export const VIDEO_MODELS = [
     id: 'gemini-omni-flash-preview',
     name: 'Gemini Omni Flash (Text-to-Video)',
     description:
-      'Google multimodal video generation with conversational editing, via the Interactions API (10s, 720p)',
+      'Google multimodal video generation with conversational editing, via the Interactions API (3-10s, 720p)',
     mode: 'text-to-video' as const,
     provider: 'gemini' as const,
   },
@@ -183,3 +183,13 @@ export const VIDEO_MODELS = [
 export type ImageModel = (typeof IMAGE_MODELS)[number]
 export type VideoModel = (typeof VIDEO_MODELS)[number]
 export type VideoMode = 'text-to-video' | 'image-to-video'
+
+/**
+ * Gemini Omni Flash task modes (`generation_config.video_config.task`).
+ * Omit to let the model infer the mode from the prompt and attachments.
+ */
+export type OmniTaskMode =
+  | 'text_to_video'
+  | 'image_to_video'
+  | 'reference_to_video'
+  | 'edit'
