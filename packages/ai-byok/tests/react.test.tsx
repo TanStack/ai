@@ -14,6 +14,12 @@ function fakeEncryptedStorage(initial: Keyring): KeyringStorage {
     label: 'Fake encrypted',
     persistent: true,
     unlockable: true,
+    peek: () =>
+      Object.fromEntries(
+        Object.entries(data)
+          .filter(([, key]) => Boolean(key))
+          .map(([provider, key]) => [provider, key.slice(-4)]),
+      ),
     load: () => ({ ...data }),
     save: (keys) => {
       data = { ...keys }
@@ -53,14 +59,21 @@ describe('useByok', () => {
     expect(result.current.keys.openai).toBeUndefined()
   })
 
-  it('stays locked until unlock() for unlockable storage', async () => {
+  it('surfaces saved keys as locked after refresh, then unlock reveals them', async () => {
     const store = fakeEncryptedStorage({ anthropic: 'sk-ant-9999' })
     const wrapper = ({ children }: { children: ReactNode }) => (
       <ByokProvider storage={store}>{children}</ByokProvider>
     )
     const { result } = renderHook(() => useByok(), { wrapper })
 
-    // Not auto-loaded on mount — no ceremony until the user unlocks.
+    // Peek (no decryption) surfaces presence + last-4 as a locked status, but
+    // the key itself isn't available until unlock.
+    await waitFor(() =>
+      expect(result.current.status.anthropic).toEqual({
+        state: 'locked',
+        masked: '…9999',
+      }),
+    )
     expect(result.current.locked).toBe(true)
     expect(result.current.keys.anthropic).toBeUndefined()
 
@@ -68,8 +81,10 @@ describe('useByok', () => {
       await result.current.unlock()
     })
     expect(result.current.locked).toBe(false)
-    await waitFor(() =>
-      expect(result.current.keys.anthropic).toBe('sk-ant-9999'),
-    )
+    expect(result.current.keys.anthropic).toBe('sk-ant-9999')
+    expect(result.current.status.anthropic).toEqual({
+      state: 'set',
+      masked: '…9999',
+    })
   })
 })

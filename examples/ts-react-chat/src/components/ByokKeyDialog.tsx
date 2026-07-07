@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { KeyRound, X } from 'lucide-react'
+import { KeyRound, Lock, X } from 'lucide-react'
 import { BYOK_PROVIDERS, useByok } from '@tanstack/ai-byok/react'
-import type { ProviderId } from '@tanstack/ai-byok/react'
+import type { KeyStatus, ProviderId } from '@tanstack/ai-byok/react'
 
 // BYOK-supported providers in this example (see byok-config.ts).
 const PROVIDERS: Array<ProviderId> = [
@@ -22,16 +22,19 @@ interface ByokKeyDialogProps {
 
 /**
  * Key-icon button + modal for entering per-provider BYOK keys. Keys stay in the
- * browser (session-only here) and are attached per-request by the caller. Only
- * the last 4 characters are ever shown back.
+ * browser (passkey-encrypted where supported, else session-only) and are
+ * attached per-request by the caller. Only the last 4 characters are ever shown
+ * back; saved-but-locked keys show a lock until unlocked.
  */
 export function ByokKeyDialog({
   envStatus,
   activeProvider,
 }: ByokKeyDialogProps) {
-  const { keys } = useByok()
+  const { keys, status, locked, unlock } = useByok()
   const [open, setOpen] = useState(false)
 
+  // Attention needed when the selected model's provider isn't usable right now
+  // (no server key and no decrypted key — whether missing or saved-but-locked).
   const activeNeedsKey =
     activeProvider != null &&
     !envStatus[activeProvider] &&
@@ -78,12 +81,24 @@ export function ByokKeyDialog({
               work without one.
             </p>
 
+            {locked ? (
+              <button
+                type="button"
+                onClick={() => void unlock()}
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-300 hover:bg-amber-400/20"
+              >
+                <Lock className="h-4 w-4" />
+                Unlock saved keys
+              </button>
+            ) : null}
+
             <div className="flex flex-col gap-3">
               {PROVIDERS.map((provider) => (
                 <ProviderKeyRow
                   key={provider}
                   provider={provider}
                   hasEnvKey={Boolean(envStatus[provider])}
+                  status={status[provider]}
                 />
               ))}
             </div>
@@ -97,13 +112,17 @@ export function ByokKeyDialog({
 function ProviderKeyRow({
   provider,
   hasEnvKey,
+  status,
 }: {
   provider: ProviderId
   hasEnvKey: boolean
+  status: KeyStatus
 }) {
   const { keys, setKey, clearKey } = useByok()
   const [draft, setDraft] = useState('')
   const yourKey = keys[provider]
+  // Saved-but-not-decrypted this session (persistent storage after a refresh).
+  const lockedLast4 = status.state === 'locked' ? status.masked.slice(-4) : null
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
@@ -114,6 +133,11 @@ function ProviderKeyRow({
         {yourKey ? (
           <span className="text-xs font-medium text-emerald-400">
             Your key ··{yourKey.slice(-4)}
+          </span>
+        ) : lockedLast4 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-300">
+            <Lock className="h-3 w-3" />
+            ··{lockedLast4}
           </span>
         ) : hasEnvKey ? (
           <span className="text-xs font-medium text-gray-400">Server key</span>

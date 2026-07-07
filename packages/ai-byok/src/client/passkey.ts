@@ -1,5 +1,6 @@
 import type { Keyring } from './keyring'
-import type { KeyringStorage } from './storage'
+import type { KeyPreview, KeyringStorage } from './storage'
+import type { ProviderId } from '../shared/providers'
 
 /**
  * Passkey-encrypted keyring storage (WebAuthn PRF → HKDF → AES-256-GCM).
@@ -30,6 +31,21 @@ interface StoredRecord {
   iv: ArrayBuffer
   /** Encrypted keyring JSON. */
   ciphertext: ArrayBuffer
+  /**
+   * Unencrypted presence metadata (`provider → last 4`). Non-sensitive, so it
+   * can be read via {@link KeyringStorage.peek} without an unlock ceremony to
+   * show saved keys as "locked" after a refresh.
+   */
+  preview: KeyPreview
+}
+
+/** Build the non-sensitive `provider → last 4` preview from a keyring. */
+function previewOf(keys: Keyring): KeyPreview {
+  const preview: KeyPreview = {}
+  for (const [provider, key] of Object.entries(keys)) {
+    if (key) preview[provider as ProviderId] = key.slice(-4)
+  }
+  return preview
 }
 
 /**
@@ -314,6 +330,11 @@ export function passkeyStorage(
       'Keys are encrypted with your passkey and unlocked with biometrics. ' +
       'This protects saved keys if your device is stolen, but not against code ' +
       'running on this page after you unlock.',
+    peek: async () => {
+      // Read the unencrypted preview — no key material, no unlock ceremony.
+      const existing = await idbGet(dbName)
+      return existing?.preview ?? {}
+    },
     load: async () => {
       const existing = await idbGet(dbName)
       if (!existing) return {} // nothing stored yet — no ceremony needed
@@ -329,6 +350,7 @@ export function passkeyStorage(
         salt: salt.buffer,
         iv,
         ciphertext,
+        preview: previewOf(keys),
       })
     },
     clear: async () => {

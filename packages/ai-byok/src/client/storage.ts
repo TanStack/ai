@@ -1,4 +1,11 @@
 import type { Keyring } from './keyring'
+import type { ProviderId } from '../shared/providers'
+
+/**
+ * Non-sensitive presence metadata: `provider → last 4 chars` of a stored key.
+ * Never contains the full key.
+ */
+export type KeyPreview = Partial<Record<ProviderId, string>>
 
 /**
  * A client-side persistence strategy for the keyring. Methods may be sync or
@@ -23,6 +30,13 @@ export interface KeyringStorage {
    * strategy is active (e.g. "protects at rest, not against in-page attacks").
    */
   readonly warning?: string
+  /**
+   * Report which providers have a stored key, and each key's last 4 chars,
+   * WITHOUT decrypting or running an unlock ceremony. Lets the UI surface saved
+   * keys as "locked" immediately after a refresh, before the user unlocks. Omit
+   * when not applicable (e.g. memory, which persists nothing).
+   */
+  readonly peek?: () => Promise<KeyPreview> | KeyPreview
   readonly load: () => Promise<Keyring> | Keyring
   readonly save: (keys: Keyring) => Promise<void> | void
   readonly clear: () => Promise<void> | void
