@@ -316,9 +316,12 @@ const { generate, result, isLoading, error, status, stop, reset } =
   });
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all reactive state is `DeepReadonly<ShallowRef<T>>`. Read refs with `.value` in `<script setup>`.
+
+For the end-to-end persistence setup, see
+[Resumable Generations](../persistence/resumable-generations).
 
 ### `useGenerateImage(options)`
 

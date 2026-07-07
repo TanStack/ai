@@ -37,6 +37,13 @@ If you are building a persisted chat UI, start with
 `persistence.server` option to store the client's latest resume snapshot for
 full page reload recovery.
 
+If you are building image, audio, speech, transcription, or video generation
+hooks that should survive refresh, start with
+[Resumable Generations](./resumable-generations). It shows the server endpoint
+using `generationParamsFromRequest(...)`, `withPersistence(...)`, and
+`toServerSentEventsResponse(...)`, plus the client hook using
+`persistence.server`, `autoResume`, and `resume()`.
+
 If your run can pause for a human decision, read
 [Interrupts and Approvals](./interrupts-and-approvals). It covers durable
 pending waits, AG-UI `resume[]` payloads, and how legacy approval UI maps onto
@@ -55,8 +62,8 @@ provide cross-isolate locks.
 If a run creates downloadable files, generated artifacts, large blobs, or
 workspace files that must survive sandbox/container eviction, read
 [Files and Artifacts](./files-and-artifacts). It covers normal run artifacts,
-app-owned blobs, sandbox workspace checkpointing, and the D1/R2/Durable Object
-layout used on Cloudflare.
+generation media artifacts, app-owned blobs, sandbox workspace checkpointing,
+and the D1/R2/Durable Object layout used on Cloudflare.
 
 If you own the storage layer or are extending persistence for MCP/workflows,
 read [Custom Stores](./custom-stores). It explains the optional `AIPersistence`

@@ -1,4 +1,8 @@
 import { createGeneration } from './create-generation.svelte'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -14,7 +18,12 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to ImageGenerationResult)
  */
-export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
+export interface CreateGenerateImageOptions<
+  TOutput = ImageGenerationResult,
+> extends Pick<
+  CreateGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
+  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
@@ -46,7 +55,9 @@ export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
+export interface CreateGenerateImageReturn<
+  TOutput = ImageGenerationResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The generation result containing images, or null */
   readonly result: TOutput | null
   /** Whether generation is in progress */
@@ -57,12 +68,6 @@ export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
   readonly status: GenerationClientState
   /** Trigger image generation */
   generate: (input: ImageGenerateInput) => Promise<void>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -139,5 +144,19 @@ export function createGenerateImage<TTransformed = void>(
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get resumeSnapshot() {
+      return gen.resumeSnapshot
+    },
+    get resumeState() {
+      return gen.resumeState
+    },
+    get pendingArtifacts() {
+      return gen.pendingArtifacts
+    },
+    get resultArtifacts() {
+      return gen.resultArtifacts
+    },
+    resume: gen.resume,
   }
 }

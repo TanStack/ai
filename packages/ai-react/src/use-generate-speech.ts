@@ -5,9 +5,14 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGenerateSpeech hook.
@@ -25,6 +30,14 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when speech is generated. Can optionally return a transformed value.
    *
@@ -61,6 +74,16 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
+  /** Resume the current/initial speech generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -102,19 +125,19 @@ export function useGenerateSpeech<TTransformed = void>(
     hookName: 'useGenerateSpeech',
     outputKind: 'audio' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = useGeneration<
+    SpeechGenerateInput,
+    TTSResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
-    generate: generate as (input: SpeechGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: SpeechGenerateInput,
+    ) => Promise<void>,
   }
 }

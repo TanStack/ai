@@ -134,12 +134,18 @@ export type {
 export type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
   GenerationActivity,
   GenerationUsageInfo,
   GenerationFinishInfo,
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationRunIdentity,
+  GenerationReplayInput,
+  GenerationReplayOptions,
+  GenerationRunOptions,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {

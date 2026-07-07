@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { localStorageChatPersistence } from '@tanstack/ai-client'
+import { localStorageAIPersistence } from '@tanstack/ai-client'
 import { Square } from 'lucide-react'
 import type { ChatResumeSnapshot, UIMessage } from '@tanstack/ai-client'
 
@@ -18,11 +18,11 @@ function getStableThreadId(): string {
   return id
 }
 
-const messagePersistence = localStorageChatPersistence<Array<UIMessage>>({
+const messagePersistence = localStorageAIPersistence<Array<UIMessage>>({
   keyPrefix: MESSAGES_KEY_PREFIX,
 })
 
-const resumePersistence = localStorageChatPersistence<ChatResumeSnapshot>({
+const resumePersistence = localStorageAIPersistence<ChatResumeSnapshot>({
   keyPrefix: RESUME_KEY_PREFIX,
 })
 

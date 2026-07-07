@@ -6,6 +6,13 @@
 
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from './error-payload'
+import {
+  createGenerationCursor,
+  generationEventFields,
+  generationIdentityFields,
+  replayGenerationEvents,
+} from './generation-run'
+import type { GenerationRunOptions } from './middleware'
 import type { StreamChunk } from '../types'
 
 function createId(prefix: string): string {
@@ -23,26 +30,52 @@ function createId(prefix: string): string {
  * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
 export async function* streamGenerationResult<TResult>(
-  generator: () => Promise<TResult>,
-  options?: { runId?: string; threadId?: string },
+  generator: (
+    options: GenerationRunOptions<TResult> & { runId: string; threadId: string },
+  ) => Promise<TResult>,
+  options?: GenerationRunOptions<TResult>,
 ): AsyncIterable<StreamChunk> {
+  if (options?.replay?.events) {
+    yield* replayGenerationEvents(options.replay)
+    return
+  }
+
   const runId = options?.runId ?? createId('run')
   const threadId = options?.threadId ?? createId('thread')
+  const identity = { runId, threadId }
+  const resolvedOptions = { ...options, ...identity }
+  const nextCursor = createGenerationCursor(options?.cursor)
 
   yield {
     type: EventType.RUN_STARTED,
     runId,
     threadId,
+    ...generationEventFields(resolvedOptions, nextCursor),
     timestamp: Date.now(),
   }
 
   try {
-    const result = await generator()
+    const result =
+      options?.replay && 'result' in options.replay
+        ? (options.replay.result as TResult)
+        : await generator(resolvedOptions)
+    const artifacts = (result as { artifacts?: unknown }).artifacts
+
+    if (Array.isArray(artifacts) && artifacts.length > 0) {
+      yield {
+        type: EventType.CUSTOM,
+        name: 'generation:artifacts',
+        value: artifacts,
+        ...generationEventFields(resolvedOptions, nextCursor),
+        timestamp: Date.now(),
+      }
+    }
 
     yield {
       type: EventType.CUSTOM,
       name: 'generation:result',
       value: result as unknown,
+      ...generationEventFields(resolvedOptions, nextCursor),
       timestamp: Date.now(),
     }
 
@@ -51,6 +84,7 @@ export async function* streamGenerationResult<TResult>(
       runId,
       threadId,
       finishReason: 'stop',
+      ...generationEventFields(resolvedOptions, nextCursor),
       timestamp: Date.now(),
     }
   } catch (error: unknown) {
@@ -63,8 +97,10 @@ export async function* streamGenerationResult<TResult>(
       payload.code !== undefined ? { code: payload.code } : undefined
     yield {
       type: EventType.RUN_ERROR,
+      ...generationIdentityFields(identity),
       message: payload.message,
       ...codeFields,
+      ...generationEventFields(resolvedOptions, nextCursor),
       // Deprecated nested form for backward compatibility
       error: {
         message: payload.message,

@@ -381,9 +381,12 @@ export class CustomGenerationComponent {
 }
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` — all reactive state is a read-only `Signal<T>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` — all reactive state is a read-only `Signal<T>`.
+
+For the end-to-end persistence setup, see
+[Resumable Generations](../persistence/resumable-generations).
 
 ### `injectGenerateImage(options)`
 

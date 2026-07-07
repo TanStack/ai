@@ -14,11 +14,16 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 /**
@@ -37,6 +42,14 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -81,6 +94,16 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: DeepReadonly<ShallowRef<GenerationResumeSnapshot | undefined>>
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: DeepReadonly<ShallowRef<GenerationResumeState | null>>
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: DeepReadonly<ShallowRef<Array<GenerationPendingArtifact>>>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: DeepReadonly<ShallowRef<Array<PersistedArtifactRef>>>
+  /** Resume the current/initial generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -137,6 +160,29 @@ export function useGenerateVideo<TTransformed = void>(
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
+  const resumeSnapshot = shallowRef<GenerationResumeSnapshot | undefined>(
+    options.initialResumeSnapshot,
+  )
+  const resumeState = shallowRef<GenerationResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const pendingArtifacts = shallowRef<Array<GenerationPendingArtifact>>(
+    options.initialResumeSnapshot?.pendingArtifacts ?? [],
+  )
+  const resultArtifacts = shallowRef<Array<PersistedArtifactRef>>(
+    options.initialResumeSnapshot?.result?.artifacts ?? [],
+  )
+  let disposed = false
+
+  const setResumeSnapshotState = (
+    snapshot: GenerationResumeSnapshot | undefined,
+  ) => {
+    if (disposed) return
+    resumeSnapshot.value = snapshot
+    resumeState.value = snapshot?.resumeState ?? null
+    pendingArtifacts.value = snapshot?.pendingArtifacts ?? []
+    resultArtifacts.value = snapshot?.result?.artifacts ?? []
+  }
 
   // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
   // strict optional and under EOPT we must omit the key when absent rather
@@ -144,6 +190,16 @@ export function useGenerateVideo<TTransformed = void>(
   const baseOptions = {
     id: clientId,
     body: options.body,
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(options.resumeState !== undefined && {
+      resumeState: options.resumeState,
+    }),
     devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -157,29 +213,46 @@ export function useGenerateVideo<TTransformed = void>(
     onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
       result: VideoGenerateResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
-    onJobCreated: (id: string) => options.onJobCreated?.(id),
-    onStatusUpdate: (s: VideoStatusInfo) => options.onStatusUpdate?.(s),
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
+    onJobCreated: (id: string) => {
+      if (!disposed) options.onJobCreated?.(id)
+    },
+    onStatusUpdate: (s: VideoStatusInfo) => {
+      if (!disposed) options.onStatusUpdate?.(s)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result.value = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading.value = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error.value = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status.value = s
     },
     onJobIdChange: (id: string | null) => {
+      if (disposed) return
       jobId.value = id
     },
     onVideoStatusChange: (s: VideoStatusInfo | null) => {
+      if (disposed) return
       videoStatus.value = s
     },
+    onResumeSnapshotChange: setResumeSnapshotState,
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -200,24 +273,41 @@ export function useGenerateVideo<TTransformed = void>(
     )
   }
 
-  // Sync body changes to the client.
+  // Sync body/resumeState changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
   // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
-    () => options.body,
-    (newBody) => {
+    () => [options.body, options.resumeState] as const,
+    ([newBody, newResumeState]) => {
       client.updateOptions({
         ...(newBody !== undefined && { body: newBody }),
+        ...(newResumeState !== undefined && {
+          resumeState: newResumeState,
+        }),
       })
     },
   )
 
   onMounted(() => {
     client.mountDevtools()
+    void client
+      .maybeAutoResume()
+      .catch((err: unknown) => {
+        if (disposed) return
+        const nextError = err instanceof Error ? err : new Error(String(err))
+        options.onError?.(nextError)
+        error.value = nextError
+        status.value = 'error'
+      })
+      .finally(() => {
+        if (disposed) return
+        setResumeSnapshotState(client.getResumeSnapshot())
+      })
   })
 
   // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
+    disposed = true
     client.dispose()
   })
 
@@ -231,6 +321,14 @@ export function useGenerateVideo<TTransformed = void>(
 
   const reset = () => {
     client.reset()
+  }
+
+  const resume = async (state?: GenerationResumeState) => {
+    const didResume = await client.resume(state)
+    if (!disposed) {
+      setResumeSnapshotState(client.getResumeSnapshot())
+    }
+    return didResume
   }
 
   return {
@@ -247,5 +345,12 @@ export function useGenerateVideo<TTransformed = void>(
     status: readonly(status),
     stop,
     reset,
+    resumeSnapshot: readonly(
+      resumeSnapshot,
+    ) as UseGenerateVideoReturn<TOutput>['resumeSnapshot'],
+    resumeState: readonly(resumeState),
+    pendingArtifacts: readonly(pendingArtifacts),
+    resultArtifacts: readonly(resultArtifacts),
+    resume,
   }
 }

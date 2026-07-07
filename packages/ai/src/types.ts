@@ -1844,6 +1844,36 @@ export type GeneratedMediaSource =
       url?: never
     }
 
+export type PersistedArtifactRole = 'input' | 'output'
+
+export type PersistedArtifactActivity =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+export interface PersistedArtifactRef {
+  role: PersistedArtifactRole
+  artifactId: string
+  threadId: string
+  runId: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+  externalUrl?: string
+  source: {
+    activity: PersistedArtifactActivity
+    path: string
+    provider: string
+    model: string
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    jobId?: string
+    expiresAt?: string
+  }
+}
+
 /**
  * A single generated image
  */
@@ -1864,6 +1894,8 @@ export interface ImageGenerationResult {
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1915,6 +1947,8 @@ export interface AudioGenerationResult {
   audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2006,6 +2040,8 @@ export interface VideoUrlResult {
    * real billed quantity — so consumers can compute exact cost.
    */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2055,6 +2091,8 @@ export interface TTSResult {
   contentType?: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2145,6 +2183,8 @@ export interface TranscriptionResult {
   words?: Array<TranscriptionWord>
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

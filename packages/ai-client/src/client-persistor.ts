@@ -6,14 +6,14 @@ import type {
   UIMessage,
 } from './types'
 
-export interface LocalStorageChatPersistenceOptions<TValue> {
+export interface LocalStorageAIPersistenceOptions<TValue> {
   keyPrefix?: string
   serialize?: (value: TValue) => string
   deserialize?: (value: string) => TValue
 }
 
-export function localStorageChatPersistence<TValue>(
-  options: LocalStorageChatPersistenceOptions<TValue> = {},
+export function localStorageAIPersistence<TValue>(
+  options: LocalStorageAIPersistenceOptions<TValue> = {},
 ): ChatStorageAdapter<TValue> {
   const {
     keyPrefix = 'tanstack-ai:',

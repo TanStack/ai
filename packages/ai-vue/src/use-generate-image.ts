@@ -1,4 +1,8 @@
 import { useGeneration } from './use-generation'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -15,7 +19,12 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  *
  * @template TOutput - The output type after optional transform (defaults to ImageGenerationResult)
  */
-export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
+export interface UseGenerateImageOptions<
+  TOutput = ImageGenerationResult,
+> extends Pick<
+  UseGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
+  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
@@ -47,7 +56,9 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
+export interface UseGenerateImageReturn<
+  TOutput = ImageGenerationResult,
+> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
   /** Trigger image generation */
   generate: (input: ImageGenerateInput) => Promise<void>
   /** The generation result containing images, or null */
@@ -58,10 +69,6 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
   error: DeepReadonly<ShallowRef<Error | undefined>>
   /** Current state of the generation */
   status: DeepReadonly<ShallowRef<GenerationClientState>>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -111,19 +118,19 @@ export function useGenerateImage<TTransformed = void>(
     hookName: 'useGenerateImage',
     outputKind: 'image' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = useGeneration<
+    ImageGenerateInput,
+    ImageGenerationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
-    generate: generate as (input: ImageGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: ImageGenerateInput,
+    ) => Promise<void>,
   }
 }

@@ -36,6 +36,9 @@ For the end-to-end file persistence model, including generated artifacts,
 app-owned blobs, and sandbox workspace checkpoints backed by R2, see
 [Files and Artifacts](./files-and-artifacts).
 
+For image, audio, speech, transcription, and video hooks that reconnect after a
+refresh, see [Resumable Generations](./resumable-generations).
+
 ## Core state lives in D1
 
 D1 backs the shared SQL stores:
@@ -63,11 +66,17 @@ Artifact `get(artifactId)` hydrates bytes from R2 when the artifact record
 points at a blob. Optional artifact cleanup deletes both the D1 row and the R2
 object.
 
-Use artifacts for files tied to a chat run, such as generated reports,
-downloads, screenshots, or sandbox workspace file checkpoints. Use blobs for
-lower-level object storage when your app owns the index shape. [Files and
-Artifacts](./files-and-artifacts) shows both patterns and the Cloudflare layout
-for project-builder apps.
+Use artifacts for files tied to a chat or generation run, such as generated
+reports, media outputs, downloads, screenshots, or sandbox workspace file
+checkpoints. Use blobs for lower-level object storage when your app owns the
+index shape. [Files and Artifacts](./files-and-artifacts) shows both patterns
+and the Cloudflare layout for project-builder apps.
+
+For Lovable-style builders, persistence stores generated artifact metadata and
+sandbox workspace manifests in D1 while R2 stores the bytes. That gives
+resumable media generation and workspace checkpointing, but it is not a turnkey
+full project sync product: history, branching, merge policy, garbage
+collection, and source-control semantics remain app responsibilities.
 
 ## Use Durable Objects for locks
 

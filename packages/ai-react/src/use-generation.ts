@@ -8,8 +8,13 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGeneration hook.
@@ -31,6 +36,14 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -67,6 +80,16 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
+  /** Resume the current/initial generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -111,6 +134,9 @@ export function useGeneration<
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<GenerationClientState>('idle')
+  const [resumeSnapshot, setResumeSnapshot] = useState<
+    GenerationResumeSnapshot | undefined
+  >(options.initialResumeSnapshot)
 
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -125,6 +151,12 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
+      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
+      ...(opts.autoResume !== undefined && { autoResume: opts.autoResume }),
+      ...(opts.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: opts.initialResumeSnapshot,
+      }),
+      ...(opts.resumeState !== undefined && { resumeState: opts.resumeState }),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
         hookName: 'useGeneration',
@@ -150,6 +182,7 @@ export function useGeneration<
       onLoadingChange: setIsLoading,
       onErrorChange: setError,
       onStatusChange: setStatus,
+      onResumeSnapshotChange: setResumeSnapshot,
     }
 
     if (opts.connection) {
@@ -176,14 +209,32 @@ export function useGeneration<
     // Conditional spread: target uses strict-optional `body?: T`.
     client.updateOptions({
       ...(options.body !== undefined && { body: options.body }),
+      ...(options.resumeState !== undefined && {
+        resumeState: options.resumeState,
+      }),
     })
-  }, [client, options.body])
+  }, [client, options.body, options.resumeState])
 
   // Cleanup on unmount
   useEffect(() => {
+    let mounted = true
     client.mountDevtools()
+    void client
+      .maybeAutoResume()
+      .catch((err: unknown) => {
+        if (!mounted) return
+        const error = err instanceof Error ? err : new Error(String(err))
+        optionsRef.current.onError?.(error)
+        setError(error)
+        setStatus('error')
+      })
+      .finally(() => {
+        if (!mounted) return
+        setResumeSnapshot(client.getResumeSnapshot())
+      })
 
     return () => {
+      mounted = false
       client.dispose()
     }
   }, [client])
@@ -203,6 +254,15 @@ export function useGeneration<
     client.reset()
   }, [client])
 
+  const resume = useCallback(
+    async (state?: GenerationResumeState) => {
+      const didResume = await client.resume(state)
+      setResumeSnapshot(client.getResumeSnapshot())
+      return didResume
+    },
+    [client],
+  )
+
   return {
     generate: generate as (input: Record<string, any>) => Promise<void>,
     result,
@@ -211,5 +271,10 @@ export function useGeneration<
     status,
     stop,
     reset,
+    resumeSnapshot,
+    resumeState: resumeSnapshot?.resumeState ?? null,
+    pendingArtifacts: resumeSnapshot?.pendingArtifacts ?? [],
+    resultArtifacts: resumeSnapshot?.result?.artifacts ?? [],
+    resume,
   }
 }

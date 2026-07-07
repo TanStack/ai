@@ -7,9 +7,15 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import {
+  createGenerationCursor,
+  generationEventFields,
+  rejectEventsOnlyReplay,
+} from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
   createGenerationContext,
+  applyGenerationResultTransforms,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
@@ -17,7 +23,7 @@ import {
 } from '../middleware'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware } from '../middleware'
+import type { GenerationMiddleware, GenerationRunOptions } from '../middleware'
 import type { TranscriptionAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -61,7 +67,7 @@ export interface TranscriptionActivityOptions<
     TranscriptionProviderOptions<TAdapter>
   >,
   TStream extends boolean = false,
-> {
+> extends GenerationRunOptions<TranscriptionResult> {
   /** The transcription adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /** The audio data to transcribe - can be base64 string, File, Blob, or Buffer */
@@ -171,8 +177,10 @@ export function generateTranscription<
   options: TranscriptionActivityOptions<TAdapter, TStream>,
 ): TranscriptionActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateTranscription(options),
+    return streamGenerationResult(
+      (resolvedOptions) =>
+        runGenerateTranscription({ ...options, ...resolvedOptions }),
+      options,
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -192,11 +200,21 @@ async function runGenerateTranscription<
 >(
   options: TranscriptionActivityOptions<TAdapter, boolean>,
 ): Promise<TranscriptionResult> {
+  rejectEventsOnlyReplay(options.replay)
+
+  if (options.replay && 'result' in options.replay) {
+    return options.replay.result as TranscriptionResult
+  }
+
   const {
     adapter,
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
+    cursor,
+    replay: _replay,
     ...rest
   } = options
   const model = adapter.model
@@ -207,6 +225,8 @@ async function runGenerateTranscription<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
+  const nextCursor = createGenerationCursor(cursor)
+  const identity = { threadId, runId, cursor }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -214,6 +234,15 @@ async function runGenerateTranscription<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    cursor,
+    artifactInputs: {
+      audio: rest.audio,
+      language: rest.language,
+      prompt: rest.prompt,
+      responseFormat: rest.responseFormat,
+    },
     createId,
   })
 
@@ -221,6 +250,7 @@ async function runGenerateTranscription<
 
   aiEventClient.emit('transcription:request:started', {
     requestId,
+    ...generationEventFields(identity, nextCursor),
     provider: adapter.name,
     model,
     language: rest.language,
@@ -236,11 +266,13 @@ async function runGenerateTranscription<
   })
 
   try {
-    const result = await adapter.transcribe({ ...rest, model, logger })
+    const rawResult = await adapter.transcribe({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('transcription:request:completed', {
       requestId,
+      ...generationEventFields(identity, nextCursor),
       provider: adapter.name,
       model,
       text: result.text,
@@ -267,6 +299,7 @@ async function runGenerateTranscription<
     const err = error as Error
     aiEventClient.emit('transcription:request:error', {
       requestId,
+      ...generationEventFields(identity, nextCursor),
       provider: adapter.name,
       model,
       error: { message: err.message, name: err.name },

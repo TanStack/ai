@@ -8,6 +8,11 @@ import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
 import { EventType, type StreamChunk } from '@tanstack/ai'
 import type { TTSResult, TranscriptionResult } from '@tanstack/ai'
+import type {
+  ConnectConnectionAdapter,
+  GenerationResumeSnapshot,
+  RunAgentInputContext,
+} from '@tanstack/ai-client'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
@@ -69,6 +74,74 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
       timestamp: Date.now(),
     },
   ]
+}
+
+const videoResumeSnapshot: GenerationResumeSnapshot = {
+  resumeState: {
+    threadId: 'thread-resume',
+    runId: 'run-resume',
+    cursor: 'cursor-resume',
+  },
+  status: 'running',
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function createReplayVideoChunks(): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      cursor: 'cursor-start',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
+      name: 'generation:result',
+      value: {
+        jobId: 'job-replay',
+        status: 'completed',
+        url: 'https://example.com/video.mp4',
+      },
+      cursor: 'cursor-result',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      cursor: 'cursor-finished',
+      timestamp: Date.now(),
+    },
+  ]
+}
+
+function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
+  adapter: ConnectConnectionAdapter
+  connect: ReturnType<typeof vi.fn>
+  runContexts: Array<RunAgentInputContext | undefined>
+} {
+  const runContexts: Array<RunAgentInputContext | undefined> = []
+  const connect = vi.fn()
+  const adapter: ConnectConnectionAdapter = {
+    async *connect(_messages, _data, _signal, runContext) {
+      connect(runContext)
+      runContexts.push(runContext)
+      for (const chunk of chunks) {
+        yield chunk
+      }
+    },
+  }
+  return { adapter, connect, runContexts }
 }
 
 // Helper to create error stream chunks
@@ -185,6 +258,33 @@ describe('createGeneration', () => {
 
       expect(gen.status).toBe('error')
       expect(gen.error?.message).toBe('Generation failed')
+    })
+
+    it('should ignore auto-resume rejection after dispose', async () => {
+      const deferred = createDeferred<GenerationResumeSnapshot | null>()
+      const getItem = vi.fn(() => deferred.promise)
+      const onError = vi.fn()
+      const gen = createGeneration({
+        fetcher: async () => ({ id: '1' }),
+        persistence: {
+          server: {
+            getItem,
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+          },
+        },
+        onError,
+      })
+
+      await vi.waitFor(() => expect(getItem).toHaveBeenCalled())
+      gen.dispose()
+      deferred.reject(new Error('resume failed'))
+      await deferred.promise.catch(() => {})
+      await Promise.resolve()
+
+      expect(onError).not.toHaveBeenCalled()
+      expect(gen.error).toBeUndefined()
+      expect(gen.status).toBe('idle')
     })
   })
 
@@ -489,7 +589,7 @@ describe('createSummarize', () => {
     const mockResult = {
       id: 'sum-1',
       summary: 'A brief summary',
-      model: 'gpt-4',
+      model: 'gpt-5.5',
       usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
     }
 
@@ -504,7 +604,7 @@ describe('createSummarize', () => {
   })
 
   it('should summarize text using connection', async () => {
-    const mockResult = { summary: 'A brief summary', model: 'gpt-4' }
+    const mockResult = { summary: 'A brief summary', model: 'gpt-5.5' }
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
@@ -538,7 +638,7 @@ describe('createSummarize', () => {
       fetcher: async () => ({
         id: 'sum-1',
         summary: 'A brief summary',
-        model: 'gpt-4',
+        model: 'gpt-5.5',
         usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
       }),
     })
@@ -655,6 +755,66 @@ describe('createGenerateVideo', () => {
     expect(gen.result).toBeNull()
     expect(gen.jobId).toBeNull()
     expect(gen.videoStatus).toBeNull()
+    expect(gen.status).toBe('idle')
+  })
+
+  it('should explicitly resume from the current snapshot', async () => {
+    const { adapter, connect, runContexts } = createRunContextCaptureAdapter(
+      createReplayVideoChunks(),
+    )
+
+    const gen = createGenerateVideo({
+      connection: adapter,
+      initialResumeSnapshot: videoResumeSnapshot,
+      autoResume: false,
+    })
+
+    const didResume = await gen.resume()
+
+    expect(didResume).toBe(true)
+    expect(connect).toHaveBeenCalledTimes(1)
+    expect(runContexts[0]).toEqual(videoResumeSnapshot.resumeState)
+    expect(gen.resumeSnapshot).toEqual(
+      expect.objectContaining({
+        status: 'complete',
+        resumeState: null,
+      }),
+    )
+    expect(gen.result).toEqual(
+      expect.objectContaining({
+        jobId: 'job-replay',
+      }),
+    )
+  })
+
+  it('should ignore video auto-resume rejection after dispose', async () => {
+    const deferred = createDeferred<GenerationResumeSnapshot | null>()
+    const getItem = vi.fn(() => deferred.promise)
+    const onError = vi.fn()
+    const gen = createGenerateVideo({
+      fetcher: async () => ({
+        jobId: 'job-1',
+        status: 'completed',
+        url: 'https://example.com/video.mp4',
+      }),
+      persistence: {
+        server: {
+          getItem,
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
+      },
+      onError,
+    })
+
+    await vi.waitFor(() => expect(getItem).toHaveBeenCalled())
+    gen.dispose()
+    deferred.reject(new Error('video resume failed'))
+    await deferred.promise.catch(() => {})
+    await Promise.resolve()
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(gen.error).toBeUndefined()
     expect(gen.status).toBe('idle')
   })
 

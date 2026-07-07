@@ -42,13 +42,22 @@ export type {
   DistributedOmit,
   MultimodalContent,
 } from './types'
-export { localStorageChatPersistence } from './client-persistor'
-export type { LocalStorageChatPersistenceOptions } from './client-persistor'
+export { localStorageAIPersistence } from './client-persistor'
+export type { LocalStorageAIPersistenceOptions } from './client-persistor'
 // Generation client types
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
+  GenerationResumeState,
+  GenerationResumeStatus,
+  GenerationResumeSnapshot,
+  GenerationPendingArtifact,
+  GenerationResultSnapshot,
+  GenerationErrorSnapshot,
+  GenerationEventSnapshot,
+  GenerationServerPersistence,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,
@@ -63,7 +72,10 @@ export type {
   SummarizeGenerateInput,
   VideoGenerateInput,
 } from './generation-types'
-export { GENERATION_EVENTS } from './generation-types'
+export {
+  GENERATION_EVENTS,
+  updateGenerationResumeSnapshot,
+} from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
 export {
@@ -83,6 +95,9 @@ export type {
 export type {
   AnyClientTool,
   Interrupt,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
   RunAgentResumeItem,
   RunFinishedOutcome,
 } from '@tanstack/ai/client'

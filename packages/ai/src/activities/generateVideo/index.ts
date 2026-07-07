@@ -9,9 +9,16 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
+import {
+  createGenerationCursor,
+  generationEventFields,
+  rejectEventsOnlyReplay,
+  replayGenerationEvents,
+} from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
   createGenerationContext,
+  applyGenerationResultTransforms,
   runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
@@ -20,7 +27,11 @@ import {
 } from '../middleware'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware } from '../middleware'
+import type {
+  GenerationMiddleware,
+  GenerationRunIdentity,
+  GenerationRunOptions,
+} from '../middleware'
 import type { VideoAdapter } from './adapter'
 import type {
   MediaPrompt,
@@ -126,58 +137,57 @@ interface VideoActivityBaseOptions<
 export type VideoCreateOptions<
   TAdapter extends VideoAdapter<string, any, any, any>,
   TStream extends boolean = false,
-> = VideoActivityBaseOptions<TAdapter> & {
-  /** Request type - create a new job (default if not specified) */
-  request?: 'create'
-  /**
-   * Description of the desired video. Either a plain string, or — for models
-   * that support image-conditioned generation — an ordered array of content
-   * parts interleaving text with image inputs. Image parts may carry
-   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
-   * 'character'`) to disambiguate intent; positional fallback otherwise. The
-   * accepted part types are narrowed per model via the adapter's
-   * input-modality map.
-   */
-  prompt: VideoPromptForAdapter<TAdapter>
-  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
-  size?: VideoSizeForAdapter<TAdapter>
-  /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
-   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
-   * value.
-   */
-  duration?: VideoDurationForAdapter<TAdapter>
-  /**
-   * Whether to stream the video generation lifecycle.
-   * When true, returns an AsyncIterable<StreamChunk> that handles the full
-   * job lifecycle: create job, poll for status, yield updates, and yield final result.
-   * When false or not provided, returns a Promise<VideoJobResult>.
-   *
-   * @default false
-   */
-  stream?: TStream
-  /** Polling interval in milliseconds (stream mode only). @default 2000 */
-  pollingInterval?: number
-  /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
-  maxDuration?: number
-  /** Custom run ID (stream mode only) */
-  runId?: string
-  /**
-   * Enable debug logging. Pass `true` to enable all categories, `false` to
-   * silence everything including errors, or a `DebugConfig` object for granular
-   * control and/or a custom `Logger`.
-   */
-  debug?: DebugOption
-  /**
-   * Observe-only middleware notified on start, usage, success, and error. Pass
-   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
-   * `GenerationMiddleware` contract for a custom backend. In streaming mode the
-   * span covers the full create→poll→complete lifecycle; in non-streaming mode
-   * it covers job submission. An abandoned stream fires `onAbort`.
-   */
-  middleware?: Array<GenerationMiddleware>
-} & ({} extends VideoProviderOptions<TAdapter>
+> = VideoActivityBaseOptions<TAdapter> &
+  GenerationRunOptions<VideoJobResult | VideoUrlResult> & {
+    /** Request type - create a new job (default if not specified) */
+    request?: 'create'
+    /**
+     * Description of the desired video. Either a plain string, or — for models
+     * that support image-conditioned generation — an ordered array of content
+     * parts interleaving text with image inputs. Image parts may carry
+     * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+     * 'character'`) to disambiguate intent; positional fallback otherwise. The
+     * accepted part types are narrowed per model via the adapter's
+     * input-modality map.
+     */
+    prompt: VideoPromptForAdapter<TAdapter>
+    /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+    size?: VideoSizeForAdapter<TAdapter>
+    /**
+     * Video duration in seconds. Adapters that declare a per-model duration
+     * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
+     * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
+     * value.
+     */
+    duration?: VideoDurationForAdapter<TAdapter>
+    /**
+     * Whether to stream the video generation lifecycle.
+     * When true, returns an AsyncIterable<StreamChunk> that handles the full
+     * job lifecycle: create job, poll for status, yield updates, and yield final result.
+     * When false or not provided, returns a Promise<VideoJobResult>.
+     *
+     * @default false
+     */
+    stream?: TStream
+    /** Polling interval in milliseconds (stream mode only). @default 2000 */
+    pollingInterval?: number
+    /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
+    maxDuration?: number
+    /**
+     * Enable debug logging. Pass `true` to enable all categories, `false` to
+     * silence everything including errors, or a `DebugConfig` object for granular
+     * control and/or a custom `Logger`.
+     */
+    debug?: DebugOption
+    /**
+     * Observe-only middleware notified on start, usage, success, and error. Pass
+     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+     * `GenerationMiddleware` contract for a custom backend. In streaming mode the
+     * span covers the full create→poll→complete lifecycle; in non-streaming mode
+     * it covers job submission. An abandoned stream fires `onAbort`.
+     */
+    middleware?: Array<GenerationMiddleware>
+  } & ({} extends VideoProviderOptions<TAdapter>
     ? {
         /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
       }
@@ -316,7 +326,23 @@ export function generateVideo<
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
-  const { adapter, prompt, size, duration, modelOptions, middleware } = options
+  rejectEventsOnlyReplay(options.replay)
+
+  if (options.replay && 'result' in options.replay) {
+    return options.replay.result as VideoJobResult
+  }
+
+  const {
+    adapter,
+    prompt,
+    size,
+    duration,
+    modelOptions,
+    middleware,
+    threadId,
+    runId,
+    cursor,
+  } = options
   const model = adapter.model
   const requestId = createId('video')
   const startTime = Date.now()
@@ -332,6 +358,10 @@ async function runCreateVideoJob<
     provider: adapter.name,
     model,
     modelOptions,
+    threadId,
+    runId,
+    cursor,
+    artifactInputs: { prompt, size, duration },
     createId,
   })
 
@@ -343,7 +373,7 @@ async function runCreateVideoJob<
   })
 
   try {
-    const result = await adapter.createVideoJob({
+    const rawResult = await adapter.createVideoJob({
       model,
       prompt,
       size,
@@ -351,6 +381,7 @@ async function runCreateVideoJob<
       modelOptions,
       logger,
     })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     logger.output(`activity=generateVideo jobId=${result.jobId}`, {
       jobId: result.jobId,
       model: result.model,
@@ -385,6 +416,11 @@ function sleep(ms: number): Promise<void> {
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
+  if (options.replay?.events) {
+    yield* replayGenerationEvents(options.replay)
+    return
+  }
+
   const { adapter, prompt, size, duration, modelOptions, middleware } = options
   const model = adapter.model
   const runId = options.runId ?? createId('run')
@@ -398,14 +434,50 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  const threadId = createId('thread')
+  const threadId = options.threadId ?? createId('thread')
+  const nextCursor = createGenerationCursor(options.cursor)
+  const identity = { threadId, runId, cursor: options.cursor }
 
   yield {
     type: 'RUN_STARTED',
     runId,
     threadId,
+    ...generationEventFields(identity, nextCursor),
     timestamp: Date.now(),
   } as StreamChunk
+
+  if (options.replay && 'result' in options.replay) {
+    const replayResult = options.replay.result as {
+      artifacts?: Array<unknown>
+    }
+    if (replayResult.artifacts && replayResult.artifacts.length > 0) {
+      yield {
+        type: 'CUSTOM',
+        name: 'generation:artifacts',
+        value: replayResult.artifacts,
+        ...generationEventFields(identity, nextCursor),
+        timestamp: Date.now(),
+      } as StreamChunk
+    }
+
+    yield {
+      type: 'CUSTOM',
+      name: 'generation:result',
+      value: options.replay.result,
+      ...generationEventFields(identity, nextCursor),
+      timestamp: Date.now(),
+    } as StreamChunk
+
+    yield {
+      type: 'RUN_FINISHED',
+      runId,
+      threadId,
+      finishReason: 'stop',
+      ...generationEventFields(identity, nextCursor),
+      timestamp: Date.now(),
+    } as StreamChunk
+    return
+  }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -413,6 +485,10 @@ async function* runStreamingVideoGeneration<
     provider: adapter.name,
     model,
     modelOptions,
+    threadId,
+    runId,
+    cursor: options.cursor,
+    artifactInputs: { prompt, size, duration },
     createId,
   })
 
@@ -444,6 +520,7 @@ async function* runStreamingVideoGeneration<
       type: 'CUSTOM',
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
+      ...generationEventFields(identity, nextCursor),
       timestamp: Date.now(),
     } as StreamChunk
 
@@ -463,11 +540,16 @@ async function* runStreamingVideoGeneration<
           progress: statusResult.progress,
           error: statusResult.error,
         },
+        ...generationEventFields(identity, nextCursor),
         timestamp: Date.now(),
       } as StreamChunk
 
       if (statusResult.status === 'completed') {
-        const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+        const rawUrlResult = await adapter.getVideoUrl(jobResult.jobId)
+        const urlResult = await applyGenerationResultTransforms(
+          mwCtx,
+          rawUrlResult,
+        )
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
@@ -489,16 +571,24 @@ async function* runStreamingVideoGeneration<
         })
         settled = true
 
+        if (urlResult.artifacts && urlResult.artifacts.length > 0) {
+          yield {
+            type: 'CUSTOM',
+            name: 'generation:artifacts',
+            value: urlResult.artifacts,
+            ...generationEventFields(identity, nextCursor),
+            timestamp: Date.now(),
+          } as StreamChunk
+        }
+
         yield {
           type: 'CUSTOM',
           name: 'generation:result',
           value: {
-            jobId: jobResult.jobId,
+            ...urlResult,
             status: 'completed',
-            url: urlResult.url,
-            expiresAt: urlResult.expiresAt,
-            ...(urlResult.usage ? { usage: urlResult.usage } : {}),
           },
+          ...generationEventFields(identity, nextCursor),
           timestamp: Date.now(),
         } as StreamChunk
 
@@ -507,6 +597,7 @@ async function* runStreamingVideoGeneration<
           runId,
           threadId,
           finishReason: 'stop',
+          ...generationEventFields(identity, nextCursor),
           timestamp: Date.now(),
         } as StreamChunk
         return
@@ -537,6 +628,7 @@ async function* runStreamingVideoGeneration<
       type: 'RUN_ERROR',
       runId,
       threadId,
+      ...generationEventFields(identity, nextCursor),
       message: payload.message,
       code: payload.code,
       error: payload,
@@ -583,22 +675,27 @@ async function* runStreamingVideoGeneration<
  */
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<string, any, any, any>,
->(options: {
-  adapter: TAdapter & { kind: typeof kind }
-  jobId: string
-}): Promise<{
+>(
+  options: {
+    adapter: TAdapter & { kind: typeof kind }
+    jobId: string
+  } & GenerationRunIdentity,
+): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   url?: string
   error?: string
   usage?: TokenUsage
 }> {
-  const { adapter, jobId } = options
+  const { adapter, jobId, threadId, runId, cursor } = options
   const requestId = createId('video-status')
   const startTime = Date.now()
+  const nextCursor = createGenerationCursor(cursor)
+  const identity = { threadId, runId, cursor }
 
   aiEventClient.emit('video:request:started', {
     requestId,
+    ...generationEventFields(identity, nextCursor),
     provider: adapter.name,
     model: adapter.model,
     requestType: 'status',
@@ -615,6 +712,7 @@ export async function getVideoJobStatus<
       const urlResult = await adapter.getVideoUrl(jobId)
       aiEventClient.emit('video:request:completed', {
         requestId,
+        ...generationEventFields(identity, nextCursor),
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
@@ -628,6 +726,7 @@ export async function getVideoJobStatus<
       if (urlResult.usage) {
         aiEventClient.emit('video:usage', {
           requestId,
+          ...generationEventFields(identity, nextCursor),
           model: adapter.model,
           usage: urlResult.usage,
           timestamp: Date.now(),
@@ -644,6 +743,7 @@ export async function getVideoJobStatus<
         error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
         requestId,
+        ...generationEventFields(identity, nextCursor),
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
@@ -665,6 +765,7 @@ export async function getVideoJobStatus<
 
   aiEventClient.emit('video:request:completed', {
     requestId,
+    ...generationEventFields(identity, nextCursor),
     provider: adapter.name,
     model: adapter.model,
     requestType: 'status',

@@ -17,31 +17,49 @@ You need a persistence backend with:
 - `stores.locks` when multiple server instances can update the same file set.
 
 If you pass a manual `features` list to `withPersistence(...)`, include
-`metadata`, `artifacts`, and usually `locks` for file-heavy scenarios. Include
-`blobs` when your app writes directly to the blob store instead of only using
-artifact APIs.
+`metadata`, `artifacts`, and `blobs`, plus usually `locks` for file-heavy
+scenarios. Manual feature lists must pair `'artifacts'` with `'blobs'` because
+artifact metadata and stored bytes are enabled together.
+
+For resumable image, audio, speech, transcription, and video hooks, start with
+[Resumable Generations](./resumable-generations). This page focuses on the
+artifact and blob records those endpoints create.
 
 ## Save a generated file
 
 Use `stores.artifacts` when a run produces a file the user may download, preview,
-or reopen later.
+or reopen later. These examples use Cloudflare D1 plus R2 because that backend
+exposes both artifact metadata and durable bytes.
 
 ```ts group=files-and-artifacts
 import { chat } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { withPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
-const persistence = sqlitePersistence({ path: '.tanstack-ai/state.sqlite' })
+interface Env {
+  AI_D1: D1Database
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+
+function persistence(env: Env) {
+  return cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
+  })
+}
 
 async function saveReport(input: {
   threadId: string
   runId: string
   markdown: string
+  env: Env
 }) {
   const bytes = new TextEncoder().encode(input.markdown)
 
-  await persistence.stores.artifacts?.save({
+  await persistence(input.env).stores.artifacts.save({
     artifactId: `report:${input.runId}`,
     runId: input.runId,
     threadId: input.threadId,
@@ -53,27 +71,29 @@ async function saveReport(input: {
   })
 }
 
-chat({
-  threadId: 'thread-123',
-  runId: 'run-123',
-  adapter: anthropicText('claude-sonnet-4-6'),
-  messages: [{ role: 'user', content: 'Write the report.' }],
-  middleware: [
-    withPersistence(persistence, {
-      features: ['messages', 'durable-replay', 'artifacts'],
-    }),
-  ],
-})
+export function runReport(env: Env) {
+  return chat({
+    threadId: 'thread-123',
+    runId: 'run-123',
+    adapter: anthropicText('claude-sonnet-4-6'),
+    messages: [{ role: 'user', content: 'Write the report.' }],
+    middleware: [
+      withPersistence(persistence(env), {
+        features: ['messages', 'durable-replay', 'artifacts', 'blobs'],
+      }),
+    ],
+  })
+}
 ```
 
 `list(runId)` returns artifact metadata for a run. `get(artifactId)` returns the
 metadata and hydrates `bytes` when the backend has the byte body available.
 
 ```ts group=files-and-artifacts
-const artifacts = await persistence.stores.artifacts?.list('run-123')
-const report = await persistence.stores.artifacts?.get('report:run-123')
+const artifacts = await persistence(env).stores.artifacts.list('run-123')
+const report = await persistence(env).stores.artifacts.get('report:run-123')
 
-if (report?.bytes) {
+if (report && report.bytes) {
   const markdown = new TextDecoder().decode(report.bytes)
   console.log(markdown)
 }
@@ -88,7 +108,7 @@ metadata.
 ```ts group=files-and-artifacts
 const zipBytes = new Uint8Array()
 
-await persistence.stores.blobs?.put(
+await persistence(env).stores.blobs.put(
   'projects/project-123/archive.zip',
   zipBytes,
   {
@@ -99,7 +119,7 @@ await persistence.stores.blobs?.put(
   },
 )
 
-await persistence.stores.metadata?.set(
+await persistence(env).stores.metadata.set(
   'project:project-123',
   'latest-archive',
   { blobKey: 'projects/project-123/archive.zip' },
@@ -108,6 +128,127 @@ await persistence.stores.metadata?.set(
 
 Artifacts are the better default when the file belongs to a chat run. Blobs are
 the lower-level primitive when your app owns the index shape.
+
+## Persist generated media
+
+Passing `withPersistence(persistence)` into a generation call enables built-in
+artifact persistence when the selected persistence backend exposes both
+`stores.artifacts` and `stores.blobs`. If you pass a manual `features` list,
+include both `'artifacts'` and `'blobs'`; enabling only one fails early because
+artifact metadata and bytes must stay paired.
+
+```ts
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { withPersistence } from '@tanstack/ai-persistence'
+
+interface Env {
+  AI_D1: D1Database
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+
+export async function generateProductVideo(env: Env) {
+  const persistence = cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
+  })
+
+  const result = await generateVideo({
+    threadId: 'thread-123',
+    runId: 'run-123',
+    adapter: falVideo('fal-ai/veo3.1'),
+    prompt: 'A camera glides through a glass greenhouse at dawn',
+    middleware: [withPersistence(persistence)],
+  })
+
+  for (const artifact of result.artifacts ?? []) {
+    console.log(artifact.role, artifact.name, artifact.artifactId)
+  }
+}
+```
+
+Built-in extraction stores input media prompt parts with role `input` and
+generated media with role `output`. `result.artifacts` contains durable
+references with the run/thread ids, MIME type, size, source activity, source
+path, provider, and model. Streaming generation endpoints emit
+`generation:artifacts` before `generation:result`, so hooks can show durable
+artifact refs before the final result object arrives.
+
+Remote output URLs are copied into the blob store by default. The persisted
+artifact ref may keep the original `externalUrl` for display or provenance, but
+durability comes from the copied blob bytes. Data URLs are decoded and persisted
+as bytes; the data URL itself is not stored as `externalUrl` and is not echoed
+back in the artifact ref.
+
+Built-in extraction covers:
+
+- input image, audio, and video prompt parts,
+- generated image outputs,
+- generated audio and text-to-speech outputs,
+- generated video output URLs,
+- transcription input audio,
+- transcription structured JSON output when segments or words are present.
+
+Summarization does not create artifacts by default because its result is
+structured text. Use custom extraction when a summarization endpoint produces a
+downloadable report or app-owned file.
+
+## Customize generation artifacts
+
+Use `extractArtifacts` when your app needs a different artifact set than the
+built-in extractor. Providing it replaces built-in extraction for that
+generation run, so include every input and output artifact you want persisted.
+Use `nameArtifact` when the built-in extraction is right but your product needs
+stable names.
+
+```ts
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { withPersistence } from '@tanstack/ai-persistence'
+
+interface Env {
+  AI_D1: D1Database
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+
+export async function generateProductImage(env: Env) {
+  const persistence = cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
+  })
+
+  const result = await generateImage({
+    threadId: 'thread-123',
+    runId: 'run-123',
+    adapter: openaiImage('gpt-image-2'),
+    prompt: 'A product photo on a white background',
+    middleware: [
+      withPersistence(persistence, {
+        extractArtifacts: ({ result }) => [
+          {
+            role: 'output',
+            path: 'metadata',
+            mediaType: 'json',
+            mimeType: 'application/json',
+            json: { generatedAt: new Date().toISOString(), result },
+            name: 'generation-metadata.json',
+          },
+        ],
+        nameArtifact: ({ descriptor, index }) =>
+          `${descriptor.role}-${descriptor.mediaType ?? 'artifact'}-${index}.bin`,
+      }),
+    ],
+  })
+
+  console.log(result.artifacts)
+}
+```
 
 ## Persist sandbox workspace files
 
@@ -124,57 +265,71 @@ durable product.
 ```ts
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { withPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 import {
   defineSandbox,
   defineWorkspace,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
 
-const persistence = sqlitePersistence({ path: '.tanstack-ai/state.sqlite' })
+interface Env {
+  AI_D1: D1Database
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+  Sandbox: DurableObjectNamespace
+}
 
-const projectSandbox = defineSandbox({
-  id: 'project-builder',
-  provider: dockerSandbox({ image: 'node:22' }),
-  workspace: defineWorkspace({
-    source: { type: 'none' },
-    root: '/workspace',
-  }),
-  lifecycle: {
-    reuse: 'thread',
-    destroyOnComplete: false,
-  },
-  persistence: {
-    workspace: {
-      key: 'project-123',
+export function runProjectBuilder(env: Env) {
+  const persistence = cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
+  })
+
+  const projectSandbox = defineSandbox({
+    id: 'project-builder',
+    provider: cloudflareSandbox({ binding: env.Sandbox }),
+    workspace: defineWorkspace({
+      source: { type: 'none' },
       root: '/workspace',
-      exclude: ['**/.turbo/**', '**/coverage/**'],
-      maxFileBytes: 10 * 1024 * 1024,
-      consistency: 'strict',
-    },
-  },
-})
-
-const stream = chat({
-  threadId: 'thread-123',
-  runId: 'run-123',
-  adapter: claudeCodeText('claude-sonnet-4-6'),
-  messages: [{ role: 'user', content: 'Build the app.' }],
-  middleware: [
-    withPersistence(persistence, {
-      features: [
-        'messages',
-        'durable-replay',
-        'metadata',
-        'artifacts',
-        'locks',
-      ],
     }),
-    withSandbox(projectSandbox),
-  ],
-})
+    lifecycle: {
+      reuse: 'thread',
+      destroyOnComplete: false,
+    },
+    persistence: {
+      workspace: {
+        key: 'project-123',
+        root: '/workspace',
+        exclude: ['**/.turbo/**', '**/coverage/**'],
+        maxFileBytes: 10 * 1024 * 1024,
+        consistency: 'strict',
+      },
+    },
+  })
+
+  return chat({
+    threadId: 'thread-123',
+    runId: 'run-123',
+    adapter: claudeCodeText('claude-sonnet-4-6'),
+    messages: [{ role: 'user', content: 'Build the app.' }],
+    middleware: [
+      withPersistence(persistence, {
+        features: [
+          'messages',
+          'durable-replay',
+          'metadata',
+          'artifacts',
+          'blobs',
+          'locks',
+        ],
+      }),
+      withSandbox(projectSandbox),
+    ],
+  })
+}
 ```
 
 When a watched file changes, `withSandbox(...)` reads exact bytes from the

@@ -39,7 +39,18 @@ export type {
 
 // Middleware
 export { withPersistence } from './middleware'
-export type { WithPersistenceOptions } from './middleware'
+export type {
+  GenerationArtifactDescriptor,
+  GenerationArtifactExtractionInput,
+  GenerationArtifactNameInput,
+  WithPersistenceOptions,
+} from './middleware'
+
+export type {
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+} from '@tanstack/ai'
 
 // Reference in-memory implementation
 export { memoryPersistence } from './memory'

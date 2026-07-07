@@ -302,7 +302,8 @@
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-07"
         }
       ]
     },
@@ -406,12 +407,18 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-06-18",
-          "updatedAt": "2026-07-06"
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Resumable Chat",
           "to": "persistence/resumable-chat",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-07"
+        },
+        {
+          "label": "Resumable Generations",
+          "to": "persistence/resumable-generations",
+          "addedAt": "2026-07-07"
         },
         {
           "label": "Interrupts and Approvals",
@@ -428,12 +435,13 @@
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-06"
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Files and Artifacts",
           "to": "persistence/files-and-artifacts",
-          "addedAt": "2026-07-06"
+          "addedAt": "2026-07-06",
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Custom Stores",
@@ -535,12 +543,14 @@
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "@tanstack/ai-preact",
@@ -550,17 +560,20 @@
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
-          "addedAt": "2026-06-15"
+          "addedAt": "2026-06-15",
+          "updatedAt": "2026-07-07"
         }
       ]
     },

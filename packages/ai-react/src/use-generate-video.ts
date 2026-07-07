@@ -7,11 +7,16 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGenerateVideo hook.
@@ -27,6 +32,14 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -71,6 +84,16 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
+  /** Resume the current/initial video generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -127,6 +150,9 @@ export function useGenerateVideo<TTransformed = void>(
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<GenerationClientState>('idle')
+  const [resumeSnapshot, setResumeSnapshot] = useState<
+    GenerationResumeSnapshot | undefined
+  >(options.initialResumeSnapshot)
 
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -142,6 +168,12 @@ export function useGenerateVideo<TTransformed = void>(
     const baseOptions = {
       id: clientId,
       body: opts.body,
+      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
+      ...(opts.autoResume !== undefined && { autoResume: opts.autoResume }),
+      ...(opts.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: opts.initialResumeSnapshot,
+      }),
+      ...(opts.resumeState !== undefined && { resumeState: opts.resumeState }),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,
@@ -177,6 +209,7 @@ export function useGenerateVideo<TTransformed = void>(
       onStatusChange: setStatus,
       onJobIdChange: setJobId,
       onVideoStatusChange: setVideoStatus,
+      onResumeSnapshotChange: setResumeSnapshot,
     }
 
     if (opts.connection) {
@@ -203,14 +236,32 @@ export function useGenerateVideo<TTransformed = void>(
     // Conditional spread: target uses strict-optional `body?: T`.
     client.updateOptions({
       ...(options.body !== undefined && { body: options.body }),
+      ...(options.resumeState !== undefined && {
+        resumeState: options.resumeState,
+      }),
     })
-  }, [client, options.body])
+  }, [client, options.body, options.resumeState])
 
   // Cleanup on unmount
   useEffect(() => {
+    let mounted = true
     client.mountDevtools()
+    void client
+      .maybeAutoResume()
+      .catch((err: unknown) => {
+        if (!mounted) return
+        const error = err instanceof Error ? err : new Error(String(err))
+        optionsRef.current.onError?.(error)
+        setError(error)
+        setStatus('error')
+      })
+      .finally(() => {
+        if (!mounted) return
+        setResumeSnapshot(client.getResumeSnapshot())
+      })
 
     return () => {
+      mounted = false
       client.dispose()
     }
   }, [client])
@@ -230,6 +281,15 @@ export function useGenerateVideo<TTransformed = void>(
     client.reset()
   }, [client])
 
+  const resume = useCallback(
+    async (state?: GenerationResumeState) => {
+      const didResume = await client.resume(state)
+      setResumeSnapshot(client.getResumeSnapshot())
+      return didResume
+    },
+    [client],
+  )
+
   return {
     generate,
     result,
@@ -240,5 +300,10 @@ export function useGenerateVideo<TTransformed = void>(
     status,
     stop,
     reset,
+    resumeSnapshot,
+    resumeState: resumeSnapshot?.resumeState ?? null,
+    pendingArtifacts: resumeSnapshot?.pendingArtifacts ?? [],
+    resultArtifacts: resumeSnapshot?.result?.artifacts ?? [],
+    resume,
   }
 }

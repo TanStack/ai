@@ -15,8 +15,13 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 /**
@@ -39,6 +44,14 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -75,6 +88,16 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: DeepReadonly<ShallowRef<GenerationResumeSnapshot | undefined>>
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: DeepReadonly<ShallowRef<GenerationResumeState | null>>
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: DeepReadonly<ShallowRef<Array<GenerationPendingArtifact>>>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: DeepReadonly<ShallowRef<Array<PersistedArtifactRef>>>
+  /** Resume the current/initial generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -122,6 +145,29 @@ export function useGeneration<
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
+  const resumeSnapshot = shallowRef<GenerationResumeSnapshot | undefined>(
+    options.initialResumeSnapshot,
+  )
+  const resumeState = shallowRef<GenerationResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const pendingArtifacts = shallowRef<Array<GenerationPendingArtifact>>(
+    options.initialResumeSnapshot?.pendingArtifacts ?? [],
+  )
+  const resultArtifacts = shallowRef<Array<PersistedArtifactRef>>(
+    options.initialResumeSnapshot?.result?.artifacts ?? [],
+  )
+  let disposed = false
+
+  const setResumeSnapshotState = (
+    snapshot: GenerationResumeSnapshot | undefined,
+  ) => {
+    if (disposed) return
+    resumeSnapshot.value = snapshot
+    resumeState.value = snapshot?.resumeState ?? null
+    pendingArtifacts.value = snapshot?.pendingArtifacts ?? []
+    resultArtifacts.value = snapshot?.result?.artifacts ?? []
+  }
 
   // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
   // optional (`body?: Record<string, any>`), and under EOPT we must omit the
@@ -129,6 +175,16 @@ export function useGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(options.resumeState !== undefined && {
+      resumeState: options.resumeState,
+    }),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -141,21 +197,32 @@ export function useGeneration<
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result.value = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading.value = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error.value = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status.value = s
     },
+    onResumeSnapshotChange: setResumeSnapshotState,
   }
 
   let client: GenerationClient<TInput, TResult, TOutput>
@@ -176,24 +243,41 @@ export function useGeneration<
     )
   }
 
-  // Sync body changes to the client.
+  // Sync body/resumeState changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
   // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
-    () => options.body,
-    (newBody) => {
+    () => [options.body, options.resumeState] as const,
+    ([newBody, newResumeState]) => {
       client.updateOptions({
         ...(newBody !== undefined && { body: newBody }),
+        ...(newResumeState !== undefined && {
+          resumeState: newResumeState,
+        }),
       })
     },
   )
 
   onMounted(() => {
     client.mountDevtools()
+    void client
+      .maybeAutoResume()
+      .catch((err: unknown) => {
+        if (disposed) return
+        const nextError = err instanceof Error ? err : new Error(String(err))
+        options.onError?.(nextError)
+        error.value = nextError
+        status.value = 'error'
+      })
+      .finally(() => {
+        if (disposed) return
+        setResumeSnapshotState(client.getResumeSnapshot())
+      })
   })
 
   // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
+    disposed = true
     client.dispose()
   })
 
@@ -209,6 +293,14 @@ export function useGeneration<
     client.reset()
   }
 
+  const resume = async (state?: GenerationResumeState) => {
+    const didResume = await client.resume(state)
+    if (!disposed) {
+      setResumeSnapshotState(client.getResumeSnapshot())
+    }
+    return didResume
+  }
+
   return {
     generate: generate as (input: Record<string, any>) => Promise<void>,
     // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
@@ -221,5 +313,12 @@ export function useGeneration<
     status: readonly(status),
     stop,
     reset,
+    resumeSnapshot: readonly(
+      resumeSnapshot,
+    ) as UseGenerationReturn<TOutput>['resumeSnapshot'],
+    resumeState: readonly(resumeState),
+    pendingArtifacts: readonly(pendingArtifacts),
+    resultArtifacts: readonly(resultArtifacts),
+    resume,
   }
 }

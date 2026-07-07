@@ -7,9 +7,15 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import {
+  createGenerationCursor,
+  generationEventFields,
+  rejectEventsOnlyReplay,
+} from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
   createGenerationContext,
+  applyGenerationResultTransforms,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
@@ -18,7 +24,7 @@ import {
 import { resolveMediaPrompt } from '../../utilities/media-prompt'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware } from '../middleware'
+import type { GenerationMiddleware, GenerationRunOptions } from '../middleware'
 import type { ImageAdapter } from './adapter'
 import type {
   ImageGenerationResult,
@@ -137,19 +143,20 @@ export type ImageActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
-} & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
-  ? {
-      /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
-        TAdapter,
-        TAdapter['model']
-      >
-    }
-  : {
-      /** Provider-specific options for image generation */ modelOptions: ImageProviderOptionsForModel<
-        TAdapter,
-        TAdapter['model']
-      >
-    })
+} & GenerationRunOptions<ImageGenerationResult> &
+  ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
+    ? {
+        /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
+          TAdapter,
+          TAdapter['model']
+        >
+      }
+    : {
+        /** Provider-specific options for image generation */ modelOptions: ImageProviderOptionsForModel<
+          TAdapter,
+          TAdapter['model']
+        >
+      })
 
 // ===========================
 // Activity Result Type
@@ -225,8 +232,9 @@ export function generateImage<
   options: ImageActivityOptions<TAdapter, TStream>,
 ): ImageActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateImage(options),
+    return streamGenerationResult(
+      (resolvedOptions) => runGenerateImage({ ...options, ...resolvedOptions }),
+      options,
     ) as ImageActivityResult<TStream>
   }
 
@@ -242,17 +250,29 @@ async function runGenerateImage<
 >(
   options: ImageActivityOptions<TAdapter, boolean>,
 ): Promise<ImageGenerationResult> {
+  rejectEventsOnlyReplay(options.replay)
+
+  if (options.replay && 'result' in options.replay) {
+    return options.replay.result as ImageGenerationResult
+  }
+
   const {
     adapter,
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
+    cursor,
+    replay: _replay,
     ...rest
   } = options
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const nextCursor = createGenerationCursor(cursor)
+  const identity = { threadId, runId, cursor }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -260,6 +280,10 @@ async function runGenerateImage<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    cursor,
+    artifactInputs: { prompt: rest.prompt },
     createId,
   })
 
@@ -271,6 +295,7 @@ async function runGenerateImage<
 
   aiEventClient.emit('image:request:started', {
     requestId,
+    ...generationEventFields(identity, nextCursor),
     provider: adapter.name,
     model,
     prompt: resolved.text,
@@ -295,11 +320,13 @@ async function runGenerateImage<
   })
 
   try {
-    const result = await adapter.generateImages({ ...rest, model, logger })
+    const rawResult = await adapter.generateImages({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('image:request:completed', {
       requestId,
+      ...generationEventFields(identity, nextCursor),
       provider: adapter.name,
       model,
       // GeneratedImage is a discriminated `{ url } | { b64Json }` union, but the
@@ -319,6 +346,7 @@ async function runGenerateImage<
     if (result.usage) {
       aiEventClient.emit('image:usage', {
         requestId,
+        ...generationEventFields(identity, nextCursor),
         model,
         usage: result.usage,
         modelOptions: rest.modelOptions,

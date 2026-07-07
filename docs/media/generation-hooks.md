@@ -33,7 +33,7 @@ Generation hooks share a consistent API across all media types:
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
 | `useGeneration` | Generic `TInput` | Generic `TResult` |
 
-Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
+Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. Streaming hooks also expose lightweight resume state and persisted artifact refs. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
 
 ## Server Setup
 
@@ -60,6 +60,11 @@ export async function POST(req: Request) {
 ```
 
 The same pattern applies to all generation types -- swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, or `generateVideo`. See the individual media guides for server-side details.
+
+For refresh-safe generation, wrap the server call with `withPersistence(...)`
+and parse hook requests with `generationParamsFromRequest(...)`. See
+[Resumable Generations](../persistence/resumable-generations) for the complete
+server and client flow.
 
 ## useGenerateImage
 
@@ -181,7 +186,10 @@ function Transcriber() {
     if (file) {
       const reader = new FileReader()
       reader.onload = () => {
-        generate({ audio: reader.result as string, language: 'en' })
+        const audio = reader.result
+        if (typeof audio === 'string') {
+          generate({ audio, language: 'en' })
+        }
       }
       reader.readAsDataURL(file)
     }
@@ -391,6 +399,10 @@ function EmbeddingGenerator() {
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
 | `id` | `string` | Unique identifier for this generation instance |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
+| `persistence` | `{ server?: GenerationServerPersistence }` | Stores the lightweight generation resume snapshot. Generated media bytes are not stored in browser persistence. |
+| `autoResume` | `boolean` | Whether the hook should resume a persisted run on mount. Defaults to `true`. |
+| `initialResumeSnapshot` | `GenerationResumeSnapshot` | Initial lightweight snapshot restored by the app or a persistence adapter. |
+| `resumeState` | `GenerationResumeState` | Explicit `{ threadId, runId, cursor }` to use for the next resume or generation request. |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |
 | `onProgress` | `(progress: number, message?: string) => void` | Progress updates (0-100) |
@@ -409,6 +421,21 @@ function EmbeddingGenerator() {
 | `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
 | `stop` | `() => void` | Abort the current generation |
 | `reset` | `() => void` | Clear result, error, and return to idle |
+| `resume` | `(state?: GenerationResumeState) => Promise<boolean>` | Reconnect to the current, initial, or explicit resumable generation run |
+| `resumeSnapshot` | `GenerationResumeSnapshot \| undefined` | Lightweight snapshot containing resume cursor, status, errors, and artifact refs |
+| `resumeState` | `GenerationResumeState \| null` | Current `{ threadId, runId, cursor }`, or `null` when nothing is resumable |
+| `pendingArtifacts` | `Array<GenerationPendingArtifact>` | Persisted artifact refs observed during generation or replay before completion |
+| `resultArtifacts` | `Array<PersistedArtifactRef>` | Persisted artifact refs attached to the final replayed result |
+
+`stop()` aborts only the current client connection. It does not durably cancel
+server-side generation work or delete persisted run state.
+
+Generation hooks do not store generated image, audio, speech, transcription, or
+video bytes in browser persistence. The client snapshot keeps only
+`{ threadId, runId, cursor }` plus lightweight artifact refs. Use server
+persistence artifacts when generated media must survive refresh:
+[Resumable Generations](../persistence/resumable-generations) shows the full
+pattern.
 
 ### Result Transforms
 
@@ -425,24 +452,65 @@ const { result } = useGenerateImage({
 // result is now string[] instead of ImageGenerationResult
 ```
 
+## Resumable Generation
+
+All generation hooks can resume streamed generation endpoints when the server
+uses `withPersistence(...)` and returns SSE events. Add `persistence.server` to
+store the latest snapshot, rely on the default `autoResume: true`, or opt out
+and call `resume()` from your UI.
+
+```tsx
+import { localStorageAIPersistence } from '@tanstack/ai-client'
+import { fetchServerSentEvents, useGenerateVideo } from '@tanstack/ai-react'
+
+export function TrailerVideoGenerator() {
+  const video = useGenerateVideo({
+    id: 'trailer-video',
+    connection: fetchServerSentEvents('/api/generate/video'),
+    persistence: {
+      server: localStorageAIPersistence({
+        keyPrefix: 'tanstack-ai:generation-resume:',
+      }),
+    },
+  })
+
+  return (
+    <button disabled={video.isLoading} onClick={() => video.resume()}>
+      Resume
+    </button>
+  )
+}
+```
+
+If the server aborts provider work on disconnect, resume can only replay events
+that were already persisted. If a durable producer keeps running on the server,
+the hook can reconnect and receive the later artifact/result events.
+
 ## Framework Variants
 
-All generation hooks are available across React, Vue, and Svelte with the same capabilities. The API shapes are identical -- only the naming convention and reactive primitives differ.
+Generation hooks are available across React, Vue, Svelte, Solid, and Angular with the same capabilities. Preact currently exposes chat hooks only, not generation hooks. The API shapes are identical -- only the naming convention and reactive primitives differ.
 
-| Generation Type | React (`@tanstack/ai-react`) | Vue (`@tanstack/ai-vue`) | Svelte (`@tanstack/ai-svelte`) |
-|----------------|------------------------------|--------------------------|-------------------------------|
-| Image | `useGenerateImage` | `useGenerateImage` | `createGenerateImage` |
-| Speech | `useGenerateSpeech` | `useGenerateSpeech` | `createGenerateSpeech` |
-| Transcription | `useTranscription` | `useTranscription` | `createTranscription` |
-| Summarization | `useSummarize` | `useSummarize` | `createSummarize` |
-| Video | `useGenerateVideo` | `useGenerateVideo` | `createGenerateVideo` |
-| Base (generic) | `useGeneration` | `useGeneration` | `createGeneration` |
+| Generation Type | React | Vue | Svelte | Solid | Angular |
+|----------------|-------|-----|--------|-------|---------|
+| Image | `useGenerateImage` | `useGenerateImage` | `createGenerateImage` | `useGenerateImage` | `injectGenerateImage` |
+| Audio | `useGenerateAudio` | `useGenerateAudio` | `createGenerateAudio` | `useGenerateAudio` | `injectGenerateAudio` |
+| Speech | `useGenerateSpeech` | `useGenerateSpeech` | `createGenerateSpeech` | `useGenerateSpeech` | `injectGenerateSpeech` |
+| Transcription | `useTranscription` | `useTranscription` | `createTranscription` | `useTranscription` | `injectTranscription` |
+| Summarization | `useSummarize` | `useSummarize` | `createSummarize` | `useSummarize` | `injectSummarize` |
+| Video | `useGenerateVideo` | `useGenerateVideo` | `createGenerateVideo` | `useGenerateVideo` | `injectGenerateVideo` |
+| Base (generic) | `useGeneration` | `useGeneration` | `createGeneration` | `useGeneration` | `injectGeneration` |
 
-All three packages re-export `fetchServerSentEvents`, `fetchHttpStream`, and `stream` from `@tanstack/ai-client` for convenience.
+All framework packages re-export `fetchServerSentEvents`, `fetchHttpStream`, and `stream` from `@tanstack/ai-client` for convenience.
+
+**React note:** Return values are plain values/functions. `resumeState` is a value and `pendingArtifacts` / `resultArtifacts` are arrays.
 
 **Vue note:** Return values are wrapped in `DeepReadonly<ShallowRef<>>` -- access them with `.value` in both `<script>` and `<template>`.
 
-**Svelte note:** Functions use the `create*` naming convention and return Svelte 5 reactive state via `$state`.
+**Svelte note:** Functions use the `create*` naming convention and return Svelte 5 reactive getters. Call `dispose()` or `stop()` during cleanup when needed.
+
+**Solid note:** Reactive return values are accessors. Read `resumeState()` and `pendingArtifacts()`.
+
+**Angular note:** Injectables return read-only Angular `Signal`s. Read `resumeState()` and `pendingArtifacts()` from the injected result.
 
 ## Next Steps
 
@@ -451,3 +519,4 @@ All three packages re-export `fetchServerSentEvents`, `fetchHttpStream`, and `st
 - [Transcription](./transcription) -- File formats, language detection, and word-level timestamps
 - [Video Generation](./video-generation) -- Job lifecycle, polling, and provider setup
 - [Generations Overview](./generations) -- Architecture and server-side streaming patterns
+- [Resumable Generations](../persistence/resumable-generations) -- Refresh-safe generation and persisted artifact refs

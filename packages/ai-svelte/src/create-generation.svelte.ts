@@ -7,8 +7,13 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the createGeneration function.
@@ -30,6 +35,14 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on setup. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -70,6 +83,16 @@ export interface CreateGenerationReturn<TOutput> {
   dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
+  /** Lightweight generation resume snapshot, if one is available */
+  readonly resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  readonly resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  readonly pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  readonly resultArtifacts: Array<PersistedArtifactRef>
+  /** Resume the current/initial generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -129,6 +152,17 @@ export function createGeneration<
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
+  let resumeSnapshot = $state<GenerationResumeSnapshot | undefined>(
+    options.initialResumeSnapshot,
+  )
+  let disposed = false
+
+  const setResumeSnapshotState = (
+    snapshot: GenerationResumeSnapshot | undefined,
+  ) => {
+    if (disposed) return
+    resumeSnapshot = snapshot
+  }
 
   // `body` uses a conditional spread because `GenerationClientOptions.body`
   // is declared `body?: Record<string, any>` (absent vs. present) under
@@ -138,6 +172,16 @@ export function createGeneration<
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(options.resumeState !== undefined && {
+      resumeState: options.resumeState,
+    }),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -150,21 +194,32 @@ export function createGeneration<
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status = s
     },
+    onResumeSnapshotChange: setResumeSnapshotState,
   }
 
   let client: GenerationClient<TInput, TResult, TOutput>
@@ -186,6 +241,19 @@ export function createGeneration<
   }
 
   client.mountDevtools()
+  void client
+    .maybeAutoResume()
+    .catch((err: unknown) => {
+      if (disposed) return
+      const nextError = err instanceof Error ? err : new Error(String(err))
+      options.onError?.(nextError)
+      error = nextError
+      status = 'error'
+    })
+    .finally(() => {
+      if (disposed) return
+      setResumeSnapshotState(client.getResumeSnapshot())
+    })
 
   // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
@@ -205,11 +273,20 @@ export function createGeneration<
   }
 
   const dispose = () => {
+    disposed = true
     client.dispose()
   }
 
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
+  }
+
+  const resume = async (state?: GenerationResumeState) => {
+    const didResume = await client.resume(state)
+    if (!disposed) {
+      setResumeSnapshotState(client.getResumeSnapshot())
+    }
+    return didResume
   }
 
   return {
@@ -230,5 +307,18 @@ export function createGeneration<
     reset,
     dispose,
     updateBody,
+    get resumeSnapshot() {
+      return resumeSnapshot
+    },
+    get resumeState() {
+      return resumeSnapshot?.resumeState ?? null
+    },
+    get pendingArtifacts() {
+      return resumeSnapshot?.pendingArtifacts ?? []
+    },
+    get resultArtifacts() {
+      return resumeSnapshot?.result?.artifacts ?? []
+    },
+    resume,
   }
 }

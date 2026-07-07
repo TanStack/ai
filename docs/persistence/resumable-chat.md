@@ -64,7 +64,7 @@ under that `threadId` so reloads can continue the same durable run.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { localStorageChatPersistence } from '@tanstack/ai-client'
+import { localStorageAIPersistence } from '@tanstack/ai-client'
 
 const threadId = 'thread-123'
 
@@ -74,10 +74,10 @@ export function Chat() {
     threadId,
     connection: fetchServerSentEvents('/api/chat'),
     persistence: {
-      client: localStorageChatPersistence({
+      client: localStorageAIPersistence({
         keyPrefix: 'tanstack-ai:messages:',
       }),
-      server: localStorageChatPersistence({
+      server: localStorageAIPersistence({
         keyPrefix: 'tanstack-ai:resume:',
       }),
     },

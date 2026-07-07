@@ -1,4 +1,8 @@
 import { createGeneration } from './create-generation.svelte'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -14,7 +18,12 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to AudioGenerationResult)
  */
-export interface CreateGenerateAudioOptions<TOutput = AudioGenerationResult> {
+export interface CreateGenerateAudioOptions<
+  TOutput = AudioGenerationResult,
+> extends Pick<
+  CreateGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
+  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
@@ -46,7 +55,9 @@ export interface CreateGenerateAudioOptions<TOutput = AudioGenerationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
+export interface CreateGenerateAudioReturn<
+  TOutput = AudioGenerationResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The generation result containing audio, or null */
   readonly result: TOutput | null
   /** Whether generation is in progress */
@@ -57,12 +68,6 @@ export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
   readonly status: GenerationClientState
   /** Trigger audio generation */
   generate: (input: AudioGenerateInput) => Promise<void>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -130,5 +135,19 @@ export function createGenerateAudio<TTransformed = void>(
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get resumeSnapshot() {
+      return gen.resumeSnapshot
+    },
+    get resumeState() {
+      return gen.resumeState
+    },
+    get pendingArtifacts() {
+      return gen.pendingArtifacts
+    },
+    get resultArtifacts() {
+      return gen.resultArtifacts
+    },
+    resume: gen.resume,
   }
 }

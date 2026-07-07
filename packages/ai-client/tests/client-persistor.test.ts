@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
-import { ChatPersistor } from '../src/client-persistor'
+import { ChatPersistor, localStorageAIPersistence } from '../src/client-persistor'
 import { createMockPersistence, createUIMessage } from './test-utils'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ChatClientPersistence, UIMessage } from '../src/types'
 
 const CHAT_ID = 'chat-1'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 /** Resolve after pending micro- and macro-tasks have drained. */
 function flushAsync(): Promise<void> {
@@ -76,6 +80,38 @@ function messagesSnapshot(): StreamChunk {
 }
 
 describe('ChatPersistor', () => {
+  describe('localStorageAIPersistence', () => {
+    it('stores generic values under the configured prefix', () => {
+      const storage = new Map<string, string>()
+      vi.stubGlobal('localStorage', {
+        get length() {
+          return storage.size
+        },
+        clear: vi.fn(() => storage.clear()),
+        getItem: vi.fn((key: string) => storage.get(key) ?? null),
+        key: vi.fn((index: number) => Array.from(storage.keys())[index] ?? null),
+        removeItem: vi.fn((key: string) => {
+          storage.delete(key)
+        }),
+        setItem: vi.fn((key: string, value: string) => {
+          storage.set(key, value)
+        }),
+      } satisfies Storage)
+
+      const adapter = localStorageAIPersistence<{ count: number }>({
+        keyPrefix: 'custom-prefix:',
+      })
+
+      adapter.setItem('value-1', { count: 42 })
+
+      expect(globalThis.localStorage.setItem).toHaveBeenCalledWith(
+        'custom-prefix:value-1',
+        JSON.stringify({ count: 42 }),
+      )
+      expect(adapter.getItem('value-1')).toEqual({ count: 42 })
+    })
+  })
+
   describe('readInitial', () => {
     it('returns the stored messages from a synchronous getItem', () => {
       const stored = [createUIMessage('m-1')]

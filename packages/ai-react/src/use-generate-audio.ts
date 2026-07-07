@@ -6,8 +6,13 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGenerateAudio hook.
@@ -25,6 +30,14 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight resume state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Whether to resume a persisted run on mount. Defaults to true. */
+  autoResume?: boolean
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /** Explicit run/cursor state to use for the next resume/generation request. */
+  resumeState?: GenerationResumeState
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -61,6 +74,16 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
+  /** Resume the current/initial audio generation run, if resumable */
+  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -106,19 +129,19 @@ export function useGenerateAudio<TTransformed = void>(
     hookName: 'useGenerateAudio',
     outputKind: 'audio' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<AudioGenerateInput, AudioGenerationResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = useGeneration<
+    AudioGenerateInput,
+    AudioGenerationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
-    generate: generate as (input: AudioGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: AudioGenerateInput,
+    ) => Promise<void>,
   }
 }

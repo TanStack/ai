@@ -1,4 +1,8 @@
-import type { MediaPrompt, StreamChunk } from '@tanstack/ai/client'
+import type {
+  MediaPrompt,
+  PersistedArtifactRef,
+  StreamChunk,
+} from '@tanstack/ai/client'
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
@@ -58,6 +62,62 @@ export type InferGenerationOutput<TResult, TFn> = TFn extends (
  */
 export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
 
+export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
+
+export interface GenerationResumeState {
+  threadId: string
+  runId: string
+  cursor: string
+}
+
+export type GenerationPendingArtifact = PersistedArtifactRef
+
+export interface GenerationResultSnapshot {
+  id?: string
+  model?: string
+  status?: string
+  jobId?: string
+  expiresAt?: string
+  artifacts?: Array<PersistedArtifactRef>
+}
+
+export interface GenerationErrorSnapshot {
+  message: string
+  code?: string
+}
+
+export interface GenerationEventSnapshot {
+  type: StreamChunk['type']
+  name?: string
+  timestamp?: number
+}
+
+export interface GenerationResumeSnapshot {
+  resumeState: GenerationResumeState | null
+  status: GenerationResumeStatus
+  activity?: PersistedArtifactRef['source']['activity']
+  pendingArtifacts?: Array<GenerationPendingArtifact>
+  result?: GenerationResultSnapshot
+  error?: GenerationErrorSnapshot
+  lastEvent?: GenerationEventSnapshot
+}
+
+export interface GenerationServerPersistence {
+  getItem: (
+    id: string,
+  ) =>
+    | GenerationResumeSnapshot
+    | null
+    | undefined
+    | Promise<GenerationResumeSnapshot | null | undefined>
+  setItem: (id: string, value: GenerationResumeSnapshot) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
+export interface GenerationPersistenceOptions {
+  server?: GenerationServerPersistence
+}
+
 // ===========================
 // Event Constants
 // ===========================
@@ -70,6 +130,8 @@ export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
 export const GENERATION_EVENTS = {
   /** The generation result payload */
   RESULT: 'generation:result',
+  /** Persisted artifact refs for generated media */
+  ARTIFACTS: 'generation:artifacts',
   /** Progress update (0-100) with optional message */
   PROGRESS: 'generation:progress',
   /** Video job created with jobId */
@@ -88,6 +150,8 @@ export const GENERATION_EVENTS = {
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
+  /** Explicit persisted run/cursor metadata for direct server-function resume */
+  resumeState?: GenerationResumeState
 }
 
 /**
@@ -136,6 +200,33 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   devtools?: Partial<AIDevtoolsClientMetadata>
 
   /**
+   * Whether framework integrations should attempt to resume a persisted run on
+   * mount. Low-level clients expose the flag for hooks; they do not auto-resume
+   * by themselves. Defaults to `true` in framework hooks.
+   */
+  autoResume?: boolean
+
+  /**
+   * Initial lightweight resume snapshot restored by framework hooks. Contains
+   * only cursor metadata, errors, and persisted artifact refs.
+   */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+
+  /**
+   * Optional persistence adapters for lightweight generation resume state.
+   * Generation hooks only support `server` persistence; generated media bytes
+   * are never written into browser storage by this client.
+   */
+  persistence?: GenerationPersistenceOptions
+
+  /**
+   * Explicit run/cursor state to send on the next generation request. This is
+   * only a resume input; explicit `stop()` still aborts the local connection and
+   * does not model a durable server-side cancel.
+   */
+  resumeState?: GenerationResumeState
+
+  /**
    * Factory that constructs the devtools bridge. Default is a no-op
    * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
    */
@@ -166,6 +257,64 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   onErrorChange?: (error: Error | undefined) => void
   /** @internal Called when generation status changes */
   onStatusChange?: (status: GenerationClientState) => void
+  /** @internal Called when lightweight resume snapshot changes */
+  onResumeSnapshotChange?: (snapshot: GenerationResumeSnapshot) => void
+}
+
+export function updateGenerationResumeSnapshot(
+  previous: GenerationResumeSnapshot | null | undefined,
+  chunk: StreamChunk,
+): GenerationResumeSnapshot {
+  const threadId = stringField(chunk, 'threadId')
+  const runId = stringField(chunk, 'runId')
+  const cursor = stringField(chunk, 'cursor')
+  const previousArtifacts = previous?.pendingArtifacts ?? []
+  const next: GenerationResumeSnapshot = {
+    resumeState: previous?.resumeState ?? null,
+    status: previous?.status ?? 'idle',
+    ...(previous?.activity ? { activity: previous.activity } : {}),
+    ...(previousArtifacts.length > 0
+      ? { pendingArtifacts: [...previousArtifacts] }
+      : {}),
+    ...(previous?.result ? { result: { ...previous.result } } : {}),
+    ...(previous?.error ? { error: { ...previous.error } } : {}),
+    lastEvent: createGenerationEventSnapshot(chunk),
+  }
+
+  if (threadId && runId && cursor) {
+    next.resumeState = { threadId, runId, cursor }
+    next.status = 'running'
+  } else if (chunk.type === 'RUN_STARTED') {
+    next.status = 'running'
+  }
+
+  if (chunk.type === 'CUSTOM') {
+    if (chunk.name === GENERATION_EVENTS.ARTIFACTS) {
+      const artifacts = collectArtifactRefs(chunk.value)
+      if (artifacts.length > 0) {
+        next.pendingArtifacts = artifacts
+        next.activity = artifacts[0]?.source.activity
+      }
+    } else if (chunk.name === GENERATION_EVENTS.RESULT) {
+      const result = createGenerationResultSnapshot(chunk.value)
+      if (result) {
+        next.result = result
+        if (result.artifacts && result.artifacts.length > 0) {
+          next.pendingArtifacts = result.artifacts
+          next.activity = result.artifacts[0]?.source.activity
+        }
+      }
+    }
+  } else if (chunk.type === 'RUN_FINISHED') {
+    next.resumeState = null
+    next.status = 'complete'
+  } else if (chunk.type === 'RUN_ERROR') {
+    next.resumeState = null
+    next.status = 'error'
+    next.error = createGenerationErrorSnapshot(chunk)
+  }
+
+  return next
 }
 
 // ===========================
@@ -200,6 +349,8 @@ export interface VideoGenerateResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**
@@ -327,4 +478,211 @@ export interface VideoGenerateInput {
   duration?: number
   /** Model-specific options */
   modelOptions?: Record<string, any>
+}
+
+function createGenerationEventSnapshot(
+  chunk: StreamChunk,
+): GenerationEventSnapshot {
+  const name = stringField(chunk, 'name')
+  const timestamp = numberField(chunk, 'timestamp')
+  return {
+    type: chunk.type,
+    ...(name ? { name } : {}),
+    ...(timestamp !== undefined ? { timestamp } : {}),
+  }
+}
+
+function createGenerationResultSnapshot(
+  value: unknown,
+): GenerationResultSnapshot | undefined {
+  if (!isObject(value)) return undefined
+
+  const artifacts = collectArtifactRefs(Reflect.get(value, 'artifacts'))
+  const snapshot: GenerationResultSnapshot = {}
+  const id = stringField(value, 'id')
+  const model = stringField(value, 'model')
+  const status = stringField(value, 'status')
+  const jobId = stringField(value, 'jobId')
+  if (id) snapshot.id = id
+  if (model) snapshot.model = model
+  if (status) snapshot.status = status
+  if (jobId) snapshot.jobId = jobId
+  const expiresAt = Reflect.get(value, 'expiresAt')
+  if (typeof expiresAt === 'string') {
+    snapshot.expiresAt = expiresAt
+  } else if (expiresAt instanceof Date) {
+    snapshot.expiresAt = expiresAt.toISOString()
+  }
+  if (artifacts.length > 0) {
+    snapshot.artifacts = artifacts
+  }
+
+  return Object.keys(snapshot).length > 0 ? snapshot : undefined
+}
+
+function createGenerationErrorSnapshot(
+  chunk: StreamChunk,
+): GenerationErrorSnapshot {
+  const message =
+    stringField(chunk, 'message') ??
+    nestedStringField(chunk, 'error', 'message') ??
+    'An error occurred'
+  const code = stringField(chunk, 'code')
+  return {
+    message,
+    ...(code ? { code } : {}),
+  }
+}
+
+function collectArtifactRefs(value: unknown): Array<PersistedArtifactRef> {
+  if (!Array.isArray(value)) return []
+  const refs: Array<PersistedArtifactRef> = []
+  for (const item of value) {
+    const ref = createPersistedArtifactRefSnapshot(item)
+    if (ref) {
+      refs.push(ref)
+    }
+  }
+  return refs
+}
+
+function createPersistedArtifactRefSnapshot(
+  value: unknown,
+): PersistedArtifactRef | undefined {
+  if (!isObject(value)) return undefined
+  const source = Reflect.get(value, 'source')
+  if (!isObject(source)) return undefined
+
+  const role = persistedArtifactRoleField(value, 'role')
+  const artifactId = stringField(value, 'artifactId')
+  const threadId = stringField(value, 'threadId')
+  const runId = stringField(value, 'runId')
+  const name = stringField(value, 'name')
+  const mimeType = stringField(value, 'mimeType')
+  const size = numberField(value, 'size')
+  const createdAt = stringField(value, 'createdAt')
+  const activity = persistedArtifactActivityField(source, 'activity')
+  const path = stringField(source, 'path')
+  const provider = stringField(source, 'provider')
+  const model = stringField(source, 'model')
+  if (
+    !role ||
+    !artifactId ||
+    !threadId ||
+    !runId ||
+    !name ||
+    !mimeType ||
+    size === undefined ||
+    !createdAt ||
+    !activity ||
+    !path ||
+    !provider ||
+    !model
+  ) {
+    return undefined
+  }
+
+  const externalUrl = durableUrlField(value, 'externalUrl')
+  const mediaType = persistedArtifactMediaTypeField(source, 'mediaType')
+  const jobId = stringField(source, 'jobId')
+  const expiresAt = stringField(source, 'expiresAt')
+
+  return {
+    role,
+    artifactId,
+    threadId,
+    runId,
+    name,
+    mimeType,
+    size,
+    createdAt,
+    ...(externalUrl ? { externalUrl } : {}),
+    source: {
+      activity,
+      path,
+      provider,
+      model,
+      ...(mediaType ? { mediaType } : {}),
+      ...(jobId ? { jobId } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
+    },
+  }
+}
+
+function durableUrlField(value: object, key: string): string | undefined {
+  const field = stringField(value, key)
+  if (!field || field.length > 2048) return undefined
+  try {
+    const url = new URL(field)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? field
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function persistedArtifactRoleField(
+  value: object,
+  key: string,
+): PersistedArtifactRef['role'] | undefined {
+  const field = stringField(value, key)
+  return field === 'input' || field === 'output' ? field : undefined
+}
+
+function persistedArtifactActivityField(
+  value: object,
+  key: string,
+): PersistedArtifactRef['source']['activity'] | undefined {
+  const field = stringField(value, key)
+  switch (field) {
+    case 'image':
+    case 'audio':
+    case 'tts':
+    case 'video':
+    case 'transcription':
+      return field
+    default:
+      return undefined
+  }
+}
+
+function persistedArtifactMediaTypeField(
+  value: object,
+  key: string,
+): PersistedArtifactRef['source']['mediaType'] | undefined {
+  const field = stringField(value, key)
+  switch (field) {
+    case 'image':
+    case 'audio':
+    case 'video':
+    case 'document':
+    case 'json':
+      return field
+    default:
+      return undefined
+  }
+}
+
+function nestedStringField(
+  value: object,
+  key: string,
+  nestedKey: string,
+): string | undefined {
+  const nested = Reflect.get(value, key)
+  return isObject(nested) ? stringField(nested, nestedKey) : undefined
+}
+
+function stringField(value: object, key: string): string | undefined {
+  const field = Reflect.get(value, key)
+  return typeof field === 'string' ? field : undefined
+}
+
+function numberField(value: object, key: string): number | undefined {
+  const field = Reflect.get(value, key)
+  return typeof field === 'number' ? field : undefined
+}
+
+function isObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
 }
