@@ -173,6 +173,7 @@ function requirePublicKeyCredential(
 async function registerPasskey(
   rpName: string,
   userName: string,
+  rpId?: string,
 ): Promise<{
   credentialId: ArrayBuffer
   salt: Uint8Array<ArrayBuffer>
@@ -183,7 +184,9 @@ async function registerPasskey(
     await navigator.credentials.create({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: rpName },
+        // Omit `id` to let the browser bind the passkey to the current origin's
+        // effective domain; set it to scope across subdomains of a self-host.
+        rp: rpId ? { name: rpName, id: rpId } : { name: rpName },
         user: {
           id: crypto.getRandomValues(new Uint8Array(16)),
           name: userName,
@@ -243,6 +246,14 @@ export interface PasskeyStorageOptions {
   rpName?: string
   /** Username label attached to the created passkey. */
   userName?: string
+  /**
+   * WebAuthn Relying Party ID. Omit to bind the passkey to the current origin's
+   * effective domain (the default — no central/hardcoded domain). Set it to a
+   * registrable parent domain to share the credential across subdomains of your
+   * own deployment. The encrypted keyring is never portable across unrelated
+   * domains.
+   */
+  rpId?: string
   /** IndexedDB database name. Defaults to `tanstack-byok`. */
   dbName?: string
 }
@@ -258,6 +269,7 @@ export function passkeyStorage(
 ): KeyringStorage {
   const rpName = options.rpName ?? 'TanStack AI BYOK'
   const userName = options.userName ?? 'byok-keyring'
+  const { rpId } = options
   const dbName = options.dbName ?? DEFAULT_DB
 
   let cachedKey: CryptoKey | null = null
@@ -285,7 +297,7 @@ export function passkeyStorage(
         salt: new Uint8Array(existing.salt),
       }
     } else {
-      const reg = await registerPasskey(rpName, userName)
+      const reg = await registerPasskey(rpName, userName, rpId)
       const prf = reg.prf ?? (await evaluatePrf(reg.credentialId, reg.salt))
       cachedKey = await deriveAesKey(prf)
       cachedMeta = { credentialId: reg.credentialId, salt: reg.salt }

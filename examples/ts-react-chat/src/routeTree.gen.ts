@@ -21,6 +21,7 @@ import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
+import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -48,6 +49,7 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
@@ -113,6 +115,11 @@ const GenerationHooksRoute = GenerationHooksRouteImport.update({
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
   id: '/capability-demo',
   path: '/capability-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ByokRoute = ByokRouteImport.update({
+  id: '/byok',
+  path: '/byok',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -253,6 +260,11 @@ const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
   path: '/api/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
   id: '/example/guitars/',
   path: '/example/guitars/',
@@ -286,6 +298,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -333,6 +346,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -381,6 +395,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -430,6 +445,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/byok'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -442,6 +458,7 @@ export interface FileRouteTypes {
     | '/server-fn-chat'
     | '/threads'
     | '/typesafe-tools'
+    | '/api/byok-chat'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -477,6 +494,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/byok'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -489,6 +507,7 @@ export interface FileRouteTypes {
     | '/server-fn-chat'
     | '/threads'
     | '/typesafe-tools'
+    | '/api/byok-chat'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -524,6 +543,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/byok'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -572,6 +592,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ByokRoute: typeof ByokRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
@@ -583,7 +604,8 @@ export interface RootRouteChildren {
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
-  TypesafeToolsRoute: typeof TypesafeToolsRoute
+  TypesafeToolsRoute: typeof TypesafeToolsRoute,
+  ApiByokChatRoute: typeof ApiByokChatRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
@@ -702,6 +724,13 @@ declare module '@tanstack/react-router' {
       path: '/capability-demo'
       fullPath: '/capability-demo'
       preLoaderRoute: typeof CapabilityDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/byok': {
+      id: '/byok'
+      path: '/byok'
+      fullPath: '/byok'
+      preLoaderRoute: typeof ByokRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -893,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/example/guitars/': {
       id: '/example/guitars/'
       path: '/example/guitars'
@@ -940,6 +976,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ByokRoute: ByokRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
@@ -952,6 +989,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
+  ApiByokChatRoute: ApiByokChatRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,

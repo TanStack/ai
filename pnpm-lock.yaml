@@ -52,7 +52,7 @@ importers:
         version: 0.5.0
       knip:
         specifier: ^5.70.2
-        version: 5.73.4(@types/node@24.10.3)(typescript@5.9.3)
+        version: 5.73.4(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.10.3)(typescript@5.9.3)
       markdown-link-extractor:
         specifier: ^4.0.3
         version: 4.0.3
@@ -622,6 +622,9 @@ importers:
       '@tanstack/ai-bedrock':
         specifier: workspace:*
         version: link:../../packages/ai-bedrock
+      '@tanstack/ai-byok':
+        specifier: workspace:*
+        version: link:../../packages/ai-byok
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -27030,7 +27033,7 @@ snapshots:
 
   klona@2.0.6: {}
 
-  knip@5.73.4(@types/node@24.10.3)(typescript@5.9.3):
+  knip@5.73.4(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.10.3)(typescript@5.9.3):
     dependencies:
       '@nodelib/fs.walk': 1.2.8
       '@types/node': 24.10.3
