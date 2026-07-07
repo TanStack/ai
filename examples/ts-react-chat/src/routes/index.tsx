@@ -28,7 +28,16 @@ import {
   useChat,
   useTranscription,
 } from '@tanstack/ai-react'
+import {
+  ByokProvider,
+  byokHeaders,
+  memoryStorage,
+  useByok,
+} from '@tanstack/ai-byok/react'
 import { clientTools } from '@tanstack/ai-client'
+import type { ProviderId } from '@tanstack/ai-byok/react'
+import { ByokKeyDialog } from '@/components/ByokKeyDialog'
+import { byokIdForProvider, getEnvKeyStatus } from '@/lib/byok-config'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { BoundInterrupts } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
@@ -389,6 +398,22 @@ function Messages({
 function ChatPage() {
   const [selectedModel, setSelectedModel] =
     useState<ModelOption>(DEFAULT_MODEL_OPTION)
+
+  // BYOK: read the browser-held keyring and report which providers have a
+  // server-side env key, so we can warn before a keyless model is used.
+  const { keys } = useByok()
+  const keysRef = useRef(keys)
+  keysRef.current = keys
+  const [envKeyStatus, setEnvKeyStatus] = useState<
+    Partial<Record<ProviderId, boolean>>
+  >({})
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvKeyStatus)
+  }, [])
+
+  const activeByokId = byokIdForProvider(selectedModel.provider)
+  const needsKey =
+    activeByokId != null && !envKeyStatus[activeByokId] && !keys[activeByokId]
   const [attachedImages, setAttachedImages] = useState<
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
@@ -434,7 +459,9 @@ function ChatPage() {
     interrupts,
     stop,
   } = useChat({
-    connection: fetchServerSentEvents('/api/tanchat'),
+    connection: fetchServerSentEvents('/api/tanchat', () => ({
+      headers: byokHeaders(keysRef.current),
+    })),
     tools,
     byok,
     byokProvider: () => toByokProvider(selectedProviderRef.current),
@@ -633,6 +660,10 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <ByokKeyDialog
+              envStatus={envKeyStatus}
+              activeProvider={activeByokId}
+            />
             <Link
               to="/interrupts"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
@@ -651,6 +682,12 @@ function ChatPage() {
           <div className="mt-3">
             <ByokKeyForm provider={selectedModel.provider} />
           </div>
+          {needsKey && activeByokId ? (
+            <div className="mt-2 text-sm text-amber-400">
+              No key for {activeByokId}. Add one with the key icon to use this
+              model.
+            </div>
+          ) : null}
         </div>
 
         <Messages messages={messages} interrupts={interrupts} />
@@ -804,6 +841,15 @@ function ChatPage() {
   )
 }
 
+function ChatRoute() {
+  // Session-only keyring: keys vanish on refresh, nothing is persisted.
+  return (
+    <ByokProvider storage={memoryStorage()}>
+      <ChatPage />
+    </ByokProvider>
+  )
+}
+
 export const Route = createFileRoute('/')({
-  component: ChatPage,
+  component: ChatRoute,
 })
