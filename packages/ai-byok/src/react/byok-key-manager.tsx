@@ -29,9 +29,9 @@ export function ByokKeyManager({
     <div className={className} style={{ ...styles.root, ...style }}>
       {storage.persistent ? (
         <p style={styles.warning}>
-          Keys are saved in this browser ({storage.label}) and can be read by any
-          script or extension running on this page. Prefer session-only storage
-          on shared machines.
+          Keys are saved in this browser ({storage.label}) and can be read by
+          any script or extension running on this page. Prefer session-only
+          storage on shared machines.
         </p>
       ) : null}
 

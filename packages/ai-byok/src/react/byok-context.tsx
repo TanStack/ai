@@ -75,9 +75,9 @@ export function ByokProvider({
     () => initialStorage ?? memoryStorage(),
   )
   const [keys, setKeys] = useState<Keyring>({})
-  const [statuses, setStatuses] = useState<Partial<Record<ProviderId, KeyStatus>>>(
-    {},
-  )
+  const [statuses, setStatuses] = useState<
+    Partial<Record<ProviderId, KeyStatus>>
+  >({})
 
   // Keep a ref to the current keys so the persisting callbacks read the latest
   // without re-creating on every keystroke.
@@ -150,7 +150,10 @@ export function ByokProvider({
         return EMPTY
       }
       const masked = maskKey(target)
-      setStatuses((prev) => ({ ...prev, [provider]: { state: 'validating', masked } }))
+      setStatuses((prev) => ({
+        ...prev,
+        [provider]: { state: 'validating', masked },
+      }))
 
       let result: KeyStatus
       try {

@@ -22,16 +22,18 @@ event/observability stream.
 
 ```tsx
 import { ByokProvider, ByokKeyManager, useByok } from '@tanstack/ai-byok/react'
-import { byokHeaders, memoryStorage, localStorageStorage } from '@tanstack/ai-byok/react'
+import {
+  byokHeaders,
+  memoryStorage,
+  localStorageStorage,
+} from '@tanstack/ai-byok/react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 
 // Wrap your app. `storage` is chosen once. Defaults to the safest option
 // (session-only, nothing persisted). Pass `localStorageStorage()` to persist.
 function App({ children }) {
-  return (
-    <ByokProvider storage={memoryStorage()}>{children}</ByokProvider>
-  )
+  return <ByokProvider storage={memoryStorage()}>{children}</ByokProvider>
 }
 
 // Drop-in settings UI — shows the last 4 chars of a saved key, never the whole key.

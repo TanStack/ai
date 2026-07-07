@@ -43,7 +43,9 @@ describe('useByok', () => {
     )
     const { result } = renderHook(() => useByok(), { wrapper })
 
-    await waitFor(() => expect(result.current.keys.anthropic).toBe('sk-ant-9999'))
+    await waitFor(() =>
+      expect(result.current.keys.anthropic).toBe('sk-ant-9999'),
+    )
     store.clear()
   })
 })

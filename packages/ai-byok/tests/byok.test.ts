@@ -11,7 +11,11 @@ import { localStorageStorage, memoryStorage } from '../src/client/storage'
 
 describe('byokHeaders', () => {
   it('emits one header per present provider and skips empty keys', () => {
-    const headers = byokHeaders({ openai: 'sk-abc', anthropic: '', gemini: 'g-1' })
+    const headers = byokHeaders({
+      openai: 'sk-abc',
+      anthropic: '',
+      gemini: 'g-1',
+    })
     expect(headers).toEqual({
       'x-tanstack-byok-openai': 'sk-abc',
       'x-tanstack-byok-gemini': 'g-1',
@@ -44,9 +48,9 @@ describe('byokMissing', () => {
 describe('scrub', () => {
   it('masks a key down to the last 4 and redacts occurrences', () => {
     expect(maskKey('sk-supersecret1234')).toBe('…1234')
-    expect(scrubSecrets('failed with sk-supersecret1234!', ['sk-supersecret1234'])).toBe(
-      'failed with …1234!',
-    )
+    expect(
+      scrubSecrets('failed with sk-supersecret1234!', ['sk-supersecret1234']),
+    ).toBe('failed with …1234!')
   })
 })
 
