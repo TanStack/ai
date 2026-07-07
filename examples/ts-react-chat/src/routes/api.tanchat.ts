@@ -19,7 +19,8 @@ import { createOpenRouterText, openRouterText } from '@tanstack/ai-openrouter'
 import { createGrokText, grokText } from '@tanstack/ai-grok'
 import { createGroqText, groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
-import { getByokKey } from '@tanstack/ai-byok/server'
+import { byokMissing, getByokKey } from '@tanstack/ai-byok/server'
+import { BYOK_PROVIDER_MAP, byokIdForProvider } from '@/lib/byok-config'
 import type { ProviderId } from '@tanstack/ai-byok/server'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
@@ -256,7 +257,7 @@ export const Route = createFileRoute('/api/tanchat')({
         // BYOK: prefer a per-request key from the request header, falling back
         // to the env-configured adapter. The key is read from the header only,
         // never persisted or logged.
-        function withByok<M extends string>(
+        function byokAdapter<M extends string>(
           provider: ProviderId,
           m: M,
           byok: (model: M, apiKey: string) => AnyTextAdapter,
@@ -274,7 +275,7 @@ export const Route = createFileRoute('/api/tanchat')({
         > = {
           anthropic: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'anthropic',
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
                 createAnthropicChat,
@@ -283,7 +284,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'openrouter',
                 (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
                 createOpenRouterText,
@@ -297,7 +298,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           gemini: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
                 createGeminiChat,
@@ -312,7 +313,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           'gemini-interactions': () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
                 createGeminiTextInteractions,
@@ -325,7 +326,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'grok',
                 (model || 'grok-build-0.1') as 'grok-build-0.1',
                 createGrokText,
@@ -335,7 +336,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           groq: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'groq',
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
                 createGroqText,
@@ -366,7 +367,7 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openai: () =>
             createChatOptions({
-              adapter: withByok(
+              adapter: byokAdapter(
                 'openai',
                 (model || 'gpt-5.2') as 'gpt-5.2',
                 createOpenaiChat,
@@ -385,6 +386,19 @@ export const Route = createFileRoute('/api/tanchat')({
             requestedProvider in adapterConfig
               ? (requestedProvider as Provider)
               : 'openai'
+
+          // If this provider has no server env key and the request carried no
+          // BYOK key, tell the client which key to add — a typed 401 the client
+          // detects (via withByok) instead of a generic 500 from the SDK.
+          const byokId = byokIdForProvider(provider)
+          if (byokId) {
+            const hasByokKey = Boolean(getByokKey(request, byokId))
+            const hasEnvKey = BYOK_PROVIDER_MAP[provider]?.envVars.some(
+              (name) => Boolean(process.env[name]),
+            )
+            if (!hasByokKey && !hasEnvKey) return byokMissing(byokId)
+          }
+
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
@@ -28,11 +28,11 @@ import {
 } from '@tanstack/ai-react'
 import {
   ByokProvider,
-  byokHeaders,
   isPasskeyStorageSupported,
   memoryStorage,
   passkeyStorage,
   useByok,
+  withByok,
 } from '@tanstack/ai-byok/react'
 import { clientTools } from '@tanstack/ai-client'
 import type { ProviderId } from '@tanstack/ai-byok/react'
@@ -396,12 +396,34 @@ function ChatPage() {
   const { keys, status, unlock } = useByok()
   const keysRef = useRef(keys)
   keysRef.current = keys
+  const statusRef = useRef(status)
+  statusRef.current = status
   const [envKeyStatus, setEnvKeyStatus] = useState<
     Partial<Record<ProviderId, boolean>>
   >({})
   useEffect(() => {
     void getEnvKeyStatus().then(setEnvKeyStatus)
   }, [])
+
+  // Key dialog, opened either by the toolbar icon or reactively when the relay
+  // reports a missing key.
+  const [keyDialog, setKeyDialog] = useState<{
+    open: boolean
+    provider: ProviderId | null
+  }>({ open: false, provider: null })
+
+  // The relay returned a byokMissing 401 (no server key, no BYOK key). If we
+  // already hold that key but it's locked, unlock it; otherwise prompt to add.
+  const handleMissingKey = useCallback(
+    (provider: ProviderId) => {
+      if (statusRef.current[provider]?.state === 'locked') {
+        void unlock()
+      } else {
+        setKeyDialog({ open: true, provider })
+      }
+    },
+    [unlock],
+  )
 
   const activeByokId = byokIdForProvider(selectedModel.provider)
   // The selected model can't run right now if its provider has no server key
@@ -454,9 +476,10 @@ function ChatPage() {
     addToolApprovalResponse,
     stop,
   } = useChat({
-    connection: fetchServerSentEvents('/api/tanchat', () => ({
-      headers: byokHeaders(keysRef.current),
-    })),
+    connection: fetchServerSentEvents(
+      '/api/tanchat',
+      withByok(() => keysRef.current, { onMissingKey: handleMissingKey }),
+    ),
     tools,
     body,
     onCustomEvent: (eventType, data, context) => {
@@ -656,6 +679,9 @@ function ChatPage() {
             <ByokKeyDialog
               envStatus={envKeyStatus}
               activeProvider={activeByokId}
+              open={keyDialog.open}
+              onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
+              highlightProvider={keyDialog.provider}
             />
             <Link
               to="/generations/image"

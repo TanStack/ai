@@ -21,9 +21,10 @@ event/observability stream.
 ## Client (React)
 
 ```tsx
+import { useRef } from 'react'
 import { ByokProvider, ByokKeyManager, useByok } from '@tanstack/ai-byok/react'
 import {
-  byokHeaders,
+  withByok,
   memoryStorage,
   passkeyStorage,
   isPasskeyStorageSupported,
@@ -46,16 +47,29 @@ function Settings() {
   return <ByokKeyManager />
 }
 
-// Attach the keys to the connection.
+// Attach the keys to the connection. `withByok` adds the per-request BYOK
+// headers and, via `onMissingKey`, detects the relay's `byokMissing` 401 so you
+// can prompt for (or unlock) the key the server was missing.
 function Chat() {
-  const { keys } = useByok()
+  const { keys, status, unlock } = useByok()
+  const keysRef = useRef(keys)
+  keysRef.current = keys
   return useChat({
-    connection: fetchServerSentEvents('/api/chat', {
-      headers: byokHeaders(keys),
-    }),
+    connection: fetchServerSentEvents(
+      '/api/chat',
+      withByok(() => keysRef.current, {
+        onMissingKey: (provider) => {
+          if (status[provider]?.state === 'locked') void unlock()
+          else openKeyDialog(provider)
+        },
+      }),
+    ),
   })
 }
 ```
+
+For a lower-level path, `byokHeaders(keys)` returns the raw header map and
+`byokFetch(onMissingKey)` wraps a `fetch` to detect the `byokMissing` 401.
 
 ## Server (stateless — no persist, no log)
 

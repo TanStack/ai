@@ -16,8 +16,13 @@ const PROVIDERS: Array<ProviderId> = [
 interface ByokKeyDialogProps {
   /** Which providers have a key in the server env (never the key itself). */
   envStatus: Partial<Record<ProviderId, boolean>>
-  /** The provider for the currently selected model, highlighted when keyless. */
+  /** The provider for the currently selected model, flagged on the icon when keyless. */
   activeProvider: ProviderId | null
+  /** Controlled open state (the modal can be opened reactively, not just by the icon). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** Provider row to highlight when opened reactively (e.g. a missing key). */
+  highlightProvider?: ProviderId | null
 }
 
 /**
@@ -29,9 +34,11 @@ interface ByokKeyDialogProps {
 export function ByokKeyDialog({
   envStatus,
   activeProvider,
+  open,
+  onOpenChange,
+  highlightProvider,
 }: ByokKeyDialogProps) {
   const { keys, status, locked, unlock } = useByok()
-  const [open, setOpen] = useState(false)
 
   // Attention needed when the selected model's provider isn't usable right now
   // (no server key and no decrypted key — whether missing or saved-but-locked).
@@ -44,7 +51,7 @@ export function ByokKeyDialog({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => onOpenChange(true)}
         title="API keys"
         aria-label="API keys"
         className="relative flex items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 p-2 text-orange-400 transition-colors hover:bg-orange-500/20"
@@ -58,7 +65,7 @@ export function ByokKeyDialog({
       {open ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setOpen(false)}
+          onClick={() => onOpenChange(false)}
         >
           <div
             className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
@@ -68,7 +75,7 @@ export function ByokKeyDialog({
               <h2 className="text-lg font-semibold text-white">API keys</h2>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => onOpenChange(false)}
                 className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
                 aria-label="Close"
               >
@@ -99,6 +106,7 @@ export function ByokKeyDialog({
                   provider={provider}
                   hasEnvKey={Boolean(envStatus[provider])}
                   status={status[provider]}
+                  highlight={provider === highlightProvider}
                 />
               ))}
             </div>
@@ -113,10 +121,12 @@ function ProviderKeyRow({
   provider,
   hasEnvKey,
   status,
+  highlight,
 }: {
   provider: ProviderId
   hasEnvKey: boolean
   status: KeyStatus
+  highlight?: boolean
 }) {
   const { keys, setKey, clearKey } = useByok()
   const [draft, setDraft] = useState('')
@@ -125,7 +135,13 @@ function ProviderKeyRow({
   const lockedLast4 = status.state === 'locked' ? status.masked.slice(-4) : null
 
   return (
-    <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+    <div
+      className={`rounded-lg border bg-gray-800/50 p-3 ${
+        highlight
+          ? 'border-amber-400/60 ring-1 ring-amber-400/40'
+          : 'border-gray-700'
+      }`}
+    >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium text-white">
           {BYOK_PROVIDERS[provider].label}
