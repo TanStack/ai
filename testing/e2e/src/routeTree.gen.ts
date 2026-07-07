@@ -19,6 +19,7 @@ import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
+import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -46,6 +47,7 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -106,6 +108,11 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
   id: '/chat-client-default-bridge',
   path: '/chat-client-default-bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ByokRoute = ByokRouteImport.update({
+  id: '/byok',
+  path: '/byok',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -247,6 +254,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -306,6 +318,7 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -322,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -356,6 +370,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -372,6 +387,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -407,6 +423,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -423,6 +440,7 @@ export interface FileRoutesById {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -459,6 +477,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -475,6 +494,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -509,6 +529,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -525,6 +546,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -559,6 +581,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -575,6 +598,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -610,6 +634,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
@@ -626,6 +651,7 @@ export interface RootRouteChildren {
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiByokChatRoute: typeof ApiByokChatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
@@ -724,6 +750,13 @@ declare module '@tanstack/react-router' {
       path: '/chat-client-default-bridge'
       fullPath: '/chat-client-default-bridge'
       preLoaderRoute: typeof ChatClientDefaultBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/byok': {
+      id: '/byok'
+      path: '/byok'
+      fullPath: '/byok'
+      preLoaderRoute: typeof ByokRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -915,6 +948,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio': {
       id: '/api/audio'
       path: '/api/audio'
@@ -1055,6 +1095,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
@@ -1071,6 +1112,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiByokChatRoute: ApiByokChatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,

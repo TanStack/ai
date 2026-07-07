@@ -60,6 +60,7 @@ Deterministic scenarios covering tool execution flows:
 | `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip              |
 | `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
 | `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
+| `tests/byok.spec.ts`           | BYOK key rides in header (not body); missing key → `byokMissing` |
 
 ## 1. Quick Start
 

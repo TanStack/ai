@@ -2509,6 +2509,9 @@ importers:
       '@tanstack/ai-bedrock':
         specifier: workspace:*
         version: link:../../packages/ai-bedrock
+      '@tanstack/ai-byok':
+        specifier: workspace:*
+        version: link:../../packages/ai-byok
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
