@@ -261,6 +261,17 @@ await generateVideo({
 })
 ```
 
+**URL inputs that require an upload throw by default.** Most adapters pass a
+`type: 'url'` source straight through to the provider. Three paths can't —
+OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —
+because the provider only accepts uploaded bytes (Veo also takes a `gs://`
+reference). For those, an HTTP(S) URL would have to be downloaded and buffered
+in memory, which can OOM constrained runtimes, so they **throw** on an HTTP(S)
+URL image input by default. Pass a `data:` URI (or `gs://` for Veo), or opt in
+with `allowUrlFetch: true` on the adapter config
+(`createOpenaiImage(model, apiKey, { allowUrlFetch: true })`, and likewise on
+`createOpenaiVideo` / `createGeminiVideo`). `data:` URIs never need the flag.
+
 **Role hints** (`metadata.role`):
 
 | Role            | Maps to                                                                                               |
