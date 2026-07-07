@@ -227,6 +227,12 @@ base64 data — pass whichever you have:
 OpenAI's edit endpoint requires file uploads; the adapter fetches URL sources
 and converts base64 to a `File` automatically.
 
+Gemini never fetches URL sources locally — they pass through as
+`fileData.fileUri` and Gemini retrieves them server-side, so public HTTPS
+URLs, [Files API](https://ai.google.dev/gemini-api/docs/files) URIs, and
+`gs://` references all work without buffering the image in your runtime's
+memory.
+
 ### Role hints via `metadata.role`
 
 When a generation has multiple inputs with different roles (mask vs reference

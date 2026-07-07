@@ -55,6 +55,11 @@ function operationErrorMessage(error: Record<string, unknown>): string {
  * Convert a TanStack image prompt part into the genai `Image` shape Veo
  * accepts: base64 `imageBytes` (data sources, data: URIs, fetched HTTP
  * URLs) or a `gcsUri` passthrough for Cloud Storage references.
+ *
+ * Unlike `generateContent` (chat / native image generation), Veo's predict
+ * API has no `fileData.fileUri` equivalent — `Image` only accepts
+ * `imageBytes` or `gcsUri` — so HTTP(S) URLs must still be fetched and
+ * inlined here. Prefer `gs://` references on memory-constrained runtimes.
  */
 async function imagePartToVeoImage(
   part: ImagePart<MediaInputMetadata>,
