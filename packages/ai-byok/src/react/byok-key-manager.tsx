@@ -23,17 +23,38 @@ export function ByokKeyManager({
   className,
   style,
 }: ByokKeyManagerProps) {
-  const { status, storage } = useByok()
+  const { status, storage, locked, unlock } = useByok()
+  const [unlocking, setUnlocking] = useState(false)
+  const [unlockError, setUnlockError] = useState<string | null>(null)
 
   return (
     <div className={className} style={{ ...styles.root, ...style }}>
-      {storage.persistent ? (
-        <p style={styles.warning}>
-          Keys are saved in this browser ({storage.label}) and can be read by
-          any script or extension running on this page. Prefer session-only
-          storage on shared machines.
-        </p>
+      {locked ? (
+        <div style={styles.unlockBanner}>
+          <span>Your saved keys are locked ({storage.label}).</span>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            disabled={unlocking}
+            onClick={() => {
+              setUnlocking(true)
+              setUnlockError(null)
+              unlock()
+                .catch((error: unknown) =>
+                  setUnlockError(
+                    error instanceof Error ? error.message : String(error),
+                  ),
+                )
+                .finally(() => setUnlocking(false))
+            }}
+          >
+            {unlocking ? 'Unlocking…' : 'Unlock'}
+          </button>
+        </div>
       ) : null}
+      {unlockError ? <p style={styles.warning}>{unlockError}</p> : null}
+
+      {storage.warning ? <p style={styles.warning}>{storage.warning}</p> : null}
 
       {providers.map((provider) => (
         <ProviderRow
@@ -141,6 +162,16 @@ const styles = {
     maxWidth: 480,
   },
   warning: { margin: 0, color: '#b45309', fontSize: 12, lineHeight: 1.4 },
+  unlockBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    background: '#f3f4f6',
+    border: '1px solid #e5e7eb',
+  },
   row: {
     display: 'flex',
     flexDirection: 'column',

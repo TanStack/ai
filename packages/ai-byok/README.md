@@ -25,15 +25,20 @@ import { ByokProvider, ByokKeyManager, useByok } from '@tanstack/ai-byok/react'
 import {
   byokHeaders,
   memoryStorage,
-  localStorageStorage,
+  passkeyStorage,
+  isPasskeyStorageSupported,
 } from '@tanstack/ai-byok/react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 
 // Wrap your app. `storage` is chosen once. Defaults to the safest option
-// (session-only, nothing persisted). Pass `localStorageStorage()` to persist.
+// (session-only, nothing persisted). Opt into encrypted persistence with
+// passkeyStorage() where supported, falling back to memory otherwise.
 function App({ children }) {
-  return <ByokProvider storage={memoryStorage()}>{children}</ByokProvider>
+  const storage = isPasskeyStorageSupported()
+    ? passkeyStorage()
+    : memoryStorage()
+  return <ByokProvider storage={storage}>{children}</ByokProvider>
 }
 
 // Drop-in settings UI — shows the last 4 chars of a saved key, never the whole key.
@@ -75,19 +80,33 @@ export async function POST(request: Request) {
 
 ## Storage
 
-Pass one `storage` to `<ByokProvider>`. Two are built in:
+Pass one `storage` to `<ByokProvider>`. Two are built in — **there is no
+plaintext persistence**:
 
 - **`memoryStorage()` (default)** — session / in-memory. Keys vanish on refresh.
   Never persisted. Zero at-rest liability.
-- **`localStorageStorage()` (opt-in)** — persists across refreshes in
-  `localStorage` as **plaintext. Keys are not encrypted**, so they are readable
-  by any XSS or extension on the origin. `<ByokKeyManager>` shows a warning while
-  this storage is active.
+- **`passkeyStorage()` (opt-in)** — encrypted at rest. The keyring is stored in
+  IndexedDB as AES-256-GCM ciphertext, with the key derived from a passkey's
+  WebAuthn **PRF** output (via HKDF) and unwrapped on demand with a
+  biometric/PIN tap. Fully client-side — no server, no custodian.
 
-`KeyringStorage` is a small interface (`id`, `label`, `persistent`, `load`,
-`save`, `clear`), so you can supply your own. A passkey-encrypted
-(WebAuthn PRF → AES-256-GCM) storage that encrypts at rest is planned as a
-follow-up.
+  Feature-detect with `isPasskeyStorageSupported()` and fall back to
+  `memoryStorage()` (PRF is solid on Android and Apple platform authenticators;
+  patchy on Firefox / roaming keys on Safari).
+
+  **Honest scope:** this protects against at-rest theft (stolen device,
+  storage-dumping extension, backups). It does **not** defeat live in-page XSS —
+  an attacker running JS in the origin after you unlock can read the decrypted
+  keys from memory. `<ByokKeyManager>` states this while passkey storage is
+  active.
+
+`passkeyStorage` is `unlockable`, so `<ByokProvider>` does not decrypt on mount:
+`useByok()` reports `locked: true` until you call `unlock()` (or save a key,
+which registers a passkey on first use). `KeyringStorage` is a small interface,
+so you can supply your own strategy.
+
+Recovery is a non-issue: lose the device, re-paste the key from the provider
+dashboard.
 
 ## Validation
 

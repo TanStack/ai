@@ -2,8 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ByokProvider, useByok } from '../src/react'
 import { byokHeaders } from '../src/index'
-import { localStorageStorage } from '../src/client/storage'
 import type { ReactNode } from 'react'
+import type { Keyring } from '../src/index'
+import type { KeyringStorage } from '../src/index'
+
+/** In-memory stand-in for an unlockable (passkey-like) storage, no WebAuthn. */
+function fakeEncryptedStorage(initial: Keyring): KeyringStorage {
+  let data: Keyring = { ...initial }
+  return {
+    id: 'fake',
+    label: 'Fake encrypted',
+    persistent: true,
+    unlockable: true,
+    load: () => ({ ...data }),
+    save: (keys) => {
+      data = { ...keys }
+    },
+    clear: () => {
+      data = {}
+    },
+  }
+}
 
 describe('useByok', () => {
   it('throws outside a provider', () => {
@@ -34,18 +53,23 @@ describe('useByok', () => {
     expect(result.current.keys.openai).toBeUndefined()
   })
 
-  it('hydrates from a persistent tier on mount', async () => {
-    const store = localStorageStorage('test-hydrate')
-    store.save({ anthropic: 'sk-ant-9999' })
-
+  it('stays locked until unlock() for unlockable storage', async () => {
+    const store = fakeEncryptedStorage({ anthropic: 'sk-ant-9999' })
     const wrapper = ({ children }: { children: ReactNode }) => (
       <ByokProvider storage={store}>{children}</ByokProvider>
     )
     const { result } = renderHook(() => useByok(), { wrapper })
 
+    // Not auto-loaded on mount — no ceremony until the user unlocks.
+    expect(result.current.locked).toBe(true)
+    expect(result.current.keys.anthropic).toBeUndefined()
+
+    await act(async () => {
+      await result.current.unlock()
+    })
+    expect(result.current.locked).toBe(false)
     await waitFor(() =>
       expect(result.current.keys.anthropic).toBe('sk-ant-9999'),
     )
-    store.clear()
   })
 })

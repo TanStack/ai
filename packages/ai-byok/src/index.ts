@@ -25,9 +25,11 @@ export type {
 export { byokHeaders } from './client/keyring'
 export type { Keyring } from './client/keyring'
 
-// Storage tiers
-export { memoryStorage, localStorageStorage } from './client/storage'
+// Storage
+export { memoryStorage } from './client/storage'
 export type { KeyringStorage } from './client/storage'
+export { passkeyStorage, isPasskeyStorageSupported } from './client/passkey'
+export type { PasskeyStorageOptions } from './client/passkey'
 
 // Validation
 export { validateKey } from './client/validate'

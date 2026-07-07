@@ -15,7 +15,8 @@ export type { ByokKeyManagerProps } from './react/byok-key-manager'
 export {
   byokHeaders,
   memoryStorage,
-  localStorageStorage,
+  passkeyStorage,
+  isPasskeyStorageSupported,
   validateKey,
   BYOK_PROVIDERS,
   PROVIDER_IDS,
