@@ -14,6 +14,9 @@ export type { ByokKeyManagerProps } from './react/byok-key-manager'
 // Re-export the client toolkit so React consumers have one import path.
 export {
   byokHeaders,
+  withByok,
+  byokFetch,
+  isByokMissingBody,
   memoryStorage,
   passkeyStorage,
   isPasskeyStorageSupported,
@@ -28,4 +31,7 @@ export type {
   KeyringStorage,
   ProviderId,
   ValidationStatus,
+  WithByokOptions,
+  ByokConnectionOptions,
+  ByokMissingBody,
 } from './index'

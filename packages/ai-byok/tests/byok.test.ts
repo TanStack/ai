@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { byokHeaders, byokHeaderName } from '../src/index'
+import { describe, expect, it, vi } from 'vitest'
+import { byokFetch, byokHeaders, byokHeaderName, withByok } from '../src/index'
+import type { Keyring } from '../src/index'
 import {
   byokMissing,
   getByokKey,
@@ -25,6 +26,37 @@ describe('byokHeaders', () => {
       'x-tanstack-byok-openai': 'sk-abc',
       'x-tanstack-byok-gemini': 'g-1',
     })
+  })
+})
+
+describe('withByok / byokFetch', () => {
+  it('withByok attaches BYOK headers read fresh at request time', () => {
+    let keys: Keyring = { openai: 'sk-a' }
+    const build = withByok(() => keys)
+    expect(build().headers).toEqual({ 'x-tanstack-byok-openai': 'sk-a' })
+    keys = { openai: 'sk-b', gemini: 'g-1' }
+    expect(build().headers).toEqual({
+      'x-tanstack-byok-openai': 'sk-b',
+      'x-tanstack-byok-gemini': 'g-1',
+    })
+  })
+
+  it('byokFetch fires onMissingKey with the provider on a byokMissing 401', async () => {
+    const onMissingKey = vi.fn()
+    const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
+    const wrapped = byokFetch(onMissingKey, fetchImpl)
+    await wrapped('https://x.test')
+    expect(onMissingKey).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('byokFetch ignores non-401 and non-byok responses', async () => {
+    const onMissingKey = vi.fn()
+    const wrapped = byokFetch(
+      onMissingKey,
+      async () => new Response('ok', { status: 200 }),
+    )
+    await wrapped('https://x.test')
+    expect(onMissingKey).not.toHaveBeenCalled()
   })
 })
 
