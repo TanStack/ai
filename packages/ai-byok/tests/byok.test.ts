@@ -7,7 +7,12 @@ import {
   maskKey,
   scrubSecrets,
 } from '../src/server'
-import { localStorageStorage, memoryStorage } from '../src/client/storage'
+import { memoryStorage } from '../src/client/storage'
+import {
+  decryptKeyring,
+  deriveAesKey,
+  encryptKeyring,
+} from '../src/client/passkey'
 
 describe('byokHeaders', () => {
   it('emits one header per present provider and skips empty keys', () => {
@@ -54,19 +59,36 @@ describe('scrub', () => {
   })
 })
 
-describe('storage tiers', () => {
-  it('memory tier persists nothing', () => {
+describe('memory storage', () => {
+  it('persists nothing', () => {
     const store = memoryStorage()
     store.save({ openai: 'sk-1' })
     expect(store.load()).toEqual({})
     expect(store.persistent).toBe(false)
   })
+})
 
-  it('localStorage tier round-trips and clears', () => {
-    const store = localStorageStorage('test-byok')
-    store.save({ openai: 'sk-1' })
-    expect(store.load()).toEqual({ openai: 'sk-1' })
-    store.clear()
-    expect(store.load()).toEqual({})
+describe('passkey crypto', () => {
+  // The WebAuthn ceremony can't run in jsdom, but the PRF → AES-GCM path can:
+  // derive a key from a fixed 32-byte "PRF output" and round-trip a keyring.
+  const prf = new Uint8Array(32).fill(7)
+
+  it('round-trips a keyring through AES-256-GCM', async () => {
+    const key = await deriveAesKey(prf)
+    const { iv, ciphertext } = await encryptKeyring(key, {
+      openai: 'sk-secret',
+    })
+    expect(await decryptKeyring(key, iv, ciphertext)).toEqual({
+      openai: 'sk-secret',
+    })
+  })
+
+  it('fails to decrypt with a key derived from a different PRF output', async () => {
+    const key = await deriveAesKey(prf)
+    const { iv, ciphertext } = await encryptKeyring(key, {
+      openai: 'sk-secret',
+    })
+    const wrongKey = await deriveAesKey(new Uint8Array(32).fill(9))
+    await expect(decryptKeyring(wrongKey, iv, ciphertext)).rejects.toThrow()
   })
 })

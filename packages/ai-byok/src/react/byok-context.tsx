@@ -51,6 +51,19 @@ export interface ByokContextValue {
   status: Record<ProviderId, KeyStatus>
   /** The configured persistence storage. */
   storage: KeyringStorage
+  /**
+   * `true` when an `unlockable` storage (e.g. passkey) may hold encrypted keys
+   * that haven't been decrypted this session. Always `false` for storage that
+   * needs no unlock ceremony (e.g. memory).
+   */
+  locked: boolean
+  /**
+   * Decrypt and load keys from an `unlockable` storage, triggering its unlock
+   * ceremony (e.g. a biometric tap). No-op — and does not prompt — for storage
+   * that isn't unlockable or when nothing is stored yet. Rejects if the
+   * ceremony fails or is cancelled.
+   */
+  unlock: () => Promise<void>
   hasKey: (provider: ProviderId) => boolean
 }
 
@@ -78,34 +91,48 @@ export function ByokProvider({
   const [statuses, setStatuses] = useState<
     Partial<Record<ProviderId, KeyStatus>>
   >({})
+  // Unlockable storage (passkey) starts locked; the user must unlock to decrypt.
+  const [locked, setLocked] = useState(() => Boolean(storage.unlockable))
 
   // Keep a ref to the current keys so the persisting callbacks read the latest
   // without re-creating on every keystroke.
   const keysRef = useRef(keys)
   keysRef.current = keys
 
-  // Hydrate from storage on mount.
+  // Merge loaded keys UNDER any edits the user made during the async load, so an
+  // early setKey is never clobbered by late hydration.
+  const applyLoaded = useCallback((loaded: Keyring) => {
+    const loadedStatuses = Object.fromEntries(
+      Object.entries(loaded)
+        .filter(([, key]) => Boolean(key))
+        .map(([provider, key]) => [
+          provider,
+          { state: 'set', masked: maskKey(key) } satisfies KeyStatus,
+        ]),
+    )
+    setKeys((current) => ({ ...loaded, ...current }))
+    setStatuses((current) => ({ ...loadedStatuses, ...current }))
+  }, [])
+
+  // Auto-hydrate on mount only for storage that needs no unlock ceremony.
+  // Unlockable storage waits for an explicit `unlock()` so it never prompts on
+  // page load.
   useEffect(() => {
+    if (storage.unlockable) return
     let cancelled = false
     void Promise.resolve(storage.load()).then((loaded) => {
-      if (cancelled) return
-      const loadedStatuses = Object.fromEntries(
-        Object.entries(loaded)
-          .filter(([, key]) => Boolean(key))
-          .map(([provider, key]) => [
-            provider,
-            { state: 'set', masked: maskKey(key) } satisfies KeyStatus,
-          ]),
-      )
-      // Merge hydrated keys UNDER any edits the user made during the async
-      // load, so an early setKey is never clobbered by late hydration.
-      setKeys((current) => ({ ...loaded, ...current }))
-      setStatuses((current) => ({ ...loadedStatuses, ...current }))
+      if (!cancelled) applyLoaded(loaded)
     })
     return () => {
       cancelled = true
     }
-  }, [storage])
+  }, [storage, applyLoaded])
+
+  const unlock = useCallback(async () => {
+    if (!storage.unlockable) return
+    applyLoaded(await Promise.resolve(storage.load()))
+    setLocked(false)
+  }, [storage, applyLoaded])
 
   const persist = useCallback(
     (next: Keyring) => Promise.resolve(storage.save(next)),
@@ -121,6 +148,9 @@ export function ByokProvider({
         [provider]: { state: 'set', masked: maskKey(key) },
       }))
       await persist(next)
+      // A successful save ran any unlock/registration ceremony, so the session
+      // is now unlocked.
+      setLocked(false)
     },
     [persist],
   )
@@ -140,6 +170,7 @@ export function ByokProvider({
     setKeys({})
     setStatuses({})
     await Promise.resolve(storage.clear())
+    setLocked(false)
   }, [storage])
 
   const validateKey = useCallback(
@@ -189,9 +220,21 @@ export function ByokProvider({
       validateKey,
       status,
       storage,
+      locked,
+      unlock,
       hasKey: (provider) => Boolean(keys[provider]),
     }),
-    [keys, setKey, clearKey, clearAll, validateKey, status, storage],
+    [
+      keys,
+      setKey,
+      clearKey,
+      clearAll,
+      validateKey,
+      status,
+      storage,
+      locked,
+      unlock,
+    ],
   )
 
   return <ByokContext.Provider value={value}>{children}</ByokContext.Provider>
