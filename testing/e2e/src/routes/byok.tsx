@@ -1,93 +1,94 @@
-import { useEffect, useState, type FormEvent } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { defineByok, memoryStorage } from '@tanstack/ai-client/byok'
-import { fetchServerSentEvents, useByok, useChat } from '@tanstack/ai-react'
+import { useMemo, useRef } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  ByokKeyManager,
+  ByokProvider,
+  byokHeaders,
+  memoryStorage,
+  useByok,
+} from '@tanstack/ai-byok/react'
 import { ChatUI } from '@/components/ChatUI'
+import type { Keyring, KeyringStorage } from '@tanstack/ai-byok/react'
+
+interface ByokSearch {
+  testId?: string
+  aimockPort?: number
+  key?: string
+}
 
 export const Route = createFileRoute('/byok')({
-  component: ByokPage,
-  validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'number'
-        ? search.aimockPort
-        : typeof search.aimockPort === 'string'
-          ? parseInt(search.aimockPort, 10)
-          : undefined
-    return {
-      testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !Number.isNaN(port) ? port : undefined,
-    }
-  },
+  component: ByokRoute,
+  validateSearch: (search: Record<string, unknown>): ByokSearch => ({
+    testId: typeof search.testId === 'string' ? search.testId : undefined,
+    aimockPort:
+      search.aimockPort != null ? Number(search.aimockPort) : undefined,
+    key: typeof search.key === 'string' ? search.key : undefined,
+  }),
 })
 
-function ByokPage() {
+// A storage that hydrates the keyring with a preloaded key on mount — the same
+// path `passkeyStorage` uses to restore keys, driven deterministically for the
+// test. No key param → session-only memory (nothing stored).
+function preloadedStorage(keys: Keyring): KeyringStorage {
+  return {
+    id: 'preload',
+    label: 'Preloaded (test)',
+    persistent: false,
+    load: () => keys,
+    save: () => {},
+    clear: () => {},
+  }
+}
+
+function ByokRoute() {
+  const { key } = Route.useSearch()
+  const storage = useMemo(
+    () => (key ? preloadedStorage({ openai: key }) : memoryStorage()),
+    [key],
+  )
+  return (
+    <ByokProvider storage={storage}>
+      <ByokChat />
+    </ByokProvider>
+  )
+}
+
+function ByokChat() {
   const { testId, aimockPort } = Route.useSearch()
-  const [byok] = useState(() => defineByok({ storage: memoryStorage() }))
-  const snapshot = useByok(byok)
-  const [hydrated, setHydrated] = useState(false)
-  const openaiStatus = snapshot.status.openai
-  const last4 = openaiStatus.state === 'empty' ? '' : openaiStatus.masked
+  const { keys } = useByok()
+  const keysRef = useRef(keys)
+  keysRef.current = keys
 
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  const connection = useMemo(
+    () =>
+      fetchServerSentEvents('/api/byok-chat', () => ({
+        headers: byokHeaders(keysRef.current),
+      })),
+    [],
+  )
 
-  const { messages, sendMessage, isLoading, stop } = useChat({
-    connection: fetchServerSentEvents('/api/byok-chat'),
-    byok,
-    forwardedProps: {
-      provider: 'openai',
-      model: 'gpt-5.5',
-      testId,
-      aimockPort,
-    },
+  const chat = useChat({
+    id: 'byok-chat',
+    connection,
+    body: { testId, aimockPort },
   })
 
-  const handleSave = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const data = new FormData(form)
-    const raw = data.get('key')
-    const next = typeof raw === 'string' ? raw.trim() : ''
-    if (!next) return
-    void byok.update('openai', next).then(() => {
-      form.reset()
-    })
-  }
-
   return (
-    <div className="flex flex-col h-screen">
-      <div className="border-b border-gray-700 p-3 space-y-2">
-        <div data-testid="byok-prompt">{snapshot.prompt?.provider ?? ''}</div>
-        <div data-testid="byok-last4">{last4}</div>
-        <form className="flex gap-2" onSubmit={handleSave}>
-          <input
-            name="key"
-            data-testid="byok-key-input"
-            type="text"
-            autoComplete="off"
-            placeholder="API key"
-            className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
-          />
-          <button
-            data-testid="byok-save-button"
-            type="submit"
-            disabled={!hydrated}
-            className="px-4 py-2 bg-orange-500 text-white rounded text-sm disabled:opacity-50"
-          >
-            Save
-          </button>
-        </form>
-      </div>
+    <div className="space-y-4 p-4">
+      <ByokKeyManager providers={['openai']} />
+      {chat.error ? (
+        <p data-testid="byok-error" className="text-sm text-red-400">
+          {chat.error.message}
+        </p>
+      ) : null}
       <ChatUI
-        messages={messages}
-        isLoading={isLoading}
-        onStop={stop}
+        messages={chat.messages}
+        isLoading={chat.isLoading}
         onSendMessage={(text) => {
-          void sendMessage(text).catch(() => {
-            // ByokBlockedError / ByokMissingError set snapshot.prompt
-          })
+          void chat.sendMessage(text)
         }}
+        onStop={chat.stop}
       />
     </div>
   )

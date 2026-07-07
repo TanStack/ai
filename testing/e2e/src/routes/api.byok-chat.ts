@@ -4,22 +4,20 @@ import {
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai-byok/server'
 import { createTextAdapter } from '@/lib/providers'
 
+/**
+ * BYOK relay for E2E. Reads the OpenAI key from the per-provider request header
+ * (never the body), hands it to the adapter for this one call, and streams the
+ * aimock-backed response. Returns a typed `byokMissing` 401 when the header is
+ * absent. Never persists or logs the key.
+ */
 export const Route = createFileRoute('/api/byok-chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-        if (request.signal.aborted) {
-          return new Response(null, { status: 499 })
-        }
-
-        const key = getByokKey(request, 'openai')
-        if (!key) return byokMissing('openai')
-
-        const abortController = new AbortController()
 
         let params
         try {
@@ -31,42 +29,29 @@ export const Route = createFileRoute('/api/byok-chat')({
           )
         }
 
-        const fp = params.forwardedProps
+        const fp = params.forwardedProps as Record<string, unknown>
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
-        const aimockPort =
-          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
 
-        try {
-          const adapterOptions = createTextAdapter(
-            'openai',
-            undefined,
-            aimockPort,
-            testId,
-            'chat',
-          )
-          const stream = chat({
-            ...adapterOptions,
-            systemPrompts: ['You are a helpful assistant for a guitar store.'],
-            messages: params.messages,
-            threadId: params.threadId,
-            runId: params.runId,
-            abortController,
-          })
-          return toServerSentEventsResponse(stream, { abortController })
-        } catch (error) {
-          if (
-            (error instanceof Error && error.name === 'AbortError') ||
-            abortController.signal.aborted
-          ) {
-            return new Response(null, { status: 499 })
-          }
-          const message =
-            error instanceof Error ? error.message : 'An error occurred'
-          return new Response(JSON.stringify({ error: message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
+        // Header-only read. No key → typed 401 the client renders.
+        const apiKey = getByokKey(request, 'openai')
+        if (!apiKey) return byokMissing('openai')
+
+        const adapterOptions = createTextAdapter(
+          'openai',
+          undefined,
+          undefined,
+          testId,
+          'chat',
+          apiKey,
+        )
+
+        const stream = chat({
+          ...adapterOptions,
+          messages: params.messages,
+          threadId: params.threadId,
+          runId: params.runId,
+        })
+        return toServerSentEventsResponse(stream)
       },
     },
   },

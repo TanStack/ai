@@ -21,6 +21,7 @@
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-bedrock": "workspace:*",
     "@tanstack/ai-byteplus": "workspace:*",
+    "@tanstack/ai-byok": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",

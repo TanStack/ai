@@ -87,7 +87,9 @@ function ProviderRow({
 
       {hasKey && 'masked' in status ? (
         <div style={styles.savedRow}>
-          <code style={styles.masked}>{status.masked}</code>
+          <code data-testid={`byok-masked-${provider}`} style={styles.masked}>
+            {status.masked}
+          </code>
           <div style={styles.actions}>
             <button
               type="button"
