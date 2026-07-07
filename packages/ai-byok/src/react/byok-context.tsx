@@ -23,6 +23,9 @@ import type { ValidationStatus } from '../client/validate'
 export type KeyStatus =
   | { state: 'empty' }
   | { state: 'set'; masked: string }
+  // Stored but not yet decrypted this session (unlockable storage after a
+  // refresh). The key isn't usable until `unlock()`; only last-4 is known.
+  | { state: 'locked'; masked: string }
   | { state: 'validating'; masked: string }
   | { state: ValidationStatus; masked: string }
   | { state: 'error'; masked: string; message: string }
@@ -99,27 +102,55 @@ export function ByokProvider({
   const keysRef = useRef(keys)
   keysRef.current = keys
 
-  // Merge loaded keys UNDER any edits the user made during the async load, so an
-  // early setKey is never clobbered by late hydration.
+  // Apply decrypted/loaded keys. Merge keys UNDER any edits the user made during
+  // the async load so an early setKey is never clobbered; promote a provider's
+  // status to `set` when it had no status or was a `locked` placeholder, while
+  // preserving a fresh user edit.
   const applyLoaded = useCallback((loaded: Keyring) => {
-    const loadedStatuses = Object.fromEntries(
-      Object.entries(loaded)
-        .filter(([, key]) => Boolean(key))
-        .map(([provider, key]) => [
-          provider,
-          { state: 'set', masked: maskKey(key) } satisfies KeyStatus,
-        ]),
-    )
     setKeys((current) => ({ ...loaded, ...current }))
-    setStatuses((current) => ({ ...loadedStatuses, ...current }))
+    setStatuses((current) => {
+      const next = { ...current }
+      for (const [provider, key] of Object.entries(loaded)) {
+        if (!key) continue
+        const existing = current[provider as ProviderId]
+        if (!existing || existing.state === 'locked') {
+          next[provider as ProviderId] = { state: 'set', masked: maskKey(key) }
+        }
+      }
+      return next
+    })
   }, [])
 
-  // Auto-hydrate on mount only for storage that needs no unlock ceremony.
-  // Unlockable storage waits for an explicit `unlock()` so it never prompts on
-  // page load.
+  // On mount: unlockable storage peeks (no ceremony) to surface saved keys as
+  // `locked`; other storage auto-hydrates its keys.
   useEffect(() => {
-    if (storage.unlockable) return
     let cancelled = false
+    if (storage.unlockable) {
+      if (!storage.peek) return
+      void Promise.resolve(storage.peek()).then((preview) => {
+        if (cancelled) return
+        const present = Object.entries(preview).filter(([, last4]) =>
+          Boolean(last4),
+        )
+        setStatuses((current) => {
+          const next = { ...current }
+          for (const [provider, last4] of present) {
+            if (!next[provider as ProviderId]) {
+              next[provider as ProviderId] = {
+                state: 'locked',
+                masked: `…${last4}`,
+              }
+            }
+          }
+          return next
+        })
+        // Nothing stored → nothing to unlock.
+        if (present.length === 0) setLocked(false)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
     void Promise.resolve(storage.load()).then((loaded) => {
       if (!cancelled) applyLoaded(loaded)
     })

@@ -29,7 +29,9 @@ import {
 import {
   ByokProvider,
   byokHeaders,
+  isPasskeyStorageSupported,
   memoryStorage,
+  passkeyStorage,
   useByok,
 } from '@tanstack/ai-byok/react'
 import { clientTools } from '@tanstack/ai-client'
@@ -391,7 +393,7 @@ function ChatPage() {
 
   // BYOK: read the browser-held keyring and report which providers have a
   // server-side env key, so we can warn before a keyless model is used.
-  const { keys } = useByok()
+  const { keys, status, unlock } = useByok()
   const keysRef = useRef(keys)
   keysRef.current = keys
   const [envKeyStatus, setEnvKeyStatus] = useState<
@@ -402,8 +404,13 @@ function ChatPage() {
   }, [])
 
   const activeByokId = byokIdForProvider(selectedModel.provider)
-  const needsKey =
+  // The selected model can't run right now if its provider has no server key
+  // and no decrypted key in the browser.
+  const notUsable =
     activeByokId != null && !envKeyStatus[activeByokId] && !keys[activeByokId]
+  // A saved-but-locked key just needs unlocking; distinguish it from "no key".
+  const activeLocked =
+    activeByokId != null && status[activeByokId]?.state === 'locked'
   const [attachedImages, setAttachedImages] = useState<
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
@@ -658,11 +665,24 @@ function ChatPage() {
               Image Gen
             </Link>
           </div>
-          {needsKey && activeByokId ? (
-            <div className="mt-2 text-sm text-amber-400">
-              No key for {activeByokId}. Add one with the key icon to use this
-              model.
-            </div>
+          {notUsable && activeByokId ? (
+            activeLocked ? (
+              <div className="mt-2 flex items-center gap-2 text-sm text-amber-400">
+                <span>Your {activeByokId} key is saved but locked.</span>
+                <button
+                  type="button"
+                  onClick={() => void unlock()}
+                  className="rounded border border-amber-400/40 px-2 py-0.5 font-medium hover:bg-amber-400/10"
+                >
+                  Unlock
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-amber-400">
+                No key for {activeByokId}. Add one with the key icon to use this
+                model.
+              </div>
+            )
           ) : null}
         </div>
 
@@ -821,9 +841,33 @@ function ChatPage() {
 }
 
 function ChatRoute() {
-  // Session-only keyring: keys vanish on refresh, nothing is persisted.
+  // Passkey-encrypted persistence when a platform authenticator (Touch ID,
+  // Windows Hello, Android) is actually available — keys then survive refresh
+  // and are unlocked with biometrics. Otherwise session-only memory. The choice
+  // needs an async capability probe, so wait for it before mounting the
+  // provider (storage is fixed for the provider's life).
+  const [storage, setStorage] = useState<ReturnType<
+    typeof memoryStorage
+  > | null>(null)
+  useEffect(() => {
+    let active = true
+    async function pick() {
+      const platformAuth =
+        isPasskeyStorageSupported() &&
+        (await globalThis.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable().catch(
+          () => false,
+        ))
+      if (active) setStorage(platformAuth ? passkeyStorage() : memoryStorage())
+    }
+    void pick()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (!storage) return null
   return (
-    <ByokProvider storage={memoryStorage()}>
+    <ByokProvider storage={storage}>
       <ChatPage />
     </ByokProvider>
   )

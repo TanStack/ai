@@ -139,6 +139,7 @@ function StatusBadge({ status }: { status: KeyStatus }) {
   const config: Record<KeyStatus['state'], { label: string; color: string }> = {
     empty: { label: 'Not set', color: '#9ca3af' },
     set: { label: 'Saved', color: '#6b7280' },
+    locked: { label: 'Locked', color: '#d97706' },
     validating: { label: 'Validating…', color: '#d97706' },
     valid: { label: 'Valid', color: '#059669' },
     invalid: { label: 'Invalid', color: '#dc2626' },

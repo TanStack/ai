@@ -102,7 +102,10 @@ plaintext persistence**:
 
 `passkeyStorage` is `unlockable`, so `<ByokProvider>` does not decrypt on mount:
 `useByok()` reports `locked: true` until you call `unlock()` (or save a key,
-which registers a passkey on first use). `KeyringStorage` is a small interface,
+which registers a passkey on first use). It does, however, `peek()` on mount —
+reading an unencrypted `provider → last-4` sidecar with **no** unlock ceremony —
+so after a refresh the UI can immediately show saved keys as `locked` (with
+their last-4) before the biometric tap. `KeyringStorage` is a small interface,
 so you can supply your own strategy.
 
 Recovery is a non-issue: lose the device, re-paste the key from the provider

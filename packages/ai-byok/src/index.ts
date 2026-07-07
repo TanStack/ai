@@ -27,7 +27,7 @@ export type { Keyring } from './client/keyring'
 
 // Storage
 export { memoryStorage } from './client/storage'
-export type { KeyringStorage } from './client/storage'
+export type { KeyringStorage, KeyPreview } from './client/storage'
 export { passkeyStorage, isPasskeyStorageSupported } from './client/passkey'
 export type { PasskeyStorageOptions } from './client/passkey'
 
