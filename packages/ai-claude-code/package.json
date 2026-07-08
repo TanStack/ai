@@ -1,0 +1,59 @@
+{
+  "name": "@tanstack/ai-claude-code",
+  "version": "0.2.1",
+  "description": "Claude Code harness adapter for TanStack AI — run Claude Code as a chat backend with local tool execution and stateful sessions.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-claude-code"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "anthropic",
+    "claude",
+    "claude-code",
+    "harness",
+    "agent",
+    "adapter",
+    "chat",
+    "tool-calling"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

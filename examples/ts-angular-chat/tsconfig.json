@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "experimentalDecorators": false,
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "angularCompilerOptions": {
+    "strictTemplates": true
+  },
+  "include": ["src"]
+}

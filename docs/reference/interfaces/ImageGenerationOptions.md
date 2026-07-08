@@ -5,7 +5,7 @@ title: ImageGenerationOptions
 
 # Interface: ImageGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [types.ts:1020](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1020)
+Defined in: [packages/ai/src/types.ts:1665](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1665)
 
 Options for image generation.
 These are the common options supported across providers.
@@ -18,9 +18,22 @@ These are the common options supported across providers.
 
 ### TSize
 
-`TSize` *extends* `string` = `string`
+`TSize` *extends* `string` \| `undefined` = `string`
 
 ## Properties
+
+### logger
+
+```ts
+logger: InternalLogger;
+```
+
+Defined in: [packages/ai/src/types.ts:1691](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1691)
+
+Internal logger threaded from the generateImage() entry point. Adapters must
+call logger.request() before the SDK call and logger.errors() in catch blocks.
+
+***
 
 ### model
 
@@ -28,7 +41,7 @@ These are the common options supported across providers.
 model: string;
 ```
 
-Defined in: [types.ts:1025](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1025)
+Defined in: [packages/ai/src/types.ts:1670](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1670)
 
 The model to use for image generation
 
@@ -40,7 +53,7 @@ The model to use for image generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
+Defined in: [packages/ai/src/types.ts:1686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1686)
 
 Model-specific options for image generation
 
@@ -52,7 +65,7 @@ Model-specific options for image generation
 optional numberOfImages: number;
 ```
 
-Defined in: [types.ts:1029](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1029)
+Defined in: [packages/ai/src/types.ts:1682](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1682)
 
 Number of images to generate (default: 1)
 
@@ -61,12 +74,18 @@ Number of images to generate (default: 1)
 ### prompt
 
 ```ts
-prompt: string;
+prompt: MediaPrompt;
 ```
 
-Defined in: [types.ts:1027](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1027)
+Defined in: [packages/ai/src/types.ts:1680](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1680)
 
-Text description of the desired image(s)
+Description of the desired image(s): a plain string, or an ordered array
+of content parts for image-conditioned generation (image-to-image,
+reference-guided, edit, multi-reference). Media parts may carry
+`metadata.role` to disambiguate intent (mask, control, reference, …).
+Adapters map parts onto the provider-native request — e.g. Gemini
+multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
+`mask_url` — and throw a clear runtime error for unsupported modalities.
 
 ***
 
@@ -76,6 +95,6 @@ Text description of the desired image(s)
 optional size: TSize;
 ```
 
-Defined in: [types.ts:1031](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1031)
+Defined in: [packages/ai/src/types.ts:1684](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1684)
 
 Image size in WIDTHxHEIGHT format (e.g., "1024x1024")

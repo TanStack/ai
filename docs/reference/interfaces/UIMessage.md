@@ -3,12 +3,21 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage
+# Interface: UIMessage\<TData\>
 
-Defined in: [types.ts:327](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L327)
+Defined in: [packages/ai/src/types.ts:478](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L478)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
-Contains parts that can be text, tool calls, or tool results
+Contains parts that can be text, tool calls, or tool results. Generic over
+the structured-output data type so `useChat({ outputSchema })`'s schema
+narrows `parts.find(p => p.type === 'structured-output').data` on the
+consumer side without manual casts.
+
+## Type Parameters
+
+### TData
+
+`TData` = `unknown`
 
 ## Properties
 
@@ -18,7 +27,7 @@ Contains parts that can be text, tool calls, or tool results
 optional createdAt: Date;
 ```
 
-Defined in: [types.ts:331](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L331)
+Defined in: [packages/ai/src/types.ts:482](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L482)
 
 ***
 
@@ -28,17 +37,17 @@ Defined in: [types.ts:331](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:328](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L328)
+Defined in: [packages/ai/src/types.ts:479](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L479)
 
 ***
 
 ### parts
 
 ```ts
-parts: MessagePart[];
+parts: MessagePart<TData>[];
 ```
 
-Defined in: [types.ts:330](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L330)
+Defined in: [packages/ai/src/types.ts:481](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L481)
 
 ***
 
@@ -48,4 +57,4 @@ Defined in: [types.ts:330](https://github.com/TanStack/ai/blob/main/packages/typ
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [types.ts:329](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L329)
+Defined in: [packages/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L480)

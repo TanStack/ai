@@ -5,7 +5,7 @@ title: TranscriptionOptions
 
 # Interface: TranscriptionOptions\<TProviderOptions\>
 
-Defined in: [types.ts:1183](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1183)
+Defined in: [packages/ai/src/types.ts:1933](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1933)
 
 Options for audio transcription.
 These are the common options supported across providers.
@@ -24,7 +24,7 @@ These are the common options supported across providers.
 audio: string | File | Blob | ArrayBuffer;
 ```
 
-Defined in: [types.ts:1189](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1189)
+Defined in: [packages/ai/src/types.ts:1939](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1939)
 
 The audio data to transcribe - can be base64 string, File, Blob, or Buffer
 
@@ -36,9 +36,23 @@ The audio data to transcribe - can be base64 string, File, Blob, or Buffer
 optional language: string;
 ```
 
-Defined in: [types.ts:1191](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1191)
+Defined in: [packages/ai/src/types.ts:1941](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1941)
 
 The language of the audio in ISO-639-1 format (e.g., 'en')
+
+***
+
+### logger
+
+```ts
+logger: InternalLogger;
+```
+
+Defined in: [packages/ai/src/types.ts:1953](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1953)
+
+Internal logger threaded from the generateTranscription() entry point.
+Adapters must call logger.request() before the SDK call and logger.errors()
+in catch blocks.
 
 ***
 
@@ -48,7 +62,7 @@ The language of the audio in ISO-639-1 format (e.g., 'en')
 model: string;
 ```
 
-Defined in: [types.ts:1187](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1187)
+Defined in: [packages/ai/src/types.ts:1937](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1937)
 
 The model to use for transcription
 
@@ -60,7 +74,7 @@ The model to use for transcription
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:1197](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1197)
+Defined in: [packages/ai/src/types.ts:1947](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1947)
 
 Model-specific options for transcription
 
@@ -72,7 +86,7 @@ Model-specific options for transcription
 optional prompt: string;
 ```
 
-Defined in: [types.ts:1193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1193)
+Defined in: [packages/ai/src/types.ts:1943](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1943)
 
 An optional prompt to guide the transcription
 
@@ -84,6 +98,6 @@ An optional prompt to guide the transcription
 optional responseFormat: "text" | "json" | "srt" | "verbose_json" | "vtt";
 ```
 
-Defined in: [types.ts:1195](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1195)
+Defined in: [packages/ai/src/types.ts:1945](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1945)
 
 The format of the transcription output

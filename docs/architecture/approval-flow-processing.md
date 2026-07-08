@@ -1,3 +1,18 @@
+---
+title: Approval Flow Processing Architecture
+id: approval-flow-processing
+description: "Internal architecture of TanStack AI's tool approval system — state machine, streaming protocol, concurrency control, and chained approval mechanics."
+keywords:
+  - tanstack ai
+  - approval flow
+  - tool approval
+  - architecture
+  - state machine
+  - streaming protocol
+  - internals
+  - concurrency
+---
+
 # Approval Flow Processing Architecture
 
 > Internal architecture reference for the tool approval system in TanStack AI.
@@ -60,7 +75,7 @@ Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 - The stream ends with `RUN_FINISHED { finishReason: "tool_calls" }` so the
   client knows tools are pending.
 
-### StreamProcessor (`packages/typescript/ai/src/activities/chat/stream/processor.ts`)
+### StreamProcessor (`packages/ai/src/activities/chat/stream/processor.ts`)
 
 - Single source of truth for `UIMessage[]` state.
 - On `approval-requested` custom event:
@@ -73,7 +88,7 @@ Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 - Provides `areAllToolsComplete()` which the ChatClient uses to decide whether
   to auto-continue the conversation.
 
-### ChatClient (`packages/typescript/ai-client/src/chat-client.ts`)
+### ChatClient (`packages/ai-client/src/chat-client.ts`)
 
 - Owns the streaming lifecycle (`streamResponse`), post-stream action queue,
   and continuation control flags.
@@ -96,7 +111,7 @@ Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
 
 ### ToolCallState
 
-```typescript
+```typescript group=approval-flow-processing
 type ToolCallState =
   | 'awaiting-input'       // TOOL_CALL_START received, no arguments yet
   | 'input-streaming'      // Partial arguments being received
@@ -107,7 +122,7 @@ type ToolCallState =
 
 ### ToolCallPart (approval-relevant fields)
 
-```typescript
+```typescript group=approval-flow-processing
 interface ToolCallPart {
   type: 'tool-call'
   id: string               // Unique tool call ID
@@ -287,24 +302,33 @@ Two flags work together to handle this:
   Checked after `continuationPending` is cleared to trigger a re-evaluation.
 
 ```typescript
-private async checkForContinuation(): Promise<void> {
-  if (this.continuationPending || this.isLoading) {
-    this.continuationSkipped = true   // ← Mark that a check was suppressed
-    return
-  }
+class ChatClient {
+  private continuationPending = false
+  private continuationSkipped = false
+  private isLoading = false
 
-  if (this.shouldAutoSend()) {
-    this.continuationPending = true
-    this.continuationSkipped = false  // ← Reset before entering stream
-    try {
-      await this.streamResponse()
-    } finally {
-      this.continuationPending = false
+  private shouldAutoSend(): boolean { return false }
+  private async streamResponse(): Promise<void> {}
+
+  private async checkForContinuation(): Promise<void> {
+    if (this.continuationPending || this.isLoading) {
+      this.continuationSkipped = true   // ← Mark that a check was suppressed
+      return
     }
-    // If a check was skipped during the stream, re-evaluate now
-    if (this.continuationSkipped) {
-      this.continuationSkipped = false
-      await this.checkForContinuation()  // ← Recurse safely
+
+    if (this.shouldAutoSend()) {
+      this.continuationPending = true
+      this.continuationSkipped = false  // ← Reset before entering stream
+      try {
+        await this.streamResponse()
+      } finally {
+        this.continuationPending = false
+      }
+      // If a check was skipped during the stream, re-evaluate now
+      if (this.continuationSkipped) {
+        this.continuationSkipped = false
+        await this.checkForContinuation()  // ← Recurse safely
+      }
     }
   }
 }
@@ -370,7 +394,7 @@ These are `CUSTOM` events emitted by the TextEngine, not by adapters directly.
 
 Emitted when a tool with `needsApproval: true` has its arguments finalized.
 
-```typescript
+```typescript ignore
 {
   type: 'CUSTOM',
   name: 'approval-requested',
@@ -412,13 +436,13 @@ After the stream ends and the user responds, the ChatClient:
 
 | File | Role |
 |------|------|
-| `packages/typescript/ai/src/types.ts` | `ToolCallState`, `ToolCallPart`, tool approval types |
-| `packages/typescript/ai/src/activities/chat/stream/processor.ts` | `handleCustomEvent()` (approval-requested), `areAllToolsComplete()`, `addToolApprovalResponse()` |
-| `packages/typescript/ai/src/activities/chat/stream/message-updaters.ts` | `updateToolCallApproval()`, `updateToolCallApprovalResponse()` |
-| `packages/typescript/ai-client/src/chat-client.ts` | `addToolApprovalResponse()`, `checkForContinuation()`, continuation flags |
-| `packages/typescript/ai-react/src/use-chat.ts` | React hook: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-solid/src/use-chat.ts` | Solid hook: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-vue/src/use-chat.ts` | Vue composable: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-svelte/src/create-chat.svelte.ts` | Svelte: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-client/tests/chat-client.test.ts` | Chained approval test (`describe('chained tool approvals')`) |
-| `packages/typescript/ai/docs/chat-architecture.md` | Internal stream processing architecture |
+| `packages/ai/src/types.ts` | `ToolCallState`, `ToolCallPart`, tool approval types |
+| `packages/ai/src/activities/chat/stream/processor.ts` | `handleCustomEvent()` (approval-requested), `areAllToolsComplete()`, `addToolApprovalResponse()` |
+| `packages/ai/src/activities/chat/stream/message-updaters.ts` | `updateToolCallApproval()`, `updateToolCallApprovalResponse()` |
+| `packages/ai-client/src/chat-client.ts` | `addToolApprovalResponse()`, `checkForContinuation()`, continuation flags |
+| `packages/ai-react/src/use-chat.ts` | React hook: exposes `addToolApprovalResponse` |
+| `packages/ai-solid/src/use-chat.ts` | Solid hook: exposes `addToolApprovalResponse` |
+| `packages/ai-vue/src/use-chat.ts` | Vue composable: exposes `addToolApprovalResponse` |
+| `packages/ai-svelte/src/create-chat.svelte.ts` | Svelte: exposes `addToolApprovalResponse` |
+| `packages/ai-client/tests/chat-client.test.ts` | Chained approval test (`describe('chained tool approvals')`) |
+| `packages/ai/docs/chat-architecture.md` | Internal stream processing architecture |

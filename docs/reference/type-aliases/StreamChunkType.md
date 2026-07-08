@@ -3,12 +3,16 @@ id: StreamChunkType
 title: StreamChunkType
 ---
 
-# Type Alias: StreamChunkType
+# ~~Type Alias: StreamChunkType~~
 
 ```ts
 type StreamChunkType = AGUIEventType;
 ```
 
-Defined in: [types.ts:746](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L746)
+Defined in: [packages/ai/src/types.ts:1015](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1015)
 
 Stream chunk/event types (AG-UI protocol).
+
+## Deprecated
+
+Use `EventType` enum instead.

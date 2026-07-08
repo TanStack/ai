@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
 import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { generateSpeechFn, generateSpeechStreamFn } from '../lib/server-fns'
-
-const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
+import {
+  SPEECH_PROVIDERS,
+  type SpeechProviderConfig,
+  type SpeechProviderId,
+} from '../lib/audio-providers'
 
 type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
+
+type Mode = 'streaming' | 'direct' | 'server-fn'
 
 function toSpeechOutput(raw: {
   audio: string
@@ -30,58 +35,48 @@ function toSpeechOutput(raw: {
   }
 }
 
-function StreamingSpeechGeneration() {
+function SpeechGenerationForm({
+  mode,
+  config,
+}: {
+  mode: Mode
+  config: SpeechProviderConfig
+}) {
   const [text, setText] = useState('')
-  const [voice, setVoice] = useState<string>('alloy')
+  const [voice, setVoice] = useState(config.voices[0]?.id ?? '')
 
-  const hookReturn = useGenerateSpeech({
-    connection: fetchServerSentEvents('/api/generate/speech'),
-    onResult: toSpeechOutput,
-  })
+  const hookOptions = useMemo(() => {
+    if (mode === 'streaming') {
+      return {
+        connection: fetchServerSentEvents('/api/generate/speech'),
+        body: { provider: config.id },
+        onResult: toSpeechOutput,
+      }
+    }
+    if (mode === 'direct') {
+      return {
+        fetcher: (input: { text: string; voice?: string }) =>
+          generateSpeechFn({
+            data: { ...input, provider: config.id },
+          }),
+        onResult: toSpeechOutput,
+      }
+    }
+    return {
+      fetcher: (input: { text: string; voice?: string }) =>
+        generateSpeechStreamFn({
+          data: { ...input, provider: config.id },
+        }),
+      onResult: toSpeechOutput,
+    }
+  }, [mode, config.id])
+
+  const hookReturn = useGenerateSpeech(hookOptions)
 
   return (
     <SpeechGenerationUI
       {...hookReturn}
-      text={text}
-      setText={setText}
-      voice={voice}
-      setVoice={setVoice}
-    />
-  )
-}
-
-function DirectSpeechGeneration() {
-  const [text, setText] = useState('')
-  const [voice, setVoice] = useState<string>('alloy')
-
-  const hookReturn = useGenerateSpeech({
-    fetcher: (input) => generateSpeechFn({ data: input }),
-    onResult: toSpeechOutput,
-  })
-
-  return (
-    <SpeechGenerationUI
-      {...hookReturn}
-      text={text}
-      setText={setText}
-      voice={voice}
-      setVoice={setVoice}
-    />
-  )
-}
-
-function ServerFnSpeechGeneration() {
-  const [text, setText] = useState('')
-  const [voice, setVoice] = useState<string>('alloy')
-
-  const hookReturn = useGenerateSpeech({
-    fetcher: (input) => generateSpeechStreamFn({ data: input }),
-    onResult: toSpeechOutput,
-  })
-
-  return (
-    <SpeechGenerationUI
-      {...hookReturn}
+      config={config}
       text={text}
       setText={setText}
       voice={voice}
@@ -91,6 +86,7 @@ function ServerFnSpeechGeneration() {
 }
 
 function SpeechGenerationUI({
+  config,
   text,
   setText,
   voice,
@@ -101,6 +97,7 @@ function SpeechGenerationUI({
   error,
   reset,
 }: UseGenerateSpeechReturn<SpeechOutput> & {
+  config: SpeechProviderConfig
   text: string
   setText: (v: string) => void
   voice: string
@@ -111,14 +108,39 @@ function SpeechGenerationUI({
     generate({ text: text.trim(), voice })
   }
 
+  // Track the last object URL we created so we can revoke it when the
+  // result changes, reset is invoked, or the component unmounts.
+  const lastBlobUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    const current = result?.audioUrl
+    if (current && current.startsWith('blob:')) {
+      if (lastBlobUrlRef.current && lastBlobUrlRef.current !== current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+      }
+      lastBlobUrlRef.current = current
+    } else if (!current && lastBlobUrlRef.current) {
+      URL.revokeObjectURL(lastBlobUrlRef.current)
+      lastBlobUrlRef.current = null
+    }
+  }, [result?.audioUrl])
+  useEffect(() => {
+    return () => {
+      if (lastBlobUrlRef.current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+        lastBlobUrlRef.current = null
+      }
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
         <label className="text-sm text-gray-400">Text</label>
         <textarea
+          data-testid="speech-text-input"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Enter text to convert to speech..."
+          placeholder={config.placeholder}
           className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 resize-none"
           rows={4}
           disabled={isLoading}
@@ -128,17 +150,18 @@ function SpeechGenerationUI({
       <div className="space-y-3">
         <label className="text-sm text-gray-400">Voice</label>
         <div className="flex flex-wrap gap-2">
-          {VOICES.map((v) => (
+          {config.voices.map((v) => (
             <button
-              key={v}
-              onClick={() => setVoice(v)}
+              key={v.id}
+              onClick={() => setVoice(v.id)}
+              data-testid={`voice-${v.id}`}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                voice === v
+                voice === v.id
                   ? 'bg-orange-600 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
-              {v}
+              {v.label}
             </button>
           ))}
         </div>
@@ -148,6 +171,7 @@ function SpeechGenerationUI({
         <button
           onClick={handleGenerate}
           disabled={!text.trim() || isLoading}
+          data-testid="speech-generate-button"
           className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {isLoading ? 'Generating...' : 'Generate Speech'}
@@ -163,7 +187,10 @@ function SpeechGenerationUI({
       </div>
 
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+        <div
+          data-testid="speech-error"
+          className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
+        >
           <p className="text-red-400 text-sm">{error.message}</p>
         </div>
       )}
@@ -171,10 +198,16 @@ function SpeechGenerationUI({
       {result && (
         <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg space-y-3">
           <p className="text-sm text-gray-400">
-            Format: {result.format}
-            {result.duration && ` | Duration: ${result.duration}s`}
+            Model: <span className="text-gray-200">{config.model}</span>
+            {result.format != null && ` | Format: ${result.format}`}
+            {result.duration != null && ` | Duration: ${result.duration}s`}
           </p>
-          <audio src={result.audioUrl} controls className="w-full" />
+          <audio
+            data-testid="speech-audio"
+            src={result.audioUrl}
+            controls
+            className="w-full"
+          />
         </div>
       )}
     </div>
@@ -182,9 +215,10 @@ function SpeechGenerationUI({
 }
 
 function SpeechGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>(
-    'streaming',
-  )
+  const [mode, setMode] = useState<Mode>('streaming')
+  const [provider, setProvider] = useState<SpeechProviderId>('openai')
+
+  const config = SPEECH_PROVIDERS.find((p) => p.id === provider)!
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -193,53 +227,56 @@ function SpeechGenerationPage() {
           <div>
             <h2 className="text-xl font-semibold">Text-to-Speech</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Convert text to spoken audio using OpenAI TTS
+              Convert text to spoken audio. Try each provider to compare voices
+              and quality.
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
-            <button
-              onClick={() => setMode('streaming')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'streaming'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Streaming
-            </button>
-            <button
-              onClick={() => setMode('direct')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'direct'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Direct
-            </button>
-            <button
-              onClick={() => setMode('server-fn')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'server-fn'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Server Fn
-            </button>
+            {(['streaming', 'direct', 'server-fn'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === m
+                    ? 'bg-orange-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {m === 'server-fn'
+                  ? 'Server Fn'
+                  : m[0].toUpperCase() + m.slice(1)}
+              </button>
+            ))}
           </div>
+        </div>
+      </div>
+
+      <div className="border-b border-orange-500/20 bg-gray-800/60 px-6 py-3">
+        <div className="flex flex-wrap gap-2">
+          {SPEECH_PROVIDERS.map((p) => (
+            <button
+              key={p.id}
+              data-testid={`provider-tab-${p.id}`}
+              onClick={() => setProvider(p.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                provider === p.id
+                  ? 'bg-orange-500/80 text-white'
+                  : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
-          {mode === 'streaming' ? (
-            <StreamingSpeechGeneration key="streaming" />
-          ) : mode === 'direct' ? (
-            <DirectSpeechGeneration key="direct" />
-          ) : (
-            <ServerFnSpeechGeneration key="server-fn" />
-          )}
+          <SpeechGenerationForm
+            key={`${mode}-${config.id}`}
+            mode={mode}
+            config={config}
+          />
         </div>
       </div>
     </div>

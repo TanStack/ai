@@ -1,0 +1,55 @@
+{
+  "name": "@tanstack/ai-sandbox-sprites",
+  "version": "0.2.1",
+  "description": "Sprites sandbox provider for TanStack AI — run harness adapters inside isolated Fly.io Sprite stateful sandboxes through the uniform SandboxHandle.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-sandbox-sprites"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "sandbox",
+    "sprites",
+    "fly",
+    "harness",
+    "agent",
+    "isolation"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "engines": {
+    "node": ">=22.4.0"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

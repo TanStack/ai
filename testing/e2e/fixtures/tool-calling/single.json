@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[toolcall] what guitars do you have in stock",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[toolcall] what guitars do you have in stock",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here's what we have in stock:\n\n1. **Fender Stratocaster** - $1,299\n2. **Gibson Les Paul** - $2,499\n3. **Taylor 814ce** - $3,299\n4. **Martin D-28** - $2,999\n\nWould you like more details on any of these?"
+      }
+    }
+  ]
+}

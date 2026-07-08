@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[client-tool-single] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I need to show you a notification.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Hello from the AI!\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-tool-single] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The notification has been shown."
+      }
+    }
+  ]
+}

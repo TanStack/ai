@@ -1,47 +1,72 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranscription } from '@tanstack/ai-react'
-import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { transcribeFn, transcribeStreamFn } from '../lib/server-fns'
+import { TRANSCRIPTION_PROVIDERS } from '../lib/audio-providers'
+import type {
+  TranscriptionProviderConfig,
+  TranscriptionProviderId,
+} from '../lib/audio-providers'
+import type { UseTranscriptionReturn } from '@tanstack/ai-react'
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 
-function StreamingTranscription() {
-  const hookReturn = useTranscription({
-    connection: fetchServerSentEvents('/api/transcribe'),
-  })
+type Mode = 'streaming' | 'direct' | 'server-fn'
 
-  return <TranscriptionUI {...hookReturn} />
-}
+function TranscriptionForm({
+  mode,
+  config,
+}: {
+  mode: Mode
+  config: TranscriptionProviderConfig
+}) {
+  const hookOptions = useMemo(() => {
+    if (mode === 'streaming') {
+      return {
+        connection: fetchServerSentEvents('/api/transcribe'),
+        body: { provider: config.id },
+      }
+    }
+    if (mode === 'direct') {
+      return {
+        fetcher: (input: TranscriptionGenerateInput) =>
+          transcribeFn({
+            data: {
+              audio: input.audio as string,
+              language: input.language,
+              responseFormat: input.responseFormat,
+              modelOptions: input.modelOptions,
+              provider: config.id,
+            },
+          }),
+      }
+    }
+    return {
+      fetcher: (input: TranscriptionGenerateInput) =>
+        transcribeStreamFn({
+          data: {
+            audio: input.audio as string,
+            language: input.language,
+            responseFormat: input.responseFormat,
+            modelOptions: input.modelOptions,
+            provider: config.id,
+          },
+        }),
+    }
+  }, [mode, config.id])
 
-function DirectTranscription() {
-  const hookReturn = useTranscription({
-    fetcher: (input) =>
-      transcribeFn({
-        data: { ...input, audio: input.audio as string },
-      }),
-  })
-
-  return <TranscriptionUI {...hookReturn} />
-}
-
-function ServerFnTranscription() {
-  const hookReturn = useTranscription({
-    fetcher: (input) =>
-      transcribeStreamFn({
-        data: { ...input, audio: input.audio as string },
-      }),
-  })
-
-  return <TranscriptionUI {...hookReturn} />
+  const hookReturn = useTranscription(hookOptions)
+  return <TranscriptionUI {...hookReturn} config={config} />
 }
 
 function TranscriptionUI({
+  config,
   generate,
   result,
   isLoading,
   error,
   reset,
-}: UseTranscriptionReturn) {
+}: UseTranscriptionReturn & { config: TranscriptionProviderConfig }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +79,11 @@ function TranscriptionUI({
     )
     const dataUrl = `data:${file.type};base64,${base64}`
 
-    await generate({ audio: dataUrl, language: 'en' })
+    await generate({
+      audio: dataUrl,
+      language: 'en',
+      ...config.transcriptionOptions,
+    })
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -63,11 +92,19 @@ function TranscriptionUI({
 
   return (
     <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-xs text-gray-400">
+          Model: <span className="text-gray-200">{config.model}</span>
+        </p>
+        <p className="text-xs text-gray-500">{config.description}</p>
+      </div>
+
       <div className="space-y-3">
         <label className="text-sm text-gray-400">Upload Audio File</label>
         <div className="flex items-center gap-3">
           <input
             ref={fileInputRef}
+            data-testid="transcription-file-input"
             type="file"
             accept="audio/*"
             onChange={handleFileUpload}
@@ -89,13 +126,19 @@ function TranscriptionUI({
       </div>
 
       {isLoading && (
-        <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+        <div
+          data-testid="transcription-loading"
+          className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg"
+        >
           <p className="text-sm text-gray-400">Transcribing...</p>
         </div>
       )}
 
       {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+        <div
+          data-testid="transcription-error"
+          className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
+        >
           <p className="text-red-400 text-sm">{error.message}</p>
         </div>
       )}
@@ -104,10 +147,15 @@ function TranscriptionUI({
         <div className="space-y-4">
           <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
             <p className="text-sm text-gray-400 mb-2">
-              {result.language && `Language: ${result.language}`}
-              {result.duration && ` | Duration: ${result.duration}s`}
+              {result.language != null && `Language: ${result.language}`}
+              {result.duration != null && ` | Duration: ${result.duration}s`}
             </p>
-            <p className="text-white whitespace-pre-wrap">{result.text}</p>
+            <p
+              data-testid="transcription-text"
+              className="text-white whitespace-pre-wrap"
+            >
+              {result.text}
+            </p>
           </div>
 
           {result.segments && result.segments.length > 0 && (
@@ -119,6 +167,11 @@ function TranscriptionUI({
                     <span className="text-gray-500 font-mono whitespace-nowrap">
                       {seg.start.toFixed(1)}s - {seg.end.toFixed(1)}s
                     </span>
+                    {seg.speaker && (
+                      <span className="text-orange-300 font-medium whitespace-nowrap">
+                        {seg.speaker}
+                      </span>
+                    )}
                     <span className="text-white">{seg.text}</span>
                   </div>
                 ))}
@@ -132,9 +185,10 @@ function TranscriptionUI({
 }
 
 function TranscriptionPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>(
-    'streaming',
-  )
+  const [mode, setMode] = useState<Mode>('streaming')
+  const [provider, setProvider] = useState<TranscriptionProviderId>('openai')
+
+  const config = TRANSCRIPTION_PROVIDERS.find((p) => p.id === provider)!
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -143,53 +197,55 @@ function TranscriptionPage() {
           <div>
             <h2 className="text-xl font-semibold">Audio Transcription</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Transcribe audio files to text using OpenAI Whisper
+              Transcribe audio files to text across providers.
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
-            <button
-              onClick={() => setMode('streaming')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'streaming'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Streaming
-            </button>
-            <button
-              onClick={() => setMode('direct')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'direct'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Direct
-            </button>
-            <button
-              onClick={() => setMode('server-fn')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                mode === 'server-fn'
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Server Fn
-            </button>
+            {(['streaming', 'direct', 'server-fn'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === m
+                    ? 'bg-orange-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {m === 'server-fn'
+                  ? 'Server Fn'
+                  : m[0].toUpperCase() + m.slice(1)}
+              </button>
+            ))}
           </div>
+        </div>
+      </div>
+
+      <div className="border-b border-orange-500/20 bg-gray-800/60 px-6 py-3">
+        <div className="flex flex-wrap gap-2">
+          {TRANSCRIPTION_PROVIDERS.map((p) => (
+            <button
+              key={p.id}
+              data-testid={`provider-tab-${p.id}`}
+              onClick={() => setProvider(p.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                provider === p.id
+                  ? 'bg-orange-500/80 text-white'
+                  : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
-          {mode === 'streaming' ? (
-            <StreamingTranscription key="streaming" />
-          ) : mode === 'direct' ? (
-            <DirectTranscription key="direct" />
-          ) : (
-            <ServerFnTranscription key="server-fn" />
-          )}
+          <TranscriptionForm
+            key={`${mode}-${config.id}`}
+            mode={mode}
+            config={config}
+          />
         </div>
       </div>
     </div>

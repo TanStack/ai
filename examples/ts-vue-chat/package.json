@@ -1,13 +1,14 @@
 {
   "name": "ts-vue-chat",
-  "version": "0.1.24",
+  "version": "0.1.45",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "check": "vue-tsc --noEmit"
+    "check": "vue-tsc --noEmit",
+    "test:types": "vue-tsc -b"
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
@@ -34,7 +35,7 @@
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "vue-tsc": "^2.2.10"
   }
 }

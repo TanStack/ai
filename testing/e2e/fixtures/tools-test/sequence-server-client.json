@@ -1,0 +1,40 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[sequence-server-client] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "First, let me fetch the data.",
+        "toolCalls": [
+          { "name": "fetch_data", "arguments": "{\"source\":\"api\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[sequence-server-client] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Now let me display it on screen.",
+        "toolCalls": [
+          {
+            "name": "display_chart",
+            "arguments": "{\"type\":\"bar\",\"data\":[1,2,3]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[sequence-server-client] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "The chart is now displayed."
+      }
+    }
+  ]
+}

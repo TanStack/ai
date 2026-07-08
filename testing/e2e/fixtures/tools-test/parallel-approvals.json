@@ -1,0 +1,32 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[parallel-approvals] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I need to delete multiple files at once.",
+        "toolCalls": [
+          {
+            "name": "delete_file",
+            "arguments": "{\"path\":\"/tmp/parallel-a.txt\"}"
+          },
+          {
+            "name": "delete_file",
+            "arguments": "{\"path\":\"/tmp/parallel-b.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[parallel-approvals] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "All files have been processed."
+      }
+    }
+  ]
+}

@@ -2,6 +2,16 @@
 title: Google Gemini
 id: gemini-adapter
 order: 3
+description: "Use Google Gemini with TanStack AI — text, image generation via Imagen and Gemini native (NanoBanana), and experimental TTS via @tanstack/ai-gemini."
+keywords:
+  - tanstack ai
+  - gemini
+  - google gemini
+  - imagen
+  - nano banana
+  - image generation
+  - adapter
+  - google ai
 ---
 
 The Google Gemini adapter provides access to Google's Gemini models, including text generation, image generation with both Imagen and Gemini native image models (NanoBanana), and experimental text-to-speech.
@@ -21,7 +31,7 @@ import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
+  adapter: geminiText("gemini-3.1-pro-preview"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -32,12 +42,12 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGeminiChat } from "@tanstack/ai-gemini";
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
+const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gemini-2.5-pro"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -45,13 +55,15 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createGeminiChat, type GeminiChatConfig } from "@tanstack/ai-gemini";
+import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
-const config: Omit<GeminiChatConfig, 'apiKey'> = {
-  baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
+const config: Omit<GeminiTextConfig, "apiKey"> = {
+  httpOptions: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Optional
+  },
 };
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
+const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, config);
 ```
   
 
@@ -65,7 +77,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: geminiText("gemini-2.5-pro"),
+    adapter: geminiText("gemini-3.1-pro-preview"),
     messages,
   });
 
@@ -76,7 +88,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 import { z } from "zod";
 
@@ -93,21 +105,230 @@ const getCalendarEvents = getCalendarEventsDef.server(async ({ date }) => {
   return { events: [] };
 });
 
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: geminiText("gemini-3.1-pro-preview"),
+    messages,
+    tools: [getCalendarEvents],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+## Stateful Conversations — Interactions API (Experimental)
+
+Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) (currently in Beta) offers server-side conversation state — the Gemini equivalent of OpenAI's Responses API. Instead of replaying the full message history on every turn, you pass a `previous_interaction_id` and the server retains the transcript. This also improves cache hit rates for repeated prefixes.
+
+The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id via an AG-UI `CUSTOM` event (`name: 'gemini.interactionId'`) emitted just before `RUN_FINISHED`, so you can chain turns.
+
+> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. The adapter is exported from the `@tanstack/ai-gemini/experimental` subpath so the experimental status is load-bearing in your editor and bundle. Text output, function tools, and the built-in tools `google_search`, `code_execution`, `url_context`, `file_search`, and `computer_use` are supported. `google_search_retrieval`, `google_maps`, and `mcp_server` still throw on this adapter — use `geminiText()` for those or wait for follow-up work.
+
+### Basic Usage
+
+```typescript ignore
+import { chat } from "@tanstack/ai";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
+
+// Turn 1: introduce yourself, capture the interaction id.
+let interactionId: string | undefined;
+
+for await (const chunk of chat({
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
+  messages: [{ role: "user", content: "Hi, my name is Amir." }],
+})) {
+  if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "gemini.interactionId" &&
+    chunk.value &&
+    typeof chunk.value === "object" &&
+    "interactionId" in chunk.value
+  ) {
+    interactionId = String(chunk.value.interactionId);
+  }
+}
+
+// Turn 2: only send the new turn's content — the server has the history.
+for await (const chunk of chat({
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
+  messages: [{ role: "user", content: "What is my name?" }],
+  modelOptions: {
+    previous_interaction_id: interactionId,
+  },
+})) {
+  // ...stream "Your name is Amir." back to the client.
+}
+```
+
+### Wiring with `useChat` (React)
+
+The Interactions API is stateful and **does not accept multi-turn history without a `previous_interaction_id`** — if a chat client sends `[user, assistant, user]` to a fresh interaction the adapter throws `cannot send prior conversation history on a fresh interaction`. To make `useChat` work, persist the server-assigned id and send it back on the next turn:
+
+**Server route** (e.g. TanStack Start handler):
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
+
+export async function POST({ request }: { request: Request }) {
+  const params = await chatParamsFromRequestBody(await request.json());
+
+  // The client sends body.previousInteractionId; AG-UI maps `body` into
+  // `forwardedProps` on the wire.
+  const previousInteractionId =
+    typeof params.forwardedProps.previousInteractionId === "string"
+      ? params.forwardedProps.previousInteractionId
+      : undefined;
+
+  const stream = chat({
+    adapter: geminiTextInteractions("gemini-3.5-flash"),
+    messages: params.messages,
+    modelOptions: {
+      previous_interaction_id: previousInteractionId,
+      store: true, // required for chaining on the next turn
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+**React client**:
+
+```tsx
+import { useEffect, useMemo, useState } from "react";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+
+function GeminiChat() {
+  const [interactionId, setInteractionId] = useState<string | undefined>();
+
+  const body = useMemo(
+    () => (interactionId ? { previousInteractionId: interactionId } : {}),
+    [interactionId],
+  );
+
+  const { messages, setMessages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    body,
+    onCustomEvent: (eventType, data) => {
+      if (
+        eventType === "gemini.interactionId" &&
+        typeof data === "object" &&
+        data !== null &&
+        "interactionId" in data
+      ) {
+        setInteractionId(String(data.interactionId));
+      }
+    },
+  });
+
+  // Switching provider/model resets the server-side chain — drop the id
+  // AND the local message history together, otherwise the next turn
+  // ships multi-turn messages with no previous_interaction_id and the
+  // adapter errors out.
+  const [provider, setProvider] = useState("gemini-interactions");
+  useEffect(() => {
+    setInteractionId(undefined);
+    setMessages([]);
+  }, [provider]);
+
+  // ...render messages, call sendMessage(input)
+}
+```
+
+The full working example is in [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat) — see `src/routes/index.tsx` for the client and `src/routes/api.tanchat.ts` for the route.
+
+### How it differs from `geminiText`
+
+| Concern | `geminiText` | `geminiTextInteractions` |
+| --- | --- | --- |
+| Underlying endpoint | `models:generateContent` | `interactions:create` |
+| Conversation state | Stateless — send full history each turn | Stateful — server retains transcript via `previous_interaction_id` |
+| Provider options shape | camelCase (`stopSequences`, `responseModalities`, `safetySettings`) | snake_case (`generation_config`, `response_modalities`, `previous_interaction_id`) |
+| Built-in tools | `google_search`, `code_execution`, `url_context`, `file_search`, `google_maps`, `google_search_retrieval`, `computer_use` | `google_search`, `code_execution`, `url_context`, `file_search`, `computer_use` (only the first four stream `CUSTOM` event activity; `computer_use` is accepted in the request but does not currently emit per-delta events) |
+| Stability | GA | Experimental (Google Beta) |
+
+### Provider Options
+
+The adapter exposes Interactions-specific options on `modelOptions`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
+
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
-  messages,
-  tools: [getCalendarEvents],
+  adapter: geminiTextInteractions("gemini-3.5-flash"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    // Stateful chaining — passed only on turn 2+.
+    previous_interaction_id: "int_abc123",
+
+    // Persist the interaction server-side (default true). Must be true for
+    // previous_interaction_id to work on the *next* turn.
+    store: true,
+
+    // Per-request system instruction (interaction-scoped — re-specify each turn).
+    system_instruction: "You are a helpful assistant.",
+
+    // snake_case generation config distinct from geminiText's camelCase one.
+    generation_config: {
+      thinking_level: "low",
+      thinking_summaries: "auto",
+      stop_sequences: ["<done>"],
+    },
+
+    response_modalities: ["text"],
+  },
 });
 ```
 
+### Reading the interaction id
+
+The server's interaction id arrives as an AG-UI `CUSTOM` event emitted just before `RUN_FINISHED`:
+
+```typescript ignore
+for await (const chunk of stream) {
+  if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "gemini.interactionId" &&
+    typeof chunk.value === "object" &&
+    chunk.value !== null &&
+    "interactionId" in chunk.value
+  ) {
+    const id = String(chunk.value.interactionId);
+    // Persist `id` wherever you store per-user conversation pointers —
+    // pass it back on the next turn as `previous_interaction_id`.
+  }
+}
+```
+
+### Caveats
+
+- **Multi-turn history requires `previous_interaction_id`.** The Interactions API has no stateless replay path — sending more than one message in `messages` without a `previous_interaction_id` throws. Chat UIs that maintain local history must capture the server-assigned id and chain (see [Wiring with `useChat`](#wiring-with-usechat-react)). On provider/model switch, also clear the local message buffer.
+- **Tools, `system_instruction`, and `generation_config` are interaction-scoped.** Per Google's docs these are NOT inherited from a prior interaction via `previous_interaction_id` — pass them again on every turn you need them.
+- `store: false` is incompatible with `previous_interaction_id` (no state to recall) and with `background: true`.
+- Retention (as of the time of writing): **55 days on the Paid Tier, 1 day on the Free Tier.** See [Google's Interactions API docs](https://ai.google.dev/gemini-api/docs/interactions) for current retention policy.
+- Built-in tools in scope (`google_search`, `code_execution`, `url_context`, `file_search`, `computer_use`) are wired through as request tools. Per-delta activity for the four search/exec tools streams back as AG-UI `CUSTOM` events — `gemini.googleSearchCall` / `gemini.googleSearchResult` (and the matching `codeExecutionCall`/`Result`, `urlContextCall`/`Result`, `fileSearchCall`/`Result`) — carrying the raw Interactions delta. `computer_use` is accepted in the request but the Interactions API does not currently emit per-delta `CUSTOM` events for it. Function-tool `TOOL_CALL_*` events are unchanged, and `finishReason` stays `stop` when only built-in tools ran.
+- `google_search_retrieval`, `google_maps`, and `mcp_server` still throw a targeted error on this adapter. Use `geminiText()` for the first two, or wait for a dedicated follow-up for `mcp_server`.
+- Image and audio output via Interactions aren't routed through this adapter yet — it's text-only. Use `geminiImage` / `geminiSpeech` for non-text generation for now.
+
 ## Model Options
 
-Gemini supports various model-specific options:
+Gemini supports various model-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxOutputTokens` — rather than as root-level props on `chat()`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
 const stream = chat({
-  adapter: geminiText("gemini-2.5-pro"),
-  messages,
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     maxOutputTokens: 2048,
     temperature: 0.7,
@@ -118,11 +339,13 @@ const stream = chat({
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Thinking
 
 Enable thinking for models that support it:
 
-```typescript
+```typescript ignore
 modelOptions: {
   thinking: {
     includeThoughts: true,
@@ -134,7 +357,7 @@ modelOptions: {
 
 Configure structured output format:
 
-```typescript
+```typescript ignore
 modelOptions: {
   responseMimeType: "application/json",
 }
@@ -149,7 +372,7 @@ import { summarize } from "@tanstack/ai";
 import { geminiSummarize } from "@tanstack/ai-gemini";
 
 const result = await summarize({
-  adapter: geminiSummarize("gemini-2.5-pro"),
+  adapter: geminiSummarize("gemini-3.1-pro-preview"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -206,7 +429,7 @@ console.log(result.images);
 
 Gemini native image models use a template literal size format combining aspect ratio and resolution tier:
 
-```typescript
+```typescript ignore
 // Format: "aspectRatio_resolution"
 size: "16:9_4K"
 size: "1:1_2K"
@@ -231,6 +454,9 @@ Imagen models use WIDTHxHEIGHT format, which maps to aspect ratios internally:
 Alternatively, you can specify the aspect ratio directly in Model Options:
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "A landscape photo",
@@ -242,7 +468,10 @@ const result = await generateImage({
 
 ### Image Model Options
 
-```typescript
+```typescript ignore
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
 const result = await generateImage({
   adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: "...",
@@ -265,7 +494,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
 const result = await generateSpeech({
-  adapter: geminiSpeech("gemini-2.5-flash-preview-tts"),
+  adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
   text: "Hello from Gemini TTS!",
 });
 
@@ -297,9 +526,9 @@ These models use the `generateContent` API and support resolution tiers (1K, 2K,
 | Model | Description |
 |-------|-------------|
 | `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
+| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
 | `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
 | `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-| `gemini-2.0-flash-preview-image-generation` | Gemini 2.0 Flash image generation |
 
 ### Imagen Models
 
@@ -310,78 +539,208 @@ These models use the dedicated `generateImages` API.
 | `imagen-4.0-ultra-generate-001` | Best quality Imagen image generation |
 | `imagen-4.0-generate-001` | High quality Imagen image generation |
 | `imagen-4.0-fast-generate-001` | Fast Imagen image generation |
-| `imagen-3.0-generate-002` | Imagen 3 image generation |
 
 ## API Reference
 
-### `geminiText(config?)`
+Every factory pair follows the same shape: the short factory (`geminiText`, `geminiImage`, …) reads `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) from the environment, while the `create*` variant takes an explicit API key. Both take `model` as the first argument.
 
-Creates a Gemini text/chat adapter using environment variables.
+### `geminiText(model, config?)` / `createGeminiChat(model, apiKey, config?)`
 
-**Returns:** A Gemini text adapter instance.
-
-### `createGeminiText(apiKey, config?)`
-
-Creates a Gemini text/chat adapter with an explicit API key.
+Creates a Gemini text/chat adapter.
 
 **Parameters:**
 
-- `apiKey` - Your Gemini API key
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - Gemini chat model id (e.g. `"gemini-3.1-pro-preview"`)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** A Gemini text adapter instance.
+### `geminiTextInteractions(model, config?)` / `createGeminiTextInteractions(model, apiKey, config?)` (experimental)
 
-### `geminiSummarize(config?)`
-
-Creates a Gemini summarization adapter using environment variables.
-
-**Returns:** A Gemini summarize adapter instance.
-
-### `createGeminiSummarize(apiKey, config?)`
-
-Creates a Gemini summarization adapter with an explicit API key.
-
-**Returns:** A Gemini summarize adapter instance.
-
-### `geminiImage(model, config?)`
-
-Creates a Gemini image adapter using environment variables. Automatically routes to the correct API based on model name — `gemini-*` models use `generateContent`, `imagen-*` models use `generateImages`.
+Creates a Gemini Interactions API text adapter. Backs the stateful conversation pattern via `previous_interaction_id`. Exported from `@tanstack/ai-gemini/experimental`.
 
 **Parameters:**
 
-- `model` - The model name (e.g., `"gemini-3.1-flash-image-preview"` or `"imagen-4.0-generate-001"`)
-- `config.baseURL?` - Custom base URL (optional)
+- `model` - Gemini chat model id (e.g. `"gemini-3.5-flash"`)
+- `config?.baseURL` - Custom base URL (optional)
 
-**Returns:** A Gemini image adapter instance.
+### `geminiSummarize(model, config?)` / `createGeminiSummarize(model, apiKey, config?)`
 
-### `createGeminiImage(model, apiKey, config?)`
+Creates a Gemini summarization adapter.
 
-Creates a Gemini image adapter with an explicit API key.
+### `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)`
 
-**Parameters:**
+Creates a Gemini image adapter. Automatically routes to the correct API based on the model name — `gemini-*` models use `generateContent`, `imagen-*` models use `generateImages`.
 
-- `model` - The model name
-- `apiKey` - Your Google API key
-- `config.baseURL?` - Custom base URL (optional)
+### `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)`
 
-**Returns:** A Gemini image adapter instance.
+Creates a Gemini text-to-speech adapter. _Experimental._
 
-### `geminiTTS(config?)`
+### `geminiAudio(model, config?)` / `createGeminiAudio(model, apiKey, config?)`
 
-Creates a Gemini TTS adapter using environment variables.
-
-**Returns:** A Gemini TTS adapter instance.
-
-### `createGeminiTTS(apiKey, config?)`
-
-Creates a Gemini TTS adapter with an explicit API key.
-
-**Returns:** A Gemini TTS adapter instance.
+Creates a Gemini Lyria music generation adapter. _Experimental._
 
 ## Next Steps
 
-- [Image Generation Guide](../guides/image-generation) - Learn more about image generation
+- [Image Generation Guide](../media/image-generation) - Learn more about image generation
 - [Media Generation Example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media) - Full working example with Gemini and fal.ai
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
+
+## Provider Tools
+
+Google Gemini exposes several native tools beyond user-defined function calls.
+Import them from `@tanstack/ai-gemini/tools` and pass them into
+`chat({ tools: [...] })`.
+
+> For the full concept, a comparison matrix, and type-gating details, see
+> [Provider Tools](../tools/provider-tools.md).
+
+### `codeExecutionTool`
+
+Enables Gemini to execute Python code in a sandboxed environment and return
+results inline. Takes no arguments — include it in the `tools` array to
+activate code execution.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { codeExecutionTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Calculate the first 10 Fibonacci numbers" }],
+  tools: [codeExecutionTool()],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro, Gemini 2.x, Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `fileSearchTool`
+
+Searches files that have been uploaded to the Gemini File API. Pass a
+`FileSearch` config object with the corpus and file IDs to scope the search.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { fileSearchTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Find the quarterly revenue figures" }],
+  tools: [
+    fileSearchTool({
+      fileSearchStoreNames: ["fileSearchStores/my-file-search-store-123"],
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 2.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleSearchTool`
+
+Enables Gemini to query Google Search and incorporate grounded search results
+into its response. Pass an optional `GoogleSearch` config or call with no
+arguments to use defaults.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "What's the weather in Tokyo right now?" }],
+  tools: [googleSearchTool()],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro, Gemini 2.x, Gemini 2.5. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleSearchRetrievalTool`
+
+A retrieval-augmented variant of Google Search that returns ranked passages
+from the web with configurable dynamic retrieval mode. Pass an optional
+`GoogleSearchRetrieval` config.
+
+```typescript ignore
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchRetrievalTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Explain the latest JavaScript proposals" }],
+  tools: [
+    googleSearchRetrievalTool({
+      dynamicRetrievalConfig: { mode: "MODE_DYNAMIC", dynamicThreshold: 0.7 },
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleMapsTool`
+
+Connects Gemini to the Google Maps API for location-aware queries such as
+directions, place search, and geocoding. Pass an optional `GoogleMaps` config
+or call with no arguments.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleMapsTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Find coffee shops near Union Square, SF" }],
+  tools: [googleMapsTool()],
+});
+```
+
+**Supported models:** Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `urlContextTool`
+
+Fetches and includes the content of URLs mentioned in the conversation so
+Gemini can reason over live web pages. Takes no arguments.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { urlContextTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Summarise https://example.com/article" }],
+  tools: [urlContextTool()],
+});
+```
+
+**Supported models:** Gemini 2.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `computerUseTool`
+
+Allows Gemini to observe a virtual desktop via screenshots and interact with
+it using predefined computer-use functions. Provide the `environment` and
+optionally restrict callable functions via `excludedPredefinedFunctions`.
+
+```typescript ignore
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { computerUseTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.1-pro-preview"),
+  messages: [{ role: "user", content: "Navigate to example.com in the browser" }],
+  tools: [
+    computerUseTool({
+      environment: "browser",
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).

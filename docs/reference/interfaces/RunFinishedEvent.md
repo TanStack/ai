@@ -5,23 +5,32 @@ title: RunFinishedEvent
 
 # Interface: RunFinishedEvent
 
-Defined in: [types.ts:780](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L780)
+Defined in: [packages/ai/src/types.ts:1068](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1068)
 
 Emitted when a run completes successfully.
 
+@ag-ui/core provides: `threadId`, `runId`, `result?`
+TanStack AI adds: `model?`, `finishReason?`, `usage?`
+
 ## Extends
 
-- [`BaseAGUIEvent`](BaseAGUIEvent.md)
+- `RunFinishedEvent`
+
+## Indexable
+
+```ts
+[k: string]: unknown
+```
 
 ## Properties
 
-### finishReason
+### finishReason?
 
 ```ts
-finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
+optional finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [types.ts:785](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L785)
+Defined in: [packages/ai/src/types.ts:1072](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1072)
 
 Why the generation stopped
 
@@ -33,96 +42,18 @@ Why the generation stopped
 optional model: string;
 ```
 
-Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
+Defined in: [packages/ai/src/types.ts:1070](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1070)
 
 Model identifier for multi-model support
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`model`](BaseAGUIEvent.md#model)
-
-***
-
-### rawEvent?
-
-```ts
-optional rawEvent: unknown;
-```
-
-Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
-
-Original provider event for debugging/advanced use cases
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`rawEvent`](BaseAGUIEvent.md#rawevent)
-
-***
-
-### runId
-
-```ts
-runId: string;
-```
-
-Defined in: [types.ts:783](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L783)
-
-Run identifier
-
-***
-
-### timestamp
-
-```ts
-timestamp: number;
-```
-
-Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`timestamp`](BaseAGUIEvent.md#timestamp)
-
-***
-
-### type
-
-```ts
-type: "RUN_FINISHED";
-```
-
-Defined in: [types.ts:781](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L781)
-
-#### Overrides
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`type`](BaseAGUIEvent.md#type)
 
 ***
 
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [types.ts:787](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L787)
+Defined in: [packages/ai/src/types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1074)
 
-Token usage statistics
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Token usage statistics with optional detailed breakdowns and provider-reported cost.

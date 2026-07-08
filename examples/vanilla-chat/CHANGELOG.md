@@ -1,5 +1,117 @@
 # vanilla-chat
 
+## 0.0.40
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai-client@0.11.0
+
+## 0.0.39
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099)]:
+  - @tanstack/ai-client@0.10.0
+
+## 0.0.38
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.9.2
+
+## 0.0.37
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.9.1
+
+## 0.0.36
+
+### Patch Changes
+
+- Updated dependencies [[`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508), [`13cceae`](https://github.com/TanStack/ai/commit/13cceaedf64e398ca15b8dbbbfe215329ea26794)]:
+  - @tanstack/ai-client@0.9.0
+
+## 0.0.35
+
+### Patch Changes
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`008f015`](https://github.com/TanStack/ai/commit/008f0154f852e7e6734d3e3d35cad47780b52b7a)]:
+  - @tanstack/ai-client@0.8.0
+
+## 0.0.34
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.14
+
+## 0.0.33
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.13
+
+## 0.0.32
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.12
+
+## 0.0.31
+
+### Patch Changes
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`1d6f3be`](https://github.com/TanStack/ai/commit/1d6f3bef4fd1c4917823612fbcd9450a0fd2e627)]:
+  - @tanstack/ai-client@0.7.11
+
+## 0.0.30
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.10
+
+## 0.0.29
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.9
+
+## 0.0.28
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.8
+
+## 0.0.27
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai-client@0.7.7
+
+## 0.0.26
+
+### Patch Changes
+
+- Updated dependencies [[`c0ae603`](https://github.com/TanStack/ai/commit/c0ae603b4febbfc2d5f549a67e107a4bd0ec09cc)]:
+  - @tanstack/ai-client@0.7.6
+
+## 0.0.25
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-client@0.7.5
+
 ## 0.0.24
 
 ### Patch Changes

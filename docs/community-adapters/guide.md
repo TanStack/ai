@@ -1,7 +1,16 @@
---- 
+---
 title: "Community Adapters Guide"
 slug: /community-adapters/guide
 order: 1
+description: "Build and publish a community adapter for TanStack AI — package conventions, implementing the adapter interface, and publishing to npm."
+keywords:
+  - tanstack ai
+  - community adapters
+  - build adapter
+  - custom adapter
+  - provider integration
+  - adapter authoring
+  - contribute
 ---
 
 # Community Adapters Guide
@@ -28,9 +37,9 @@ Follow the steps below to build a well-structured, type-safe adapter.
 
 ### 1. Set up your project
 
-Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages/typescript). These define the expected structure, conventions, and integration patterns.
+Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages). These define the expected structure, conventions, and integration patterns.
 
-For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/typescript/ai-openai), which is the most fully featured implementation.
+For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai), which is the most fully featured implementation.
 
 ### 2. Define model metadata
 
@@ -44,14 +53,14 @@ Your metadata should define, at a minimum:
 - Pricing or cost information (if available)
 - Any provider-specific notes or limitations
 
-Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/model-meta.ts) for a concrete example.
+Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts) for a concrete example.
 
 ### 3. Define model capability arrays 
 
 After defining metadata, group models by supported functionality using exported arrays. These arrays allow TanStack AI to automatically select compatible models for a given task.
 
 Example:
-```typescript
+```typescript ignore
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
   GPT5_2.name,
@@ -82,7 +91,7 @@ Each array should only include models that fully support the associated function
 Each model exposes a different set of configurable options. These options must be typed per model name so that users only see valid configuration options.
 
 Example:
-```typescript
+```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
@@ -107,7 +116,7 @@ This ensures strict type safety and feature correctness at compile time.
 Models typically support different input modalities (e.g. text, images, audio). These must be defined per model to prevent invalid usage.
 
 Example:
-```typescript
+```typescript ignore
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
@@ -124,7 +133,7 @@ A common pattern is:
 - Base options shared by all models
 - Feature fragments that are stitched together per model
 
-Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/text/text-provider-options.ts)):
+Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts)):
 ```typescript
 export interface OpenAIBaseOptions {
   // base options that every chat model supports
@@ -150,7 +159,7 @@ export interface OpenAIStructuredOutputOptions {
 
 Models can then opt into only the features they support:
 
-```typescript
+```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
@@ -181,7 +190,7 @@ Adapters are implemented per capability, so only implement what your provider su
 - Embeddings adapter
 - Video adapter
 
-Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
+Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
 ### 8. Publish and submit a PR
 

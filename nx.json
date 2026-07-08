@@ -2,6 +2,7 @@
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "defaultBase": "main",
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
+  "useDaemonProcess": true,
   "useInferencePlugins": false,
   "parallel": 15,
   "tui": {
@@ -61,6 +62,14 @@
     "test:docs": {
       "cache": true,
       "inputs": ["{workspaceRoot}/docs/**/*"]
+    },
+    "test:kiira": {
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/docs/**/*",
+        "{workspaceRoot}/packages/*/src/**/*",
+        "{workspaceRoot}/kiira.config.ts"
+      ]
     },
     "test:knip": {
       "cache": true,

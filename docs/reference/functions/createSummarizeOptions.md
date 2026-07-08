@@ -9,7 +9,7 @@ title: createSummarizeOptions
 function createSummarizeOptions<TAdapter, TStream>(options): SummarizeActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [activities/summarize/index.ts:254](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L254)
+Defined in: [packages/ai/src/activities/summarize/index.ts:298](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/index.ts#L298)
 
 Create typed options for the summarize() function without executing.
 

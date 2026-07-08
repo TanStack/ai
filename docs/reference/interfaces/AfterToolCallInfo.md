@@ -5,7 +5,7 @@ title: AfterToolCallInfo
 
 # Interface: AfterToolCallInfo
 
-Defined in: [activities/chat/middleware/types.ts:154](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L154)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L258)
 
 Outcome information provided to onAfterToolCall.
 
@@ -17,7 +17,7 @@ Outcome information provided to onAfterToolCall.
 duration: number;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L166)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:270](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L270)
 
 Duration of tool execution in milliseconds
 
@@ -29,7 +29,7 @@ Duration of tool execution in milliseconds
 optional error: unknown;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:169](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L169)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:273](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L273)
 
 ***
 
@@ -39,7 +39,7 @@ Defined in: [activities/chat/middleware/types.ts:169](https://github.com/TanStac
 ok: boolean;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:164](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L164)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:268](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L268)
 
 Whether the execution succeeded
 
@@ -51,7 +51,7 @@ Whether the execution succeeded
 optional result: unknown;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:168](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L168)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:272](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L272)
 
 The result (if ok) or error (if not ok)
 
@@ -61,11 +61,11 @@ The result (if ok) or error (if not ok)
 
 ```ts
 tool: 
-  | Tool<SchemaInput, SchemaInput, string>
+  | Tool<SchemaInput, SchemaInput, string, unknown>
   | undefined;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:158](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L158)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:262](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L262)
 
 The resolved tool definition
 
@@ -77,7 +77,7 @@ The resolved tool definition
 toolCall: ToolCall;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L156)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:260](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L260)
 
 The tool call that was executed
 
@@ -89,7 +89,7 @@ The tool call that was executed
 toolCallId: string;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:162](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L162)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:266](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L266)
 
 ID of the tool call
 
@@ -101,6 +101,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [activities/chat/middleware/types.ts:160](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L160)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:264](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L264)
 
 Name of the tool

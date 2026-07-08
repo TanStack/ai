@@ -18,7 +18,7 @@ interface SummarizeProvider {
 const PROVIDERS: Array<SummarizeProvider> = [
   { id: 'openai', name: 'OpenAI (GPT-4o Mini)' },
   { id: 'anthropic', name: 'Anthropic (Claude Sonnet)' },
-  { id: 'gemini', name: 'Gemini (2.0 Flash)' },
+  { id: 'gemini', name: 'Gemini (2.5 Flash)' },
   { id: 'grok', name: 'Grok (Grok 3 Mini)' },
   { id: 'ollama', name: 'Ollama (Mistral 7B)' },
   { id: 'openrouter', name: 'OpenRouter (GPT-4o Mini)' },

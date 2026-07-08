@@ -1,7 +1,9 @@
 import {
   chat,
+  chatParamsFromRequestBody,
   createChatOptions,
   maxIterations,
+  mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -37,7 +39,7 @@ const adapterConfig = {
     }),
   gemini: () =>
     createChatOptions({
-      adapter: geminiText('gemini-2.0-flash'),
+      adapter: geminiText('gemini-2.5-flash'),
     }),
   ollama: () =>
     createChatOptions({
@@ -68,7 +70,7 @@ IMPORTANT:
 Example workflow:
 User: "I want an acoustic guitar"
 Step 1: Call getGuitars()
-Step 2: Call recommendGuitar(id: "6") 
+Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
@@ -79,6 +81,14 @@ const addToCartToolServer = addToCartToolDef.server((args) => ({
   quantity: args.quantity,
   totalItems: args.quantity,
 }))
+
+const serverTools = [
+  getGuitars, // Server tool
+  recommendGuitarToolDef, // No server execute - client will handle
+  addToCartToolServer,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+]
 
 export const POST: RequestHandler = async ({ request }) => {
   // Capture request signal before reading body (it may be aborted after body is consumed)
@@ -91,30 +101,47 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const abortController = new AbortController()
 
+  let params
   try {
-    const body = await request.json()
-    const { messages, data } = body
+    params = await chatParamsFromRequestBody(await request.json())
+  } catch (error) {
+    return new Response(
+      error instanceof Error ? error.message : 'Bad request',
+      { status: 400 },
+    )
+  }
 
-    // Extract provider from data
-    const provider: Provider = data?.provider || 'openai'
+  // Extract provider from forwardedProps (sent by the client)
+  const provider: Provider =
+    typeof params.forwardedProps?.provider === 'string' &&
+    params.forwardedProps.provider in adapterConfig
+      ? (params.forwardedProps.provider as Provider)
+      : 'openai'
 
-    // Get typed adapter options using createOptions pattern
-    const options = adapterConfig[provider]()
+  try {
+    const mergedTools = mergeAgentTools(serverTools, params.tools)
 
-    const stream = chat({
-      ...options,
-      tools: [
-        getGuitars, // Server tool
-        recommendGuitarToolDef, // No server execute - client will handle
-        addToCartToolServer,
-        addToWishListToolDef,
-        getPersonalGuitarPreferenceToolDef,
-      ],
+    const sharedOptions = {
+      tools: mergedTools,
       systemPrompts: [SYSTEM_PROMPT],
       agentLoopStrategy: maxIterations(20),
-      messages,
+      messages: params.messages,
+      threadId: params.threadId,
+      runId: params.runId,
       abortController,
-    })
+    }
+
+    // Narrow per-provider so `chat()`'s generic adapter inference works.
+    // Spreading a union of `createChatOptions(...)` results into `chat()`
+    // confuses TS's adapter narrowing, so we branch instead.
+    const stream =
+      provider === 'anthropic'
+        ? chat({ ...adapterConfig.anthropic(), ...sharedOptions })
+        : provider === 'gemini'
+          ? chat({ ...adapterConfig.gemini(), ...sharedOptions })
+          : provider === 'ollama'
+            ? chat({ ...adapterConfig.ollama(), ...sharedOptions })
+            : chat({ ...adapterConfig.openai(), ...sharedOptions })
 
     return toServerSentEventsResponse(stream, { abortController })
   } catch (error: any) {

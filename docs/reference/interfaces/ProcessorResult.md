@@ -5,7 +5,7 @@ title: ProcessorResult
 
 # Interface: ProcessorResult
 
-Defined in: [activities/chat/stream/types.ts:69](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L69)
+Defined in: [packages/ai/src/activities/chat/stream/types.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L78)
 
 Result from processing a stream
 
@@ -17,7 +17,7 @@ Result from processing a stream
 content: string;
 ```
 
-Defined in: [activities/chat/stream/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L70)
+Defined in: [packages/ai/src/activities/chat/stream/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L79)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [activities/chat/stream/types.ts:70](https://github.com/TanStack/ai/
 optional finishReason: string | null;
 ```
 
-Defined in: [activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L73)
+Defined in: [packages/ai/src/activities/chat/stream/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L82)
 
 ***
 
@@ -37,14 +37,14 @@ Defined in: [activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/
 optional thinking: string;
 ```
 
-Defined in: [activities/chat/stream/types.ts:71](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L71)
+Defined in: [packages/ai/src/activities/chat/stream/types.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L80)
 
 ***
 
 ### toolCalls?
 
 ```ts
-optional toolCalls: ToolCall[];
+optional toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: [activities/chat/stream/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L72)
+Defined in: [packages/ai/src/activities/chat/stream/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L81)

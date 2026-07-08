@@ -2,6 +2,16 @@
 title: Cloudflare
 id: cloudflare-adapter
 order: 3
+description: "Use Cloudflare Workers AI and AI Gateway with TanStack AI for edge inference, caching, rate limiting, and unified billing across providers."
+keywords:
+  - tanstack ai
+  - cloudflare
+  - workers ai
+  - ai gateway
+  - edge inference
+  - caching
+  - rate limiting
+  - community adapter
 ---
 
 The Cloudflare adapter provides access to [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) models and [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for routing requests to OpenAI, Anthropic, Gemini, Grok, and OpenRouter with caching, rate limiting, and unified billing.
@@ -27,6 +37,7 @@ npm install @tanstack/ai-openrouter   # For OpenRouter via Gateway
 ```typescript
 import { chat, toHttpResponse } from "@tanstack/ai";
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiChat(
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -39,7 +50,7 @@ const response = chat({
   messages: [{ role: "user", content: "Hello!" }],
 });
 
-return toHttpResponse(response);
+const httpResponse = toHttpResponse(response);
 ```
 
 ## Workers AI
@@ -51,6 +62,7 @@ The simplest way to use AI in a Cloudflare Worker. No API keys needed when using
 ```typescript
 import { chat, toHttpResponse } from "@tanstack/ai";
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiChat(
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -63,7 +75,7 @@ const response = chat({
   messages: [{ role: "user", content: "Hello!" }],
 });
 
-return toHttpResponse(response);
+const httpResponse = toHttpResponse(response);
 ```
 
 ### Chat with REST Credentials
@@ -87,6 +99,7 @@ const adapter = createWorkersAiChat(
 ```typescript
 import { generateImage } from "@tanstack/ai";
 import { createWorkersAiImage } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiImage(
   "@cf/stabilityai/stable-diffusion-xl-base-1.0",
@@ -98,7 +111,7 @@ const result = await generateImage({
   prompt: "a cat in space",
 });
 
-console.log(result.images[0].b64Json);
+console.log(result.images[0]?.b64Json);
 ```
 
 ### Transcription (Speech-to-Text)
@@ -108,6 +121,7 @@ Supports Whisper and Deepgram models:
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { createWorkersAiTranscription } from "@cloudflare/tanstack-ai";
+import { env, audioArrayBuffer } from "./env";
 
 const adapter = createWorkersAiTranscription(
   "@cf/openai/whisper-large-v3-turbo",
@@ -130,6 +144,7 @@ Supported transcription models: `@cf/openai/whisper`, `@cf/openai/whisper-tiny-e
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
 import { createWorkersAiTts } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiTts("@cf/deepgram/aura-2-en", {
   binding: env.AI,
@@ -146,10 +161,11 @@ console.log(result.audio);
 ### Summarization
 
 ```typescript
-import { summarize } from "@tanstack/ai";
+import { summarize, type AnySummarizeAdapter } from "@tanstack/ai";
 import { createWorkersAiSummarize } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
-const adapter = createWorkersAiSummarize("@cf/facebook/bart-large-cnn", {
+const adapter: AnySummarizeAdapter = createWorkersAiSummarize("@cf/facebook/bart-large-cnn", {
   binding: env.AI,
 });
 
@@ -169,6 +185,7 @@ Route AI requests through Cloudflare's AI Gateway for caching, rate limiting, an
 
 ```typescript
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiChat(
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -191,6 +208,7 @@ import {
   createGrokChat,
   createOpenRouterChat,
 } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const openai = createOpenAiChat("gpt-4o", {
   binding: env.AI.gateway("my-gateway-id"),
@@ -200,7 +218,7 @@ const anthropic = createAnthropicChat("claude-sonnet-4-5", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
-const grok = createGrokChat("grok-4", {
+const grok = createGrokChat("grok-4.3", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
@@ -227,6 +245,9 @@ const adapter = createOpenAiChat("gpt-4o", {
 Both binding and credentials modes support cache configuration:
 
 ```typescript
+import { createOpenAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
+
 const adapter = createOpenAiChat("gpt-4o", {
   binding: env.AI.gateway("my-gateway-id"),
   skipCache: false,
@@ -294,5 +315,5 @@ When using the `env.AI` binding inside a Worker, no environment variables are ne
 - [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) — Workers AI documentation
 - [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) — AI Gateway documentation
 - [GitHub Repository](https://github.com/cloudflare/ai) — Source code and issues
-- [Streaming Guide](../guides/streaming) — Learn about streaming responses
-- [Tools Guide](../guides/tools) — Learn about tool calling
+- [Streaming Guide](../chat/streaming) — Learn about streaming responses
+- [Tools Guide](../tools/tools) — Learn about tool calling

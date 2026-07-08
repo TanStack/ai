@@ -1,0 +1,31 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[parallel] compare the stratocaster and les paul",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          },
+          {
+            "name": "compareGuitars",
+            "arguments": "{\"guitarIds\":[1,2]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[parallel] compare the stratocaster and les paul",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here's a comparison of the two guitars:\n\n| | Fender Stratocaster | Gibson Les Paul |\n|---|---|---|\n| Price | $1,299 | $2,499 |\n\nThe Stratocaster is $1,200 cheaper and more versatile, while the Les Paul offers a warmer, thicker tone."
+      }
+    }
+  ]
+}

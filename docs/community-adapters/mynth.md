@@ -1,10 +1,25 @@
+---
+title: Mynth
+id: mynth-adapter
+description: "Generate images with Mynth models like Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine in TanStack AI via the Mynth community adapter."
+keywords:
+  - tanstack ai
+  - mynth
+  - image generation
+  - flux
+  - recraft
+  - qwen
+  - seedream
+  - community adapter
+---
+
 # Mynth
 
-> **Alpha:** Mynth is currently in public alpha. We are publishing TanStack AI adapters early to gather feedback on the API, supported models, and integration experience while the platform is still evolving.
+The Mynth adapter gives you access to Mynth image generation models through TanStack AI. It is a community adapter for `generateImage()` with typed model IDs, normalized image results, image-to-image support, and Mynth-specific request options through `modelOptions`.
 
-The Mynth adapter provides access to Mynth image generation models through TanStack AI. It is a community adapter for `generateImage()` with typed model IDs, normalized image results, and support for Mynth-specific request options through `modelOptions`.
+Mynth is image-only in this package. Reach for it when you want TanStack AI's image generation workflow with Mynth models such as Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine.
 
-Mynth is image-only in this package. Use it when you want TanStack AI's image generation workflow with Mynth models such as Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine.
+Quick note: Mynth is in public beta, so the model lineup and a few request options are still settling. The adapter tracks the Mynth SDK closely, and we welcome feedback on the API and integration experience.
 
 ## Installation
 
@@ -18,6 +33,8 @@ pnpm add @mynthio/tanstack-ai-adapter @tanstack/ai
 # npm
 npm install @mynthio/tanstack-ai-adapter @tanstack/ai
 ```
+
+The adapter targets `@tanstack/ai` 0.34 and newer.
 
 ## Authentication
 
@@ -43,7 +60,7 @@ const result = await generateImage({
   adapter: mynthImage("black-forest-labs/flux.2-dev"),
   prompt: "Editorial product photo of a ceramic mug on a linen tablecloth",
   numberOfImages: 1,
-  size: "1024x1024",
+  size: "square",
 });
 
 console.log(result.id);
@@ -77,6 +94,10 @@ console.log(result.images[0]?.url);
 You can still override shared config per adapter:
 
 ```ts
+import { createMynthImage } from "@mynthio/tanstack-ai-adapter";
+
+const mynth = createMynthImage();
+
 const adapter = mynth("auto", {
   baseUrl: "https://proxy.example.com",
 });
@@ -92,31 +113,22 @@ import { mynthImage } from "@mynthio/tanstack-ai-adapter";
 
 const result = await generateImage({
   adapter: mynthImage("recraft/recraft-v4"),
-  prompt: "Ignored when promptStructured is provided",
+  prompt: "Modern poster design for a jazz festival",
   numberOfImages: 2,
-  size: "1024x1024",
+  size: "portrait",
   modelOptions: {
-    promptStructured: {
-      positive: "Modern poster design for a jazz festival",
-      negative: "watermark, blurry text",
-      enhance: "prefer_magic",
-    },
+    negativePrompt: "watermark, blurry text",
+    magicPrompt: true,
     size: {
       type: "aspect_ratio",
       aspectRatio: "4:5",
-      scale: "2k",
+      scale: "4k",
     },
     output: {
       format: "png",
       quality: 90,
     },
-    inputs: ["https://example.com/reference-image.jpg"],
-    webhook: {
-      enabled: true,
-    },
-    contentRating: {
-      enabled: true,
-    },
+    rating: true,
     metadata: {
       requestId: "req_123",
     },
@@ -126,20 +138,47 @@ const result = await generateImage({
 
 Notes:
 
-- `modelOptions.promptStructured` overrides the plain `prompt`
-- `modelOptions.size` overrides the top-level `size`
-- Top-level `size` is for shorthand values such as `"auto"`, preset strings, and `"1024x1024"`
-- Use `modelOptions.size` when you need structured Mynth size objects
+- `modelOptions.negativePrompt` maps to Mynth's `negative_prompt`, and `modelOptions.magicPrompt` maps to `magic_prompt`
+- `modelOptions.rating` configures content rating on the result. The older `contentRating` name still works as an alias
+- `modelOptions.promptStructured` is still supported for compatibility and expands into `prompt`, `negative_prompt`, and `magic_prompt`. When set, its `positive` overrides the plain `prompt`
+- `modelOptions.size` overrides the top-level `size`. Use it when you need structured Mynth size objects, including aspect ratios and an optional `scale: "4k"`
+- Top-level `size` is for shorthand values such as `"auto"` and preset strings like `"square"` or `"landscape"`
+- `modelOptions.destination` delivers the generation to a configured Mynth destination, overriding any adapter-level or env default
+
+## Image Inputs (image-to-image)
+
+Models that accept image inputs work with TanStack AI's content-part prompts, so you can mix instruction text with reference images for image-to-image, reference-guided, edit, and try-on flows. The adapter maps the image parts onto Mynth's `inputs`:
+
+```ts
+import { generateImage } from "@tanstack/ai";
+import { mynthImage } from "@mynthio/tanstack-ai-adapter";
+
+const result = await generateImage({
+  adapter: mynthImage("black-forest-labs/flux.2-dev"),
+  prompt: [
+    { type: "text", content: "Restyle this scene as a watercolor painting" },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/photo.jpg" },
+    },
+  ],
+});
+```
+
+A few things worth knowing:
+
+- Only models in `MYNTH_IMAGE_INPUT_MODELS` accept image parts. Passing image parts to a text-only model is a compile-time error
+- Both URL sources (`{ type: "url", value }`) and inline data sources (`{ type: "data", value, mimeType }`, encoded as a data URI) are supported
+- A part's `metadata.role` maps to Mynth's input intent. TanStack's `"character"` maps directly, and the other generic roles fall back to Mynth's automatic detection
+- For Mynth's finer-grained intents (`person`, `garment`, `pose`, `style`, `background`, `product`, `object`), pass `modelOptions.inputs` with an explicit `as`
+- Image parts from the prompt and entries in `modelOptions.inputs` are combined, with prompt parts first
 
 ## Available Models
 
-The adapter exports both a runtime list and a type union for supported image models:
+The adapter exports a runtime list and a type union for supported image models:
 
 ```ts
-import {
-  MYNTH_IMAGE_MODELS,
-  type MynthImageModel,
-} from "@mynthio/tanstack-ai-adapter";
+import { MYNTH_IMAGE_MODELS, type MynthImageModel } from "@mynthio/tanstack-ai-adapter";
 
 const defaultModel: MynthImageModel = "auto";
 
@@ -148,9 +187,37 @@ for (const model of MYNTH_IMAGE_MODELS) {
 }
 ```
 
-This is useful for model selectors, validation, and keeping client and server code in sync.
+This is handy for model selectors, validation, and keeping client and server code in sync. There is a matching `MYNTH_IMAGE_INPUT_MODELS` list (and `MynthImageInputModel` type) for the subset that accepts image inputs.
 
-Mynth currently supports model IDs across multiple providers, including `auto`, Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine models. Use `MYNTH_IMAGE_MODELS` for the current runtime list.
+Mynth supports model IDs across multiple providers, including `auto`, Flux, Recraft, Gemini, Qwen, Seedream, Imagine, Wan, Grok Imagine, and try-on models. The exported list is a fixed snapshot for type safety. For the live catalog with pricing, use the models endpoint below.
+
+### Models endpoint
+
+Mynth exposes a public catalog at `https://api.mynth.io/models`. It does not require an API key, and it carries pricing today with room for more metadata over time. This is the source of truth if you want to render a picker with live pricing rather than the static exported list.
+
+```ts
+const response = await fetch("https://api.mynth.io/models");
+const { data } = await response.json();
+
+for (const model of data) {
+  console.log(model.id, model.displayName, model.pricing);
+}
+```
+
+Each entry looks roughly like this:
+
+```jsonc
+{
+  "id": "black-forest-labs/flux.2-dev",
+  "displayName": "FLUX.2 Dev",
+  "pricing": {
+    "perImage": { "base": "0.01", "4k": "0.04" },
+    "perInput": "0.002",
+  },
+}
+```
+
+If you already use the Mynth SDK, the same data is available through `new Mynth().models.list()`.
 
 ## Streaming Example
 
@@ -179,6 +246,7 @@ For a full example using `useGenerateImage()`, see the [TanStack Start + Mynth a
 ## Supported Capabilities
 
 - Image generation with `generateImage()`
+- Image-to-image with content-part prompts on input-capable models
 - Streaming image generation with `stream: true`
 - Typed model IDs through `MYNTH_IMAGE_MODELS` and `MynthImageModel`
 - Mynth-specific request options through `modelOptions`
@@ -199,6 +267,7 @@ Creates a Mynth image adapter directly.
 - `model`: a `MynthImageModel`
 - `config.apiKey?`: optional override for `MYNTH_API_KEY`
 - `config.baseUrl?`: optional base URL override
+- `config.destination?`: optional default destination for generated images
 
 Returns a `MynthImageAdapter` for use with `generateImage()`.
 
@@ -213,6 +282,14 @@ Readonly array of supported Mynth image model IDs.
 ### `MynthImageModel`
 
 Type union of supported Mynth image model IDs.
+
+### `MYNTH_IMAGE_INPUT_MODELS`
+
+Readonly array of model IDs that accept image inputs (image-to-image, try-on).
+
+### `MynthImageInputModel`
+
+Type union of the model IDs that accept image inputs.
 
 ## Limitations
 

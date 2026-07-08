@@ -1,0 +1,41 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "__lazy__tool__discovery__",
+            "arguments": "{\"toolNames\":[\"search_inventory\"]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "search_inventory",
+            "arguments": "{\"query\":\"stratocaster\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "I found a Fender Stratocaster in the inventory."
+      }
+    }
+  ]
+}

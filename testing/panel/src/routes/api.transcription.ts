@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/transcription')({
         }
 
         try {
-          const adapter = openaiTranscription(model)
+          const adapter = openaiTranscription(model as any)
 
           // Prepare audio data
           let audioData: string | File

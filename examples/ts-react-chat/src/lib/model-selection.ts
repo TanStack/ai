@@ -2,10 +2,12 @@ export type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'gemini-interactions'
   | 'ollama'
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'bedrock'
 
 export interface ModelOption {
   provider: Provider
@@ -15,11 +17,27 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
   // OpenAI
+  { provider: 'openai', model: 'gpt-5.2', label: 'OpenAI - GPT-5.2' },
+  { provider: 'openai', model: 'gpt-5.2-pro', label: 'OpenAI - GPT-5.2 Pro' },
+  { provider: 'openai', model: 'gpt-5.1', label: 'OpenAI - GPT-5.1' },
+  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
+  { provider: 'openai', model: 'gpt-5-mini', label: 'OpenAI - GPT-5 Mini' },
+  { provider: 'openai', model: 'gpt-5-nano', label: 'OpenAI - GPT-5 Nano' },
+  { provider: 'openai', model: 'gpt-4.1', label: 'OpenAI - GPT-4.1' },
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
-  { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
 
   // Anthropic
+  {
+    provider: 'anthropic',
+    model: 'claude-opus-4-7',
+    label: 'Anthropic - Claude Opus 4.7',
+  },
+  {
+    provider: 'anthropic',
+    model: 'claude-opus-4-6',
+    label: 'Anthropic - Claude Opus 4.6',
+  },
   {
     provider: 'anthropic',
     model: 'claude-sonnet-4-6',
@@ -27,60 +45,112 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'claude-sonnet-4-5',
     label: 'Anthropic - Claude Sonnet 4.5',
   },
   {
     provider: 'anthropic',
-    model: 'claude-opus-4-5-20251101',
-    label: 'Anthropic - Claude Opus 4.5',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-haiku-4-0-20250514',
-    label: 'Anthropic - Claude Haiku 4.0',
+    model: 'claude-haiku-4-5',
+    label: 'Anthropic - Claude Haiku 4.5',
   },
 
-  // Gemini
+  // Gemini (stateless `geminiText`)
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash',
-    label: 'Gemini - 2.0 Flash',
+    model: 'gemini-3.1-pro-preview',
+    label: 'Gemini - 3.1 Pro Preview',
   },
   {
     provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    label: 'Gemini - 2.5 Flash',
+    model: 'gemini-3.1-flash-lite-preview',
+    label: 'Gemini - 3.1 Flash Lite Preview',
   },
   {
     provider: 'gemini',
     model: 'gemini-2.5-pro',
     label: 'Gemini - 2.5 Pro',
   },
+  {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini - 2.5 Flash',
+  },
 
-  // Openrouter
+  // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.1-pro-preview',
+    label: 'Gemini Interactions - 3.1 Pro Preview (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.5-flash',
+    label: 'Gemini Interactions - 3.5 Flash (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3-flash-preview',
+    label: 'Gemini Interactions - 3 Flash Preview (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.1-flash-lite-preview',
+    label: 'Gemini Interactions - 3.1 Flash Lite Preview (experimental)',
+  },
+
+  // Openrouter — multi-provider via OpenRouter's unified API
   {
     provider: 'openrouter',
-    model: 'openai/chatgpt-4o-latest',
-    label: 'Openrouter - ChatGPT 4o Latest',
+    model: 'openai/gpt-5.2',
+    label: 'OpenRouter - OpenAI GPT-5.2',
   },
   {
     provider: 'openrouter',
-    model: 'openai/chatgpt-4o-mini',
-    label: 'Openrouter - ChatGPT 4o Mini',
+    model: 'openai/gpt-5.1',
+    label: 'OpenRouter - OpenAI GPT-5.1',
+  },
+  {
+    provider: 'openrouter',
+    model: 'openai/gpt-5',
+    label: 'OpenRouter - OpenAI GPT-5',
+  },
+  {
+    provider: 'openrouter',
+    model: 'openai/gpt-4o',
+    label: 'OpenRouter - OpenAI GPT-4o',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-opus-4.7',
+    label: 'OpenRouter - Anthropic Claude Opus 4.7',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-sonnet-4.6',
+    label: 'OpenRouter - Anthropic Claude Sonnet 4.6',
+  },
+  {
+    provider: 'openrouter',
+    model: 'anthropic/claude-haiku-4.5',
+    label: 'OpenRouter - Anthropic Claude Haiku 4.5',
+  },
+  {
+    provider: 'openrouter',
+    model: 'google/gemini-2.5-pro',
+    label: 'OpenRouter - Google Gemini 2.5 Pro',
+  },
+  {
+    provider: 'openrouter',
+    model: 'x-ai/grok-4',
+    label: 'OpenRouter - xAI Grok 4',
+  },
+  {
+    provider: 'openrouter',
+    model: 'meta-llama/llama-3.3-70b-instruct',
+    label: 'OpenRouter - Meta Llama 3.3 70B (Groq-routed)',
   },
 
   // Ollama
-  {
-    provider: 'ollama',
-    model: 'mistral:7b',
-    label: 'Ollama - Mistral 7B',
-  },
-  {
-    provider: 'ollama',
-    model: 'mistral',
-    label: 'Ollama - Mistral',
-  },
   {
     provider: 'ollama',
     model: 'gpt-oss:20b',
@@ -93,15 +163,20 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'ollama',
-    model: 'smollm',
-    label: 'Ollama - SmolLM',
+    model: 'mistral',
+    label: 'Ollama - Mistral',
   },
 
   // Groq
   {
     provider: 'groq',
-    model: 'llama-3.3-70b-versatile',
-    label: 'Groq - Llama 3.3 70B',
+    model: 'openai/gpt-oss-120b',
+    label: 'Groq - GPT-OSS 120B',
+  },
+  {
+    provider: 'groq',
+    model: 'moonshotai/kimi-k2-instruct-0905',
+    label: 'Groq - Kimi K2 Instruct',
   },
   {
     provider: 'groq',
@@ -110,30 +185,37 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'groq',
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    label: 'Groq - Llama 4 Scout',
+    model: 'qwen/qwen3-32b',
+    label: 'Groq - Qwen3 32B',
   },
 
   // Grok
   {
     provider: 'grok',
-    model: 'grok-4',
-    label: 'Grok - Grok 4',
+    model: 'grok-build-0.1',
+    label: 'Grok - Grok Build 0.1',
   },
   {
     provider: 'grok',
-    model: 'grok-4-fast-non-reasoning',
-    label: 'Grok - Grok 4 Fast',
+    model: 'grok-4.3',
+    label: 'Grok - Grok 4.3',
+  },
+
+  // Bedrock (default Converse API — reaches Claude, Nova, Llama, gpt-oss, …)
+  {
+    provider: 'bedrock',
+    model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    label: 'Bedrock - Claude Haiku 4.5 (Converse)',
   },
   {
-    provider: 'grok',
-    model: 'grok-3',
-    label: 'Grok - Grok 3',
+    provider: 'bedrock',
+    model: 'us.amazon.nova-pro-v1:0',
+    label: 'Bedrock - Nova Pro (Converse)',
   },
   {
-    provider: 'grok',
-    model: 'grok-3-mini',
-    label: 'Grok - Grok 3 Mini',
+    provider: 'bedrock',
+    model: 'openai.gpt-oss-120b-1:0',
+    label: 'Bedrock - GPT-OSS 120B (Converse)',
   },
 ]
 

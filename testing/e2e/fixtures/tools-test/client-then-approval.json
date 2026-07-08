@@ -1,0 +1,43 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[client-then-approval] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "First a notification.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Before approval\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-then-approval] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Now I need approval to delete.",
+        "toolCalls": [
+          {
+            "name": "delete_file",
+            "arguments": "{\"path\":\"/tmp/after-notify.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-then-approval] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Complete."
+      }
+    }
+  ]
+}

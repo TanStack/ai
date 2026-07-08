@@ -1,0 +1,18 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[with-tool] run test", "sequenceIndex": 0 },
+      "response": {
+        "toolCalls": [
+          { "name": "get_weather", "arguments": "{\"city\":\"NYC\"}" }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[with-tool] run test", "sequenceIndex": 1 },
+      "response": {
+        "content": "The weather is sunny."
+      }
+    }
+  ]
+}

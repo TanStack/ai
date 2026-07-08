@@ -2,6 +2,16 @@
 title: Overview
 id: overview
 order: 1
+description: "TanStack AI is a type-safe, provider-agnostic TypeScript SDK for building streaming chat, tool calling, and AI features that work across any framework."
+keywords:
+  - tanstack ai
+  - ai sdk
+  - typescript ai
+  - streaming chat
+  - tool calling
+  - isomorphic tools
+  - framework agnostic
+  - llm sdk
 ---
 
 TanStack AI is a lightweight, type-safe SDK for building production-ready AI experiences. Its framework-agnostic core provides type-safe tool/function calling, streaming responses, and first-class React and Solid integrations, with adapters for multiple LLM providers — enabling predictable, composable, and testable AI features across any stack.
@@ -22,19 +32,22 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
+- **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
 - **Express** - Node.js server
 - **React Router v7** - Loaders and actions
 
 TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool's input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { toolDefinition } from '@tanstack/ai'
+import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+import { db } from './db'
 
 // Define a tool
 const getProductsDef = toolDefinition({
   name: 'getProducts',
+  description: 'Search for products by query',
   inputSchema: z.object({ query: z.string() }),
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
@@ -99,10 +112,12 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-ollama** - Ollama (local models)
 - **@tanstack/ai-groq** - Groq
 - **@tanstack/ai-grok** - xAI Grok
+- **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
 - **@tanstack/ai-fal** - fal (image & video generation)
 
 ## Next Steps
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
-- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
+- [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
+- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

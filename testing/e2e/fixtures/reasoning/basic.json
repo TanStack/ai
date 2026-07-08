@@ -1,0 +1,13 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[reasoning] recommend a guitar for a beginner"
+      },
+      "response": {
+        "reasoning": "The user is asking for a beginner guitar recommendation. I should consider factors like playability, price point, and versatility. An electric guitar like the Fender Stratocaster has lower action and thinner strings, making it easier to play. It is also the most affordable option in our inventory at $1,299.",
+        "content": "I'd recommend the Fender Stratocaster for a beginner. It has a comfortable neck profile, versatile tone across genres, and lower string action that's easier on beginner fingers."
+      }
+    }
+  ]
+}

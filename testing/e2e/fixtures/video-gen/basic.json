@@ -1,0 +1,15 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "a guitar being played in a store" },
+      "response": {
+        "video": {
+          "id": "video_test_basic",
+          "status": "completed",
+          "url": "https://example.com/guitar-store.mp4",
+          "duration": 10
+        }
+      }
+    }
+  ]
+}

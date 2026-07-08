@@ -2,6 +2,13 @@
 title: Decart
 id: decart-adapter
 order: 2
+description: "Generate images and videos with Decart's AI models in TanStack AI via the Decart community adapter."
+keywords:
+  - tanstack ai
+  - decart
+  - image generation
+  - video generation
+  - community adapter
 ---
 
 The Decart adapter provides access to Decart's image and video generation models.
@@ -63,12 +70,15 @@ const result = await generateImage({
   prompt: "A futuristic cityscape at night",
 });
 
-console.log(result.images[0].b64Json);
+console.log(result.images[0]?.b64Json);
 ```
 
 ### Image Model Options
 
 ```typescript
+import { generateImage } from "@tanstack/ai";
+import { decartImage } from "@decartai/tanstack-ai-adapter";
+
 const result = await generateImage({
   adapter: decartImage("lucy-pro-t2i"),
   prompt: "A portrait of a robot artist",
@@ -110,6 +120,7 @@ console.log("Job started:", jobId);
 import { getVideoJobStatus } from "@tanstack/ai";
 import { decartVideo } from "@decartai/tanstack-ai-adapter";
 
+const jobId = "example-job-id";
 const status = await getVideoJobStatus({
   adapter: decartVideo("lucy-pro-t2v"),
   jobId,
@@ -160,6 +171,9 @@ const videoUrl = await createVideo("A drone shot over a tropical beach");
 ### Video Model Options
 
 ```typescript
+import { generateVideo } from "@tanstack/ai";
+import { decartVideo } from "@decartai/tanstack-ai-adapter";
+
 const { jobId } = await generateVideo({
   adapter: decartVideo("lucy-pro-t2v"),
   prompt: "A timelapse of a blooming flower",
@@ -244,5 +258,5 @@ Creates a Decart video adapter with an explicit API key.
 - [Decart Platform](https://platform.decart.ai) - Visit Decart's platform to generate API keys
 - [API Documentation](https://docs.platform.decart.ai) - View complete API reference
 - [GitHub Repository](https://github.com/decartai/tanstack-ai) - Explore the adapter source code
-- [Image Generation Guide](../guides/image-generation) - Learn about image generation
-- [Video Generation Guide](../guides/video-generation) - Learn about video generation
+- [Image Generation Guide](../media/image-generation) - Learn about image generation
+- [Video Generation Guide](../media/video-generation) - Learn about video generation

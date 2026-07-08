@@ -5,17 +5,19 @@ title: ToolResultPart
 
 # Interface: ToolResultPart
 
-Defined in: [types.ts:300](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L300)
+Defined in: [packages/ai/src/types.ts:391](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L391)
 
 ## Properties
 
 ### content
 
 ```ts
-content: string;
+content: 
+  | string
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [types.ts:303](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L303)
+Defined in: [packages/ai/src/types.ts:394](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L394)
 
 ***
 
@@ -25,7 +27,7 @@ Defined in: [types.ts:303](https://github.com/TanStack/ai/blob/main/packages/typ
 optional error: string;
 ```
 
-Defined in: [types.ts:305](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L305)
+Defined in: [packages/ai/src/types.ts:396](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L396)
 
 ***
 
@@ -35,7 +37,7 @@ Defined in: [types.ts:305](https://github.com/TanStack/ai/blob/main/packages/typ
 state: ToolResultState;
 ```
 
-Defined in: [types.ts:304](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L304)
+Defined in: [packages/ai/src/types.ts:395](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L395)
 
 ***
 
@@ -45,7 +47,7 @@ Defined in: [types.ts:304](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:302](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L302)
+Defined in: [packages/ai/src/types.ts:393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L393)
 
 ***
 
@@ -55,4 +57,4 @@ Defined in: [types.ts:302](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "tool-result";
 ```
 
-Defined in: [types.ts:301](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L301)
+Defined in: [packages/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L392)

@@ -6,10 +6,16 @@ title: ChatMiddlewarePhase
 # Type Alias: ChatMiddlewarePhase
 
 ```ts
-type ChatMiddlewarePhase = "init" | "beforeModel" | "modelStream" | "beforeTools" | "afterTools";
+type ChatMiddlewarePhase = 
+  | "init"
+  | "beforeModel"
+  | "modelStream"
+  | "beforeTools"
+  | "afterTools"
+  | "structuredOutput";
 ```
 
-Defined in: [activities/chat/middleware/types.ts:15](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L15)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L61)
 
 Phase of the chat middleware lifecycle.
 - 'init': Initial config transform before the chat engine starts
@@ -17,3 +23,5 @@ Phase of the chat middleware lifecycle.
 - 'modelStream': During model streaming
 - 'beforeTools': Before tool execution phase
 - 'afterTools': After tool execution phase
+- 'structuredOutput': During the final structured-output adapter call (set
+  for chunks from adapter.structuredOutputStream or the synthesized fallback)

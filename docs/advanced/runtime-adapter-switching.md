@@ -1,0 +1,239 @@
+---
+title: Runtime Adapter Switching
+id: runtime-adapter-switching
+order: 6
+description: "Let users switch between LLM providers at runtime in TanStack AI while keeping full TypeScript type safety for each adapter's model options."
+keywords:
+  - tanstack ai
+  - runtime switching
+  - multi-provider
+  - adapter factory
+  - type safety
+  - dynamic adapter
+---
+
+# Runtime Adapter Switching with Type Safety
+
+Learn how to build interfaces where users can switch between LLM providers at runtime while maintaining full TypeScript type safety.
+
+## The Simple Approach
+
+With TanStack AI, the model is passed directly to the adapter factory function. This gives you full type safety and autocomplete at the point of definition:
+
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+type Provider = 'openai' | 'anthropic'
+
+// Define adapters with their models - autocomplete works here!
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-6'),  // ✅ Autocomplete!
+  openai: () => openaiText('gpt-5.5'),  // ✅ Autocomplete!
+}
+
+async function handleRequest(request: Request) {
+  // In your request handler:
+  const body = await request.json()
+  const provider: Provider = body.forwardedProps?.provider || 'openai'
+
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+}
+```
+
+## Why This Works
+
+Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
+
+```typescript
+import { openaiText, OpenAITextAdapter } from '@tanstack/ai-openai'
+
+// These are equivalent:
+const adapter1 = openaiText('gpt-5.5')
+const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY! }, 'gpt-5.5')
+
+// The model is stored on the adapter
+console.log(adapter1.model) // 'gpt-5.5'
+```
+
+When you pass an adapter to `chat()`, it uses the model from `adapter.model`. This means:
+
+- **Full autocomplete** - When typing the model name, TypeScript knows valid options
+- **Type validation** - Invalid model names cause compile errors
+- **Clean code** - No separate `model` parameter needed
+
+## Full Example
+
+Here's a complete example showing a multi-provider chat API:
+
+```typescript ignore
+import { createFileRoute } from '@tanstack/react-router'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { ollamaText } from '@tanstack/ai-ollama'
+
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+
+// Define adapters with their models
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  gemini: () => geminiText('gemini-3-flash-preview'),
+  ollama: () => ollamaText('mistral:7b'),
+  openai: () => openaiText('gpt-5.5'),
+}
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const abortController = new AbortController()
+        const body = await request.json()
+        // `forwardedProps` is the AG-UI field set by `useChat({ forwardedProps })`.
+        // The legacy `body.data.provider` access still works (mirrored on the
+        // wire for backward compatibility) but `forwardedProps` is preferred.
+        const provider: Provider = body.forwardedProps?.provider || 'openai'
+
+        const stream = chat({
+          adapter: adapters[provider](),
+          tools: [...],
+          systemPrompts: [...],
+          messages: body.messages,
+          abortController,
+        })
+
+        return toServerSentEventsResponse(stream, { abortController })
+      },
+    },
+  },
+})
+```
+
+## Using with Image Adapters
+
+The same pattern works for image generation:
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import { geminiImage } from '@tanstack/ai-gemini'
+
+type ImageProvider = 'openai' | 'gemini'
+
+const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
+  openai: () => openaiImage('gpt-image-1'),
+  gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
+}
+
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: ImageProvider = body.provider ?? 'openai'
+
+  const result = await generateImage({
+    adapter: imageAdapters[provider](),
+    prompt: 'A beautiful sunset over mountains',
+    size: '1024x1024',
+  })
+
+  return Response.json(result)
+}
+```
+
+## Using with Summarize Adapters
+
+And for summarization:
+
+```typescript
+import { summarize } from '@tanstack/ai'
+import { openaiSummarize } from '@tanstack/ai-openai'
+import { anthropicSummarize } from '@tanstack/ai-anthropic'
+
+type SummarizeProvider = 'openai' | 'anthropic'
+
+const summarizeAdapters: Record<SummarizeProvider, () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>> = {
+  openai: () => openaiSummarize('gpt-5.4-mini'),
+  anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
+}
+
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: SummarizeProvider = body.provider ?? 'openai'
+  const longDocument: string = body.text
+
+  const result = await summarize({
+    adapter: summarizeAdapters[provider](),
+    text: longDocument,
+    maxLength: 100,
+    style: 'concise',
+  })
+
+  return Response.json(result)
+}
+```
+
+## Migration from Switch Statements
+
+If you have existing code using switch statements, here's how to migrate:
+
+### Before
+
+```typescript ignore
+let adapter
+let model
+
+switch (provider) {
+  case 'anthropic':
+    adapter = anthropicText()
+    model = 'claude-sonnet-4-6'
+    break
+  case 'openai':
+  default:
+    adapter = openaiText()
+    model = 'gpt-5.5'
+    break
+}
+
+const stream = chat({
+  adapter: adapter as any,
+  model: model as any,
+  messages,
+})
+```
+
+### After
+
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+type AfterProvider = 'openai' | 'anthropic'
+
+const adapters = {
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  openai: () => openaiText('gpt-5.5'),
+}
+
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: AfterProvider = body.forwardedProps?.provider ?? 'openai'
+
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The key changes:
+
+1. Replace the switch statement with an object of factory functions
+2. Each factory function creates an adapter with the model included
+3. No more `as any` casts - full type safety!

@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[mmimage] describe this image" },
+      "response": {
+        "content": "The image shows a guitar in a music store setting. It appears to be a classic electric guitar with a sunburst finish, displayed on a stand with other instruments visible in the background."
+      }
+    }
+  ]
+}

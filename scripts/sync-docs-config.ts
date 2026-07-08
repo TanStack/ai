@@ -7,14 +7,33 @@ const docsRoot = resolve(__dirname, '../docs')
 const configPath = resolve(docsRoot, 'config.json')
 
 // Folders to ignore when crawling
-const IGNORED_FOLDERS = ['framework', 'protocol', 'reference']
+const IGNORED_FOLDERS = [
+  'framework',
+  'protocol',
+  'reference',
+  'architecture',
+  'superpowers',
+]
 
 // Define the preferred order of sections (folders not listed here will be appended at the end)
-const SECTION_ORDER = ['getting-started', 'guides', 'api', 'adapters']
+const SECTION_ORDER = [
+  'getting-started',
+  'tools',
+  'chat',
+  'code-mode',
+  'media',
+  'advanced',
+  'migration',
+  'api',
+  'adapters',
+  'community-adapters',
+]
 
 // Special label overrides for specific folder names
 const LABEL_OVERRIDES: Record<string, string> = {
   api: 'API',
+  'code-mode': 'Code Mode',
+  chat: 'Chat & Streaming',
 }
 
 interface DocChild {

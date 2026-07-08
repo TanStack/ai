@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[text-only] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "This is a simple text response without any tools."
+      }
+    }
+  ]
+}

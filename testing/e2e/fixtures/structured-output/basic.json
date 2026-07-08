@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[structured] recommend a guitar as json" },
+      "response": {
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5}"
+      }
+    }
+  ]
+}
