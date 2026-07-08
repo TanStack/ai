@@ -3,7 +3,10 @@ import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
-import { createAnthropicClient, getAnthropicApiKeyFromEnv } from '../utils/client'
+import {
+  createAnthropicClient,
+  getAnthropicApiKeyFromEnv,
+} from '../utils/client'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { FileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
