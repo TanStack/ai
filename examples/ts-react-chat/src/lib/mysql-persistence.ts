@@ -127,5 +127,6 @@ function createDriver(
 export function createMysqlPersistence(mysqlPool: Pool = getPool()) {
   return createSqlPersistence(
     createDriver(mysqlPool, () => mysqlPool.getConnection()),
+    { migrate: true },
   )
 }

@@ -7,8 +7,8 @@
  * Drizzle's query builder.
  *
  * Schema: the tables are the same as the raw SQL backend. Re-export `ddl` so you
- * can apply them with your own Drizzle migration workflow (`migrate: false`),
- * or let the backend auto-migrate.
+ * can apply them with your own Drizzle migration workflow, or opt in to lazy
+ * backend migrations with `migrate: true`.
  */
 import { createSqlPersistence, ddl } from '@tanstack/ai-persistence-sql'
 import type {
@@ -86,7 +86,7 @@ export interface DrizzlePersistenceOptions {
   db: DrizzleDb
   dialect: Dialect
   mode?: PersistenceMode
-  /** Run migrations on first use (default true). Set false to use drizzle-kit. */
+  /** Run migrations on first use (default false). */
   migrate?: boolean
 }
 

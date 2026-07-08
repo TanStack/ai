@@ -108,6 +108,10 @@ function createRecordingDriver(): SqlDriver & {
   return driver
 }
 
+function createMigratingTestPersistence() {
+  return createSqlPersistence(createTestSqliteDriver(), { migrate: true })
+}
+
 describe('migrate', () => {
   it('is idempotent (re-running applies nothing new)', async () => {
     const driver = createTestSqliteDriver()
@@ -319,8 +323,30 @@ describe('mysql dialect SQL generation', () => {
 })
 
 describe('createSqlPersistence (sqlite dialect)', () => {
+  it('does not run migrations by default unless explicitly enabled', async () => {
+    const defaultDriver = createRecordingDriver()
+    const defaultPersistence = createSqlPersistence(defaultDriver)
+
+    await defaultPersistence.stores.metadata!.get('scope', 'key')
+
+    expect(defaultDriver.statements.join('\n')).not.toContain(
+      '_tanstack_ai_migrations',
+    )
+
+    const optInDriver = createRecordingDriver()
+    const optInPersistence = createSqlPersistence(optInDriver, {
+      migrate: true,
+    })
+
+    await optInPersistence.stores.metadata!.get('scope', 'key')
+
+    expect(optInDriver.statements.join('\n')).toContain(
+      'CREATE TABLE IF NOT EXISTS _tanstack_ai_migrations',
+    )
+  })
+
   it('migrates lazily on first use and round-trips runs', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const run = await p.runs!.createOrResume({
       runId: 'r1',
       threadId: 't1',
@@ -347,7 +373,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('appends events and replays after a sequence', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.events!.append('r1', 1, text('a'))
     await p.events!.append('r1', 2, text('b'))
     await p.events!.append('r1', 3, text('c'))
@@ -367,14 +393,14 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('append is idempotent on (runId, seq)', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.events!.append('r1', 1, text('a'))
     await p.events!.append('r1', 1, text('a-again'))
     expect(await p.events!.latestSeq('r1')).toBe(1)
   })
 
   it('public event append detects conflicting target rows', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.stores.publicEvents!.append({
       runId: 'r1',
       expectedSeq: 0,
@@ -391,7 +417,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('public event append enforces expected sequence and permits identical retry', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const first = await p.stores.publicEvents!.append({
       runId: 'r1',
       expectedSeq: 0,
@@ -421,7 +447,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('public event idempotent retry ignores JSON object key order', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const first = await p.stores.publicEvents!.append({
       runId: 'r1',
       expectedSeq: 0,
@@ -443,6 +469,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
         table: 'public_events',
         persistedPayload: event,
       }),
+      { migrate: true },
     )
 
     await expect(
@@ -458,6 +485,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
         table: 'public_events',
         persistedPayload: text('other'),
       }),
+      { migrate: true },
     )
     await expect(
       conflicting.stores.publicEvents!.append({
@@ -469,7 +497,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('internal event append enforces expected sequence per run and namespace', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const first = await p.stores.internalEvents!.append({
       runId: 'r1',
       namespace: 'agent',
@@ -517,7 +545,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('internal event idempotent retry ignores JSON object key order', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const first = await p.stores.internalEvents!.append({
       runId: 'r1',
       namespace: 'agent',
@@ -542,6 +570,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
         table: 'internal_events',
         persistedPayload: { n: 1 },
       }),
+      { migrate: true },
     )
 
     await expect(
@@ -564,6 +593,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
         table: 'internal_events',
         persistedPayload: { n: 2 },
       }),
+      { migrate: true },
     )
     await expect(
       conflicting.stores.internalEvents!.append({
@@ -577,7 +607,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('round-trips the thread transcript', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     expect(await p.messages!.loadThread('t1')).toEqual([])
     await p.messages!.saveThread('t1', [{ role: 'user', content: 'hi' }])
     await p.messages!.saveThread('t1', [
@@ -591,7 +621,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('persists and resolves approvals with thread decisions', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.approvals!.create({
       approvalId: 'a1',
       runId: 'r1',
@@ -606,7 +636,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('passes SQL approval compatibility store into the deprecated approval controller', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     const controller = createApprovalController({ store: p.approvals })
 
     await controller.request({
@@ -622,7 +652,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('keeps generic interrupts out of legacy approval decisions and maps responses', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'r1',
@@ -640,7 +670,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('creates, lists, resolves, cancels, and queries blocking interrupts', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.stores.interrupts!.create({
       interruptId: 'i1',
       runId: 'r1',
@@ -675,7 +705,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('lists interrupts and pending interrupts by run', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.stores.interrupts!.create({
       interruptId: 'i1',
       runId: 'r1',
@@ -716,7 +746,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('stores app-owned namespaced metadata', async () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     await p.stores.metadata!.set('app:user:u1', 'theme', 'dark')
     await p.stores.metadata!.set('app:user:u2', 'theme', 'light')
 
@@ -729,7 +759,7 @@ describe('createSqlPersistence (sqlite dialect)', () => {
   })
 
   it('does not expose artifact compatibility as a base SQL store', () => {
-    const p = createSqlPersistence(createTestSqliteDriver())
+    const p = createMigratingTestPersistence()
     expect(p.stores.artifacts).toBeUndefined()
   })
 })

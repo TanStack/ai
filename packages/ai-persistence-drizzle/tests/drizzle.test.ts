@@ -12,11 +12,20 @@ const text = (delta: string): StreamChunk => ({
 })
 
 describe('drizzlePersistence (sqlite dialect, $client = node:sqlite)', () => {
+  it('does not create schema by default', async () => {
+    const db = { $client: new DatabaseSync(':memory:') }
+    const p = drizzlePersistence({ db, dialect: 'sqlite' })
+
+    await expect(
+      p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 }),
+    ).rejects.toThrow(/no such table: runs/)
+  })
+
   it('persists via the unwrapped Drizzle client', async () => {
     // A Drizzle sqlite db exposes its driver client at `$client`; node:sqlite's
     // DatabaseSync is prepare().run/all-shaped like better-sqlite3.
     const db = { $client: new DatabaseSync(':memory:') }
-    const p = drizzlePersistence({ db, dialect: 'sqlite' })
+    const p = drizzlePersistence({ db, dialect: 'sqlite', migrate: true })
 
     await p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 })
     await p.events!.append('r1', 1, text('a'))

@@ -44,7 +44,7 @@ export interface CloudflareArtifactStoreOptions {
   /** Logical BlobStore key prefix for artifact bytes. */
   blobKeyPrefix?: string
   now?: () => number
-  /** Run artifact table migrations on first use (default true). */
+  /** Run artifact table migrations on first use (default false). */
   migrate?: boolean
 }
 
@@ -398,7 +398,7 @@ export interface CloudflarePersistenceOptions {
   durableObjects?: DurableObjectNamespace
   durableObjectLocks?: DurableObjectLockStoreOptions
   mode?: PersistenceMode
-  /** Run migrations on first use (default true). */
+  /** Run migrations on first use (default false). */
   migrate?: boolean
 }
 
@@ -753,7 +753,7 @@ export function createCloudflareArtifactStore(
     options?.blobKeyPrefix ?? 'artifacts/',
   )
   const now = options?.now ?? Date.now
-  const migrate = options?.migrate ?? true
+  const migrate = options?.migrate ?? false
   let migrated: Promise<void> | undefined
   const blobKey = (artifactId: string) =>
     `${blobKeyPrefix}${orderedKeyPart(artifactId)}`

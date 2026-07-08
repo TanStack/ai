@@ -1,8 +1,9 @@
 /**
  * Assemble a {@link SqlPersistence} backed by SQL stores over a {@link SqlDriver}.
  *
- * By default the schema is migrated on first use (`migrate: true`); pass
- * `migrate: false` to manage the schema yourself (call {@link migrate}/{@link ddl}).
+ * By default the schema is not migrated; pass `migrate: true` to run lazy
+ * migrations on first use. If you manage the schema yourself, apply
+ * {@link migrate}/{@link ddl} outside this persistence wrapper.
  *
  * Migration runs lazily and exactly once, gated at the DRIVER level: the stores
  * are built on a wrapper whose every `exec`/`query`/`transaction` first awaits
@@ -34,7 +35,7 @@ import type { LegacyEventLog } from './stores'
 
 export interface SqlPersistenceOptions {
   mode?: PersistenceMode
-  /** Run schema migrations on first use (default true). Set false to self-manage. */
+  /** Run schema migrations on first use (default false). */
   migrate?: boolean
 }
 
@@ -55,7 +56,7 @@ export function createSqlPersistence(
   driver: SqlDriver,
   opts?: SqlPersistenceOptions,
 ): SqlPersistence {
-  const shouldMigrate = opts?.migrate ?? true
+  const shouldMigrate = opts?.migrate ?? false
 
   let migrated: Promise<void> | undefined
   const ensureSchema = (): Promise<void> => {

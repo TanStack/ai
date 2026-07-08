@@ -19,6 +19,7 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 export const persistence = sqlitePersistence({
   path: '.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 ```
 
@@ -29,11 +30,13 @@ import { postgresPersistence } from '@tanstack/ai-persistence-postgres'
 
 export const persistence = postgresPersistence({
   connectionString: process.env.DATABASE_URL ?? '',
+  migrate: true,
 })
 ```
 
-Both raw backends use the shared SQL core. They create the persistence tables
-lazily on first use by default.
+Both raw backends use the shared SQL core. They do not create persistence
+tables by default; set `migrate: true` to opt in to lazy table creation on
+first use.
 
 ## Shared schema
 
@@ -50,10 +53,10 @@ The base SQL schema is intentionally small:
 Public events are the replayable AG-UI stream. Internal events are separate
 package or app checkpoints and are not returned to reconnecting chat clients.
 
-## Own migrations with `migrate: false`
+## Own migrations
 
-If your deployment applies migrations separately, disable lazy migrations and
-run the exported DDL yourself.
+If your deployment applies migrations separately, leave `migrate` unset or set
+it to `false`, and run the exported DDL yourself.
 
 ```ts
 import { ddl } from '@tanstack/ai-persistence-sql'
@@ -61,7 +64,6 @@ import { postgresPersistence } from '@tanstack/ai-persistence-postgres'
 
 export const persistence = postgresPersistence({
   connectionString: process.env.DATABASE_URL ?? '',
-  migrate: false,
 })
 
 export const migrationStatements = ddl('postgres')
@@ -89,9 +91,9 @@ export const prismaStore = prismaPersistence({ prisma, dialect: 'postgres' })
 ```
 
 Drizzle and Prisma users usually manage schema changes through their own
-migration workflow. Pass `migrate: false` when you want that workflow to be the
-only source of schema changes. Both ORM packages ship a CLI that writes the
-TanStack AI persistence DDL into a migration file for SQLite or Postgres.
+migration workflow, which is the default. Both ORM packages ship a CLI that
+writes the TanStack AI persistence DDL into a migration file for SQLite or
+Postgres.
 
 ```sh
 pnpm exec tanstack-ai-persistence-prisma --dialect postgres
@@ -118,13 +120,11 @@ declare const prisma: PrismaRawClient
 export const drizzle = drizzlePersistence({
   db,
   dialect: 'postgres',
-  migrate: false,
 })
 
 export const prismaStore = prismaPersistence({
   prisma,
   dialect: 'postgres',
-  migrate: false,
 })
 ```
 

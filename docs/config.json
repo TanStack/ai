@@ -413,7 +413,7 @@
           "label": "Resumable Chat",
           "to": "persistence/resumable-chat",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-07"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Resumable Generations",
@@ -424,19 +424,20 @@
         {
           "label": "Interrupts and Approvals",
           "to": "persistence/interrupts-and-approvals",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "SQL Backends",
           "to": "persistence/sql-backends",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-06"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-07"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Files and Artifacts",
@@ -454,7 +455,7 @@
           "label": "Sandbox Runs",
           "to": "persistence/sandbox-runs",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-06"
+          "updatedAt": "2026-07-08"
         }
       ]
     },

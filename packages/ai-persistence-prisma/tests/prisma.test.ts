@@ -28,8 +28,20 @@ const text = (delta: string): StreamChunk => ({
 })
 
 describe('prismaPersistence (sqlite dialect, raw escape hatches)', () => {
-  it('persists via $queryRawUnsafe / $executeRawUnsafe', async () => {
+  it('does not create schema by default', async () => {
     const p = prismaPersistence({ prisma: fakePrisma(), dialect: 'sqlite' })
+
+    await expect(
+      p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 }),
+    ).rejects.toThrow(/no such table: runs/)
+  })
+
+  it('persists via $queryRawUnsafe / $executeRawUnsafe', async () => {
+    const p = prismaPersistence({
+      prisma: fakePrisma(),
+      dialect: 'sqlite',
+      migrate: true,
+    })
     await p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 })
     await p.events!.append('r1', 1, text('a'))
 

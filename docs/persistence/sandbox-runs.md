@@ -34,7 +34,10 @@ import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import type { ModelMessage } from '@tanstack/ai'
 
-const persistence = sqlitePersistence({ path: '.tanstack-ai/state.sqlite' })
+const persistence = sqlitePersistence({
+  path: '.tanstack-ai/state.sqlite',
+  migrate: true,
+})
 
 const repoSandbox = defineSandbox({
   id: 'repo-agent',

@@ -50,6 +50,7 @@ function persistence(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 }
 
@@ -115,6 +116,7 @@ function persistence(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 }
 

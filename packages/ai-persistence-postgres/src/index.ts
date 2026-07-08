@@ -115,7 +115,7 @@ export function createPostgresDriver(opts: PostgresDriverOptions): SqlDriver {
 
 export interface PostgresPersistenceOptions extends PostgresDriverOptions {
   mode?: PersistenceMode
-  /** Run migrations on first use (default true). */
+  /** Run migrations on first use (default false). */
   migrate?: boolean
 }
 

@@ -48,6 +48,7 @@ function persistence(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 }
 
@@ -168,6 +169,7 @@ export async function generateProductImage(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 
   const result = await generateImage({
@@ -235,6 +237,7 @@ export async function generateProductImage(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 
   const result = await generateImage({
@@ -300,6 +303,7 @@ export function runProjectBuilder(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 
   const projectSandbox = defineSandbox({
@@ -433,6 +437,7 @@ export function persistence(env: Env) {
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
   })
 }
 ```
@@ -443,7 +448,7 @@ workspace path at its latest artifact. If the sandbox container disappears,
 `withSandbox(...)` creates or resumes the provider sandbox and restores the
 workspace from that manifest before the next harness run starts.
 
-For Worker binding setup, lazy migrations, and Durable Object lock wiring, see
+For Worker binding setup, opt-in lazy migrations, and Durable Object lock wiring, see
 [Cloudflare](./cloudflare).
 
 ## What this does not do

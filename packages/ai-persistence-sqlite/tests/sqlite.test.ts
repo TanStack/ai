@@ -37,8 +37,16 @@ describe('sqlitePersistence', () => {
     ])
   })
 
-  it('round-trips a run, events, and transcript on an in-memory db', async () => {
+  it('does not create schema by default', async () => {
     const p = sqlitePersistence()
+
+    await expect(
+      p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 }),
+    ).rejects.toThrow(/no such table: runs/)
+  })
+
+  it('round-trips a run, events, and transcript on an in-memory db', async () => {
+    const p = sqlitePersistence({ migrate: true })
     await p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 })
     await p.events!.append('r1', 1, text('a'))
     await p.events!.append('r1', 2, text('b'))
@@ -52,7 +60,7 @@ describe('sqlitePersistence', () => {
   })
 
   it('drives the core ResumeSource: replays the tail after a cursor', async () => {
-    const p = sqlitePersistence()
+    const p = sqlitePersistence({ migrate: true })
     await p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 })
     await p.events!.append('r1', 1, text('a'))
     await p.events!.append('r1', 2, text('b'))

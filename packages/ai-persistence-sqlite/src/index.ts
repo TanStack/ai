@@ -79,7 +79,7 @@ export function createSqliteDriver(opts?: SqliteDriverOptions): SqlDriver {
 
 export interface SqlitePersistenceOptions extends SqliteDriverOptions {
   mode?: PersistenceMode
-  /** Run migrations on first use (default true). */
+  /** Run migrations on first use (default false). */
   migrate?: boolean
 }
 

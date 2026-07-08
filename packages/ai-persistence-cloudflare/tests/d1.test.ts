@@ -287,8 +287,16 @@ const artifact = (overrides: Partial<ArtifactRecord> = {}): ArtifactRecord => ({
 })
 
 describe('cloudflarePersistence (D1 via fake backed by node:sqlite)', () => {
-  it('round-trips runs and events through the D1 driver', async () => {
+  it('does not create core SQL tables by default', async () => {
     const p = cloudflarePersistence({ d1: fakeD1() })
+
+    await expect(
+      p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 }),
+    ).rejects.toThrow(/no such table: runs/)
+  })
+
+  it('round-trips runs and events through the D1 driver', async () => {
+    const p = cloudflarePersistence({ d1: fakeD1(), migrate: true })
     await p.runs!.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1 })
     await p.events!.append('r1', 1, text('a'))
     await p.events!.append('r1', 2, text('b'))
@@ -800,6 +808,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
 
     expect(p.stores.blobs).toBeDefined()
@@ -832,6 +841,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
     const store = p.stores.artifacts!
 
@@ -871,6 +881,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
     const store = p.stores.artifacts!
 
@@ -904,6 +915,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
     const store = p.stores.artifacts!
 
@@ -935,11 +947,10 @@ describe('D1-indexed R2 artifacts', () => {
     expect(bucket.objects.has(staleBlobKey)).toBe(true)
   })
 
-  it('does not auto-create artifact tables when migrate is false', async () => {
+  it('does not auto-create artifact tables by default', async () => {
     const p = cloudflarePersistence({
       d1: fakeD1(),
       r2: new FakeR2Bucket().bucket(),
-      migrate: false,
     })
 
     await expect(p.stores.artifacts!.list('run1')).rejects.toThrow(
@@ -953,7 +964,9 @@ describe('D1-indexed R2 artifacts', () => {
     const blobs = createR2BlobStore(bucket.bucket(), {
       prefix: 'artifact-bytes/',
     })
-    const store = createCloudflareArtifactStore(driver, blobs)
+    const store = createCloudflareArtifactStore(driver, blobs, {
+      migrate: true,
+    })
     await store.save(
       artifact({
         bytes: new TextEncoder().encode('old'),
@@ -964,6 +977,7 @@ describe('D1-indexed R2 artifacts', () => {
     const failingStore = createCloudflareArtifactStore(
       failNextArtifactUpsert(driver),
       blobs,
+      { migrate: true },
     )
 
     await expect(
@@ -991,6 +1005,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
     const store = p.stores.artifacts!
     await store.save(artifact({ bytes: new TextEncoder().encode('hello') }))
@@ -1019,6 +1034,7 @@ describe('D1-indexed R2 artifacts', () => {
       d1: fakeD1(),
       r2: bucket.bucket(),
       r2ArtifactPrefix: 'artifact-bytes/',
+      migrate: true,
     })
     const store = p.stores.artifacts!
     await store.save(

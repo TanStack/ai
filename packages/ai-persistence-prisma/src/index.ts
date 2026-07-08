@@ -5,8 +5,8 @@
  * parameter SQL string, exactly matching the shared `SqlDriver` contract.
  *
  * The tables are the same as the raw SQL backend; add the documented Prisma
- * models to your `schema.prisma` and run `prisma migrate` (use `migrate: false`),
- * or let the backend auto-migrate the tables directly.
+ * models to your `schema.prisma` and run `prisma migrate`, or opt in to lazy
+ * backend migrations with `migrate: true`.
  */
 import { createSqlPersistence } from '@tanstack/ai-persistence-sql'
 import type {
@@ -54,7 +54,7 @@ export interface PrismaPersistenceOptions {
   prisma: PrismaRawClient
   dialect: Dialect
   mode?: PersistenceMode
-  /** Run migrations on first use (default true). Set false to use prisma migrate. */
+  /** Run migrations on first use (default false). */
   migrate?: boolean
 }
 

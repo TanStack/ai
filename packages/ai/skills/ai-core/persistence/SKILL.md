@@ -54,6 +54,7 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
   path: '.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 
 export async function POST(request: Request) {
@@ -115,8 +116,8 @@ import { prismaPersistence } from '@tanstack/ai-persistence-prisma' // { prisma,
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare' // { d1 }
 ```
 
-Raw drivers auto-migrate (opt out with `{ migrate: false }` + the exported
-`migrate`/`ddl`). Drizzle and Prisma own their schema. The base SQL schema is
+Raw drivers do not auto-migrate unless you pass `{ migrate: true }`; otherwise
+apply the exported `migrate`/`ddl` yourself. Drizzle and Prisma own their schema. The base SQL schema is
 small: `runs`, `public_events`, `internal_events`, `messages`, `interrupts`,
 `metadata`, and `_tanstack_ai_migrations`.
 

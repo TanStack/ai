@@ -25,6 +25,7 @@ export function persistence(env: Env) {
     durableObjects: env.AI_LOCKS,
     r2ArtifactPrefix: 'tanstack-ai/artifacts/',
     r2BlobPrefix: 'tanstack-ai/blobs/',
+    migrate: true,
   })
 }
 ```
@@ -100,6 +101,7 @@ export function persistence(env: Env) {
   return cloudflarePersistence({
     d1: env.AI_D1,
     durableObjects: env.AI_LOCKS,
+    migrate: true,
     durableObjectLocks: {
       leaseMs: 30_000,
       pollMs: 50,
@@ -113,9 +115,10 @@ namespace as `durableObjects`.
 
 ## Self-managed schema
 
-Cloudflare migrations are lazy by default. If you deploy schema separately, set
-`migrate: false` and apply both the shared SQL DDL and the Cloudflare artifact
-index DDL.
+Cloudflare migrations are disabled by default. If you want the backend to create
+the D1 tables lazily, pass `migrate: true`. If you deploy schema separately,
+leave `migrate` unset or set it to `false`, and apply both the shared SQL DDL
+and the Cloudflare artifact index DDL.
 
 ```ts
 import { cloudflareArtifactDdl } from '@tanstack/ai-persistence-cloudflare'

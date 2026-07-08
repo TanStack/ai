@@ -24,6 +24,7 @@ import { sendEmail } from './tools'
 
 const persistence = sqlitePersistence({
   path: '.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 
 export async function POST(request: Request) {

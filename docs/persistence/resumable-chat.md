@@ -31,6 +31,7 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
   path: '.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 
 export async function POST(request: Request) {
