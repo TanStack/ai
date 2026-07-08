@@ -248,10 +248,10 @@ function ApprovalPrompt({
   onApprove: () => void
   onDeny: () => void
 }) {
-  // `part.input` is the parsed, fully-typed argument object — populated once
-  // the tool's arguments are complete (which they always are at approval
-  // time). Fall back to parsing the raw `part.arguments` string defensively.
-  const args = part.input ?? JSON.parse(part.arguments)
+  // `part.input` is the parsed, fully-typed argument object — always populated
+  // by approval time (the arguments are complete). The raw `part.arguments`
+  // string is still available if you need it.
+  const args = part.input
 
   return (
     <div className="border border-yellow-500 rounded-lg p-4 bg-yellow-50">

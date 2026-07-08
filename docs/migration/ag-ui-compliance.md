@@ -116,7 +116,7 @@ export async function POST(req: Request) {
   // const provider = body.forwardedProps?.provider
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages: body.messages, // AG-UI mixed shape — works directly
     tools: serverTools,
   })
@@ -146,7 +146,7 @@ import { serverTools } from './tools'
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages: params.messages,
     tools: serverTools,
   })
@@ -217,7 +217,7 @@ Skip this section if you're on Tier 1. `forwardedProps` is only surfaced when yo
 ```ts ignore
 // 🚫 UNSAFE — a client could override `adapter`, `model`, `tools`, system prompts, anything
 chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   ...params,
   ...params.forwardedProps,
 })
@@ -241,7 +241,7 @@ export async function POST(req: Request) {
   // ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
   // each provider's native key (OpenAI: temperature / max_output_tokens).
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages: params.messages,
     tools: mergeAgentTools(serverTools, params.tools),
     modelOptions: {
@@ -282,7 +282,7 @@ const tenantId =
     : defaultTenantId
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: params.messages,
   tools: serverTools,
   context: {
@@ -307,13 +307,13 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 // Before — still works, but deprecated
 useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'openai', model: 'gpt-4o' },
+  body: { provider: 'openai', model: 'gpt-5.5' },
 })
 
 // After — recommended
 useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  forwardedProps: { provider: 'openai', model: 'gpt-4o' },
+  forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
 })
 ```
 

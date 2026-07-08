@@ -451,12 +451,12 @@ interface ToolCallPart {
   arguments: string; // JSON string (may be incomplete during streaming)
   input?: any; // Parsed tool input (typed from tool's inputSchema)
   state: ToolCallState;
-  approval?: ApprovalRequest;
+  approval?: ApprovalRequest; // only on tools declared `needsApproval: true`
   output?: any; // Tool execution output (typed from tool's outputSchema)
 }
 ```
 
-When you pass a typed `tools` array (a plain array works — `clientTools()` is optional), the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing.
+When you pass a typed `tools` array (a plain array works — `clientTools()` is optional), the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing. The `approval` field is present **only** on parts for tools declared with `needsApproval: true` — narrow by `part.name` (or guard with `'approval' in part`) before accessing it.
 
 ### `ToolResultPart`
 

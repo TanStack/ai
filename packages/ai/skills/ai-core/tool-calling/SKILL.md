@@ -289,10 +289,10 @@ function ChatPage() {
               return (
                 <div key={part.id}>
                   <p>Approve "{part.name}"?</p>
-                  {/* `part.arguments` is the raw JSON string; `part.input` is
-                      the parsed, typed object, populated once the arguments
-                      are complete (as they are at approval time). */}
-                  <pre>{part.arguments}</pre>
+                  {/* `part.input` is the parsed, typed object (populated once
+                      the arguments are complete, as they are at approval
+                      time); `part.arguments` remains the raw JSON string. */}
+                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
                   <button
                     onClick={() =>
                       addToolApprovalResponse({

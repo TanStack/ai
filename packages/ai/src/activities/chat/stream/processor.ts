@@ -1305,8 +1305,23 @@ export class StreamProcessor {
       this.completeToolCall(messageId, index, existingToolCall)
       // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
       // arguments (overrides the accumulated string parse from completeToolCall)
+      // and refresh the rendered part's `input` so it reflects the canonical
+      // value rather than the possibly-divergent accumulated-args parse that
+      // completeToolCall wrote (e.g. an adapter that coerces values differently
+      // between the streamed args and the final structured input).
       if (chunk.input !== undefined) {
         existingToolCall.parsedArguments = chunk.input
+        this.messages = updateToolCallPart(this.messages, messageId, {
+          id: existingToolCall.id,
+          name: existingToolCall.name,
+          arguments: existingToolCall.arguments,
+          state: 'input-complete',
+          input: chunk.input,
+          ...(existingToolCall.metadata !== undefined && {
+            metadata: existingToolCall.metadata,
+          }),
+        })
+        this.emitMessagesChange()
       }
     }
 
@@ -1892,11 +1907,10 @@ export class StreamProcessor {
 
     // Update UIMessage. The arguments are complete now, so surface the parsed
     // input on the part. For adapters that skip TOOL_CALL_ARGS the arguments
-    // string was back-filled from TOOL_CALL_END.input above, so this parse
-    // matches the canonical input.
-    // ponytail: reflects the completed-args parse; if a future adapter sends a
-    // TOOL_CALL_END.input that diverges from the accumulated args, refresh the
-    // part in handleToolCallEndEvent's override branch too.
+    // string was back-filled from TOOL_CALL_END.input, so this parse matches
+    // the canonical input. If a TOOL_CALL_END.input diverges from the
+    // accumulated args, handleToolCallEndEvent re-updates the part with the
+    // canonical value after this call.
     this.messages = updateToolCallPart(this.messages, messageId, {
       id: toolCall.id,
       name: toolCall.name,
