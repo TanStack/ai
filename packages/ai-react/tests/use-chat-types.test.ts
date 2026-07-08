@@ -92,6 +92,35 @@ describe('useChat() return type', () => {
       }
       void check
     })
+
+    it('narrows a separately-declared const array (no clientTools / no `as const`)', () => {
+      const check = () => {
+        const guitarTool = toolDefinition({
+          name: 'getGuitar',
+          description: 'Get guitar info',
+        }).client(() => ({ ok: true }))
+        const cartTool = toolDefinition({
+          name: 'addToCart',
+          description: 'Add to cart',
+        }).client(() => ({ ok: true }))
+
+        // Separate const, NO clientTools, NO `as const`:
+        const tools = [guitarTool, cartTool]
+        const { messages } = useChat({
+          connection: { connect: async function* () {} },
+          tools,
+        })
+        const message = messages[0]
+        if (message?.role === 'assistant') {
+          for (const part of message.parts) {
+            if (part.type === 'tool-call') {
+              expectTypeOf(part.name).toEqualTypeOf<'getGuitar' | 'addToCart'>()
+            }
+          }
+        }
+      }
+      void check
+    })
   })
 
   describe('with typed client tool context', () => {

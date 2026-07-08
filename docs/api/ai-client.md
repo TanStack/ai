@@ -28,7 +28,6 @@ The main client class for managing chat state.
 ```typescript
 import {
   ChatClient,
-  clientTools,
   fetchServerSentEvents,
   type UIMessage,
 } from "@tanstack/ai-client";
@@ -37,7 +36,7 @@ import { myClientTool } from "./tools";
 const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
   initialMessages: [],
-  tools: clientTools(myClientTool),
+  tools: [myClientTool],
   onMessagesChange: (messages: UIMessage[]) => {
     console.log("Messages updated:", messages);
   },
@@ -281,7 +280,7 @@ const adapter = stream(async (messages, data, signal) => {
 
 ### `clientTools(...tools)`
 
-Creates a typed array of client tools with proper type inference. This eliminates the need for `as const` when defining tool arrays and enables proper discriminated union type narrowing.
+**Optional.** A plain array — `tools: [tool1, tool2]` — already narrows tool names, inputs and outputs without any wrapper or `as const`. `clientTools()` is an identity helper that performs the same capture explicitly; reach for it only when you want to build a shared, reusable tools tuple outside the hook/options call.
 
 ```typescript
 import {
@@ -320,7 +319,7 @@ const tool2Client = myTool2.client((input) => {
   return { result: input.query };
 });
 
-// Create typed tools array (no 'as const' needed!)
+// The explicit-capture form (equivalent to `[tool1Client, tool2Client]`).
 const tools = clientTools(tool1Client, tool2Client);
 
 // Now when you use these tools in chat options:
@@ -348,13 +347,12 @@ Helper function to create typed chat client options with proper type inference.
 ```typescript
 import {
   createChatClientOptions,
-  clientTools,
   fetchServerSentEvents,
   type InferChatMessages,
 } from "@tanstack/ai-client";
 import { tool1, tool2 } from "./tools";
 
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -370,7 +368,6 @@ type ChatMessages = InferChatMessages<typeof chatOptions>;
 ```typescript
 import {
   createChatClientOptions,
-  clientTools,
   fetchServerSentEvents,
 } from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
@@ -394,7 +391,7 @@ const tool = projectTool.client<ClientContext>((input, ctx: { context: ClientCon
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(tool),
+  tools: [tool],
   context: {
     activeProjectId: "project_123",
   },
@@ -459,7 +456,7 @@ interface ToolCallPart {
 }
 ```
 
-When using typed tools with `clientTools()` and `createChatClientOptions()`, the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing.
+When you pass a typed `tools` array (a plain array works — `clientTools()` is optional), the `input` and `output` fields are automatically typed based on your tool's Zod schemas, and `name` becomes a discriminated union enabling type narrowing.
 
 ### `ToolResultPart`
 

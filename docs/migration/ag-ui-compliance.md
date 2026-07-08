@@ -294,7 +294,7 @@ const stream = chat({
 
 ## Client-side: nothing required, one rename recommended
 
-`useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Existing `UIMessage` state is unchanged. `clientTools(...)` declarations are now automatically advertised to the server in the request payload.
+`useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Existing `UIMessage` state is unchanged. The tools you pass to `useChat({ tools })` are now automatically advertised to the server in the request payload.
 
 ### `body` → `forwardedProps` (recommended)
 
@@ -340,7 +340,7 @@ If you don't pass `threadId`, one is generated automatically and persists for th
 ## Tool-merge semantics
 
 - **Server tools win on name collision.** A tool registered server-side via `toolDefinition().server(...)` always executes server-side.
-- **Client-only tools become no-execute stubs** in `chat()` (when registered via `mergeAgentTools`). The runtime emits a `ClientToolRequest` event back to the client; the client's registered handler (via `clientTools(...)`) executes locally and posts the result.
+- **Client-only tools become no-execute stubs** in `chat()` (when registered via `mergeAgentTools`). The runtime emits a `ClientToolRequest` event back to the client; the client's registered handler (the `.client(...)` tool in the hook's `tools` array) executes locally and posts the result.
 - **Dual-handler (both have it):** server executes, then `chat-client.ts`'s `onToolCall` fires the client's handler as a UI side-effect when the streamed tool result event arrives. The server's result is authoritative for the conversation.
 
 ## Talking to a foreign AG-UI server

@@ -169,7 +169,6 @@ tool with full type safety:
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
 
 const deleteData = toolDefinition({
   name: 'delete_data',
@@ -187,7 +186,7 @@ const listData = toolDefinition({
 function ApprovalHandler() {
   const { messages, addToolApprovalResponse } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
-    tools: clientTools(deleteData, listData),
+    tools: [deleteData, listData],
   })
 
   return (
@@ -311,7 +310,6 @@ Client tools can also require approval:
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
 
 // tools/definitions.ts
 const deleteLocalDataDef = toolDefinition({
@@ -335,10 +333,10 @@ const deleteLocalData = deleteLocalDataDef.client((input) => {
 
 const { messages, addToolApprovalResponse } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  // Wrap client tools in `clientTools(...)` so literal tool-name inference is
-  // preserved — this is what lets `part.name === "delete_local_data"` narrow
+  // Pass client tools as a plain array — literal tool-name inference works
+  // without a wrapper, so `part.name === "delete_local_data"` still narrows
   // `part.input` / `part.output` to this tool's types.
-  tools: clientTools(deleteLocalData), // Automatic execution after approval
+  tools: [deleteLocalData], // Automatic execution after approval
 })
 ```
 
