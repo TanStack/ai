@@ -1890,12 +1890,21 @@ export class StreamProcessor {
       return
     }
 
-    // Update UIMessage
+    // Update UIMessage. The arguments are complete now, so surface the parsed
+    // input on the part. For adapters that skip TOOL_CALL_ARGS the arguments
+    // string was back-filled from TOOL_CALL_END.input above, so this parse
+    // matches the canonical input.
+    // ponytail: reflects the completed-args parse; if a future adapter sends a
+    // TOOL_CALL_END.input that diverges from the accumulated args, refresh the
+    // part in handleToolCallEndEvent's override branch too.
     this.messages = updateToolCallPart(this.messages, messageId, {
       id: toolCall.id,
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
+      ...(toolCall.parsedArguments !== undefined && {
+        input: toolCall.parsedArguments,
+      }),
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()
