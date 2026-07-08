@@ -99,12 +99,14 @@
         {
           "label": "Client Tools",
           "to": "tools/client-tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -456,7 +458,8 @@
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
-          "addedAt": "2026-05-16"
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Sampling → modelOptions",

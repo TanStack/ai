@@ -179,8 +179,9 @@ import { serverTools } from './tools'
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages: params.messages,
+    // `mergeAgentTools` returns a plain array — pass it straight to `tools`.
     tools: mergeAgentTools(serverTools, params.tools), // ← merges client-declared tools
   })
   return toServerSentEventsResponse(stream)
@@ -188,6 +189,24 @@ export async function POST(req: Request) {
 ```
 
 `mergeAgentTools` registers client-declared tools as no-execute stubs server-side. The runtime emits a `ClientToolRequest` event when the model calls one; the client executes via its registered handler and posts the result back.
+
+> **Security — merging trusts the client to define part of the tool surface.**
+> `params.tools` is attacker-controllable: a malicious or compromised client can
+> put any `name` / `description` / `parameters` it likes in `RunAgentInput.tools`.
+> Merging them means those definitions are advertised to the model. Server tools
+> still win on name collision (a client **cannot** shadow or hijack a server
+> tool's `execute`), and client-declared tools are no-execute — they only ever
+> run by round-tripping back to that same client. But a client can still **expand
+> the advertised tool surface** and **inject arbitrary text into the model's
+> context** through tool names and descriptions (a prompt-injection vector).
+>
+> **The safe default is to register your tool definitions statically** in the
+> server's `tools` array (including client-executed tools — a definition with no
+> `.server()` still works) and **not** call `mergeAgentTools`. Then any tools a
+> client declares in the payload are ignored: the model is never told about
+> them, so it never calls them and they can't run. Only reach for
+> `mergeAgentTools` when you genuinely want the client to drive tool
+> advertisement and you trust that client.
 
 ## `forwardedProps` security (Tier 2+ only)
 

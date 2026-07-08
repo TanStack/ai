@@ -118,6 +118,13 @@ export async function POST(request: Request) {
 }
 ```
 
+> **Security:** registering the definitions statically (as above) is the safe
+> default — the server alone decides which tools the model sees, so a client
+> can't advertise tools you didn't sanction. If you'd instead like the client
+> to declare its tools per request via AG-UI `RunAgentInput.tools`, use
+> [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3--optional-let-the-client-advertise-its-tools) —
+> read its security note first, since `params.tools` is client-controlled.
+
 ### Client-Side
 
 Create client implementations with automatic execution and full type safety:
