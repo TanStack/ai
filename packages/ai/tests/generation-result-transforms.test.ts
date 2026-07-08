@@ -36,10 +36,9 @@ describe('applyGenerationResultTransforms', () => {
       },
     )
 
-    const result = await applyGenerationResultTransforms<TestResult>(
-      ctx,
-      { value: 'raw' },
-    )
+    const result = await applyGenerationResultTransforms<TestResult>(ctx, {
+      value: 'raw',
+    })
 
     expect(calls).toEqual(['first:raw', 'second:first-replacement'])
     expect(result).toEqual({ value: 'second-replacement' })
@@ -52,10 +51,9 @@ describe('applyGenerationResultTransforms', () => {
       () => undefined,
     )
 
-    const result = await applyGenerationResultTransforms<TestResult>(
-      ctx,
-      { value: 'raw' },
-    )
+    const result = await applyGenerationResultTransforms<TestResult>(ctx, {
+      value: 'raw',
+    })
 
     expect(result).toEqual({ value: 'first-replacement' })
   })

@@ -391,15 +391,17 @@ describe('generation run identity and replay', () => {
       }),
     )
 
-    const customEvents = chunks.filter((chunk) => chunk.type === EventType.CUSTOM)
+    const customEvents = chunks.filter(
+      (chunk) => chunk.type === EventType.CUSTOM,
+    )
     expect(customEvents.map((chunk) => chunk.name)).toEqual([
       'generation:artifacts',
       'generation:result',
     ])
     expect(customEvents[0]?.value).toEqual([artifact])
-    expect((customEvents[1]?.value as { artifacts?: unknown }).artifacts).toEqual([
-      artifact,
-    ])
+    expect(
+      (customEvents[1]?.value as { artifacts?: unknown }).artifacts,
+    ).toEqual([artifact])
     expect(createVideoJob).not.toHaveBeenCalled()
     expect(onStart).not.toHaveBeenCalled()
   })

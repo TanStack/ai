@@ -348,7 +348,9 @@ describe('withPersistence generation artifacts', () => {
       }),
     )
 
-    const customEvents = chunks.filter((chunk) => chunk.type === EventType.CUSTOM)
+    const customEvents = chunks.filter(
+      (chunk) => chunk.type === EventType.CUSTOM,
+    )
     expect(customEvents.map((chunk) => chunk.name)).toEqual([
       'generation:artifacts',
       'generation:result',
@@ -441,7 +443,9 @@ describe('withPersistence generation artifacts', () => {
 
     expect(() =>
       withPersistence(persistence, { features: ['artifacts'] }),
-    ).toThrow(/artifact persistence requires both stores\.artifacts and stores\.blobs/i)
+    ).toThrow(
+      /artifact persistence requires both stores\.artifacts and stores\.blobs/i,
+    )
   })
 
   it('persists transcription structured JSON output', async () => {

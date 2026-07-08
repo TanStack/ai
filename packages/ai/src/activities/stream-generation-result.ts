@@ -31,7 +31,10 @@ function createId(prefix: string): string {
  */
 export async function* streamGenerationResult<TResult>(
   generator: (
-    options: GenerationRunOptions<TResult> & { runId: string; threadId: string },
+    options: GenerationRunOptions<TResult> & {
+      runId: string
+      threadId: string
+    },
   ) => Promise<TResult>,
   options?: GenerationRunOptions<TResult>,
 ): AsyncIterable<StreamChunk> {
