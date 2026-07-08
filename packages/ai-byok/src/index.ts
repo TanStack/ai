@@ -26,8 +26,12 @@ export { byokHeaders } from './client/keyring'
 export type { Keyring } from './client/keyring'
 
 // Connection helper: attach BYOK headers + detect a missing-key response
-export { withByok, byokFetch } from './client/with-byok'
-export type { WithByokOptions, ByokConnectionOptions } from './client/with-byok'
+export { withByok, byokFetch, byokFetcher } from './client/with-byok'
+export type {
+  WithByokOptions,
+  ByokConnectionOptions,
+  ByokFetcherContext,
+} from './client/with-byok'
 export { isByokMissingBody } from './server/byok-missing'
 export type { ByokMissingBody } from './server/byok-missing'
 

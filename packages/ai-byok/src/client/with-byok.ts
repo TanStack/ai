@@ -74,3 +74,63 @@ export function withByok(
     }
   }
 }
+
+/** Context a {@link byokFetcher} handler receives alongside the request input. */
+export interface ByokFetcherContext {
+  /**
+   * Per-provider BYOK headers read fresh for this request. Spread onto a
+   * `fetch` call's `headers`, or pass as a TanStack Start server function's
+   * call-site `headers` option — either way the key travels in the header,
+   * never the body.
+   */
+  headers: Record<string, string>
+  /**
+   * A `fetch` that also detects the relay's `byokMissing` 401 and invokes
+   * `onMissingKey` (identical to the global `fetch` when `onMissingKey` is
+   * unset). Only relevant to fetch-based fetchers; a server-function fetcher
+   * uses `headers` and surfaces a missing key as a thrown error instead.
+   */
+  fetch: typeof fetch
+  /** The abort signal the transport forwards from `stop()`, when provided. */
+  signal?: AbortSignal
+}
+
+/**
+ * The `useChat`/`useGeneration` **fetcher** counterpart to {@link withByok}
+ * (which targets the `connection` transport). Wraps a fetcher body so it
+ * receives BYOK `headers` and a missing-key-aware `fetch`, read fresh on every
+ * call. Works for both fetcher styles:
+ *
+ * ```ts
+ * // fetch-based: spread headers, use the wrapped fetch for onMissingKey
+ * fetcher: byokFetcher(() => keysRef.current, (input, { headers, fetch, signal }) =>
+ *   fetch('/api/generate/audio', {
+ *     method: 'POST',
+ *     headers: { 'content-type': 'application/json', ...headers },
+ *     body: JSON.stringify(input),
+ *     signal,
+ *   }),
+ *   { onMissingKey: (provider) => openKeyDialog(provider) },
+ * )
+ *
+ * // TanStack Start server function: forward headers at the call site
+ * fetcher: byokFetcher(() => keysRef.current, (input, { headers }) =>
+ *   generateAudioFn({ data: input, headers }),
+ * )
+ * // server handler: getByokKey(getRequest(), 'elevenlabs')
+ * ```
+ */
+export function byokFetcher<TInput, TReturn>(
+  getKeys: () => Keyring,
+  handler: (input: TInput, context: ByokFetcherContext) => TReturn,
+  options: WithByokOptions = {},
+): (input: TInput, transport?: { signal?: AbortSignal }) => TReturn {
+  return (input, transport) =>
+    handler(input, {
+      headers: { ...options.headers, ...byokHeaders(getKeys()) },
+      fetch: options.onMissingKey
+        ? byokFetch(options.onMissingKey, options.fetchClient)
+        : (options.fetchClient ?? fetch),
+      signal: transport?.signal,
+    })
+}

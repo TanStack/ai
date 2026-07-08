@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { byokFetch, byokHeaders, byokHeaderName, withByok } from '../src/index'
+import {
+  byokFetch,
+  byokFetcher,
+  byokHeaders,
+  byokHeaderName,
+  withByok,
+} from '../src/index'
 import type { Keyring } from '../src/index'
 import {
   byokMissing,
@@ -57,6 +63,40 @@ describe('withByok / byokFetch', () => {
     )
     await wrapped('https://x.test')
     expect(onMissingKey).not.toHaveBeenCalled()
+  })
+})
+
+describe('byokFetcher', () => {
+  it('hands the handler fresh headers and forwards the transport signal', () => {
+    let keys: Keyring = { openai: 'sk-a' }
+    const handler = vi.fn((_input: { prompt: string }, ctx) => ctx)
+    const fetcher = byokFetcher(() => keys, handler)
+
+    const first = fetcher({ prompt: 'hi' })
+    expect(first.headers).toEqual({ 'x-byok-openai': 'sk-a' })
+    expect(first.fetch).toBe(fetch)
+    expect(first.signal).toBeUndefined()
+
+    keys = { openai: 'sk-b', gemini: 'g-1' }
+    const controller = new AbortController()
+    const second = fetcher({ prompt: 'yo' }, { signal: controller.signal })
+    expect(second.headers).toEqual({
+      'x-byok-openai': 'sk-b',
+      'x-byok-gemini': 'g-1',
+    })
+    expect(second.signal).toBe(controller.signal)
+  })
+
+  it('supplies a missing-key-aware fetch when onMissingKey is set', async () => {
+    const onMissingKey = vi.fn()
+    const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
+    const fetcher = byokFetcher(
+      () => ({ anthropic: 'sk-x' }),
+      (_input: null, ctx) => ctx.fetch('https://x.test'),
+      { onMissingKey, fetchClient: fetchImpl },
+    )
+    await fetcher(null)
+    expect(onMissingKey).toHaveBeenCalledWith('anthropic')
   })
 })
 

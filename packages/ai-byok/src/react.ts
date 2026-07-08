@@ -16,6 +16,7 @@ export {
   byokHeaders,
   withByok,
   byokFetch,
+  byokFetcher,
   isByokMissingBody,
   memoryStorage,
   passkeyStorage,
@@ -33,5 +34,6 @@ export type {
   ValidationStatus,
   WithByokOptions,
   ByokConnectionOptions,
+  ByokFetcherContext,
   ByokMissingBody,
 } from './index'
