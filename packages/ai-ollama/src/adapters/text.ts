@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import {
   toRunErrorPayload,
   toRunErrorRawEvent,
@@ -469,11 +474,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           if (part.type === 'text') {
             textContent += part.content
           } else if (part.type === 'image') {
-            if (part.source.type === 'data') {
-              images.push(part.source.value)
-            } else {
-              images.push(part.source.value)
+            if (isFileSource(part.source)) {
+              throw unsupportedFileSourceError('ollama')
             }
+            images.push(part.source.value)
           }
         }
       } else {

@@ -1,15 +1,13 @@
 import type {
   BetaContextManagementConfig,
+  BetaMessageParam,
   BetaToolChoiceAny,
   BetaToolChoiceAuto,
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
 import type { AnthropicContainerSkill, AnthropicTool } from '../tools/index'
-import type {
-  MessageParam,
-  TextBlockParam,
-} from '@anthropic-ai/sdk/resources/messages'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 /**
  * Per-prompt metadata Anthropic understands on `systemPrompts` entries.
@@ -303,7 +301,7 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string
 
-  messages: Array<MessageParam>
+  messages: Array<BetaMessageParam>
 
   /**
    * The maximum number of tokens to generate before stopping.  This parameter only specifies the absolute maximum number of tokens to generate.

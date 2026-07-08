@@ -8,6 +8,10 @@ export {
   getVideoJobStatus,
   generateSpeech,
   generateTranscription,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -36,6 +40,10 @@ export type {
   TranscriptionAdapter,
   AnyVideoAdapter,
   VideoAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
 } from './activities/index'
 
 // Tool definition
@@ -257,6 +265,11 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertOwnFileSource,
+  isFileSource,
+  unsupportedFileSourceError,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,

@@ -19,6 +19,14 @@ export {
   type GeminiSummarizeModel,
 } from './adapters/summarize'
 
+// Files adapter - upload media to the Gemini Files API and reference by file URI
+export {
+  GeminiFilesAdapter,
+  createGeminiFiles,
+  geminiFiles,
+  type GeminiFilesConfig,
+} from './adapters/files'
+
 // Image adapter
 export {
   GeminiImageAdapter,
