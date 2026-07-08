@@ -39,12 +39,12 @@ user-owned database. Implement that shape with [Custom Stores](./custom-stores):
 the Cloudflare backend is convenient when D1 owns the SQL state, but the R2
 artifact/blob pattern is not limited to D1.
 
-For the end-to-end file persistence model, including generated artifacts,
-app-owned blobs, and sandbox workspace checkpoints backed by R2, see
-[Files and Artifacts](./files-and-artifacts).
+For generated media hooks backed by R2 artifact refs, see
+[Generation Persistence](./generation-persistence). For sandbox workspace
+checkpoints backed by D1/R2, see [Sandbox Persistence](./sandbox-persistence).
 
 For image, audio, speech, transcription, and video hooks that reconnect after a
-refresh, see [Resumable Generations](./resumable-generations).
+refresh, see [Generation Persistence](./generation-persistence).
 
 ## Core state lives in D1
 
@@ -76,8 +76,9 @@ object.
 Use artifacts for files tied to a chat or generation run, such as generated
 reports, media outputs, downloads, screenshots, or sandbox workspace file
 checkpoints. Use blobs for lower-level object storage when your app owns the
-index shape. [Files and Artifacts](./files-and-artifacts) shows both patterns
-and the Cloudflare layout for project-builder apps.
+index shape. [Generation Persistence](./generation-persistence) shows generated
+media artifacts, and [Sandbox Persistence](./sandbox-persistence) shows the
+Cloudflare layout for project-builder apps.
 
 For Lovable-style builders, persistence stores generated artifact metadata and
 sandbox workspace manifests in D1 while R2 stores the bytes. That gives

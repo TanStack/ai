@@ -63,7 +63,7 @@ The same pattern applies to all generation types -- swap `generateImage` for `ge
 
 For refresh-safe generation, wrap the server call with `withPersistence(...)`
 and parse hook requests with `generationParamsFromRequest(...)`. See
-[Resumable Generations](../persistence/resumable-generations) for the complete
+[Generation Persistence](../persistence/generation-persistence) for the complete
 server and client flow.
 
 ## useGenerateImage
@@ -434,7 +434,7 @@ Generation hooks do not store generated image, audio, speech, transcription, or
 video bytes in browser persistence. The client snapshot keeps only
 `{ threadId, runId, cursor }` plus lightweight artifact refs. Use server
 persistence artifacts when generated media must survive refresh:
-[Resumable Generations](../persistence/resumable-generations) shows the full
+[Generation Persistence](../persistence/generation-persistence) shows the full
 pattern.
 
 ### Result Transforms
@@ -519,4 +519,4 @@ All framework packages re-export `fetchServerSentEvents`, `fetchHttpStream`, and
 - [Transcription](./transcription) -- File formats, language detection, and word-level timestamps
 - [Video Generation](./video-generation) -- Job lifecycle, polling, and provider setup
 - [Generations Overview](./generations) -- Architecture and server-side streaming patterns
-- [Resumable Generations](../persistence/resumable-generations) -- Refresh-safe generation and persisted artifact refs
+- [Generation Persistence](../persistence/generation-persistence) -- Refresh-safe generation and persisted artifact refs

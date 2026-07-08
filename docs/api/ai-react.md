@@ -175,7 +175,7 @@ Generation hook returns include `generate`, `result`, `isLoading`, `error`,
 `jobId` and `videoStatus`.
 
 For the end-to-end persistence setup, see
-[Resumable Generations](../persistence/resumable-generations).
+[Generation Persistence](../persistence/generation-persistence).
 
 ## Example: Basic Chat
 

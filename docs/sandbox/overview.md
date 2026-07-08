@@ -116,7 +116,7 @@ sandbox on your laptop. Then dive into the piece you need:
 - **[Lifecycle & Snapshots](./lifecycle)** — reuse, snapshot-after-setup, and resume.
 - **[Events & File Hooks](./events)** — stream the agent's edits and activity to a UI.
 - **[Cloudflare (edge)](./cloudflare)** — run the agent and a live preview at the edge.
-- **[Sandbox Runs](../persistence/sandbox-runs)** — persist sandbox run records,
+- **[Sandbox Persistence](../persistence/sandbox-persistence)** — persist sandbox run records,
   resume bookkeeping, and locks across processes.
 
 ## Try it
@@ -137,6 +137,6 @@ Daytona) pickers.
 
 > **Durable sandbox runs:** the sandbox layer ships with in-memory stores for
 > local resume bookkeeping. Use
-> [Sandbox Runs](../persistence/sandbox-runs) when resume records, locks, and
+> [Sandbox Persistence](../persistence/sandbox-persistence) when resume records, locks, and
 > event-log replay need to survive process restarts or run across multiple
 > workers.

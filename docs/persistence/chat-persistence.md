@@ -1,14 +1,15 @@
 ---
-title: Resumable Chat
-id: resumable-chat
+title: Chat Persistence
+id: chat-persistence
 ---
 
-Use server persistence when the server should be authoritative for a chat
-thread. The client may still keep local UI state, but the durable transcript,
-run status, and replayable event log live behind `withPersistence(...)`.
+Use chat persistence when the server should be authoritative for a thread. The
+client may keep local UI state, but the durable transcript, run status,
+replayable event log, and pending user decisions live behind
+`withPersistence(...)`.
 
 By the end, your endpoint accepts `{ threadId, runId, cursor, resume }`, writes
-each streamed chunk to durable storage, and lets the client resume after an
+streamed chunks to durable storage, and lets the client resume after an
 in-session disconnect or full page reload.
 
 ## Install a backend
@@ -51,17 +52,17 @@ export async function POST(request: Request) {
 }
 ```
 
-`withPersistence` loads the stored thread history, saves the resulting
-transcript, records run status, and appends every public AG-UI event with a
-cursor. When `cursor` is present, the run replays persisted events after that
-cursor instead of re-running the adapter.
+`withPersistence(...)` loads stored thread history, saves the resulting
+transcript, records run status, and appends every public AG-UI event with an
+opaque cursor. When `cursor` is present, the run replays persisted events after
+that cursor instead of re-running the adapter.
 
 ## Wire the client
 
 The chat client forwards the resume fields through its connection adapter. Keep
 a stable `threadId` per conversation so a reload returns to the same server
 thread. Use `persistence.server` to store the client's latest resume snapshot
-under that `threadId` so reloads can continue the same durable run.
+under that `threadId`.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -118,26 +119,27 @@ known `{ threadId, runId, cursor }`. Opt out with `autoResume: false`, or call
 `chat.resumeState` contains the active resume identity, or `null` when there is
 nothing to continue. `chat.pendingInterrupts` contains the client-side
 descriptors needed to answer pending user decisions. `persistence.server`
-stores them together and hydrates them on the next client construction. The
-server remains authoritative: the stored snapshot only tells the client which
-durable run to reconnect to and which pending interrupts it can answer.
+stores them together and hydrates them on the next client construction.
 
-## Client message storage is separate
+## Choose the controls you need
 
-Client-side chat persistence stores rendered `UIMessage` history in
-`localStorage`, IndexedDB, or another browser-side adapter. Server persistence
-stores model messages, run records, and replayable public events. You can use
-both with `persistence: { client, server }`, but they solve different problems.
-See [Chat Persistence](../chat/persistence) for client-only message storage.
+Use [Persistence Controls](./controls) when you want the decision table. For
+chat, these are the common combinations:
+
+| Goal | Controls |
+| --- | --- |
+| Browser-only drafts | `persistence.client` on the chat client. |
+| Server-owned transcript | `stores.messages` and `features: ['messages']`. |
+| Reconnect without re-running the model | `stores.runs`, `stores.publicEvents`, and `durable-replay`. |
+| Pending approvals or human input | `interrupts`, which also requires run and public-event stores. |
+| Multi-worker resume safety | Add `stores.locks` when a backend supports it. |
 
 ## Resume pending decisions
 
 If the server finishes with `RUN_FINISHED.outcome.type === 'interrupt'`, the
 thread has a pending user-actionable wait. Resolve those waits with
 `chat.resumeInterrupts(...)`; the client forwards them as AG-UI
-`RunAgentInput.resume[]` entries on the next request. If the page reloads
-before the user answers, `persistence.server` restores the pending interrupts
-the client needs to render and resume.
+`RunAgentInput.resume[]` entries on the next request.
 
 ```ts
 import type { UseChatReturn } from '@tanstack/ai-react'
@@ -153,5 +155,22 @@ await chat.resumeInterrupts([
 ])
 ```
 
-For approval-specific UI and compatibility details, see
-[Interrupts and Approvals](./interrupts-and-approvals).
+Normal new input on the same thread is rejected by default while pending
+interrupts exist. That keeps the server from accidentally creating a second
+conversation branch before the existing decision has been resolved or
+cancelled.
+
+Tool approvals are the common UI shape for interrupts. A tool with
+`needsApproval: true` can pause the run, surface an approval request, and resume
+after the user approves or denies it. For basic approval rendering without
+server persistence, see [Tool Approval Flow](../tools/tool-approval).
+
+## Keep client and server persistence separate
+
+Client-side chat persistence stores rendered `UIMessage` history in
+`localStorage`, IndexedDB, or another browser-side adapter. Server persistence
+stores model messages, run records, interrupts, and replayable public events.
+You can use both with `persistence: { client, server }`, but they solve
+different problems.
+
+For a narrow client-only page, see [Chat & Streaming Persistence](../chat/persistence).

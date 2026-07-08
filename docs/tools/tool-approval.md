@@ -25,7 +25,7 @@ After `approval-responded` the call executes (if approved). Although `complete` 
 
 For approval flows that must survive disconnects, reloads, or process restarts,
 pair approvals with server persistence. See
-[Interrupts and Approvals](../persistence/interrupts-and-approvals) for the
+[Chat Persistence](../persistence/chat-persistence) for the
 durable `withPersistence` path.
 
 When a tool requires approval, the typical flow is:

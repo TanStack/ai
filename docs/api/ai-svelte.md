@@ -304,7 +304,7 @@ const gen = createGeneration({
 **Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody`, `dispose`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all state properties are reactive getters.
 
 For the end-to-end persistence setup, see
-[Resumable Generations](../persistence/resumable-generations).
+[Generation Persistence](../persistence/generation-persistence).
 
 ### `createGenerateImage(options)`
 

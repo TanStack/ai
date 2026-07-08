@@ -138,7 +138,7 @@ so read `resumeState()` and `pendingArtifacts()`. Video generation also returns
 `jobId` and `videoStatus`.
 
 For the end-to-end persistence setup, see
-[Resumable Generations](../persistence/resumable-generations).
+[Generation Persistence](../persistence/generation-persistence).
 
 ## Connection Adapters
 

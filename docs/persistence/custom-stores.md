@@ -10,7 +10,7 @@ or internal checkpoints without changing the public chat replay stream.
 This page is reference material for adapter authors. If you only need to choose
 a packaged backend, start with [SQL Backends](./sql-backends) or
 [Cloudflare](./cloudflare). If you need the end-to-end chat journey, start with
-[Resumable Chat](./resumable-chat).
+[Chat Persistence](./chat-persistence).
 
 For production apps, this is the recommended ownership model: keep persistence
 inside your app's database, queue, object store, and retention policies, then
@@ -21,7 +21,8 @@ boundary for user-owned persistence.
 
 If you are deciding how to model generated files, workspace checkpoints, object
 bytes, metadata manifests, and locks together, read
-[Files and Artifacts](./files-and-artifacts) first. This page explains the store
+[Generation Persistence](./generation-persistence) and
+[Sandbox Persistence](./sandbox-persistence) first. This page explains the store
 interfaces behind those patterns.
 
 ## Define an `AIPersistence`
@@ -32,7 +33,7 @@ development, `memoryPersistence()` is a useful complete baseline: replace one
 store at a time with your backend implementation while keeping the feature
 validation behavior realistic.
 
-```ts group=custom-stores
+```ts group=custom-stores-define
 import {
   defineAIPersistence,
   memoryPersistence,
@@ -82,7 +83,7 @@ Most production apps already have repositories or service methods for threads,
 runs, event logs, user decisions, metadata, and files. Wrap those methods in the
 store callbacks instead of adding a second persistence path.
 
-```ts group=custom-stores
+```ts group=custom-stores-app-boundary
 import {
   defineAIPersistence,
   withPersistence,
@@ -164,7 +165,11 @@ or integration. MCP session correlation is a good example: the base persistence
 schema records public stream replay, while app-owned metadata can map a thread
 or run to an MCP session id.
 
-```ts group=custom-stores
+```ts group=custom-stores-metadata
+import { memoryPersistence } from '@tanstack/ai-persistence'
+
+const persistence = memoryPersistence()
+
 await persistence.stores.metadata?.set(
   'thread:weather-chat',
   'mcp-session',
@@ -185,8 +190,9 @@ durable resource at the same time.
 `threadId`. `stores.blobs` stores raw bytes and can be shared by artifacts or
 other integrations. A backend may store artifact metadata in SQL and bytes in
 object storage, as the [Cloudflare backend](./cloudflare) does with D1 and R2.
-For concrete run-artifact, blob, and sandbox workspace examples, see
-[Files and Artifacts](./files-and-artifacts).
+For concrete generated media and sandbox workspace examples, see
+[Generation Persistence](./generation-persistence) and
+[Sandbox Persistence](./sandbox-persistence).
 
 The same hybrid pattern works outside Workers: use your SQL database for runs,
 messages, events, metadata, and artifact indexes, then implement `stores.blobs`

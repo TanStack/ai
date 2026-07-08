@@ -386,7 +386,7 @@ export class CustomGenerationComponent {
 **Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` — all reactive state is a read-only `Signal<T>`.
 
 For the end-to-end persistence setup, see
-[Resumable Generations](../persistence/resumable-generations).
+[Generation Persistence](../persistence/generation-persistence).
 
 ### `injectGenerateImage(options)`
 

@@ -410,28 +410,37 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Resumable Chat",
-          "to": "persistence/resumable-chat",
+          "label": "Persistence Controls",
+          "to": "persistence/controls",
+          "addedAt": "2026-07-08"
+        },
+        {
+          "label": "Migrations",
+          "to": "persistence/migrations",
+          "addedAt": "2026-07-08"
+        },
+        {
+          "label": "Chat Persistence",
+          "to": "persistence/chat-persistence",
           "addedAt": "2026-07-03",
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Resumable Generations",
-          "to": "persistence/resumable-generations",
+          "label": "Sandbox Persistence",
+          "to": "persistence/sandbox-persistence",
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-07-08"
+        },
+        {
+          "label": "Generation Persistence",
+          "to": "persistence/generation-persistence",
           "addedAt": "2026-07-07",
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Interrupts and Approvals",
-          "to": "persistence/interrupts-and-approvals",
-          "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-08"
-        },
-        {
-          "label": "SQL Backends",
-          "to": "persistence/sql-backends",
-          "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-08"
+          "label": "MCP Persistence",
+          "to": "persistence/mcp-persistence",
+          "addedAt": "2026-07-08"
         },
         {
           "label": "Cloudflare",
@@ -440,20 +449,24 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Files and Artifacts",
-          "to": "persistence/files-and-artifacts",
-          "addedAt": "2026-07-06",
+          "label": "Prisma",
+          "to": "persistence/prisma",
+          "addedAt": "2026-07-08"
+        },
+        {
+          "label": "Drizzle",
+          "to": "persistence/drizzle",
+          "addedAt": "2026-07-08"
+        },
+        {
+          "label": "SQL Backends",
+          "to": "persistence/sql-backends",
+          "addedAt": "2026-07-03",
           "updatedAt": "2026-07-08"
         },
         {
           "label": "Custom Stores",
           "to": "persistence/custom-stores",
-          "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-08"
-        },
-        {
-          "label": "Sandbox Runs",
-          "to": "persistence/sandbox-runs",
           "addedAt": "2026-07-03",
           "updatedAt": "2026-07-08"
         }

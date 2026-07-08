@@ -119,4 +119,4 @@ durable to resume.
 To make sandbox resume records and ensure-locking durable across processes,
 place `withPersistence(...)` before `withSandbox(...)`. The sandbox middleware
 reads persistence metadata and locks directly when those stores are configured.
-See [Sandbox Runs](../persistence/sandbox-runs).
+See [Sandbox Persistence](../persistence/sandbox-persistence).

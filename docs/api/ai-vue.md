@@ -321,7 +321,7 @@ const { generate, result, isLoading, error, status, stop, reset } =
 **Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all reactive state is `DeepReadonly<ShallowRef<T>>`. Read refs with `.value` in `<script setup>`.
 
 For the end-to-end persistence setup, see
-[Resumable Generations](../persistence/resumable-generations).
+[Generation Persistence](../persistence/generation-persistence).
 
 ### `useGenerateImage(options)`
 
