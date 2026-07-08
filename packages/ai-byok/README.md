@@ -97,8 +97,9 @@ useGenerateAudio({
 
 // B) TanStack Start server function — forward headers at the call site
 useGenerateAudio({
-  fetcher: byokFetcher(() => keysRef.current, (input, { headers }) =>
-    generateAudioFn({ data: input, headers }),
+  fetcher: byokFetcher(
+    () => keysRef.current,
+    (input, { headers }) => generateAudioFn({ data: input, headers }),
   ),
 })
 ```
