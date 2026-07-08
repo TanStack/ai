@@ -435,7 +435,10 @@ export function cloudflarePersistence(
     const blobs = createR2BlobStore(opts.r2, {
       prefix: opts.r2BlobPrefix ?? opts.r2ArtifactPrefix,
     })
-    const artifacts = createCloudflareArtifactStore(driver, blobs, {
+    const artifactBlobs = createR2BlobStore(opts.r2, {
+      prefix: opts.r2ArtifactPrefix ?? DEFAULT_R2_ARTIFACT_PREFIX,
+    })
+    const artifacts = createCloudflareArtifactStore(driver, artifactBlobs, {
       migrate: opts.migrate,
     })
     persistence.stores.blobs = blobs

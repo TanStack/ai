@@ -207,3 +207,6 @@ export const middleware = withPersistence(persistence, {
 If `features` is omitted, `withPersistence(...)` enables the features supported
 by the stores present on the `AIPersistence` object. Pass `features` when you
 want fail-loud validation for a required capability.
+
+For exact store method contracts and resume invariants behind these controls,
+see [Persistence Internals](./internals).

@@ -412,12 +412,14 @@
         {
           "label": "Persistence Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-07-08"
+          "addedAt": "2026-07-08",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Migrations",
           "to": "persistence/migrations",
-          "addedAt": "2026-07-08"
+          "addedAt": "2026-07-08",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Chat Persistence",
@@ -440,7 +442,8 @@
         {
           "label": "MCP Persistence",
           "to": "persistence/mcp-persistence",
-          "addedAt": "2026-07-08"
+          "addedAt": "2026-07-08",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Cloudflare",
@@ -469,6 +472,11 @@
           "to": "persistence/custom-stores",
           "addedAt": "2026-07-03",
           "updatedAt": "2026-07-08"
+        },
+        {
+          "label": "Persistence Internals",
+          "to": "persistence/internals",
+          "addedAt": "2026-07-08"
         }
       ]
     },

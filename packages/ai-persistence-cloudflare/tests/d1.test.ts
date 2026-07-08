@@ -802,6 +802,33 @@ describe('createR2BlobStore', () => {
 })
 
 describe('D1-indexed R2 artifacts', () => {
+  it('uses separate R2 prefixes for D1 artifacts and generic blobs', async () => {
+    const bucket = new FakeR2Bucket()
+    const p = cloudflarePersistence({
+      d1: fakeD1(),
+      r2: bucket.bucket(),
+      r2ArtifactPrefix: 'artifact-bytes/',
+      r2BlobPrefix: 'generic-blobs/',
+      migrate: true,
+    })
+
+    await p.stores.artifacts!.save(
+      artifact({ bytes: new TextEncoder().encode('hello') }),
+    )
+    await p.stores.blobs!.put('uploads/raw.txt', 'raw')
+
+    expect(
+      [...bucket.objects.keys()].some((key) =>
+        key.startsWith('artifact-bytes/artifacts/art1/'),
+      ),
+    ).toBe(true)
+    expect(
+      [...bucket.objects.keys()].some((key) =>
+        key.startsWith('generic-blobs/uploads/raw.txt'),
+      ),
+    ).toBe(true)
+  })
+
   it('wires BlobStore and D1-indexed ArtifactStore through cloudflarePersistence', async () => {
     const bucket = new FakeR2Bucket()
     const p = cloudflarePersistence({

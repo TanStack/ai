@@ -83,6 +83,9 @@ Apply those statements with Wrangler, your D1 migration workflow, or your normal
 deployment pipeline. Use `migrate: true` only when you intentionally want the
 Worker backend to apply schema lazily.
 
+For the shared SQL table map and the difference between plain DDL and lazy
+migration bookkeeping, see [Persistence Internals](./internals).
+
 ## Prisma migrations
 
 Use the Prisma CLI when you want the default Prisma migration folder layout.

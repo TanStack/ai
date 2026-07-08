@@ -131,3 +131,5 @@ Use the adapter pages when you know the infrastructure you are deploying on:
 - [Drizzle](./drizzle) when Drizzle owns your SQLite or Postgres database access.
 - [Custom Stores](./custom-stores) when your app owns the persistence boundary
   or you are writing an integration.
+- [Persistence Internals](./internals) when you need the exact store contracts,
+  event-log semantics, resume requirements, and SQL/Cloudflare storage maps.

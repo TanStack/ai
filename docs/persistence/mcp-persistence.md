@@ -108,7 +108,7 @@ async function recordMcpCheckpoint(input: {
 
   await internalEvents.append({
     runId: input.runId,
-    expectedSeq: latestSeq + 1,
+    expectedSeq: latestSeq,
     namespace: 'mcp',
     type: 'tool-call-observed',
     payload: {
@@ -131,4 +131,5 @@ both stores.
 
 For backend choices, use [SQL Backends](./sql-backends), [Prisma](./prisma),
 [Drizzle](./drizzle), or [Cloudflare](./cloudflare). For the full store method
-contract, use [Custom Stores](./custom-stores).
+contract and the `McpSessionStore` boundary, use
+[Persistence Internals](./internals).

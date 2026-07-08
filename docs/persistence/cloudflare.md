@@ -136,4 +136,5 @@ export const statements = [...ddl('sqlite'), ...cloudflareArtifactDdl()]
 
 D1 is SQLite-compatible, so use the SQLite dialect for the shared core DDL. The
 artifact DDL creates the Cloudflare-specific artifact index table used when R2
-is attached.
+is attached. For the D1/R2 table map, prefix defaults, and artifact deletion
+caveats, see [Persistence Internals](./internals).

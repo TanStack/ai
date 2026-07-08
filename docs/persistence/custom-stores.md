@@ -213,3 +213,6 @@ new base persistence tables for every feature:
 
 That keeps resumable chat small for apps that only need messages and replay,
 while still giving advanced integrations durable primitives.
+
+For the complete method-by-method contract, event ordering rules, and storage
+schema map, see [Persistence Internals](./internals).

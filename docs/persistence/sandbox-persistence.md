@@ -192,4 +192,6 @@ Workspace persistence is a checkpointing layer, not a source-control system. It
 stores the latest durable contents for matching files and delete tombstones for
 removed files. If your app needs history, branching, conflict resolution, or
 garbage collection policies, store additional project metadata and artifacts
-under your own keys.
+under your own keys. For the sandbox record, workspace manifest, lock, and
+artifact-store contracts behind this flow, see
+[Persistence Internals](./internals).

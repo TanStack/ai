@@ -55,7 +55,8 @@ export async function POST(request: Request) {
 `withPersistence(...)` loads stored thread history, saves the resulting
 transcript, records run status, and appends every public AG-UI event with an
 opaque cursor. When `cursor` is present, the run replays persisted events after
-that cursor instead of re-running the adapter.
+that cursor instead of re-running the adapter. For the exact event log and
+cursor validation rules, see [Persistence Internals](./internals).
 
 ## Wire the client
 
