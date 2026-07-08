@@ -62,9 +62,7 @@ describe('file content source helpers', () => {
   })
 
   it('isContentPart accepts a valid file source and rejects one missing provider', () => {
-    expect(
-      isContentPart({ type: 'image', source: fileSource }),
-    ).toBe(true)
+    expect(isContentPart({ type: 'image', source: fileSource })).toBe(true)
     expect(
       isContentPart({
         type: 'image',
@@ -116,9 +114,9 @@ describe('files activity dispatch', () => {
     await expect(getFile({ adapter: uploadOnly, id: 'x' })).rejects.toThrow(
       /does not support get/,
     )
-    await expect(
-      deleteFile({ adapter: uploadOnly, id: 'x' }),
-    ).rejects.toThrow(/does not support delete/)
+    await expect(deleteFile({ adapter: uploadOnly, id: 'x' })).rejects.toThrow(
+      /does not support delete/,
+    )
   })
 
   it('getFile / deleteFile call through when supported', async () => {
