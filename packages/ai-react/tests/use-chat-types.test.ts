@@ -58,6 +58,42 @@ describe('useChat() return type', () => {
     })
   })
 
+  describe('with a bare inline tools array (no clientTools / no `as const`)', () => {
+    it('narrows tool-call parts from a plain array literal', () => {
+      // Type-only assertion — the closure is never invoked, so the hook never
+      // runs at runtime (it would throw outside a React renderer). `tsc`
+      // (test:types) still checks the body, which is what proves the narrowing.
+      const check = () => {
+        const guitarTool = toolDefinition({
+          name: 'getGuitar',
+          description: 'Get guitar info',
+        }).client(() => ({ ok: true }))
+        const cartTool = toolDefinition({
+          name: 'addToCart',
+          description: 'Add to cart',
+        }).client(() => ({ ok: true }))
+
+        const { messages } = useChat({
+          connection: { connect: async function* () {} },
+          // plain array literal — the `const` modifier on useChat's TTools
+          // captures the tuple + literal tool names, so no `clientTools(...)`
+          // wrapper and no `as const` are needed for chunk narrowing.
+          tools: [guitarTool, cartTool],
+        })
+
+        const message = messages[0]
+        if (message?.role === 'assistant') {
+          for (const part of message.parts) {
+            if (part.type === 'tool-call') {
+              expectTypeOf(part.name).toEqualTypeOf<'getGuitar' | 'addToCart'>()
+            }
+          }
+        }
+      }
+      void check
+    })
+  })
+
   describe('with typed client tool context', () => {
     it('requires context matching the tool tuple', () => {
       type ClientContext = { localUserId: string; a: 'literal' }
