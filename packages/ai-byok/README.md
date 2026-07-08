@@ -14,7 +14,7 @@ ever persisting or logging them**.
 - **No central endpoint.** The server helper is trivially self-hostable; there
   is no hardcoded relay URL.
 
-Keys travel in the `x-tanstack-byok-<provider>` header — never the request body
+Keys travel in the `x-byok-<provider>` header — never the request body
 or message history — so they stay out of persisted conversations and the
 event/observability stream.
 

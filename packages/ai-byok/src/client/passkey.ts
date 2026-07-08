@@ -18,8 +18,8 @@ import type { ProviderId } from '../shared/providers'
 
 const STORE_NAME = 'keyring'
 const RECORD_ID = 'default'
-const HKDF_INFO = 'tanstack-byok:keyring:v1'
-const DEFAULT_DB = 'tanstack-byok'
+const HKDF_INFO = 'byok:keyring:v1'
+const DEFAULT_DB = 'byok'
 
 interface StoredRecord {
   id: string
@@ -270,7 +270,7 @@ export interface PasskeyStorageOptions {
    * domains.
    */
   rpId?: string
-  /** IndexedDB database name. Defaults to `tanstack-byok`. */
+  /** IndexedDB database name. Defaults to `byok`. */
   dbName?: string
 }
 
@@ -283,7 +283,7 @@ export interface PasskeyStorageOptions {
 export function passkeyStorage(
   options: PasskeyStorageOptions = {},
 ): KeyringStorage {
-  const rpName = options.rpName ?? 'TanStack AI BYOK'
+  const rpName = options.rpName ?? 'BYOK'
   const userName = options.userName ?? 'byok-keyring'
   const { rpId } = options
   const dbName = options.dbName ?? DEFAULT_DB
