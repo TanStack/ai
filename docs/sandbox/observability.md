@@ -144,7 +144,24 @@ to `''` (it still has `after()`); a non-git workspace resolves **both**
 `before()` and `after()` to `''` and makes `diff()` fall back to a
 synthesized add-patch built from `after()` — except for a `delete` event in
 a non-git workspace, where there's nothing to synthesize and `diff()`
-resolves to `''`.
+resolves to `''`. In a git workspace, a file git **isn't tracking yet** — one
+the agent just created, and every later edit to it — diffs empty because
+`git diff` ignores untracked files, so `diff()` falls back to that same
+synthesized add-patch whenever the file is absent at the baseline. A file the
+agent creates (and keeps editing) therefore never streams an empty diff, while
+a **tracked** file that's identical to the baseline correctly stays empty.
+A **git-ignored** file (e.g. a `.env` or a credentials file) is the exception:
+the file event still fires so you're notified it changed, but `diff()` returns
+`''` so its contents are never surfaced in the diff feed.
+
+Every git/exec/fs failure behind these accessors — and behind the `find`-poll
+watcher — still falls back to `''` (or preserves the last snapshot), but is
+**logged first** so a failure is observable rather than a silent empty value:
+real anomalies (a failed `git diff`, an unreadable file, a `find` poll that
+exits non-zero, a lost git baseline) under the `errors` category (on by
+default), and expected-empty conditions (a new file's `before()`) under the
+`sandbox` debug category. Enable `debug: { sandbox: true }` (see
+[Debugging](#debugging)) to see the latter.
 
 ## Disabling file watching
 

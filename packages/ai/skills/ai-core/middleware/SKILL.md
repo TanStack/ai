@@ -453,11 +453,26 @@ accessors throw: a deleted file resolves `after()` to `''` (it still has
 a non-git workspace resolves **both** `before()` and `after()` to `''` and
 makes `diff()` fall back to a synthesized add-patch built from `after()` —
 except for a `delete` event in a non-git workspace, where there's nothing to
-synthesize and `diff()` resolves to `''`.
+synthesize and `diff()` resolves to `''`. In a git workspace a file git
+**isn't tracking yet** (a file the agent created, and every later edit to it)
+diffs empty because `git diff` ignores untracked files, so `diff()` falls
+back to the same synthesized add-patch whenever the file is absent at the
+baseline — a create-or-edit of an untracked file never streams an empty diff.
+An empty diff for a **tracked** file (identical to the baseline) stays empty,
+as it should. A **git-ignored** file is withheld: the file event still fires
+(you're notified it changed) but `diff()` returns `''`, so a secret like a
+`.env` never has its contents surfaced in the diff feed.
+
+**Failures are logged, not silent.** Every git/exec/fs failure behind these
+accessors (and behind the `find`-poll watcher) still falls back to `''`/an
+empty snapshot, but logs first: real anomalies (a failed `git diff`, an
+unreadable file, a lost `find` poll) under the `errors` category (on by
+default); expected-empty conditions (a new file's `before()`, a non-git
+baseline) under the `sandbox` debug category.
 
 **Hook errors are swallowed per hook.** A throwing `sandbox` hook is caught
-and logged under the `sandbox` debug category — it cannot break the run or
-stop other hooks (or the `sandbox.file` chunk) from continuing.
+and logged under the `errors` category (on by default) — it cannot break the
+run or stop other hooks (or the `sandbox.file` chunk) from continuing.
 
 Source: docs/sandbox/observability.md
 

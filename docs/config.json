@@ -386,7 +386,7 @@
           "label": "Observability",
           "to": "sandbox/observability",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Cloudflare (Edge)",
