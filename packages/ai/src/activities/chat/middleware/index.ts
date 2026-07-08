@@ -14,6 +14,7 @@ export type {
   AbortInfo,
   ErrorInfo,
   SandboxFileEvent,
+  SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './types'
 

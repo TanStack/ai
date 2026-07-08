@@ -540,9 +540,7 @@ the `duration` option:
 |-------|------------------------------|
 | `veo-3.1-generate-preview` | `4`, `6`, `8` |
 | `veo-3.1-fast-generate-preview` | `4`, `6`, `8` |
-| `veo-3.0-generate-001` | `4`, `6`, `8` |
-| `veo-3.0-fast-generate-001` | `4`, `6`, `8` |
-| `veo-2.0-generate-001` | `5`, `6`, `8` |
+| `veo-3.1-lite-generate-preview` | `4`, `6`, `8` |
 
 If you have raw seconds (for example from a UI slider), coerce them with
 `snapDuration`, or inspect the full set with `availableDurations`:
@@ -551,7 +549,7 @@ If you have raw seconds (for example from a UI slider), coerce them with
 import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('veo-3.0-generate-001')
+const adapter = geminiVideo('veo-3.1-lite-generate-preview')
 
 adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
 adapter.snapDuration(7) // 6 — closest valid duration

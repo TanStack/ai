@@ -67,6 +67,6 @@ and protocol coverage). For which agents you can plug in, browse the official
 
 ## Where to go next
 
-- **[Providers](./providers)** — where the harness runs (local, Docker, Daytona, Vercel).
+- **[Providers](./providers)** — where the harness runs (local, Docker, Daytona, Vercel, Sprites).
 - **[Tools](./tools)** — bridge your app's own tools into the in-sandbox agent.
 - **[Events & File Hooks](./events)** — stream the agent's edits and activity to a UI.

@@ -150,7 +150,7 @@ export const repoSandbox = defineSandbox({
 
 Because local-process inherits your host environment, you can drop the
 `XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
-(and for Daytona, Vercel, and Cloudflare runtimes), see [Providers](./providers).
+(and for Daytona, Vercel, Sprites, and Cloudflare runtimes), see [Providers](./providers).
 
 ## Run the working example
 

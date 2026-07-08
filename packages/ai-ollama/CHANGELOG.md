@@ -1,5 +1,21 @@
 # @tanstack/ai-ollama
 
+## 0.8.14
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.8.13
+
+### Patch Changes
+
+- [#862](https://github.com/TanStack/ai/pull/862) [`86fbbdd`](https://github.com/TanStack/ai/commit/86fbbdd6c935686783a4a5fd8e5fce7bdc0d8263) - Emit a `RUN_ERROR` event instead of throwing when the Ollama text adapter's `chatStream` fails before streaming begins (e.g. the initial `client.chat` call is rejected because the host is unreachable). The error is now surfaced as a structured chunk — with `message`, `code`, and any available `rawEvent` — so failures flow through the stream consistently with other adapters rather than escaping as an unhandled exception.
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+
 ## 0.8.12
 
 ### Patch Changes

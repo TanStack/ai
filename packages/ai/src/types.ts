@@ -160,6 +160,26 @@ export interface ToolCall<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
+/**
+ * Convention for tool-call `metadata` that marks a call as **provider-executed**
+ * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
+ * `web_fetch` server tools) rather than by the agent loop. Adapters set
+ * `providerExecuted: true` so that:
+ *
+ * 1. The agent loop never tries to execute the call client-side (see
+ *    {@link isProviderExecutedToolCall} usage in the chat engine), and
+ * 2. The adapter can stash the raw provider result alongside it so the call —
+ *    and its evidence — round-trips into the next turn's request.
+ *
+ * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
+ * keeping this convention opaque to the framework core. The index signature
+ * preserves those per-adapter fields.
+ */
+export interface ProviderExecutedToolMetadata {
+  providerExecuted?: boolean
+  [key: string]: unknown
+}
+
 // ============================================================================
 // Multimodal Content Types
 // ============================================================================
@@ -362,7 +382,9 @@ export interface ToolCallPart<TMetadata = unknown> {
   /** Tool execution output (for client tools or after approval) */
   output?: any
   /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. */
+   * Typed per-adapter via `TToolCallMetadata`. May follow the
+   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
+   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 
@@ -1359,6 +1381,105 @@ export interface UIResourceEvent extends CustomEvent {
   }
 }
 
+// ── Sandbox events ──────────────────────────────────────────────────────────
+export interface SandboxFileCustomEvent extends CustomEvent {
+  name: 'sandbox.file'
+  value: {
+    type: 'create' | 'change' | 'delete'
+    path: string
+    timestamp: number
+  }
+}
+export interface SandboxFileDiffEvent extends CustomEvent {
+  name: 'sandbox.file.diff'
+  value: { path: string; diff: string }
+}
+
+// ── Harness events ──────────────────────────────────────────────────────────
+export interface FileChangedEvent extends CustomEvent {
+  name: 'file.changed'
+  value: { path: string; diff: string }
+}
+export interface SessionIdEvent extends CustomEvent {
+  name: `${string}.session-id`
+  value: { sessionId: string }
+}
+
+// ── Code-mode events ────────────────────────────────────────────────────────
+export interface CodeModeExecutionStartedEvent extends CustomEvent {
+  name: 'code_mode:execution_started'
+  value: { timestamp: number; codeLength: number }
+}
+export interface CodeModeConsoleEvent extends CustomEvent {
+  name: 'code_mode:console'
+  value: {
+    level: 'log' | 'warn' | 'error' | 'info'
+    message: string
+    timestamp: number
+  }
+}
+export interface CodeModeExternalCallEvent extends CustomEvent {
+  name: 'code_mode:external_call'
+  value: { function: string; args: unknown; timestamp: number }
+}
+export interface CodeModeExternalResultEvent extends CustomEvent {
+  name: 'code_mode:external_result'
+  value: { function: string; result: unknown; duration: number }
+}
+export interface CodeModeExternalErrorEvent extends CustomEvent {
+  name: 'code_mode:external_error'
+  value: { function: string; error: string; duration: number }
+}
+export interface CodeModeSkillCallEvent extends CustomEvent {
+  name: 'code_mode:skill_call'
+  value: { skill: string; input: unknown; timestamp: number }
+}
+export interface CodeModeSkillResultEvent extends CustomEvent {
+  name: 'code_mode:skill_result'
+  value: { skill: string; result: unknown; duration: number; timestamp: number }
+}
+export interface CodeModeSkillErrorEvent extends CustomEvent {
+  name: 'code_mode:skill_error'
+  value: { skill: string; error: string; duration: number; timestamp: number }
+}
+export interface SkillRegisteredEvent extends CustomEvent {
+  name: 'skill:registered'
+  value: { id: string; name: string; description: string; timestamp: number }
+}
+
+/**
+ * Every CUSTOM event TanStack AI itself emits, as a discriminated union on
+ * `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)
+ * are intentionally absent — they still flow at runtime.
+ */
+export type KnownCustomEvent =
+  | SandboxFileCustomEvent
+  | SandboxFileDiffEvent
+  | FileChangedEvent
+  | SessionIdEvent
+  | CodeModeExecutionStartedEvent
+  | CodeModeConsoleEvent
+  | CodeModeExternalCallEvent
+  | CodeModeExternalResultEvent
+  | CodeModeExternalErrorEvent
+  | CodeModeSkillCallEvent
+  | CodeModeSkillResultEvent
+  | CodeModeSkillErrorEvent
+  | SkillRegisteredEvent
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+  | UIResourceEvent
+
+/** The default chat streaming result: standard chunks plus every typed
+ *  framework CUSTOM event, with the `value: any` catch-all excluded so
+ *  literal-`name` narrowing types `value`. User-emitted custom names are typed
+ *  out (still flow at runtime — branch outside the name narrows or cast). */
+export type ChatStream = AsyncIterable<
+  Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
+>
+
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
@@ -1908,6 +2029,13 @@ export interface TTSResult {
  * Options for audio transcription.
  * These are the common options supported across providers.
  */
+export type TranscriptionResponseFormat =
+  | 'json'
+  | 'text'
+  | 'srt'
+  | 'verbose_json'
+  | 'vtt'
+
 export interface TranscriptionOptions<
   TProviderOptions extends object = object,
 > {
@@ -1920,7 +2048,7 @@ export interface TranscriptionOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?: TranscriptionResponseFormat
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
   /**

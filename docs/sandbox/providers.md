@@ -24,6 +24,7 @@ same.
 | Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
 | Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
+| Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 
 Each provider is its own package, and the constructor is the only thing that
 differs between them:
@@ -131,6 +132,38 @@ const vercel = vercelSandbox({ runtime: 'node24' })
   exposed-port domains for previews.
 - **Bridge:** like Daytona, a remote VM — bridged tools need the tunnel in local
   dev (see [tools](./tools)).
+
+## Sprites
+
+```ts
+import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
+
+const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
+```
+
+- **Isolation:** a managed [Sprites](https://sprites.dev) stateful sandbox
+  (Fly.io) — a remote VM you don't run yourself.
+- **Auth / env:** needs `SPRITES_API_KEY` (token form
+  `org/projectNumber/tokenId/secret`); override the control-plane URL with
+  `apiUrl` / `SPRITES_API_URL`. Harness credentials are injected as workspace
+  secrets.
+- **Snapshot / resume:** resume-by-id reconnects to the named Sprite (its
+  filesystem is durable across idle suspend/resume). `snapshot()` creates a
+  Sprite **checkpoint** (a save point of the writable overlay); restore is
+  **in-place** on the same Sprite via the handle's `restoreCheckpoint()` /
+  `listCheckpoints()`. A checkpoint does not survive Sprite deletion, so the
+  provider intentionally does **not** implement the reconstruct-after-gone
+  `restoreSnapshot` — when a Sprite is gone the framework degrades to a fresh
+  create instead. Restore restarts the environment and can take minutes;
+  `restoreCheckpoint()` polls the workspace until it is listable again before
+  resolving. Note that immediately after a restore the overlay can be listable
+  while individual file reads briefly return an I/O error as it settles — retry
+  reads if you act on the filesystem the instant restore returns.
+- **Ports:** a Sprite proxies a single internal HTTP port (default `8080`,
+  configurable via `httpPort`) to its always-on public URL. `ports.connect(8080)`
+  switches the URL to `public` auth and returns it; other ports are not exposed.
+- **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
+  local dev (see [tools](./tools)).
 
 ## Capabilities
 

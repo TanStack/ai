@@ -1,5 +1,27 @@
 # @tanstack/ai-code-mode
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+
+## 0.3.4
+
+### Patch Changes
+
+- [#431](https://github.com/TanStack/ai/pull/431) [`8f8be19`](https://github.com/TanStack/ai/commit/8f8be1983bdb0f29d26b1961a52a1b810b47866c) - fix(ai-code-mode): warn when tool parameters look like secrets
+
+  Add `warnIfBindingsExposeSecrets()` that scans tool input schemas for secret-like parameter names (`apiKey`, `token`, `password`, etc.) and emits `console.warn` during development. Code Mode executes LLM-generated code — any secrets passed through tool parameters are accessible to generated code.
+
 ## 0.3.3
 
 ### Patch Changes

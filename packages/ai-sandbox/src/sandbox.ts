@@ -10,7 +10,7 @@ import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
 import { InMemoryLockStore, InMemorySandboxStore } from './store'
-import type { SandboxFileEvent } from '@tanstack/ai'
+import type { SandboxFileHookEvent } from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
 import type { LockStore, SandboxStore } from './store'
@@ -22,10 +22,10 @@ import type { WorkspaceDefinition } from './workspace'
  * create/change/delete during a chat run; lifecycle hooks fire server-side.
  */
 export interface SandboxHooks {
-  onFile?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileCreate?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileChange?: (e: SandboxFileEvent) => void | Promise<void>
-  onFileDelete?: (e: SandboxFileEvent) => void | Promise<void>
+  onFile?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileCreate?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileChange?: (e: SandboxFileHookEvent) => void | Promise<void>
+  onFileDelete?: (e: SandboxFileHookEvent) => void | Promise<void>
   onReady?: (handle: SandboxHandle) => void | Promise<void>
   onError?: (err: unknown) => void | Promise<void>
   onDestroy?: () => void | Promise<void>
@@ -59,8 +59,9 @@ export interface SandboxConfig {
   lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
   hooks?: SandboxHooks
-  /** Watch the workspace for file events (default true). Set false to disable. */
-  fileEvents?: boolean
+  /** Watch the workspace for file events (default true). `false` disables the
+   *  watcher; `{ diff: true }` also emits a per-file `sandbox.file.diff` event. */
+  fileEvents?: boolean | { diff?: boolean }
 }
 
 /** Context passed to `ensure()` by `withSandbox` (or advanced callers). */
@@ -83,8 +84,9 @@ export interface SandboxDefinition {
   readonly lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
   readonly hooks?: SandboxHooks
-  /** Watch the workspace for file events (default true). Set false to disable. */
-  readonly fileEvents?: boolean
+  /** Watch the workspace for file events (default true). `false` disables the
+   *  watcher; `{ diff: true }` also emits a per-file `sandbox.file.diff` event. */
+  readonly fileEvents?: boolean | { diff?: boolean }
   /** Compound instance key for a given run context. */
   key: (ctx: SandboxEnsureContext) => string
   /** Resume-or-create the sandbox for this thread/run. */
@@ -187,6 +189,9 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       }
 
       const created = await config.provider.create({
+        // Deterministic id so consumers can reconstruct the provider sandbox
+        // address from run context (not just from the store record).
+        id: key,
         workspace: config.workspace,
         policy: config.policy,
         env:

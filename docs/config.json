@@ -62,7 +62,8 @@
         {
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         }
       ]
     },
@@ -77,7 +78,8 @@
         {
           "label": "Provider Tools",
           "to": "tools/provider-tools",
-          "addedAt": "2026-04-21"
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Provider Skills",
@@ -154,7 +156,8 @@
         {
           "label": "Streaming",
           "to": "chat/streaming",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Connection Adapters",
@@ -170,6 +173,16 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02"
+        }
+      ]
+    },
+    {
+      "label": "Protocol",
+      "children": [
+        {
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03"
         }
       ]
     },
@@ -256,7 +269,8 @@
         {
           "label": "Transcription",
           "to": "media/transcription",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Audio Recording",
@@ -274,13 +288,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-24"
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Generation Hooks",
@@ -365,12 +379,14 @@
         {
           "label": "Events",
           "to": "sandbox/events",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Observability",
           "to": "sandbox/observability",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Cloudflare (Edge)",
@@ -500,17 +516,20 @@
         {
           "label": "OpenAI",
           "to": "adapters/openai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-04"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Ollama",
@@ -526,7 +545,8 @@
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Mistral",

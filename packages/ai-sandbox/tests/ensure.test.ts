@@ -36,6 +36,20 @@ describe('ensureSandbox algorithm', () => {
     expect(rec?.threadId).toBe('thread-1')
   })
 
+  it('creates with the deterministic compound key as the provider id', async () => {
+    const provider = makeFakeProvider()
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = baseCtx()
+
+    const handle = await def.ensure(ctx)
+
+    // The provider-assigned id equals the reconstructable compound key, so a
+    // consumer that recomputes def.key(ctx) addresses the same sandbox.
+    expect(handle.id).toBe(def.key(ctx))
+    const rec = await ctx.store.get(def.key(ctx))
+    expect(rec?.providerSandboxId).toBe(def.key(ctx))
+  })
+
   it('resumes the same provider sandbox on a second run (reuse: thread)', async () => {
     const provider = makeFakeProvider()
     const def = defineSandbox({ id: 'repo', provider, workspace })

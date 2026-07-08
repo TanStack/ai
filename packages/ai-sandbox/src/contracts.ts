@@ -191,6 +191,18 @@ export interface SandboxHandle {
 
 /** Input passed to {@link SandboxProvider.create}. */
 export interface SandboxCreateInput {
+  /**
+   * Deterministic instance id the caller wants the provider to use. `ensure()`
+   * passes the compound sandbox key here so the provider-assigned id is
+   * reconstructable from run context (thread/workspace/tenant/reuse) instead of
+   * being a random value only recoverable from the sandbox store. Providers
+   * whose native id is addressable by name (e.g. Cloudflare's DO id) SHOULD
+   * honor it (`input.id ?? <random>`); providers that mint their own opaque id
+   * MAY ignore it. Consumers that reconnect out-of-band — e.g. attaching a
+   * preview iframe to the exact sandbox an agent is editing — rely on this being
+   * honored to avoid addressing two different sandboxes.
+   */
+  id?: string
   workspace?: WorkspaceDefinition
   policy?: SandboxPolicy
   env?: Record<string, string>

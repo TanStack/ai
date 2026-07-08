@@ -121,6 +121,7 @@ export type {
   AbortInfo,
   ErrorInfo,
   SandboxFileEvent,
+  SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
@@ -255,6 +256,11 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+
+export {
+  getProviderExecutedMetadata,
+  isProviderExecutedToolCall,
+} from './utilities/provider-executed'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

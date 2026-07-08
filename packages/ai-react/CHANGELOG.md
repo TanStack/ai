@@ -1,5 +1,27 @@
 # @tanstack/ai-react
 
+## 0.16.4
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+  - @tanstack/ai-client@0.20.0
+
+## 0.16.3
+
+### Patch Changes
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+  - @tanstack/ai-client@0.19.2
+
+## 0.16.2
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Restructure the `@tanstack/ai-react/mcp-apps` entry so its source is resolvable by the docs snippet type-checker: the JSX implementation moves to `mcp-app-resource.tsx` and `mcp-apps.ts` re-exports it. Public exports (`MCPAppResource`, `MCPAppResourceProps`) and the subpath are unchanged.
+
 ## 0.16.1
 
 ### Patch Changes

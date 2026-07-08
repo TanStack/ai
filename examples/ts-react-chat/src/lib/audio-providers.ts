@@ -6,6 +6,8 @@
  * and audio generation flows.
  */
 
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
+
 export type SpeechProviderId =
   | 'openai'
   | 'gemini'
@@ -87,13 +89,22 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
   },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'fal' | 'grok' | 'elevenlabs'
+export type TranscriptionProviderId =
+  | 'openai'
+  | 'openai-diarize'
+  | 'fal'
+  | 'grok'
+  | 'elevenlabs'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
   label: string
   model: string
   description: string
+  transcriptionOptions?: Pick<
+    TranscriptionGenerateInput,
+    'responseFormat' | 'modelOptions'
+  >
 }
 
 export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig> =
@@ -103,6 +114,19 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       label: 'OpenAI Whisper',
       model: 'whisper-1',
       description: 'OpenAI Whisper transcription with optional streaming.',
+    },
+    {
+      id: 'openai-diarize',
+      label: 'OpenAI Diarize',
+      model: 'gpt-4o-transcribe-diarize',
+      description:
+        'OpenAI diarized transcription with speaker-labeled segments.',
+      transcriptionOptions: {
+        modelOptions: {
+          response_format: 'diarized_json',
+          chunking_strategy: 'auto',
+        },
+      },
     },
     {
       id: 'fal',

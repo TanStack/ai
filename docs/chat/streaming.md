@@ -82,6 +82,7 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 - **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
 - **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
 - **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
+- **CUSTOM** - Namespaced extension events (sandbox file changes, Code Mode progress, structured-output completion, and your own `emitCustomEvent` calls) — see the [Custom Events Reference](../protocol/custom-events) for the full typed taxonomy and how to narrow `chunk.value` with a plain `if`
 - **RUN_FINISHED** - Run completion with finish reason and usage
 - **RUN_ERROR** - Error occurred during the run
 

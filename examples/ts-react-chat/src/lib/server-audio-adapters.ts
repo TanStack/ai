@@ -65,6 +65,8 @@ export function buildTranscriptionAdapter(
   switch (config.id) {
     case 'openai':
       return openaiTranscription(config.model as 'whisper-1')
+    case 'openai-diarize':
+      return openaiTranscription(config.model as 'gpt-4o-transcribe-diarize')
     case 'fal':
       return falTranscription(config.model)
     case 'grok':

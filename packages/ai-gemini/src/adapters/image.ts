@@ -1,6 +1,5 @@
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import {
   createGeminiClient,
   generateId,
@@ -199,7 +198,7 @@ export class GeminiImageAdapter<
       }),
     }
 
-    const contents = await this.buildContents(resolved, numberOfImages)
+    const contents = this.buildContents(resolved, numberOfImages)
 
     const response = await this.client.models.generateContent({
       model,
@@ -220,10 +219,10 @@ export class GeminiImageAdapter<
    * The generateContent API has no numberOfImages parameter, so when more
    * than one image is requested a trailing instruction is appended.
    */
-  private async buildContents(
+  private buildContents(
     resolved: ResolvedMediaPrompt,
     numberOfImages: number | undefined,
-  ): Promise<string | Array<Content>> {
+  ): string | Array<Content> {
     const countInstruction =
       numberOfImages && numberOfImages > 1
         ? `Generate ${numberOfImages} distinct images.`
@@ -235,29 +234,25 @@ export class GeminiImageAdapter<
         : resolved.text
     }
 
-    const parts: Array<Part> = await Promise.all(
-      resolved.parts.map((part) => {
-        if (part.type === 'text') {
-          return Promise.resolve<Part>({ text: part.content })
-        }
-        if (part.type === 'image') {
-          return this.imagePartToGeminiPart(part)
-        }
-        // Video / audio parts were rejected in generateImages above.
-        throw new Error(
-          `gemini: unsupported prompt part type "${part.type}" in image generation.`,
-        )
-      }),
-    )
+    const parts: Array<Part> = resolved.parts.map((part) => {
+      if (part.type === 'text') {
+        return { text: part.content }
+      }
+      if (part.type === 'image') {
+        return this.imagePartToGeminiPart(part)
+      }
+      // Video / audio parts were rejected in generateImages above.
+      throw new Error(
+        `gemini: unsupported prompt part type "${part.type}" in image generation.`,
+      )
+    })
     if (countInstruction) {
       parts.push({ text: countInstruction })
     }
     return [{ role: 'user', parts }]
   }
 
-  private async imagePartToGeminiPart(
-    part: ImagePart<MediaInputMetadata>,
-  ): Promise<Part> {
+  private imagePartToGeminiPart(part: ImagePart<MediaInputMetadata>): Part {
     if (part.source.type === 'data') {
       return {
         inlineData: {
@@ -266,34 +261,15 @@ export class GeminiImageAdapter<
         },
       }
     }
-    // For URL sources, prefer passing the URL through as `fileData` when it
-    // looks like a Google Files API URI; otherwise fetch and inline as base64.
-    if (
-      part.source.value.startsWith('gs://') ||
-      /^https?:\/\/generativelanguage\.googleapis\.com\//.test(
-        part.source.value,
-      )
-    ) {
-      return {
-        fileData: {
-          fileUri: part.source.value,
-          ...(part.source.mimeType && { mimeType: part.source.mimeType }),
-        },
-      }
-    }
-    const response = await fetch(part.source.value)
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch image input (${response.status} ${response.statusText}): ${part.source.value}`,
-      )
-    }
-    const blob = await response.blob()
-    const buffer = await blob.arrayBuffer()
-    const base64 = arrayBufferToBase64(buffer)
+    // URL sources (public HTTPS, Files API URIs, gs://) pass through as
+    // `fileData` and Gemini fetches them server-side — same as the chat
+    // adapter. Fetching locally and inlining as base64 double-buffers the
+    // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
+    // Workers).
     return {
-      inlineData: {
-        mimeType: part.source.mimeType || blob.type || 'image/png',
-        data: base64,
+      fileData: {
+        fileUri: part.source.value,
+        mimeType: part.source.mimeType ?? 'image/jpeg',
       },
     }
   }
@@ -420,14 +396,14 @@ export class GeminiImageAdapter<
  * Creates a Gemini image adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'imagen-3.0-generate-002')
+ * @param model - The model name (e.g., 'imagen-4.0-generate-001')
  * @param apiKey - Your Google API key
  * @param config - Optional additional configuration
  * @returns Configured Gemini image adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGeminiImage('imagen-3.0-generate-002', "your-api-key");
+ * const adapter = createGeminiImage('imagen-4.0-generate-001', "your-api-key");
  *
  * const result = await generateImage({
  *   adapter,
