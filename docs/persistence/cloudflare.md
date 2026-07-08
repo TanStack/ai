@@ -33,6 +33,12 @@ export function persistence(env: Env) {
 `d1` is required. `r2` and `durableObjects` are optional; include them only when
 your app needs blob/artifact storage or distributed locks.
 
+You can also use R2 as the blob side of a hybrid persistence design while your
+app keeps runs, messages, events, metadata, and artifact indexes in a separate
+user-owned database. Implement that shape with [Custom Stores](./custom-stores):
+the Cloudflare backend is convenient when D1 owns the SQL state, but the R2
+artifact/blob pattern is not limited to D1.
+
 For the end-to-end file persistence model, including generated artifacts,
 app-owned blobs, and sandbox workspace checkpoints backed by R2, see
 [Files and Artifacts](./files-and-artifacts).

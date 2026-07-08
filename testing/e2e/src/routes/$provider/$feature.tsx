@@ -95,6 +95,8 @@ const isProvider = (s: string): s is Provider =>
   (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
 const isFeature = (s: string): s is Feature =>
   (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
 
 function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
   if (!Array.isArray(value)) return []
@@ -115,9 +117,7 @@ function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
       ...(typeof interrupt.toolCallId === 'string'
         ? { toolCallId: interrupt.toolCallId }
         : {}),
-      ...(interrupt.metadata !== undefined
-        ? { metadata: interrupt.metadata }
-        : {}),
+      ...(isRecord(interrupt.metadata) ? { metadata: interrupt.metadata } : {}),
     })
   }
   return interrupts

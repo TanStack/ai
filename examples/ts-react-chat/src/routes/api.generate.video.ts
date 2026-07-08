@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  createVideoOptions,
+  generateVideo,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/generate/video')({
@@ -9,15 +13,18 @@ export const Route = createFileRoute('/api/generate/video')({
         const body = await request.json()
         const { prompt, size, duration, model } = body.data
 
-        const stream = generateVideo({
-          adapter: openaiVideo(model ?? 'sora-2'),
-          prompt,
-          size,
-          duration,
-          stream: true,
-          pollingInterval: 3000,
-          maxDuration: 600_000,
-        })
+        const adapter = openaiVideo(model ?? 'sora-2')
+        const stream = generateVideo<typeof adapter, true>(
+          createVideoOptions({
+            adapter,
+            prompt,
+            size,
+            duration,
+            stream: true,
+            pollingInterval: 3000,
+            maxDuration: 600_000,
+          }),
+        )
 
         return toServerSentEventsResponse(stream)
       },

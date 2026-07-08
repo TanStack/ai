@@ -11,6 +11,36 @@ storage primitives with sandbox and workflow extensions.
 Persistence is optional middleware. A run with no persistence middleware behaves
 exactly as before.
 
+## Control ladder
+
+Persistence has several control levers. Start at the lowest rung that gives
+your app the durability it needs, then opt into more stores only when a feature
+requires them.
+
+| Lever | You control | TanStack AI provides | Use it when |
+| --- | --- | --- | --- |
+| No persistence | Nothing | Normal in-memory run behavior | A run can disappear after the request ends. |
+| Client resume snapshot | Where the client stores `{ threadId, runId, cursor }` | `persistence.server`, `autoResume`, and `resume()` in the client hooks | A page refresh should reconnect to a still-durable server run. |
+| Messages | `stores.messages.loadThread` and `saveThread` | Server-authoritative thread history loading/saving | The server owns the transcript instead of trusting the browser. |
+| Durable replay | `stores.runs` and `stores.publicEvents` | Opaque cursors, run records, AG-UI event append, and replay | Reconnects must continue a run without calling the model again. |
+| Interrupts | `stores.interrupts` plus replay stores | Durable pending human decisions and resume payload handling | A run can pause for approval, input, or another user action. |
+| Internal checkpoints | `stores.internalEvents` | A separate non-UI event log | Packages or app workflows need checkpoints that should not replay to users. |
+| Metadata | `stores.metadata` | Namespaced key/value access | Your app needs durable correlation, manifests, or integration state. |
+| Locks | `stores.locks` | Shared lock capability consumed by integrations | Multiple workers can resume or mutate the same durable resource. |
+| Artifacts and blobs | `stores.artifacts` and `stores.blobs` | Durable artifact refs for generated files and media | Runs create downloadable files, media, or workspace checkpoints. |
+| SQL or platform backend | Database schema, migration timing, deployment topology | Backend factories that implement the same stores | You want TanStack primitives on top of your chosen database or platform. |
+
+For production, prefer user-owned persistence through an `AIPersistence` object
+created with `defineAIPersistence(...)` or a backend factory that returns the
+same store contract. TanStack AI should call your existing storage boundary
+through store callback methods; it should not be the part of your production
+system that silently owns raw SQL schema lifecycle or data-retention policy.
+
+Packaged backends such as SQLite, Postgres, Prisma, Drizzle, and Cloudflare are
+useful primitives when they fit your stack. They still expose the same
+`AIPersistence` stores, so you can start with a backend package, replace one
+store at a time, or compose SQL metadata with object storage for artifacts.
+
 ## What persistence stores
 
 `withPersistence(...)` can:

@@ -61,7 +61,7 @@ export function createImageAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiImage('gpt-image-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -88,7 +88,7 @@ export function createTTSAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiSpeech('tts-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -118,7 +118,7 @@ export function createTranscriptionAdapter(
 ) {
   const headers = testHeaders(testId)
   const openaiTranscriptionModel = getOpenaiTranscriptionModel(options)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -152,16 +152,18 @@ export function createVideoAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const geminiConfig = {
+    allowUrlFetch: false,
+    httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+  }
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiVideo('sora-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
-      }),
+      createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, geminiConfig),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No video adapter for provider: ${provider}`)
@@ -188,7 +190,7 @@ export function createAudioAdapter(
       headers,
     })
   }
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     gemini: () =>
       createGeminiAudio('lyria-3-clip-preview', DUMMY_KEY, {
         httpOptions: { baseUrl: base, headers },

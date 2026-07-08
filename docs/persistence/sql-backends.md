@@ -9,10 +9,17 @@ clients all expose the same `AIPersistence` stores to `withPersistence(...)`.
 The shared SQL core includes a MySQL dialect for adapter authors, but the
 published raw backend packages are SQLite and Postgres.
 
+For production, treat the SQL schema as part of your app-owned persistence
+boundary. Generate or copy the TanStack AI DDL into your normal migration
+system, review it like any other schema change, and deploy it before traffic
+uses the persistence stores. Use lazy migration only when you intentionally want
+the backend to create tables at runtime.
+
 ## Raw SQL backends
 
 SQLite is file-backed and works well for local apps, prototypes, and single-node
-deployments.
+deployments. Fresh development examples can set `migrate: true` explicitly so a
+new local database creates its tables on first use.
 
 ```ts
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
@@ -35,8 +42,8 @@ export const persistence = postgresPersistence({
 ```
 
 Both raw backends use the shared SQL core. They do not create persistence
-tables by default; set `migrate: true` to opt in to lazy table creation on
-first use.
+tables by default. `migrate` is `false` unless you pass `migrate: true`, which
+opts into lazy table creation on first use.
 
 ## Shared schema
 
@@ -72,6 +79,33 @@ export const migrationStatements = ddl('postgres')
 Apply those statements with your normal migration system before traffic reaches
 the app.
 
+## Generate SQL migrations
+
+Use the generic SQL CLI when you want a migration file without importing DDL in
+application code. It emits the shared SQL persistence schema for every SQL
+dialect supported by the core generator: SQLite, Postgres, and MySQL.
+
+```sh
+pnpm exec tanstack-ai-persistence-sql --dialect sqlite --out migrations/001_tanstack_ai.sql
+pnpm exec tanstack-ai-persistence-sql --dialect postgres --stdout
+pnpm exec tanstack-ai-persistence-sql --dialect mysql --out migrations/001_tanstack_ai.sql
+```
+
+Options:
+
+| Option | Purpose |
+| --- | --- |
+| `--dialect sqlite\|postgres\|mysql` | Choose the SQL dialect to generate. |
+| `--out <path>` | Write SQL to a migration file. |
+| `--stdout` | Print SQL instead of writing a file. |
+| `--timestamp <yyyymmddhhmmss>` | Use a deterministic timestamp in generated default names. |
+| `--name <name>` | Use a deterministic migration name. |
+| `--force` | Overwrite an existing output file. |
+
+The generic CLI writes only the shared SQL persistence schema. Cloudflare R2
+artifact indexes, ORM-specific migration folder layouts, and app-owned tables
+remain separate.
+
 ## Drizzle and Prisma
 
 Use the ORM-backed packages when your app already owns its database client and
@@ -99,6 +133,10 @@ Postgres.
 pnpm exec tanstack-ai-persistence-prisma --dialect postgres
 pnpm exec tanstack-ai-persistence-drizzle --dialect postgres
 ```
+
+Use the ORM-specific CLIs when you want their default migration layout. Use the
+generic `tanstack-ai-persistence-sql` CLI when you only want SQL text or when
+you are generating MySQL DDL for a custom adapter.
 
 The default Prisma path is
 `prisma/migrations/<timestamp>_tanstack_ai_persistence/migration.sql`. The
@@ -142,6 +180,12 @@ support SQLite and Postgres.
 ```ts
 import { ddl } from '@tanstack/ai-persistence-sql'
 export const migrationStatements = ddl('mysql')
+```
+
+You can also generate the same MySQL DDL with the generic CLI:
+
+```sh
+pnpm exec tanstack-ai-persistence-sql --dialect mysql --out migrations/tanstack_ai.sql
 ```
 
 ## Choosing a backend

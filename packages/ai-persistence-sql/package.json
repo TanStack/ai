@@ -24,10 +24,17 @@
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
+  "bin": {
+    "tanstack-ai-persistence-sql": "./dist/bin/bin.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./cli-core": {
+      "types": "./dist/esm/cli-core.d.ts",
+      "import": "./dist/esm/cli-core.js"
     }
   },
   "files": [
@@ -35,7 +42,7 @@
     "src"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && tsup --config tsup.bin.config.ts",
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
@@ -51,6 +58,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.0.14",
+    "tsup": "^8.5.1"
   }
 }

@@ -21,6 +21,12 @@ If you pass a manual `features` list to `withPersistence(...)`, include
 scenarios. Manual feature lists must pair `'artifacts'` with `'blobs'` because
 artifact metadata and stored bytes are enabled together.
 
+The backend can be hybrid. A common production shape is a user-owned SQL
+database for runs, messages, events, metadata, and artifact indexes, plus R2 or
+another object store for large bytes behind `stores.blobs`. Use
+[Custom Stores](./custom-stores) when your app needs that split instead of a
+packaged backend.
+
 For resumable image, audio, speech, transcription, and video hooks, start with
 [Resumable Generations](./resumable-generations). This page focuses on the
 artifact and blob records those endpoints create.
