@@ -560,18 +560,22 @@ export class RealtimeClient {
       semanticEagerness
     if (!hasConfig) return
 
-    // `RealtimeToolConfig.inputSchema` is `Record<string, any>` (no
-    // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
-    // it so we don't pass `undefined` when the tool has no input schema.
+    // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
+    // (no `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
+    // each so we don't pass `undefined` when the tool has no such schema.
     const toolsConfig = tools
       ? Array.from(this.clientTools.values()).map((t) => {
           const inputSchema = t.inputSchema
             ? convertSchemaToJsonSchema(t.inputSchema)
             : undefined
+          const outputSchema = t.outputSchema
+            ? convertSchemaToJsonSchema(t.outputSchema)
+            : undefined
           return {
             name: t.name,
             description: t.description,
             ...(inputSchema ? { inputSchema } : {}),
+            ...(outputSchema ? { outputSchema } : {}),
           }
         })
       : undefined
