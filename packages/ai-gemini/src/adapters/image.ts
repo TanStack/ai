@@ -37,7 +37,7 @@ import type {
   GoogleGenAI,
   Part,
 } from '@google/genai'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini image adapter

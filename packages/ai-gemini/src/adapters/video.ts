@@ -31,7 +31,7 @@ import type {
   GeminiVideoProviderOptions,
   GeminiVideoSize,
 } from '../video/video-provider-options'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini video adapter.
