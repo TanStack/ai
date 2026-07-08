@@ -289,23 +289,26 @@ export class RealtimeClient {
    * This applies changes to the active connection and persists them for future reconnections.
    */
   updateSession(config: Partial<RealtimeSessionConfig>): void {
-    // Update local options so future connections use the updated config
-    const sessionKeys: Array<keyof RealtimeSessionConfig> = [
-      'instructions',
-      'voice',
-      'vadMode',
-      'tools',
-      'outputModalities',
-      'temperature',
-      'maxOutputTokens',
-      'semanticEagerness',
-      'providerOptions',
-    ]
-
-    for (const key of sessionKeys) {
-      if (key in config) {
-        ;(this.options as any)[key] = (config as any)[key]
-      }
+    // Persist type-compatible fields so future (re)connections use the updated
+    // config. `tools` is intentionally excluded: a session's tool configs are
+    // serialized descriptors, whereas `options.tools` holds executable client
+    // tools tracked separately via `clientTools`.
+    const o = this.options
+    if (config.instructions !== undefined) o.instructions = config.instructions
+    if (config.voice !== undefined) o.voice = config.voice
+    if (config.vadMode !== undefined) o.vadMode = config.vadMode
+    if (config.outputModalities !== undefined) {
+      o.outputModalities = config.outputModalities
+    }
+    if (config.temperature !== undefined) o.temperature = config.temperature
+    if (config.maxOutputTokens !== undefined) {
+      o.maxOutputTokens = config.maxOutputTokens
+    }
+    if (config.semanticEagerness !== undefined) {
+      o.semanticEagerness = config.semanticEagerness
+    }
+    if (config.providerOptions !== undefined) {
+      o.providerOptions = config.providerOptions
     }
 
     if (this.connection) {

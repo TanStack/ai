@@ -135,6 +135,7 @@ export { geminiRealtime, geminiRealtimeToken } from './realtime/index'
 export type {
   GeminiRealtimeModel,
   GeminiRealtimeOptions,
+  GeminiRealtimeProviderOptions,
   GeminiRealtimeTokenOptions,
   GeminiRealtimeVoice,
 } from './realtime/index'

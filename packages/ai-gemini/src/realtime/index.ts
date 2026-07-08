@@ -10,4 +10,5 @@ export type {
   GeminiRealtimeVoice,
   GeminiRealtimeTokenOptions,
   GeminiRealtimeOptions,
+  GeminiRealtimeProviderOptions,
 } from './types'

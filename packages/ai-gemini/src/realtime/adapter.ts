@@ -96,20 +96,21 @@ async function createWebSocketConnection(
           content: response.data,
         })
         break
-      case 'audio':
+      case 'audio': {
+        // Decode once, then reuse for both the stored message part and playback.
+        const pcm = base64ToArrayBuffer(response.data.audioData)
         message.parts.push({
           type: 'audio',
           transcript: response.data.transcript,
-          audioData: base64ToArrayBuffer(response.data.audioData),
+          audioData: pcm,
         })
         if (currentMode !== 'speaking') {
           currentMode = 'speaking'
           emit('mode_change', { mode: 'speaking' })
         }
-        audioPlayer
-          .play(response.data.audioData)
-          .catch((error) => emit('error', { error }))
+        audioPlayer.play(pcm).catch((error) => emit('error', { error }))
         break
+      }
       case 'go_away':
         emit('go_away', { timeLeft: response.data.timeLeft })
         break
@@ -126,7 +127,7 @@ async function createWebSocketConnection(
           emit('mode_change', { mode: 'thinking' })
         }
         emit('transcript', {
-          isFinal: true,
+          isFinal: response.data.finished,
           transcript: response.data.text,
           role: 'user',
         })
@@ -195,8 +196,17 @@ async function createWebSocketConnection(
 
   const audioStreamer = new AudioStreamer(client)
   const audioPlayer = new AudioPlayer()
-  await audioPlayer.init()
-  await audioStreamer.start()
+  try {
+    await audioPlayer.init()
+    await audioStreamer.start()
+  } catch (error) {
+    // Tear down the socket + audio graph if mic/worklet setup fails (e.g. the
+    // user denied microphone access) rather than leaking an open connection.
+    audioStreamer.stop()
+    audioPlayer.destroy()
+    client.disconnect()
+    throw error
+  }
 
   const connection: RealtimeConnection = {
     async disconnect() {
@@ -248,8 +258,8 @@ async function createWebSocketConnection(
       emit('status_change', { status: 'reconnecting' })
     },
 
-    updateToken(token) {
-      client.updateToken(token)
+    updateToken(newToken) {
+      client.updateToken(newToken)
       emit('status_change', { status: 'reconnecting' })
     },
 

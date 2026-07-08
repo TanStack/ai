@@ -22,8 +22,35 @@ import type {
   AnyClientTool,
   RealtimeSessionConfig,
   RealtimeToken,
+  RealtimeToolConfig,
 } from '@tanstack/ai'
-import type { GeminiRealtimeModel, GeminiRealtimeVoice } from './types'
+import type {
+  GeminiRealtimeModel,
+  GeminiRealtimeProviderOptions,
+  GeminiRealtimeVoice,
+} from './types'
+
+/** Build a Gemini FunctionDeclaration from an isomorphic client tool (Zod). */
+function clientToolToDeclaration(tool: AnyClientTool): FunctionDeclaration {
+  return {
+    name: tool.name,
+    description: tool.description,
+    parametersJsonSchema: convertSchemaToJsonSchema(tool.inputSchema),
+    responseJsonSchema: convertSchemaToJsonSchema(tool.outputSchema),
+  }
+}
+
+/** Build a Gemini FunctionDeclaration from an already-serialized tool config. */
+function toolConfigToDeclaration(
+  tool: RealtimeToolConfig,
+): FunctionDeclaration {
+  return {
+    name: tool.name,
+    description: tool.description,
+    parametersJsonSchema: tool.inputSchema,
+    responseJsonSchema: tool.outputSchema,
+  }
+}
 
 interface LiveResponsePayloads {
   text: string
@@ -59,115 +86,103 @@ export type LiveResponse = {
  * The server can now bundle multiple fields (e.g. audio + transcription)
  * in the same message. Returns an array of response objects.
  */
-function parseResponseMessages(data: LiveServerMessage) {
+export function parseResponseMessages(
+  data: LiveServerMessage,
+): Array<LiveResponse> {
   const responses: Array<LiveResponse> = []
   const serverContent = data.serverContent
   const parts = serverContent?.modelTurn?.parts
 
-  try {
-    // Setup complete (exclusive — no other fields expected)
-    if (data.setupComplete) {
-      console.log('🏁 SETUP COMPLETE response', data)
-      responses.push({ type: 'setup_complete', data: '', endOfTurn: false })
-      return responses
-    }
+  // Setup complete (exclusive — no other fields expected)
+  if (data.setupComplete) {
+    responses.push({ type: 'setup_complete', data: '', endOfTurn: false })
+    return responses
+  }
 
-    // Tool call (exclusive)
-    if (data.toolCall) {
-      console.log('🎯 🛠️ TOOL CALL response', data.toolCall)
-      responses.push({
-        type: 'tool_call',
-        data: data.toolCall,
-        endOfTurn: false,
-      })
-      return responses
-    }
+  // Tool call (exclusive)
+  if (data.toolCall) {
+    responses.push({
+      type: 'tool_call',
+      data: data.toolCall,
+      endOfTurn: false,
+    })
+    return responses
+  }
 
-    if (data.sessionResumptionUpdate) {
-      responses.push({
-        type: 'session_resumption_update',
-        data: data.sessionResumptionUpdate,
-        endOfTurn: false,
-      })
-    }
+  if (data.sessionResumptionUpdate) {
+    responses.push({
+      type: 'session_resumption_update',
+      data: data.sessionResumptionUpdate,
+      endOfTurn: false,
+    })
+  }
 
-    if (data.goAway) {
-      responses.push({ type: 'go_away', data: data.goAway, endOfTurn: false })
-    }
+  if (data.goAway) {
+    responses.push({ type: 'go_away', data: data.goAway, endOfTurn: false })
+  }
 
-    if (data.usageMetadata) {
-      responses.push({
-        type: 'usage_metadata',
-        data: data.usageMetadata,
-        endOfTurn: false,
-      })
-    }
+  if (data.usageMetadata) {
+    responses.push({
+      type: 'usage_metadata',
+      data: data.usageMetadata,
+      endOfTurn: false,
+    })
+  }
 
-    // Audio data from model turn parts
-    if (parts?.length) {
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          responses.push({
-            type: 'audio',
-            data: {
-              audioData: part.inlineData.data,
-              // The transcription is independent to the model turn which means it doesn’t imply any ordering between transcription and model turn.
-              transcript: '',
-            },
-            endOfTurn: false,
-          })
-        } else if (part.text) {
-          if (part.thought) {
-            console.log('💬 THOUGHT response', part.text)
-            responses.push({
-              type: 'thought',
-              data: part.text,
-              endOfTurn: false,
-            })
-          } else {
-            console.log('💬 TEXT response', part.text)
-            responses.push({ type: 'text', data: part.text, endOfTurn: false })
-          }
-        }
+  // Audio data from model turn parts
+  if (parts?.length) {
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        responses.push({
+          type: 'audio',
+          data: {
+            audioData: part.inlineData.data,
+            // The transcription is independent to the model turn, which means it doesn't imply any ordering between transcription and model turn.
+            transcript: '',
+          },
+          endOfTurn: false,
+        })
+      } else if (part.text) {
+        responses.push({
+          type: part.thought ? 'thought' : 'text',
+          data: part.text,
+          endOfTurn: false,
+        })
       }
     }
+  }
 
-    // Transcriptions — checked independently, NOT in else-if with audio
-    if (serverContent?.inputTranscription) {
-      responses.push({
-        type: 'input_transcription',
-        data: {
-          text: serverContent.inputTranscription.text || '',
-          finished: serverContent.inputTranscription.finished || false,
-        },
-        endOfTurn: false,
-      })
-    }
+  // Transcriptions — checked independently, NOT in else-if with audio
+  if (serverContent?.inputTranscription) {
+    responses.push({
+      type: 'input_transcription',
+      data: {
+        text: serverContent.inputTranscription.text || '',
+        finished: serverContent.inputTranscription.finished || false,
+      },
+      endOfTurn: false,
+    })
+  }
 
-    if (serverContent?.outputTranscription) {
-      responses.push({
-        type: 'output_transcription',
-        data: {
-          text: serverContent.outputTranscription.text || '',
-          finished: serverContent.outputTranscription.finished || false,
-        },
-        endOfTurn: false,
-      })
-    }
+  if (serverContent?.outputTranscription) {
+    responses.push({
+      type: 'output_transcription',
+      data: {
+        text: serverContent.outputTranscription.text || '',
+        finished: serverContent.outputTranscription.finished || false,
+      },
+      endOfTurn: false,
+    })
+  }
 
-    // Interrupted
-    if (serverContent?.interrupted) {
-      console.log('🗣️ INTERRUPTED response')
-      responses.push({ type: 'interrupted', data: '', endOfTurn: false })
-    }
+  // Interrupted
+  if (serverContent?.interrupted) {
+    responses.push({ type: 'interrupted', data: '', endOfTurn: false })
+  }
 
-    // Turn complete
-    if (serverContent?.turnComplete) {
-      console.log('🏁 TURN COMPLETE response')
-      responses.push({ type: 'turn_complete', data: '', endOfTurn: true })
-    }
-  } catch (err) {
-    console.log('⚠️ Error parsing response data: ', err, data)
+  // Turn complete
+  if (serverContent?.turnComplete) {
+    responses.push({ type: 'turn_complete', data: '', endOfTurn: true })
   }
 
   return responses
@@ -191,8 +206,7 @@ export class GeminiLiveClient {
   private speechLanguageCode: string | undefined
 
   private maxOutputTokens: number | undefined
-  private functions: Array<AnyClientTool> = []
-  private readonly functionsMap = new Map<string, AnyClientTool>()
+  private functionDeclarations: Array<FunctionDeclaration> = []
 
   private readonly automaticActivityDetection = {
     disabled: false,
@@ -224,10 +238,7 @@ export class GeminiLiveClient {
     this.model = model
 
     if (tools) {
-      tools.forEach((tool) => {
-        this.functions.push(tool)
-        this.functionsMap.set(tool.name, tool)
-      })
+      this.functionDeclarations = tools.map(clientToolToDeclaration)
     }
   }
 
@@ -235,71 +246,73 @@ export class GeminiLiveClient {
     return this.connected
   }
 
-  get isSetupCompelete() {
+  get isSetupComplete() {
     return this.setupComplete
   }
 
   /**
    * Connection management
    */
-  connect() {
-    const promise = new Promise((resolve, reject) => {
-      this.webSocket = new WebSocket(
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(
         `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${this.token}`,
       )
+      this.webSocket = socket
 
-      this.webSocket.onclose = (event) => {
-        console.log('realtime websocket close:', event)
+      // The browser fires `onerror` then `onclose` on an abnormal close; this
+      // flag stops the close handler from overwriting the surfaced error with a
+      // benign "closed" signal.
+      let errored = false
+
+      socket.onclose = () => {
         this.connected = false
         this.setupComplete = false
-        this.onClose()
-        reject(new Error('Closed before connecting'))
+        if (!errored) this.onClose()
+        reject(new Error('WebSocket closed before setup completed'))
       }
 
-      this.webSocket.onerror = (event) => {
-        console.error('realtime websocket error:', event)
+      socket.onerror = () => {
+        errored = true
         this.connected = false
         this.setupComplete = false
-        const error = new Error('Connection error')
+        const error = new Error('Gemini realtime WebSocket connection error')
         this.onError(error)
         reject(error)
       }
 
-      this.webSocket.onopen = (event) => {
-        console.log('realtime websocket open:', event)
+      socket.onopen = () => {
         this.connected = true
         this.onOpen()
-        resolve(this.webSocket)
+        resolve()
       }
 
-      this.webSocket.onmessage = this.onReceiveMessage.bind(this)
+      socket.onmessage = (event) => {
+        void this.onReceiveMessage(event)
+      }
     })
-
-    return promise
   }
 
   disconnect() {
     if (this.webSocket) {
+      // Detach handlers first so a deliberate teardown (e.g. during a
+      // reconnect) doesn't emit a spurious close/error to the client.
+      this.webSocket.onclose = null
+      this.webSocket.onerror = null
+      this.webSocket.onopen = null
+      this.webSocket.onmessage = null
       this.webSocket.close()
-      this.connected = false
-      this.setupComplete = false
+      this.webSocket = null
     }
+    this.connected = false
+    this.setupComplete = false
   }
 
   /**
    * Session management
    */
-  getFunctionDefinitions(): Array<FunctionDeclaration> {
-    return this.functions.map((f) => ({
-      name: f.name,
-      description: f.description,
-      parametersJsonSchema: convertSchemaToJsonSchema(f.inputSchema),
-      outputJsonSchema: convertSchemaToJsonSchema(f.outputSchema),
-    }))
-  }
-
   sendInitialSetupMessage(resume = false) {
-    const tools = this.getFunctionDefinitions()
+    const tools = this.functionDeclarations
 
     const setup: NonNullable<LiveClientMessage['setup']> = {
       model: `models/${this.model}`,
@@ -364,7 +377,6 @@ export class GeminiLiveClient {
   }
 
   async restartSession(resume = false) {
-    console.log('RESTARTING SESSION')
     this.disconnect()
     await this.connect()
     this.sendInitialSetupMessage(resume)
@@ -394,14 +406,11 @@ export class GeminiLiveClient {
     }
 
     if (config.tools) {
-      this.functions = config.tools as Array<any>
-      this.functionsMap.clear()
-      config.tools.forEach((tool) => {
-        this.functionsMap.set(tool.name, tool as any)
-      })
+      this.functionDeclarations = config.tools.map(toolConfigToDeclaration)
     }
 
     if (config.maxOutputTokens) {
+      // Gemini has no "inf" sentinel; treat it as "no explicit limit".
       this.maxOutputTokens =
         typeof config.maxOutputTokens === 'number'
           ? config.maxOutputTokens
@@ -416,29 +425,32 @@ export class GeminiLiveClient {
       this.voiceName = config.voice as GeminiRealtimeVoice
     }
 
-    if (config.providerOptions?.googleGrounding) {
-      this.googleGrounding = config.providerOptions.googleGrounding
+    const providerOptions = config.providerOptions as
+      | GeminiRealtimeProviderOptions
+      | undefined
+
+    if (providerOptions?.googleGrounding) {
+      this.googleGrounding = providerOptions.googleGrounding
     }
 
-    if (config.providerOptions?.proactivity) {
-      this.proactiveAudio = config.providerOptions.proactivity
+    if (providerOptions?.proactiveAudio) {
+      this.proactiveAudio = providerOptions.proactiveAudio
     }
 
-    if (config.providerOptions?.enableAffectiveDialog) {
-      this.enableAffectiveDialog = config.providerOptions.enableAffectiveDialog
+    if (providerOptions?.enableAffectiveDialog) {
+      this.enableAffectiveDialog = providerOptions.enableAffectiveDialog
     }
 
-    if (config.providerOptions?.contextWindowCompression) {
-      this.contextWindowCompression =
-        config.providerOptions.contextWindowCompression
+    if (providerOptions?.contextWindowCompression) {
+      this.contextWindowCompression = providerOptions.contextWindowCompression
     }
 
-    if (config.providerOptions?.thinkingConfig) {
-      this.thinkingConfig = config.providerOptions.thinkingConfig
+    if (providerOptions?.thinkingConfig) {
+      this.thinkingConfig = providerOptions.thinkingConfig
     }
 
-    if (config.providerOptions?.languageCode) {
-      this.speechLanguageCode = config.providerOptions.languageCode
+    if (providerOptions?.languageCode) {
+      this.speechLanguageCode = providerOptions.languageCode
     }
 
     const includeTranscription =
@@ -457,9 +469,12 @@ export class GeminiLiveClient {
    * Message transmission & receiving
    */
   sendMessage(message: LiveClientMessage) {
-    if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-      // TODO: add message buffering
+    if (this.webSocket?.readyState === WebSocket.OPEN) {
       this.webSocket.send(JSON.stringify(message))
+    } else {
+      this.onError(
+        new Error('Cannot send message: Gemini realtime socket is not open'),
+      )
     }
   }
 
@@ -490,7 +505,7 @@ export class GeminiLiveClient {
         this.onReceiveResponse(response)
       }
     } catch (err) {
-      console.error('Error parsing JSON message:', err, jsonData)
+      this.onError(err instanceof Error ? err : new Error(String(err)))
     }
   }
 

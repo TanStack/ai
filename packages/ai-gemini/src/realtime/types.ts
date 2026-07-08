@@ -1,7 +1,6 @@
 import type {
   ContextWindowCompressionConfig,
   LiveConnectConstraints,
-  ProactivityConfig,
   ThinkingConfig,
 } from '@google/genai'
 
@@ -76,12 +75,20 @@ export interface GeminiRealtimeTokenOptions {
 }
 
 /**
- * Gemini Realtime provider options
+ * Gemini-specific realtime options, passed through `providerOptions` on a
+ * realtime session config.
  */
 export interface GeminiRealtimeProviderOptions {
-  languageCode?: string
-  contextWindowCompression?: ContextWindowCompressionConfig
-  proactivity?: ProactivityConfig
+  /** Enable Google Search grounding (mutually exclusive with custom tools). */
+  googleGrounding?: boolean
+  /** Enable proactive audio so the model may choose when to respond. */
+  proactiveAudio?: boolean
+  /** Enable affective (emotion-aware) dialog. */
   enableAffectiveDialog?: boolean
+  /** Context window compression configuration. */
+  contextWindowCompression?: ContextWindowCompressionConfig
+  /** Thinking configuration. */
   thinkingConfig?: ThinkingConfig
+  /** BCP-47 language code for speech output. */
+  languageCode?: string
 }

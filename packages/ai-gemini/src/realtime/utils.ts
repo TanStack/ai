@@ -208,7 +208,7 @@ export class AudioStreamer {
       })
 
       if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume().catch(() => {})
+        await this.audioContext.resume()
       }
 
       const workletBlob = new Blob([captureWorkletCode], {
@@ -216,8 +216,9 @@ export class AudioStreamer {
       })
       const workletUrl = URL.createObjectURL(workletBlob)
 
-      // Load the audio worklet module
+      // Load the audio worklet module, then release the blob URL.
       await this.audioContext.audioWorklet.addModule(workletUrl)
+      URL.revokeObjectURL(workletUrl)
 
       // Create the audio worklet node
       this.audioWorklet = new AudioWorkletNode(
@@ -235,7 +236,7 @@ export class AudioStreamer {
           const base64Audio = this.arrayBufferToBase64(pcmData)
 
           // Send to Gemini only if after setup complete
-          if (this.client?.isSetupCompelete) {
+          if (this.client?.isSetupComplete) {
             this.client.sendAudioMessage(base64Audio)
           }
         }
@@ -253,9 +254,9 @@ export class AudioStreamer {
 
       // Start streaming
       this.isStreaming = true
-      console.log('Audio streaming started')
     } catch (error) {
-      console.error('Failed to start audio streaming:', error)
+      // Clean up the mic + audio context if setup failed partway through.
+      this.stop()
       throw error
     }
   }
@@ -278,8 +279,6 @@ export class AudioStreamer {
       this.mediaStream.getTracks().forEach((track) => track.stop())
       this.mediaStream = null
     }
-
-    console.log('Audio streaming stopped')
   }
 
   startAudioCapture() {
@@ -363,8 +362,9 @@ export class AudioPlayer {
       })
       const workletUrl = URL.createObjectURL(workletBlob)
 
-      // Load the audio worklet module
+      // Load the audio worklet module, then release the blob URL.
       await this.audioContext.audioWorklet.addModule(workletUrl)
+      URL.revokeObjectURL(workletUrl)
 
       // Create worklet node
       this.workletNode = new AudioWorkletNode(
@@ -387,45 +387,32 @@ export class AudioPlayer {
       this.analyser.connect(this.audioContext.destination)
 
       this.isInitialized = true
-      console.log('Audio player initialized')
     } catch (error) {
-      console.error('Failed to initialize audio player:', error)
+      // Release the audio context if initialization failed partway through.
+      this.destroy()
       throw error
     }
   }
 
-  async play(base64Audio: string) {
+  async play(pcmData: ArrayBuffer) {
     if (!this.isInitialized) {
       await this.init()
     }
 
-    try {
-      // Resume audio context if suspended
-      if (this.audioContext?.state === 'suspended') {
-        await this.audioContext.resume()
-      }
-
-      // Efficient base64 → binary decode
-      const binaryString = atob(base64Audio)
-      const len = binaryString.length
-      const bytes = new Uint8Array(len)
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      // Convert PCM16 LE to Float32
-      const inputArray = new Int16Array(bytes.buffer)
-      const float32Data = new Float32Array(inputArray.length)
-      for (let i = 0; i < inputArray.length; i++) {
-        float32Data[i] = (inputArray[i] ?? 0) / 32768
-      }
-
-      // Send to worklet for playback
-      this.workletNode?.port.postMessage(float32Data)
-    } catch (error) {
-      console.error('Error playing audio chunk:', error)
-      throw error
+    // Resume audio context if suspended
+    if (this.audioContext?.state === 'suspended') {
+      await this.audioContext.resume()
     }
+
+    // Convert PCM16 LE to Float32
+    const inputArray = new Int16Array(pcmData)
+    const float32Data = new Float32Array(inputArray.length)
+    for (let i = 0; i < inputArray.length; i++) {
+      float32Data[i] = (inputArray[i] ?? 0) / 32768
+    }
+
+    // Send to worklet for playback
+    this.workletNode?.port.postMessage(float32Data)
   }
 
   /* Interrupt playback */

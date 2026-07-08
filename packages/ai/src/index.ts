@@ -185,6 +185,7 @@ export type {
   RealtimeTokenAdapter,
   RealtimeTokenOptions,
   RealtimeSessionConfig,
+  RealtimeToolConfig,
   VADConfig,
   RealtimeMessage,
   RealtimeMessagePart,

@@ -35,12 +35,13 @@ export function geminiRealtimeToken(
     apiKey,
   })
 
-  // Defaults to 30 minutes
-  const expireTime = options.expiresAt ?? Date.now() + 30 * 60 * 1000
-
   return {
     provider: 'gemini',
     async generateToken(): Promise<RealtimeToken> {
+      // Computed per call so a reused adapter doesn't mint tokens with a
+      // fixed (and eventually past) expiry. Defaults to 30 minutes.
+      const expireTime = options.expiresAt ?? Date.now() + 30 * 60 * 1000
+
       const token = await client.authTokens.create({
         config: {
           uses: options.uses ?? 1,
