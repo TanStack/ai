@@ -71,6 +71,59 @@ function Chat() {
 For a lower-level path, `byokHeaders(keys)` returns the raw header map and
 `byokFetch(onMissingKey)` wraps a `fetch` to detect the `byokMissing` 401.
 
+### Fetcher transport (`useChat`/`useGeneration` with a `fetcher`)
+
+`withByok` targets the `connection` transport. For the `fetcher` transport —
+used by `useGeneration` (image/audio/video/speech/transcribe) and by
+`useChat({ fetcher })` — use `byokFetcher`. It hands your fetcher body BYOK
+`headers` and a missing-key-aware `fetch`, read fresh on every call, and works
+for both fetcher styles:
+
+```ts
+// A) fetch-based fetcher — spread headers, use the wrapped fetch for onMissingKey
+useGenerateAudio({
+  fetcher: byokFetcher(
+    () => keysRef.current,
+    (input, { headers, fetch, signal }) =>
+      fetch('/api/generate/audio', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(input),
+        signal,
+      }),
+    { onMissingKey: (provider) => openKeyDialog(provider) },
+  ),
+})
+
+// B) TanStack Start server function — forward headers at the call site
+useGenerateAudio({
+  fetcher: byokFetcher(() => keysRef.current, (input, { headers }) =>
+    generateAudioFn({ data: input, headers }),
+  ),
+})
+```
+
+The key still travels in the `x-byok-<provider>` header, never the `data`
+body. On the server, read it off the request with the same `getByokKey`:
+
+```ts
+import { getByokKey, byokMissing } from '@tanstack/ai-byok/server'
+import { getRequest } from '@tanstack/react-start/server'
+
+export const generateAudioFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; provider: ProviderId }) => data)
+  .handler(({ data }) => {
+    const apiKey = getByokKey(getRequest(), data.provider)
+    if (!apiKey) return byokMissing(data.provider)
+    // ...hand apiKey to the adapter for one call
+  })
+```
+
+The `onMissingKey` callback fires only on the fetch-based path (style A), where
+`byokFetcher` owns the `fetch` and can see the `byokMissing` 401. A server
+function (style B) surfaces the missing key as a thrown error instead — catch
+it and inspect the message, or pre-check with `hasKey(provider)` before calling.
+
 ## Server (stateless — no persist, no log)
 
 ```ts
