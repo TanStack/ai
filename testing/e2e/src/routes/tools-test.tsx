@@ -219,7 +219,11 @@ function ToolsTestPage() {
     // Include scenario in ID so client is recreated when scenario changes
     id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
     connection: fetchServerSentEvents('/api/tools-test'),
-    initialMessages,
+    // History fixtures are untyped model-message replays; cast to the typed
+    // message shape so they don't fight the concrete `tools` tuple inference.
+    initialMessages: initialMessages as unknown as Array<
+      UIMessage<typeof clientTools>
+    >,
     forwardedProps: {
       scenario,
       testId,
