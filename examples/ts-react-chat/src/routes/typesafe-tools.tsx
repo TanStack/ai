@@ -7,7 +7,6 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 
- 
 /**
  * Manual type-safety confirmation for passing a BARE inline `tools` array to
  * `useChat` — no `clientTools(...)` wrapper and no `as const`. The `const`
