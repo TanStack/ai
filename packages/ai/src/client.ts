@@ -1,8 +1,8 @@
 import type {
   AudioGenerationOptions,
   ImageGenerationOptions,
-  TranscriptionOptions,
   TTSOptions,
+  TranscriptionOptions,
   VideoGenerationOptions,
 } from './types'
 

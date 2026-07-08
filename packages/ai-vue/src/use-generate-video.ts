@@ -345,9 +345,7 @@ export function useGenerateVideo<TTransformed = void>(
     status: readonly(status),
     stop,
     reset,
-    resumeSnapshot: readonly(
-      resumeSnapshot,
-    ) as UseGenerateVideoReturn<TOutput>['resumeSnapshot'],
+    resumeSnapshot: readonly(resumeSnapshot),
     resumeState: readonly(resumeState),
     pendingArtifacts: readonly(pendingArtifacts),
     resultArtifacts: readonly(resultArtifacts),

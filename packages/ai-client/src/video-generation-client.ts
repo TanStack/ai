@@ -336,9 +336,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       if (signal.aborted) break
 
       this.callbacksRef.onChunk?.(chunk)
-      if (signal.aborted) break
       this.observeResumeSnapshot(chunk)
-      if (signal.aborted) break
       const chunkRunId =
         'runId' in chunk && typeof chunk.runId === 'string'
           ? chunk.runId

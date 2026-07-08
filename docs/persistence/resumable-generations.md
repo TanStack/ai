@@ -29,7 +29,7 @@ identity into the generation call, and add `withPersistence(persistence)`.
 Return the stream with `toServerSentEventsResponse(...)` so the client can read
 both live events and replayed events.
 
-```ts
+```ts group=resumable-generations-server
 import {
   generateImage,
   generationParamsFromRequest,
@@ -57,14 +57,21 @@ export async function POST(request: Request, env: Env) {
   const { input, threadId, runId, cursor } =
     await generationParamsFromRequest('image', request)
 
+  if (typeof input.prompt !== 'string') {
+    throw new Error('This endpoint accepts text image prompts only.')
+  }
+
+  const identity: { threadId?: string; runId?: string; cursor?: string } = {}
+  if (threadId !== undefined) identity.threadId = threadId
+  if (runId !== undefined) identity.runId = runId
+  if (cursor !== undefined) identity.cursor = cursor
+
   const durablePersistence = persistence(env)
   const stream = generateImage({
-    ...input,
-    threadId,
-    runId,
-    cursor,
+    ...identity,
+    prompt: input.prompt,
     adapter: openaiImage('gpt-image-2'),
-    stream: true,
+    stream: true as const,
     middleware: [withPersistence(durablePersistence)],
   })
 
@@ -81,7 +88,7 @@ framework route, call `generationParamsFromBody(kind, body)` instead of
 to `modelOptions`; validate and whitelist any app-specific routing or provider
 options before using them on the server.
 
-```ts
+```ts group=resumable-generations-server
 import { generationParamsFromBody } from '@tanstack/ai'
 
 export async function handleImageBody(body: unknown) {
@@ -95,13 +102,35 @@ Generation hooks store lightweight artifact refs. Serve the durable bytes from
 your app by looking up the artifact by `artifactId`.
 
 ```ts
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+
+interface Env {
+  AI_D1: D1Database
+  AI_BLOBS: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+
+function persistence(env: Env) {
+  return cloudflarePersistence({
+    d1: env.AI_D1,
+    r2: env.AI_BLOBS,
+    durableObjects: env.AI_LOCKS,
+  })
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ artifactId: string }> },
   env: Env,
 ) {
+  void request
   const { artifactId } = await context.params
   const { stores } = persistence(env)
+
+  if (!stores.artifacts || !stores.blobs) {
+    throw new Error('Artifact and blob stores are required.')
+  }
+
   const artifact = await stores.artifacts.get(artifactId)
 
   if (!artifact) {
@@ -133,7 +162,7 @@ stable `id`. The snapshot contains `{ threadId, runId, cursor }`, status, errors
 and lightweight artifact refs. It does not contain generated image, audio, or
 video bytes.
 
-```tsx
+```tsx group=resumable-generations-client
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 import { localStorageAIPersistence } from '@tanstack/ai-client'
 
@@ -179,7 +208,7 @@ Auto-resume is enabled by default. On mount, the hook checks the stored snapshot
 and reconnects when there is a resumable run. Set `autoResume: false` when the
 UI should wait for an explicit user action, then call `resume()`.
 
-```tsx
+```tsx group=resumable-generations-client
 const image = useGenerateImage({
   id: generationId,
   connection: fetchServerSentEvents('/api/generate/image'),

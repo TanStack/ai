@@ -418,7 +418,8 @@
         {
           "label": "Resumable Generations",
           "to": "persistence/resumable-generations",
-          "addedAt": "2026-07-07"
+          "addedAt": "2026-07-07",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Interrupts and Approvals",
@@ -441,7 +442,7 @@
           "label": "Files and Artifacts",
           "to": "persistence/files-and-artifacts",
           "addedAt": "2026-07-06",
-          "updatedAt": "2026-07-07"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Custom Stores",

@@ -635,6 +635,8 @@ function persistedArtifactActivityField(
   key: string,
 ): PersistedArtifactRef['source']['activity'] | undefined {
   const field = stringField(value, key)
+  if (field === undefined) return undefined
+
   switch (field) {
     case 'image':
     case 'audio':
@@ -652,6 +654,8 @@ function persistedArtifactMediaTypeField(
   key: string,
 ): PersistedArtifactRef['source']['mediaType'] | undefined {
   const field = stringField(value, key)
+  if (field === undefined) return undefined
+
   switch (field) {
     case 'image':
     case 'audio':

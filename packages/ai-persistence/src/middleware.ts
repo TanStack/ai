@@ -19,7 +19,11 @@ import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ChatResumeToolState,
+  GenerationMiddleware,
   GenerationMiddlewareContext,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
@@ -30,11 +34,6 @@ import type {
   InterruptRecord,
   PersistenceFeature,
 } from './types'
-import type {
-  PersistedArtifactActivity,
-  PersistedArtifactRef,
-  PersistedArtifactRole,
-} from '@tanstack/ai'
 
 export interface WithPersistenceOptions {
   features?: Array<PersistenceFeature>
@@ -354,6 +353,8 @@ function parseDataUrl(
 }
 
 function extensionForMime(mimeType: string | undefined): string {
+  if (mimeType === undefined) return 'bin'
+
   switch (mimeType) {
     case 'image/png':
       return 'png'
@@ -763,7 +764,7 @@ async function persistGenerationArtifacts(
 export function withPersistence(
   persistence: AIPersistence,
   opts?: WithPersistenceOptions,
-): ChatMiddleware {
+): ChatMiddleware & GenerationMiddleware {
   const features = opts?.features ?? defaultFeatures(persistence)
   validatePersistenceFeatures(persistence, features)
 
@@ -990,5 +991,5 @@ export function withPersistence(
         finishedAt: Date.now(),
       })
     },
-  })
+  }) as ChatMiddleware & GenerationMiddleware
 }

@@ -58,8 +58,13 @@ async function saveReport(input: {
   env: Env
 }) {
   const bytes = new TextEncoder().encode(input.markdown)
+  const artifacts = persistence(input.env).stores.artifacts
 
-  await persistence(input.env).stores.artifacts.save({
+  if (!artifacts) {
+    throw new Error('Artifact store is required to save reports.')
+  }
+
+  await artifacts.save({
     artifactId: `report:${input.runId}`,
     runId: input.runId,
     threadId: input.threadId,
@@ -90,12 +95,20 @@ export function runReport(env: Env) {
 metadata and hydrates `bytes` when the backend has the byte body available.
 
 ```ts group=files-and-artifacts
-const artifacts = await persistence(env).stores.artifacts.list('run-123')
-const report = await persistence(env).stores.artifacts.get('report:run-123')
+async function readReport(env: Env) {
+  const artifactStore = persistence(env).stores.artifacts
 
-if (report && report.bytes) {
-  const markdown = new TextDecoder().decode(report.bytes)
-  console.log(markdown)
+  if (!artifactStore) {
+    throw new Error('Artifact store is required to read reports.')
+  }
+
+  const artifacts = await artifactStore.list('run-123')
+  const report = await artifactStore.get('report:run-123')
+
+  if (report && report.bytes) {
+    const markdown = new TextDecoder().decode(report.bytes)
+    console.log(artifacts.length, markdown)
+  }
 }
 ```
 
@@ -106,24 +119,25 @@ project archives, cache entries, screenshots, or large files referenced from
 metadata.
 
 ```ts group=files-and-artifacts
-const zipBytes = new Uint8Array()
+async function saveArchive(env: Env) {
+  const zipBytes = new Uint8Array()
+  const { blobs, metadata } = persistence(env).stores
 
-await persistence(env).stores.blobs.put(
-  'projects/project-123/archive.zip',
-  zipBytes,
-  {
+  if (!blobs || !metadata) {
+    throw new Error('Blob and metadata stores are required to save archives.')
+  }
+
+  await blobs.put('projects/project-123/archive.zip', zipBytes, {
     contentType: 'application/zip',
     customMetadata: {
       projectId: 'project-123',
     },
-  },
-)
+  })
 
-await persistence(env).stores.metadata.set(
-  'project:project-123',
-  'latest-archive',
-  { blobKey: 'projects/project-123/archive.zip' },
-)
+  await metadata.set('project:project-123', 'latest-archive', {
+    blobKey: 'projects/project-123/archive.zip',
+  })
+}
 ```
 
 Artifacts are the better default when the file belongs to a chat run. Blobs are
@@ -138,8 +152,8 @@ include both `'artifacts'` and `'blobs'`; enabling only one fails early because
 artifact metadata and bytes must stay paired.
 
 ```ts
-import { generateVideo } from '@tanstack/ai'
-import { falVideo } from '@tanstack/ai-fal'
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { withPersistence } from '@tanstack/ai-persistence'
 
@@ -149,17 +163,17 @@ interface Env {
   AI_LOCKS: DurableObjectNamespace
 }
 
-export async function generateProductVideo(env: Env) {
+export async function generateProductImage(env: Env) {
   const persistence = cloudflarePersistence({
     d1: env.AI_D1,
     r2: env.AI_BLOBS,
     durableObjects: env.AI_LOCKS,
   })
 
-  const result = await generateVideo({
+  const result = await generateImage({
     threadId: 'thread-123',
     runId: 'run-123',
-    adapter: falVideo('fal-ai/veo3.1'),
+    adapter: openaiImage('gpt-image-2'),
     prompt: 'A camera glides through a glass greenhouse at dawn',
     middleware: [withPersistence(persistence)],
   })
@@ -272,13 +286,13 @@ import {
   defineWorkspace,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import { cloudflareSandbox, type Sandbox } from '@tanstack/ai-sandbox-cloudflare'
 
 interface Env {
   AI_D1: D1Database
   AI_BLOBS: R2Bucket
   AI_LOCKS: DurableObjectNamespace
-  Sandbox: DurableObjectNamespace
+  Sandbox: DurableObjectNamespace<Sandbox>
 }
 
 export function runProjectBuilder(env: Env) {
