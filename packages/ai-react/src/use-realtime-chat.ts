@@ -252,11 +252,9 @@ export function useRealtimeChat(
     )
   }, [])
 
-  const updateSession = useCallback(
-    (config: RealtimeSessionConfig) => {
-      clientRef.current?.updateSession(config)
-    }, []
-  )
+  const updateSession = useCallback((config: RealtimeSessionConfig) => {
+    clientRef.current?.updateSession(config)
+  }, [])
 
   return {
     // Connection state
