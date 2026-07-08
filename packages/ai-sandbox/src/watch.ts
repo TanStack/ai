@@ -176,9 +176,12 @@ async function startNativeWatch(
         if (r.rootOk) {
           for (const p of r.files) known.add(p)
           seeded = true
-          logger?.sandbox('sandbox watch: re-seeded after failed initial seed', {
-            root,
-          })
+          logger?.sandbox(
+            'sandbox watch: re-seeded after failed initial seed',
+            {
+              root,
+            },
+          )
         }
         reseeding = null
       })
@@ -275,7 +278,10 @@ async function startPollWatch(
       // missing, container never ready — that would leave the watcher dead for
       // the whole run, so surface it at `warn`.
       if (isInitial) {
-        logger?.warn('sandbox watch: initial `find` poll threw', { root, error })
+        logger?.warn('sandbox watch: initial `find` poll threw', {
+          root,
+          error,
+        })
       } else {
         logger?.sandbox('sandbox watch: `find` poll threw', { root, error })
       }

@@ -225,7 +225,11 @@ describe('watchWorkspace (exec-poll)', () => {
     await vi.advanceTimersByTimeAsync(100) // tick 2: complete poll, c really gone
     await watcher.stop()
     expect(events).toEqual([
-      { type: 'delete', path: '/workspace/c.js', timestamp: expect.any(Number) },
+      {
+        type: 'delete',
+        path: '/workspace/c.js',
+        timestamp: expect.any(Number),
+      },
     ])
   })
 
@@ -256,7 +260,11 @@ describe('watchWorkspace (exec-poll)', () => {
 
     // Baseline (a.js) parsed from the non-zero poll; b.js then seen as created.
     expect(events).toEqual([
-      { type: 'create', path: '/workspace/b.js', timestamp: expect.any(Number) },
+      {
+        type: 'create',
+        path: '/workspace/b.js',
+        timestamp: expect.any(Number),
+      },
     ])
   })
 

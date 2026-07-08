@@ -222,7 +222,8 @@ describe('buildFileHookEvent', () => {
     const h = fakeHandle({
       read: async () => 'x\n',
       exec: async (cmd: string) => {
-        if (cmd.startsWith('git check-ignore')) throw new Error('check-ignore boom')
+        if (cmd.startsWith('git check-ignore'))
+          throw new Error('check-ignore boom')
         if (cmd.startsWith('git show'))
           return { stdout: '', stderr: 'fatal', exitCode: 128 } // untracked
         return { stdout: '', stderr: '', exitCode: 0 } // git diff empty
@@ -293,7 +294,8 @@ describe('buildFileHookEvent', () => {
     expect(patch).toContain('+q')
     expect(
       calls.some(
-        (c) => c.level === 'debug' && c.msg.includes('tracked-ness probe non-zero'),
+        (c) =>
+          c.level === 'debug' && c.msg.includes('tracked-ness probe non-zero'),
       ),
     ).toBe(true)
   })

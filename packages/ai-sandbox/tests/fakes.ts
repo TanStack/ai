@@ -242,7 +242,8 @@ export function captureLogger(): {
   const calls: Array<{ level: string; msg: string }> = []
   const rec =
     (level: string) =>
-    (msg: string): void => void calls.push({ level, msg })
+    (msg: string): void =>
+      void calls.push({ level, msg })
   const logger = resolveDebugOption({
     logger: {
       debug: rec('debug'),

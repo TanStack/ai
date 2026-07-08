@@ -130,8 +130,7 @@ function fakeHandleDeferredDiff(knownPath: string) {
   let onRaw: (e: { type: string; path: string }) => void = () => undefined
   let releaseDiff: (patch: string) => void = () => undefined
   const pendingDiff = new Promise<ExecResult>((resolve) => {
-    releaseDiff = (patch) =>
-      resolve({ stdout: patch, stderr: '', exitCode: 0 })
+    releaseDiff = (patch) => resolve({ stdout: patch, stderr: '', exitCode: 0 })
   })
   const handle: SandboxHandle = {
     id: 'fake',
@@ -223,7 +222,9 @@ function invokeTerminal(
     )
   if (phase === 'abort')
     return Promise.resolve(mw.onAbort!(ctx, { reason: 'x', duration: 0 }))
-  return Promise.resolve(mw.onError!(ctx, { error: new Error('x'), duration: 0 }))
+  return Promise.resolve(
+    mw.onError!(ctx, { error: new Error('x'), duration: 0 }),
+  )
 }
 
 describe('withSandbox hooks', () => {
