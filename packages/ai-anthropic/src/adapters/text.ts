@@ -157,9 +157,7 @@ function buildServerToolResultBlock(
  * True when any message carries a provider file-handle source, so the request
  * must send the Files API beta header.
  */
-export function messagesHaveFileSource(
-  messages: Array<ModelMessage>,
-): boolean {
+export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
   return messages.some(
     (message) =>
       Array.isArray(message.content) &&
