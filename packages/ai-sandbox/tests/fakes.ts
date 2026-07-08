@@ -1,3 +1,5 @@
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   ExecResult,
   SandboxCapabilities,
@@ -225,4 +227,29 @@ export function makeFakeProvider(
     },
   }
   return provider
+}
+
+/**
+ * An `InternalLogger` (all categories on) that records every emitted call by
+ * its underlying level, for asserting that a code path logs rather than
+ * silently swallows. `sandbox`/other debug categories route to `debug`,
+ * `warn` to `warn`, and `errors` to `error`.
+ */
+export function captureLogger(): {
+  logger: InternalLogger
+  calls: Array<{ level: string; msg: string }>
+} {
+  const calls: Array<{ level: string; msg: string }> = []
+  const rec =
+    (level: string) =>
+    (msg: string): void => void calls.push({ level, msg })
+  const logger = resolveDebugOption({
+    logger: {
+      debug: rec('debug'),
+      info: rec('info'),
+      warn: rec('warn'),
+      error: rec('error'),
+    },
+  })
+  return { logger, calls }
 }
