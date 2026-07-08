@@ -128,7 +128,7 @@ export function providerValidateConfig(
 }
 
 /** Prefix for every per-provider BYOK header. */
-export const BYOK_HEADER_PREFIX = 'x-tanstack-byok-'
+export const BYOK_HEADER_PREFIX = 'x-byok-'
 
 /**
  * The HTTP header name that carries the key for a given provider. Keys always

@@ -35,7 +35,7 @@ test.describe('byok', () => {
     await sendMessage(page, '[chat] recommend a guitar')
 
     const request = await requestPromise
-    expect(request.headers()['x-tanstack-byok-openai']).toBe(KEY)
+    expect(request.headers()['x-byok-openai']).toBe(KEY)
     expect(request.postData() ?? '').not.toContain(KEY)
 
     await waitForResponse(page)

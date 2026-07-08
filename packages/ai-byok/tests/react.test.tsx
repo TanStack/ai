@@ -45,7 +45,7 @@ describe('useByok', () => {
       await result.current.setKey('openai', 'sk-live-1234')
     })
     expect(byokHeaders(result.current.keys)).toEqual({
-      'x-tanstack-byok-openai': 'sk-live-1234',
+      'x-byok-openai': 'sk-live-1234',
     })
     // Only the last 4 are exposed as status.
     expect(result.current.status.openai).toEqual({

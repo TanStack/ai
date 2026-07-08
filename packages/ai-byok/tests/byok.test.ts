@@ -23,8 +23,8 @@ describe('byokHeaders', () => {
       gemini: 'g-1',
     })
     expect(headers).toEqual({
-      'x-tanstack-byok-openai': 'sk-abc',
-      'x-tanstack-byok-gemini': 'g-1',
+      'x-byok-openai': 'sk-abc',
+      'x-byok-gemini': 'g-1',
     })
   })
 })
@@ -33,11 +33,11 @@ describe('withByok / byokFetch', () => {
   it('withByok attaches BYOK headers read fresh at request time', () => {
     let keys: Keyring = { openai: 'sk-a' }
     const build = withByok(() => keys)
-    expect(build().headers).toEqual({ 'x-tanstack-byok-openai': 'sk-a' })
+    expect(build().headers).toEqual({ 'x-byok-openai': 'sk-a' })
     keys = { openai: 'sk-b', gemini: 'g-1' }
     expect(build().headers).toEqual({
-      'x-tanstack-byok-openai': 'sk-b',
-      'x-tanstack-byok-gemini': 'g-1',
+      'x-byok-openai': 'sk-b',
+      'x-byok-gemini': 'g-1',
     })
   })
 
