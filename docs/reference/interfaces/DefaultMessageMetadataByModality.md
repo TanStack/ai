@@ -5,7 +5,7 @@ title: DefaultMessageMetadataByModality
 
 # Interface: DefaultMessageMetadataByModality
 
-Defined in: [packages/ai/src/types.ts:2012](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2012)
+Defined in: [packages/ai/src/types.ts:2118](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2118)
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +18,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:2015](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2015)
+Defined in: [packages/ai/src/types.ts:2121](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2121)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/ai/src/types.ts:2015](https://github.com/TanStack/ai/blob/
 document: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:2017](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2017)
+Defined in: [packages/ai/src/types.ts:2123](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2123)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:2017](https://github.com/TanStack/ai/blob/
 image: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:2014](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2014)
+Defined in: [packages/ai/src/types.ts:2120](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2120)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [packages/ai/src/types.ts:2014](https://github.com/TanStack/ai/blob/
 text: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:2013](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2013)
+Defined in: [packages/ai/src/types.ts:2119](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2119)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [packages/ai/src/types.ts:2013](https://github.com/TanStack/ai/blob/
 video: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:2016](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2016)
+Defined in: [packages/ai/src/types.ts:2122](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2122)
