@@ -224,8 +224,30 @@ base64 data — pass whichever you have:
 { type: 'image', source: { type: 'data', value: base64String, mimeType: 'image/png' } }
 ```
 
-OpenAI's edit endpoint requires file uploads; the adapter fetches URL sources
-and converts base64 to a `File` automatically.
+Gemini's native image generation never fetches URL sources locally — they pass
+through as `fileData.fileUri` and Gemini retrieves them server-side, so public
+HTTPS URLs, [Files API](https://ai.google.dev/gemini-api/docs/files) URIs, and
+`gs://` references all work without buffering the image in your runtime's
+memory.
+
+Two paths have no URL passthrough and must upload real bytes — OpenAI's
+`/images/edits` (and Sora `input_reference`), and Gemini **Veo** (its predict
+API accepts only inline bytes or a `gs://` reference). For these, an HTTP(S)
+URL input would have to be downloaded and buffered in memory, which can OOM
+memory-constrained runtimes (e.g. Cloudflare Workers). So by default they
+**throw** on an HTTP(S) URL image input rather than fetch it. Pass a `data:`
+URI (or a `gs://` reference for Veo), or opt into fetching with `allowUrlFetch`:
+
+```typescript ignore
+import { createOpenaiImage } from '@tanstack/ai-openai/adapters'
+
+// Opt into downloading + buffering HTTP(S) URL image inputs (server runtimes
+// with headroom). data: URIs always work without this flag.
+const adapter = createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
+```
+
+The same `allowUrlFetch` option exists on `createOpenaiVideo` and
+`createGeminiVideo`.
 
 ### Role hints via `metadata.role`
 

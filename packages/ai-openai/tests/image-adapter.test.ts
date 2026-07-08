@@ -297,6 +297,94 @@ describe('OpenAI Image Adapter', () => {
       expect(result.images[0]!.b64Json).toBe('edited-base64')
     })
 
+    it('throws on an HTTP(S) URL image input by default instead of buffering it (#907)', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      const editSpy = adapter.spyOnImagesEdit()
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'Make it cinematic' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/photo.jpg' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/allowUrlFetch/)
+      expect(editSpy).not.toHaveBeenCalled()
+    })
+
+    it('fetches HTTP(S) URL image inputs when allowUrlFetch is set', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key', allowUrlFetch: true },
+        'gpt-image-1',
+      )
+      const editSpy = adapter
+        .spyOnImagesEdit()
+        .mockResolvedValueOnce(imagesEditResponse)
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([104, 105]), {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      try {
+        const result = await adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'Make it cinematic' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/photo.jpg' },
+            },
+          ],
+          logger: testLogger,
+        })
+        expect(fetchMock).toHaveBeenCalledWith('https://example.com/photo.jpg')
+        expect(editSpy).toHaveBeenCalledTimes(1)
+        expect(editSpy.mock.calls[0]![0].image).toBeInstanceOf(File)
+        expect(result.images[0]!.b64Json).toBe('edited-base64')
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('accepts a data: URI URL source without allowUrlFetch (in-memory, no network)', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      const editSpy = adapter
+        .spyOnImagesEdit()
+        .mockResolvedValueOnce(imagesEditResponse)
+
+      const result = await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: [
+          { type: 'text', content: 'Make it cinematic' },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'data:image/png;base64,aGVsbG8=',
+            },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      expect(editSpy).toHaveBeenCalledTimes(1)
+      expect(editSpy.mock.calls[0]![0].image).toBeInstanceOf(File)
+      expect(result.images[0]!.b64Json).toBe('edited-base64')
+    })
+
     it('rejects dall-e-3 with a clear error when the prompt has image parts', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },

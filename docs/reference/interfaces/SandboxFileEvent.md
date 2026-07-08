@@ -9,6 +9,10 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:17](https://git
 
 A file change observed inside a sandbox during a chat run.
 
+## Extended by
+
+- [`SandboxFileHookEvent`](SandboxFileHookEvent.md)
+
 ## Properties
 
 ### path
@@ -36,7 +40,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:21](https://git
 ### type
 
 ```ts
-type: "change" | "create" | "delete";
+type: "create" | "change" | "delete";
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L18)

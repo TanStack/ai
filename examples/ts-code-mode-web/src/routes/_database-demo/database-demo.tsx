@@ -23,6 +23,7 @@ import type { VMEvent } from '@/components'
 import { CodeBlock, ExecutionResult, JavaScriptVM, Header } from '@/components'
 import ChatInput from '@/components/ChatInput'
 import { formatDuration } from '@/lib/efficiency'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_database-demo/database-demo' as any)({
   component: DatabaseDemoPage,
@@ -378,7 +379,7 @@ function Messages({
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
