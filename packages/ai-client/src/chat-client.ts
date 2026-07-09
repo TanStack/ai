@@ -518,8 +518,7 @@ export class ChatClient<
    * `console.warn`.
    */
   private reportServerPersistenceError(error: unknown): void {
-    const normalized =
-      error instanceof Error ? error : new Error(String(error))
+    const normalized = error instanceof Error ? error : new Error(String(error))
     if (this.hasUserOnError) {
       this.callbacksRef.current.onError(normalized)
     } else {
@@ -696,7 +695,7 @@ export class ChatClient<
     )
     const isCurrentRunTerminal = Boolean(
       (runId && this.currentRunId === runId) ||
-        (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+      (this.currentRunId && this.lastResume?.runId === this.currentRunId),
     )
     const isCurrentStreamTerminal =
       this.isLoading && chunk.type === 'RUN_FINISHED' && !runId

@@ -84,7 +84,6 @@ const videoResumeSnapshot: GenerationResumeSnapshot = {
   status: 'running',
 }
 
-
 function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
   adapter: ConnectConnectionAdapter
   connect: ReturnType<typeof vi.fn>

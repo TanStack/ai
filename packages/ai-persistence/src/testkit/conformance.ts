@@ -47,7 +47,9 @@ export function runPersistenceConformance(
         ])
 
         // Overwrites, not appends.
-        await store.saveThread('thread-msg', [{ role: 'user', content: 'redo' }])
+        await store.saveThread('thread-msg', [
+          { role: 'user', content: 'redo' },
+        ])
         expect(await store.loadThread('thread-msg')).toEqual([
           { role: 'user', content: 'redo' },
         ])
@@ -151,9 +153,9 @@ export function runPersistenceConformance(
           payload: { tool: 'search', args: { q: 'x' } },
         })
 
-        expect((await store.list('thread-i')).map((r) => r.interruptId)).toEqual(
-          ['int-1', 'int-2', 'int-3'],
-        )
+        expect(
+          (await store.list('thread-i')).map((r) => r.interruptId),
+        ).toEqual(['int-1', 'int-2', 'int-3'])
         expect(
           (await store.listByRun('run-i')).map((r) => r.interruptId),
         ).toEqual(['int-1', 'int-2'])
@@ -243,17 +245,17 @@ export function runPersistenceConformance(
           createdAt: 500,
         })
 
-        expect((await store.list('run-art')).map((a) => a.artifactId).sort()).toEqual(
-          ['art-1', 'art-2'],
-        )
+        expect(
+          (await store.list('run-art')).map((a) => a.artifactId).sort(),
+        ).toEqual(['art-1', 'art-2'])
         expect(await store.list('run-none')).toEqual([])
 
         if (store.delete) {
           await store.delete('art-1')
           expect(await store.get('art-1')).toBeNull()
-          expect((await store.list('run-art')).map((a) => a.artifactId)).toEqual(
-            ['art-2'],
-          )
+          expect(
+            (await store.list('run-art')).map((a) => a.artifactId),
+          ).toEqual(['art-2'])
         }
         if (store.deleteForRun) {
           await store.deleteForRun('run-art')

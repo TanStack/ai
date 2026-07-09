@@ -171,8 +171,7 @@ function durableStreamSource(
   const batchSize = resolveBatchSize(options.batch)
   const abortController = options.abortController
   const idByChunk = new WeakMap<object, string>()
-  const getId = (chunk: StreamChunk): string | undefined =>
-    idByChunk.get(chunk)
+  const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
 
   async function* produce(): AsyncIterable<StreamChunk> {
     let seq = 1

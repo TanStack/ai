@@ -6,7 +6,14 @@
  * Drizzle's `text({ mode: 'json' })`; blob bytes by `blob({ mode: 'buffer' })`.
  */
 import { and, asc, eq, gt, gte, lt } from 'drizzle-orm'
-import { artifacts, blobs, interrupts, messages, metadata, runs } from './schema'
+import {
+  artifacts,
+  blobs,
+  interrupts,
+  messages,
+  metadata,
+  runs,
+} from './schema'
 import type { SQL } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import type { ModelMessage } from '@tanstack/ai'
@@ -386,7 +393,9 @@ function blobRecordSnapshot(row: typeof blobs.$inferSelect): BlobRecord {
 }
 
 function blobObject(row: typeof blobs.$inferSelect): BlobObject {
-  const bytes = row.body ? copyBytes(new Uint8Array(row.body)) : new Uint8Array()
+  const bytes = row.body
+    ? copyBytes(new Uint8Array(row.body))
+    : new Uint8Array()
   return {
     ...blobRecordSnapshot(row),
     body: new ReadableStream<Uint8Array>({

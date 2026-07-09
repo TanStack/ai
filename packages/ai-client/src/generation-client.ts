@@ -356,11 +356,7 @@ export class GenerationClient<
     options: Partial<
       Pick<
         GenerationClientOptions<TInput, TResult, TOutput>,
-        | 'body'
-        | 'onResult'
-        | 'onError'
-        | 'onProgress'
-        | 'onChunk'
+        'body' | 'onResult' | 'onError' | 'onProgress' | 'onChunk'
       >
     >,
   ): void {

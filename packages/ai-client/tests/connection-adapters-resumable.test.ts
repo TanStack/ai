@@ -123,7 +123,9 @@ describe('resumable SSE connection adapter', () => {
       if (fetchClient.mock.calls.length === 1) {
         // First pass: two tagged content events, then a clean end with NO
         // terminal — the adapter reconnects from run@2.
-        return sseResponse(contentEvent('run@1', '1') + contentEvent('run@2', '2'))
+        return sseResponse(
+          contentEvent('run@1', '1') + contentEvent('run@2', '2'),
+        )
       }
       // Reconnect: server replays nothing new (no progress) and still no
       // terminal — the run cannot complete.

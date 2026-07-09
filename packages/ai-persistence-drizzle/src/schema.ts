@@ -14,11 +14,14 @@
  * NOTE: keep this in sync with the sibling Prisma schema fragment
  * (`@tanstack/ai-persistence-prisma`). See coupling `persistence-schema-dual-source`.
  */
-import { blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import type {
-  InterruptRecord,
-  RunStatus,
-} from '@tanstack/ai-persistence'
+import {
+  blob,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core'
+import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 
 /** Thread message history (`MessageStore`). */

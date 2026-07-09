@@ -107,13 +107,13 @@ the interrupt resume can be reissued across a full page reload (persist it via
 
 `AIPersistence` stores are optional, but feature validation is fail-loud:
 
-| Feature      | Required stores          |
-| ------------ | ------------------------ |
-| `messages`   | `messages`               |
-| `interrupts` | `runs`, `interrupts`     |
-| `metadata`   | `metadata`               |
-| `locks`      | `locks`                  |
-| `artifacts`  | `artifacts`              |
+| Feature      | Required stores                 |
+| ------------ | ------------------------------- |
+| `messages`   | `messages`                      |
+| `interrupts` | `runs`, `interrupts`            |
+| `metadata`   | `metadata`                      |
+| `locks`      | `locks`                         |
+| `artifacts`  | `artifacts`                     |
 | `blobs`      | `blobs` (pair with `artifacts`) |
 
 ## Backends

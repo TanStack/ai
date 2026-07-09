@@ -23,7 +23,10 @@ async function migrationStatements(): Promise<Array<string>> {
     .sort()
   const statements: Array<string> = []
   for (const dir of dirs) {
-    const sql = await readFile(join(migrationsDir, dir, 'migration.sql'), 'utf8')
+    const sql = await readFile(
+      join(migrationsDir, dir, 'migration.sql'),
+      'utf8',
+    )
     for (const raw of sql.split(';')) {
       const statement = raw
         .split('\n')

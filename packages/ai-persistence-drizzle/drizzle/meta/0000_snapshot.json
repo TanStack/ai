@@ -255,10 +255,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "metadata_scope_key_pk": {
-          "columns": [
-            "scope",
-            "key"
-          ],
+          "columns": ["scope", "key"],
           "name": "metadata_scope_key_pk"
         }
       },

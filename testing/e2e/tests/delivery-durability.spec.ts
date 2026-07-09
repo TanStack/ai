@@ -31,7 +31,9 @@ function parseSse(body: string): Array<SseEvent> {
       const lines = block.split('\n')
       const idLine = lines.find((l) => l.startsWith('id:'))
       const dataLine = lines.find((l) => l.startsWith('data:'))
-      const rawData = dataLine ? dataLine.slice(dataLine.indexOf(':') + 1).trim() : ''
+      const rawData = dataLine
+        ? dataLine.slice(dataLine.indexOf(':') + 1).trim()
+        : ''
       return {
         ...(idLine ? { id: idLine.slice(idLine.indexOf(':') + 1).trim() } : {}),
         data: JSON.parse(rawData),

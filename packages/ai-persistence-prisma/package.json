@@ -47,16 +47,28 @@
         "cache": false
       },
       "build": {
-        "dependsOn": ["db:generate", "^build"]
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
       },
       "test:lib": {
-        "dependsOn": ["db:generate", "^build"]
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
       },
       "test:types": {
-        "dependsOn": ["db:generate", "^build"]
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
       },
       "test:eslint": {
-        "dependsOn": ["db:generate", "^build"]
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
       }
     }
   },

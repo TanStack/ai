@@ -175,7 +175,8 @@ export function createRunStore(prisma: PrismaClient): RunStore {
       if (patch.finishedAt !== undefined)
         data.finishedAt = BigInt(patch.finishedAt)
       if (patch.error !== undefined) data.error = patch.error
-      if (patch.usage !== undefined) data.usageJson = JSON.stringify(patch.usage)
+      if (patch.usage !== undefined)
+        data.usageJson = JSON.stringify(patch.usage)
       if (Object.keys(data).length === 0) return
       // updateMany no-ops (does not throw) when the run does not exist.
       await prisma.run.updateMany({ where: { runId }, data })
@@ -398,7 +399,9 @@ function blobRecordSnapshot(row: BlobRow): BlobRecord {
 }
 
 function blobObject(row: BlobRow): BlobObject {
-  const bytes = row.body ? copyBytes(new Uint8Array(row.body)) : new Uint8Array()
+  const bytes = row.body
+    ? copyBytes(new Uint8Array(row.body))
+    : new Uint8Array()
   return {
     ...blobRecordSnapshot(row),
     body: new ReadableStream<Uint8Array>({

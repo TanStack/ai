@@ -96,9 +96,7 @@ function makeFakeDsServer() {
     async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(typeof input === 'string' ? input : input.toString())
       const method = (init?.method ?? 'GET').toUpperCase()
-      const name = decodeURIComponent(
-        url.pathname.replace(/^\/streams\//, ''),
-      )
+      const name = decodeURIComponent(url.pathname.replace(/^\/streams\//, ''))
 
       if (method === 'PUT') {
         const created = !streams.has(name)
@@ -168,7 +166,10 @@ describe('durableStream', () => {
     // append POSTs each chunk INDIVIDUALLY and reads back its own backend
     // offset, so EVERY chunk carries a resume offset (fully populated array,
     // no `undefined`) — this is what makes a mid-batch reconnect exactly-once.
-    const first = await d.append([textChunk('a'), textChunk('b'), textChunk('c')], 1)
+    const first = await d.append(
+      [textChunk('a'), textChunk('b'), textChunk('c')],
+      1,
+    )
     expect(first).toEqual([
       encodeOffset('run-2', 1),
       encodeOffset('run-2', 2),
@@ -176,10 +177,7 @@ describe('durableStream', () => {
     ])
 
     const second = await d.append([textChunk('d'), textChunk('e')], 4)
-    expect(second).toEqual([
-      encodeOffset('run-2', 4),
-      encodeOffset('run-2', 5),
-    ])
+    expect(second).toEqual([encodeOffset('run-2', 4), encodeOffset('run-2', 5)])
 
     // The stream is created exactly once, on the first append (PUT-once);
     // per-chunk POSTs never re-PUT. The server-side PUT stays idempotent.
@@ -230,7 +228,9 @@ describe('durableStream', () => {
     expect(reconnect.runId()).toBe('run-4')
 
     const read: Array<{ seq: number; delta: string }> = []
-    for await (const { seq, chunk } of reconnect.read(reconnect.resumeFrom()!)) {
+    for await (const { seq, chunk } of reconnect.read(
+      reconnect.resumeFrom()!,
+    )) {
       read.push({ seq, delta: (chunk as { delta: string }).delta })
     }
     expect(read).toEqual([
@@ -265,7 +265,10 @@ describe('durableStream', () => {
       new Request('https://app.test/api/chat?runId=run-noid', {
         method: 'POST',
       }),
-      { server: 'https://ds.test', fetch: fetchStub as unknown as typeof fetch },
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub as unknown as typeof fetch,
+      },
     )
     await expect(async () => {
       for await (const _ of d.read('-1')) {
@@ -290,7 +293,10 @@ describe('durableStream', () => {
       new Request('https://app.test/api/chat?runId=run-badid', {
         method: 'POST',
       }),
-      { server: 'https://ds.test', fetch: fetchStub as unknown as typeof fetch },
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub as unknown as typeof fetch,
+      },
     )
     await expect(async () => {
       for await (const _ of d.read('-1')) {
@@ -317,7 +323,10 @@ describe('durableStream', () => {
       new Request('https://app.test/api/chat?runId=run-trunc', {
         method: 'POST',
       }),
-      { server: 'https://ds.test', fetch: fetchStub as unknown as typeof fetch },
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub as unknown as typeof fetch,
+      },
     )
     const seen: Array<string> = []
     await expect(async () => {
@@ -344,7 +353,10 @@ describe('durableStream', () => {
       new Request('https://app.test/api/chat?runId=run-ctrl', {
         method: 'POST',
       }),
-      { server: 'https://ds.test', fetch: fetchStub as unknown as typeof fetch },
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub as unknown as typeof fetch,
+      },
     )
     await expect(async () => {
       for await (const _ of d.read('-1')) {

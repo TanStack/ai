@@ -7,7 +7,10 @@ function textChunk(delta: string): StreamChunk {
   return { type: 'TEXT_MESSAGE_CONTENT', delta, timestamp: 0 } as StreamChunk
 }
 
-function fiveChunkStream(): { stream: AsyncIterable<StreamChunk>; iterated: () => boolean } {
+function fiveChunkStream(): {
+  stream: AsyncIterable<StreamChunk>
+  iterated: () => boolean
+} {
   let started = false
   const stream: AsyncIterable<StreamChunk> = {
     async *[Symbol.asyncIterator]() {
@@ -32,9 +35,7 @@ async function readBody(res: Response): Promise<string> {
   return out
 }
 
-function parseSseEvents(
-  body: string,
-): Array<{ id?: string; data: string }> {
+function parseSseEvents(body: string): Array<{ id?: string; data: string }> {
   return body
     .split('\n\n')
     .filter((block) => block.trim().length > 0)
@@ -87,7 +88,9 @@ describe('toServerSentEventsResponse with durability', () => {
     )
     const { stream } = fiveChunkStream()
     await readBody(
-      toServerSentEventsResponse(stream, { durability: memoryStream(producerReq) }),
+      toServerSentEventsResponse(stream, {
+        durability: memoryStream(producerReq),
+      }),
     )
 
     // Reconnect carrying Last-Event-ID at seq 2.

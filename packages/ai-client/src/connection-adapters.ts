@@ -353,8 +353,7 @@ export interface ConnectConnectionAdapter {
  * (a second tab, or re-attaching after a full reload) via `joinRun`, replaying
  * the ordered stream from the start off the server's delivery-durability sink.
  */
-export interface ResumableConnectConnectionAdapter
-  extends ConnectConnectionAdapter {
+export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdapter {
   /**
    * Join an in-flight or finished run by id, replaying from the start
    * (`?offset=-1`). Read-only — sends no messages.

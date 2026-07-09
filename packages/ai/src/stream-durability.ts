@@ -140,7 +140,10 @@ export function decodeOffset(offset: string): { runId: string; seq: number } {
   if (at === -1) {
     throw new Error(`Invalid durability offset (missing @): ${offset}`)
   }
-  return { runId: offset.slice(0, at), seq: parseSeqToken(offset.slice(at + 1)) }
+  return {
+    runId: offset.slice(0, at),
+    seq: parseSeqToken(offset.slice(at + 1)),
+  }
 }
 
 /**
