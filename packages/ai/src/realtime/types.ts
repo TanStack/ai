@@ -4,7 +4,7 @@ import type { AnyClientTool } from '../activities/chat/tools/tool-definition'
 // Token Types
 // ============================================================================
 
-import type { UsageInfo } from '../activities/chat/middleware'
+import type { UsageInfo } from '../activities/chat/middleware/types'
 
 /**
  * Voice activity detection configuration

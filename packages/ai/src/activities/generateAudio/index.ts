@@ -14,10 +14,10 @@ import {
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
-} from '../middleware'
+} from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware } from '../middleware'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { AudioAdapter } from './adapter'
 import type { AudioGenerationResult, StreamChunk } from '../../types'
 
