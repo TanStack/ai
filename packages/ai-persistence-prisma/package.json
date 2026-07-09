@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-prisma",
   "version": "0.1.0",
-  "description": "Prisma backend for TanStack AI persistence — bring your own PrismaClient; persists via $queryRawUnsafe/$executeRawUnsafe (sqlite or postgres dialect).",
+  "description": "Prisma backend for TanStack AI state persistence — bring your own PrismaClient. Ships a schema.prisma fragment mirroring @tanstack/ai-persistence-drizzle column-for-column, plus prismaPersistence(prisma) wiring the AIPersistence stores over a PrismaClient.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -12,14 +12,13 @@
   "keywords": [
     "ai",
     "tanstack",
-    "persistence"
+    "persistence",
+    "prisma",
+    "sqlite"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-  "bin": {
-    "tanstack-ai-persistence-prisma": "./dist/bin/bin.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
@@ -28,11 +27,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "prisma"
   ],
   "scripts": {
-    "build": "vite build && tsup --config tsup.bin.config.ts",
+    "build": "vite build",
     "clean": "premove ./build ./dist",
+    "db:generate": "prisma generate",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
@@ -40,16 +41,35 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "nx": {
+    "targets": {
+      "db:generate": {
+        "cache": false
+      },
+      "build": {
+        "dependsOn": ["db:generate", "^build"]
+      },
+      "test:lib": {
+        "dependsOn": ["db:generate", "^build"]
+      },
+      "test:types": {
+        "dependsOn": ["db:generate", "^build"]
+      },
+      "test:eslint": {
+        "dependsOn": ["db:generate", "^build"]
+      }
+    }
+  },
   "peerDependencies": {
+    "@prisma/client": ">=6",
     "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^",
-    "@tanstack/ai-persistence-sql": "workspace:^"
+    "@tanstack/ai-persistence": "workspace:^"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.3",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@tanstack/ai-persistence-sql": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "tsup": "^8.5.1"
+    "prisma": "^6.19.3"
   }
 }
