@@ -346,6 +346,38 @@ describe('watchWorkspace (exec-poll)', () => {
     expect(
       calls.some((c) => c.level === 'debug' && c.msg.includes('poll threw')),
     ).toBe(true)
+    // A single transient throw must NOT escalate to warn.
+    expect(calls.some((c) => c.level === 'warn')).toBe(false)
+  })
+
+  it('escalates to a warning when `find` polls throw persistently (watcher wedged)', async () => {
+    vi.useFakeTimers()
+    let call = 0
+    const handle = fakeHandle({})
+    handle.process.exec = () => {
+      call++
+      // Initial poll seeds {a}; every steady-state tick then throws (seam wedged).
+      return call === 1
+        ? Promise.resolve({ stdout: '1\t1\t./a.js\n', stderr: '', exitCode: 0 })
+        : Promise.reject(new Error('exec wedged'))
+    }
+    const events: Array<FileEvent> = []
+    const { logger, calls } = captureLogger()
+    const watcher = await watchWorkspace(handle, {
+      onEvent: (e) => events.push(e),
+      intervalMs: 100,
+      logger,
+    })
+    // 4 ticks all throw → crosses the 3-in-a-row escalation threshold.
+    await vi.advanceTimersByTimeAsync(450)
+    await watcher.stop()
+    // Still no fabricated events (previous preserved), but now surfaced at warn.
+    expect(events).toEqual([])
+    expect(
+      calls.some(
+        (c) => c.level === 'warn' && c.msg.includes('poll threw repeatedly'),
+      ),
+    ).toBe(true)
   })
 
   it('does not start polling when the signal is already aborted', async () => {

@@ -260,6 +260,9 @@ async function startPollWatch(
     /** `false` when `find` exited non-zero but still printed rows (partial). */
     complete: boolean
   }
+  // Escalate a steady-state poll throw to `warn` after this many in a row.
+  const STEADY_STATE_THROW_WARN_AFTER = 3
+  let consecutiveThrows = 0
   const snapshot = async (isInitial = false): Promise<Poll | null> => {
     let result
     try {
@@ -267,23 +270,42 @@ async function startPollWatch(
         cwd: root,
         signal: controller.signal,
       })
+      consecutiveThrows = 0 // exec returned (any exit code) — the seam is alive
     } catch (error) {
       // Thrown exec — container not ready, `find` seam rejects, or a
       // mid-teardown abort. Treat as a failed poll so BOTH the initial seed
       // and every tick preserve `previous` instead of rejecting setup (which
-      // would crash the run and leak the sandbox) or the interval. A steady-
-      // state throw is usually a transient/teardown blip → `sandbox`. But the
-      // INITIAL poll can't be a teardown (a pre-aborted signal is guarded in
-      // `watchWorkspace`), so a throw there is an unambiguous anomaly — `find`
-      // missing, container never ready — that would leave the watcher dead for
-      // the whole run, so surface it at `warn`.
+      // would crash the run and leak the sandbox) or the interval.
       if (isInitial) {
+        // The INITIAL poll can't be a teardown (a pre-aborted signal is guarded
+        // in `watchWorkspace`), so a throw here is an unambiguous anomaly (`find`
+        // missing, container never ready) that leaves the watcher dead for the
+        // whole run — surface it at `warn`.
         logger?.warn('sandbox watch: initial `find` poll threw', {
           root,
           error,
         })
+      } else if (controller.signal.aborted) {
+        // Mid-teardown abort — expected, stay quiet.
+        logger?.sandbox('sandbox watch: `find` poll threw during teardown', {
+          root,
+          error,
+        })
       } else {
-        logger?.sandbox('sandbox watch: `find` poll threw', { root, error })
+        // Steady-state throw while NOT tearing down. One is usually a transient
+        // blip (→ `sandbox`), but a run of them means the exec seam is wedged:
+        // every poll returns null and the watcher emits nothing for the rest of
+        // the run. That silent-death case escalates to `warn` (on by default).
+        consecutiveThrows += 1
+        if (consecutiveThrows >= STEADY_STATE_THROW_WARN_AFTER) {
+          logger?.warn('sandbox watch: `find` poll threw repeatedly', {
+            root,
+            error,
+            consecutiveThrows,
+          })
+        } else {
+          logger?.sandbox('sandbox watch: `find` poll threw', { root, error })
+        }
       }
       return null
     }
