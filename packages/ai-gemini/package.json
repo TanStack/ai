@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-gemini",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "description": "Google Gemini adapter for TanStack AI chat, images, speech, audio generation, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -64,7 +64,7 @@
     "text-to-speech"
   ],
   "dependencies": {
-    "@google/genai": "^2.8.0",
+    "@google/genai": "^2.10.0",
     "@tanstack/ai-utils": "workspace:*",
     "partial-json": "^0.1.7"
   },

@@ -1,5 +1,32 @@
 # @tanstack/ai-anthropic
 
+## 0.16.1
+
+### Patch Changes
+
+- [#853](https://github.com/TanStack/ai/pull/853) [`9be8fa4`](https://github.com/TanStack/ai/commit/9be8fa41c7a6f6bea8e6734a0818f02ccb309ddd) - Default Anthropic `max_tokens` to the selected model's real output ceiling
+  (`max_output_tokens` from model metadata — e.g. 64K for Sonnet, 128K for Opus)
+  when the caller doesn't pass one, instead of a hard-coded `1024` that silently
+  truncated long responses with `stop_reason: "max_tokens"` ([#849](https://github.com/TanStack/ai/issues/849)). Unknown
+  models fall back to a safe constant. `max_tokens` is a ceiling, not a
+  reservation, so this costs nothing unless the model genuinely produces more.
+
+  The adapter also now logs a warning when a response is truncated while using the
+  defaulted (caller-unspecified) cap, so the truncation isn't silently attributed
+  to the model "doing nothing". Callers that set `modelOptions.max_tokens`
+  explicitly are unaffected.
+
+  The non-streaming structured-output path (`structuredOutput()`) clamps this
+  default to the Anthropic SDK's non-streaming-safe limit (~21K tokens). The SDK
+  refuses a non-streaming request whose `max_tokens` could exceed its 10-minute
+  timeout, so without the clamp the full-ceiling default would make every
+  `chat({ outputSchema })` call on a fallback-path model throw "Streaming is
+  required for operations that may take longer than 10 minutes". The streaming
+  chat path keeps the model's full ceiling.
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
 ## 0.16.0
 
 ### Minor Changes

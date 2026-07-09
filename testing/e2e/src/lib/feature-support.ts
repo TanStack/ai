@@ -233,7 +233,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-to-image': new Set(['openai']),
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   'sound-effects': new Set(['elevenlabs']),
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  tts: new Set(['openai', 'gemini', 'grok', 'elevenlabs']),
   transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs']),
   'transcription-diarization': new Set(['openai']),
   // Gemini Veo runs through a custom aimock mount (see geminiVeoMount in
@@ -248,6 +248,11 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // routing remain unit-test-only (the spec's journal assertion is tied to
   // aimock's /v1/videos pipeline, which custom mounts bypass).
   'image-to-video': new Set(['openai']),
+  // Gemini Omni Flash video generation over the Interactions API. Runs
+  // through a dedicated aimock mount (see geminiOmniVideoMount in
+  // global-setup.ts) — aimock handles synchronous text interactions natively
+  // but not background video jobs (create → poll → inline base64 mp4).
+  'interactions-video': new Set(['gemini']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   'stateful-interactions': new Set(['gemini']),

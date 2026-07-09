@@ -75,16 +75,28 @@ export function diffSnapshots(
   return events
 }
 
-/** Build the `find` command that prints `mtime\tsize\tpath` for every file. */
-function buildFindCommand(root: string, ignore: Array<string>): string {
+/**
+ * Build the `find` command that prints `mtime\tsize\tpath` for every file.
+ * Searches `.` (relative to the exec `cwd`) rather than an absolute root: a
+ * provider's `exec` maps only `cwd` onto the real filesystem, not literal path
+ * arguments, so `find <virtual-root>` would look at a non-existent host path on
+ * mapped-root providers (e.g. local-process). Emitted `%p` values are
+ * root-normalized in {@link parseFindOutput}.
+ */
+function buildFindCommand(ignore: Array<string>): string {
   const prunes = ignore
     .map((entry) => `-not -path ${q(`*/${entry}/*`)}`)
     .join(' ')
-  return `find ${q(root)} -type f ${prunes} -printf '%T@\\t%s\\t%p\\n'`
+  return `find . -type f ${prunes} -printf '%T@\\t%s\\t%p\\n'`
 }
 
-/** Parse `find -printf` output into a `Map<path, signature>`. */
-function parseFindOutput(stdout: string): Map<string, string> {
+/**
+ * Parse `find -printf` output into a `Map<path, signature>`. `find .` prints
+ * paths like `./sub/file`; map them back under `root` so event paths match the
+ * native-watch shape (`<root>/sub/file`).
+ */
+function parseFindOutput(stdout: string, root: string): Map<string, string> {
+  const base = root.replace(/\/+$/, '')
   const snapshot = new Map<string, string>()
   for (const line of stdout.split('\n')) {
     if (line === '') continue
@@ -93,7 +105,8 @@ function parseFindOutput(stdout: string): Map<string, string> {
     if (firstTab === -1 || secondTab === -1) continue
     const mtime = line.slice(0, firstTab)
     const size = line.slice(firstTab + 1, secondTab)
-    const path = line.slice(secondTab + 1)
+    const rel = line.slice(secondTab + 1).replace(/^\.\/?/, '')
+    const path = rel === '' ? base : `${base}/${rel}`
     snapshot.set(path, `${mtime}\t${size}`)
   }
   return snapshot
@@ -180,7 +193,7 @@ async function startPollWatch(
   },
 ): Promise<SandboxWatchHandle> {
   const { onEvent, root, ignore, intervalMs } = options
-  const command = buildFindCommand(root, ignore)
+  const command = buildFindCommand(ignore)
   const controller = new AbortController()
 
   const snapshot = async (): Promise<Map<string, string>> => {
@@ -189,7 +202,7 @@ async function startPollWatch(
       signal: controller.signal,
     })
     return result.exitCode === 0
-      ? parseFindOutput(result.stdout)
+      ? parseFindOutput(result.stdout, root)
       : new Map<string, string>()
   }
 

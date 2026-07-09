@@ -251,9 +251,6 @@ function StructuredOutputPage() {
     outputSchema: GuitarRecommendationSchema,
     connection: fetchServerSentEvents('/api/structured-output'),
     forwardedProps: { provider, model, stream },
-    devtools: {
-      outputKind: 'structured',
-    },
     onChunk: handleChunk,
     onError: (err) => {
       setError(err.message)

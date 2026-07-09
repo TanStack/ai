@@ -261,6 +261,17 @@ await generateVideo({
 })
 ```
 
+**URL inputs that require an upload throw by default.** Most adapters pass a
+`type: 'url'` source straight through to the provider. Three paths can't —
+OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —
+because the provider only accepts uploaded bytes (Veo also takes a `gs://`
+reference). For those, an HTTP(S) URL would have to be downloaded and buffered
+in memory, which can OOM constrained runtimes, so they **throw** on an HTTP(S)
+URL image input by default. Pass a `data:` URI (or `gs://` for Veo), or opt in
+with `allowUrlFetch: true` on the adapter config
+(`createOpenaiImage(model, apiKey, { allowUrlFetch: true })`, and likewise on
+`createOpenaiVideo` / `createGeminiVideo`). `data:` URIs never need the flag.
+
 **Role hints** (`metadata.role`):
 
 | Role            | Maps to                                                                                               |
@@ -448,8 +459,8 @@ return toServerSentEventsResponse(stream)
 ```
 
 Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
-`duration` option is typed per model (e.g. `4 | 6 | 8` for Veo 3.x,
-`5 | 6 | 8` for Veo 2); use `adapter.snapDuration(seconds)` to coerce raw
+`duration` option is typed per model (`4 | 6 | 8` for the Veo 3.1 models);
+use `adapter.snapDuration(seconds)` to coerce raw
 seconds and `adapter.availableDurations()` to enumerate the valid set.
 Image prompt parts route by `metadata.role`: first un-roled /
 `'start_frame'` image → input image, `'end_frame'` → `lastFrame`,
@@ -470,6 +481,35 @@ const { jobId } = await generateVideo({
 })
 // Note: Veo result URLs require the Google API key to download
 // (x-goog-api-key header or ?key= query parameter).
+```
+
+Gemini Omni Flash (`geminiVideo('gemini-omni-flash-preview')`) is served by
+the Interactions API instead of Veo's operations flow — same adapter, routed
+by model. Clips are 720p; `duration` is any number of seconds in the 3–10
+range (fractional ok, default 10 — availableDurations() reports the range),
+`size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
+**inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
+Image/video prompt parts are sent as interaction content blocks, grouped
+as images, then videos, then text (no
+`metadata.role` routing); `data` sources go inline, `url` sources pass
+through as-is (never downloaded — use Gemini Files API URIs for remote
+media). For conversational editing, pass a prior generation's `jobId` as
+`modelOptions.previous_interaction_id` with a prompt describing the change:
+
+```typescript
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const omni = geminiVideo('gemini-omni-flash-preview')
+const first = await generateVideo({
+  adapter: omni,
+  prompt: 'A violinist outdoors',
+})
+// …poll first.jobId to completion, then edit it:
+const edited = await generateVideo({
+  adapter: omni,
+  prompt: 'Make the violin invisible',
+  modelOptions: { previous_interaction_id: first.jobId },
+})
 ```
 
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,

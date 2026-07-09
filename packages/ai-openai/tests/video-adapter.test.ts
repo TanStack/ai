@@ -51,6 +51,60 @@ describe('OpenAI Video Adapter', () => {
       expect(result.model).toBe('sora-2')
     })
 
+    it('throws on an HTTP(S) URL input_reference by default instead of buffering it (#907)', async () => {
+      const { adapter, mockCreate } = mockedAdapter()
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: [
+            { type: 'text', content: 'Slow cinematic push-in' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/ref.jpg' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/allowUrlFetch/)
+      expect(mockCreate).not.toHaveBeenCalled()
+    })
+
+    it('fetches an HTTP(S) URL input_reference when allowUrlFetch is set', async () => {
+      const adapter = createOpenaiVideo('sora-2', 'test-api-key', {
+        allowUrlFetch: true,
+      })
+      const mockCreate = vi.fn().mockResolvedValue({ id: 'video-job-2' })
+      ;(adapter as unknown as { client: { videos: unknown } }).client = {
+        videos: { create: mockCreate },
+      }
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([104, 105]), {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      try {
+        await adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: [
+            { type: 'text', content: 'Slow cinematic push-in' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/ref.jpg' },
+            },
+          ],
+          logger: testLogger,
+        })
+      } finally {
+        vi.unstubAllGlobals()
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/ref.jpg')
+      expect(mockCreate.mock.calls[0]![0].input_reference).toBeInstanceOf(File)
+    })
+
     it('throws when more than one image part is provided', async () => {
       const { adapter, mockCreate } = mockedAdapter()
 

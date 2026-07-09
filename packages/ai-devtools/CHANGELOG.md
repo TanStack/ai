@@ -1,5 +1,12 @@
 # @tanstack/ai-devtools-core
 
+## 0.4.22
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
 ## 0.4.21
 
 ### Patch Changes

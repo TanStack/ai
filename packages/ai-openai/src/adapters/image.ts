@@ -41,7 +41,17 @@ const EDIT_MAX_IMAGES: Record<OpenAIImageModel, number> = {
 /**
  * Configuration for OpenAI image adapter
  */
-export interface OpenAIImageConfig extends OpenAIClientConfig {}
+export interface OpenAIImageConfig extends OpenAIClientConfig {
+  /**
+   * Opt into fetching HTTP(S) image URL inputs for image edits. OpenAI's
+   * `/images/edits` endpoint requires uploaded file bytes (no URL
+   * passthrough), so an HTTP(S) URL has to be downloaded and buffered in
+   * memory — which can OOM constrained runtimes (e.g. Cloudflare Workers).
+   * When `false` (the default), HTTP(S) URL image inputs throw; pass a `data:`
+   * URI, or set this to `true` to opt into buffering.
+   */
+  allowUrlFetch?: boolean
+}
 
 /**
  * OpenAI Image Generation Adapter
@@ -67,10 +77,13 @@ export class OpenAIImageAdapter<
   readonly name = 'openai' as const
 
   protected client: OpenAI
+  private readonly allowUrlFetch: boolean
 
   constructor(config: OpenAIImageConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(config)
+    const { allowUrlFetch, ...clientOptions } = config
+    this.client = new OpenAI(clientOptions)
+    this.allowUrlFetch = allowUrlFetch ?? false
   }
 
   async generateImages(
@@ -226,11 +239,13 @@ export class OpenAIImageAdapter<
     }
 
     const sourceFiles = await Promise.all(
-      sourceParts.map((part, i) => imagePartToFile(part, `source-${i}`)),
+      sourceParts.map((part, i) =>
+        imagePartToFile(part, `source-${i}`, this.allowUrlFetch),
+      ),
     )
     const [firstSourceFile] = sourceFiles
     const maskFile = maskParts[0]
-      ? await imagePartToFile(maskParts[0], 'mask')
+      ? await imagePartToFile(maskParts[0], 'mask', this.allowUrlFetch)
       : undefined
 
     // `modelOptions` is typed across all four image models (including dall-e-3's

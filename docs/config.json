@@ -156,7 +156,8 @@
         {
           "label": "Streaming",
           "to": "chat/streaming",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Connection Adapters",
@@ -172,6 +173,16 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02"
+        }
+      ]
+    },
+    {
+      "label": "Protocol",
+      "children": [
+        {
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03"
         }
       ]
     },
@@ -277,13 +288,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Generation Hooks",
@@ -368,12 +379,14 @@
         {
           "label": "Events",
           "to": "sandbox/events",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Observability",
           "to": "sandbox/observability",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Cloudflare (Edge)",
@@ -510,7 +523,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-07-04"
         },
         {
           "label": "Google Gemini",

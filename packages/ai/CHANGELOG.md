@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.40.0
+
+### Minor Changes
+
+- [#651](https://github.com/TanStack/ai/pull/651) [`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a) - Add OpenAI transcription diarization support with `diarized_json` output, speaker-labeled segments, diarization model validation, chunking strategy options, and docs.
+
 ## 0.39.1
 
 ### Patch Changes
