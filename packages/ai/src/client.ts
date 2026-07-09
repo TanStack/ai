@@ -26,7 +26,6 @@ export interface GenerationParams<TKind extends GenerationKind> {
   forwardedProps: Record<string, unknown>
   threadId?: string
   runId?: string
-  cursor?: string
 }
 
 const generationKinds = [
@@ -103,7 +102,7 @@ function forwardedPropsFromEnvelope(
 
 function optionalStringField(
   envelope: Record<string, unknown>,
-  key: 'threadId' | 'runId' | 'cursor',
+  key: 'threadId' | 'runId',
 ): string | undefined {
   if (!hasOwnKey(envelope, key)) {
     return undefined
@@ -120,20 +119,16 @@ function optionalStringField(
 function generationIdentityFields(envelope: Record<string, unknown>): {
   threadId?: string
   runId?: string
-  cursor?: string
 } {
   const identity: {
     threadId?: string
     runId?: string
-    cursor?: string
   } = {}
   const threadId = optionalStringField(envelope, 'threadId')
   const runId = optionalStringField(envelope, 'runId')
-  const cursor = optionalStringField(envelope, 'cursor')
 
   if (threadId !== undefined) identity.threadId = threadId
   if (runId !== undefined) identity.runId = runId
-  if (cursor !== undefined) identity.cursor = cursor
 
   return identity
 }

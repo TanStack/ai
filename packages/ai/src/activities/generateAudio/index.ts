@@ -8,8 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import {
-  createGenerationCursor,
-  generationEventFields,
+  generationIdentityFields,
   rejectEventsOnlyReplay,
 } from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -169,7 +168,6 @@ async function runGenerateAudio<
     middleware,
     threadId,
     runId,
-    cursor,
     replay: _replay,
     ...rest
   } = options
@@ -181,8 +179,7 @@ async function runGenerateAudio<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
-  const nextCursor = createGenerationCursor(cursor)
-  const identity = { threadId, runId, cursor }
+  const identity = { threadId, runId }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -192,7 +189,6 @@ async function runGenerateAudio<
     modelOptions: rest.modelOptions,
     threadId,
     runId,
-    cursor,
     artifactInputs: { prompt: rest.prompt, duration: rest.duration },
     createId,
   })
@@ -201,7 +197,7 @@ async function runGenerateAudio<
 
   aiEventClient.emit('audio:request:started', {
     requestId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     provider: adapter.name,
     model,
     prompt: rest.prompt,
@@ -222,7 +218,7 @@ async function runGenerateAudio<
 
     aiEventClient.emit('audio:request:completed', {
       requestId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       audio: result.audio,
@@ -234,7 +230,7 @@ async function runGenerateAudio<
     if (result.usage) {
       aiEventClient.emit('audio:usage', {
         requestId,
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         model,
         usage: result.usage,
         modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
@@ -259,7 +255,7 @@ async function runGenerateAudio<
     const err = error as Error
     aiEventClient.emit('audio:request:error', {
       requestId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       error: { message: err.message, name: err.name },

@@ -11,7 +11,6 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
-import { getResumeSource } from '../../resume'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -256,12 +255,6 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
-  /**
-   * Resume cursor. When provided with a resume source (e.g. via
-   * `withChatPersistence`), the engine replays persisted events after this cursor
-   * instead of running the adapter. A no-op when no resume source is present.
-   */
-  cursor?: TextOptions['cursor']
   /**
    * AG-UI interrupt resume responses. Persistence middleware validates these
    * before accepting new input on a thread with pending interrupts.
@@ -558,8 +551,6 @@ class TextEngine<
   private readonly threadId: string
   private readonly runIdOverride?: string
   private readonly parentRunIdOverride?: string
-  /** Resume cursor supplied by the caller; drives the resume seam (no-op without a resume source). */
-  private readonly cursorInput?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner<TContext>
@@ -658,7 +649,6 @@ class TextEngine<
       this.createId('thread')
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
-    this.cursorInput = config.params.cursor
 
     // Initialize middleware — devtools first, strip-to-spec always last.
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
@@ -798,41 +788,6 @@ class TextEngine<
     return this.finalizationError
   }
 
-  /**
-   * Resume seam. When the caller supplied a `cursor` and a `ResumeSource` was
-   * provided by middleware (e.g. `withChatPersistence`) for this run, replay the
-   * persisted event tail after the cursor and report that the run was handled
-   * by replay. Returns `false` (a no-op) when there is no cursor, no resume
-   * source, or no persisted run — so a normal run proceeds unchanged.
-   *
-   * Phase 1 is replay-only: it yields the persisted tail and ends. Live
-   * re-attach for harness adapters (continuing an in-sandbox process) layers on
-   * top of this in a later phase.
-   */
-  private async *maybeResume(): AsyncGenerator<StreamChunk, boolean> {
-    const cursor = this.cursorInput
-    if (cursor === undefined) {
-      return false
-    }
-    if (this.params.resume !== undefined) {
-      return false
-    }
-    const source = getResumeSource(this.middlewareCtx, { optional: true })
-    if (!source) {
-      return false
-    }
-    const runId = this.middlewareCtx.runId
-    if (!(await source.hasRun(runId))) {
-      return false
-    }
-    for await (const chunk of source.replay(runId, cursor)) {
-      yield chunk
-    }
-    // Durable resume is replay-only in core chat: replay public events and
-    // stop. Live harness/process re-entry is handled outside this seam.
-    return true
-  }
-
   async *run(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
@@ -854,15 +809,6 @@ class TextEngine<
 
       // Run onStart (devtools middleware emits text:request:started and initial messages here)
       await this.middlewareRunner.runOnStart(this.middlewareCtx)
-
-      // Resume seam: when a cursor was supplied AND a resume source is available
-      // for this run, replay the persisted event tail instead of running the
-      // adapter. No-op (falls through) when no resume source is provided, so a
-      // normal run is unaffected.
-      const resumed = yield* this.maybeResume()
-      if (resumed) {
-        return
-      }
 
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'wait') {
@@ -2614,7 +2560,6 @@ class TextEngine<
       messages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
-      cursor: this.params.cursor,
       resume: this.params.resume,
       resumeToolState: {
         approvals: this.resumeApprovals,

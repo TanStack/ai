@@ -8,8 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import {
-  createGenerationCursor,
-  generationEventFields,
+  generationIdentityFields,
   rejectEventsOnlyReplay,
 } from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -263,7 +262,6 @@ async function runGenerateImage<
     middleware,
     threadId,
     runId,
-    cursor,
     replay: _replay,
     ...rest
   } = options
@@ -271,8 +269,7 @@ async function runGenerateImage<
   const requestId = createId('image')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
-  const nextCursor = createGenerationCursor(cursor)
-  const identity = { threadId, runId, cursor }
+  const identity = { threadId, runId }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -282,7 +279,6 @@ async function runGenerateImage<
     modelOptions: rest.modelOptions,
     threadId,
     runId,
-    cursor,
     artifactInputs: { prompt: rest.prompt },
     createId,
   })
@@ -295,7 +291,7 @@ async function runGenerateImage<
 
   aiEventClient.emit('image:request:started', {
     requestId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     provider: adapter.name,
     model,
     prompt: resolved.text,
@@ -326,7 +322,7 @@ async function runGenerateImage<
 
     aiEventClient.emit('image:request:completed', {
       requestId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       // GeneratedImage is a discriminated `{ url } | { b64Json }` union, but the
@@ -346,7 +342,7 @@ async function runGenerateImage<
     if (result.usage) {
       aiEventClient.emit('image:usage', {
         requestId,
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         model,
         usage: result.usage,
         modelOptions: rest.modelOptions,

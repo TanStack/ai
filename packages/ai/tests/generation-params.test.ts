@@ -11,7 +11,6 @@ describe('generation params helpers', () => {
       forwardedProps: { tenantId: 'acme' },
       threadId: 'thread-1',
       runId: 'run-1',
-      cursor: 'cursor-1',
     })
 
     expect(params).toEqual({
@@ -19,7 +18,6 @@ describe('generation params helpers', () => {
       forwardedProps: { tenantId: 'acme' },
       threadId: 'thread-1',
       runId: 'run-1',
-      cursor: 'cursor-1',
     })
   })
 
@@ -74,20 +72,17 @@ describe('generation params helpers', () => {
     const raw = generationParamsFromBody('video', {
       prompt: 'launch',
       runId: 'raw-run',
-      cursor: 'raw-cursor',
     })
     const envelope = generationParamsFromBody('video', {
       data: { prompt: 'launch' },
       runId: 'envelope-run',
-      cursor: 'envelope-cursor',
     })
 
     expect(raw).toEqual({
-      input: { prompt: 'launch', runId: 'raw-run', cursor: 'raw-cursor' },
+      input: { prompt: 'launch', runId: 'raw-run' },
       forwardedProps: {},
     })
     expect(envelope.runId).toBe('envelope-run')
-    expect(envelope.cursor).toBe('envelope-cursor')
   })
 
   it('throws when envelope forwarded props are not an object', () => {
@@ -112,12 +107,6 @@ describe('generation params helpers', () => {
         runId: 123,
       }),
     ).toThrow(/runId/)
-    expect(() =>
-      generationParamsFromBody('image', {
-        data: { prompt: 'draw a mountain' },
-        cursor: 123,
-      }),
-    ).toThrow(/cursor/)
   })
 
   it('parses request JSON before extracting params', async () => {

@@ -30,23 +30,6 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
   return true
 }
 
-function getRequestCursor(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object' || !('cursor' in body)) {
-    return undefined
-  }
-
-  const cursor = (body as { cursor?: unknown }).cursor
-  if (cursor === undefined) {
-    return undefined
-  }
-
-  if (typeof cursor !== 'string') {
-    throw new AGUIError('Request body cursor must be a string when provided.')
-  }
-
-  return cursor
-}
-
 /**
  * Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
  *
@@ -67,7 +50,6 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
-  cursor?: string
   resume?: Array<RunAgentResumeItem>
   /**
    * @deprecated Use `aguiContext` instead. This alias will be removed in a
@@ -89,12 +71,6 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   }
 
   const parsed = parseResult.data
-  let cursor: string | undefined
-  try {
-    cursor = getRequestCursor(body)
-  } catch (cause) {
-    return Promise.reject(cause)
-  }
   const aguiContext = parsed.context
 
   // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
@@ -127,7 +103,6 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
-    cursor,
     resume: parsed.resume,
     context: aguiContext,
     aguiContext,

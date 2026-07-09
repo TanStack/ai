@@ -45,12 +45,6 @@ export interface GenerationRunIdentity {
   threadId?: string
   /** Stable run id for correlating generation events. */
   runId?: string
-  /**
-   * Opaque resume cursor supplied by the caller. Generation activities use this
-   * as the base for per-event cursors when no persistence middleware stamps
-   * cursors itself.
-   */
-  cursor?: string
 }
 
 export interface GenerationReplayInput<TResult = unknown> {
@@ -100,8 +94,6 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   threadId?: string
   /** Stable run id, when supplied by the caller. */
   runId?: string
-  /** Caller-supplied resume cursor, when supplied. */
-  cursor?: string
   /**
    * Provider-specific options passed to the activity, if any. Typed `unknown`
    * because each activity's options are strongly typed per model; a supertype

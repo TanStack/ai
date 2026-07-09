@@ -22,7 +22,6 @@ describe('chatParamsFromRequestBody', () => {
     tools: [],
     context: [],
     forwardedProps: { temperature: 0.7 },
-    cursor: 'cursor-1',
     resume: [
       {
         interruptId: 'interrupt-1',
@@ -45,8 +44,17 @@ describe('chatParamsFromRequestBody', () => {
     expect(result.forwardedProps).toEqual({ temperature: 0.7 })
     expect(result.aguiContext).toEqual([])
     expect(result.context).toBe(result.aguiContext)
-    expect(result.cursor).toBe('cursor-1')
+    // Delivery cursor is gone — request parsing never surfaces a `cursor`.
+    expect('cursor' in result).toBe(false)
     expect(result.resume).toEqual(validBody.resume)
+  })
+
+  it('ignores any `cursor` field on the body (delivery cursor removed)', async () => {
+    const result = await chatParamsFromRequestBody({
+      ...validBody,
+      cursor: 'cursor-1',
+    })
+    expect('cursor' in result).toBe(false)
   })
 
   it('preserves the `parts` field on messages (AG-UI strip mode tolerates extras in raw JSON)', async () => {

@@ -974,16 +974,6 @@ export interface TextOptions<
   parentRunId?: string
 
   /**
-   * Resume cursor for persistence-backed runs. When provided alongside `runId`,
-   * and a resume source has been provided by middleware (e.g. `withChatPersistence`),
-   * the engine replays persisted events after this cursor instead of running the
-   * adapter fresh. Opaque string; generated/consumed by `@tanstack/ai-persistence`.
-   * Ignored (a no-op) when no resume source is present — so a normal run is
-   * unaffected. See {@link StreamChunk.cursor}.
-   */
-  cursor?: string
-
-  /**
    * AG-UI interrupt resume responses supplied by the client on a follow-up run.
    * Threaded through request parsing now so later runtime behavior can resolve
    * upstream-native interrupts.
@@ -1650,16 +1640,8 @@ export type AGUIEvent =
 /**
  * Chunk returned by the SDK during streaming chat completions.
  * Uses the AG-UI protocol event format.
- *
- * `cursor` is an OPTIONAL, opaque per-event resume cursor. It is absent on a
- * normal (non-persisted) run and stamped by `withChatPersistence` when persistence
- * is active, so a reconnecting client can resume with the last cursor it saw.
- * It rides in-band so both the SSE and ndjson transports carry it unchanged.
  */
-export type StreamChunk = AGUIEvent & {
-  /** Opaque per-event resume cursor (present only on persisted runs). */
-  cursor?: string
-}
+export type StreamChunk = AGUIEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
