@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { UIMessage } from '@tanstack/ai-react'
 import {
   modelMessagesToUIMessages,
   toolDefinition,
@@ -195,8 +196,14 @@ function ToolsTestPage() {
 
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
+  // The fixture intentionally carries a `getWeather` tool call that isn't part
+  // of `clientTools`, so the generic message type can't be narrowed to the
+  // client-tool union — cast to the message type `useChat` infers from `tools`.
   const initialMessages = useMemo(
-    () => createHistoryFixtureMessages(historyFixture),
+    () =>
+      createHistoryFixtureMessages(historyFixture) as Array<
+        UIMessage<typeof clientTools>
+      >,
     [historyFixture],
   )
 

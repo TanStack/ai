@@ -6,6 +6,7 @@
     "dev": "vite dev --port 3010",
     "build": "vite build",
     "preview": "vite preview",
+    "test:types": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

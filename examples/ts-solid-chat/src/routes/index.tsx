@@ -310,8 +310,7 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: chatOptions.connection,
-      tools: clientTools,
+      ...chatOptions,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },

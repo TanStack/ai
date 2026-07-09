@@ -2148,6 +2148,9 @@ importers:
 
   packages/ai-sandbox-local-process:
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../ai-sandbox

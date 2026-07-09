@@ -28,7 +28,7 @@ import {
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ContentPart, TranscriptionResult } from '@tanstack/ai'
+import type { ContentPart } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -436,18 +436,14 @@ function ChatPage() {
   // Voice input: record from the mic, transcribe via /api/transcribe, then drop
   // the text into the composer for the user to review/edit/send. (Text chat
   // models don't accept raw audio; transcription is the path that works.)
-  // NOTE: the explicit type arg works around an inference bug in the generation
-  // hooks' `onResult` (same root cause as the recorder's `onComplete`, now
-  // fixed there) — without it, `r` is implicitly `any` and the call won't
-  // typecheck under strict mode.
+  // `onResult`'s `r` infers as `TranscriptionResult` from the hook (no explicit
+  // type arg needed — the generation hooks' result-type inference handles it).
   // Surface voice-input failures (permission denied, recorder error,
   // transcription error) to the user rather than only logging them — a silent
   // mic button is the worst outcome.
   const [recordError, setRecordError] = useState<string | null>(null)
 
-  const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
-    (r: TranscriptionResult) => void
-  >({
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
     // A failed transcription (network/provider) is just as silent as a mic

@@ -261,6 +261,17 @@ await generateVideo({
 })
 ```
 
+**URL inputs that require an upload throw by default.** Most adapters pass a
+`type: 'url'` source straight through to the provider. Three paths can't —
+OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —
+because the provider only accepts uploaded bytes (Veo also takes a `gs://`
+reference). For those, an HTTP(S) URL would have to be downloaded and buffered
+in memory, which can OOM constrained runtimes, so they **throw** on an HTTP(S)
+URL image input by default. Pass a `data:` URI (or `gs://` for Veo), or opt in
+with `allowUrlFetch: true` on the adapter config
+(`createOpenaiImage(model, apiKey, { allowUrlFetch: true })`, and likewise on
+`createOpenaiVideo` / `createGeminiVideo`). `data:` URIs never need the flag.
+
 **Role hints** (`metadata.role`):
 
 | Role            | Maps to                                                                                               |
@@ -357,7 +368,7 @@ const { generate, result, isLoading } = useGenerateSpeech({
 ### 4. Audio Transcription
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe).
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize).
 
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
@@ -382,15 +393,20 @@ const result = await generateTranscription({
   language: 'en',
   responseFormat: 'verbose_json',
   modelOptions: {
-    include: ['segment', 'word'],
+    timestamp_granularities: ['word', 'segment'],
   },
 })
 
 // result.text       -- full transcribed text
 // result.language   -- detected/specified language
 // result.duration   -- audio duration in seconds
-// result.segments   -- timestamped segments with optional word-level timestamps
+// result.segments   -- timestamped segments (word-level timestamps are in result.words)
 ```
+
+For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
+When no response format is given it defaults the request to `response_format: 'diarized_json'`
+and `chunking_strategy: 'auto'` (a top-level `responseFormat` of `'json'`/`'text'` opts out of
+speaker segments); do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
 
 Client hook:
 

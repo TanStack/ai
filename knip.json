@@ -15,7 +15,6 @@
     "packages/ai-openai/live-tests/**",
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",
-    "packages/ai-openai/src/audio/transcribe-provider-options.ts",
     "packages/ai-openai/src/image/image-provider-options.ts",
     "packages/ai-devtools/src/production.ts",
     "codemods/**/__testfixtures__/**"

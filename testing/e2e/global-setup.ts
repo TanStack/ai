@@ -43,6 +43,18 @@ export default async function globalSetup() {
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
 
+  // Gemini TTS hits the standard Gemini generateContent endpoint
+  // (POST /v1beta/models/{model}:generateContent) with
+  // responseModalities: ['AUDIO']. aimock's native Gemini audio helper derives
+  // the mime type from the fixture's `format`/`contentType`, so it can't emit
+  // the raw `audio/L16;codec=pcm;rate=24000` PCM that real Gemini TTS returns.
+  // Mount the TTS model's generateContent path directly so we can hand back
+  // PCM and exercise the adapter's PCM→WAV normalization. The path is specific
+  // to the TTS model, so it doesn't intercept Gemini chat/summarize requests.
+  mock.mount(
+    '/v1beta/models/gemini-3.1-flash-tts-preview:generateContent',
+    geminiTTSMount(),
+  )
   // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
   // (Imagen) endpoint but not the long-running `:predictLongRunning` +
   // operations-polling pair Veo uses, so mount both here. Non-Veo paths
@@ -137,6 +149,14 @@ const FAKE_MP3_BYTES = Buffer.from([
   0xff, 0xfb, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ])
 
+/**
+ * Raw 16-bit little-endian PCM bytes. Gemini TTS returns audio as
+ * `audio/L16;codec=pcm;rate=24000` inlineData, which the adapter wraps in a
+ * RIFF/WAV header before handing it to the browser. The samples are arbitrary
+ * silence — the spec only asserts the `<audio>` element becomes visible.
+ */
+const FAKE_PCM_BYTES = Buffer.alloc(32)
+
 function grokTTSMount(): Mountable {
   return {
     async handleRequest(
@@ -152,6 +172,52 @@ function grokTTSMount(): Mountable {
       res.setHeader('Content-Type', 'audio/mpeg')
       res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
       res.end(FAKE_MP3_BYTES)
+      return true
+    },
+  }
+}
+
+function geminiTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      // Mirror the Gemini generateContent audio response shape: audio lands as
+      // a single `candidates[0].content.parts[0].inlineData` entry. The PCM
+      // mime type forces the adapter down its PCM→WAV wrapping path.
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'audio/L16;codec=pcm;rate=24000',
+                      data: FAKE_PCM_BYTES.toString('base64'),
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 15,
+            totalTokenCount: 20,
+          },
+        }),
+      )
       return true
     },
   }

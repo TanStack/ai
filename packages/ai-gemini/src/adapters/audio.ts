@@ -11,7 +11,7 @@ import type {
   AudioGenerationResult,
 } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Provider options for Gemini Lyria music generation.

@@ -5,7 +5,7 @@ title: TTSResult
 
 # Interface: TTSResult
 
-Defined in: [packages/ai/src/types.ts:1908](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1908)
+Defined in: [packages/ai/src/types.ts:2007](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2007)
 
 Result of text-to-speech generation.
 
@@ -17,7 +17,7 @@ Result of text-to-speech generation.
 audio: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1914](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1914)
+Defined in: [packages/ai/src/types.ts:2013](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2013)
 
 Base64-encoded audio data
 
@@ -29,7 +29,7 @@ Base64-encoded audio data
 optional contentType: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1920](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1920)
+Defined in: [packages/ai/src/types.ts:2019](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2019)
 
 Content type of the audio (e.g., 'audio/mp3')
 
@@ -41,7 +41,7 @@ Content type of the audio (e.g., 'audio/mp3')
 optional duration: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1918](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1918)
+Defined in: [packages/ai/src/types.ts:2017](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2017)
 
 Duration of the audio in seconds, if available
 
@@ -53,7 +53,7 @@ Duration of the audio in seconds, if available
 format: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1916](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1916)
+Defined in: [packages/ai/src/types.ts:2015](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2015)
 
 Audio format of the generated audio
 
@@ -65,7 +65,7 @@ Audio format of the generated audio
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1910](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1910)
+Defined in: [packages/ai/src/types.ts:2009](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2009)
 
 Unique identifier for the generation
 
@@ -77,7 +77,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1912](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1912)
+Defined in: [packages/ai/src/types.ts:2011](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2011)
 
 Model used for generation
 
@@ -89,6 +89,6 @@ Model used for generation
 optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1922](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1922)
+Defined in: [packages/ai/src/types.ts:2021](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2021)
 
 Token usage information (if provided by the adapter)

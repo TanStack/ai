@@ -6,6 +6,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai/client'
+import type { UsageInfo } from '@tanstack/ai'
 
 // The realtime adapter contract lives in `@tanstack/ai` (the shared layer both
 // providers and this client depend on) so provider packages don't need to
@@ -82,6 +83,11 @@ export interface RealtimeClientOptions {
    */
   semanticEagerness?: 'low' | 'medium' | 'high'
 
+  /**
+   * Provider-specific options
+   */
+  providerOptions?: Record<string, unknown>
+
   // Callbacks
   onStatusChange?: (status: RealtimeStatus) => void
   onModeChange?: (mode: RealtimeMode) => void
@@ -90,6 +96,8 @@ export interface RealtimeClientOptions {
   onConnect?: () => void
   onDisconnect?: () => void
   onInterrupted?: () => void
+  onUsage?: (usage: UsageInfo) => void
+  onGoAway?: (timeLeft?: string) => void
 }
 
 // ============================================================================

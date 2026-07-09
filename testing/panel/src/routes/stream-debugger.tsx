@@ -10,7 +10,11 @@ import {
   SkipForward,
   Upload,
 } from 'lucide-react'
-import { StreamProcessor, uiMessageToModelMessages } from '@tanstack/ai'
+import {
+  EventType,
+  StreamProcessor,
+  uiMessageToModelMessages,
+} from '@tanstack/ai'
 
 import type {
   ChunkRecording,
@@ -189,13 +193,10 @@ function TestPanel() {
           })
           .then((traceData) => {
             const chunkRecording: ChunkRecording = {
-              id: traceData.id,
+              version: '1.0',
               timestamp: traceData.timestamp,
-              metadata: {
-                provider: traceData.provider,
-                model: traceData.model,
-                messages: traceData.messages,
-              },
+              model: traceData.model,
+              provider: traceData.provider,
               chunks: traceData.chunks,
             }
             loadRecording(chunkRecording)
@@ -224,17 +225,15 @@ function TestPanel() {
     const nextIndex = currentChunkIndex + 1
     if (nextIndex >= recording.chunks.length) return
 
-    if (!processorRef.current) {
-      createProcessor()
-    }
+    const processor = processorRef.current ?? createProcessor()
 
     const chunk = recording.chunks[nextIndex]?.chunk
     if (chunk) {
-      processorRef.current?.processChunk(chunk)
+      processor.processChunk(chunk)
       setCurrentChunkIndex(nextIndex)
 
       // Update result with current processor state
-      const state = processorRef.current.getState()
+      const state = processor.getState()
 
       // Convert toolCalls Map to array
       const toolCallsArray = Array.from(state.toolCalls.values()).map((tc) => ({
@@ -409,13 +408,10 @@ ${JSON.stringify(report.processorState, null, 2)}
         .then((traceData) => {
           // Convert trace data to ChunkRecording format
           const chunkRecording: ChunkRecording = {
-            id: traceData.id,
+            version: '1.0',
             timestamp: traceData.timestamp,
-            metadata: {
-              provider: traceData.provider,
-              model: traceData.model,
-              messages: traceData.messages,
-            },
+            model: traceData.model,
+            provider: traceData.provider,
             chunks: traceData.chunks,
           }
           setRecording(chunkRecording)
@@ -640,30 +636,33 @@ function ChunkItem({
   isProcessed: boolean
 }) {
   const typeColors: Record<string, string> = {
-    content: 'text-green-400',
-    tool_call: 'text-blue-400',
-    tool_result: 'text-purple-400',
-    done: 'text-yellow-400',
-    error: 'text-red-400',
-    thinking: 'text-cyan-400',
-    'approval-requested': 'text-orange-400',
-    'tool-input-available': 'text-pink-400',
+    [EventType.TEXT_MESSAGE_CONTENT]: 'text-green-400',
+    [EventType.TOOL_CALL_START]: 'text-blue-400',
+    [EventType.TOOL_CALL_ARGS]: 'text-blue-400',
+    [EventType.TOOL_CALL_END]: 'text-blue-400',
+    [EventType.TOOL_CALL_RESULT]: 'text-purple-400',
+    [EventType.RUN_FINISHED]: 'text-yellow-400',
+    [EventType.RUN_ERROR]: 'text-red-400',
+    [EventType.REASONING_MESSAGE_CONTENT]: 'text-cyan-400',
+    [EventType.CUSTOM]: 'text-orange-400',
   }
 
   const getSummary = (chunk: StreamChunk): string => {
     switch (chunk.type) {
-      case 'content':
+      case EventType.TEXT_MESSAGE_CONTENT:
         return `δ="${chunk.delta?.slice(0, 30) ?? ''}${(chunk.delta?.length ?? 0) > 30 ? '...' : ''}"`
-      case 'tool_call':
-        return `${chunk.toolCall.function.name}[${chunk.index}]`
-      case 'tool_result':
+      case EventType.TOOL_CALL_START:
+        return `${chunk.toolCallName}[${chunk.index ?? 0}]`
+      case EventType.TOOL_CALL_ARGS:
+        return `δ="${chunk.delta?.slice(0, 30) ?? ''}..."`
+      case EventType.TOOL_CALL_RESULT:
         return `${chunk.toolCallId}`
-      case 'done':
-        return `${chunk.finishReason}`
-      case 'thinking':
+      case EventType.RUN_FINISHED:
+        return `${chunk.finishReason ?? ''}`
+      case EventType.REASONING_MESSAGE_CONTENT:
         return `δ="${chunk.delta?.slice(0, 20) ?? ''}..."`
-      case 'error':
-        return chunk.error.message.slice(0, 30)
+      case EventType.RUN_ERROR:
+        return chunk.message?.slice(0, 30) ?? ''
       default:
         return ''
     }

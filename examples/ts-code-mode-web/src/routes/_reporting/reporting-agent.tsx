@@ -26,6 +26,7 @@ import {
   usePersistedReports,
 } from '@/components/reports'
 import type { Report, UIEvent } from '@/lib/reports/types'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_reporting/reporting-agent')({
   component: ReportingAgentPage,
@@ -251,7 +252,7 @@ function Messages({
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
