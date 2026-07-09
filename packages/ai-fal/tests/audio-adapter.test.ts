@@ -366,6 +366,7 @@ describe('Fal Audio Adapter', () => {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
+      billed: { quantity: 2.5, unit: 'units' },
       unitsBilled: 2.5,
     })
   })

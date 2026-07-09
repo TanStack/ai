@@ -304,12 +304,12 @@ export default function ImageGenerator({
                           className="w-full h-auto"
                         />
                       </div>
-                      {modelResult.result.usage?.unitsBilled != null && (
+                      {modelResult.result.usage?.billed && (
                         <p className="text-xs text-gray-500">
-                          Billed {modelResult.result.usage.unitsBilled} fal unit
-                          {modelResult.result.usage.unitsBilled === 1
-                            ? ''
-                            : 's'}{' '}
+                          Billed {modelResult.result.usage.billed.quantity}{' '}
+                          {modelResult.result.usage.billed.unit === 'units'
+                            ? `fal unit${modelResult.result.usage.billed.quantity === 1 ? '' : 's'}`
+                            : modelResult.result.usage.billed.unit}{' '}
                           — multiply by the endpoint unit price for USD cost
                         </p>
                       )}

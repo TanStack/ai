@@ -488,7 +488,7 @@ durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
 (`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
 image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
 aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
-`usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
+`usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
 
 Client hook with job tracking:
 
@@ -510,10 +510,11 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
 
 fal bills media generation by usage-based units, not tokens. Every fal media
 adapter (`falImage`, `falAudio`, `falSpeech`, `falTranscription`, `falVideo`)
-surfaces the real billed quantity on the result as `usage.unitsBilled`, read
-from fal's `x-fal-billable-units` response header — no `fetch` interceptor
-needed. It rides on the canonical `TokenUsage` shape (token fields are `0` for
-media), mirroring how duration-billed transcription surfaces `durationSeconds`.
+surfaces the real billed quantity on the result as `usage.billed`
+({ quantity, unit: 'units' }), read from fal's `x-fal-billable-units` response
+header — no `fetch` interceptor needed. It rides on the canonical `TokenUsage`
+shape (token fields are `0` for media), mirroring how duration-billed
+transcription reports { quantity, unit: 'seconds' }.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -524,10 +525,10 @@ const result = await generateImage({
   prompt: 'a serene mountain lake',
 })
 
-// usage.unitsBilled is the priced quantity. Multiply by the endpoint unit
+// usage.billed.quantity is the priced quantity. Multiply by the endpoint unit
 // price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
-if (result.usage?.unitsBilled != null) {
-  const cost = result.usage.unitsBilled * unitPrice
+if (result.usage?.billed) {
+  const cost = result.usage.billed.quantity * unitPrice
 }
 ```
 

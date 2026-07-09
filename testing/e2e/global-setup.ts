@@ -101,10 +101,14 @@ export default async function globalSetup() {
 }
 
 function registerMediaFixtures(mock: LLMock) {
-  // Transcription: onTranscription sets match.endpoint = "transcription"
+  // Transcription: onTranscription sets match.endpoint = "transcription".
+  // `duration` is only served on verbose_json responses (whisper-1's default
+  // mode) — the otel middleware spec asserts it surfaces as the
+  // self-describing `billed` usage on the transcription span.
   mock.onTranscription({
     transcription: {
       text: 'I would like to buy a Fender Stratocaster please',
+      duration: 2.4,
     },
   })
 

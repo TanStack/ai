@@ -186,6 +186,36 @@ export interface UsageCostBreakdown {
 }
 
 /**
+ * Unit a billed quantity is counted in. The named members cover the units
+ * TanStack AI adapters bill in today; the `(string & {})` member keeps the
+ * union open for genuinely provider-specific units while preserving
+ * autocompletion for the common ones.
+ */
+export type BillingUnit =
+  | 'tokens'
+  | 'seconds'
+  | 'characters'
+  | 'images'
+  | 'videos'
+  | 'megapixels'
+  | 'requests'
+  | 'units'
+  | (string & {})
+
+/**
+ * A billed quantity paired with the unit it is counted in, so consumers can
+ * label and aggregate usage without out-of-band knowledge of the provider or
+ * activity. `unit: 'units'` marks an opaque provider-defined unit (e.g. fal's
+ * "fal units") whose price is only knowable from the provider's pricing page.
+ */
+export interface BilledUsage {
+  /** Number of units billed. */
+  quantity: number
+  /** The unit `quantity` is counted in. */
+  unit: BillingUnit
+}
+
+/**
  * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
  * does not supply a specific shape. Values are constrained to non-nullish
  * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
@@ -221,18 +251,27 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   promptTokensDetails?: PromptTokensDetails
   /** Detailed breakdown of completion tokens by category */
   completionTokensDetails?: CompletionTokensDetails
-  /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
+  /**
+   * The primary non-token billed quantity, self-describing via its unit —
+   * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
+   * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
+   * when the activity bills purely in tokens (the token fields above are
+   * already self-describing). When a provider bills tokens *on top of* a media
+   * unit, the tokens stay in the token fields and `billed` carries the media
+   * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
+   */
+  billed?: BilledUsage
+  /**
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * duration with an explicit `unit: 'seconds'`. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
+   */
   durationSeconds?: number
   /**
-   * Number of priced units actually billed, for usage-based (non-token) billing.
-   * This is a bare count, not a cost and not a unit name — the unit itself
-   * (megapixels, seconds, images, …) is provider-defined and not carried here;
-   * providers typically expose it via a separate pricing API. Surfaced for media
-   * generation, where there are no tokens: fal returns this count in its
-   * `x-fal-billable-units` response header. Multiply by the unit price to get the
-   * exact cost (`unitsBilled * unitPrice`). The unit-priced analogue of
-   * `durationSeconds` (the time-priced case); both are quantities, distinct from
-   * the monetary `cost` / `costDetails`.
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * count with the unit it is denominated in (`seconds`, `units`, …) — this
+   * bare count is ambiguous across providers. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
    */
   unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */

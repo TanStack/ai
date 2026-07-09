@@ -292,7 +292,7 @@ const { jobId } = await generateVideo({
 
 Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` option takes an `aspectRatio_resolution` template. Supported aspect ratios are `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`; supported resolutions are `480p`, `720p`, and `1080p` (e.g. `"9:16_1080p"`). The resolution suffix is optional.
 
-When the job completes, the adapter reports usage on the result: `usage.unitsBilled` carries the billed seconds of video and `usage.cost` the exact cost in USD, both as returned by the xAI API.
+When the job completes, the adapter reports usage on the result: `usage.billed` carries the billed seconds of video (`{ quantity, unit: 'seconds' }`) and `usage.cost` the exact cost in USD, both as returned by the xAI API.
 
 See [Video Generation](../media/video-generation) for the full jobs/polling flow, streaming mode, and the `useGenerateVideo` hook.
 

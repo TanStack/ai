@@ -418,7 +418,7 @@ interface ImageGenerationResult {
   // Canonical TokenUsage (same shape as chat). Token-billed models also surface
   // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
   // tokens for gpt-image-1). Usage-billed providers (fal) instead surface
-  // `usage.unitsBilled` — see the note below.
+  // `usage.billed` ({ quantity, unit }) — see the note below.
   usage?: TokenUsage
 }
 
@@ -430,9 +430,9 @@ interface GeneratedImage {
 ```
 
 > **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
-> fal image adapter surfaces the real billed quantity as `usage.unitsBilled`
-> (read from fal's `x-fal-billable-units` result header). Multiply it by the
-> endpoint's unit price from
+> fal image adapter surfaces the real billed quantity as `usage.billed` —
+> `{ quantity, unit: 'units' }`, read from fal's `x-fal-billable-units` result
+> header. Multiply the quantity by the endpoint's unit price from
 > `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` for the exact cost —
 > no `fetch` interceptor needed.
 
@@ -446,9 +446,10 @@ const result = await generateImage({
   prompt: 'a serene mountain lake',
 })
 
-if (result.usage?.unitsBilled != null) {
-  const cost = result.usage.unitsBilled * unitPrice // unitPrice from fal pricing API
-  console.log(`Billed ${result.usage.unitsBilled} units (~$${cost})`)
+if (result.usage?.billed) {
+  const { quantity, unit } = result.usage.billed
+  const cost = quantity * unitPrice // unitPrice from fal pricing API
+  console.log(`Billed ${quantity} ${unit} (~$${cost})`)
 }
 ```
 

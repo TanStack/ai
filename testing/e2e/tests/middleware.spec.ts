@@ -335,6 +335,43 @@ test.describe('Middleware Lifecycle', () => {
     })
   })
 
+  test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-transcription` drives whisper-1 (duration-billed) against the
+    // transcription aimock fixture, whose response reports `duration: 2.4`.
+    // The adapter surfaces that as `usage.billed = { quantity, unit }`, and the
+    // middleware must emit it as the paired billed_quantity/billed_unit
+    // attributes — the machine-readable unit that #816 adds.
+    const res = await request.post('/api/otel-transcription', {
+      data: {
+        audio: 'data:audio/mpeg;base64,SGVsbG8=',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'transcription',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.request.model': 'whisper-1',
+      'tanstack.ai.usage.billed_quantity': 2.4,
+      'tanstack.ai.usage.billed_unit': 'seconds',
+      // Deprecated bare count still emitted for backward compatibility.
+      'tanstack.ai.usage.duration_seconds': 2.4,
+    })
+  })
+
   test('no middleware passes content through unchanged', async ({
     page,
     testId,

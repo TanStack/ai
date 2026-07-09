@@ -130,9 +130,10 @@ interface AudioGenerationResult {
   }
   // Canonical TokenUsage (same shape as chat), present when the provider
   // reports it (e.g. Gemini Lyria via generateContent). Usage-billed providers
-  // (fal) instead surface `usage.unitsBilled` — the real billed quantity read
-  // from fal's `x-fal-billable-units` result header. Multiply by the endpoint's
-  // unit price (fal pricing API) for the exact cost.
+  // (fal) instead surface `usage.billed` ({ quantity, unit: 'units' }) — the
+  // real billed quantity read from fal's `x-fal-billable-units` result header.
+  // Multiply the quantity by the endpoint's unit price (fal pricing API) for
+  // the exact cost.
   usage?: TokenUsage
 }
 ```

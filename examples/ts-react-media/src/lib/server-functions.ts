@@ -252,8 +252,8 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'grok-imagine-video': {
         // Direct xAI Imagine API (XAI_API_KEY) — no fal in between. The base
         // grok-imagine-video (v1.0) supports text-to-video; durations are
-        // 1-15 integer seconds. Completed jobs report usage.unitsBilled
-        // (billed seconds) and usage.cost (exact USD).
+        // 1-15 integer seconds. Completed jobs report usage.billed
+        // ({ quantity, unit: 'seconds' }) and usage.cost (exact USD).
         return generateVideo({
           adapter: grokVideo('grok-imagine-video'),
           prompt: asTextPrompt(data.prompt),

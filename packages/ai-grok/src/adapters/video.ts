@@ -81,7 +81,10 @@ function buildGrokVideoUsage(
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
-    ...(seconds !== undefined && { unitsBilled: seconds }),
+    ...(seconds !== undefined && {
+      billed: { quantity: seconds, unit: 'seconds' },
+      unitsBilled: seconds,
+    }),
     ...(ticks !== undefined && { cost: ticks / USD_TICKS_PER_DOLLAR }),
   }
 }
@@ -109,7 +112,7 @@ function buildGrokVideoUsage(
  * - Aspect-ratio sizing via the "aspectRatio_resolution" size template
  *   (e.g. '16:9_720p'), consistent with the grok-imagine image models
  * - Image-to-video via an `image` prompt part (starting frame URL or data URI)
- * - Usage reporting: billed seconds (`unitsBilled`) and exact cost
+ * - Usage reporting: billed seconds (`usage.billed`) and exact cost
  */
 export class GrokVideoAdapter<
   TModel extends GrokVideoModel,
