@@ -20,12 +20,36 @@ for (const part of message.parts) {
 }
 ```
 
-**Breaking (types only):** when you pass typed `tools`, reading `part.approval`
-on a mixed tool-call union without first narrowing by `part.name` no longer
-compiles — narrow to a `needsApproval: true` tool first. Untyped `useChat()`
-(no `tools` generic) and the base `ToolCallPart` type are unaffected: `approval`
-stays available on every tool-call part there. Runtime behavior is unchanged.
+## ⚠️ Breaking change (types only)
+
+**This is the primary migration surface for this release.** When you pass a typed
+`tools` array to `useChat` / `createChat` / `injectChat`, reading `part.approval`
+on a mixed tool-call union **without first narrowing by `part.name`** no longer
+compiles. Code that previously did `part.approval?.id` in a generic handler over
+all tool-call parts must be updated:
+
+```ts
+// ❌ No longer compiles on a typed mixed union
+part.approval?.id
+
+// ✅ Narrow to an approval-required tool first
+if (part.name === 'deleteAccount') part.approval?.id
+
+// ✅ Or guard with `in`
+if ('approval' in part) part.approval?.id
+
+// ✅ Or type the handler against the base (untyped) ToolCallPart
+function handleApproval(part: ToolCallPart) {
+  return part.approval?.id
+}
+```
+
+Untyped `useChat()` (no inferred `tools` generic) and the base `ToolCallPart`
+type are unaffected: `approval` stays available on every tool-call part there.
+**Runtime behavior is unchanged** — only TypeScript narrowing is stricter.
 
 Adds a `TNeedsApproval extends boolean` type parameter (defaulting to `false`)
 to the client tool types; existing explicit type arguments keep working via the
-default.
+default. Literal capture requires `toolDefinition({ needsApproval: true })` at
+the call site — a dynamic `needsApproval: boolean` variable will not gate the
+type.

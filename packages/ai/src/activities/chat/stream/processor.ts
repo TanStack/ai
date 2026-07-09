@@ -1298,7 +1298,12 @@ export class StreamProcessor {
       // received, back-fill the arguments string so the UIMessage ToolCallPart
       // carries the correct value (defensive against adapters that skip ARGS).
       if (chunk.input !== undefined && !existingToolCall.arguments) {
-        existingToolCall.arguments = JSON.stringify(chunk.input)
+        try {
+          existingToolCall.arguments = JSON.stringify(chunk.input)
+        } catch {
+          // circular refs, BigInt, etc. — leave arguments empty rather than
+          // aborting stream processing
+        }
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
