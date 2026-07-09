@@ -1,4 +1,5 @@
 import { defineChatMiddleware } from '@tanstack/ai'
+import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   EventsCapability,
   InterruptsCapability,
@@ -332,13 +333,6 @@ function mediaActivity(
     : undefined
 }
 
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 function parseDataUrl(
   value: string,
 ): { mimeType: string; bytes: Uint8Array } | undefined {
@@ -348,7 +342,9 @@ function parseDataUrl(
   const payload = decodeURIComponent(match[3] ?? '')
   return {
     mimeType,
-    bytes: match[2] ? decodeBase64(payload) : new TextEncoder().encode(payload),
+    bytes: match[2]
+      ? base64ToUint8Array(payload)
+      : new TextEncoder().encode(payload),
   }
 }
 
@@ -410,7 +406,7 @@ function sourcePartDescriptors(
         path,
         mediaType: type,
         mimeType,
-        bytes: decodeBase64(value),
+        bytes: base64ToUint8Array(value),
       },
     ]
   }
@@ -460,7 +456,7 @@ function generatedMediaDescriptor(args: {
       path: args.path,
       mediaType: args.mediaType,
       mimeType: stringField(media, 'contentType') ?? args.mimeType,
-      bytes: decodeBase64(b64Json),
+      bytes: base64ToUint8Array(b64Json),
       jobId: args.jobId,
       expiresAt: args.expiresAt,
     }
@@ -524,7 +520,7 @@ function builtInArtifactDescriptors(
         mimeType:
           stringField(output, 'contentType') ??
           (format ? `audio/${format}` : 'audio/mpeg'),
-        bytes: decodeBase64(audio),
+        bytes: base64ToUint8Array(audio),
       })
     }
   }
@@ -551,7 +547,7 @@ function builtInArtifactDescriptors(
         path: 'audio',
         mediaType: 'audio',
         mimeType: data?.mimeType ?? 'audio/mpeg',
-        bytes: data?.bytes ?? decodeBase64(audio),
+        bytes: data?.bytes ?? base64ToUint8Array(audio),
       })
     } else if (audio instanceof ArrayBuffer) {
       descriptors.push({

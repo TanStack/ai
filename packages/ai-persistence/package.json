@@ -44,6 +44,9 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:*"
+  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
   },
