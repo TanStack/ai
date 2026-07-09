@@ -151,6 +151,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       provider: Provider
       aimockPort?: number
       testId?: string
+      feature?: Feature
     }) => {
       const isEmpty =
         typeof data.prompt === 'string'
@@ -167,6 +168,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      data.feature,
     )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({

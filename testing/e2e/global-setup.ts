@@ -62,6 +62,15 @@ export default async function globalSetup() {
   // aimock's native Gemini handlers.
   mock.mount('/v1beta/models', geminiVeoMount())
 
+  // Gemini Omni Flash video generation (Interactions API). aimock handles
+  // synchronous text interactions natively, but not background video jobs
+  // (POST /v1beta/interactions with background:true → poll
+  // GET /v1beta/interactions/{id} → inline base64 mp4). The adapter under
+  // test points its baseUrl at this dedicated prefix so aimock's native
+  // interactions handling stays untouched for the stateful-interactions
+  // text tests.
+  mock.mount('/omni-video', geminiOmniVideoMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -406,6 +415,89 @@ function geminiVeoMount(): Mountable {
       }
 
       // Not a Veo path — fall through to aimock's native Gemini handlers.
+      return false
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Omni Flash's Interactions-API video generation flow under a
+ * dedicated `/omni-video` prefix (the adapter under test sets its baseUrl to
+ * it, so requests land on `/omni-video/v1beta/interactions`):
+ *
+ * - `POST /v1beta/interactions` — creates the background job and returns an
+ *   `in_progress` interaction with an id.
+ * - `GET /v1beta/interactions/{id}` — polls the job. The mock completes
+ *   immediately with the raw wire shape: a `model_output` step carrying an
+ *   inline base64 `video` content block plus `output_tokens_by_modality`
+ *   usage, which the adapter maps to a `data:video/mp4;base64,…` URL.
+ */
+function geminiOmniVideoMount(): Mountable {
+  const JOB_ID = 'v1_omni-video-e2e'
+  // Minimal MP4-ish base64 payload — the spec only asserts the <video>
+  // element renders with the data: URL the adapter builds from it.
+  const VIDEO_BASE64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28y'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/omni-video') and any query
+      // string, so pathname looks like '/v1beta/interactions' or
+      // '/v1beta/interactions/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === '/v1beta/interactions' && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: JOB_ID,
+            object: 'interaction',
+            status: 'in_progress',
+            model: 'gemini-omni-flash-preview',
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/v1beta\/interactions\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: pollMatch[1],
+            object: 'interaction',
+            status: 'completed',
+            model: 'gemini-omni-flash-preview',
+            usage: {
+              total_input_tokens: 12,
+              total_output_tokens: 57920,
+              total_tokens: 57932,
+              output_tokens_by_modality: [{ modality: 'video', tokens: 57920 }],
+            },
+            steps: [
+              {
+                type: 'user_input',
+                content: [{ type: 'text', text: 'a guitar being played' }],
+              },
+              {
+                type: 'model_output',
+                content: [
+                  {
+                    type: 'video',
+                    mime_type: 'video/mp4',
+                    data: VIDEO_BASE64,
+                  },
+                ],
+              },
+            ],
+          }),
+        )
+        return true
+      }
+
       return false
     },
   }

@@ -6,13 +6,18 @@ import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
-import { getGeminiVideoDurationOptions } from '../video/video-provider-options'
+import {
+  getGeminiVideoDurationOptions,
+  isInteractionsVideoModel,
+} from '../video/video-provider-options'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   ImagePart,
   MediaInputMetadata,
+  TokenUsage,
   VideoGenerationOptions,
   VideoJobResult,
+  VideoPart,
   VideoStatusResult,
   VideoUrlResult,
 } from '@tanstack/ai'
@@ -20,9 +25,11 @@ import type {
   GenerateVideosConfig,
   GoogleGenAI,
   Image,
+  Interactions,
   VideoGenerationReferenceImage,
 } from '@google/genai'
 import type {
+  GeminiOmniVideoProviderOptions,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
   GeminiVideoModelInputModalitiesByName,
@@ -32,6 +39,9 @@ import type {
   GeminiVideoSize,
 } from '../video/video-provider-options'
 import type { GeminiClientConfig } from '../utils/client'
+
+type Interaction = Interactions.Interaction
+type InteractionContent = Interactions.Content
 
 /**
  * Configuration for Gemini video adapter.
@@ -126,23 +136,107 @@ async function imagePartToVeoImage(
 }
 
 /**
- * Gemini Veo Video Generation Adapter
+ * Convert an image or video prompt part into an Interactions API content
+ * block. Data sources become inline base64 `data`; URL sources pass through
+ * as `uri` (Files API URIs — mirrors the Interactions text adapter).
+ */
+function mediaPartToInteractionsContent(
+  part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
+): InteractionContent {
+  const mimeType = part.source.mimeType
+  if (part.type === 'image') {
+    return part.source.type === 'data'
+      ? { type: 'image', data: part.source.value, mime_type: mimeType }
+      : { type: 'image', uri: part.source.value, mime_type: mimeType }
+  }
+  return part.source.type === 'data'
+    ? { type: 'video', data: part.source.value, mime_type: mimeType }
+    : { type: 'video', uri: part.source.value, mime_type: mimeType }
+}
+
+/**
+ * Pull the generated video out of a completed interaction. Prefers the
+ * SDK's `output_video` sugar, then walks `steps` back-to-front for the last
+ * `model_output` step carrying a video content block (the wire shape the
+ * raw REST response uses).
+ */
+function extractInteractionVideo(
+  interaction: Interaction,
+): { data?: string; uri?: string; mimeType: string } | undefined {
+  const direct = interaction.output_video
+  if (direct && (direct.data || direct.uri)) {
+    return {
+      data: direct.data,
+      uri: direct.uri,
+      mimeType: direct.mime_type || 'video/mp4',
+    }
+  }
+  const steps = interaction.steps ?? []
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i]
+    if (step?.type !== 'model_output') continue
+    for (const block of step.content ?? []) {
+      if (block.type === 'video' && (block.data || block.uri)) {
+        return {
+          data: block.data,
+          uri: block.uri,
+          mimeType: block.mime_type || 'video/mp4',
+        }
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * Map Interactions usage onto the canonical TokenUsage shape. Omni reports
+ * video output via `output_tokens_by_modality`; fall back to the video
+ * modality entry when the total is absent.
+ */
+function interactionUsageToTokenUsage(
+  usage: Interaction['usage'],
+): TokenUsage | undefined {
+  if (!usage) return undefined
+  const videoTokens = usage.output_tokens_by_modality?.find(
+    (entry) => entry.modality === 'video',
+  )?.tokens
+  const promptTokens = usage.total_input_tokens ?? 0
+  const completionTokens = usage.total_output_tokens ?? videoTokens ?? 0
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: usage.total_tokens ?? promptTokens + completionTokens,
+  }
+}
+
+/**
+ * Gemini Video Generation Adapter (Veo + Gemini Omni Flash)
  *
- * Tree-shakeable adapter for Google Veo video generation. Veo runs as a
- * long-running operation: `createVideoJob` starts the operation via the
- * `:predictLongRunning` endpoint, `getVideoStatus` polls it, and
- * `getVideoUrl` extracts the generated video's URI once it completes.
+ * Tree-shakeable adapter for Google video generation, routing by model:
  *
- * Image prompt parts are routed by `metadata.role`:
+ * **Veo models** run as a long-running operation: `createVideoJob` starts
+ * the operation via the `:predictLongRunning` endpoint, `getVideoStatus`
+ * polls it, and `getVideoUrl` extracts the generated video's URI once it
+ * completes. Image prompt parts are routed by `metadata.role`:
  * - `'start_frame'` (or the first un-roled image) → the input image the
  *   video starts from
  * - `'end_frame'` → `lastFrame` (the frame the video ends on)
  * - `'reference'` / `'character'` → `referenceImages` (asset references,
  *   Veo 3.1)
  *
- * Note: the returned video URI is served by the Gemini Files API and
+ * Note: the returned Veo video URI is served by the Gemini Files API and
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
+ *
+ * **Gemini Omni Flash** (`gemini-omni-flash-preview`) only serves the
+ * Interactions API: `createVideoJob` creates a background interaction with
+ * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
+ * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
+ * Files API URI when the server delivers by reference). Image and video
+ * prompt parts are sent as interaction content blocks, grouped as images,
+ * then videos, then the text prompt (interleaving is not preserved); pass
+ * `modelOptions.previous_interaction_id` to conversationally edit a prior
+ * Omni generation.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -150,7 +244,7 @@ export class GeminiVideoAdapter<
   TModel extends GeminiVideoModel,
 > extends BaseVideoAdapter<
   TModel,
-  GeminiVideoProviderOptions,
+  GeminiVideoModelProviderOptionsByName[TModel],
   GeminiVideoModelProviderOptionsByName,
   GeminiVideoModelSizeByName,
   GeminiVideoModelInputModalitiesByName,
@@ -169,17 +263,24 @@ export class GeminiVideoAdapter<
 
   async createVideoJob(
     options: VideoGenerationOptions<
-      GeminiVideoProviderOptions,
+      GeminiVideoModelProviderOptionsByName[TModel],
       GeminiVideoSize,
       GeminiVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
-    const { prompt, size, duration, modelOptions, logger } = options
+    const { prompt, size, duration, logger } = options
 
     logger.request(
       `activity=video.create provider=${this.name} model=${this.model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
       { provider: this.name, model: this.model },
     )
+
+    if (isInteractionsVideoModel(this.model)) {
+      return await this.createInteractionsVideoJob(options)
+    }
+    const modelOptions = options.modelOptions as
+      | GeminiVideoProviderOptions
+      | undefined
 
     try {
       const resolved = resolveMediaPrompt(prompt)
@@ -221,6 +322,99 @@ export class GeminiVideoAdapter<
       }
 
       return { jobId: operation.name, model: this.model }
+    } catch (error) {
+      logger.errors(`${this.name}.createVideoJob fatal`, {
+        error,
+        source: `${this.name}.createVideoJob`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Gemini Omni Flash job creation via the Interactions API. Creates a
+   * background interaction requesting video output; the interaction id is
+   * the job id polled by `getVideoStatus` / `getVideoUrl`.
+   */
+  private async createInteractionsVideoJob(
+    options: VideoGenerationOptions<
+      GeminiVideoModelProviderOptionsByName[TModel],
+      GeminiVideoSize,
+      GeminiVideoModelDurationByName[TModel]
+    >,
+  ): Promise<VideoJobResult> {
+    const { prompt, size, duration, logger } = options
+    const modelOptions = options.modelOptions as
+      | GeminiOmniVideoProviderOptions
+      | undefined
+
+    try {
+      const resolved = resolveMediaPrompt(prompt)
+
+      if (resolved.audios.length > 0) {
+        throw new Error(
+          `${this.name}.createVideoJob does not support audio prompt parts (model: ${this.model}).`,
+        )
+      }
+
+      const content: Array<InteractionContent> = [
+        ...resolved.images.map(mediaPartToInteractionsContent),
+        ...resolved.videos.map(mediaPartToInteractionsContent),
+      ]
+      if (resolved.text) {
+        content.push({ type: 'text', text: resolved.text })
+      }
+      if (content.length === 0) {
+        throw new Error(
+          `${this.name}.createVideoJob: the prompt produced no content to send (model: ${this.model}).`,
+        )
+      }
+
+      // Reject out-of-range durations locally rather than snapping (which
+      // would silently change the clip length the caller asked for) or
+      // letting the live API reject them after the round trip.
+      const durations = this.availableDurations()
+      if (
+        duration !== undefined &&
+        durations.kind === 'range' &&
+        (duration < durations.min || duration > durations.max)
+      ) {
+        throw new Error(
+          `${this.name}.createVideoJob: duration ${duration}s is outside the ${durations.min}–${durations.max}s range supported by ${this.model}. Use snapDuration() to snap arbitrary values into range.`,
+        )
+      }
+
+      // Aspect ratio and clip length ride on `response_format`. Duration is
+      // a `"<seconds>s"` string, accepted anywhere in the 3–10s range
+      // (fractional included) and defaulting to 10s when omitted — verified
+      // against the live API; the docs don't publish the range constraints.
+      const responseFormat =
+        size !== undefined || duration !== undefined
+          ? {
+              response_format: {
+                type: 'video' as const,
+                ...(size !== undefined && { aspect_ratio: size }),
+                ...(duration !== undefined && { duration: `${duration}s` }),
+              },
+            }
+          : {}
+
+      const interaction = await this.client.interactions.create({
+        ...modelOptions,
+        model: this.model,
+        input: [{ type: 'user_input', content }],
+        response_modalities: ['video'],
+        background: true,
+        ...responseFormat,
+      })
+
+      if (!interaction.id) {
+        throw new Error(
+          'Gemini Omni did not return an interaction id for the video generation job.',
+        )
+      }
+
+      return { jobId: interaction.id, model: this.model }
     } catch (error) {
       logger.errors(`${this.name}.createVideoJob fatal`, {
         error,
@@ -286,6 +480,9 @@ export class GeminiVideoAdapter<
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+    if (isInteractionsVideoModel(this.model)) {
+      return await this.getInteractionsVideoStatus(jobId)
+    }
     const operation = await this.getOperation(jobId)
 
     if (!operation.done) {
@@ -318,7 +515,55 @@ export class GeminiVideoAdapter<
     return { jobId, status: 'completed' }
   }
 
+  /**
+   * Poll an Omni background interaction. `in_progress` maps to
+   * 'processing'; a `completed` interaction with no video content (e.g.
+   * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
+   * throw on an empty response. `requires_action` also fails: the adapter
+   * never sends tools, so it can only arise via
+   * `previous_interaction_id` chaining onto a tool-bearing interaction —
+   * and such an interaction never progresses without a client response,
+   * so polling it would spin until timeout.
+   */
+  private async getInteractionsVideoStatus(
+    jobId: string,
+  ): Promise<VideoStatusResult> {
+    const interaction = await this.getInteraction(jobId)
+    const status = interaction.status
+
+    if (status === 'in_progress') {
+      return { jobId, status: 'processing' }
+    }
+    if (status === 'requires_action') {
+      return {
+        jobId,
+        status: 'failed',
+        error:
+          'Gemini Omni interaction is waiting on a client action (tool response), which the video jobs flow does not support.',
+      }
+    }
+    if (status === 'completed') {
+      if (!extractInteractionVideo(interaction)) {
+        return {
+          jobId,
+          status: 'failed',
+          error:
+            'Gemini Omni completed the interaction without returning a video (the output may have been filtered).',
+        }
+      }
+      return { jobId, status: 'completed' }
+    }
+    return {
+      jobId,
+      status: 'failed',
+      error: `Gemini Omni video generation ended with status "${status}".`,
+    }
+  }
+
   async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+    if (isInteractionsVideoModel(this.model)) {
+      return await this.getInteractionsVideoUrl(jobId)
+    }
     const operation = await this.getOperation(jobId)
 
     if (!operation.done) {
@@ -346,6 +591,42 @@ export class GeminiVideoAdapter<
     return { jobId, url: uri }
   }
 
+  /**
+   * Extract the finished Omni video. Inline base64 output (the API default)
+   * becomes a `data:` URL — matching the OpenAI Sora adapter's inline
+   * delivery — and URI delivery passes through (Files API URIs need the API
+   * key to download, like Veo). Usage carries the video-modality output
+   * tokens (Omni bills per second of video, reported as tokens).
+   */
+  private async getInteractionsVideoUrl(
+    jobId: string,
+  ): Promise<VideoUrlResult> {
+    const interaction = await this.getInteraction(jobId)
+    const status = interaction.status
+
+    if (status === 'in_progress') {
+      throw new Error(
+        `Video is not ready yet. Check status first. Job ID: ${jobId}`,
+      )
+    }
+    if (status !== 'completed') {
+      throw new Error(
+        `Video generation failed: Gemini Omni interaction ended with status "${status}". Job ID: ${jobId}`,
+      )
+    }
+
+    const video = extractInteractionVideo(interaction)
+    if (!video) {
+      throw new Error(
+        `Video not found in interaction response (the output may have been filtered). Job ID: ${jobId}`,
+      )
+    }
+
+    const usage = interactionUsageToTokenUsage(interaction.usage)
+    const url = video.uri ?? `data:${video.mimeType};base64,${video.data}`
+    return { jobId, url, ...(usage && { usage }) }
+  }
+
   override availableDurations(): DurationOptions<
     GeminiVideoModelDurationByName[TModel]
   > {
@@ -368,6 +649,13 @@ export class GeminiVideoAdapter<
     const operation = new GenerateVideosOperation()
     operation.name = jobId
     return await this.client.operations.getVideosOperation({ operation })
+  }
+
+  /**
+   * Fetch an Omni background interaction by id.
+   */
+  private async getInteraction(jobId: string): Promise<Interaction> {
+    return await this.client.interactions.get(jobId)
   }
 }
 
