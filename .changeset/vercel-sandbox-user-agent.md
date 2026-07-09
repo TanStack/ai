@@ -2,4 +2,4 @@
 '@tanstack/ai-sandbox-vercel': patch
 ---
 
-Vercel sandbox requests now append a `@tanstack/ai-sandbox-vercel` token to the `user-agent`.
+Sandbox API requests now append a `@tanstack/ai` token to the `user-agent` so the Vercel sandbox control plane can attribute traffic to the TanStack AI framework.
