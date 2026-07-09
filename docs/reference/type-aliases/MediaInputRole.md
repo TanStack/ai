@@ -15,7 +15,7 @@ type MediaInputRole =
   | "character";
 ```
 
-Defined in: [packages/ai/src/types.ts:1575](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1575)
+Defined in: [packages/ai/src/types.ts:1674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1674)
 
 Optional role hint on a media input part (image / video / audio). Adapters
 read `metadata.role` to route the part to the provider-specific request
