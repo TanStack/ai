@@ -88,7 +88,7 @@ export const Route = createFileRoute('/api/chat')({
           const middleware = serverPersistence
             ? [
                 withChatPersistence(getPersistence(testId), {
-                  features: ['messages', 'durable-replay', 'interrupts'],
+                  features: ['messages', 'interrupts'],
                 }),
               ]
             : undefined
@@ -143,7 +143,6 @@ export const Route = createFileRoute('/api/chat')({
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
-                  ...(params.cursor && { cursor: params.cursor }),
                   ...(params.resume && { resume: params.resume }),
                   ...(middleware && { middleware }),
                   outputSchema: guitarRecommendationSchema,
@@ -158,7 +157,6 @@ export const Route = createFileRoute('/api/chat')({
                     messages: params.messages,
                     threadId: params.threadId,
                     runId: params.runId,
-                    ...(params.cursor && { cursor: params.cursor }),
                     ...(params.resume && { resume: params.resume }),
                     ...(middleware && { middleware }),
                     outputSchema: recipeSchema,
@@ -175,7 +173,6 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
-                      ...(params.cursor && { cursor: params.cursor }),
                       ...(params.resume && { resume: params.resume }),
                       ...(middleware && { middleware }),
                       outputSchema: guitarRecommendationSchema,
@@ -191,7 +188,6 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
-                      ...(params.cursor && { cursor: params.cursor }),
                       ...(params.resume && { resume: params.resume }),
                       ...(middleware && { middleware }),
                       ...(rootObservabilityMetadata && {

@@ -74,7 +74,7 @@ function MysqlPersistenceRoute() {
       <div className="border-b border-orange-500/20 bg-gray-950 px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold">MySQL persistent chat</h1>
+            <h1 className="text-lg font-semibold">Persistent chat</h1>
             <p className="text-sm text-gray-400">
               Thread {threadId.slice(0, 8)}
               {resumeState ? ` · run ${resumeState.runId.slice(0, 8)}` : ''}
@@ -95,8 +95,9 @@ function MysqlPersistenceRoute() {
           {messages.length === 0 && (
             <div className="rounded-lg border border-gray-800 bg-gray-950 p-6 text-gray-400">
               Send a prompt, then refresh while the response is streaming. The
-              same server process continues tailing persisted MySQL events from
-              the saved run cursor.
+              transport's delivery-durability sink replays the ordered stream on
+              reconnect (native Last-Event-ID), while chat state persists to the
+              SQLite state backend.
             </div>
           )}
           {messages.map((message) => (
