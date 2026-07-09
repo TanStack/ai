@@ -7,6 +7,7 @@ import {
 import {
   createGeminiAudio,
   createGeminiImage,
+  createGeminiSpeech,
   createGeminiVideo,
 } from '@tanstack/ai-gemini'
 import {
@@ -93,6 +94,10 @@ export function createTTSAdapter(
       createOpenaiSpeech('tts-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
+      }),
+    gemini: () =>
+      createGeminiSpeech('gemini-3.1-flash-tts-preview', DUMMY_KEY, {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
       createGrokSpeech('grok-tts', DUMMY_KEY, {
