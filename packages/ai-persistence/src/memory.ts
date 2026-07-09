@@ -1,7 +1,6 @@
 import { InMemoryLockStore } from '@tanstack/ai'
-import { encodeCursor } from './cursor'
-import { AppendConflictError, defineAIPersistence } from './types'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import { defineAIPersistence } from './types'
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactRecord,
@@ -11,14 +10,10 @@ import type {
   BlobObject,
   BlobRecord,
   BlobStore,
-  InternalEventStore,
   InterruptRecord,
   InterruptStore,
   MessageStore,
   MetadataStore,
-  PersistedInternalEvent,
-  PersistedPublicEvent,
-  PublicEventStore,
   RunRecord,
   RunStore,
 } from './types'
@@ -65,158 +60,6 @@ class MemoryRunStore implements RunStore {
   }
   get(runId: string): Promise<RunRecord | null> {
     return Promise.resolve(this.runs.get(runId) ?? null)
-  }
-}
-
-function stableJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => stableJsonValue(item))
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => [key, stableJsonValue(item)]),
-    )
-  }
-  return value
-}
-
-function sameJsonValue(a: unknown, b: unknown): boolean {
-  return (
-    JSON.stringify(stableJsonValue(a)) === JSON.stringify(stableJsonValue(b))
-  )
-}
-
-class MemoryPublicEventStore implements PublicEventStore {
-  private readonly logs = new Map<string, Array<PersistedPublicEvent>>()
-  append(input: {
-    runId: string
-    expectedSeq: number
-    event: StreamChunk
-  }): Promise<PersistedPublicEvent> {
-    const log = this.logs.get(input.runId) ?? []
-    const targetSeq = input.expectedSeq + 1
-    const existingAtTarget = log.find((e) => e.seq === targetSeq)
-    if (existingAtTarget) {
-      if (sameJsonValue(existingAtTarget.event, input.event)) {
-        return Promise.resolve(existingAtTarget)
-      }
-      return Promise.reject(
-        new AppendConflictError(
-          `Public event append conflict for run ${input.runId} at seq ${targetSeq}`,
-        ),
-      )
-    }
-
-    const latest = log.at(-1)?.seq ?? 0
-    if (latest !== input.expectedSeq) {
-      return Promise.reject(
-        new AppendConflictError(
-          `Public event append conflict for run ${input.runId}: expected latest seq ${input.expectedSeq}, got ${latest}`,
-        ),
-      )
-    }
-
-    const persisted = {
-      seq: targetSeq,
-      event: input.event,
-      cursor: input.event.cursor ?? encodeCursor(input.runId, targetSeq),
-    }
-    log.push(persisted)
-    this.logs.set(input.runId, log)
-    return Promise.resolve(persisted)
-  }
-  read(
-    runId: string,
-    opts?: { afterSeq?: number },
-  ): AsyncIterable<PersistedPublicEvent> {
-    const after = opts?.afterSeq ?? -Infinity
-    const events = (this.logs.get(runId) ?? []).filter((e) => e.seq > after)
-    return (async function* () {
-      await Promise.resolve()
-      for (const e of events) yield e
-    })()
-  }
-  hasRun(runId: string): Promise<boolean> {
-    return Promise.resolve((this.logs.get(runId)?.length ?? 0) > 0)
-  }
-  latestSeq(runId: string): Promise<number> {
-    return Promise.resolve(this.logs.get(runId)?.at(-1)?.seq ?? 0)
-  }
-}
-
-class MemoryInternalEventStore implements InternalEventStore {
-  private readonly logs = new Map<string, Array<PersistedInternalEvent>>()
-  append(input: {
-    runId: string
-    expectedSeq: number
-    namespace: string
-    type: string
-    payload: unknown
-  }): Promise<PersistedInternalEvent> {
-    const log = this.logs.get(input.runId) ?? []
-    const targetSeq = input.expectedSeq + 1
-    const existingAtTarget = log.find(
-      (e) => e.namespace === input.namespace && e.seq === targetSeq,
-    )
-    if (existingAtTarget) {
-      if (
-        existingAtTarget.type === input.type &&
-        sameJsonValue(existingAtTarget.payload, input.payload)
-      ) {
-        return Promise.resolve(existingAtTarget)
-      }
-      return Promise.reject(
-        new AppendConflictError(
-          `Internal event append conflict for run ${input.runId} namespace ${input.namespace} at seq ${targetSeq}`,
-        ),
-      )
-    }
-
-    const latest =
-      log.filter((e) => e.namespace === input.namespace).at(-1)?.seq ?? 0
-    if (latest !== input.expectedSeq) {
-      return Promise.reject(
-        new AppendConflictError(
-          `Internal event append conflict for run ${input.runId} namespace ${input.namespace}: expected latest seq ${input.expectedSeq}, got ${latest}`,
-        ),
-      )
-    }
-
-    const persisted = {
-      seq: targetSeq,
-      namespace: input.namespace,
-      type: input.type,
-      payload: input.payload,
-      cursor: encodeCursor(input.runId, targetSeq),
-    }
-    log.push(persisted)
-    this.logs.set(input.runId, log)
-    return Promise.resolve(persisted)
-  }
-  read(
-    runId: string,
-    opts?: { namespace?: string; afterSeq?: number },
-  ): AsyncIterable<PersistedInternalEvent> {
-    const after = opts?.afterSeq ?? -Infinity
-    const events = (this.logs.get(runId) ?? []).filter(
-      (e) =>
-        e.seq > after &&
-        (opts?.namespace === undefined || e.namespace === opts.namespace),
-    )
-    return (async function* () {
-      await Promise.resolve()
-      for (const e of events) yield e
-    })()
-  }
-  latestSeq(runId: string, namespace?: string): Promise<number> {
-    const log = this.logs.get(runId) ?? []
-    const filtered =
-      namespace === undefined
-        ? log
-        : log.filter((event) => event.namespace === namespace)
-    return Promise.resolve(filtered.at(-1)?.seq ?? 0)
   }
 }
 
@@ -501,8 +344,6 @@ export function memoryPersistence(): AIPersistence {
     stores: {
       messages: new MemoryMessageStore(),
       runs: new MemoryRunStore(),
-      publicEvents: new MemoryPublicEventStore(),
-      internalEvents: new MemoryInternalEventStore(),
       interrupts: new MemoryInterruptStore(),
       metadata: new MemoryMetadataStore(),
       artifacts: new MemoryArtifactStore(),

@@ -30,8 +30,12 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts'],
+    entry: ['./src/index.ts', './src/testkit/conformance.ts'],
     srcDir: './src',
+    // The conformance testkit imports Vitest; keep it external so the built
+    // artifact references the consumer's Vitest at test time instead of
+    // bundling the runner.
+    externalDeps: ['vitest'],
     cjs: false,
   }),
 )

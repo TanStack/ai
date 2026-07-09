@@ -1,45 +1,14 @@
-import type {
-  LockStore,
-  ModelMessage,
-  StreamChunk,
-  TokenUsage,
-} from '@tanstack/ai'
+import type { LockStore, ModelMessage, TokenUsage } from '@tanstack/ai'
 
 export type PersistenceMode = 'messages' | 'chat' | 'agent'
 
 export type PersistenceFeature =
   | 'messages'
-  | 'durable-replay'
   | 'interrupts'
-  | 'internal-events'
   | 'metadata'
   | 'locks'
   | 'artifacts'
   | 'blobs'
-
-export class AppendConflictError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'AppendConflictError'
-  }
-}
-
-export interface PersistedPublicEvent {
-  seq: number
-  event: StreamChunk
-  cursor: string
-}
-
-export interface PersistedInternalEvent {
-  seq: number
-  namespace: string
-  type: string
-  payload: unknown
-  cursor: string
-}
-
-/** @deprecated Use PersistedPublicEvent. */
-export type PersistedEvent = PersistedPublicEvent
 
 export interface MessageStore {
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
@@ -74,42 +43,6 @@ export interface RunStore {
   get: (runId: string) => Promise<RunRecord | null>
 }
 
-export interface PublicEventStore {
-  append: (input: {
-    runId: string
-    expectedSeq: number
-    event: StreamChunk
-  }) => Promise<PersistedPublicEvent>
-  read: (
-    runId: string,
-    opts?: { afterSeq?: number },
-  ) => AsyncIterable<PersistedPublicEvent>
-  hasRun: (runId: string) => Promise<boolean>
-  latestSeq: (runId: string) => Promise<number>
-}
-
-export interface InternalEventStore {
-  append: (input: {
-    runId: string
-    expectedSeq: number
-    namespace: string
-    type: string
-    payload: unknown
-  }) => Promise<PersistedInternalEvent>
-  read: (
-    runId: string,
-    opts?: { namespace?: string; afterSeq?: number },
-  ) => AsyncIterable<PersistedInternalEvent>
-  latestSeq: (runId: string, namespace?: string) => Promise<number>
-}
-
-/** @deprecated Use PublicEventStore. */
-export type EventLog = PublicEventStore
-
-export interface DurableRunStream {
-  publish: (runId: string, seq: number, event: StreamChunk) => Promise<void>
-}
-
 export interface InterruptRecord {
   interruptId: string
   runId: string
@@ -130,25 +63,6 @@ export interface InterruptStore {
   listPending: (threadId: string) => Promise<Array<InterruptRecord>>
   listByRun: (runId: string) => Promise<Array<InterruptRecord>>
   listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
-}
-
-/** @deprecated Use InterruptRecord. */
-export interface ApprovalRecord {
-  approvalId: string
-  runId: string
-  threadId: string
-  status: 'pending' | 'granted' | 'denied'
-  requestedAt: number
-  resolvedAt?: number
-  payload: Record<string, unknown>
-}
-
-/** @deprecated Use InterruptStore. */
-export interface ApprovalStore {
-  create: (record: Omit<ApprovalRecord, 'resolvedAt'>) => Promise<void>
-  resolve: (approvalId: string, granted: boolean) => Promise<void>
-  get: (approvalId: string) => Promise<ApprovalRecord | null>
-  decisionsForThread: (threadId: string) => Promise<Map<string, boolean>>
 }
 
 export interface MetadataStore {
@@ -234,25 +148,23 @@ export interface AIPersistence {
   stores: {
     messages?: MessageStore
     runs?: RunStore
-    publicEvents?: PublicEventStore
-    internalEvents?: InternalEventStore
     interrupts?: InterruptStore
     metadata?: MetadataStore
     locks?: LockStore
     artifacts?: ArtifactStore
     blobs?: BlobStore
   }
-  stream?: DurableRunStream
 }
 
 /** @deprecated Use AIPersistence. */
 export type ChatPersistence = AIPersistence
 
-const featureRequirements: Record<PersistenceFeature, Array<string>> = {
+const featureRequirements: Record<
+  PersistenceFeature,
+  Array<keyof AIPersistence['stores']>
+> = {
   messages: ['messages'],
-  'durable-replay': ['runs', 'publicEvents'],
-  interrupts: ['runs', 'publicEvents', 'interrupts'],
-  'internal-events': ['internalEvents'],
+  interrupts: ['runs', 'interrupts'],
   metadata: ['metadata'],
   locks: ['locks'],
   artifacts: ['artifacts'],
@@ -263,10 +175,13 @@ export function validatePersistenceFeatures(
   persistence: AIPersistence,
   features: Array<PersistenceFeature>,
 ): void {
-  const missing = new Map<PersistenceFeature, Array<string>>()
+  const missing = new Map<
+    PersistenceFeature,
+    Array<keyof AIPersistence['stores']>
+  >()
   for (const feature of features) {
     const missingStores = featureRequirements[feature].filter(
-      (store) => !persistence.stores[store as keyof AIPersistence['stores']],
+      (store) => !persistence.stores[store],
     )
     if (missingStores.length > 0) {
       missing.set(feature, missingStores)
