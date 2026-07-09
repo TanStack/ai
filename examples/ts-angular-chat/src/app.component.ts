@@ -187,7 +187,7 @@ export class AppComponent {
 
   /** A message is worth rendering if it has visible text or a tool call. */
   isRenderable(message: {
-    parts: ReadonlyArray<{ type: string; content?: string }>
+    parts: ReadonlyArray<{ type: string; content?: unknown }>
   }): boolean {
     return message.parts.some(
       (part) =>

@@ -121,6 +121,7 @@ export type {
   AbortInfo,
   ErrorInfo,
   SandboxFileEvent,
+  SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
@@ -178,12 +179,13 @@ export { normalizeSystemPrompts } from './system-prompts'
 export { detectImageMimeType } from './utils'
 
 // Realtime
-export { realtimeToken } from './realtime/index'
+export { realtimeToken, createRealtimeEventEmitter } from './realtime/index'
 export type {
   RealtimeToken,
   RealtimeTokenAdapter,
   RealtimeTokenOptions,
   RealtimeSessionConfig,
+  RealtimeToolConfig,
   VADConfig,
   RealtimeMessage,
   RealtimeMessagePart,

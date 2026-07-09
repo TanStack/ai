@@ -36,7 +36,7 @@ export const Route = createFileRoute('/api/otel-usage')({
 
         const adapter =
           provider === 'openrouter'
-            ? createOpenRouterText('openai/gpt-4o' as never, DUMMY_KEY, {
+            ? createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
                 serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
               })
             : createOpenaiChatCompletions('gpt-4o', DUMMY_KEY, {

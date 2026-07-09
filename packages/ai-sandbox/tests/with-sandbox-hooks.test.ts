@@ -51,6 +51,69 @@ function fakeHandleAndFire(present: Set<string>) {
   return { handle, fire: (e: { type: string; path: string }) => onRaw(e) }
 }
 
+// Fake handle whose `fs.list` seeds the watcher's known-path set (so the
+// first fired event classifies as 'change', not 'create') and whose
+// `process.exec` resolves per-command so `baseSha` capture + `git diff` both
+// succeed (buildFileHookEvent's diff() falls back to '' on a rejected exec).
+function fakeHandleWithGit(
+  knownPath: string,
+  execResults: Record<
+    string,
+    { stdout: string; stderr: string; exitCode: number }
+  >,
+) {
+  let onRaw: (e: { type: string; path: string }) => void = () => undefined
+  const handle: SandboxHandle = {
+    id: 'fake',
+    provider: 'fake',
+    capabilities: {
+      fs: true,
+      exec: true,
+      env: true,
+      ports: false,
+      backgroundProcesses: false,
+      writableStdin: true,
+      snapshots: false,
+      networkPolicy: false,
+      durableFilesystem: false,
+      fork: false,
+    },
+    fs: {
+      read: () => Promise.resolve('AFTER'),
+      readBytes: () => Promise.reject(new Error('x')),
+      write: () => Promise.resolve(),
+      list: (dir) =>
+        Promise.resolve(
+          dir === '/workspace'
+            ? [{ name: 'x.ts', path: knownPath, type: 'file' as const }]
+            : [],
+        ),
+      mkdir: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      rename: () => Promise.resolve(),
+      exists: () => Promise.resolve(true),
+      watch: (_p, cb) => {
+        onRaw = cb
+        return Promise.resolve({ stop: () => Promise.resolve() })
+      },
+    },
+    git: {} as SandboxHandle['git'],
+    process: {
+      exec: (cmd: string) => {
+        const key = Object.keys(execResults).find((k) => cmd.startsWith(k))
+        return Promise.resolve(
+          key ? execResults[key]! : { stdout: '', stderr: '', exitCode: 0 },
+        )
+      },
+      spawn: () => Promise.reject(new Error('x')),
+    },
+    ports: { connect: () => Promise.reject(new Error('x')) },
+    env: { set: () => Promise.resolve() },
+    destroy: () => Promise.resolve(),
+  }
+  return { handle, fire: (e: { type: string; path: string }) => onRaw(e) }
+}
+
 function fakeProvider(handle: SandboxHandle): SandboxProvider {
   return {
     name: 'fake',
@@ -89,6 +152,7 @@ describe('withSandbox hooks', () => {
     provideSandboxRuntime(ctx, {
       logger: resolveDebugOption(false),
       emit: (e) => void emitted.push(e),
+      emitFileDiff: () => undefined,
     })
 
     const mw = withSandbox(sandbox)
@@ -116,12 +180,74 @@ describe('withSandbox hooks', () => {
     provideSandboxRuntime(ctx, {
       logger: resolveDebugOption(false),
       emit: (e) => void emitted.push(e),
+      emitFileDiff: () => undefined,
     })
     const mw = withSandbox(sandbox)
     await mw.setup!(ctx)
     fire({ type: 'rename', path: '/workspace/x.ts' })
     await flush()
     expect(emitted).toEqual([])
+    await mw.onFinish!(ctx, { finishReason: 'stop', duration: 0, content: '' })
+  })
+
+  it('emits sandbox.file.diff when fileEvents.diff is enabled', async () => {
+    const path = '/workspace/x.ts'
+    const { handle, fire } = fakeHandleWithGit(path, {
+      'git rev-parse HEAD': { stdout: 'sha1\n', stderr: '', exitCode: 0 },
+      'git diff': { stdout: 'PATCH', stderr: '', exitCode: 0 },
+    })
+    const diffs: Array<{ path: string; diff: string }> = []
+    const sandbox = defineSandbox({
+      id: 's',
+      provider: fakeProvider(handle),
+      fileEvents: { diff: true },
+    })
+
+    const ctx = makeCtx()
+    provideSandboxRuntime(ctx, {
+      logger: resolveDebugOption(false),
+      emit: () => undefined,
+      emitFileDiff: (v) => void diffs.push(v),
+    })
+
+    const mw = withSandbox(sandbox)
+    await mw.setup!(ctx)
+
+    fire({ type: 'change', path })
+    await flush()
+
+    expect(diffs).toEqual([{ path, diff: 'PATCH' }])
+
+    await mw.onFinish!(ctx, { finishReason: 'stop', duration: 0, content: '' })
+  })
+
+  it('does not emit sandbox.file.diff for a plain fileEvents (default/true)', async () => {
+    const path = '/workspace/x.ts'
+    const { handle, fire } = fakeHandleWithGit(path, {
+      'git rev-parse HEAD': { stdout: 'sha1\n', stderr: '', exitCode: 0 },
+      'git diff': { stdout: 'PATCH', stderr: '', exitCode: 0 },
+    })
+    const diffs: Array<{ path: string; diff: string }> = []
+    const sandbox = defineSandbox({
+      id: 's',
+      provider: fakeProvider(handle),
+    })
+
+    const ctx = makeCtx()
+    provideSandboxRuntime(ctx, {
+      logger: resolveDebugOption(false),
+      emit: () => undefined,
+      emitFileDiff: (v) => void diffs.push(v),
+    })
+
+    const mw = withSandbox(sandbox)
+    await mw.setup!(ctx)
+
+    fire({ type: 'change', path })
+    await flush()
+
+    expect(diffs).toEqual([])
+
     await mw.onFinish!(ctx, { finishReason: 'stop', duration: 0, content: '' })
   })
 })

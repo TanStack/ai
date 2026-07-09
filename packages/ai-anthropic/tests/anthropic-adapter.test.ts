@@ -8,6 +8,7 @@ import {
 } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
+import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
@@ -450,7 +451,7 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.top_p).toBe(0.7)
   })
 
-  it('defaults max_tokens to 1024 when not provided via modelOptions', async () => {
+  it("defaults max_tokens to the model's max_output_tokens when not provided via modelOptions (#849)", async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 
     const adapter = createAdapter('claude-opus-4-1')
@@ -463,7 +464,135 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
-    expect(payload.max_tokens).toBe(1024)
+    // claude-opus-4-1's model-meta max_output_tokens is 64_000 — not the old
+    // hard-coded 1024 floor that silently truncated long responses.
+    expect(payload.max_tokens).toBe(64_000)
+  })
+
+  it('warns when the default max_tokens cap truncates the response (#849)', async () => {
+    // Stream that ends with stop_reason: "max_tokens" — the model hit the cap.
+    const truncatedStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'partial output' },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'max_tokens' },
+        usage: { output_tokens: 64_000 },
+      }
+      yield { type: 'message_stop' }
+    })()
+    mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Write a long essay' }],
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const truncationWarning = logger.warn.mock.calls.find((call) =>
+      String(call[0]).includes('truncated at the default max_tokens'),
+    )
+    expect(truncationWarning).toBeDefined()
+  })
+
+  it('does not warn about truncation when the caller set max_tokens explicitly (#849)', async () => {
+    const truncatedStream = (async function* () {
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'max_tokens' },
+        usage: { output_tokens: 100 },
+      }
+      yield { type: 'message_stop' }
+    })()
+    mocks.betaMessagesCreate.mockResolvedValueOnce(truncatedStream)
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: { max_tokens: 100 } satisfies AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const truncationWarning = logger.warn.mock.calls.find((call) =>
+      String(call[0]).includes('truncated at the default max_tokens'),
+    )
+    expect(truncationWarning).toBeUndefined()
+  })
+
+  it('clamps the default max_tokens on the non-streaming structured-output path so it never trips the SDK 10-minute guard (#849)', async () => {
+    // The structured-output fallback issues a NON-streaming
+    // `messages.create({ stream: false })`. The Anthropic SDK throws
+    // "Streaming is required for operations that may take longer than 10
+    // minutes" once max_tokens exceeds ~21_333, so the defaulted ceiling must
+    // be clamped here even though the streaming chat path keeps the full 64K.
+    mocks.betaMessagesCreate.mockResolvedValueOnce({
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-4-1',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_structured_output',
+          name: 'structured_output',
+          input: { recommendation: 'Strat', price: 1299 },
+        },
+      ],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 10, output_tokens: 20 },
+    })
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'recommend a guitar as json' }],
+      outputSchema: z.object({
+        recommendation: z.string(),
+        price: z.number(),
+      }),
+      stream: true,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.stream).toBe(false)
+    // Clamped to the non-streaming limit — NOT claude-opus-4-1's full 64K
+    // streaming ceiling, which would make the SDK throw before the request.
+    expect(payload.max_tokens).toBe(ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+    expect(payload.max_tokens).toBeLessThanOrEqual(21_333)
   })
 
   it('native combined mode (#605): wires outputSchema into output_format alongside tools on Claude 4.5+', async () => {
