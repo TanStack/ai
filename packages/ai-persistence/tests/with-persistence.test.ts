@@ -539,7 +539,9 @@ describe('withChatPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence, { features: ['messages'] })],
+        middleware: [
+          withChatPersistence(persistence, { features: ['messages'] }),
+        ],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -562,7 +564,9 @@ describe('withChatPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't1',
         cursor: 'not-a-persistence-cursor',
-        middleware: [withChatPersistence(persistence, { features: ['messages'] })],
+        middleware: [
+          withChatPersistence(persistence, { features: ['messages'] }),
+        ],
       }) as AsyncIterable<StreamChunk>,
     )
 

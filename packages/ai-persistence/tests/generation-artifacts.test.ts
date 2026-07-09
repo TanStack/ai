@@ -220,7 +220,9 @@ describe('withGenerationPersistence generation artifacts', () => {
     })
 
     expect(() =>
-      withGenerationPersistence(persistence, { features: ['artifacts', 'blobs'] }),
+      withGenerationPersistence(persistence, {
+        features: ['artifacts', 'blobs'],
+      }),
     ).toThrow(/artifacts.*stores\.artifacts.*blobs.*stores\.blobs/i)
   })
 
@@ -425,7 +427,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-messages-only',
       runId: 'run-messages-only',
-      middleware: [withGenerationPersistence(persistence, { features: ['messages'] })],
+      middleware: [
+        withGenerationPersistence(persistence, { features: ['messages'] }),
+      ],
     })
 
     expect(result.artifacts).toBeUndefined()

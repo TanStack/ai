@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
-import { memoryPersistence, withChatPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryPersistence,
+  withChatPersistence,
+} from '@tanstack/ai-persistence'
 import { defineSandbox, defineWorkspace, withSandbox } from '../src'
 import {
   WORKSPACE_PERSISTENCE_METADATA_SCOPE,

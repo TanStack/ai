@@ -5,7 +5,10 @@ import {
   chat,
   defineChatMiddleware,
 } from '@tanstack/ai'
-import { memoryPersistence, withChatPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryPersistence,
+  withChatPersistence,
+} from '@tanstack/ai-persistence'
 import {
   SandboxStoreCapability,
   defineSandbox,
