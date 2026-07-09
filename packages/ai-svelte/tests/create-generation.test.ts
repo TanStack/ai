@@ -80,49 +80,8 @@ const videoResumeSnapshot: GenerationResumeSnapshot = {
   resumeState: {
     threadId: 'thread-resume',
     runId: 'run-resume',
-    cursor: 'cursor-resume',
   },
   status: 'running',
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
-
-function createReplayVideoChunks(): Array<StreamChunk> {
-  return [
-    {
-      type: EventType.RUN_STARTED,
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      cursor: 'cursor-start',
-      timestamp: Date.now(),
-    },
-    {
-      type: EventType.CUSTOM,
-      name: 'generation:result',
-      value: {
-        jobId: 'job-replay',
-        status: 'completed',
-        url: 'https://example.com/video.mp4',
-      },
-      cursor: 'cursor-result',
-      timestamp: Date.now(),
-    },
-    {
-      type: EventType.RUN_FINISHED,
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      cursor: 'cursor-finished',
-      timestamp: Date.now(),
-    },
-  ]
 }
 
 function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
@@ -260,31 +219,31 @@ describe('createGeneration', () => {
       expect(gen.error?.message).toBe('Generation failed')
     })
 
-    it('should ignore auto-resume rejection after dispose', async () => {
-      const deferred = createDeferred<GenerationResumeSnapshot | null>()
-      const getItem = vi.fn(() => deferred.promise)
-      const onError = vi.fn()
+    it('does not auto-fire a generation on setup from a persisted running snapshot', async () => {
+      // Regression guard for the removed generation resume surface.
+      const snapshot: GenerationResumeSnapshot = {
+        resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+        status: 'running',
+      }
+      const { adapter, connect } = createRunContextCaptureAdapter([])
+      const getItem = vi.fn(() => snapshot)
       const gen = createGeneration({
-        fetcher: async () => ({ id: '1' }),
+        id: 'no-auto-fire',
+        connection: adapter,
         persistence: {
-          server: {
-            getItem,
-            setItem: vi.fn(),
-            removeItem: vi.fn(),
-          },
+          server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         },
-        onError,
+        initialResumeSnapshot: snapshot,
       })
 
-      await vi.waitFor(() => expect(getItem).toHaveBeenCalled())
-      gen.dispose()
-      deferred.reject(new Error('resume failed'))
-      await deferred.promise.catch(() => {})
       await Promise.resolve()
 
-      expect(onError).not.toHaveBeenCalled()
-      expect(gen.error).toBeUndefined()
+      expect(connect).not.toHaveBeenCalled()
+      expect(getItem).not.toHaveBeenCalled()
+      expect(gen.isLoading).toBe(false)
       expect(gen.status).toBe('idle')
+      // The persisted snapshot remains exposed as read-only state.
+      expect(gen.resumeState).toEqual(snapshot.resumeState)
     })
   })
 
@@ -758,64 +717,28 @@ describe('createGenerateVideo', () => {
     expect(gen.status).toBe('idle')
   })
 
-  it('should explicitly resume from the current snapshot', async () => {
-    const { adapter, connect, runContexts } = createRunContextCaptureAdapter(
-      createReplayVideoChunks(),
-    )
-
+  it('does not auto-fire a video generation on setup from a persisted running snapshot', async () => {
+    // Regression guard for the removed generation resume surface (video).
+    const { adapter, connect } = createRunContextCaptureAdapter([])
+    const getItem = vi.fn(() => videoResumeSnapshot)
     const gen = createGenerateVideo({
+      id: 'video-no-auto-fire',
       connection: adapter,
-      initialResumeSnapshot: videoResumeSnapshot,
-      autoResume: false,
-    })
-
-    const didResume = await gen.resume()
-
-    expect(didResume).toBe(true)
-    expect(connect).toHaveBeenCalledTimes(1)
-    expect(runContexts[0]).toEqual(videoResumeSnapshot.resumeState)
-    expect(gen.resumeSnapshot).toEqual(
-      expect.objectContaining({
-        status: 'complete',
-        resumeState: null,
-      }),
-    )
-    expect(gen.result).toEqual(
-      expect.objectContaining({
-        jobId: 'job-replay',
-      }),
-    )
-  })
-
-  it('should ignore video auto-resume rejection after dispose', async () => {
-    const deferred = createDeferred<GenerationResumeSnapshot | null>()
-    const getItem = vi.fn(() => deferred.promise)
-    const onError = vi.fn()
-    const gen = createGenerateVideo({
-      fetcher: async () => ({
-        jobId: 'job-1',
-        status: 'completed',
-        url: 'https://example.com/video.mp4',
-      }),
       persistence: {
-        server: {
-          getItem,
-          setItem: vi.fn(),
-          removeItem: vi.fn(),
-        },
+        server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       },
-      onError,
+      initialResumeSnapshot: videoResumeSnapshot,
     })
 
-    await vi.waitFor(() => expect(getItem).toHaveBeenCalled())
-    gen.dispose()
-    deferred.reject(new Error('video resume failed'))
-    await deferred.promise.catch(() => {})
     await Promise.resolve()
 
-    expect(onError).not.toHaveBeenCalled()
-    expect(gen.error).toBeUndefined()
+    expect(connect).not.toHaveBeenCalled()
+    expect(getItem).not.toHaveBeenCalled()
+    expect(gen.isLoading).toBe(false)
     expect(gen.status).toBe('idle')
+    // The persisted snapshot remains exposed as read-only state.
+    expect(gen.resumeSnapshot).toEqual(videoResumeSnapshot)
+    expect(gen.resumeState).toEqual(videoResumeSnapshot.resumeState)
   })
 
   it('should expose generate, stop, reset, and updateBody methods', () => {

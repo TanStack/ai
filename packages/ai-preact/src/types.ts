@@ -106,7 +106,6 @@ export interface UseChatReturn<
 
   resumeState: ChatResumeState | null
   pendingInterrupts: Array<ChatPendingInterrupt>
-  resume: (state?: ChatResumeState) => Promise<boolean>
   resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,

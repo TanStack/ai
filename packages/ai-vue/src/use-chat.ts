@@ -154,7 +154,6 @@ export function useChat<
     onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
       resumeState.value = nextResumeState
       pendingInterrupts.value = nextPendingInterrupts
-      resumeIfLifecycleOwned()
     },
   })
 
@@ -162,15 +161,6 @@ export function useChat<
     resumeState.value = client.getResumeState()
     pendingInterrupts.value = client.getPendingInterrupts()
   }
-
-  function resumeIfLifecycleOwned() {
-    if (!lifecycleOwned) return
-    if (!lifecycleAutoResumeArmed) return
-    if (typeof window === 'undefined') return
-    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
-  }
-  let lifecycleOwned = false
-  let lifecycleAutoResumeArmed = false
 
   messages.value = client.getMessages()
 
@@ -205,37 +195,16 @@ export function useChat<
   )
 
   onMounted(() => {
-    lifecycleOwned = true
-    lifecycleAutoResumeArmed = false
     client.mountDevtools()
-    void client.maybeAutoResume().then(
-      () => {
-        syncResumeState()
-        lifecycleAutoResumeArmed = true
-      },
-      () => {
-        syncResumeState()
-        lifecycleAutoResumeArmed = true
-      },
-    )
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', handleOnline)
-    }
+    // Delivery-durability resume is transparent: the resumable SSE connection
+    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
+    // We only seed interrupt (state) resume from the client here.
+    syncResumeState()
   })
-
-  const handleOnline = () => {
-    resumeIfLifecycleOwned()
-  }
 
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
-    lifecycleOwned = false
-    lifecycleAutoResumeArmed = false
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', handleOnline)
-    }
     if (options.live) {
       client.unsubscribe()
     } else {
@@ -300,12 +269,6 @@ export function useChat<
   }) => {
     await client.addToolApprovalResponse(response)
     syncResumeState()
-  }
-
-  const resume = async (state?: ChatResumeState) => {
-    const result = await client.resume(state)
-    syncResumeState()
-    return result
   }
 
   const resumeInterrupts = async (
@@ -380,7 +343,6 @@ export function useChat<
     addToolApprovalResponse,
     resumeState: readonly(resumeState),
     pendingInterrupts: readonly(pendingInterrupts),
-    resume,
     resumeInterrupts,
     partial: readonly(partial),
     final: readonly(final),

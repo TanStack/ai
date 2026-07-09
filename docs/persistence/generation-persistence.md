@@ -3,23 +3,25 @@ title: Generation Persistence
 id: generation-persistence
 ---
 
-Use generation persistence when an image, audio, speech, transcription, or video
-endpoint should survive a refresh, tab reconnect, or transient network drop.
-The server owns the durable run through `withGenerationPersistence(...)`; the client
-stores only the lightweight resume snapshot it needs to reconnect.
+Use generation persistence when the generated media from an image, audio,
+speech, transcription, or video endpoint should survive a refresh. The server
+owns the durable run through `withGenerationPersistence(...)`, which records run
+status plus artifact/blob records; the client keeps only a lightweight,
+read-only state snapshot for observability.
 
-By the end, your generation hook can resume a streaming endpoint and display
-generated media from persisted artifact refs instead of browser-stored bytes.
+By the end, your generation hook can display generated media from persisted
+artifact refs instead of browser-stored bytes, and observe the last run's status
+after a reload.
 
 ## Install a backend with artifacts and blobs
 
 Generated media/file persistence requires both `stores.artifacts` and
-`stores.blobs`. Cloudflare D1 plus R2 is the durable media path shown below:
-D1 stores replay state and artifact metadata, while R2 stores generated media
-bytes.
+`stores.blobs`. The batteries-included SQLite backend provides both: artifact
+metadata rows and blob bytes. For a cloud object store (R2/S3) behind the blob
+side, bring your own blob store via [Custom Stores](./custom-stores).
 
 ```sh
-pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-cloudflare
+pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-drizzle
 ```
 
 ## Create the generation endpoint
@@ -36,43 +38,36 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
-import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
 
-interface Env {
-  AI_D1: D1Database
-  AI_BLOBS: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
-}
+// State durability: run status + artifact metadata + blob bytes. The
+// batteries-included SQLite backend stores artifact bytes in a blob column;
+// for a cloud object store (R2/S3), bring your own blob store via custom stores.
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/generation.sqlite',
+  migrate: true,
+})
 
-function persistence(env: Env) {
-  return cloudflarePersistence({
-    d1: env.AI_D1,
-    r2: env.AI_BLOBS,
-    durableObjects: env.AI_LOCKS,
-    migrate: true,
-  })
-}
-
-export async function POST(request: Request, env: Env) {
-  const { input, threadId, runId, cursor } =
+export async function POST(request: Request) {
+  const { input, threadId, runId } =
     await generationParamsFromRequest('image', request)
 
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
   }
 
-  const identity: { threadId?: string; runId?: string; cursor?: string } = {}
+  const identity: { threadId?: string; runId?: string } = {}
   if (threadId !== undefined) identity.threadId = threadId
   if (runId !== undefined) identity.runId = runId
-  if (cursor !== undefined) identity.cursor = cursor
 
   const stream = generateImage({
     ...identity,
     prompt: input.prompt,
     adapter: openaiImage('gpt-image-2'),
     stream: true as const,
-    middleware: [withGenerationPersistence(persistence(env))],
+    middleware: [withGenerationPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
@@ -97,10 +92,10 @@ and [Persistence Internals](./internals#shared-backends-unique-runid-across-chat
 
 ## Wire the client hook
 
-Use `persistence.server` to store the latest generation resume snapshot under a
-stable `id`. The snapshot contains `{ threadId, runId, cursor }`, status,
-errors, and lightweight artifact refs. It does not contain generated image,
-audio, or video bytes.
+Use `persistence.server` to store the latest generation state snapshot under a
+stable `id`. The snapshot contains `{ threadId, runId }`, status, errors, and
+lightweight artifact refs. It does not contain generated image, audio, or video
+bytes.
 
 ```tsx group=generation-persistence-client
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
@@ -128,11 +123,7 @@ export function HeroImageGenerator() {
         Generate
       </button>
 
-      {image.resumeState && (
-        <button disabled={image.isLoading} onClick={() => image.resume()}>
-          Resume
-        </button>
-      )}
+      {image.resumeState && <p>Last run: {image.resumeState.runId}</p>}
 
       {image.pendingArtifacts.map((artifact) => (
         <a key={artifact.artifactId} href={`/api/artifacts/${artifact.artifactId}`}>
@@ -144,10 +135,13 @@ export function HeroImageGenerator() {
 }
 ```
 
-Auto-resume is enabled by default. Set `autoResume: false` when the UI should
-wait for an explicit user action, then call `resume()`. `resume(state)` can also
-accept an explicit `{ threadId, runId, cursor }` when your app stores the
-identity outside the hook persistence adapter.
+The snapshot is **read-only**. Generation hooks never auto-start a run on mount
+and expose no `resume()` action — a run begins only when you call
+`generate(...)`. `resumeState`, `pendingArtifacts`, and `resultArtifacts` let you
+render persisted artifact refs and observe the last run's status after a reload;
+they do not reconnect to a server run. Pass `initialResumeSnapshot` to hydrate
+this state from your own store when the identity lives outside the hook
+persistence adapter.
 
 ## Serve persisted artifacts
 
@@ -155,31 +149,21 @@ Generation hooks store lightweight artifact refs. Serve the durable bytes from
 your app by looking up the artifact by `artifactId`.
 
 ```ts
-import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 
-interface Env {
-  AI_D1: D1Database
-  AI_BLOBS: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
-}
-
-function persistence(env: Env) {
-  return cloudflarePersistence({
-    d1: env.AI_D1,
-    r2: env.AI_BLOBS,
-    durableObjects: env.AI_LOCKS,
-    migrate: true,
-  })
-}
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/generation.sqlite',
+  migrate: true,
+})
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ artifactId: string }> },
-  env: Env,
 ) {
   void request
   const { artifactId } = await context.params
-  const { stores } = persistence(env)
+  const { stores } = persistence
 
   if (!stores.artifacts || !stores.blobs) {
     throw new Error('Artifact and blob stores are required.')
@@ -223,19 +207,13 @@ include every input and output artifact you want persisted.
 ```ts
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
-import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
 
-declare const env: {
-  AI_D1: D1Database
-  AI_BLOBS: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
-}
-
-const persistence = cloudflarePersistence({
-  d1: env.AI_D1,
-  r2: env.AI_BLOBS,
-  durableObjects: env.AI_LOCKS,
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/generation.sqlite',
+  migrate: true,
 })
 
 const result = await generateImage({
@@ -271,11 +249,12 @@ snapshot stores `resumeState`, status, pending artifact refs, completed result
 artifact refs, and lightweight error metadata.
 
 Generated bytes are persisted by the server through artifact/blob stores, and
-`withGenerationPersistence(...)` records generation run status plus artifact/blob records.
-It does not append generation stream chunks to `publicEvents` by itself. If
-your endpoint aborts the provider request when the browser disconnects, resume
-cannot produce a future result for work the server canceled. Resumable
-generation needs a durable producer, explicit replay events, or a durable result
-that your endpoint can read when the client reconnects. For the artifact write
-path and current generation replay caveats, see
+`withGenerationPersistence(...)` records generation run status plus artifact/blob
+records. State durability does not itself make the delivered stream resumable —
+that is a transport concern; pair the endpoint with a delivery-durability sink
+(see [Delivery Durability](./delivery-durability)). If your endpoint aborts the
+provider request when the browser disconnects, resume cannot produce a future
+result for work the server canceled. Resumable generation needs a durable
+producer that outlives the client socket, or a durable result that your endpoint
+can read when the client reconnects. For the artifact write path, see
 [Persistence Internals](./internals).

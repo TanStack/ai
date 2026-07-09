@@ -1,33 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import {
   defineAIPersistence,
   defineChatPersistence,
   validatePersistenceFeatures,
 } from '../src/types'
-import { AppendConflictError } from '../src/types'
-import type { StreamChunk } from '@tanstack/ai'
 import type { AIPersistence, ChatPersistence } from '../src/types'
 
-const chunk = (delta: string): StreamChunk => ({
-  type: EventType.TEXT_MESSAGE_CONTENT,
-  messageId: 'm1',
-  delta,
-  timestamp: 1,
-})
-
 describe('memoryPersistence', () => {
-  it('returns a namespaced AIPersistence with every reference store present', () => {
+  it('returns a namespaced AIPersistence with every state store present', () => {
     const p = memoryPersistence()
     expect(p.stores.messages).toBeDefined()
     expect(p.stores.runs).toBeDefined()
-    expect(p.stores.publicEvents).toBeDefined()
-    expect(p.stores.internalEvents).toBeDefined()
     expect(p.stores.interrupts).toBeDefined()
     expect(p.stores.artifacts).toBeDefined()
     expect(p.stores.blobs).toBeDefined()
     expect(p.stores.locks).toBeDefined()
+  })
+
+  it('exposes only state stores (no delivery event stores)', () => {
+    const stores = memoryPersistence().stores as Record<string, unknown>
+    expect('publicEvents' in stores).toBe(false)
+    expect('internalEvents' in stores).toBe(false)
   })
 
   it('defineAIPersistence is an identity helper', () => {
@@ -47,9 +41,9 @@ describe('memoryPersistence', () => {
         defineAIPersistence({
           stores: { messages: memoryPersistence().stores.messages },
         }),
-        ['durable-replay'],
+        ['interrupts'],
       ),
-    ).toThrow(/durable-replay.*stores\.runs.*stores\.publicEvents/i)
+    ).toThrow(/interrupts.*stores\.runs.*stores\.interrupts/i)
   })
 
   it('allows message-only persistence without event stores', () => {
@@ -92,110 +86,6 @@ describe('memoryPersistence', () => {
       const got = await runs!.get('r1')
       expect(got?.status).toBe('completed')
       expect(got?.finishedAt).toBe(200)
-    })
-  })
-
-  describe('publicEvents', () => {
-    it('appends with CAS, reports hasRun/latestSeq, and reads after a seq', async () => {
-      const { publicEvents } = memoryPersistence().stores
-      expect(await publicEvents!.hasRun('r1')).toBe(false)
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        event: chunk('a'),
-      })
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 1,
-        event: chunk('b'),
-      })
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 2,
-        event: chunk('c'),
-      })
-      expect(await publicEvents!.hasRun('r1')).toBe(true)
-      expect(await publicEvents!.latestSeq('r1')).toBe(3)
-
-      const seen: Array<number> = []
-      for await (const e of publicEvents!.read('r1', { afterSeq: 1 })) {
-        seen.push(e.seq)
-      }
-      expect(seen).toEqual([2, 3])
-    })
-
-    it('returns an existing identical event for idempotent CAS append', async () => {
-      const { publicEvents } = memoryPersistence().stores
-      const event = chunk('a')
-      const first = await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        event,
-      })
-      const second = await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        event,
-      })
-      expect(second).toEqual(first)
-    })
-
-    it('throws AppendConflictError when CAS append observes a different event', async () => {
-      const { publicEvents } = memoryPersistence().stores
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        event: chunk('a'),
-      })
-      await expect(
-        publicEvents!.append({
-          runId: 'r1',
-          expectedSeq: 0,
-          event: chunk('b'),
-        }),
-      ).rejects.toBeInstanceOf(AppendConflictError)
-    })
-
-    it('reads all events when no afterSeq is given', async () => {
-      const { publicEvents } = memoryPersistence().stores
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        event: chunk('a'),
-      })
-      await publicEvents!.append({
-        runId: 'r1',
-        expectedSeq: 1,
-        event: chunk('b'),
-      })
-      const seen: Array<string> = []
-      for await (const e of publicEvents!.read('r1')) {
-        if (e.event.type === 'TEXT_MESSAGE_CONTENT') seen.push(e.event.delta)
-      }
-      expect(seen).toEqual(['a', 'b'])
-    })
-  })
-
-  describe('internalEvents', () => {
-    it('uses the same CAS semantics for namespaced events', async () => {
-      const { internalEvents } = memoryPersistence().stores
-      const first = await internalEvents!.append({
-        runId: 'r1',
-        expectedSeq: 0,
-        namespace: 'checkpoint',
-        type: 'saved',
-        payload: { ok: true },
-      })
-      expect(first.seq).toBe(1)
-      await expect(
-        internalEvents!.append({
-          runId: 'r1',
-          expectedSeq: 0,
-          namespace: 'checkpoint',
-          type: 'saved',
-          payload: { ok: false },
-        }),
-      ).rejects.toBeInstanceOf(AppendConflictError)
     })
   })
 

@@ -40,13 +40,12 @@ function reduceChunks(
 }
 
 describe('generation resume state reducer', () => {
-  it('tracks thread, run, and cursor from persisted generation events', () => {
+  it('tracks thread and run from persisted generation events', () => {
     const snapshot = reduceChunks([
       {
         type: EventType.RUN_STARTED,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         timestamp: 1,
       },
       {
@@ -55,7 +54,6 @@ describe('generation resume state reducer', () => {
         value: { progress: 50, message: 'Halfway' },
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-2',
         timestamp: 2,
       },
     ])
@@ -64,7 +62,6 @@ describe('generation resume state reducer', () => {
       resumeState: {
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-2',
       },
       status: 'running',
       lastEvent: {
@@ -88,7 +85,6 @@ describe('generation resume state reducer', () => {
         ],
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         timestamp: 1,
       },
     ])
@@ -118,7 +114,6 @@ describe('generation resume state reducer', () => {
         value: [unsafeArtifactRef],
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         timestamp: 1,
       },
       {
@@ -130,7 +125,6 @@ describe('generation resume state reducer', () => {
         },
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-2',
         timestamp: 2,
       },
     ])
@@ -161,14 +155,12 @@ describe('generation resume state reducer', () => {
         },
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-2',
         timestamp: 2,
       },
       {
         type: EventType.RUN_FINISHED,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-3',
         finishReason: 'stop',
         timestamp: 3,
       },
@@ -206,7 +198,6 @@ describe('generation resume state reducer', () => {
           },
           threadId: 'thread-1',
           runId: 'run-1',
-          cursor: 'cursor-2',
           timestamp: 2,
         },
       ])
@@ -222,20 +213,18 @@ describe('generation resume state reducer', () => {
     }
   })
 
-  it('clears resumable cursor and stores lightweight error metadata on terminal errors', () => {
+  it('clears resume state and stores lightweight error metadata on terminal errors', () => {
     const snapshot = reduceChunks([
       {
         type: EventType.RUN_STARTED,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         timestamp: 1,
       },
       {
         type: EventType.RUN_ERROR,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-2',
         message: 'Generation failed',
         code: 'provider_error',
         error: { message: 'legacy message' },
@@ -259,7 +248,6 @@ describe('generation resume state reducer', () => {
         type: EventType.RUN_STARTED,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         timestamp: 1,
       },
     ])

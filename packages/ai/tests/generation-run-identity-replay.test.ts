@@ -31,7 +31,6 @@ function chunkSummary(chunk: StreamChunk) {
     type: chunk.type,
     runId: 'runId' in chunk ? chunk.runId : undefined,
     threadId: 'threadId' in chunk ? chunk.threadId : undefined,
-    cursor: chunk.cursor,
   }
 }
 
@@ -98,7 +97,7 @@ function createMockVideoAdapter(overrides?: {
 }
 
 describe('generation run identity and replay', () => {
-  it('passes identity and advancing cursors through one-shot generation stream events', async () => {
+  it('passes identity through one-shot generation stream events', async () => {
     const adapter: ImageAdapter<string> = {
       kind: 'image',
       name: 'test-image',
@@ -118,7 +117,6 @@ describe('generation run identity and replay', () => {
         stream: true,
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-0',
       }),
     )
 
@@ -127,24 +125,21 @@ describe('generation run identity and replay', () => {
         type: 'RUN_STARTED',
         runId: 'run-1',
         threadId: 'thread-1',
-        cursor: 'cursor-0:1',
       },
       {
         type: 'CUSTOM',
         runId: 'run-1',
         threadId: 'thread-1',
-        cursor: 'cursor-0:2',
       },
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
         threadId: 'thread-1',
-        cursor: 'cursor-0:3',
       },
     ])
   })
 
-  it('adds identity and cursor metadata to direct generation devtools events', async () => {
+  it('adds identity metadata to direct generation devtools events', async () => {
     const emit = vi.spyOn(aiEventClient, 'emit').mockImplementation(() => {})
     const adapter: AudioAdapter<string> = {
       kind: 'audio',
@@ -163,7 +158,6 @@ describe('generation run identity and replay', () => {
       prompt: 'drums',
       threadId: 'thread-a',
       runId: 'run-a',
-      cursor: 'cursor-a',
     })
 
     expect(emit).toHaveBeenCalledWith(
@@ -171,7 +165,6 @@ describe('generation run identity and replay', () => {
       expect.objectContaining({
         threadId: 'thread-a',
         runId: 'run-a',
-        cursor: 'cursor-a:1',
       }),
     )
     expect(emit).toHaveBeenCalledWith(
@@ -179,12 +172,11 @@ describe('generation run identity and replay', () => {
       expect.objectContaining({
         threadId: 'thread-a',
         runId: 'run-a',
-        cursor: 'cursor-a:2',
       }),
     )
   })
 
-  it('passes identity and cursors through speech, transcription, and video streams', async () => {
+  it('passes identity through speech, transcription, and video streams', async () => {
     const speech = await collect(
       generateSpeech({
         adapter: {
@@ -203,7 +195,6 @@ describe('generation run identity and replay', () => {
         stream: true,
         threadId: 'thread-s',
         runId: 'run-s',
-        cursor: 'cursor-s',
       }),
     )
 
@@ -224,7 +215,6 @@ describe('generation run identity and replay', () => {
         stream: true,
         threadId: 'thread-t',
         runId: 'run-t',
-        cursor: 'cursor-t',
       }),
     )
 
@@ -238,32 +228,23 @@ describe('generation run identity and replay', () => {
         pollingInterval: 0,
         threadId: 'thread-v',
         runId: 'run-v',
-        cursor: 'cursor-v',
       }),
     )
 
-    expect(speech.map((chunk) => chunk.cursor)).toEqual([
-      'cursor-s:1',
-      'cursor-s:2',
-      'cursor-s:3',
-    ])
     expect(speech.map(chunkSummary)).toContainEqual({
       type: 'CUSTOM',
       runId: 'run-s',
       threadId: 'thread-s',
-      cursor: 'cursor-s:2',
     })
     expect(transcription.map(chunkSummary)).toContainEqual({
       type: 'CUSTOM',
       runId: 'run-t',
       threadId: 'thread-t',
-      cursor: 'cursor-t:2',
     })
     expect(video.map(chunkSummary)).toContainEqual({
       type: 'RUN_FINISHED',
       runId: 'run-v',
       threadId: 'thread-v',
-      cursor: 'cursor-v:5',
     })
   })
 
@@ -288,14 +269,12 @@ describe('generation run identity and replay', () => {
         },
         runId: 'run-replay',
         threadId: 'thread-replay',
-        cursor: 'cursor-replay:2',
       },
       {
         type: EventType.RUN_FINISHED,
         runId: 'run-replay',
         threadId: 'thread-replay',
         finishReason: 'stop',
-        cursor: 'cursor-replay:3',
       },
     ] satisfies Array<StreamChunk>
 
@@ -414,7 +393,6 @@ describe('generation run identity and replay', () => {
         value: { id: 'persisted', model: 'test-model' },
         runId: 'run-replay',
         threadId: 'thread-replay',
-        cursor: 'cursor-replay:2',
       },
     ] satisfies Array<StreamChunk>
     const expectedMessage =
@@ -505,7 +483,7 @@ describe('generation run identity and replay', () => {
     expect(createVideoJob).not.toHaveBeenCalled()
   })
 
-  it('adds identity and advancing cursors to video status devtools events', async () => {
+  it('adds identity to video status devtools events', async () => {
     const emit = vi.spyOn(aiEventClient, 'emit').mockImplementation(() => {})
     const adapter = createMockVideoAdapter({
       createVideoJob: vi.fn(),
@@ -533,7 +511,6 @@ describe('generation run identity and replay', () => {
       jobId: 'job-status',
       threadId: 'thread-status',
       runId: 'run-status',
-      cursor: 'cursor-status',
     })
 
     expect(emit).toHaveBeenCalledWith(
@@ -541,7 +518,6 @@ describe('generation run identity and replay', () => {
       expect.objectContaining({
         threadId: 'thread-status',
         runId: 'run-status',
-        cursor: 'cursor-status:1',
       }),
     )
     expect(emit).toHaveBeenCalledWith(
@@ -549,7 +525,6 @@ describe('generation run identity and replay', () => {
       expect.objectContaining({
         threadId: 'thread-status',
         runId: 'run-status',
-        cursor: 'cursor-status:2',
       }),
     )
     expect(emit).toHaveBeenCalledWith(
@@ -557,7 +532,6 @@ describe('generation run identity and replay', () => {
       expect.objectContaining({
         threadId: 'thread-status',
         runId: 'run-status',
-        cursor: 'cursor-status:3',
       }),
     )
   })

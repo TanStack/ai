@@ -410,6 +410,11 @@
           "updatedAt": "2026-07-09"
         },
         {
+          "label": "Delivery Durability",
+          "to": "persistence/delivery-durability",
+          "addedAt": "2026-07-09"
+        },
+        {
           "label": "Persistence Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-08",
@@ -419,7 +424,7 @@
           "label": "Migrations",
           "to": "persistence/migrations",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-09"
         },
         {
           "label": "Chat Persistence",
@@ -449,7 +454,7 @@
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-09"
         },
         {
           "label": "Prisma",

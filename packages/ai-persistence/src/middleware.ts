@@ -1,19 +1,13 @@
 import { defineChatMiddleware } from '@tanstack/ai'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
-  EventsCapability,
   InterruptsCapability,
   LocksCapability,
   PersistenceCapability,
-  ResumeSourceCapability,
-  provideEvents,
   provideInterrupts,
   provideLocks,
   providePersistence,
-  provideResumeSource,
 } from './capabilities'
-import { RunSequence, decodeCursor, encodeCursor } from './cursor'
-import { createResumeSource } from './resume-source'
 import { validatePersistenceFeatures } from './types'
 import type {
   AbortInfo,
@@ -89,7 +83,7 @@ export interface GenerationArtifactNameInput {
 
 const runState = new WeakMap<
   object,
-  { seq: RunSequence; merged: boolean; interrupted: boolean }
+  { merged: boolean; interrupted: boolean }
 >()
 
 function defaultFeatures(
@@ -97,17 +91,9 @@ function defaultFeatures(
 ): Array<PersistenceFeature> {
   const features: Array<PersistenceFeature> = []
   if (persistence.stores.messages) features.push('messages')
-  if (persistence.stores.runs && persistence.stores.publicEvents) {
-    features.push('durable-replay')
-  }
-  if (
-    persistence.stores.runs &&
-    persistence.stores.publicEvents &&
-    persistence.stores.interrupts
-  ) {
+  if (persistence.stores.runs && persistence.stores.interrupts) {
     features.push('interrupts')
   }
-  if (persistence.stores.internalEvents) features.push('internal-events')
   if (persistence.stores.metadata) features.push('metadata')
   if (persistence.stores.locks) features.push('locks')
   if (persistence.stores.artifacts && persistence.stores.blobs) {
@@ -243,79 +229,6 @@ function interruptPayload(interrupt: unknown): Record<string, unknown> {
   return interrupt && typeof interrupt === 'object'
     ? { ...(interrupt as Record<string, unknown>) }
     : { value: interrupt }
-}
-
-async function publicEventExistsAtSeq(
-  publicEvents: NonNullable<AIPersistence['stores']['publicEvents']>,
-  runId: string,
-  seq: number,
-): Promise<boolean> {
-  for await (const persisted of publicEvents.read(runId, {
-    afterSeq: seq - 1,
-  })) {
-    return persisted.seq === seq
-  }
-  return false
-}
-
-async function validateReplayCursor(
-  ctx: ChatMiddlewareContext,
-  cursor: string | undefined,
-  persistence: AIPersistence,
-): Promise<boolean> {
-  if (!cursor) return false
-  if (!persistence.stores.runs || !persistence.stores.publicEvents) {
-    return false
-  }
-
-  const decoded = decodeCursor(cursor)
-  if (decoded.seq < 1) {
-    throw new Error(
-      `Resume cursor sequence ${decoded.seq} is invalid; expected a persisted event sequence >= 1.`,
-    )
-  }
-  if (decoded.runId !== ctx.runId) {
-    throw new Error(
-      `Resume cursor runId ${decoded.runId} does not match request runId ${ctx.runId}.`,
-    )
-  }
-
-  const run = await persistence.stores.runs.get(decoded.runId)
-  if (!run) {
-    throw new Error(`Resume cursor references unknown run ${decoded.runId}.`)
-  }
-  if (run.threadId !== ctx.threadId) {
-    throw new Error(
-      `Resume cursor run ${decoded.runId} belongs to thread ${run.threadId}, not request thread ${ctx.threadId}.`,
-    )
-  }
-
-  const latestSeq = await persistence.stores.publicEvents.latestSeq(
-    decoded.runId,
-  )
-  if (latestSeq === 0) {
-    throw new Error(
-      `Resume cursor references run ${decoded.runId}, but no public events are persisted.`,
-    )
-  }
-  if (decoded.seq > latestSeq) {
-    throw new Error(
-      `Resume cursor sequence ${decoded.seq} is beyond latest persisted sequence ${latestSeq} for run ${decoded.runId}.`,
-    )
-  }
-  if (
-    !(await publicEventExistsAtSeq(
-      persistence.stores.publicEvents,
-      decoded.runId,
-      decoded.seq,
-    ))
-  ) {
-    throw new Error(
-      `Resume cursor sequence ${decoded.seq} does not reference a persisted public event for run ${decoded.runId}.`,
-    )
-  }
-
-  return true
 }
 
 function isArtifactRef(value: unknown): value is PersistedArtifactRef {
@@ -766,12 +679,9 @@ async function persistGenerationArtifacts(
 interface PersistencePlan {
   features: Array<PersistenceFeature>
   wantsMessages: boolean
-  wantsReplay: boolean
   wantsInterrupts: boolean
-  wantsPublicEvents: boolean
   wantsLocks: boolean
   wantsArtifactPersistence: boolean
-  publicEvents: AIPersistence['stores']['publicEvents']
   runs: AIPersistence['stores']['runs']
 }
 
@@ -783,9 +693,7 @@ function resolvePersistencePlan(
   validatePersistenceFeatures(persistence, features)
 
   const wantsMessages = features.includes('messages')
-  const wantsReplay = features.includes('durable-replay')
   const wantsInterrupts = features.includes('interrupts')
-  const wantsPublicEvents = wantsReplay || wantsInterrupts
   const wantsLocks = features.includes('locks')
   const wantsArtifactStore = features.includes('artifacts')
   const wantsBlobStore = features.includes('blobs')
@@ -798,12 +706,9 @@ function resolvePersistencePlan(
   return {
     features,
     wantsMessages,
-    wantsReplay,
     wantsInterrupts,
-    wantsPublicEvents,
     wantsLocks,
     wantsArtifactPersistence: wantsArtifactStore && wantsBlobStore,
-    publicEvents: persistence.stores.publicEvents,
     runs: persistence.stores.runs,
   }
 }
@@ -859,26 +764,20 @@ async function interruptRun(
 // ---------------------------------------------------------------------------
 
 /**
- * Chat-only persistence middleware. Provides durable messages, public event
- * replay, interrupts, and locks for `chat()`.
+ * Chat-only persistence middleware. Provides durable **state** for `chat()`:
+ * thread messages, run records, interrupts, and locks. Delivery durability
+ * (replaying a disconnected/reloaded stream) lives on the transport layer via
+ * `StreamDurability`, not here — this middleware never mutates the chunk stream.
  */
 export function withChatPersistence(
   persistence: AIPersistence,
   opts?: WithPersistenceOptions,
 ): ChatMiddleware {
   const plan = resolvePersistencePlan(persistence, opts)
-  const {
-    wantsMessages,
-    wantsInterrupts,
-    wantsPublicEvents,
-    wantsLocks,
-    publicEvents,
-    runs,
-  } = plan
+  const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
 
   const provides = [
     PersistenceCapability,
-    ...(wantsPublicEvents ? [EventsCapability, ResumeSourceCapability] : []),
     ...(wantsInterrupts ? [InterruptsCapability] : []),
     ...(wantsLocks ? [LocksCapability] : []),
   ]
@@ -886,23 +785,14 @@ export function withChatPersistence(
   return defineChatMiddleware({
     name: 'chat-persistence',
     provides,
-    async setup(ctx: ChatMiddlewareContext) {
+    setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
 
-      const initialSeq =
-        wantsPublicEvents && publicEvents
-          ? await publicEvents.latestSeq(ctx.runId)
-          : 0
       runState.set(ctx, {
-        seq: new RunSequence(ctx.runId, initialSeq),
         merged: false,
         interrupted: false,
       })
 
-      if (wantsPublicEvents && publicEvents) {
-        provideEvents(ctx, publicEvents)
-        provideResumeSource(ctx, createResumeSource(publicEvents, runs))
-      }
       if (wantsInterrupts && persistence.stores.interrupts) {
         provideInterrupts(ctx, persistence.stores.interrupts)
       }
@@ -914,17 +804,9 @@ export function withChatPersistence(
     async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
       if (ctx.phase !== 'init') return
 
-      const hasResume = config.resume !== undefined
-      const isReplay = wantsPublicEvents
-        ? await validateReplayCursor(ctx, config.cursor, persistence)
-        : false
       let resumeToolState: ChatResumeToolState | undefined
 
-      if (
-        wantsInterrupts &&
-        persistence.stores.interrupts &&
-        (!isReplay || hasResume)
-      ) {
+      if (wantsInterrupts && persistence.stores.interrupts) {
         const pending = await persistence.stores.interrupts.listPending(
           ctx.threadId,
         )
@@ -963,48 +845,37 @@ export function withChatPersistence(
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
-      if (!wantsPublicEvents || !publicEvents) return
+      // State-only: react to the interrupt boundary (create interrupt records,
+      // mark the run interrupted, snapshot thread messages). The chunk stream is
+      // never mutated — delivery durability is a transport-layer concern.
+      if (
+        chunk.type !== 'RUN_FINISHED' ||
+        chunk.outcome?.type !== 'interrupt'
+      ) {
+        return
+      }
       const state = runState.get(ctx)
       if (!state) return
-      const expectedSeq = state.seq.current()
-      const seq = state.seq.next()
-      const stamped: StreamChunk = {
-        ...chunk,
-        cursor: encodeCursor(ctx.runId, seq),
-      }
-      await publicEvents.append({
-        runId: ctx.runId,
-        expectedSeq,
-        event: stamped,
-      })
-      await persistence.stream?.publish(ctx.runId, seq, stamped)
 
-      if (
-        stamped.type === 'RUN_FINISHED' &&
-        stamped.outcome?.type === 'interrupt'
-      ) {
-        if (wantsInterrupts && persistence.stores.interrupts) {
-          for (const interrupt of stamped.outcome.interrupts) {
-            await persistence.stores.interrupts.create({
-              interruptId: interrupt.id,
-              runId: ctx.runId,
-              threadId: ctx.threadId,
-              status: 'pending',
-              requestedAt: Date.now(),
-              payload: interruptPayload(interrupt),
-            })
-          }
+      if (wantsInterrupts && persistence.stores.interrupts) {
+        for (const interrupt of chunk.outcome.interrupts) {
+          await persistence.stores.interrupts.create({
+            interruptId: interrupt.id,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            status: 'pending',
+            requestedAt: Date.now(),
+            payload: interruptPayload(interrupt),
+          })
         }
-        await interruptRun(runs, ctx.runId)
-        if (wantsMessages && persistence.stores.messages) {
-          await persistence.stores.messages.saveThread(ctx.threadId, [
-            ...ctx.messages,
-          ])
-        }
-        state.interrupted = true
       }
-
-      return stamped
+      await interruptRun(runs, ctx.runId)
+      if (wantsMessages && persistence.stores.messages) {
+        await persistence.stores.messages.saveThread(ctx.threadId, [
+          ...ctx.messages,
+        ])
+      }
+      state.interrupted = true
     },
 
     async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {

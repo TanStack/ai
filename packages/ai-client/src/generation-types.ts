@@ -67,7 +67,6 @@ export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
 export interface GenerationResumeState {
   threadId: string
   runId: string
-  cursor: string
 }
 
 export type GenerationPendingArtifact = PersistedArtifactRef
@@ -150,8 +149,6 @@ export const GENERATION_EVENTS = {
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
-  /** Explicit persisted run/cursor metadata for direct server-function resume */
-  resumeState?: GenerationResumeState
 }
 
 /**
@@ -200,31 +197,18 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   devtools?: Partial<AIDevtoolsClientMetadata>
 
   /**
-   * Whether framework integrations should attempt to resume a persisted run on
-   * mount. Low-level clients expose the flag for hooks; they do not auto-resume
-   * by themselves. Defaults to `true` in framework hooks.
-   */
-  autoResume?: boolean
-
-  /**
    * Initial lightweight resume snapshot restored by framework hooks. Contains
-   * only cursor metadata, errors, and persisted artifact refs.
+   * only observed run metadata, errors, and persisted artifact refs. This is
+   * read-only state for display; it does not trigger any generation.
    */
   initialResumeSnapshot?: GenerationResumeSnapshot
 
   /**
-   * Optional persistence adapters for lightweight generation resume state.
+   * Optional persistence adapters for lightweight generation state.
    * Generation hooks only support `server` persistence; generated media bytes
    * are never written into browser storage by this client.
    */
   persistence?: GenerationPersistenceOptions
-
-  /**
-   * Explicit run/cursor state to send on the next generation request. This is
-   * only a resume input; explicit `stop()` still aborts the local connection and
-   * does not model a durable server-side cancel.
-   */
-  resumeState?: GenerationResumeState
 
   /**
    * Factory that constructs the devtools bridge. Default is a no-op
@@ -267,7 +251,6 @@ export function updateGenerationResumeSnapshot(
 ): GenerationResumeSnapshot {
   const threadId = stringField(chunk, 'threadId')
   const runId = stringField(chunk, 'runId')
-  const cursor = stringField(chunk, 'cursor')
   const previousArtifacts = previous?.pendingArtifacts ?? []
   const next: GenerationResumeSnapshot = {
     resumeState: previous?.resumeState ?? null,
@@ -281,8 +264,8 @@ export function updateGenerationResumeSnapshot(
     lastEvent: createGenerationEventSnapshot(chunk),
   }
 
-  if (threadId && runId && cursor) {
-    next.resumeState = { threadId, runId, cursor }
+  if (threadId && runId) {
+    next.resumeState = { threadId, runId }
     next.status = 'running'
   } else if (chunk.type === 'RUN_STARTED') {
     next.status = 'running'

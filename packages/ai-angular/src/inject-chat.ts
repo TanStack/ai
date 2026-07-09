@@ -80,14 +80,6 @@ export function injectChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  let lifecycleOwned = false
-  const resumeIfLifecycleOwned = () => {
-    if (!lifecycleOwned) {
-      return
-    }
-    void client.maybeAutoResume()
-  }
-
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
@@ -119,7 +111,6 @@ export function injectChat<
     onError: (err) => options.onError?.(err),
     onResumeStateChange: (resumeState, pendingInterrupts) => {
       options.onResumeStateChange?.(resumeState, pendingInterrupts)
-      resumeIfLifecycleOwned()
     },
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
@@ -173,25 +164,15 @@ export function injectChat<
 
   afterNextRender(
     () => {
-      lifecycleOwned = true
       client.mountDevtools()
-      void client.maybeAutoResume()
-      if (typeof window !== 'undefined') {
-        window.addEventListener('online', handleOnline)
-      }
+      // Delivery-durability resume is transparent: the resumable SSE
+      // connection adapter reattaches via the browser's native Last-Event-ID
+      // on reconnect. No client-side auto-resume wiring is needed.
     },
     { injector },
   )
 
-  const handleOnline = () => {
-    void client.maybeAutoResume()
-  }
-
   destroyRef.onDestroy(() => {
-    lifecycleOwned = false
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', handleOnline)
-    }
     if (liveSource?.()) {
       client.unsubscribe()
     } else {

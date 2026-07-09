@@ -333,7 +333,6 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
         JSON.stringify({
           threadId: runContext?.threadId,
           runId: runContext?.runId,
-          cursor: runContext?.cursor,
           resume: runContext?.resume,
           messages,
           data,
@@ -402,7 +401,6 @@ const myAdapter: ConnectConnectionAdapter = {
       body: JSON.stringify({
         threadId: runContext?.threadId,
         runId: runContext?.runId,
-        cursor: runContext?.cursor,
         resume: runContext?.resume,
         messages,
         ...data,

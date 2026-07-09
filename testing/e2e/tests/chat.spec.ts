@@ -54,65 +54,6 @@ for (const provider of providersFor('chat')) {
 }
 
 test.describe('openai chat persistence', () => {
-  test('durable replay resumes an interrupted stream after browser reload', async ({
-    page,
-    testId,
-    aimockPort,
-  }) => {
-    test.setTimeout(60_000)
-    await page.goto(
-      `${featureUrl('openai', 'chat', testId, aimockPort)}&serverPersistence=1`,
-    )
-
-    await sendMessage(page, '[chat-durable-replay] recommend a guitar slowly')
-    await expect(page.getByTestId('content-delta-count')).toHaveAttribute(
-      'data-count',
-      /[1-9]\d*/,
-    )
-    await expect(page.getByTestId('resume-state')).toHaveAttribute(
-      'data-cursor',
-      /.+/,
-    )
-    const chatStorageKey = `e2e-chat-${testId}`
-    const resumeStorageKey = `${chatStorageKey}:resume-state`
-    await page.waitForFunction(
-      (key) => window.localStorage.getItem(key) !== null,
-      resumeStorageKey,
-    )
-    const checkpoint = await page.evaluate(
-      ({ chatStorageKey, resumeStorageKey }) => ({
-        messages: window.localStorage.getItem(chatStorageKey),
-        resume: window.localStorage.getItem(resumeStorageKey),
-      }),
-      { chatStorageKey, resumeStorageKey },
-    )
-    expect(checkpoint.messages).not.toBeNull()
-    expect(checkpoint.resume).not.toBeNull()
-
-    await waitForResponse(page, 30_000)
-
-    await page.evaluate(
-      ({ chatStorageKey, resumeStorageKey, checkpoint }) => {
-        if (checkpoint.messages) {
-          window.localStorage.setItem(chatStorageKey, checkpoint.messages)
-        }
-        if (checkpoint.resume) {
-          window.localStorage.setItem(resumeStorageKey, checkpoint.resume)
-        }
-      },
-      { chatStorageKey, resumeStorageKey, checkpoint },
-    )
-
-    await page.reload()
-
-    await waitForResponse(page)
-    await expect(page.getByTestId('assistant-message')).toContainText(
-      'Fender Stratocaster',
-      { timeout: 15_000 },
-    )
-    await expect(page.getByTestId('assistant-message')).toHaveCount(1)
-  })
-
   test('persists chat messages across browser reload with localStorage', async ({
     page,
     testId,

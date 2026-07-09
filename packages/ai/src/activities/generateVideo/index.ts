@@ -10,8 +10,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import {
-  createGenerationCursor,
-  generationEventFields,
+  generationIdentityFields,
   rejectEventsOnlyReplay,
   replayGenerationEvents,
 } from '../generation-run'
@@ -341,7 +340,6 @@ async function runCreateVideoJob<
     middleware,
     threadId,
     runId,
-    cursor,
   } = options
   const model = adapter.model
   const requestId = createId('video')
@@ -360,7 +358,6 @@ async function runCreateVideoJob<
     modelOptions,
     threadId,
     runId,
-    cursor,
     artifactInputs: { prompt, size, duration },
     createId,
   })
@@ -435,14 +432,13 @@ async function* runStreamingVideoGeneration<
     'unknown'
 
   const threadId = options.threadId ?? createId('thread')
-  const nextCursor = createGenerationCursor(options.cursor)
-  const identity = { threadId, runId, cursor: options.cursor }
+  const identity = { threadId, runId }
 
   yield {
     type: 'RUN_STARTED',
     runId,
     threadId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     timestamp: Date.now(),
   } as StreamChunk
 
@@ -455,7 +451,7 @@ async function* runStreamingVideoGeneration<
         type: 'CUSTOM',
         name: 'generation:artifacts',
         value: replayResult.artifacts,
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         timestamp: Date.now(),
       } as StreamChunk
     }
@@ -464,7 +460,7 @@ async function* runStreamingVideoGeneration<
       type: 'CUSTOM',
       name: 'generation:result',
       value: options.replay.result,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       timestamp: Date.now(),
     } as StreamChunk
 
@@ -473,7 +469,7 @@ async function* runStreamingVideoGeneration<
       runId,
       threadId,
       finishReason: 'stop',
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       timestamp: Date.now(),
     } as StreamChunk
     return
@@ -487,7 +483,6 @@ async function* runStreamingVideoGeneration<
     modelOptions,
     threadId,
     runId,
-    cursor: options.cursor,
     artifactInputs: { prompt, size, duration },
     createId,
   })
@@ -520,7 +515,7 @@ async function* runStreamingVideoGeneration<
       type: 'CUSTOM',
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       timestamp: Date.now(),
     } as StreamChunk
 
@@ -540,7 +535,7 @@ async function* runStreamingVideoGeneration<
           progress: statusResult.progress,
           error: statusResult.error,
         },
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         timestamp: Date.now(),
       } as StreamChunk
 
@@ -576,7 +571,7 @@ async function* runStreamingVideoGeneration<
             type: 'CUSTOM',
             name: 'generation:artifacts',
             value: urlResult.artifacts,
-            ...generationEventFields(identity, nextCursor),
+            ...generationIdentityFields(identity),
             timestamp: Date.now(),
           } as StreamChunk
         }
@@ -588,7 +583,7 @@ async function* runStreamingVideoGeneration<
             ...urlResult,
             status: 'completed',
           },
-          ...generationEventFields(identity, nextCursor),
+          ...generationIdentityFields(identity),
           timestamp: Date.now(),
         } as StreamChunk
 
@@ -597,7 +592,7 @@ async function* runStreamingVideoGeneration<
           runId,
           threadId,
           finishReason: 'stop',
-          ...generationEventFields(identity, nextCursor),
+          ...generationIdentityFields(identity),
           timestamp: Date.now(),
         } as StreamChunk
         return
@@ -628,7 +623,7 @@ async function* runStreamingVideoGeneration<
       type: 'RUN_ERROR',
       runId,
       threadId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       message: payload.message,
       code: payload.code,
       error: payload,
@@ -687,15 +682,14 @@ export async function getVideoJobStatus<
   error?: string
   usage?: TokenUsage
 }> {
-  const { adapter, jobId, threadId, runId, cursor } = options
+  const { adapter, jobId, threadId, runId } = options
   const requestId = createId('video-status')
   const startTime = Date.now()
-  const nextCursor = createGenerationCursor(cursor)
-  const identity = { threadId, runId, cursor }
+  const identity = { threadId, runId }
 
   aiEventClient.emit('video:request:started', {
     requestId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     provider: adapter.name,
     model: adapter.model,
     requestType: 'status',
@@ -712,7 +706,7 @@ export async function getVideoJobStatus<
       const urlResult = await adapter.getVideoUrl(jobId)
       aiEventClient.emit('video:request:completed', {
         requestId,
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
@@ -726,7 +720,7 @@ export async function getVideoJobStatus<
       if (urlResult.usage) {
         aiEventClient.emit('video:usage', {
           requestId,
-          ...generationEventFields(identity, nextCursor),
+          ...generationIdentityFields(identity),
           model: adapter.model,
           usage: urlResult.usage,
           timestamp: Date.now(),
@@ -743,7 +737,7 @@ export async function getVideoJobStatus<
         error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
         requestId,
-        ...generationEventFields(identity, nextCursor),
+        ...generationIdentityFields(identity),
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
@@ -765,7 +759,7 @@ export async function getVideoJobStatus<
 
   aiEventClient.emit('video:request:completed', {
     requestId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     provider: adapter.name,
     model: adapter.model,
     requestType: 'status',

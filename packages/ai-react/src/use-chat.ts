@@ -62,8 +62,6 @@ export function useChat<
   )
   const isFirstMountRef = useRef(true)
   const activeClientRef = useRef<ChatClient | null>(null)
-  const lifecycleOwnedClientRef = useRef<ChatClient | null>(null)
-  const lifecycleAutoResumeArmedRef = useRef(false)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
@@ -84,34 +82,6 @@ export function useChat<
     setResumeState(target.getResumeState())
     setPendingInterrupts(target.getPendingInterrupts())
   }, [])
-
-  const isLifecycleOwnedClient = useCallback((target: ChatClient) => {
-    return (
-      activeClientRef.current === target &&
-      lifecycleOwnedClientRef.current === target
-    )
-  }, [])
-
-  const resumeIfLifecycleOwned = useCallback(
-    (target: ChatClient) => {
-      if (!isLifecycleOwnedClient(target)) return
-      if (!lifecycleAutoResumeArmedRef.current) return
-      if (typeof window === 'undefined') return
-      void target.maybeAutoResume().then(
-        () => {
-          if (!isLifecycleOwnedClient(target)) return
-          if (!lifecycleAutoResumeArmedRef.current) return
-          syncResumeState(target)
-        },
-        () => {
-          if (!isLifecycleOwnedClient(target)) return
-          if (!lifecycleAutoResumeArmedRef.current) return
-          syncResumeState(target)
-        },
-      )
-    },
-    [isLifecycleOwnedClient, syncResumeState],
-  )
 
   // Create ChatClient instance with callbacks to sync state
   const client = useMemo(() => {
@@ -213,12 +183,11 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setResumeState(nextResumeState)
         setPendingInterrupts(nextPendingInterrupts)
-        resumeIfLifecycleOwned(instance)
       },
     })
     activeClientRef.current = instance
     return instance
-  }, [clientId, resumeIfLifecycleOwned, syncResumeState])
+  }, [clientId, syncResumeState])
 
   useEffect(() => {
     const clientMessages = client.getMessages()
@@ -269,38 +238,13 @@ export function useChat<
       cleanupInvalidationRef.current = null
     }
     activeClientRef.current = client
-    lifecycleOwnedClientRef.current = client
-    lifecycleAutoResumeArmedRef.current = false
     client.mountDevtools()
-    void client.maybeAutoResume().then(
-      () => {
-        if (!isLifecycleOwnedClient(client)) return
-        syncResumeState(client)
-        lifecycleAutoResumeArmedRef.current = true
-      },
-      () => {
-        if (!isLifecycleOwnedClient(client)) return
-        syncResumeState(client)
-        lifecycleAutoResumeArmedRef.current = true
-      },
-    )
-
-    const handleOnline = () => {
-      resumeIfLifecycleOwned(client)
-    }
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', handleOnline)
-    }
+    // Delivery-durability resume is transparent: the resumable SSE connection
+    // adapter re-attaches via the browser's native Last-Event-ID on reconnect.
+    // We only seed interrupt (state) resume from the client here.
+    syncResumeState(client)
 
     return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('online', handleOnline)
-      }
-      if (lifecycleOwnedClientRef.current === client) {
-        lifecycleOwnedClientRef.current = null
-      }
-      lifecycleAutoResumeArmedRef.current = false
       cleanupInvalidationRef.current = setTimeout(() => {
         if (activeClientRef.current === client) {
           activeClientRef.current = null
@@ -327,7 +271,7 @@ export function useChat<
       }
       cleanupDisposalRef.current = disposal
     }
-  }, [client, isLifecycleOwnedClient, resumeIfLifecycleOwned, syncResumeState])
+  }, [client, syncResumeState])
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
@@ -392,15 +336,6 @@ export function useChat<
     async (response: { id: string; approved: boolean }) => {
       await client.addToolApprovalResponse(response)
       syncResumeState(client)
-    },
-    [client, syncResumeState],
-  )
-
-  const resume = useCallback(
-    async (state?: ChatResumeState) => {
-      const result = await client.resume(state ?? undefined)
-      syncResumeState(client)
-      return result
     },
     [client, syncResumeState],
   )
@@ -484,7 +419,6 @@ export function useChat<
     addToolApprovalResponse,
     resumeState,
     pendingInterrupts,
-    resume,
     resumeInterrupts,
     partial,
     final,

@@ -103,5 +103,5 @@ export function isCustomEvent<TName extends WellKnownCustomEventName>(
   chunk: StreamChunk,
   name: TName,
 ): chunk is WellKnownCustomEvent<TName> {
-  return chunk.type === EventType.CUSTOM && (chunk as CustomEvent).name === name
+  return chunk.type === EventType.CUSTOM && chunk.name === name
 }

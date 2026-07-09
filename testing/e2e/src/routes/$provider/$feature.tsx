@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -137,8 +137,7 @@ function parseStoredResumeSnapshot(
 
   if (
     typeof resumeState.threadId !== 'string' ||
-    typeof resumeState.runId !== 'string' ||
-    typeof resumeState.cursor !== 'string'
+    typeof resumeState.runId !== 'string'
   ) {
     return null
   }
@@ -147,7 +146,6 @@ function parseStoredResumeSnapshot(
     resumeState: {
       threadId: resumeState.threadId,
       runId: resumeState.runId,
-      cursor: resumeState.cursor,
     },
     pendingInterrupts: parsePendingInterrupts(value.pendingInterrupts),
   }
@@ -298,7 +296,6 @@ function ChatFeature({
   )
   const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId
   const resumeStorageKey = `${chatId}:resume-state`
-  const attemptedStoredResumeRef = useRef(false)
   const [initialResumeSnapshot] = useState<ChatResumeSnapshot | null>(() => {
     if (!serverPersistenceEnabled) return null
     if (typeof window === 'undefined') return null
@@ -327,7 +324,6 @@ function ChatFeature({
               data?: unknown
               threadId: string
               runId: string
-              cursor?: string
               resume?: Array<unknown>
             },
             options: { signal: AbortSignal },
@@ -355,7 +351,6 @@ function ChatFeature({
                 tools: [],
                 context: [],
                 forwardedProps: input.data,
-                ...(input.cursor ? { cursor: input.cursor } : {}),
                 ...(input.resume ? { resume: input.resume } : {}),
               }),
               signal: options.signal,
@@ -370,7 +365,6 @@ function ChatFeature({
     addToolApprovalResponse,
     resumeState,
     pendingInterrupts,
-    resume,
     stop,
     clear,
   } = useChat({
@@ -408,25 +402,12 @@ function ChatFeature({
     },
   })
 
+  // Delivery-durability resume is transparent now (the resumable SSE
+  // connection adapter reattaches via the browser's native Last-Event-ID),
+  // so there is no client `resume()` call. We still persist the interrupt
+  // (state) resume snapshot so a full reload can restore pending interrupts.
   useEffect(() => {
-    if (!serverPersistenceEnabled || attemptedStoredResumeRef.current) return
-    attemptedStoredResumeRef.current = true
-    if (!initialResumeSnapshot) return
-    if ((initialResumeSnapshot.pendingInterrupts ?? []).length > 0) return
-    try {
-      void resume(initialResumeSnapshot.resumeState)
-    } catch {
-      window.localStorage.removeItem(resumeStorageKey)
-    }
-  }, [
-    initialResumeSnapshot,
-    resume,
-    resumeStorageKey,
-    serverPersistenceEnabled,
-  ])
-
-  useEffect(() => {
-    if (!serverPersistenceEnabled || !attemptedStoredResumeRef.current) return
+    if (!serverPersistenceEnabled) return
     if (resumeState) {
       const snapshot: ChatResumeSnapshot = {
         resumeState,
@@ -450,7 +431,6 @@ function ChatFeature({
           data-testid="resume-state"
           data-thread-id={resumeState.threadId}
           data-run-id={resumeState.runId}
-          data-cursor={resumeState.cursor}
           hidden
         />
       )}

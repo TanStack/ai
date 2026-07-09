@@ -8,8 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import {
-  createGenerationCursor,
-  generationEventFields,
+  generationIdentityFields,
   rejectEventsOnlyReplay,
 } from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -213,7 +212,6 @@ async function runGenerateTranscription<
     middleware,
     threadId,
     runId,
-    cursor,
     replay: _replay,
     ...rest
   } = options
@@ -225,8 +223,7 @@ async function runGenerateTranscription<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
-  const nextCursor = createGenerationCursor(cursor)
-  const identity = { threadId, runId, cursor }
+  const identity = { threadId, runId }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -236,7 +233,6 @@ async function runGenerateTranscription<
     modelOptions: rest.modelOptions,
     threadId,
     runId,
-    cursor,
     artifactInputs: {
       audio: rest.audio,
       language: rest.language,
@@ -250,7 +246,7 @@ async function runGenerateTranscription<
 
   aiEventClient.emit('transcription:request:started', {
     requestId,
-    ...generationEventFields(identity, nextCursor),
+    ...generationIdentityFields(identity),
     provider: adapter.name,
     model,
     language: rest.language,
@@ -272,7 +268,7 @@ async function runGenerateTranscription<
 
     aiEventClient.emit('transcription:request:completed', {
       requestId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       text: result.text,
@@ -299,7 +295,7 @@ async function runGenerateTranscription<
     const err = error as Error
     aiEventClient.emit('transcription:request:error', {
       requestId,
-      ...generationEventFields(identity, nextCursor),
+      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       error: { message: err.message, name: err.name },

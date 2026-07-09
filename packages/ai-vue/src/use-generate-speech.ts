@@ -21,7 +21,7 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  */
 export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+  'persistence' | 'initialResumeSnapshot'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

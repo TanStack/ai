@@ -5,16 +5,6 @@
       "response": {
         "content": "I'd recommend the Fender Stratocaster for its versatile tone and comfortable playability. At $1,299, it's great for beginners and pros alike, covering everything from blues to rock."
       }
-    },
-    {
-      "match": {
-        "userMessage": "[chat-durable-replay] recommend a guitar slowly"
-      },
-      "response": {
-        "content": "I'd recommend the Fender Stratocaster for its versatile tone and comfortable playability. At $1,299, it's great for beginners and pros alike, covering everything from blues to rock."
-      },
-      "chunkSize": 2,
-      "streamingProfile": { "tps": 5 }
     }
   ]
 }

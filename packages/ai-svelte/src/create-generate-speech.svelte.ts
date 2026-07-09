@@ -20,7 +20,7 @@ import type {
  */
 export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   CreateGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+  'persistence' | 'initialResumeSnapshot'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
@@ -143,6 +143,5 @@ export function createGenerateSpeech<TTransformed = void>(
     get resultArtifacts() {
       return gen.resultArtifacts
     },
-    resume: gen.resume,
   }
 }

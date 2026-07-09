@@ -32,14 +32,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on mount. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -92,8 +88,6 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   pendingArtifacts: Array<GenerationPendingArtifact>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: Array<PersistedArtifactRef>
-  /** Resume the current/initial video generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -169,11 +163,9 @@ export function useGenerateVideo<TTransformed = void>(
       id: clientId,
       body: opts.body,
       ...(opts.persistence !== undefined && { persistence: opts.persistence }),
-      ...(opts.autoResume !== undefined && { autoResume: opts.autoResume }),
       ...(opts.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: opts.initialResumeSnapshot,
       }),
-      ...(opts.resumeState !== undefined && { resumeState: opts.resumeState }),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,
@@ -236,32 +228,15 @@ export function useGenerateVideo<TTransformed = void>(
     // Conditional spread: target uses strict-optional `body?: T`.
     client.updateOptions({
       ...(options.body !== undefined && { body: options.body }),
-      ...(options.resumeState !== undefined && {
-        resumeState: options.resumeState,
-      }),
     })
-  }, [client, options.body, options.resumeState])
+  }, [client, options.body])
 
-  // Cleanup on unmount
+  // Mount devtools and clean up on unmount. Generation runs are never
+  // auto-started on mount — persisted state is read-only for display.
   useEffect(() => {
-    let mounted = true
     client.mountDevtools()
-    void client
-      .maybeAutoResume()
-      .catch((err: unknown) => {
-        if (!mounted) return
-        const error = err instanceof Error ? err : new Error(String(err))
-        optionsRef.current.onError?.(error)
-        setError(error)
-        setStatus('error')
-      })
-      .finally(() => {
-        if (!mounted) return
-        setResumeSnapshot(client.getResumeSnapshot())
-      })
 
     return () => {
-      mounted = false
       client.dispose()
     }
   }, [client])
@@ -281,15 +256,6 @@ export function useGenerateVideo<TTransformed = void>(
     client.reset()
   }, [client])
 
-  const resume = useCallback(
-    async (state?: GenerationResumeState) => {
-      const didResume = await client.resume(state)
-      setResumeSnapshot(client.getResumeSnapshot())
-      return didResume
-    },
-    [client],
-  )
-
   return {
     generate,
     result,
@@ -304,6 +270,5 @@ export function useGenerateVideo<TTransformed = void>(
     resumeState: resumeSnapshot?.resumeState ?? null,
     pendingArtifacts: resumeSnapshot?.pendingArtifacts ?? [],
     resultArtifacts: resumeSnapshot?.result?.artifacts ?? [],
-    resume,
   }
 }

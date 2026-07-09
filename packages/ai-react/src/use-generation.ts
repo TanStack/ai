@@ -36,14 +36,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on mount. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -80,16 +76,14 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
-  /** Lightweight generation resume snapshot, if one is available */
+  /** Lightweight generation state snapshot, if one is available */
   resumeSnapshot: GenerationResumeSnapshot | undefined
-  /** Current resumable run/cursor state, if one is available */
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
   resumeState: GenerationResumeState | null
   /** Pending persisted artifact references observed during generation/replay */
   pendingArtifacts: Array<GenerationPendingArtifact>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: Array<PersistedArtifactRef>
-  /** Resume the current/initial generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -152,11 +146,9 @@ export function useGeneration<
       id: clientId,
       body: opts.body,
       ...(opts.persistence !== undefined && { persistence: opts.persistence }),
-      ...(opts.autoResume !== undefined && { autoResume: opts.autoResume }),
       ...(opts.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: opts.initialResumeSnapshot,
       }),
-      ...(opts.resumeState !== undefined && { resumeState: opts.resumeState }),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
         hookName: 'useGeneration',
@@ -209,32 +201,15 @@ export function useGeneration<
     // Conditional spread: target uses strict-optional `body?: T`.
     client.updateOptions({
       ...(options.body !== undefined && { body: options.body }),
-      ...(options.resumeState !== undefined && {
-        resumeState: options.resumeState,
-      }),
     })
-  }, [client, options.body, options.resumeState])
+  }, [client, options.body])
 
-  // Cleanup on unmount
+  // Mount devtools and clean up on unmount. Generation runs are never
+  // auto-started on mount — persisted state is read-only for display.
   useEffect(() => {
-    let mounted = true
     client.mountDevtools()
-    void client
-      .maybeAutoResume()
-      .catch((err: unknown) => {
-        if (!mounted) return
-        const error = err instanceof Error ? err : new Error(String(err))
-        optionsRef.current.onError?.(error)
-        setError(error)
-        setStatus('error')
-      })
-      .finally(() => {
-        if (!mounted) return
-        setResumeSnapshot(client.getResumeSnapshot())
-      })
 
     return () => {
-      mounted = false
       client.dispose()
     }
   }, [client])
@@ -254,15 +229,6 @@ export function useGeneration<
     client.reset()
   }, [client])
 
-  const resume = useCallback(
-    async (state?: GenerationResumeState) => {
-      const didResume = await client.resume(state)
-      setResumeSnapshot(client.getResumeSnapshot())
-      return didResume
-    },
-    [client],
-  )
-
   return {
     generate: generate as (input: Record<string, any>) => Promise<void>,
     result,
@@ -275,6 +241,5 @@ export function useGeneration<
     resumeState: resumeSnapshot?.resumeState ?? null,
     pendingArtifacts: resumeSnapshot?.pendingArtifacts ?? [],
     resultArtifacts: resumeSnapshot?.result?.artifacts ?? [],
-    resume,
   }
 }

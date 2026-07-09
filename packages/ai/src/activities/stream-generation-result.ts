@@ -7,8 +7,6 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from './error-payload'
 import {
-  createGenerationCursor,
-  generationEventFields,
   generationIdentityFields,
   replayGenerationEvents,
 } from './generation-run'
@@ -47,13 +45,12 @@ export async function* streamGenerationResult<TResult>(
   const threadId = options?.threadId ?? createId('thread')
   const identity = { runId, threadId }
   const resolvedOptions = { ...options, ...identity }
-  const nextCursor = createGenerationCursor(options?.cursor)
 
   yield {
     type: EventType.RUN_STARTED,
     runId,
     threadId,
-    ...generationEventFields(resolvedOptions, nextCursor),
+    ...generationIdentityFields(resolvedOptions),
     timestamp: Date.now(),
   }
 
@@ -69,7 +66,7 @@ export async function* streamGenerationResult<TResult>(
         type: EventType.CUSTOM,
         name: 'generation:artifacts',
         value: artifacts,
-        ...generationEventFields(resolvedOptions, nextCursor),
+        ...generationIdentityFields(resolvedOptions),
         timestamp: Date.now(),
       }
     }
@@ -78,7 +75,7 @@ export async function* streamGenerationResult<TResult>(
       type: EventType.CUSTOM,
       name: 'generation:result',
       value: result as unknown,
-      ...generationEventFields(resolvedOptions, nextCursor),
+      ...generationIdentityFields(resolvedOptions),
       timestamp: Date.now(),
     }
 
@@ -87,7 +84,7 @@ export async function* streamGenerationResult<TResult>(
       runId,
       threadId,
       finishReason: 'stop',
-      ...generationEventFields(resolvedOptions, nextCursor),
+      ...generationIdentityFields(resolvedOptions),
       timestamp: Date.now(),
     }
   } catch (error: unknown) {
@@ -103,7 +100,6 @@ export async function* streamGenerationResult<TResult>(
       ...generationIdentityFields(identity),
       message: payload.message,
       ...codeFields,
-      ...generationEventFields(resolvedOptions, nextCursor),
       // Deprecated nested form for backward compatibility
       error: {
         message: payload.message,

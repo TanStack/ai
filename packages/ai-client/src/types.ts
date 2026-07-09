@@ -24,7 +24,6 @@ export type { StructuredOutputPart }
 export interface ChatResumeState {
   threadId: string
   runId: string
-  cursor: string
 }
 
 export type ChatPendingInterrupt = Interrupt
@@ -46,7 +45,6 @@ export interface ChatFetcherInput {
   data?: Record<string, unknown>
   threadId: string
   runId: string
-  cursor?: string
   resume?: Array<RunAgentResumeItem>
 }
 
@@ -430,18 +428,9 @@ export interface ChatClientBaseOptions<
   threadId?: string
 
   /**
-   * Whether to auto-resume an interrupted run when {@link maybeAutoResume} is
-   * called (e.g. by a framework integration on mount / when the tab comes back
-   * online). Requires server-side persistence so the run's events can be
-   * replayed by `runId + cursor`. Defaults to `true`; set `false` to opt out.
-   */
-  autoResume?: boolean
-
-  /**
    * Initial resumable run state, useful when rehydrating a persisted client
-   * after a full page reload. The server still owns replay/resume decisions;
-   * this only restores the client-side interrupt descriptors needed to send
-   * AG-UI resume entries.
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
    */
   initialResumeSnapshot?: ChatResumeSnapshot
 

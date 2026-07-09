@@ -22,7 +22,6 @@ export function createGenerationContext(args: {
   modelOptions?: unknown
   threadId?: string
   runId?: string
-  cursor?: string
   artifactInputs?: unknown
   createId: (prefix: string) => string
 }): GenerationMiddlewareContext {
@@ -34,7 +33,6 @@ export function createGenerationContext(args: {
     modelOptions: args.modelOptions,
     threadId: args.threadId,
     runId: args.runId,
-    cursor: args.cursor,
     source: 'server',
     createId: args.createId,
     context: undefined,

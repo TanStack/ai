@@ -215,7 +215,6 @@ describe('withGenerationPersistence generation artifacts', () => {
     const persistence = defineAIPersistence({
       stores: {
         runs: full.stores.runs,
-        publicEvents: full.stores.publicEvents,
       },
     })
 

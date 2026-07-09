@@ -17,14 +17,20 @@ Managed MCP tools run inside `chat()`, so start with the same run durability you
 would use for a normal server-owned chat thread.
 
 ```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { postgresPersistence } from '@tanstack/ai-persistence-postgres'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 
-const persistence = postgresPersistence({
-  connectionString: process.env.DATABASE_URL ?? '',
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 
 const weather = await createMCPClient({
@@ -32,28 +38,30 @@ const weather = await createMCPClient({
 })
 
 export async function POST(request: Request) {
-  const { messages, threadId, runId, cursor } = await request.json()
+  const { messages, threadId, runId } = await request.json()
 
   const stream = chat({
     threadId,
     runId,
-    cursor,
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
     mcp: { clients: [weather] },
     middleware: [
       withChatPersistence(persistence, {
-        features: ['messages', 'durable-replay', 'metadata', 'internal-events'],
+        features: ['messages', 'metadata'],
       }),
     ],
   })
 
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream, {
+    durability: memoryStream(request),
+  })
 }
 ```
 
-Public replay events keep the UI reconnectable. MCP-specific state belongs in
-metadata and internal events when your app needs it.
+MCP-specific state belongs in metadata when your app needs it. Making the
+delivered stream reconnectable is a transport concern — see
+[Delivery Durability](./delivery-durability).
 
 ## Store MCP session metadata
 
@@ -86,8 +94,9 @@ store methods; it does not prescribe an MCP session table.
 
 ## Store private MCP checkpoints
 
-Use `stores.internalEvents` for private tool-call or session checkpoints that
-should not replay to the UI as public AG-UI events.
+Use `stores.metadata` for private tool-call or session checkpoints that should
+not surface to the UI. Metadata is app-owned key/value state scoped to a thread
+or run.
 
 ```ts
 import type { AIPersistence } from '@tanstack/ai-persistence'
@@ -98,29 +107,20 @@ async function recordMcpCheckpoint(input: {
   toolCallId: string
   serverId: string
 }) {
-  const internalEvents = input.persistence.stores.internalEvents
+  const metadata = input.persistence.stores.metadata
 
-  if (!internalEvents) {
-    throw new Error('MCP checkpoints require stores.internalEvents.')
+  if (!metadata) {
+    throw new Error('MCP checkpoints require stores.metadata.')
   }
 
-  const latestSeq = await internalEvents.latestSeq(input.runId, 'mcp')
-
-  await internalEvents.append({
-    runId: input.runId,
-    expectedSeq: latestSeq,
-    namespace: 'mcp',
+  await metadata.set(input.runId, `mcp:${input.toolCallId}`, {
     type: 'tool-call-observed',
-    payload: {
-      toolCallId: input.toolCallId,
-      serverId: input.serverId,
-    },
+    serverId: input.serverId,
   })
 }
 ```
 
-Use public events only for user-visible stream replay. Use internal events for
-integration checkpoints, and use metadata for current lookup state.
+Use metadata for integration checkpoints and current lookup state.
 
 ## Coordinate MCP work across workers
 

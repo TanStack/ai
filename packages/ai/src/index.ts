@@ -79,6 +79,10 @@ export {
   toHttpResponse,
 } from './stream-to-response'
 
+// Delivery durability (transport layer)
+export { memoryStream, encodeOffset, decodeOffset } from './stream-durability'
+export type { StreamDurability } from './stream-durability'
+
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
@@ -171,14 +175,6 @@ export {
   InMemoryLockStore,
 } from './locks'
 export type { LockStore } from './locks'
-
-// Resume-source capability (consumed by chat()'s resume seam; provided by persistence)
-export {
-  ResumeSourceCapability,
-  getResumeSource,
-  provideResumeSource,
-} from './resume'
-export type { ResumeSource, RunStatus } from './resume'
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

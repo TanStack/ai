@@ -58,8 +58,8 @@
       "ignore": ["src/use-chat-context.ts"]
     },
     "packages/ai-bedrock": {},
-    "packages/ai-persistence-postgres": {
-      "ignoreDependencies": ["pg"]
+    "packages/ai-persistence": {
+      "ignoreDependencies": ["vitest"]
     }
   }
 }

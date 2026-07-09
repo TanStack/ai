@@ -156,7 +156,6 @@ interface BaseUseChatReturn<
 
   resumeState: DeepReadonly<ShallowRef<ChatResumeState | null>>
   pendingInterrupts: DeepReadonly<ShallowRef<Array<ChatPendingInterrupt>>>
-  resume: (state?: ChatResumeState) => Promise<boolean>
   resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,

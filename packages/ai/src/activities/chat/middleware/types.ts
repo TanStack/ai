@@ -209,7 +209,6 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
-  cursor?: string | undefined
   resume?: Array<RunAgentResumeItem> | undefined
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined

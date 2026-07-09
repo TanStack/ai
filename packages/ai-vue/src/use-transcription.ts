@@ -27,7 +27,7 @@ export interface UseTranscriptionOptions<
     TranscriptionResult,
     TOutput
   >,
-  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+  'persistence' | 'initialResumeSnapshot'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

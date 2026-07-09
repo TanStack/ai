@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-drizzle",
   "version": "0.1.0",
-  "description": "Drizzle ORM backend for TanStack AI persistence — bring your own Drizzle db (sqlite or postgres dialect); persists over the underlying client.",
+  "description": "Drizzle ORM backend for TanStack AI state persistence — the batteries-included sqlPersistence (bundled migrations) and bring-your-own drizzlePersistence(db), with an exported schema you can drive with drizzle-kit.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -12,14 +12,13 @@
   "keywords": [
     "ai",
     "tanstack",
-    "persistence"
+    "persistence",
+    "drizzle",
+    "sqlite"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-  "bin": {
-    "tanstack-ai-persistence-drizzle": "./dist/bin/bin.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
@@ -28,11 +27,14 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "drizzle",
+    "drizzle.config.ts"
   ],
   "scripts": {
-    "build": "vite build && tsup --config tsup.bin.config.ts",
+    "build": "vite build",
     "clean": "premove ./build ./dist",
+    "db:generate": "drizzle-kit generate",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
@@ -43,13 +45,13 @@
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
-    "@tanstack/ai-persistence-sql": "workspace:^"
+    "drizzle-orm": ">=0.44.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@tanstack/ai-persistence-sql": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "tsup": "^8.5.1"
+    "drizzle-kit": "^0.31.0",
+    "drizzle-orm": "^0.45.0"
   }
 }

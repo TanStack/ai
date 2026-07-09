@@ -11,17 +11,6 @@ export function rejectEventsOnlyReplay(
   }
 }
 
-export function createGenerationCursor(
-  baseCursor: string | undefined,
-): () => string | undefined {
-  let index = 0
-  return () => {
-    if (baseCursor === undefined) return undefined
-    index += 1
-    return `${baseCursor}:${index}`
-  }
-}
-
 export function generationIdentityFields(identity: GenerationRunIdentity): {
   threadId?: string
   runId?: string
@@ -29,21 +18,6 @@ export function generationIdentityFields(identity: GenerationRunIdentity): {
   return {
     ...(identity.threadId !== undefined ? { threadId: identity.threadId } : {}),
     ...(identity.runId !== undefined ? { runId: identity.runId } : {}),
-  }
-}
-
-export function generationEventFields(
-  identity: GenerationRunIdentity,
-  nextCursor: () => string | undefined,
-): {
-  threadId?: string
-  runId?: string
-  cursor?: string
-} {
-  const cursor = nextCursor()
-  return {
-    ...generationIdentityFields(identity),
-    ...(cursor !== undefined ? { cursor } : {}),
   }
 }
 

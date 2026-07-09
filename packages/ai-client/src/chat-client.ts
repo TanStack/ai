@@ -129,10 +129,16 @@ export class ChatClient<
   private readonly persistor?: ChatPersistor
   private readonly serverPersistence?: ChatServerPersistence
   private serverPersistenceGeneration = 0
+  // Whether the consumer supplied an `onError` callback. Server-persistence is
+  // best-effort and must never break chat, but its failures should still be
+  // observable: they are routed to the consumer's `onError` when one exists,
+  // otherwise surfaced via `console.warn`.
+  private hasUserOnError = false
   private disposed = false
   private currentRunId: string | null = null
-  // Resume tracking: the latest in-band cursor seen for the active run, so a
-  // reconnect can replay events after it. Cleared when the run terminates.
+  // Interrupt-resume tracking: the run/thread of the most recent interrupted
+  // run, so approvals/client-tool results can be sent back. Cleared when the
+  // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
   private pendingInterrupts: Array<ChatPendingInterrupt> = []
   private pendingInterruptRunId: string | null = null
@@ -140,12 +146,10 @@ export class ChatClient<
     string,
     RunAgentResumeItem
   >()
-  private readonly autoResume: boolean
-  // When set, the next streamResponse() resumes this run/cursor instead of
-  // starting a fresh run (consumed once).
+  // When set, the next streamResponse() continues this interrupted run instead
+  // of starting a fresh run (consumed once).
   private pendingResumeRunId: string | null = null
   private pendingResumeThreadId: string | null = null
-  private pendingResumeCursor: string | null = null
   private pendingResumeItems: Array<RunAgentResumeItem> | null = null
   private activeResumeThreadId: string | null = null
   private activeResumeRunId: string | null = null
@@ -223,7 +227,6 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    this.autoResume = options.autoResume ?? true
     const persistence = normalizePersistence(options.persistence)
     if (persistence.client) {
       this.persistor = new ChatPersistor(
@@ -233,6 +236,7 @@ export class ChatClient<
       )
     }
     this.serverPersistence = persistence.server
+    this.hasUserOnError = typeof options.onError === 'function'
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -506,6 +510,25 @@ export class ChatClient<
     }
   }
 
+  /**
+   * Route a caught server-persistence error to an observable sink. Server
+   * persistence is best-effort and must never break chat, so callers still
+   * swallow the failure — but it is no longer silent: it goes to the
+   * consumer's `onError` callback when one was provided, otherwise to
+   * `console.warn`.
+   */
+  private reportServerPersistenceError(error: unknown): void {
+    const normalized = error instanceof Error ? error : new Error(String(error))
+    if (this.hasUserOnError) {
+      this.callbacksRef.current.onError(normalized)
+    } else {
+      console.warn(
+        '[TanStack AI] Server persistence adapter error (non-fatal):',
+        normalized,
+      )
+    }
+  }
+
   private readInitialResumeSnapshot():
     | ChatResumeSnapshot
     | null
@@ -513,7 +536,8 @@ export class ChatClient<
     | Promise<ChatResumeSnapshot | null | undefined> {
     try {
       return this.serverPersistence?.getItem(this.threadId)
-    } catch {
+    } catch (error) {
+      this.reportServerPersistenceError(error)
       return undefined
     }
   }
@@ -534,8 +558,10 @@ export class ChatClient<
           this.notifyResumeStateChange()
         }
       })
-      .catch(() => {
-        // Persistence adapters are best-effort and must not break chat setup.
+      .catch((error: unknown) => {
+        // Persistence adapters are best-effort and must not break chat setup,
+        // but the failure is surfaced to an observable sink.
+        this.reportServerPersistenceError(error)
       })
   }
 
@@ -629,109 +655,69 @@ export class ChatClient<
   }
 
   /**
-   * Observe the in-band resume cursor on each chunk so a reconnect can replay
-   * after the last seen event. Cleared when the run reaches a terminal event.
+   * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
+   * an interrupt outcome records the pending interrupts + the run/thread to
+   * resume; any other terminal event for the tracked/current run clears that
+   * state. This is interrupt (state) resume — there is no delivery cursor.
    */
-  private observeResumeCursor(chunk: StreamChunk): void {
-    if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-      // A server-signaled terminal event completes the run — drop its resume
-      // state. (A stream that merely ends without a terminal is an interruption
-      // and keeps its resume state so it can be continued.)
-      const runId = getChunkRunId(chunk)
-      const threadId =
-        'threadId' in chunk && typeof chunk.threadId === 'string'
-          ? chunk.threadId
-          : this.activeResumeThreadId
-      const cursor =
-        'cursor' in chunk && typeof chunk.cursor === 'string'
-          ? chunk.cursor
-          : undefined
-      if (
-        chunk.type === 'RUN_FINISHED' &&
-        chunk.outcome?.type === 'interrupt'
-      ) {
-        const interruptedRunId =
-          this.currentRunId &&
-          (cursor || this.lastResume?.runId === this.currentRunId)
-            ? this.currentRunId
-            : (runId ?? this.activeResumeRunId ?? this.currentRunId ?? '')
-        const resumeTarget =
-          this.lastResume?.runId === interruptedRunId ? this.lastResume : null
-        if (cursor) {
-          this.lastResume = {
-            threadId: threadId ?? this.threadId,
-            runId: interruptedRunId,
-            cursor,
-          }
-        } else if (!resumeTarget) {
-          this.pendingInterrupts = []
-          this.pendingInterruptRunId = null
-          this.pendingInterruptResumeItems.clear()
-          this.notifyResumeStateChange()
-          return
-        }
-        this.pendingInterruptRunId = interruptedRunId
-        this.pendingInterrupts = [...chunk.outcome.interrupts]
-        this.pendingInterruptResumeItems.clear()
-        this.notifyResumeStateChange()
-        return
-      }
+  private observeInterruptState(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+    const runId = getChunkRunId(chunk)
+    const threadId =
+      'threadId' in chunk && typeof chunk.threadId === 'string'
+        ? chunk.threadId
+        : this.activeResumeThreadId
 
-      const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
-      const isTrackedRunTerminal = Boolean(
-        runId && this.lastResume?.runId === runId,
-      )
-      const isPendingInterruptRunTerminal = Boolean(
-        runId && this.pendingInterruptRunId === runId,
-      )
-      const isCurrentRunTerminal = Boolean(
-        (runId && this.currentRunId === runId) ||
-        (this.currentRunId && this.lastResume?.runId === this.currentRunId),
-      )
-      const isCurrentStreamTerminal =
-        this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
-      if (
-        isRunlessSessionError ||
-        isTrackedRunTerminal ||
-        isPendingInterruptRunTerminal ||
-        isCurrentRunTerminal ||
-        isCurrentStreamTerminal
-      ) {
-        this.lastResume = null
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      // Track the REQUEST run id (what the client sent) so a resume targets the
+      // same run even when provider events carry their own run id.
+      const interruptedRunId =
+        this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      this.lastResume = {
+        threadId: threadId ?? this.threadId,
+        runId: interruptedRunId,
       }
-      if (
-        isRunlessSessionError ||
-        isTrackedRunTerminal ||
-        isPendingInterruptRunTerminal ||
-        isCurrentRunTerminal ||
-        isCurrentStreamTerminal
-      ) {
-        this.pendingInterrupts = []
-        this.pendingInterruptRunId = null
-        this.pendingInterruptResumeItems.clear()
-      }
+      this.pendingInterruptRunId = interruptedRunId
+      this.pendingInterrupts = [...chunk.outcome.interrupts]
+      this.pendingInterruptResumeItems.clear()
       this.notifyResumeStateChange()
       return
     }
-    const cursor =
-      'cursor' in chunk && typeof chunk.cursor === 'string'
-        ? chunk.cursor
-        : undefined
-    if (cursor && this.currentRunId) {
-      this.lastResume = {
-        threadId: this.activeResumeThreadId ?? this.threadId,
-        runId: this.currentRunId,
-        cursor,
-      }
-      this.notifyResumeStateChange()
+
+    const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
+    const isTrackedRunTerminal = Boolean(
+      runId && this.lastResume?.runId === runId,
+    )
+    const isPendingInterruptRunTerminal = Boolean(
+      runId && this.pendingInterruptRunId === runId,
+    )
+    const isCurrentRunTerminal = Boolean(
+      (runId && this.currentRunId === runId) ||
+      (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+    )
+    const isCurrentStreamTerminal =
+      this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+    if (
+      isRunlessSessionError ||
+      isTrackedRunTerminal ||
+      isPendingInterruptRunTerminal ||
+      isCurrentRunTerminal ||
+      isCurrentStreamTerminal
+    ) {
+      this.lastResume = null
+      this.pendingInterrupts = []
+      this.pendingInterruptRunId = null
+      this.pendingInterruptResumeItems.clear()
     }
+    this.notifyResumeStateChange()
   }
 
   /**
-   * The resume state for the active/interrupted run (the run id plus the last
-   * cursor seen), or null when there is nothing to resume. Apps can persist this
-   * to resume across a full reload; in-session reconnects use it automatically
-   * via {@link maybeAutoResume}.
+   * The interrupt-resume state for the active/interrupted run (its run/thread
+   * ids), or null when there is nothing to resume. Apps can persist this to
+   * resume interrupts across a full reload.
    */
   getResumeState(): ChatResumeState | null {
     return this.lastResume ? { ...this.lastResume } : null
@@ -739,21 +725,6 @@ export class ChatClient<
 
   getPendingInterrupts(): Array<ChatPendingInterrupt> {
     return [...this.pendingInterrupts]
-  }
-
-  /**
-   * Resume a run by replaying its persisted events after the last cursor, then
-   * continuing live — without re-sending messages. Uses the supplied state, or
-   * the tracked in-session state. No-op (returns false) when there is nothing to
-   * resume or a stream is already in flight.
-   */
-  resume(state?: ChatResumeState): Promise<boolean> {
-    const target = state ?? this.lastResume
-    if (!target || this.isLoading) return Promise.resolve(false)
-    this.pendingResumeThreadId = target.threadId
-    this.pendingResumeRunId = target.runId
-    this.pendingResumeCursor = target.cursor
-    return this.streamResponse()
   }
 
   resumeInterrupts(
@@ -764,26 +735,8 @@ export class ChatClient<
     if (!target || this.isLoading) return Promise.resolve(false)
     this.pendingResumeThreadId = target.threadId
     this.pendingResumeRunId = target.runId
-    this.pendingResumeCursor = target.cursor
     this.pendingResumeItems = [...resume]
     return this.streamResponse()
-  }
-
-  /**
-   * Auto-resume hook for framework integrations to call on mount / when the tab
-   * comes back online. Honors the `autoResume` option (default true) and only
-   * fires when an interrupted run is tracked and no stream is in flight.
-   */
-  maybeAutoResume(): Promise<boolean> {
-    if (
-      !this.autoResume ||
-      this.isLoading ||
-      !this.lastResume ||
-      this.pendingInterrupts.length > 0
-    ) {
-      return Promise.resolve(false)
-    }
-    return this.resume()
   }
 
   private generateUniqueId(prefix: string): string {
@@ -849,8 +802,9 @@ export class ChatClient<
         : this.serverPersistence.removeItem(this.threadId)
       if (result instanceof Promise) {
         result
-          .catch(() => {
-            // Persistence adapters are best-effort and must not break chat.
+          .catch((error: unknown) => {
+            // Best-effort: must not break chat, but is surfaced to a sink.
+            this.reportServerPersistenceError(error)
           })
           .finally(() => {
             if (generation !== this.serverPersistenceGeneration) {
@@ -858,8 +812,9 @@ export class ChatClient<
             }
           })
       }
-    } catch {
-      // Persistence adapters are best-effort and must not break chat.
+    } catch (error) {
+      // Best-effort: must not break chat, but is surfaced to a sink.
+      this.reportServerPersistenceError(error)
     }
   }
 
@@ -879,8 +834,9 @@ export class ChatClient<
         : this.serverPersistence.removeItem(this.threadId)
       if (result instanceof Promise) {
         result
-          .catch(() => {
-            // Persistence adapters are best-effort and must not break chat.
+          .catch((error: unknown) => {
+            // Best-effort: must not break chat, but is surfaced to a sink.
+            this.reportServerPersistenceError(error)
           })
           .finally(() => {
             if (generation !== this.serverPersistenceGeneration) {
@@ -888,8 +844,9 @@ export class ChatClient<
             }
           })
       }
-    } catch {
-      // Persistence adapters are best-effort and must not break chat.
+    } catch (error) {
+      // Best-effort: must not break chat, but is surfaced to a sink.
+      this.reportServerPersistenceError(error)
     }
   }
 
@@ -1066,7 +1023,7 @@ export class ChatClient<
       // per-run error only clears that run, while a runId-less RUN_ERROR is
       // treated as a session-level error that clears every active run.
       this.updateRunLifecycle(chunk)
-      this.observeResumeCursor(chunk)
+      this.observeInterruptState(chunk)
       // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
@@ -1235,17 +1192,16 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
-    // Resuming reuses the original runId so the server replays that run's events.
+    // Resuming an interrupt reuses the original runId so the server continues
+    // that run with the resume decisions.
     const resumeThreadId = this.pendingResumeThreadId
     const resumeRunId = this.pendingResumeRunId
-    const resumeCursor = this.pendingResumeCursor
     const resumeItems = this.pendingResumeItems
     const isResumeRequest = Boolean(
-      resumeThreadId || resumeRunId || resumeCursor || resumeItems,
+      resumeThreadId || resumeRunId || resumeItems,
     )
     this.pendingResumeThreadId = null
     this.pendingResumeRunId = null
-    this.pendingResumeCursor = null
     this.pendingResumeItems = null
     const runId =
       resumeRunId ??
@@ -1342,7 +1298,6 @@ export class ChatClient<
             : { type: 'object' },
         })),
         forwardedProps: { ...mergedBody },
-        ...(resumeCursor ? { cursor: resumeCursor } : {}),
         ...(resumeItems ? { resume: resumeItems } : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
@@ -1600,7 +1555,6 @@ export class ChatClient<
     this.pendingInterruptResumeItems.clear()
     this.pendingResumeThreadId = null
     this.pendingResumeRunId = null
-    this.pendingResumeCursor = null
     this.pendingResumeItems = null
     this.notifyResumeStateChange()
     this.setError(undefined)
@@ -1988,6 +1942,7 @@ export class ChatClient<
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
+      this.hasUserOnError = true
     }
     if (options.onSubscriptionChange !== undefined) {
       this.callbacksRef.current.onSubscriptionChange =

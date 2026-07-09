@@ -86,7 +86,6 @@ const videoResumeSnapshot: GenerationResumeSnapshot = {
   resumeState: {
     threadId: 'thread-resume',
     runId: 'run-resume',
-    cursor: 'cursor-resume',
   },
   status: 'running',
 }
@@ -118,7 +117,6 @@ function createReplayVideoChunks(): Array<StreamChunk> {
       type: EventType.RUN_STARTED,
       runId: 'run-resume',
       threadId: 'thread-resume',
-      cursor: 'cursor-start',
       timestamp: Date.now(),
     },
     {
@@ -130,14 +128,12 @@ function createReplayVideoChunks(): Array<StreamChunk> {
         url: 'https://example.com/video.mp4',
         artifacts: [replayedVideoArtifact],
       },
-      cursor: 'cursor-result',
       timestamp: Date.now(),
     },
     {
       type: EventType.RUN_FINISHED,
       runId: 'run-resume',
       threadId: 'thread-resume',
-      cursor: 'cursor-finished',
       timestamp: Date.now(),
     },
   ]
@@ -160,20 +156,6 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
     },
   }
   return { adapter, connect, runContexts }
-}
-
-function createDeferred<T>(): {
-  promise: Promise<T>
-  resolve: (value: T | PromiseLike<T>) => void
-  reject: (reason?: unknown) => void
-} {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
 }
 
 async function flushPromises(): Promise<void> {
@@ -387,75 +369,49 @@ describe('useGeneration', () => {
       resolvePromise!({ id: '1' })
     })
 
-    it('should not generate when stop is called before auto-resume hydration finishes', async () => {
-      const hydration = createDeferred<GenerationResumeSnapshot | null>()
-      const connect = vi.fn()
-      const adapter: ConnectConnectionAdapter = {
-        async *connect() {
-          connect()
-        },
-      }
+    it('does not auto-fire a generation on mount from a persisted running snapshot', async () => {
+      // Regression guard for the removed generation resume surface: mounting a
+      // generation hook that has server persistence and a persisted `running`
+      // snapshot must NOT start a fresh empty-prompt generation (previously
+      // `maybeAutoResume()` -> `resume()` -> `generate({})` fired here).
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
       const persistence: GenerationServerPersistence = {
-        getItem: vi.fn(() => hydration.promise),
+        getItem: vi.fn(() => ({
+          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+          status: 'running' as const,
+        })),
         setItem: vi.fn(),
         removeItem: vi.fn(),
       }
 
       const { result } = renderHook(() =>
         useGeneration({
-          id: 'auto-resume-stop',
+          id: 'no-auto-fire',
           connection: adapter,
           persistence: { server: persistence },
+          initialResumeSnapshot: {
+            resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+            status: 'running',
+          },
         }),
       )
 
-      await waitFor(() => {
-        expect(persistence.getItem).toHaveBeenCalledWith('auto-resume-stop')
-      })
-
-      act(() => {
-        result.current.stop()
-      })
-
-      hydration.resolve({
-        resumeState: {
-          threadId: 'thread-resume',
-          runId: 'run-resume',
-          cursor: 'cursor-resume',
-        },
-        status: 'running',
-      })
       await act(async () => {
         await flushPromises()
       })
 
       expect(connect).not.toHaveBeenCalled()
-    })
-
-    it('should report auto-resume hydration rejections without unhandled rejections', async () => {
-      const onError = vi.fn()
-      const hydrationError = new Error('hydrate failed')
-      const persistence: GenerationServerPersistence = {
-        getItem: vi.fn(async () => {
-          throw hydrationError
-        }),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
-      const { result } = renderHook(() =>
-        useGeneration({
-          id: 'auto-resume-reject',
-          connection: createMockConnectionAdapter(),
-          persistence: { server: persistence },
-          onError,
-        }),
-      )
-
-      await waitFor(() => {
-        expect(onError).toHaveBeenCalledWith(hydrationError)
-        expect(result.current.error).toBe(hydrationError)
-        expect(result.current.status).toBe('error')
+      // Persisted state is read-only for display; the client never reads it
+      // back to drive a resume, so getItem is not consulted on mount.
+      expect(persistence.getItem).not.toHaveBeenCalled()
+      expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('idle')
+      // The persisted snapshot is still exposed as read-only state.
+      expect(result.current.resumeState).toEqual({
+        threadId: 'thread-resume',
+        runId: 'run-resume',
       })
     })
   })
@@ -864,201 +820,37 @@ describe('useGenerateVideo', () => {
     expect(result.current.status).toBe('idle')
   })
 
-  it('should auto-resume on mount by default from an initial snapshot', async () => {
-    const { adapter, connect, runContexts } = createRunContextCaptureAdapter(
-      createReplayVideoChunks(),
-    )
-
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        connection: adapter,
-        initialResumeSnapshot: videoResumeSnapshot,
-      }),
-    )
-
-    await waitFor(() => {
-      expect(connect).toHaveBeenCalledTimes(1)
-    })
-    expect(runContexts[0]).toEqual(videoResumeSnapshot.resumeState)
-
-    await waitFor(() => {
-      expect(result.current.result).toEqual(
-        expect.objectContaining({
-          jobId: 'job-replay',
-          artifacts: [replayedVideoArtifact],
-        }),
-      )
-      expect(result.current.resumeSnapshot).toEqual(
-        expect.objectContaining({
-          status: 'complete',
-          resumeState: null,
-          pendingArtifacts: [replayedVideoArtifact],
-        }),
-      )
-    })
-  })
-
-  it('should not auto-resume when autoResume is false', async () => {
+  it('does not auto-fire a video generation on mount from a persisted running snapshot', async () => {
+    // Regression guard for the removed generation resume surface (video).
     const { adapter, connect } = createRunContextCaptureAdapter(
       createReplayVideoChunks(),
     )
-
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        connection: adapter,
-        initialResumeSnapshot: videoResumeSnapshot,
-        autoResume: false,
-      }),
-    )
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(connect).not.toHaveBeenCalled()
-    expect(result.current.resumeSnapshot).toEqual(videoResumeSnapshot)
-  })
-
-  it('should explicitly resume from the current snapshot', async () => {
-    const { adapter, connect, runContexts } = createRunContextCaptureAdapter(
-      createReplayVideoChunks(),
-    )
-
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        connection: adapter,
-        initialResumeSnapshot: videoResumeSnapshot,
-        autoResume: false,
-      }),
-    )
-
-    let didResume = false
-    await act(async () => {
-      didResume = await result.current.resume()
-    })
-
-    expect(didResume).toBe(true)
-    expect(connect).toHaveBeenCalledTimes(1)
-    expect(runContexts[0]).toEqual(videoResumeSnapshot.resumeState)
-  })
-
-  it('should abort the current request without clearing durable resume state', async () => {
-    let abortSignal: AbortSignal | undefined
-    const adapter: ConnectConnectionAdapter = {
-      async *connect(_messages, _data, signal) {
-        abortSignal = signal
-        yield {
-          type: EventType.RUN_STARTED,
-          runId: 'run-resume',
-          threadId: 'thread-resume',
-          cursor: 'cursor-live',
-          timestamp: Date.now(),
-        }
-        await new Promise<void>(() => {})
-      },
+    const persistence: GenerationServerPersistence = {
+      getItem: vi.fn(() => videoResumeSnapshot),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
     }
 
     const { result } = renderHook(() =>
       useGenerateVideo({
+        id: 'video-no-auto-fire',
         connection: adapter,
+        persistence: { server: persistence },
         initialResumeSnapshot: videoResumeSnapshot,
-        autoResume: false,
       }),
     )
 
-    act(() => {
-      void result.current.resume()
+    await act(async () => {
+      await flushPromises()
     })
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(true)
-      expect(result.current.resumeState).toEqual({
-        threadId: 'thread-resume',
-        runId: 'run-resume',
-        cursor: 'cursor-live',
-      })
-    })
-
-    act(() => {
-      result.current.stop()
-    })
-
-    expect(abortSignal?.aborted).toBe(true)
+    expect(connect).not.toHaveBeenCalled()
+    expect(persistence.getItem).not.toHaveBeenCalled()
     expect(result.current.isLoading).toBe(false)
-    expect(result.current.resumeState).toEqual({
-      threadId: 'thread-resume',
-      runId: 'run-resume',
-      cursor: 'cursor-live',
-    })
-  })
-
-  it('should not generate video when unmounted before auto-resume hydration finishes', async () => {
-    const hydration = createDeferred<GenerationResumeSnapshot | null>()
-    const connect = vi.fn()
-    const adapter: ConnectConnectionAdapter = {
-      async *connect() {
-        connect()
-      },
-    }
-    const persistence: GenerationServerPersistence = {
-      getItem: vi.fn(() => hydration.promise),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    }
-
-    const { unmount } = renderHook(() =>
-      useGenerateVideo({
-        id: 'video-auto-resume-unmount',
-        connection: adapter,
-        persistence: { server: persistence },
-      }),
-    )
-
-    await waitFor(() => {
-      expect(persistence.getItem).toHaveBeenCalledWith(
-        'video-auto-resume-unmount',
-      )
-    })
-
-    unmount()
-    hydration.resolve({
-      resumeState: {
-        threadId: 'thread-resume',
-        runId: 'run-resume',
-        cursor: 'cursor-resume',
-      },
-      status: 'running',
-    })
-    await flushPromises()
-
-    expect(connect).not.toHaveBeenCalled()
-  })
-
-  it('should report video auto-resume hydration rejections without unhandled rejections', async () => {
-    const onError = vi.fn()
-    const hydrationError = new Error('video hydrate failed')
-    const persistence: GenerationServerPersistence = {
-      getItem: vi.fn(async () => {
-        throw hydrationError
-      }),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    }
-
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        id: 'video-auto-resume-reject',
-        connection: createMockConnectionAdapter(),
-        persistence: { server: persistence },
-        onError,
-      }),
-    )
-
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(hydrationError)
-      expect(result.current.error).toBe(hydrationError)
-      expect(result.current.status).toBe('error')
-    })
+    expect(result.current.status).toBe('idle')
+    // The persisted snapshot remains exposed as read-only state.
+    expect(result.current.resumeSnapshot).toEqual(videoResumeSnapshot)
+    expect(result.current.resumeState).toEqual(videoResumeSnapshot.resumeState)
   })
 })
 

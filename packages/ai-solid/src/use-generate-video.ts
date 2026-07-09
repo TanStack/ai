@@ -42,14 +42,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on mount. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -96,14 +92,12 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   reset: () => void
   /** Lightweight generation resume snapshot, if one is available */
   resumeSnapshot: Accessor<GenerationResumeSnapshot | undefined>
-  /** Current resumable run/cursor state, if one is available */
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
   resumeState: Accessor<GenerationResumeState | null>
   /** Pending persisted artifact references observed during generation/replay */
   pendingArtifacts: Accessor<Array<GenerationPendingArtifact>>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: Accessor<Array<PersistedArtifactRef>>
-  /** Resume the current/initial generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -176,14 +170,8 @@ export function useGenerateVideo<TTransformed = void>(
       ...(options.persistence !== undefined && {
         persistence: options.persistence,
       }),
-      ...(options.autoResume !== undefined && {
-        autoResume: options.autoResume,
-      }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
-      }),
-      ...(options.resumeState !== undefined && {
-        resumeState: options.resumeState,
       }),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
@@ -260,30 +248,15 @@ export function useGenerateVideo<TTransformed = void>(
   // Sync body changes without recreating client
   createEffect(() => {
     const currentBody = options.body
-    const currentResumeState = options.resumeState
     client().updateOptions({
       ...(currentBody !== undefined && { body: currentBody }),
-      ...(currentResumeState !== undefined && {
-        resumeState: currentResumeState,
-      }),
     })
   })
 
+  // Mount devtools only. Generation runs are never auto-started on mount —
+  // persisted state is read-only for display.
   onMount(() => {
     client().mountDevtools()
-    void client()
-      .maybeAutoResume()
-      .catch((err: unknown) => {
-        if (disposed) return
-        const nextError = err instanceof Error ? err : new Error(String(err))
-        options.onError?.(nextError)
-        setError(nextError)
-        setStatus('error')
-      })
-      .finally(() => {
-        if (disposed) return
-        setResumeSnapshot(client().getResumeSnapshot())
-      })
   })
 
   // Cleanup on unmount: stop any in-flight requests and unregister devtools
@@ -304,14 +277,6 @@ export function useGenerateVideo<TTransformed = void>(
     client().reset()
   }
 
-  const resume = async (state?: GenerationResumeState) => {
-    const didResume = await client().resume(state)
-    if (!disposed) {
-      setResumeSnapshot(client().getResumeSnapshot())
-    }
-    return didResume
-  }
-
   return {
     generate,
     result,
@@ -326,6 +291,5 @@ export function useGenerateVideo<TTransformed = void>(
     resumeState: () => resumeSnapshot()?.resumeState ?? null,
     pendingArtifacts: () => resumeSnapshot()?.pendingArtifacts ?? [],
     resultArtifacts: () => resumeSnapshot()?.result?.artifacts ?? [],
-    resume,
   }
 }

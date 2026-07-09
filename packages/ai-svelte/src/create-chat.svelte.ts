@@ -81,7 +81,6 @@ export function createChat<
   let pendingInterrupts = $state<Array<ChatPendingInterrupt>>(
     options.initialResumeSnapshot?.pendingInterrupts ?? [],
   )
-  let browserResumeStarted = false
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -171,20 +170,12 @@ export function createChat<
     onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
       resumeState = nextResumeState
       pendingInterrupts = nextPendingInterrupts
-      resumeIfLifecycleOwned()
     },
   })
 
   function syncResumeState() {
     resumeState = client.getResumeState()
     pendingInterrupts = client.getPendingInterrupts()
-  }
-
-  function resumeIfLifecycleOwned() {
-    if (!browserResumeStarted) {
-      return
-    }
-    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
   }
 
   messages = client.getMessages()
@@ -195,35 +186,16 @@ export function createChat<
 
   client.mountDevtools()
 
-  const handleOnline = () => {
-    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
-  }
-
-  let onlineListenerRegistered = false
-  const startBrowserResume = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    browserResumeStarted = true
-    void client.maybeAutoResume().then(syncResumeState, syncResumeState)
-    window.addEventListener('online', handleOnline)
-    onlineListenerRegistered = true
-  }
-
   if (typeof window !== 'undefined') {
     try {
       onMount(() => {
-        startBrowserResume()
-        return () => {
-          window.removeEventListener('online', handleOnline)
-          onlineListenerRegistered = false
-          browserResumeStarted = false
-        }
+        // Delivery-durability resume is transparent: the resumable SSE
+        // connection adapter reattaches via the browser's native
+        // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
+        syncResumeState()
       })
     } catch {
       // Svelte lifecycle hooks are only valid during component initialization.
-      // If createChat is constructed outside that lifecycle, auto-resume must
-      // not run until lifecycle-owned browser execution is available.
     }
   }
 
@@ -262,10 +234,6 @@ export function createChat<
   }
 
   const dispose = () => {
-    if (typeof window !== 'undefined' && onlineListenerRegistered) {
-      window.removeEventListener('online', handleOnline)
-      onlineListenerRegistered = false
-    }
     client.dispose()
   }
 
@@ -294,12 +262,6 @@ export function createChat<
   }) => {
     await client.addToolApprovalResponse(response)
     syncResumeState()
-  }
-
-  const resume = async (state?: ChatResumeState) => {
-    const result = await client.resume(state)
-    syncResumeState()
-    return result
   }
 
   const resumeInterrupts = async (
@@ -411,7 +373,6 @@ export function createChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
-    resume,
     resumeInterrupts,
     updateBody,
     updateForwardedProps,
