@@ -51,7 +51,7 @@ export function isValidCursor(value: string): boolean {
 }
 
 /**
- * Per-run monotonic sequence counter held by `withPersistence` for the lifetime
+ * Per-run monotonic sequence counter held by `withChatPersistence` for the lifetime
  * of one run. `next()` assigns the next sequence to an event; on resume,
  * construct it with the highest already-persisted sequence so new events keep
  * climbing without colliding with replayed ones.

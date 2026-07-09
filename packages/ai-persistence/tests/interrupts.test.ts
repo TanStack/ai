@@ -3,7 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
 import { createApprovalController } from '../src/approval-controller'
 import { memoryPersistence } from '../src/memory'
-import { withPersistence } from '../src/middleware'
+import { withChatPersistence } from '../src/middleware'
 import { defineAIPersistence, validatePersistenceFeatures } from '../src/types'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
@@ -126,7 +126,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -152,7 +152,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, {
+          withChatPersistence(persistence, {
             features: ['messages', 'interrupts'],
           }),
         ],
@@ -190,7 +190,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -221,7 +221,7 @@ describe('interrupt persistence', () => {
           runId: 'r2',
           threadId: 't1',
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -240,7 +240,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -257,7 +257,7 @@ describe('interrupt persistence', () => {
         threadId: 't1',
         cursor: original[0]!.cursor,
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -278,7 +278,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -304,7 +304,7 @@ describe('interrupt persistence', () => {
           },
         ],
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -342,7 +342,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -369,7 +369,7 @@ describe('interrupt persistence', () => {
           },
         ],
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -426,7 +426,7 @@ describe('interrupt persistence', () => {
           },
         ],
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -455,7 +455,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -471,7 +471,7 @@ describe('interrupt persistence', () => {
           cursor: original[0]!.cursor,
           resume: [],
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -487,7 +487,7 @@ describe('interrupt persistence', () => {
           cursor: original[0]!.cursor,
           resume: [{ interruptId: 'stale-interrupt', status: 'resolved' }],
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -509,7 +509,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -526,7 +526,7 @@ describe('interrupt persistence', () => {
           cursor: original[0]!.cursor,
           resume: [{ interruptId: 'stale-interrupt', status: 'resolved' }],
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -556,7 +556,7 @@ describe('interrupt persistence', () => {
           threadId: 't1',
           cursor: Buffer.from('1:unknown-run', 'utf8').toString('base64url'),
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -575,7 +575,7 @@ describe('interrupt persistence', () => {
         runId: 'r-other',
         threadId: 'other-thread',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -598,7 +598,7 @@ describe('interrupt persistence', () => {
           threadId: 't1',
           cursor: otherChunks[0]!.cursor,
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -626,7 +626,7 @@ describe('interrupt persistence', () => {
           threadId: 't1',
           resume: [{ interruptId: 'different', status: 'resolved' }],
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -643,7 +643,7 @@ describe('interrupt persistence', () => {
         threadId: 't1',
         resume: [{ interruptId: 'interrupt-1', status: 'resolved' }],
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -675,7 +675,7 @@ describe('interrupt persistence', () => {
             { interruptId: 'stale-interrupt', status: 'resolved' },
           ],
           middleware: [
-            withPersistence(persistence, { features: ['interrupts'] }),
+            withChatPersistence(persistence, { features: ['interrupts'] }),
           ],
         }) as AsyncIterable<StreamChunk>,
       ),
@@ -724,7 +724,7 @@ describe('interrupt persistence', () => {
           { interruptId: 'cancel-me', status: 'cancelled' },
         ],
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -750,7 +750,7 @@ describe('interrupt persistence', () => {
         runId: 'r3',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -768,7 +768,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         middleware: [
-          withPersistence(persistence, { features: ['durable-replay'] }),
+          withChatPersistence(persistence, { features: ['durable-replay'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
     )

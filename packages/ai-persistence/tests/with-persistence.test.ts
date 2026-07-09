@@ -3,7 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { encodeCursor } from '../src/cursor'
 import { memoryPersistence } from '../src/memory'
-import { withPersistence } from '../src/middleware'
+import { withChatPersistence } from '../src/middleware'
 import { createResumeSource } from '../src/resume-source'
 import { defineAIPersistence } from '../src/types'
 import type { PersistedPublicEvent, PublicEventStore } from '../src/types'
@@ -107,7 +107,7 @@ function sparsePublicEvents(
   }
 }
 
-describe('withPersistence (no sandbox)', () => {
+describe('withChatPersistence (no sandbox)', () => {
   it('persists events with cursors, completes the run, and saves the transcript', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
@@ -120,7 +120,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -148,7 +148,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -162,7 +162,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't1',
         cursor: afterCursor,
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -183,7 +183,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -195,7 +195,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r2',
         threadId: 't1',
         cursor: original[0]!.cursor!,
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /cursor runId r1 does not match request runId r2/i,
     )
@@ -212,7 +212,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -224,7 +224,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't2',
         cursor: original[0]!.cursor!,
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /belongs to thread t1, not request thread t2/i,
     )
@@ -241,7 +241,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -253,7 +253,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't1',
         cursor: encodeCursor('r1', 999),
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /beyond latest persisted sequence/i,
     )
@@ -270,7 +270,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -282,7 +282,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't1',
         cursor: encodeCursor('r1', 0),
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /sequence 0 is invalid/i,
     )
@@ -312,7 +312,7 @@ describe('withPersistence (no sandbox)', () => {
         threadId: 't1',
         cursor: encodeCursor('r1', 1),
         middleware: [
-          withPersistence(persistence, { features: ['durable-replay'] }),
+          withChatPersistence(persistence, { features: ['durable-replay'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
       /sequence 1 does not reference a persisted public event/i,
@@ -331,7 +331,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'missing-run',
         threadId: 't1',
         cursor: encodeCursor('missing-run', 1),
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /unknown run missing-run/i,
     )
@@ -348,7 +348,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -359,7 +359,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /pending interrupts.*resume is required/i,
     )
@@ -398,7 +398,7 @@ describe('withPersistence (no sandbox)', () => {
         threadId: 't1',
         cursor: encodeCursor('r1', 1),
         middleware: [
-          withPersistence(persistence, { features: ['interrupts'] }),
+          withChatPersistence(persistence, { features: ['interrupts'] }),
         ],
       }) as AsyncIterable<StreamChunk>,
       /sequence 1 does not reference a persisted public event/i,
@@ -418,7 +418,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -430,7 +430,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r2',
         threadId: 't1',
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /missing resume entry for pending interrupt interrupt-1/i,
     )
@@ -447,7 +447,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -465,7 +465,7 @@ describe('withPersistence (no sandbox)', () => {
             payload: { approved: true },
           },
         ],
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -495,7 +495,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
         threadId: 't1',
-        middleware: [withPersistence(persistence)],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -539,7 +539,7 @@ describe('withPersistence (no sandbox)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withPersistence(persistence, { features: ['messages'] })],
+        middleware: [withChatPersistence(persistence, { features: ['messages'] })],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -562,7 +562,7 @@ describe('withPersistence (no sandbox)', () => {
         runId: 'r1',
         threadId: 't1',
         cursor: 'not-a-persistence-cursor',
-        middleware: [withPersistence(persistence, { features: ['messages'] })],
+        middleware: [withChatPersistence(persistence, { features: ['messages'] })],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -578,7 +578,7 @@ describe('withPersistence (no sandbox)', () => {
     const { adapter } = mockAdapter([[ev.text('unused')]])
 
     expect(() =>
-      withPersistence(persistence, { features: ['durable-replay'] }),
+      withChatPersistence(persistence, { features: ['durable-replay'] }),
     ).toThrow(/durable-replay.*stores\.runs.*stores\.publicEvents/i)
     void adapter
   })

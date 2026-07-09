@@ -5,7 +5,7 @@ import {
   chat,
   defineChatMiddleware,
 } from '@tanstack/ai'
-import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence, withChatPersistence } from '@tanstack/ai-persistence'
 import {
   SandboxStoreCapability,
   defineSandbox,
@@ -92,7 +92,7 @@ describe('withSandbox with direct persistence capabilities', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'first' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
     await collect(
@@ -101,7 +101,7 @@ describe('withSandbox with direct persistence capabilities', () => {
         threadId: 'thread-1',
         runId: 'run-2',
         messages: [{ role: 'user', content: 'second' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -134,7 +134,7 @@ describe('withSandbox with direct persistence capabilities', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'first' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
     await collect(
@@ -143,7 +143,7 @@ describe('withSandbox with direct persistence capabilities', () => {
         threadId: 'thread-1',
         runId: 'run-2',
         messages: [{ role: 'user', content: 'second' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -170,7 +170,7 @@ describe('withSandbox with direct persistence capabilities', () => {
         runId: 'run-1',
         messages: [{ role: 'user', content: 'first' }],
         middleware: [
-          withPersistence(persistence),
+          withChatPersistence(persistence),
           withExplicitSandboxStore(explicitStore),
           withSandbox(sandbox),
         ],

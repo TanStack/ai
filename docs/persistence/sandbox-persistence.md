@@ -5,7 +5,7 @@ id: sandbox-persistence
 
 Use sandbox persistence when a coding-agent harness needs to resume the same
 sandbox across processes, restore workspace files, or coordinate work across
-workers. Add `withPersistence(...)` before `withSandbox(...)`; the sandbox
+workers. Add `withChatPersistence(...)` before `withSandbox(...)`; the sandbox
 middleware reads optional persistence capabilities directly.
 
 By the end, your sandbox run has durable records, optional locks, and optional
@@ -29,7 +29,7 @@ tenant.
 ```ts
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
@@ -54,15 +54,15 @@ chat({
   runId: 'run-123',
   adapter: claudeCodeText('claude-sonnet-4-6'),
   messages,
-  middleware: [withPersistence(persistence), withSandbox(repoSandbox)],
+  middleware: [withChatPersistence(persistence), withSandbox(repoSandbox)],
 })
 ```
 
 `withSandbox(...)` prefers an explicit sandbox store capability when one is
-provided. Otherwise, when `withPersistence(...)` is earlier in the middleware
+provided. Otherwise, when `withChatPersistence(...)` is earlier in the middleware
 array and its backend exposes `stores.metadata`, sandbox records are stored in
 persistence metadata. If the backend exposes `stores.locks`,
-`withPersistence(...)` also provides the shared lock capability that sandbox
+`withChatPersistence(...)` also provides the shared lock capability that sandbox
 ensure uses to serialize resume/create work.
 
 ## Add locks for multi-worker resume
@@ -91,7 +91,7 @@ filesystem is gone?" It uses `stores.metadata` for the workspace manifest,
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import {
   defineSandbox,
   defineWorkspace,
@@ -142,7 +142,7 @@ export function runProjectBuilder(env: Env) {
     adapter: claudeCodeText('claude-sonnet-4-6'),
     messages: [{ role: 'user', content: 'Build the app.' }],
     middleware: [
-      withPersistence(persistence, {
+      withChatPersistence(persistence, {
         features: [
           'messages',
           'durable-replay',
@@ -183,7 +183,7 @@ files.
 ## Understand the boundaries
 
 Persistence replay and sandbox resume are separate pieces that work together.
-`withPersistence(...)` replays the public event tail for the chat client. The
+`withChatPersistence(...)` replays the public event tail for the chat client. The
 sandbox record lets `withSandbox(...)` find the same provider sandbox. A harness
 adapter that supports reattach can then reconnect to the still-running agent
 process and continue live after replay.

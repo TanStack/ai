@@ -20,7 +20,7 @@ would use for a normal server-owned chat thread.
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { createMCPClient } from '@tanstack/ai-mcp'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { postgresPersistence } from '@tanstack/ai-persistence-postgres'
 
 const persistence = postgresPersistence({
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     messages,
     mcp: { clients: [weather] },
     middleware: [
-      withPersistence(persistence, {
+      withChatPersistence(persistence, {
         features: ['messages', 'durable-replay', 'metadata', 'internal-events'],
       }),
     ],

@@ -28,7 +28,8 @@ interfaces behind those patterns.
 ## Define an `AIPersistence`
 
 `AIPersistence` is an aggregate of optional stores. Implement only the stores
-your scenario needs, then validate features with `withPersistence(...)`. During
+your scenario needs, then validate features with `withChatPersistence(...)` or
+`withGenerationPersistence(...)`. During
 development, `memoryPersistence()` is a useful complete baseline: replace one
 store at a time with your backend implementation while keeping the feature
 validation behavior realistic.
@@ -37,7 +38,7 @@ validation behavior realistic.
 import {
   defineAIPersistence,
   memoryPersistence,
-  withPersistence,
+  withChatPersistence,
 } from '@tanstack/ai-persistence'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 
@@ -66,7 +67,7 @@ const persistence = defineAIPersistence({
   },
 })
 
-const middleware = withPersistence(persistence, {
+const middleware = withChatPersistence(persistence, {
   features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
 })
 ```
@@ -86,7 +87,7 @@ store callbacks instead of adding a second persistence path.
 ```ts group=custom-stores-app-boundary
 import {
   defineAIPersistence,
-  withPersistence,
+  withChatPersistence,
 } from '@tanstack/ai-persistence'
 import type { MessageStore, RunStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
@@ -124,7 +125,7 @@ export function appPersistence(db: AppDb) {
 }
 
 export function persistenceMiddleware(db: AppDb) {
-  return withPersistence(appPersistence(db), {
+  return withChatPersistence(appPersistence(db), {
     features: ['messages'],
   })
 }

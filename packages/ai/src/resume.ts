@@ -5,7 +5,7 @@
  * The contract lives in core (not in `@tanstack/ai-persistence`) because the
  * `chat()` engine itself owns the resume decision: when a `cursor` is supplied
  * and a `ResumeSource` has been provided by middleware, the engine replays the
- * persisted event tail instead of running the adapter again. `withPersistence`
+ * persisted event tail instead of running the adapter again. `withChatPersistence`
  * PROVIDES a `ResumeSource` backed by its event log + run store; without it, the
  * `cursor` option is a silent no-op (a normal run is unaffected).
  *
@@ -20,7 +20,7 @@ export type RunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
 /**
  * A read-only view of persisted run history sufficient for the engine to resume.
- * Provided by `withPersistence`; consumed by the `chat()` resume seam.
+ * Provided by `withChatPersistence`; consumed by the `chat()` resume seam.
  */
 export interface ResumeSource {
   /** Whether any events have been persisted for `runId`. */
@@ -36,7 +36,7 @@ export interface ResumeSource {
 }
 
 /**
- * The resume capability. PROVIDED by `withPersistence`; OPTIONALLY consumed by
+ * The resume capability. PROVIDED by `withChatPersistence`; OPTIONALLY consumed by
  * the chat engine. When absent, a supplied `cursor` is ignored.
  */
 export const ResumeSourceCapability =

@@ -1,7 +1,7 @@
 /**
  * Persistence capability tokens.
  *
- * `withPersistence` PROVIDES these so later middleware (and harness adapters)
+ * `withChatPersistence` PROVIDES these so later middleware (and harness adapters)
  * can read durable state. `LocksCapability` and `ResumeSourceCapability` are
  * re-exported from core (`@tanstack/ai`) — they are shared, single-owner tokens
  * (locks with the sandbox layer; the resume source with the chat engine's

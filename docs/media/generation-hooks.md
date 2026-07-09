@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
 The same pattern applies to all generation types -- swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, or `generateVideo`. See the individual media guides for server-side details.
 
-For refresh-safe generation, wrap the server call with `withPersistence(...)`
+For refresh-safe generation, wrap the server call with `withGenerationPersistence(...)`
 and parse hook requests with `generationParamsFromRequest(...)`. See
 [Generation Persistence](../persistence/generation-persistence) for the complete
 server and client flow.
@@ -455,7 +455,7 @@ const { result } = useGenerateImage({
 ## Resumable Generation
 
 All generation hooks can resume streamed generation endpoints when the server
-uses `withPersistence(...)` and returns SSE events. Add `persistence.server` to
+uses `withGenerationPersistence(...)` and returns SSE events. Add `persistence.server` to
 store the latest snapshot, rely on the default `autoResume: true`, or opt out
 and call `resume()` from your UI.
 

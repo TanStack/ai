@@ -5,7 +5,7 @@
  * - `SandboxCapability` is PROVIDED by `withSandbox` and REQUIRED by harness
  *   adapters (`requires: [SandboxCapability]`).
  * - `SandboxStoreCapability` / `LocksCapability` are OPTIONALLY required by
- *   `withSandbox`. It falls back to in-memory defaults; `withPersistence(...)`
+ *   `withSandbox`. It falls back to in-memory defaults; `withChatPersistence(...)`
  *   can provide durable metadata and lock implementations.
  */
 import {

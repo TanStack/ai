@@ -6,7 +6,7 @@ import type { ResumeSource } from '../src/resume'
 import type { StreamChunk } from '../src/types'
 import { ev, createMockAdapter, collectChunks, getDeltas } from './test-utils'
 
-/** Middleware that provides a fixed ResumeSource (stands in for withPersistence). */
+/** Middleware that provides a fixed ResumeSource (stands in for withChatPersistence). */
 function withFakeResumeSource(source: ResumeSource) {
   return defineChatMiddleware({
     name: 'fake-resume-source',

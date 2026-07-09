@@ -5,7 +5,7 @@ id: sql-backends
 
 Use a SQL backend when your app runs in Node or another server runtime with a
 database connection. The raw SQLite and Postgres packages expose the same
-`AIPersistence` stores to `withPersistence(...)`. The shared SQL core also
+`AIPersistence` stores to `withChatPersistence(...)`. The shared SQL core also
 supports MySQL DDL for custom drivers, but there is no standalone MySQL backend
 package.
 

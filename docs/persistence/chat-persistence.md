@@ -6,7 +6,7 @@ id: chat-persistence
 Use chat persistence when the server should be authoritative for a thread. The
 client may keep local UI state, but the durable transcript, run status,
 replayable event log, and pending user decisions live behind
-`withPersistence(...)`.
+`withChatPersistence(...)`.
 
 By the end, your endpoint accepts `{ threadId, runId, cursor, resume }`, writes
 streamed chunks to durable storage, and lets the client resume after an
@@ -27,7 +27,7 @@ Build the persistence instance once and reuse it across requests.
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
@@ -45,18 +45,23 @@ export async function POST(request: Request) {
     resume,
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
-    middleware: [withPersistence(persistence)],
+    middleware: [withChatPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
 }
 ```
 
-`withPersistence(...)` loads stored thread history, saves the resulting
+`withChatPersistence(...)` loads stored thread history, saves the resulting
 transcript, records run status, and appends every public AG-UI event with an
 opaque cursor. When `cursor` is present, the run replays persisted events after
 that cursor instead of re-running the adapter. For the exact event log and
 cursor validation rules, see [Persistence Internals](./internals).
+
+If the same app also uses `withGenerationPersistence`, keep **run IDs unique
+across activities** — they may share a store and `threadId`, but not a
+`runId`. See
+[Persistence Overview](./overview#run-ids-must-be-unique-across-activities).
 
 ## Wire the client
 

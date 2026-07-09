@@ -17,14 +17,17 @@
 '@tanstack/ai-sandbox': minor
 ---
 
-Persistence + resumable runs as composable `chat()` middleware.
+Persistence + resumable runs as composable middleware.
 
-`withPersistence(...)` makes any run durable: it loads/saves thread message
-history (server-authoritative), creates/updates run records, persists every
-AG-UI `StreamChunk` to an append-only public event log, and persists usage. It
-is fully **optional** - a `chat()` with no persistence middleware is unchanged.
-The primary API is `AIPersistence` / `defineAIPersistence`; `ChatPersistence` /
-`defineChatPersistence` remain deprecated compatibility aliases.
+`withChatPersistence(...)` makes `chat()` runs durable: it loads/saves thread
+message history (server-authoritative), creates/updates run records, persists
+every AG-UI `StreamChunk` to an append-only public event log, and persists
+usage. `withGenerationPersistence(...)` tracks generation run status and
+optionally persists media artifacts/blobs (image, audio, TTS, video,
+transcription). Both are fully **optional** — a run with no persistence
+middleware is unchanged. The primary API is `AIPersistence` /
+`defineAIPersistence`; `ChatPersistence` / `defineChatPersistence` remain
+deprecated compatibility aliases.
 
 **Resume.** Each persisted chunk carries an in-band, opaque `cursor` (a
 monotonic per-run sequence). A client that disconnects mid-run reconnects with
@@ -65,7 +68,7 @@ and garbage collection.
 `memoryPersistence()` ships in core for tests/examples.
 
 **Sandboxes, MCP, and workflows.** `@tanstack/ai-sandbox` now consumes
-configured persistence capabilities directly. Place `withPersistence(...)`
+configured persistence capabilities directly. Place `withChatPersistence(...)`
 before `withSandbox(...)` and sandbox resume records are stored in persistence
 metadata while sandbox ensure-locking uses the shared persistence lock
 capability when present. `defineSandbox({ persistence: { workspace } })` can

@@ -3,8 +3,10 @@ title: Persistence Overview
 id: overview
 ---
 
-Persistence makes server-side `chat()` runs durable. You add
-`withPersistence(...)` to a server run, pass it an `AIPersistence` store
+Persistence makes server-side runs durable. For chat, add
+`withChatPersistence(...)` to a `chat()` call; for media generation, add
+`withGenerationPersistence(...)` to `generateImage` / `generateAudio` / TTS /
+video / transcription. Pass either middleware an `AIPersistence` store
 aggregate, and TanStack AI uses those stores to load thread history, record run
 state, append replayable public events, and provide optional capabilities such
 as interrupts, metadata, locks, artifacts, and blobs.
@@ -15,14 +17,13 @@ migrations to a production-owned schema.
 
 ## How persistence works
 
-`withPersistence(...)` is middleware. A run without the middleware stays
-in-memory. A run with the middleware calls the stores exposed by your
-`AIPersistence` object.
+Both middlewares are opt-in. A run without them stays in-memory. A run with
+either middleware calls the stores exposed by your `AIPersistence` object.
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
     resume,
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
-    middleware: [withPersistence(persistence)],
+    middleware: [withChatPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
@@ -50,6 +51,28 @@ export async function POST(request: Request) {
 When the client later sends `{ threadId, runId, cursor }`, persistence replays
 the stored public event tail after that cursor. Treat `cursor` as opaque: store
 and forward it, but do not parse it.
+
+### Run IDs must be unique across activities
+
+`withChatPersistence` and `withGenerationPersistence` may share one
+`AIPersistence` backend. The `runs` store is keyed only by `runId` (there is no
+activity discriminator), so **every chat run and every generation run needs a
+distinct `runId`**. Reusing the same id across activities overwrites run status
+and confuses chat cursor / event-log validation.
+
+How ids are created:
+
+| Path | Default `runId` |
+| --- | --- |
+| Client chat (`useChat` / `ChatClient`) | New `run-${Date.now()}-…` per send; resume reuses the stored id |
+| Client generation hooks | New `run-${Date.now()}-…` per generate via the generation client |
+| Server `chat({ runId })` | Caller-supplied, or falls back to a per-request `chat-…` id from the engine |
+| Server generation (`generateImage`, …) | Caller-supplied `runId`, else `requestId` for run tracking |
+
+Default client/SDK ids are unique enough for normal use. Only force a shared
+`runId` if you deliberately control identity — and never reuse one id for both
+a chat turn and a media generation. Sharing a **`threadId`** across chat and
+generation for the same conversation is fine.
 
 ## What `AIPersistence` contains
 

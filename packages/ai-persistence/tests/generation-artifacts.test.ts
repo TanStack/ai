@@ -7,7 +7,7 @@ import {
 } from '@tanstack/ai'
 import { defineAIPersistence } from '../src/types'
 import { memoryPersistence } from '../src/memory'
-import { withPersistence } from '../src/middleware'
+import { withGenerationPersistence } from '../src/middleware'
 import type {
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,
@@ -109,7 +109,7 @@ function transcriptionAdapter(): TranscriptionAdapter<string> {
   }
 }
 
-describe('withPersistence generation artifacts', () => {
+describe('withGenerationPersistence generation artifacts', () => {
   it('persists built-in image output artifacts and attaches refs', async () => {
     const persistence = memoryPersistence()
 
@@ -118,7 +118,7 @@ describe('withPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-image',
       runId: 'run-image',
-      middleware: [withPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence)],
     })
 
     expect(result.artifacts).toHaveLength(1)
@@ -160,7 +160,7 @@ describe('withPersistence generation artifacts', () => {
       prompt: 'make audio',
       threadId: 'thread-audio',
       runId: 'run-audio',
-      middleware: [withPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence)],
     } as AudioGenerateOptions)) as AudioGenerationResult
 
     expect(result.artifacts).toHaveLength(1)
@@ -194,7 +194,7 @@ describe('withPersistence generation artifacts', () => {
       ],
       threadId: 'thread-input',
       runId: 'run-input',
-      middleware: [withPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence)],
     })
 
     expect(result.artifacts?.map((artifact) => artifact.role)).toEqual([
@@ -220,7 +220,7 @@ describe('withPersistence generation artifacts', () => {
     })
 
     expect(() =>
-      withPersistence(persistence, { features: ['artifacts', 'blobs'] }),
+      withGenerationPersistence(persistence, { features: ['artifacts', 'blobs'] }),
     ).toThrow(/artifacts.*stores\.artifacts.*blobs.*stores\.blobs/i)
   })
 
@@ -243,7 +243,7 @@ describe('withPersistence generation artifacts', () => {
       threadId: 'thread-custom',
       runId: 'run-custom',
       middleware: [
-        withPersistence(persistence, {
+        withGenerationPersistence(persistence, {
           extractArtifacts: () => [
             {
               role: 'output',
@@ -276,7 +276,7 @@ describe('withPersistence generation artifacts', () => {
       threadId: 'thread-data-url',
       runId: 'run-data-url',
       middleware: [
-        withPersistence(persistence, {
+        withGenerationPersistence(persistence, {
           extractArtifacts: () => [
             {
               role: 'input',
@@ -324,7 +324,7 @@ describe('withPersistence generation artifacts', () => {
       threadId: 'thread-name',
       runId: 'run-name',
       middleware: [
-        withPersistence(persistence, {
+        withGenerationPersistence(persistence, {
           nameArtifact: ({ descriptor, index }) =>
             `${descriptor.role}-${descriptor.mediaType}-${index}.bin`,
         }),
@@ -344,7 +344,7 @@ describe('withPersistence generation artifacts', () => {
         stream: true,
         threadId: 'thread-stream',
         runId: 'run-stream',
-        middleware: [withPersistence(persistence)],
+        middleware: [withGenerationPersistence(persistence)],
       }),
     )
 
@@ -368,7 +368,7 @@ describe('withPersistence generation artifacts', () => {
         adapter: imageAdapter(),
         prompt: 'make an image',
         stream: true,
-        middleware: [withPersistence(persistence)],
+        middleware: [withGenerationPersistence(persistence)],
       }),
     )
 
@@ -408,7 +408,7 @@ describe('withPersistence generation artifacts', () => {
           audio: { b64Json: 'cmVwbGF5ZWQ=', contentType: 'audio/wav' },
         },
       },
-      middleware: [withPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence)],
     } as AudioGenerateOptions)) as AudioGenerationResult
 
     expect(result.artifacts).toBeUndefined()
@@ -425,7 +425,7 @@ describe('withPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-messages-only',
       runId: 'run-messages-only',
-      middleware: [withPersistence(persistence, { features: ['messages'] })],
+      middleware: [withGenerationPersistence(persistence, { features: ['messages'] })],
     })
 
     expect(result.artifacts).toBeUndefined()
@@ -442,7 +442,7 @@ describe('withPersistence generation artifacts', () => {
     })
 
     expect(() =>
-      withPersistence(persistence, { features: ['artifacts'] }),
+      withGenerationPersistence(persistence, { features: ['artifacts'] }),
     ).toThrow(
       /artifact persistence requires both stores\.artifacts and stores\.blobs/i,
     )
@@ -457,7 +457,7 @@ describe('withPersistence generation artifacts', () => {
       responseFormat: 'verbose_json',
       threadId: 'thread-transcription',
       runId: 'run-transcription',
-      middleware: [withPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence)],
     } as TranscriptionGenerateOptions)) as TranscriptionResult
 
     expect(result.artifacts?.map((artifact) => artifact.role)).toEqual([

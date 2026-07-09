@@ -6,7 +6,7 @@ id: drizzle
 Use Drizzle persistence when Drizzle already owns your SQLite or Postgres
 database connection and migration workflow. The adapter unwraps Drizzle's
 underlying client and exposes the shared SQL-backed `AIPersistence` stores to
-`withPersistence(...)`.
+`withChatPersistence(...)`.
 
 By the end, your Drizzle-backed server can persist chat messages, replay
 events, interrupts, metadata, and other SQL-backed stores while keeping schema
@@ -33,7 +33,7 @@ Pass your Drizzle database and dialect to `drizzlePersistence(...)`.
 
 ```ts
 import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { db } from './db'
 
 export const persistence = drizzlePersistence({
@@ -41,7 +41,7 @@ export const persistence = drizzlePersistence({
   dialect: 'postgres',
 })
 
-export const middleware = withPersistence(persistence, {
+export const middleware = withChatPersistence(persistence, {
   features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
 })
 ```

@@ -8,7 +8,7 @@ import {
 import type { StreamChunk } from '@tanstack/ai'
 import {
   memoryPersistence,
-  withPersistence,
+  withChatPersistence,
   type AIPersistence,
 } from '@tanstack/ai-persistence'
 import type { Feature, Provider } from '@/lib/types'
@@ -87,7 +87,7 @@ export const Route = createFileRoute('/api/chat')({
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
           const middleware = serverPersistence
             ? [
-                withPersistence(getPersistence(testId), {
+                withChatPersistence(getPersistence(testId), {
                   features: ['messages', 'durable-replay', 'interrupts'],
                 }),
               ]

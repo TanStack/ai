@@ -38,7 +38,7 @@ export type {
 } from './types'
 
 // Middleware
-export { withPersistence } from './middleware'
+export { withChatPersistence, withGenerationPersistence } from './middleware'
 export type {
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,

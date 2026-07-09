@@ -1,10 +1,11 @@
 ---
 name: ai-core/persistence
 description: >
-  Durable, resumable chat() via withPersistence middleware and AIPersistence.
-  Persists thread messages, run records, append-only AG-UI public events,
-  internal CAS/checkpoint events, interrupts, metadata, locks, and artifacts
-  through optional feature-validated stores. Stamps chunks with opaque cursors;
+  Durable, resumable chat() via withChatPersistence middleware and
+  AIPersistence; media generation via withGenerationPersistence. Persists
+  thread messages, run records, append-only AG-UI public events, internal
+  CAS/checkpoint events, interrupts, metadata, locks, and artifacts through
+  optional feature-validated stores. Stamps chunks with opaque cursors;
   chat({ cursor }) replays the public event tail, and RunAgentInput.resume[]
   resolves pending interrupts. Backends: memoryPersistence, sqlitePersistence,
   postgresPersistence, cloudflarePersistence, drizzlePersistence,
@@ -27,11 +28,14 @@ sources:
 - The primary interface is `AIPersistence`; use `defineAIPersistence(...)` for
   custom stores. `ChatPersistence` / `defineChatPersistence` are deprecated
   compatibility aliases only.
-- `withPersistence(persistence, { features? })` maps onto the real middleware
-  hooks: `setup` (create/resume run + validate features), `onConfig`
-  (load+merge thread messages, server-authoritative), `onChunk` (assign
-  per-run seq, stamp in-band `cursor`, append to the public event log), and
+- Use **`withChatPersistence(persistence, { features? })`** for `chat()`:
+  `setup` (create/resume run + validate features), `onConfig` (load+merge
+  thread messages, server-authoritative), `onChunk` (assign per-run seq, stamp
+  in-band `cursor`, append to the public event log), and
   `onFinish`/`onError`/`onAbort` (run status + usage + transcript save).
+- Use **`withGenerationPersistence(persistence, { features? })`** for media
+  generation (`generateImage`, `generateAudio`, TTS, video, transcription):
+  run status updates and optional artifact/blob persistence.
 - The public replay log is the AG-UI `StreamChunk` stream itself. Internal
   CAS/checkpoint events are separate and go through `InternalEventStore`; do
   not mix internal package state into public stream replay.
@@ -49,7 +53,7 @@ sources:
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
     resume,
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
-    middleware: [withPersistence(persistence)],
+    middleware: [withChatPersistence(persistence)],
   })
   return toServerSentEventsResponse(stream)
 }
@@ -104,6 +108,7 @@ await chat.resumeInterrupts([
 | `metadata`        | `metadata`                           |
 | `locks`           | `locks`                              |
 | `artifacts`       | `artifacts`                          |
+| `blobs`           | `blobs` (pair with `artifacts`)      |
 
 ## Backends
 
@@ -130,10 +135,11 @@ should reuse the existing primitives without adding base schema cost.
 
 ## Sandboxes
 
-Place `withPersistence(...)` before `withSandbox(...)` to make sandbox resume
-and ensure-locking durable across processes. `withSandbox(...)` reads the
-configured persistence metadata store for sandbox records and uses the shared
-`locks` capability from `@tanstack/ai` when `withPersistence(...)` provides it.
+Place `withChatPersistence(...)` before `withSandbox(...)` to make sandbox
+resume and ensure-locking durable across processes. `withSandbox(...)` reads
+the configured persistence metadata store for sandbox records and uses the
+shared `locks` capability from `@tanstack/ai` when `withChatPersistence(...)`
+provides it.
 
 ## Gotchas
 

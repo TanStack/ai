@@ -65,7 +65,7 @@ Use message persistence when the server owns the chat transcript instead of
 trusting the browser to send the whole history.
 
 ```ts
-import { defineAIPersistence, withPersistence } from '@tanstack/ai-persistence'
+import { defineAIPersistence, withChatPersistence } from '@tanstack/ai-persistence'
 import type { MessageStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -87,7 +87,7 @@ const persistence = defineAIPersistence({
   stores: { messages },
 })
 
-const middleware = withPersistence(persistence, {
+const middleware = withChatPersistence(persistence, {
   features: ['messages'],
 })
 ```
@@ -102,14 +102,14 @@ Use durable replay when reconnects should replay persisted public AG-UI events
 after the last cursor.
 
 ```ts
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { postgresPersistence } from '@tanstack/ai-persistence-postgres'
 
 const persistence = postgresPersistence({
   connectionString: process.env.DATABASE_URL ?? '',
 })
 
-export const middleware = withPersistence(persistence, {
+export const middleware = withChatPersistence(persistence, {
   features: ['messages', 'durable-replay'],
 })
 ```
@@ -125,7 +125,7 @@ Use interrupt persistence when a run can pause for a user decision and resume
 later.
 
 ```ts
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
 
 const persistence = sqlitePersistence({
@@ -133,7 +133,7 @@ const persistence = sqlitePersistence({
   migrate: true,
 })
 
-export const middleware = withPersistence(persistence, {
+export const middleware = withChatPersistence(persistence, {
   features: ['interrupts'],
 })
 ```
@@ -177,7 +177,7 @@ media and file storage. If you pass a manual feature list, include both
 `'artifacts'` and `'blobs'` so metadata and bytes stay paired.
 
 ```ts
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 
 declare const env: {
@@ -192,7 +192,7 @@ const persistence = cloudflarePersistence({
   durableObjects: env.AI_LOCKS,
 })
 
-export const middleware = withPersistence(persistence, {
+export const middleware = withChatPersistence(persistence, {
   features: [
     'messages',
     'durable-replay',
@@ -204,9 +204,10 @@ export const middleware = withPersistence(persistence, {
 })
 ```
 
-If `features` is omitted, `withPersistence(...)` enables the features supported
-by the stores present on the `AIPersistence` object. Pass `features` when you
-want fail-loud validation for a required capability.
+If `features` is omitted, `withChatPersistence(...)` and
+`withGenerationPersistence(...)` enable the features supported by the stores
+present on the `AIPersistence` object. Pass `features` when you want fail-loud
+validation for a required capability.
 
 For exact store method contracts and resume invariants behind these controls,
 see [Persistence Internals](./internals).

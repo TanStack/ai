@@ -5,7 +5,7 @@ id: internals
 
 Persistence internals are for backend builders, custom store authors,
 infrastructure owners, and integration authors who need to reason about the
-durable boundary behind `withPersistence(...)`.
+durable boundary behind `withChatPersistence(...)`.
 
 Use the journey pages first when you are wiring a product flow:
 [Chat Persistence](./chat-persistence), [Generation Persistence](./generation-persistence),
@@ -23,7 +23,7 @@ app-specific schema, queues, and retention rules behind that boundary.
 ```mermaid
 flowchart LR
   Client[Client snapshot\nthreadId runId cursor] --> Route[Server route]
-  Route --> Middleware[withPersistence]
+  Route --> Middleware[withChatPersistence]
   Middleware --> Chat[chat or generation activity]
   Middleware --> Stores[AIPersistence stores]
 
@@ -39,6 +39,34 @@ flowchart LR
 
 There is no separate high-level callback builder. Implement the store methods
 and pass them under `stores`.
+
+### Shared backends: unique `runId` across chat and generation
+
+Chat and generation may share one `AIPersistence` instance. Partitioning is by
+store surface (`messages` / `publicEvents` / `interrupts` for chat;
+`artifacts` / `blobs` for generation) and by **`runId`** for the shared `runs`
+table.
+
+`RunRecord` has no activity/type field. `createOrResume({ runId })` returns an
+existing row when that id is already present, so a reused `runId` lets one
+activity overwrite another's status and can break chat replay validation.
+
+Default id generation (no app override):
+
+- **Chat client** — `ChatClient` allocates
+  `run-${Date.now()}-${random}` on each new send; resume requests reuse the
+  prior `runId` from the client snapshot.
+- **Generation client** — allocates
+  `run-${Date.now()}-${random}` when a generation run begins (devtools /
+  generation bridge).
+- **Server `chat()`** — uses the request's `runId` when provided; otherwise the
+  engine's per-request id (`chat-${Date.now()}-${random}` via `createId`).
+- **Server generation activities** — use caller `runId` when provided; run
+  persistence falls back to `requestId` when `runId` is omitted.
+
+Apps that mint their own ids must keep them unique across chat and generation.
+Sharing a `threadId` between those activities is supported and recommended when
+they belong to the same conversation.
 
 ## Store contracts
 
@@ -78,7 +106,7 @@ must be present together.
 
 Public events are user-visible `StreamChunk` values. They are the AG-UI stream:
 `RUN_STARTED`, message and tool chunks, `MESSAGES_SNAPSHOT`, `CUSTOM`, terminal
-`RUN_FINISHED`, and error chunks. `withPersistence(...)` stamps a cursor onto
+`RUN_FINISHED`, and error chunks. `withChatPersistence(...)` stamps a cursor onto
 each chat chunk before appending it to `publicEvents`.
 
 Internal events are private checkpoints. They are not replayed to the UI and
@@ -107,7 +135,7 @@ sequence internally, but the public contract is the cursor string.
 sequenceDiagram
   participant C as Client
   participant R as Route
-  participant P as withPersistence
+  participant P as withChatPersistence
   participant S as Stores
   participant A as Adapter
 
@@ -127,7 +155,7 @@ sequenceDiagram
 On the first chat run, persistence creates or resumes the run, optionally loads
 stored thread history, appends public chunks as they stream, and saves the final
 thread transcript on normal completion. If the terminal event has
-`RUN_FINISHED.outcome.type === 'interrupt'`, `withPersistence(...)` creates
+`RUN_FINISHED.outcome.type === 'interrupt'`, `withChatPersistence(...)` creates
 pending interrupt records, updates the run to `interrupted`, and saves the
 thread at the interrupt boundary.
 
@@ -135,7 +163,7 @@ thread at the interrupt boundary.
 sequenceDiagram
   participant C as Client
   participant R as Route
-  participant P as withPersistence
+  participant P as withChatPersistence
   participant S as Stores
   participant E as chat engine
 
@@ -149,7 +177,7 @@ sequenceDiagram
 ```
 
 Resume requires the same `threadId`, the same `runId`, and the last observed
-opaque `cursor`. `withPersistence(...)` validates that the run exists, that it
+opaque `cursor`. `withChatPersistence(...)` validates that the run exists, that it
 belongs to the requested thread, and that the cursor references a persisted
 public event before the chat engine reads from the resume source provided during
 setup. The resume source then reads ordered public events after the validated
@@ -171,17 +199,17 @@ flowchart TD
   Transform --> Finish[runs.update completed]
 ```
 
-`withPersistence(...)` creates or resumes a run for generation and updates run
-status on finish, error, or abort. When artifact persistence is enabled, it
-extracts built-in artifacts or calls `extractArtifacts`, writes bytes through
-`blobs.put`, saves an `ArtifactRecord`, and attaches lightweight persisted refs
-to the result.
+`withGenerationPersistence(...)` creates or resumes a run for generation and
+updates run status on finish, error, or abort. When artifact persistence is
+enabled, it extracts built-in artifacts or calls `extractArtifacts`, writes
+bytes through `blobs.put`, saves an `ArtifactRecord`, and attaches lightweight
+persisted refs to the result.
 
 Generation stream events are not persisted to `publicEvents` by
-`withPersistence(...)` today. A generation hook can replay what the server has
-durably produced only when your endpoint keeps enough state to replay or tail
-the producer. Durable continuation therefore needs a lightweight client
-snapshot plus durable producer/replay/result state owned by your app or
+`withGenerationPersistence(...)` today. A generation hook can replay what the
+server has durably produced only when your endpoint keeps enough state to
+replay or tail the producer. Durable continuation therefore needs a lightweight
+client snapshot plus durable producer/replay/result state owned by your app or
 backend. Artifact stores persist generated bytes and refs; they do not by
 themselves keep a canceled provider request running.
 
@@ -191,7 +219,7 @@ Sandbox persistence combines chat replay with sandbox-specific records.
 
 ```mermaid
 flowchart TD
-  Chat[chat run] --> Persist[withPersistence provides stores]
+  Chat[chat run] --> Persist[withChatPersistence provides stores]
   Persist --> Sandbox[withSandbox ensure]
   Sandbox --> Record[Sandbox record\nmetadata or SandboxStore]
   Sandbox --> Lock[Optional lock\nsame sandbox key]
@@ -202,7 +230,7 @@ flowchart TD
 ```
 
 `withSandbox(...)` prefers an explicit `SandboxStore` capability. If none is
-provided and `withPersistence(...)` exposes `metadata`, sandbox records are
+provided and `withChatPersistence(...)` exposes `metadata`, sandbox records are
 stored under persistence metadata. The record maps the computed sandbox key to
 provider, provider sandbox id, thread id, latest run id, and optional snapshot
 id.
@@ -315,7 +343,7 @@ Use these as operational checks when designing your own backend.
 | --- | --- |
 | Chat replay | `threadId`, `runId`, and opaque `cursor` from the client; run row; public events for that run; messages when the server owns transcript history. |
 | Chat after interrupt | Chat replay state plus pending interrupt records and the client `resume[]` payload that resolves or cancels each pending interrupt. |
-| Generation resume | Lightweight client snapshot plus durable app-owned replay/producer/result state. Artifact refs require artifact records and byte storage. `withPersistence(...)` updates run status and artifacts, but does not persist generation stream events to `publicEvents` today. |
+| Generation resume | Lightweight client snapshot plus durable app-owned replay/producer/result state. Artifact refs require artifact records and byte storage. `withGenerationPersistence(...)` updates run status and artifacts, but does not persist generation stream events to `publicEvents` today. |
 | Sandbox resume | Durable sandbox metadata record keyed by the sandbox instance key, plus a reattach-capable provider/harness. Workspace restore also needs metadata manifest records and artifact/file bytes. Multi-worker correctness needs locks. |
 | MCP Apps | Static client registry is enough for stateless per-call reconnect. Stateful or dynamic flows may need durable `McpSessionStore`, metadata, and internal checkpoints. |
 
@@ -331,4 +359,4 @@ Use these as operational checks when designing your own backend.
   `ArtifactRecord.updatedAt`.
 - D1/R2 artifact deletion is not atomic.
 - Generation stream events are not persisted to `publicEvents` by
-  `withPersistence(...)` today.
+  `withGenerationPersistence(...)` today.

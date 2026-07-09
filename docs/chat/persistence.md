@@ -20,7 +20,7 @@ This is especially useful for SPAs, Electron apps, and offline-first setups wher
 If your server owns the transcript and you need durable event replay after a
 reconnect or reload, use server-side persistence instead. See
 [Chat Persistence](../persistence/chat-persistence) for the full
-`withPersistence` server/client wiring.
+`withChatPersistence` server/client wiring.
 
 ## The adapter interface
 

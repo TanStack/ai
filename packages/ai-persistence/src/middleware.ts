@@ -16,10 +16,16 @@ import { RunSequence, decodeCursor, encodeCursor } from './cursor'
 import { createResumeSource } from './resume-source'
 import { validatePersistenceFeatures } from './types'
 import type {
+  AbortInfo,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ChatResumeToolState,
+  ErrorInfo,
+  FinishInfo,
+  GenerationAbortInfo,
+  GenerationErrorInfo,
+  GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
   PersistedArtifactActivity,
@@ -27,6 +33,7 @@ import type {
   PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
+  TokenUsage,
 } from '@tanstack/ai'
 import type {
   AIPersistence,
@@ -34,6 +41,7 @@ import type {
   BlobBody,
   InterruptRecord,
   PersistenceFeature,
+  RunStore,
 } from './types'
 
 export interface WithPersistenceOptions {
@@ -308,12 +316,6 @@ async function validateReplayCursor(
   }
 
   return true
-}
-
-function isGenerationContext(
-  ctx: ChatMiddlewareContext | GenerationMiddlewareContext,
-): ctx is GenerationMiddlewareContext {
-  return ctx.activity !== 'chat'
 }
 
 function isArtifactRef(value: unknown): value is PersistedArtifactRef {
@@ -757,10 +759,26 @@ async function persistGenerationArtifacts(
   return refs
 }
 
-export function withPersistence(
+// ---------------------------------------------------------------------------
+// Shared store / feature plan
+// ---------------------------------------------------------------------------
+
+interface PersistencePlan {
+  features: Array<PersistenceFeature>
+  wantsMessages: boolean
+  wantsReplay: boolean
+  wantsInterrupts: boolean
+  wantsPublicEvents: boolean
+  wantsLocks: boolean
+  wantsArtifactPersistence: boolean
+  publicEvents: AIPersistence['stores']['publicEvents']
+  runs: AIPersistence['stores']['runs']
+}
+
+function resolvePersistencePlan(
   persistence: AIPersistence,
   opts?: WithPersistenceOptions,
-): ChatMiddleware & GenerationMiddleware {
+): PersistencePlan {
   const features = opts?.features ?? defaultFeatures(persistence)
   validatePersistenceFeatures(persistence, features)
 
@@ -771,14 +789,92 @@ export function withPersistence(
   const wantsLocks = features.includes('locks')
   const wantsArtifactStore = features.includes('artifacts')
   const wantsBlobStore = features.includes('blobs')
-  const wantsArtifactPersistence = wantsArtifactStore && wantsBlobStore
   if (wantsArtifactStore !== wantsBlobStore) {
     throw new Error(
       'Generation artifact persistence requires both stores.artifacts and stores.blobs.',
     )
   }
-  const publicEvents = persistence.stores.publicEvents
-  const runs = persistence.stores.runs
+
+  return {
+    features,
+    wantsMessages,
+    wantsReplay,
+    wantsInterrupts,
+    wantsPublicEvents,
+    wantsLocks,
+    wantsArtifactPersistence: wantsArtifactStore && wantsBlobStore,
+    publicEvents: persistence.stores.publicEvents,
+    runs: persistence.stores.runs,
+  }
+}
+
+async function createOrResumeRun(
+  runs: RunStore | undefined,
+  runId: string,
+  threadId: string,
+): Promise<void> {
+  await runs?.createOrResume({
+    runId,
+    threadId,
+    startedAt: Date.now(),
+  })
+}
+
+async function completeRun(
+  runs: RunStore | undefined,
+  runId: string,
+  usage?: TokenUsage,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'completed',
+    finishedAt: Date.now(),
+    ...(usage ? { usage } : {}),
+  })
+}
+
+async function failRun(
+  runs: RunStore | undefined,
+  runId: string,
+  error: unknown,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'failed',
+    finishedAt: Date.now(),
+    error: error instanceof Error ? error.message : String(error),
+  })
+}
+
+async function interruptRun(
+  runs: RunStore | undefined,
+  runId: string,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'interrupted',
+    finishedAt: Date.now(),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Chat middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Chat-only persistence middleware. Provides durable messages, public event
+ * replay, interrupts, and locks for `chat()`.
+ */
+export function withChatPersistence(
+  persistence: AIPersistence,
+  opts?: WithPersistenceOptions,
+): ChatMiddleware {
+  const plan = resolvePersistencePlan(persistence, opts)
+  const {
+    wantsMessages,
+    wantsInterrupts,
+    wantsPublicEvents,
+    wantsLocks,
+    publicEvents,
+    runs,
+  } = plan
 
   const provides = [
     PersistenceCapability,
@@ -788,7 +884,7 @@ export function withPersistence(
   ]
 
   return defineChatMiddleware({
-    name: 'persistence',
+    name: 'chat-persistence',
     provides,
     async setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
@@ -813,30 +909,6 @@ export function withPersistence(
       if (wantsLocks && persistence.stores.locks) {
         provideLocks(ctx, persistence.stores.locks)
       }
-    },
-
-    async onStart(ctx: ChatMiddlewareContext | GenerationMiddlewareContext) {
-      if (!isGenerationContext(ctx)) return
-      await runs?.createOrResume({
-        runId: ctx.runId ?? ctx.requestId,
-        threadId: ctx.threadId ?? ctx.requestId,
-        startedAt: Date.now(),
-      })
-      if (!wantsArtifactPersistence) return
-      ctx.resultTransforms?.push(async (result) => {
-        const refs = await persistGenerationArtifacts(
-          persistence,
-          opts,
-          ctx,
-          result,
-        )
-        if (refs.length === 0) return undefined
-        const existing = objectValue(result)?.artifacts
-        return {
-          ...(objectValue(result) ?? {}),
-          artifacts: [...(Array.isArray(existing) ? existing : []), ...refs],
-        }
-      })
     },
 
     async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
@@ -871,13 +943,7 @@ export function withPersistence(
         )
       }
 
-      if (runs) {
-        await runs.createOrResume({
-          runId: ctx.runId,
-          threadId: ctx.threadId,
-          startedAt: Date.now(),
-        })
-      }
+      await createOrResumeRun(runs, ctx.runId, ctx.threadId)
 
       if (!wantsMessages || !persistence.stores.messages) {
         return resumeToolState ? { resumeToolState } : undefined
@@ -929,10 +995,7 @@ export function withPersistence(
             })
           }
         }
-        await runs?.update(ctx.runId, {
-          status: 'interrupted',
-          finishedAt: Date.now(),
-        })
+        await interruptRun(runs, ctx.runId)
         if (wantsMessages && persistence.stores.messages) {
           await persistence.stores.messages.saveThread(ctx.threadId, [
             ...ctx.messages,
@@ -944,24 +1007,9 @@ export function withPersistence(
       return stamped
     },
 
-    async onFinish(
-      ctx: ChatMiddlewareContext | GenerationMiddlewareContext,
-      info,
-    ) {
-      if (isGenerationContext(ctx)) {
-        await runs?.update(ctx.runId ?? ctx.requestId, {
-          status: 'completed',
-          finishedAt: Date.now(),
-          ...(info.usage ? { usage: info.usage } : {}),
-        })
-        return
-      }
+    async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
       if (runState.get(ctx)?.interrupted) return
-      await runs?.update(ctx.runId, {
-        status: 'completed',
-        finishedAt: Date.now(),
-        ...(info.usage ? { usage: info.usage } : {}),
-      })
+      await completeRun(runs, ctx.runId, info.usage)
       if (wantsMessages && persistence.stores.messages) {
         await persistence.stores.messages.saveThread(ctx.threadId, [
           ...ctx.messages,
@@ -969,23 +1017,75 @@ export function withPersistence(
       }
     },
 
-    async onError(
-      ctx: ChatMiddlewareContext | GenerationMiddlewareContext,
-      info,
-    ) {
-      await runs?.update(ctx.runId ?? ctx.requestId, {
-        status: 'failed',
-        finishedAt: Date.now(),
-        error:
-          info.error instanceof Error ? info.error.message : String(info.error),
+    async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
+      await failRun(runs, ctx.runId, info.error)
+    },
+
+    async onAbort(ctx: ChatMiddlewareContext, _info: AbortInfo) {
+      await interruptRun(runs, ctx.runId)
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Generation middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Generation-only persistence middleware. Tracks run status and optionally
+ * persists media artifacts/blobs for image, audio, TTS, video, and
+ * transcription activities.
+ */
+export function withGenerationPersistence(
+  persistence: AIPersistence,
+  opts?: WithPersistenceOptions,
+): GenerationMiddleware {
+  const plan = resolvePersistencePlan(persistence, opts)
+  const { wantsArtifactPersistence, runs } = plan
+
+  return {
+    name: 'generation-persistence',
+
+    async onStart(ctx: GenerationMiddlewareContext) {
+      await createOrResumeRun(
+        runs,
+        ctx.runId ?? ctx.requestId,
+        ctx.threadId ?? ctx.requestId,
+      )
+      if (!wantsArtifactPersistence) return
+      ctx.resultTransforms?.push(async (result) => {
+        const refs = await persistGenerationArtifacts(
+          persistence,
+          opts,
+          ctx,
+          result,
+        )
+        if (refs.length === 0) return undefined
+        const existing = objectValue(result)?.artifacts
+        return {
+          ...(objectValue(result) ?? {}),
+          artifacts: [...(Array.isArray(existing) ? existing : []), ...refs],
+        }
       })
     },
 
-    async onAbort(ctx: ChatMiddlewareContext | GenerationMiddlewareContext) {
-      await runs?.update(ctx.runId ?? ctx.requestId, {
-        status: 'interrupted',
-        finishedAt: Date.now(),
-      })
+    async onFinish(
+      ctx: GenerationMiddlewareContext,
+      info: GenerationFinishInfo,
+    ) {
+      await completeRun(runs, ctx.runId ?? ctx.requestId, info.usage)
     },
-  }) as ChatMiddleware & GenerationMiddleware
+
+    async onError(ctx: GenerationMiddlewareContext, info: GenerationErrorInfo) {
+      await failRun(runs, ctx.runId ?? ctx.requestId, info.error)
+    },
+
+    async onAbort(
+      ctx: GenerationMiddlewareContext,
+      _info: GenerationAbortInfo,
+    ) {
+      await interruptRun(runs, ctx.runId ?? ctx.requestId)
+    },
+  }
 }
+

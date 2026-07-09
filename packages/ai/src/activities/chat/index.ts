@@ -258,7 +258,7 @@ export interface TextActivityOptions<
   parentRunId?: TextOptions['parentRunId']
   /**
    * Resume cursor. When provided with a resume source (e.g. via
-   * `withPersistence`), the engine replays persisted events after this cursor
+   * `withChatPersistence`), the engine replays persisted events after this cursor
    * instead of running the adapter. A no-op when no resume source is present.
    */
   cursor?: TextOptions['cursor']
@@ -800,7 +800,7 @@ class TextEngine<
 
   /**
    * Resume seam. When the caller supplied a `cursor` and a `ResumeSource` was
-   * provided by middleware (e.g. `withPersistence`) for this run, replay the
+   * provided by middleware (e.g. `withChatPersistence`) for this run, replay the
    * persisted event tail after the cursor and report that the run was handled
    * by replay. Returns `false` (a no-op) when there is no cursor, no resume
    * source, or no persisted run — so a normal run proceeds unchanged.

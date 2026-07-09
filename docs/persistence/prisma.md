@@ -6,7 +6,7 @@ id: prisma
 Use Prisma persistence when Prisma already owns your SQLite or Postgres
 database connection and migration workflow. The adapter wraps Prisma's raw SQL
 methods and exposes the same `AIPersistence` stores used by
-`withPersistence(...)`.
+`withChatPersistence(...)`.
 
 By the end, your Prisma-backed server can persist chat messages, replay events,
 interrupts, metadata, and other SQL-backed stores without adding a second
@@ -34,7 +34,7 @@ Pass your Prisma client and dialect to `prismaPersistence(...)`.
 
 ```ts
 import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withChatPersistence } from '@tanstack/ai-persistence'
 import { prisma } from './prisma'
 
 export const persistence = prismaPersistence({
@@ -42,7 +42,7 @@ export const persistence = prismaPersistence({
   dialect: 'postgres',
 })
 
-export const middleware = withPersistence(persistence, {
+export const middleware = withChatPersistence(persistence, {
   features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
 })
 ```

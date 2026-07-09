@@ -5,7 +5,7 @@
  * `LocksCapability` lives in core (rather than in `@tanstack/ai-sandbox` or
  * `@tanstack/ai-persistence`) so there is exactly ONE `'locks'` token: capability
  * names must be globally unique, and both `withSandbox` (which optionally
- * requires it) and `withPersistence` (which provides a durable implementation)
+ * requires it) and `withChatPersistence` (which provides a durable implementation)
  * must reference the same handle. The in-memory default here is correct within a
  * single process; the persistence layer provides a distributed lock (e.g. a
  * Durable Object) for multi-instance deployments.
@@ -22,7 +22,7 @@ export interface LockStore {
 }
 
 /**
- * The lock capability. PROVIDED by `withPersistence` (durable) and OPTIONALLY
+ * The lock capability. PROVIDED by `withChatPersistence` (durable) and OPTIONALLY
  * required by `withSandbox`. Falls back to {@link InMemoryLockStore} when no
  * middleware provides it.
  */

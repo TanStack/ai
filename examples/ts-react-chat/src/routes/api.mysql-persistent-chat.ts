@@ -7,7 +7,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { decodeCursor, withPersistence } from '@tanstack/ai-persistence'
+import { decodeCursor, withChatPersistence } from '@tanstack/ai-persistence'
 import { createMysqlPersistence } from '@/lib/mysql-persistence'
 import type { RunErrorEvent, StreamChunk } from '@tanstack/ai'
 import type { RunRecord } from '@tanstack/ai-persistence'
@@ -64,7 +64,7 @@ async function ensureProducer(params: ChatParams): Promise<void> {
     const stream = chat({
       adapter: openaiText('gpt-5.5'),
       middleware: [
-        withPersistence(mysqlPersistence, {
+        withChatPersistence(mysqlPersistence, {
           features: ['messages', 'durable-replay', 'interrupts'],
         }),
       ],
@@ -78,7 +78,7 @@ async function ensureProducer(params: ChatParams): Promise<void> {
     })
 
     for await (const _chunk of stream) {
-      // Drain the model stream so withPersistence writes every public event to
+      // Drain the model stream so withChatPersistence writes every public event to
       // MySQL. Browser disconnects only cancel response tailing, not this run.
     }
   })()

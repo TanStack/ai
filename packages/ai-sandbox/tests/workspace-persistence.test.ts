@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
-import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence, withChatPersistence } from '@tanstack/ai-persistence'
 import { defineSandbox, defineWorkspace, withSandbox } from '../src'
 import {
   WORKSPACE_PERSISTENCE_METADATA_SCOPE,
@@ -203,7 +203,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'build app' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -282,7 +282,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'resume app' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -305,7 +305,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'write env' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -341,7 +341,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'build quiet app' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -386,7 +386,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'build custom root app' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -426,7 +426,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'build app with state' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -467,7 +467,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'write transient file' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -526,7 +526,7 @@ describe('managed workspace persistence', () => {
         runId: 'run-1',
         messages: [{ role: 'user', content: 'restore workspace' }],
         middleware: [
-          withPersistence(persistence),
+          withChatPersistence(persistence),
           withSandbox(workspaceSandbox(handle)),
         ],
       }),
@@ -587,7 +587,7 @@ describe('managed workspace persistence', () => {
         threadId: 'thread-1',
         runId: 'run-1',
         messages: [{ role: 'user', content: 'restore deleted file' }],
-        middleware: [withPersistence(persistence), withSandbox(sandbox)],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
       }),
     )
 
@@ -630,7 +630,7 @@ describe('managed workspace persistence', () => {
           runId: 'run-1',
           messages: [{ role: 'user', content: 'restore deleted file' }],
           middleware: [
-            withPersistence(persistence),
+            withChatPersistence(persistence),
             withSandbox(workspaceSandbox(handle)),
           ],
         }),
