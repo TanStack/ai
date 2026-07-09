@@ -1,5 +1,6 @@
 import { APIError, Sandbox } from '@vercel/sandbox'
 import { VERCEL_CAPS, VercelHandle } from './handle'
+import { withSandboxUserAgent } from './user-agent'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -67,6 +68,8 @@ export function isDirAlreadyExistsError(error: unknown): boolean {
 class VercelProvider implements SandboxProvider {
   readonly name = 'vercel'
 
+  private readonly fetch = withSandboxUserAgent()
+
   constructor(private readonly config: VercelSandboxConfig) {}
 
   capabilities(): SandboxCapabilities {
@@ -101,6 +104,7 @@ class VercelProvider implements SandboxProvider {
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
     const sandbox = await Sandbox.create({
       ...this.auth(),
+      fetch: this.fetch,
       runtime: this.config.runtime ?? DEFAULT_RUNTIME,
       ...(this.config.timeout !== undefined
         ? { timeout: this.config.timeout }
@@ -133,7 +137,11 @@ class VercelProvider implements SandboxProvider {
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     try {
-      const sandbox = await Sandbox.get({ name: input.id, ...this.auth() })
+      const sandbox = await Sandbox.get({
+        name: input.id,
+        ...this.auth(),
+        fetch: this.fetch,
+      })
       return new VercelHandle({
         sandbox,
         workdir: this.workdir,
@@ -147,7 +155,11 @@ class VercelProvider implements SandboxProvider {
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
     try {
-      const sandbox = await Sandbox.get({ name: input.id, ...this.auth() })
+      const sandbox = await Sandbox.get({
+        name: input.id,
+        ...this.auth(),
+        fetch: this.fetch,
+      })
       await sandbox.stop()
     } catch {
       // Already stopped / gone.
