@@ -58,7 +58,9 @@ export const Route = createFileRoute('/api/mysql-persistent-chat')({
         // zero-infra dev default; swap in `durableStream(request, { server })`
         // for horizontally-scaled deployments.
         const durability = memoryStream(request)
-        return toServerSentEventsResponse(stream, { durability, batch: 8 })
+        return toServerSentEventsResponse(stream, {
+          durability: { adapter: durability, batch: 8 },
+        })
       },
     },
   },

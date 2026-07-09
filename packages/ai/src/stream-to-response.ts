@@ -273,19 +273,17 @@ function durableStreamSource(
  * @example
  * ```typescript
  * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toServerSentEventsResponse(stream, { durability: memoryStream(request) });
+ * return toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } });
  * ```
  */
 export function toServerSentEventsResponse(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: StreamDurability
-    batch?: number
+    durability?: { adapter: StreamDurability; batch?: number }
   },
 ): Response {
-  const { headers, abortController, durability, batch, ...responseInit } =
-    init ?? {}
+  const { headers, abortController, durability, ...responseInit } = init ?? {}
 
   // Start with default SSE headers
   const mergedHeaders = new Headers({
@@ -305,9 +303,9 @@ export function toServerSentEventsResponse(
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
-    const { source, getId } = durableStreamSource(stream, durability, {
+    const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController,
-      batch,
+      batch: durability.batch,
     })
     body = toServerSentEventsStream(source, abortController, getId)
   } else {
@@ -413,23 +411,24 @@ export function toHttpStream(
  * @example
  * ```typescript
  * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toHttpResponse(stream, { durability: memoryStream(request) });
+ * return toHttpResponse(stream, { durability: { adapter: memoryStream(request) } });
  * ```
  */
 export function toHttpResponse(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
-    durability?: StreamDurability
-    batch?: number
+    durability?: { adapter: StreamDurability; batch?: number }
   },
 ): Response {
-  const { abortController, durability, batch, ...responseInit } = init ?? {}
+  const { abortController, durability, ...responseInit } = init ?? {}
 
   const body = durability
     ? toHttpStream(
-        durableStreamSource(stream, durability, { abortController, batch })
-          .source,
+        durableStreamSource(stream, durability.adapter, {
+          abortController,
+          batch: durability.batch,
+        }).source,
         abortController,
       )
     : toHttpStream(stream, abortController)

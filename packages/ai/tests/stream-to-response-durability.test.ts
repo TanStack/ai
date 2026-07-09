@@ -59,7 +59,9 @@ describe('toServerSentEventsResponse with durability', () => {
     const runId = durability.runId()
     const { stream, iterated } = fiveChunkStream()
 
-    const res = toServerSentEventsResponse(stream, { durability })
+    const res = toServerSentEventsResponse(stream, {
+      durability: { adapter: durability },
+    })
     const events = parseSseEvents(await readBody(res))
 
     expect(iterated()).toBe(true)
@@ -89,7 +91,7 @@ describe('toServerSentEventsResponse with durability', () => {
     const { stream } = fiveChunkStream()
     await readBody(
       toServerSentEventsResponse(stream, {
-        durability: memoryStream(producerReq),
+        durability: { adapter: memoryStream(producerReq) },
       }),
     )
 
@@ -109,7 +111,7 @@ describe('toServerSentEventsResponse with durability', () => {
     }
 
     const res = toServerSentEventsResponse(exploding, {
-      durability: memoryStream(reconnectReq),
+      durability: { adapter: memoryStream(reconnectReq) },
     })
     const events = parseSseEvents(await readBody(res))
 
@@ -129,7 +131,11 @@ describe('toServerSentEventsResponse with durability', () => {
     const appendSpy = vi.spyOn(durability, 'append')
     const { stream } = fiveChunkStream()
 
-    await readBody(toServerSentEventsResponse(stream, { durability, batch: 2 }))
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability, batch: 2 },
+      }),
+    )
 
     const batchSizes = appendSpy.mock.calls.map(([chunks]) => chunks.length)
     expect(batchSizes.every((n) => n <= 2)).toBe(true)
@@ -147,12 +153,16 @@ describe('toServerSentEventsResponse with durability', () => {
     const { stream } = fiveChunkStream()
     for (const bad of [0, -1, 1.5, NaN]) {
       expect(() =>
-        toServerSentEventsResponse(stream, { durability, batch: bad }),
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability, batch: bad },
+        }),
       ).toThrow(/Invalid durability batch size/)
     }
     // A valid positive integer is accepted.
     expect(() =>
-      toServerSentEventsResponse(stream, { durability, batch: 4 }),
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability, batch: 4 },
+      }),
     ).not.toThrow()
   })
 
@@ -174,7 +184,11 @@ describe('toServerSentEventsResponse with durability', () => {
 
     // The live consumer still sees a RUN_ERROR (emitted by the transport).
     const liveEvents = parseSseEvents(
-      await readBody(toServerSentEventsResponse(throwing, { durability })),
+      await readBody(
+        toServerSentEventsResponse(throwing, {
+          durability: { adapter: durability },
+        }),
+      ),
     )
     const liveTypes = liveEvents.map((e) => JSON.parse(e.data).type)
     expect(liveTypes).toContain('RUN_ERROR')

@@ -159,7 +159,7 @@ function safeSearchParam(request: Request, key: string): string | null {
  * export async function POST(request: Request) {
  *   const stream = chat({ adapter, model: 'gpt-5.5', messages })
  *   return toServerSentEventsResponse(stream, {
- *     durability: durableStream(request, { server: process.env.DS_URL! }),
+ *     durability: { adapter: durableStream(request, { server: process.env.DS_URL! }) },
  *   })
  * }
  * ```

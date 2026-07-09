@@ -50,15 +50,14 @@ export const Route = createFileRoute('/api/durable-delivery')({
         const durability = memoryStream(request)
         const runId = durability.runId()
         return toServerSentEventsResponse(fixedRun('thread-durable', runId), {
-          durability,
-          batch: 2,
+          durability: { adapter: durability, batch: 2 },
         })
       },
       GET: async ({ request }) => {
         const durability = memoryStream(request)
         const runId = durability.runId()
         return toServerSentEventsResponse(fixedRun('thread-durable', runId), {
-          durability,
+          durability: { adapter: durability },
         })
       },
     },

@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   // State persists at boundaries; the durability sink makes the delivered
   // stream resumable (native Last-Event-ID reconnect / second-tab join).
   return toServerSentEventsResponse(stream, {
-    durability: memoryStream(request),
+    durability: { adapter: memoryStream(request) },
   })
 }
 ```

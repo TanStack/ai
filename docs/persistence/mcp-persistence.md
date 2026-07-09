@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream, {
-    durability: memoryStream(request),
+    durability: { adapter: memoryStream(request) },
   })
 }
 ```

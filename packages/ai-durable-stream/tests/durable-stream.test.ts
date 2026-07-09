@@ -390,8 +390,7 @@ describe('durableStream + toServerSentEventsResponse (backend-offset ids)', () =
     )
     // batch:1 so every chunk flushes as its own append and carries a backend id.
     const res = toServerSentEventsResponse(textStream(['1', '2', '3']), {
-      durability,
-      batch: 1,
+      durability: { adapter: durability, batch: 1 },
     })
     expect(await sseIds(res)).toEqual([
       encodeOffset('run-x', 1000),
@@ -405,13 +404,15 @@ describe('durableStream + toServerSentEventsResponse (backend-offset ids)', () =
     // Produce the full run first.
     await readBody(
       toServerSentEventsResponse(textStream(['1', '2', '3']), {
-        durability: durableStream(
-          new Request('https://app.test/api/chat?runId=run-x', {
-            method: 'POST',
-          }),
-          { server: 'https://ds.test', fetch: fetchStub },
-        ),
-        batch: 1,
+        durability: {
+          adapter: durableStream(
+            new Request('https://app.test/api/chat?runId=run-x', {
+              method: 'POST',
+            }),
+            { server: 'https://ds.test', fetch: fetchStub },
+          ),
+          batch: 1,
+        },
       }),
     )
 
@@ -433,7 +434,9 @@ describe('durableStream + toServerSentEventsResponse (backend-offset ids)', () =
       }),
       { server: 'https://ds.test', fetch: fetchStub },
     )
-    const res = toServerSentEventsResponse(exploding, { durability: reconnect })
+    const res = toServerSentEventsResponse(exploding, {
+      durability: { adapter: reconnect },
+    })
     const events = parseSseEvents(await readBody(res))
     expect(events.map((e) => e.id)).toEqual([encodeOffset('run-x', 1014)])
     expect(events.map((e) => JSON.parse(e.data).delta)).toEqual(['3'])
@@ -465,12 +468,14 @@ describe('durableStream — exactly-once across a mid-batch reconnect', () => {
     const produced = parseSseEvents(
       await readBody(
         toServerSentEventsResponse(textStream(full), {
-          durability: durableStream(
-            new Request('https://app.test/api/chat?runId=run-eo', {
-              method: 'POST',
-            }),
-            { server: 'https://ds.test', fetch: fetchStub },
-          ),
+          durability: {
+            adapter: durableStream(
+              new Request('https://app.test/api/chat?runId=run-eo', {
+                method: 'POST',
+              }),
+              { server: 'https://ds.test', fetch: fetchStub },
+            ),
+          },
         }),
       ),
     )
@@ -503,13 +508,15 @@ describe('durableStream — exactly-once across a mid-batch reconnect', () => {
     const afterDrop = parseSseEvents(
       await readBody(
         toServerSentEventsResponse(exploding, {
-          durability: durableStream(
-            new Request('https://app.test/api/chat', {
-              method: 'POST',
-              headers: { 'Last-Event-ID': lastSeenId! },
-            }),
-            { server: 'https://ds.test', fetch: fetchStub },
-          ),
+          durability: {
+            adapter: durableStream(
+              new Request('https://app.test/api/chat', {
+                method: 'POST',
+                headers: { 'Last-Event-ID': lastSeenId! },
+              }),
+              { server: 'https://ds.test', fetch: fetchStub },
+            ),
+          },
         }),
       ),
     )

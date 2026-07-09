@@ -9,7 +9,7 @@ import type { AIPersistence } from '@tanstack/ai-persistence'
  * `SqlDriver` was removed — for Postgres/MySQL, construct your own Drizzle `db`
  * and use `drizzlePersistence(db)` with migrations generated from the exported
  * schema. Delivery durability (disconnect → reconnect → ordered resume) is a
- * separate transport concern handled by `toServerSentEvents(stream, { durability })`.
+ * separate transport concern handled by `toServerSentEvents(stream, { durability: { adapter } })`.
  */
 let persistence: AIPersistence | undefined
 

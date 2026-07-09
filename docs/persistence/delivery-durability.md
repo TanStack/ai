@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream, {
-    durability: memoryStream(request),
+    durability: { adapter: memoryStream(request) },
   })
 }
 ```
@@ -76,9 +76,11 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream, {
-    durability: durableStream(request, { server: process.env.DS_URL ?? '' }),
-    // Optional: how many chunks to buffer per append (default 32).
-    batch: 32,
+    durability: {
+      adapter: durableStream(request, { server: process.env.DS_URL ?? '' }),
+      // Optional: how many chunks to buffer per append (default 32).
+      batch: 32,
+    },
   })
 }
 ```

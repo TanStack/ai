@@ -29,7 +29,8 @@ sources:
   full ordered stream) is a **transport-layer** concern, handled by a pluggable
   `StreamDurability` sink on the transport helpers — NOT by this middleware.
   There is no in-band `cursor` and no `chat({ cursor })` replay. Wire it by
-  passing `durability` to `toServerSentEventsResponse(stream, { durability })`
+  passing `durability` to
+  `toServerSentEventsResponse(stream, { durability: { adapter } })`
   (or `toHttpResponse`): `memoryStream(request)` (process-local, dev/test) or
   `durableStream(request, { server })` from `@tanstack/ai-durable-stream`
   (durable-streams protocol, production). Each SSE event is tagged
