@@ -6,10 +6,13 @@ title: toServerSentEventsStream
 # Function: toServerSentEventsStream()
 
 ```ts
-function toServerSentEventsStream(stream, abortController?): ReadableStream<Uint8Array<ArrayBufferLike>>;
+function toServerSentEventsStream(
+   stream, 
+   abortController?, 
+getId?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L50)
+Defined in: [packages/ai/src/stream-to-response.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L52)
 
 Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
 
@@ -31,6 +34,10 @@ AsyncIterable of StreamChunks from chat()
 `AbortController`
 
 Optional AbortController to abort when stream is cancelled
+
+### getId?
+
+(`chunk`, `index`) => `string` \| `undefined`
 
 ## Returns
 

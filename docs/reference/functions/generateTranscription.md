@@ -9,7 +9,7 @@ title: generateTranscription
 function generateTranscription<TAdapter, TStream>(options): TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateTranscription/index.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateTranscription/index.ts#L164)
+Defined in: [packages/ai/src/activities/generateTranscription/index.ts:169](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateTranscription/index.ts#L169)
 
 Transcription activity - converts audio to text.
 

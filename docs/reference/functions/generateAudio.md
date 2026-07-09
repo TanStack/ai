@@ -9,7 +9,7 @@ title: generateAudio
 function generateAudio<TAdapter, TStream>(options): AudioActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateAudio/index.ts:130](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateAudio/index.ts#L130)
+Defined in: [packages/ai/src/activities/generateAudio/index.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateAudio/index.ts#L135)
 
 Audio generation activity - generates audio from text prompts.
 

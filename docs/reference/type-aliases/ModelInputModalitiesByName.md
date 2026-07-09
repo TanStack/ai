@@ -9,7 +9,7 @@ title: ModelInputModalitiesByName
 type ModelInputModalitiesByName = Record<string, ReadonlyArray<MediaPromptModality>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1755](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1755)
+Defined in: [packages/ai/src/types.ts:1773](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1773)
 
 Per-model map from model name to the prompt modalities it accepts, used as
 an adapter type parameter (`TModelInputModalitiesByName`). Models absent

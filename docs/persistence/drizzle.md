@@ -3,65 +3,103 @@ title: Persistence with Drizzle
 id: drizzle
 ---
 
-Use Drizzle persistence when Drizzle already owns your SQLite or Postgres
-database connection and migration workflow. The adapter unwraps Drizzle's
-underlying client and exposes the shared SQL-backed `AIPersistence` stores to
-`withChatPersistence(...)`.
+`@tanstack/ai-persistence-drizzle` is the batteries-included SQL backend for
+TanStack AI **state** persistence. It ships a Drizzle schema, drizzle-kit
+migrations, and two entry points that both return the same `AIPersistence`
+contract consumed by `withChatPersistence(...)` and `withGenerationPersistence(...)`.
 
-By the end, your Drizzle-backed server can persist chat messages, replay
-events, interrupts, metadata, and other SQL-backed stores while keeping schema
-deployment in your existing Drizzle workflow.
-
-## Generate the migration
-
-Create a Drizzle migration file for your dialect.
+- `sqlPersistence({ dialect, url, migrate })` — **batteries-included.** Give it a
+  dialect and a URL; it builds the database and applies the migrations bundled
+  in the package.
+- `drizzlePersistence(db)` — **bring your own.** Pass a Drizzle database you
+  already constructed and migrated against the exported `schema`.
 
 ```sh
-pnpm exec tanstack-ai-persistence-drizzle --dialect postgres
+pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-drizzle drizzle-orm
 ```
 
-The default output path is `drizzle/<timestamp>_tanstack_ai_persistence.sql`.
-You can also pass `--out`, `--stdout`, `--timestamp`, `--name`, and `--force`.
+## Batteries-included: `sqlPersistence`
 
-Run the generated SQL through your Drizzle migration workflow before deploying.
-Lazy migrations are opt-in; use `migrate: true` only for local or development
-databases.
-
-## Create the persistence object
-
-Pass your Drizzle database and dialect to `drizzlePersistence(...)`.
+For local development and single-node deployments, `sqlPersistence` is the
+fastest path. The `sqlite` dialect is bundled with pre-generated migrations, so
+`migrate: true` creates the schema on first use.
 
 ```ts
-import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { db } from './db'
 
-export const persistence = drizzlePersistence({
-  db,
-  dialect: 'postgres',
+export const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:./.tanstack-ai/state.sqlite',
+  migrate: true,
 })
 
-export const middleware = withChatPersistence(persistence, {
-  features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
-})
+export const middleware = withChatPersistence(persistence)
 ```
 
-The adapter supports SQLite and Postgres workflows. It uses the shared SQL
-stores, so the feature behavior matches the raw SQL and Prisma backends.
+Use `url: ':memory:'` for tests. For production, generate and review the
+migrations ahead of time (see below) and leave `migrate` unset so the schema is
+deployed by your own pipeline rather than lazily at runtime.
 
-## Use it for different persistence goals
+## Bring your own: `drizzlePersistence`
 
-Use the same Drizzle-backed `AIPersistence` object across the topic guides:
+When Drizzle already owns your database connection and migration workflow, pass
+your `db` directly. This works with any Drizzle sqlite driver
+(`better-sqlite3`, `libsql`/Turso, D1, `node:sqlite`).
 
-- [Chat Persistence](./chat-persistence) for server-owned transcripts and
-  replay cursors.
+```ts ignore
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import Database from 'better-sqlite3'
+import { drizzlePersistence, schema } from '@tanstack/ai-persistence-drizzle'
+import { withChatPersistence } from '@tanstack/ai-persistence'
+
+const db = drizzle(new Database('state.sqlite'), { schema })
+
+export const persistence = drizzlePersistence(db)
+export const middleware = withChatPersistence(persistence)
+```
+
+The package re-exports the `schema` (and each table) so you can compose it into
+your own Drizzle schema and drive migrations from your existing setup.
+
+## Generate migrations with drizzle-kit
+
+The schema is the single source of truth for migrations. The package ships a
+`drizzle.config.ts`; regenerate the SQL under `drizzle/` after any schema change:
+
+```sh
+pnpm --filter @tanstack/ai-persistence-drizzle db:generate
+```
+
+For a bring-your-own database, point drizzle-kit at the exported schema in your
+own `drizzle.config.ts` and run `drizzle-kit generate` / `drizzle-kit migrate`
+through your normal workflow. See [Migrations](./migrations) for the full flow.
+
+## What is persisted
+
+The schema mirrors the `AIPersistence` state records column-for-column:
+
+- `messages` — thread message history
+- `runs` — run lifecycle (status, usage, timing)
+- `interrupts` — interrupts / approvals
+- `metadata` — scoped key/value metadata
+- `artifacts` — generation artifact references
+- `blobs` — generic blob objects
+
+Delivery durability (resuming an interrupted stream) is a **transport** concern
+and is not stored here. Locks are not part of the SQL schema; an in-memory lock
+is provided as a dev default. Swap in a distributed lock for multi-process
+deployments via [Custom Stores](./custom-stores).
+
+## Use it across the guides
+
+The same Drizzle-backed `AIPersistence` object works across the topic guides:
+
+- [Chat Persistence](./chat-persistence) for server-owned transcripts.
 - [Persistence Controls](./controls) when you need to choose a feature list.
-- [MCP Persistence](./mcp-persistence) when MCP session ids or tool-call
-  correlation should live in metadata and internal events.
 - [Custom Stores](./custom-stores) when you want Drizzle for SQL state but a
   separate object store for blobs.
 
-If generated media or file artifacts must be durable, Drizzle can own the SQL
-state, but you still need `stores.artifacts` and `stores.blobs`. Implement that
-hybrid shape with [Custom Stores](./custom-stores), or use [Cloudflare](./cloudflare)
-when D1 plus R2 fits your deployment.
+Other dialects (`postgres`, `mysql`) are bring-your-own today: construct a
+Drizzle db with your own driver and use `drizzlePersistence(db)` with migrations
+generated from the exported `schema`.

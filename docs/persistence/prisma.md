@@ -3,67 +3,190 @@ title: Persistence with Prisma
 id: prisma
 ---
 
-Use Prisma persistence when Prisma already owns your SQLite or Postgres
-database connection and migration workflow. The adapter wraps Prisma's raw SQL
-methods and exposes the same `AIPersistence` stores used by
-`withChatPersistence(...)`.
+`@tanstack/ai-persistence-prisma` is the Prisma backend for TanStack AI
+**state** persistence. It is **bring-your-own-client**: you add the shipped
+model fragment to your own `schema.prisma`, run `prisma migrate` through your
+normal workflow, then hand the generated `PrismaClient` to
+`prismaPersistence(...)`. It returns the same `AIPersistence` contract consumed
+by `withChatPersistence(...)` and `withGenerationPersistence(...)`.
 
-By the end, your Prisma-backed server can persist chat messages, replay events,
-interrupts, metadata, and other SQL-backed stores without adding a second
-database client.
-
-## Generate the migration
-
-Create a Prisma migration file for your dialect.
+Prefer [Drizzle](./drizzle) if you want a batteries-included `sqlPersistence`
+with bundled migrations. Reach for Prisma when Prisma already owns your database
+connection and migration workflow.
 
 ```sh
-pnpm exec tanstack-ai-persistence-prisma --dialect postgres
+pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-prisma @prisma/client
+pnpm add -D prisma
 ```
 
-The default output path is
-`prisma/migrations/<timestamp>_tanstack_ai_persistence/migration.sql`. You can
-also pass `--out`, `--stdout`, `--timestamp`, `--name`, and `--force`.
+## Add the models to your schema
 
-Run the generated migration with your normal Prisma workflow before deploying.
-Lazy migrations are opt-in; use `migrate: true` only for local or development
-databases.
+Copy the models from this package's `prisma/schema.prisma` into your own Prisma
+schema (or import them if you split your schema across files). The fragment
+defines six models — `Message`, `Run`, `Interrupt`, `Metadata`, `Artifact`, and
+`Blob` — that back the `AIPersistence` state stores:
+
+```prisma
+model Message {
+  threadId     String @id @map("thread_id")
+  messagesJson String @map("messages_json")
+
+  @@map("messages")
+}
+
+model Run {
+  runId      String  @id @map("run_id")
+  threadId   String  @map("thread_id")
+  status     String
+  startedAt  BigInt  @map("started_at")
+  finishedAt BigInt? @map("finished_at")
+  error      String?
+  usageJson  String? @map("usage_json")
+
+  @@map("runs")
+}
+
+model Interrupt {
+  interruptId  String  @id @map("interrupt_id")
+  runId        String  @map("run_id")
+  threadId     String  @map("thread_id")
+  status       String
+  requestedAt  BigInt  @map("requested_at")
+  resolvedAt   BigInt? @map("resolved_at")
+  payloadJson  String  @map("payload_json")
+  responseJson String? @map("response_json")
+
+  @@map("interrupts")
+}
+
+model Metadata {
+  scope     String
+  key       String
+  valueJson String @map("value_json")
+
+  @@id([scope, key])
+  @@map("metadata")
+}
+
+model Artifact {
+  artifactId  String  @id @map("artifact_id")
+  runId       String  @map("run_id")
+  threadId    String  @map("thread_id")
+  name        String
+  mimeType    String  @map("mime_type")
+  size        BigInt
+  externalUrl String? @map("external_url")
+  createdAt   BigInt  @map("created_at")
+
+  @@map("artifacts")
+}
+
+model Blob {
+  key                String  @id
+  contentType        String? @map("content_type")
+  size               BigInt?
+  etag               String?
+  customMetadataJson String? @map("custom_metadata_json")
+  createdAt          BigInt? @map("created_at")
+  updatedAt          BigInt? @map("updated_at")
+  body               Bytes?
+
+  @@map("blobs")
+}
+```
+
+JSON-valued fields are stored in `*_json` `String` (TEXT) columns because
+Prisma's `Json` type is unavailable on SQLite; the adapter serializes and parses
+them for you. Integer columns use `BigInt` so epoch-millisecond timestamps fit
+the full 64-bit range — the adapter converts `bigint` back to `number` at the
+boundary, so the records you read are plain numbers.
+
+## Run the migration
+
+Generate and apply a migration with your normal Prisma workflow:
+
+```sh
+pnpm exec prisma migrate dev --name tanstack_ai_persistence
+```
+
+For production, generate the migration ahead of time and apply it with
+`prisma migrate deploy` from your deployment pipeline.
 
 ## Create the persistence object
 
-Pass your Prisma client and dialect to `prismaPersistence(...)`.
+Pass your generated `PrismaClient` to `prismaPersistence(...)`:
 
 ```ts
+import { PrismaClient } from '@prisma/client'
 import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { prisma } from './prisma'
 
-export const persistence = prismaPersistence({
-  prisma,
-  dialect: 'postgres',
-})
+const prisma = new PrismaClient()
 
-export const middleware = withChatPersistence(persistence, {
-  features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
-})
+export const persistence = prismaPersistence(prisma)
+export const middleware = withChatPersistence(persistence)
 ```
 
-The adapter uses Prisma's `$queryRawUnsafe`, `$executeRawUnsafe`, and
-`$transaction` methods behind the `SqlDriver` contract. It supports SQLite and
-Postgres.
+The middleware then flows into your chat handler like any other. On the server:
 
-## Use it for different persistence goals
+```ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { middleware } from './persistence'
 
-Use the same Prisma-backed `AIPersistence` object across the topic guides:
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  const messages = Array.isArray(body) ? body : []
 
-- [Chat Persistence](./chat-persistence) for server-owned transcripts and
-  replay cursors.
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    middleware: [middleware],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+## What is persisted
+
+The models mirror the `AIPersistence` state records:
+
+- `Message` — thread message history
+- `Run` — run lifecycle (status, usage, timing)
+- `Interrupt` — interrupts / approvals
+- `Metadata` — scoped key/value metadata
+- `Artifact` — generation artifact references
+- `Blob` — generic blob objects
+
+Delivery durability (resuming an interrupted stream) is a **transport** concern
+and is not stored here. Locks are not part of the SQL schema; an in-memory lock
+is provided as a dev default. Swap in a distributed lock for multi-process
+deployments via [Custom Stores](./custom-stores).
+
+## Keep the Drizzle and Prisma schemas in sync
+
+> **Coupling: `persistence-schema-dual-source`.** The Prisma models above and the
+> Drizzle schema in `@tanstack/ai-persistence-drizzle` describe the **same**
+> state tables and have **no** auto-converter between them. Changing one without
+> the other silently diverges the two backends.
+
+Any change to either schema requires all three of:
+
+1. the sibling schema updated to match, column-for-column;
+2. regenerated migrations for **both** ORMs (`drizzle-kit generate` and
+   `prisma migrate dev`);
+3. the shared conformance suite re-run against memory, Drizzle, and Prisma.
+
+The two schemas stay column-for-column identical: Drizzle's `integer()` columns
+and Prisma's `BigInt` columns are both 64-bit INTEGER-affinity columns in
+SQLite, so the on-disk shape matches.
+
+## Use it across the guides
+
+The same Prisma-backed `AIPersistence` object works across the topic guides:
+
+- [Chat Persistence](./chat-persistence) for server-owned transcripts.
 - [Persistence Controls](./controls) when you need to choose a feature list.
-- [MCP Persistence](./mcp-persistence) when MCP session ids or tool-call
-  correlation should live in metadata and internal events.
-- [Custom Stores](./custom-stores) when you want to keep Prisma for SQL state
-  but provide a separate object store for blobs.
-
-If generated media or file artifacts must be durable, Prisma can own the SQL
-state, but you still need `stores.artifacts` and `stores.blobs`. Implement that
-hybrid shape with [Custom Stores](./custom-stores), or use a backend such as
-[Cloudflare](./cloudflare) when D1 plus R2 fits your deployment.
+- [Custom Stores](./custom-stores) when you want Prisma for SQL state but a
+  separate object store for blobs.

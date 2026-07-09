@@ -3,116 +3,67 @@ title: Persistence Migrations
 id: migrations
 ---
 
-Run persistence migrations when you deploy a packaged SQL, ORM, or Cloudflare
-backend. The default is production-safe: packaged backends do not create tables
-unless you opt in with `migrate: true` or run generated DDL through your own
-migration system.
+The Drizzle backend owns its schema and migrations through drizzle-kit — there
+is no hand-authored DDL. The default is production-safe: the packaged backend
+does not create tables unless you opt in with `migrate: true` or apply the
+generated migrations through your own workflow.
 
-By the end, you can generate the right migration file for each adapter and know
-when lazy migration is appropriate.
+By the end, you can regenerate migrations after a schema change and know when
+lazy migration is appropriate.
 
 ## Use lazy migration only for local development
 
-Pass `migrate: true` when a local or development database should create the
-TanStack AI tables on first use.
+Pass `migrate: true` when a local or development database should apply the
+bundled migrations on first use.
 
 ```ts
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 
-export const persistence = sqlitePersistence({
-  path: '.tanstack-ai/state.sqlite',
+export const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:./.tanstack-ai/state.sqlite',
   migrate: true,
 })
 ```
 
-For production, leave `migrate` unset or set it to `false`, generate a migration
-file, review it, and apply it before traffic uses the persistence stores.
+For production, leave `migrate` unset, apply the migrations with your own
+pipeline, and deploy them before traffic uses the persistence stores.
 
-## Generic SQL migrations
+## Regenerate the bundled migrations
 
-Use the generic SQL CLI for SQLite, Postgres, or MySQL DDL.
+The schema in `src/schema.ts` is the single source of truth. After changing it,
+regenerate the SQL under `drizzle/` with drizzle-kit:
 
 ```sh
-pnpm exec tanstack-ai-persistence-sql --dialect sqlite --out migrations/001_tanstack_ai.sql
-pnpm exec tanstack-ai-persistence-sql --dialect postgres --stdout
-pnpm exec tanstack-ai-persistence-sql --dialect mysql --out migrations/001_tanstack_ai.sql
+pnpm --filter @tanstack/ai-persistence-drizzle db:generate
 ```
 
-Options:
+This runs `drizzle-kit generate` against the package's `drizzle.config.ts`,
+diffing the schema and emitting a new migration file. Commit the generated
+`drizzle/` output alongside the schema change.
 
-| Option | Purpose |
-| --- | --- |
-| `--dialect sqlite\|postgres\|mysql` | Choose the SQL dialect. |
-| `--out <path>` | Write SQL to a migration file. |
-| `--stdout` | Print SQL instead of writing a file. |
-| `--timestamp <yyyymmddhhmmss>` | Use a deterministic timestamp in generated names. |
-| `--name <name>` | Use a deterministic migration name. |
-| `--force` | Overwrite an existing output file. |
+## Bring-your-own migrations
 
-The generic CLI writes the shared persistence schema. It does not create
-Cloudflare R2 artifact index tables, app-owned tables, or ORM-specific folder
-layouts.
-
-## SQLite and Postgres backend migrations
-
-The raw SQLite and Postgres packages use the shared SQL schema.
+When you construct your own Drizzle database and use `drizzlePersistence(db)`,
+drive migrations from the exported `schema` with your own drizzle-kit config:
 
 ```ts
-import { ddl } from '@tanstack/ai-persistence-sql'
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit'
 
-export const sqliteStatements = ddl('sqlite')
-export const postgresStatements = ddl('postgres')
+export default defineConfig({
+  dialect: 'sqlite',
+  schema: './node_modules/@tanstack/ai-persistence-drizzle/dist/esm/schema.js',
+  out: './drizzle',
+})
 ```
-
-Use the generic CLI when you want migration files, or call `ddl(...)` from your
-own migration generator.
-
-## Cloudflare migrations
-
-Cloudflare D1 uses the SQLite dialect for the shared SQL tables. If you also
-attach R2 for artifacts and blobs, add the Cloudflare artifact index DDL.
-
-```ts
-import { cloudflareArtifactDdl } from '@tanstack/ai-persistence-cloudflare'
-import { ddl } from '@tanstack/ai-persistence-sql'
-
-export const statements = [...ddl('sqlite'), ...cloudflareArtifactDdl()]
-```
-
-Apply those statements with Wrangler, your D1 migration workflow, or your normal
-deployment pipeline. Use `migrate: true` only when you intentionally want the
-Worker backend to apply schema lazily.
-
-For the shared SQL table map and the difference between plain DDL and lazy
-migration bookkeeping, see [Persistence Internals](./internals).
-
-## Prisma migrations
-
-Use the Prisma CLI when you want the default Prisma migration folder layout.
 
 ```sh
-pnpm exec tanstack-ai-persistence-prisma --dialect sqlite
-pnpm exec tanstack-ai-persistence-prisma --dialect postgres --name tanstack_ai_persistence
+pnpm drizzle-kit generate
+pnpm drizzle-kit migrate
 ```
 
-The default output path is
-`prisma/migrations/<timestamp>_tanstack_ai_persistence/migration.sql`.
-
-Prisma supports SQLite and Postgres workflows. Run the generated SQL through
-your Prisma migration process before using `prismaPersistence(...)` in
-production. See [Prisma](./prisma) for adapter wiring.
-
-## Drizzle migrations
-
-Use the Drizzle CLI when you want a Drizzle-style SQL migration file.
-
-```sh
-pnpm exec tanstack-ai-persistence-drizzle --dialect sqlite
-pnpm exec tanstack-ai-persistence-drizzle --dialect postgres --out drizzle/001_tanstack_ai.sql
-```
-
-The default output path is `drizzle/<timestamp>_tanstack_ai_persistence.sql`.
-
-Drizzle supports SQLite and Postgres workflows. Run the generated SQL through
-your Drizzle migration workflow before using `drizzlePersistence(...)` in
-production. See [Drizzle](./drizzle) for adapter wiring.
+Compose the exported tables into your own schema file when you want TanStack AI
+state to live in the same migration history as the rest of your app. See
+[Drizzle](./drizzle) for adapter wiring and [Prisma](./prisma) for the peer
+Prisma backend.

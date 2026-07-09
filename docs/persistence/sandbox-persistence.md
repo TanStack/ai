@@ -17,7 +17,7 @@ Install the sandbox package, persistence package, and the persistence backend
 you already use for durable chat runs:
 
 ```sh
-pnpm add @tanstack/ai-sandbox @tanstack/ai-persistence @tanstack/ai-persistence-sqlite
+pnpm add @tanstack/ai-sandbox @tanstack/ai-persistence @tanstack/ai-persistence-drizzle
 ```
 
 ## Persist sandbox identity
@@ -30,13 +30,14 @@ tenant.
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import type { ModelMessage } from '@tanstack/ai'
 
-const persistence = sqlitePersistence({
-  path: '.tanstack-ai/state.sqlite',
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
 
@@ -76,9 +77,11 @@ Without a durable lock, two workers may try to ensure the same sandbox at the
 same time. Without persistence metadata, resume only works inside the process
 that still has the in-memory sandbox record.
 
-On Cloudflare, use Durable Object locks through
-[Cloudflare persistence](./cloudflare). On Node, use a backend-specific lock
-store when more than one process can resume the same sandbox key.
+The batteries-included backends ship an in-memory lock (dev default). For
+multi-worker deployments, provide a distributed lock store — a Durable Object
+lock on Cloudflare (see [Cloudflare persistence](./cloudflare)), or another
+backend-specific lock on Node — when more than one process can resume the same
+sandbox key.
 
 ## Persist workspace files
 
@@ -87,11 +90,12 @@ filesystem is gone?" It uses `stores.metadata` for the workspace manifest,
 `stores.artifacts` for file records, `stores.blobs` for file bytes, and usually
 `stores.locks` for multi-worker updates.
 
-```ts
+```ts ignore
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
 import { withChatPersistence } from '@tanstack/ai-persistence'
+import { drizzle } from 'drizzle-orm/d1'
 import {
   defineSandbox,
   defineWorkspace,
@@ -101,18 +105,13 @@ import { cloudflareSandbox, type Sandbox } from '@tanstack/ai-sandbox-cloudflare
 
 interface Env {
   AI_D1: D1Database
-  AI_BLOBS: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
   Sandbox: DurableObjectNamespace<Sandbox>
 }
 
 export function runProjectBuilder(env: Env) {
-  const persistence = cloudflarePersistence({
-    d1: env.AI_D1,
-    r2: env.AI_BLOBS,
-    durableObjects: env.AI_LOCKS,
-    migrate: true,
-  })
+  // D1 is SQLite-compatible, so the Drizzle D1 adapter satisfies the state
+  // store contract. Run migrations from the exported schema via drizzle-kit.
+  const persistence = drizzlePersistence(drizzle(env.AI_D1))
 
   const projectSandbox = defineSandbox({
     id: 'project-builder',
@@ -143,14 +142,7 @@ export function runProjectBuilder(env: Env) {
     messages: [{ role: 'user', content: 'Build the app.' }],
     middleware: [
       withChatPersistence(persistence, {
-        features: [
-          'messages',
-          'durable-replay',
-          'metadata',
-          'artifacts',
-          'blobs',
-          'locks',
-        ],
+        features: ['messages', 'metadata', 'artifacts', 'blobs', 'locks'],
       }),
       withSandbox(projectSandbox),
     ],

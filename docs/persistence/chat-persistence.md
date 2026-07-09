@@ -4,20 +4,23 @@ id: chat-persistence
 ---
 
 Use chat persistence when the server should be authoritative for a thread. The
-client may keep local UI state, but the durable transcript, run status,
-replayable event log, and pending user decisions live behind
-`withChatPersistence(...)`.
+client may keep local UI state, but the durable transcript, run status, and
+pending user decisions live behind `withChatPersistence(...)`. This is **state
+durability** — messages, runs, and interrupts. Delivery durability (replaying an
+in-flight stream after a disconnect) is a separate transport concern; see
+[Delivery Durability](./delivery-durability).
 
-By the end, your endpoint accepts `{ threadId, runId, cursor, resume }`, writes
-streamed chunks to durable storage, and lets the client resume after an
-in-session disconnect or full page reload.
+By the end, your endpoint accepts `{ threadId, runId, resume }`, persists chat
+state at boundaries, and — paired with a delivery-durability sink — lets the
+client reconnect to an in-progress response after a disconnect or reload.
 
 ## Install a backend
 
-SQLite is the simplest durable backend for a Node server:
+SQLite is the simplest durable backend for a Node server. The batteries-included
+`sqlPersistence` ships Drizzle-generated migrations:
 
 ```sh
-pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-sqlite
+pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-drizzle
 ```
 
 ## Create the server endpoint
@@ -25,38 +28,47 @@ pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-sqlite
 Build the persistence instance once and reuse it across requests.
 
 ```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-sqlite'
+import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
 
-const persistence = sqlitePersistence({
-  path: '.tanstack-ai/state.sqlite',
+const persistence = sqlPersistence({
+  dialect: 'sqlite',
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
 
 export async function POST(request: Request) {
-  const { messages, threadId, runId, cursor, resume } = await request.json()
+  const { messages, threadId, runId, resume } = await request.json()
 
   const stream = chat({
     threadId,
     runId,
-    cursor,
     resume,
     adapter: anthropicText('claude-sonnet-4-6'),
     messages,
     middleware: [withChatPersistence(persistence)],
   })
 
-  return toServerSentEventsResponse(stream)
+  // State persists at boundaries; the durability sink makes the delivered
+  // stream resumable (native Last-Event-ID reconnect / second-tab join).
+  return toServerSentEventsResponse(stream, {
+    durability: memoryStream(request),
+  })
 }
 ```
 
 `withChatPersistence(...)` loads stored thread history, saves the resulting
-transcript, records run status, and appends every public AG-UI event with an
-opaque cursor. When `cursor` is present, the run replays persisted events after
-that cursor instead of re-running the adapter. For the exact event log and
-cursor validation rules, see [Persistence Internals](./internals).
+transcript, and records run status and interrupts at run boundaries. `resume`
+carries interrupt/approval decisions back into a paused run. Delivery resume is
+handled entirely by the transport's durability sink — see
+[Delivery Durability](./delivery-durability). For the state store contract, see
+[Persistence Internals](./internals).
 
 If the same app also uses `withGenerationPersistence`, keep **run IDs unique
 across activities** — they may share a store and `threadId`, but not a
@@ -117,15 +129,17 @@ export function Chat() {
 }
 ```
 
-Auto-resume is enabled by default. On mount, reconnect, or when the tab comes
-back online, the client can continue an interrupted run by forwarding the last
-known `{ threadId, runId, cursor }`. Opt out with `autoResume: false`, or call
-`chat.resume()` when you want a manual retry button.
+Delivery resume is transparent: the resumable SSE connection reattaches to an
+in-flight run via the browser's native `Last-Event-ID` on reconnect, with no
+client cursor state. There is no `resume()`/`autoResume` on `useChat` — see
+[Delivery Durability](./delivery-durability).
 
-`chat.resumeState` contains the active resume identity, or `null` when there is
-nothing to continue. `chat.pendingInterrupts` contains the client-side
-descriptors needed to answer pending user decisions. `persistence.server`
-stores them together and hydrates them on the next client construction.
+`chat.resumeState` contains the active interrupt-resume identity
+(`{ threadId, runId }`), or `null` when there is nothing to continue.
+`chat.pendingInterrupts` contains the client-side descriptors needed to answer
+pending user decisions, resolved with `chat.resumeInterrupts(...)`.
+`persistence.server` stores them together and hydrates them on the next client
+construction.
 
 ## Choose the controls you need
 
@@ -136,8 +150,8 @@ chat, these are the common combinations:
 | --- | --- |
 | Browser-only drafts | `persistence.client` on the chat client. |
 | Server-owned transcript | `stores.messages` and `features: ['messages']`. |
-| Reconnect without re-running the model | `stores.runs`, `stores.publicEvents`, and `durable-replay`. |
-| Pending approvals or human input | `interrupts`, which also requires run and public-event stores. |
+| Reconnect without re-running the model | A delivery-durability sink on the transport — see [Delivery Durability](./delivery-durability). |
+| Pending approvals or human input | `interrupts`, which also requires the `stores.runs` and `stores.interrupts` stores. |
 | Multi-worker resume safety | Add `stores.locks` when a backend supports it. |
 
 ## Resume pending decisions

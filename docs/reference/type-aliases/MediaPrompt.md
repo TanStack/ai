@@ -9,7 +9,7 @@ title: MediaPrompt
 type MediaPrompt = string | MediaPromptPart[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1725](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1725)
+Defined in: [packages/ai/src/types.ts:1743](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1743)
 
 Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
 or an ordered array of content parts for image-conditioned generation

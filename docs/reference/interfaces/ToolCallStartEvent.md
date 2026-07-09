@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [packages/ai/src/types.ts:1139](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1139)
+Defined in: [packages/ai/src/types.ts:1155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1155)
 
 Emitted when a tool call starts.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
 optional index: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1148)
+Defined in: [packages/ai/src/types.ts:1164](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1164)
 
 Index for parallel tool calls
 
@@ -42,7 +42,7 @@ Index for parallel tool calls
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1153)
+Defined in: [packages/ai/src/types.ts:1169](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1169)
 
 Provider-specific metadata to carry into the ToolCall.
 Untyped at the event layer because events flow through a discriminated
@@ -57,7 +57,7 @@ union that does not survive generics; adapters cast it to their typed
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1141](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1141)
+Defined in: [packages/ai/src/types.ts:1157](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1157)
 
 Model identifier for multi-model support
 
@@ -69,7 +69,7 @@ Model identifier for multi-model support
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1146](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1146)
+Defined in: [packages/ai/src/types.ts:1162](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1162)
 
 #### Deprecated
 

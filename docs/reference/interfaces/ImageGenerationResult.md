@@ -5,11 +5,23 @@ title: ImageGenerationResult
 
 # Interface: ImageGenerationResult
 
-Defined in: [packages/ai/src/types.ts:1822](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1822)
+Defined in: [packages/ai/src/types.ts:1870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1870)
 
 Result of image generation
 
 ## Properties
+
+### artifacts?
+
+```ts
+optional artifacts: PersistedArtifactRef[];
+```
+
+Defined in: [packages/ai/src/types.ts:1880](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1880)
+
+Persisted artifact references for generated assets, when available
+
+***
 
 ### id
 
@@ -17,7 +29,7 @@ Result of image generation
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1824](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1824)
+Defined in: [packages/ai/src/types.ts:1872](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1872)
 
 Unique identifier for the generation
 
@@ -29,7 +41,7 @@ Unique identifier for the generation
 images: GeneratedImage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1828](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1828)
+Defined in: [packages/ai/src/types.ts:1876](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1876)
 
 Array of generated images
 
@@ -41,7 +53,7 @@ Array of generated images
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1826](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1826)
+Defined in: [packages/ai/src/types.ts:1874](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1874)
 
 Model used for generation
 
@@ -53,6 +65,6 @@ Model used for generation
 optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1830](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1830)
+Defined in: [packages/ai/src/types.ts:1878](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1878)
 
 Token usage information (if available)

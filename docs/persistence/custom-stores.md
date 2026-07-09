@@ -68,7 +68,7 @@ const persistence = defineAIPersistence({
 })
 
 const middleware = withChatPersistence(persistence, {
-  features: ['messages', 'durable-replay', 'interrupts', 'metadata'],
+  features: ['messages', 'interrupts', 'metadata'],
 })
 ```
 
@@ -131,18 +131,17 @@ export function persistenceMiddleware(db: AppDb) {
 }
 ```
 
-Add `publicEvents` when reconnect replay matters, `interrupts` when runs pause
-for user action, `internalEvents` for package or workflow checkpoints,
-`metadata` for app-owned correlation, `locks` for cross-process coordination,
-and `artifacts` plus `blobs` when runs produce durable files or media. Every
-persistence feature is supported by implementing the corresponding stores.
+Add `interrupts` when runs pause for user action, `metadata` for app-owned
+correlation, `locks` for cross-process coordination, and `artifacts` plus
+`blobs` when runs produce durable files or media. Every persistence feature is
+supported by implementing the corresponding stores. (Delivery durability —
+replaying an in-flight stream after a disconnect — is a transport concern, not a
+store; see [Delivery Durability](./delivery-durability).)
 
 | Feature | Required stores |
 | --- | --- |
 | `messages` | `stores.messages` |
-| `durable-replay` | `stores.runs`, `stores.publicEvents` |
-| `interrupts` | `stores.runs`, `stores.publicEvents`, `stores.interrupts` |
-| `internal-events` | `stores.internalEvents` |
+| `interrupts` | `stores.runs`, `stores.interrupts` |
 | `metadata` | `stores.metadata` |
 | `locks` | `stores.locks` |
 | `artifacts` | `stores.artifacts` |

@@ -33,7 +33,7 @@ Generation hooks share a consistent API across all media types:
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
 | `useGeneration` | Generic `TInput` | Generic `TResult` |
 
-Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. Streaming hooks also expose lightweight resume state and persisted artifact refs. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
+Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. Streaming hooks also expose a read-only generation state snapshot (`resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts`) for observability and rendering persisted artifact refs. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
 
 ## Server Setup
 
@@ -399,10 +399,8 @@ function EmbeddingGenerator() {
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
 | `id` | `string` | Unique identifier for this generation instance |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
-| `persistence` | `{ server?: GenerationServerPersistence }` | Stores the lightweight generation resume snapshot. Generated media bytes are not stored in browser persistence. |
-| `autoResume` | `boolean` | Whether the hook should resume a persisted run on mount. Defaults to `true`. |
-| `initialResumeSnapshot` | `GenerationResumeSnapshot` | Initial lightweight snapshot restored by the app or a persistence adapter. |
-| `resumeState` | `GenerationResumeState` | Explicit `{ threadId, runId, cursor }` to use for the next resume or generation request. |
+| `persistence` | `{ server?: GenerationServerPersistence }` | Stores the lightweight generation state snapshot. Generated media bytes are not stored in browser persistence. |
+| `initialResumeSnapshot` | `GenerationResumeSnapshot` | Initial lightweight snapshot restored by the app or a persistence adapter, surfaced as read-only state. |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |
 | `onProgress` | `(progress: number, message?: string) => void` | Progress updates (0-100) |
@@ -421,9 +419,8 @@ function EmbeddingGenerator() {
 | `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
 | `stop` | `() => void` | Abort the current generation |
 | `reset` | `() => void` | Clear result, error, and return to idle |
-| `resume` | `(state?: GenerationResumeState) => Promise<boolean>` | Reconnect to the current, initial, or explicit resumable generation run |
-| `resumeSnapshot` | `GenerationResumeSnapshot \| undefined` | Lightweight snapshot containing resume cursor, status, errors, and artifact refs |
-| `resumeState` | `GenerationResumeState \| null` | Current `{ threadId, runId, cursor }`, or `null` when nothing is resumable |
+| `resumeSnapshot` | `GenerationResumeSnapshot \| undefined` | Read-only lightweight snapshot containing run/cursor metadata, status, errors, and artifact refs |
+| `resumeState` | `GenerationResumeState \| null` | Observed `{ threadId, runId }` metadata from the snapshot, or `null` (read-only) |
 | `pendingArtifacts` | `Array<GenerationPendingArtifact>` | Persisted artifact refs observed during generation or replay before completion |
 | `resultArtifacts` | `Array<PersistedArtifactRef>` | Persisted artifact refs attached to the final replayed result |
 
@@ -452,12 +449,19 @@ const { result } = useGenerateImage({
 // result is now string[] instead of ImageGenerationResult
 ```
 
-## Resumable Generation
+## Generation State Snapshot
 
-All generation hooks can resume streamed generation endpoints when the server
-uses `withGenerationPersistence(...)` and returns SSE events. Add `persistence.server` to
-store the latest snapshot, rely on the default `autoResume: true`, or opt out
-and call `resume()` from your UI.
+Generation hooks do **not** auto-resume or expose a `resume()` action. A
+generation run is only started by an explicit `generate(...)` call — hooks never
+re-launch a run on mount. What the hooks _do_ surface, when the server uses
+`withGenerationPersistence(...)` and returns SSE events, is a **read-only**
+snapshot of the latest observed run for observability and for rendering
+persisted artifact refs.
+
+Add `persistence.server` to store the latest snapshot under a stable `id`, or
+pass `initialResumeSnapshot` to hydrate it from your own store. The hook then
+reflects `resumeSnapshot`, `resumeState`, `pendingArtifacts`, and
+`resultArtifacts` as read-only values.
 
 ```tsx
 import { localStorageAIPersistence } from '@tanstack/ai-client'
@@ -469,22 +473,32 @@ export function TrailerVideoGenerator() {
     connection: fetchServerSentEvents('/api/generate/video'),
     persistence: {
       server: localStorageAIPersistence({
-        keyPrefix: 'tanstack-ai:generation-resume:',
+        keyPrefix: 'tanstack-ai:generation-state:',
       }),
     },
   })
 
   return (
-    <button disabled={video.isLoading} onClick={() => video.resume()}>
-      Resume
-    </button>
+    <div>
+      <button disabled={video.isLoading} onClick={() => video.generate({ prompt: 'A city flyover' })}>
+        Generate
+      </button>
+      {video.resumeState && <p>Last run: {video.resumeState.runId}</p>}
+      {video.pendingArtifacts.map((artifact) => (
+        <a key={artifact.artifactId} href={`/api/artifacts/${artifact.artifactId}`}>
+          {artifact.name}
+        </a>
+      ))}
+    </div>
   )
 }
 ```
 
-If the server aborts provider work on disconnect, resume can only replay events
-that were already persisted. If a durable producer keeps running on the server,
-the hook can reconnect and receive the later artifact/result events.
+The snapshot lets you render persisted artifact refs and observe run status
+after a reload, but it does not reconnect to or replay a server run. Generated
+bytes live in server-side artifact/blob stores. See
+[Generation Persistence](../persistence/generation-persistence) for serving
+those durable bytes.
 
 ## Framework Variants
 
