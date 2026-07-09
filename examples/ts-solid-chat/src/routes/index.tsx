@@ -314,9 +314,6 @@ function ChatPage() {
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       ...chatOptions,
-      // Explicit connection satisfies the transport XOR now that the tools
-      // tuple is precisely inferred (chatOptions.connection is `| undefined`).
-      connection: fetchServerSentEvents('/api/chat'),
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },
