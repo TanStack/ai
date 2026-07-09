@@ -38,9 +38,7 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: ReactiveOption<Record<string, any>>
   devtools?: AIDevtoolsDisplayOptions
   persistence?: GenerationPersistenceOptions
-  autoResume?: boolean
   initialResumeSnapshot?: GenerationResumeSnapshot
-  resumeState?: ReactiveOption<GenerationResumeState | undefined>
   onResult?: (result: VideoGenerateResult) => TOutput | null | void
   onError?: (error: Error) => void
   onProgress?: (progress: number, message?: string) => void
@@ -63,7 +61,6 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
   resumeState: Signal<GenerationResumeState | null>
   pendingArtifacts: Signal<Array<GenerationPendingArtifact>>
   resultArtifacts: Signal<Array<PersistedArtifactRef>>
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 // `TTransformed` infers from the `onResult` return position so the callback
@@ -119,10 +116,6 @@ export function injectGenerateVideo<TTransformed = void>(
 
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
-  const resumeStateSource =
-    options.resumeState !== undefined
-      ? toReactive(options.resumeState)
-      : undefined
 
   const baseOptions = {
     id: clientId,
@@ -130,12 +123,8 @@ export function injectGenerateVideo<TTransformed = void>(
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(resumeStateSource?.() !== undefined && {
-      resumeState: resumeStateSource(),
     }),
     devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
@@ -208,45 +197,17 @@ export function injectGenerateVideo<TTransformed = void>(
       () => {
         client.updateOptions({
           body: bodySource(),
-          ...(resumeStateSource?.() !== undefined && {
-            resumeState: resumeStateSource(),
-          }),
         })
       },
       { injector },
     )
   }
 
-  if (resumeStateSource && !bodySource) {
-    effect(
-      () => {
-        const nextResumeState = resumeStateSource()
-        client.updateOptions({
-          ...(nextResumeState !== undefined && {
-            resumeState: nextResumeState,
-          }),
-        })
-      },
-      { injector },
-    )
-  }
-
+  // Mount devtools only. Generation runs are never auto-started after render —
+  // persisted state is read-only for display.
   afterNextRender(
     () => {
       client.mountDevtools()
-      void client
-        .maybeAutoResume()
-        .catch((err: unknown) => {
-          if (disposed) return
-          const nextError = err instanceof Error ? err : new Error(String(err))
-          options.onError?.(nextError)
-          error.set(nextError)
-          status.set('error')
-        })
-        .finally(() => {
-          if (disposed) return
-          setResumeSnapshotState(client.getResumeSnapshot())
-        })
     },
     { injector },
   )
@@ -254,14 +215,6 @@ export function injectGenerateVideo<TTransformed = void>(
     disposed = true
     client.dispose()
   })
-
-  const resume = async (state?: GenerationResumeState) => {
-    const didResume = await client.resume(state)
-    if (!disposed) {
-      setResumeSnapshotState(client.getResumeSnapshot())
-    }
-    return didResume
-  }
 
   return {
     generate: (input: VideoGenerateInput) => client.generate(input),
@@ -277,6 +230,5 @@ export function injectGenerateVideo<TTransformed = void>(
     resumeState: resumeState.asReadonly(),
     pendingArtifacts: pendingArtifacts.asReadonly(),
     resultArtifacts: resultArtifacts.asReadonly(),
-    resume,
   }
 }

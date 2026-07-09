@@ -22,7 +22,7 @@ export interface CreateSummarizeOptions<
   TOutput = SummarizationResult,
 > extends Pick<
   CreateGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
-  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+  'persistence' | 'initialResumeSnapshot'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
@@ -152,6 +152,5 @@ export function createSummarize<TTransformed = void>(
     get resultArtifacts() {
       return gen.resultArtifacts
     },
-    resume: gen.resume,
   }
 }

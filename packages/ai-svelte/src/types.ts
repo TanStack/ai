@@ -158,7 +158,6 @@ interface BaseCreateChatReturn<
 
   readonly resumeState: ChatResumeState | null
   readonly pendingInterrupts: Array<ChatPendingInterrupt>
-  resume: (state?: ChatResumeState) => Promise<boolean>
   resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,

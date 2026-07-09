@@ -153,7 +153,6 @@ interface BaseUseChatReturn<
 
   resumeState: Accessor<ChatResumeState | null>
   pendingInterrupts: Accessor<Array<ChatPendingInterrupt>>
-  resume: (state?: ChatResumeState) => Promise<boolean>
   resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,

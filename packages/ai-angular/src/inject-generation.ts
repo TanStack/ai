@@ -40,14 +40,10 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: ReactiveOption<Record<string, any>>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run after render. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: ReactiveOption<GenerationResumeState | undefined>
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -81,14 +77,12 @@ export interface InjectGenerationResult<TOutput> {
   reset: () => void
   /** Lightweight generation resume snapshot, if one is available */
   resumeSnapshot: Signal<GenerationResumeSnapshot | undefined>
-  /** Current resumable run/cursor state, if one is available */
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
   resumeState: Signal<GenerationResumeState | null>
   /** Pending persisted artifact references observed during generation/replay */
   pendingArtifacts: Signal<Array<GenerationPendingArtifact>>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: Signal<Array<PersistedArtifactRef>>
-  /** Resume the current/initial generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 // `TTransformed` infers from the `onResult` return position (a covariant
@@ -146,10 +140,6 @@ export function injectGeneration<
 
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
-  const resumeStateSource =
-    options.resumeState !== undefined
-      ? toReactive(options.resumeState)
-      : undefined
 
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
@@ -157,12 +147,8 @@ export function injectGeneration<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(resumeStateSource?.() !== undefined && {
-      resumeState: resumeStateSource(),
     }),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
@@ -222,45 +208,17 @@ export function injectGeneration<
       () => {
         client.updateOptions({
           body: bodySource(),
-          ...(resumeStateSource?.() !== undefined && {
-            resumeState: resumeStateSource(),
-          }),
         })
       },
       { injector },
     )
   }
 
-  if (resumeStateSource && !bodySource) {
-    effect(
-      () => {
-        const nextResumeState = resumeStateSource()
-        client.updateOptions({
-          ...(nextResumeState !== undefined && {
-            resumeState: nextResumeState,
-          }),
-        })
-      },
-      { injector },
-    )
-  }
-
+  // Mount devtools only. Generation runs are never auto-started after render —
+  // persisted state is read-only for display.
   afterNextRender(
     () => {
       client.mountDevtools()
-      void client
-        .maybeAutoResume()
-        .catch((err: unknown) => {
-          if (disposed) return
-          const nextError = err instanceof Error ? err : new Error(String(err))
-          options.onError?.(nextError)
-          error.set(nextError)
-          status.set('error')
-        })
-        .finally(() => {
-          if (disposed) return
-          setResumeSnapshotState(client.getResumeSnapshot())
-        })
     },
     { injector },
   )
@@ -268,14 +226,6 @@ export function injectGeneration<
     disposed = true
     client.dispose()
   })
-
-  const resume = async (state?: GenerationResumeState) => {
-    const didResume = await client.resume(state)
-    if (!disposed) {
-      setResumeSnapshotState(client.getResumeSnapshot())
-    }
-    return didResume
-  }
 
   return {
     generate: ((input: TInput) => client.generate(input)) as (
@@ -291,6 +241,5 @@ export function injectGeneration<
     resumeState: resumeState.asReadonly(),
     pendingArtifacts: pendingArtifacts.asReadonly(),
     resultArtifacts: resultArtifacts.asReadonly(),
-    resume,
   }
 }

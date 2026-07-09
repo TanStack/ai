@@ -136,37 +136,6 @@ describe('GenerationClient', () => {
       )
     })
 
-    it('should pass explicit resume state to fetcher once', async () => {
-      const resumeState = {
-        threadId: 'thread-1',
-        runId: 'run-1',
-        cursor: 'cursor-1',
-      }
-      const fetcherSpy = vi.fn(async () => ({ id: '1' }))
-
-      const client = new GenerationClient({
-        fetcher: fetcherSpy,
-        resumeState,
-      })
-
-      await client.generate({ prompt: 'test' })
-
-      expect(fetcherSpy).toHaveBeenCalledWith(
-        { prompt: 'test' },
-        expect.objectContaining({
-          signal: expect.any(AbortSignal),
-          resumeState,
-        }),
-      )
-
-      await client.generate({ prompt: 'next' })
-
-      expect(fetcherSpy).toHaveBeenLastCalledWith(
-        { prompt: 'next' },
-        expect.not.objectContaining({ resumeState }),
-      )
-    })
-
     it('should not allow concurrent requests', async () => {
       let resolveFirst: (value: { id: string }) => void
       let callCount = 0
@@ -1376,7 +1345,6 @@ describe('GenerationClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            cursor: 'cursor-1',
             timestamp: Date.now(),
           },
         ]),
@@ -1414,14 +1382,12 @@ describe('GenerationClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            cursor: 'cursor-1',
             timestamp: Date.now(),
           },
           {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
             threadId: 'thread-1',
-            cursor: 'cursor-2',
             finishReason: 'stop',
             timestamp: Date.now(),
           },
@@ -1461,14 +1427,12 @@ describe('GenerationClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            cursor: 'cursor-1',
             timestamp: Date.now(),
           },
           {
             type: EventType.RUN_ERROR,
             runId: 'run-1',
             threadId: 'thread-1',
-            cursor: 'cursor-2',
             message: 'Video failed',
             timestamp: Date.now(),
           },

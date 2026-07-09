@@ -125,7 +125,7 @@ describe('xhr connection adapters', () => {
       })
     })
 
-    it('sends cursor and resume in the AG-UI request body', async () => {
+    it('sends resume in the AG-UI request body', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
 
@@ -133,7 +133,6 @@ describe('xhr connection adapters', () => {
         .connect([], undefined, undefined, {
           threadId: 'thread-1',
           runId: 'run-1',
-          cursor: 'cursor-1',
           resume: [
             {
               interruptId: 'interrupt-1',
@@ -151,7 +150,6 @@ describe('xhr connection adapters', () => {
       await nextTick()
 
       const body = JSON.parse(xhr.requestBody ?? '{}')
-      expect(body.cursor).toBe('cursor-1')
       expect(body.resume).toEqual([
         {
           interruptId: 'interrupt-1',

@@ -35,14 +35,10 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on setup. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -85,14 +81,12 @@ export interface CreateGenerationReturn<TOutput> {
   updateBody: (body: Record<string, any>) => void
   /** Lightweight generation resume snapshot, if one is available */
   readonly resumeSnapshot: GenerationResumeSnapshot | undefined
-  /** Current resumable run/cursor state, if one is available */
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
   readonly resumeState: GenerationResumeState | null
   /** Pending persisted artifact references observed during generation/replay */
   readonly pendingArtifacts: Array<GenerationPendingArtifact>
   /** Final persisted artifact references observed from a replayed result */
   readonly resultArtifacts: Array<PersistedArtifactRef>
-  /** Resume the current/initial generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -175,12 +169,8 @@ export function createGeneration<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(options.resumeState !== undefined && {
-      resumeState: options.resumeState,
     }),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
@@ -240,20 +230,9 @@ export function createGeneration<
     )
   }
 
+  // Mount devtools only. Generation runs are never auto-started on setup —
+  // persisted state is read-only for display.
   client.mountDevtools()
-  void client
-    .maybeAutoResume()
-    .catch((err: unknown) => {
-      if (disposed) return
-      const nextError = err instanceof Error ? err : new Error(String(err))
-      options.onError?.(nextError)
-      error = nextError
-      status = 'error'
-    })
-    .finally(() => {
-      if (disposed) return
-      setResumeSnapshotState(client.getResumeSnapshot())
-    })
 
   // Note: Cleanup is handled by calling dispose() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
@@ -279,14 +258,6 @@ export function createGeneration<
 
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
-  }
-
-  const resume = async (state?: GenerationResumeState) => {
-    const didResume = await client.resume(state)
-    if (!disposed) {
-      setResumeSnapshotState(client.getResumeSnapshot())
-    }
-    return didResume
   }
 
   return {
@@ -319,6 +290,5 @@ export function createGeneration<
     get resultArtifacts() {
       return resumeSnapshot?.result?.artifacts ?? []
     },
-    resume,
   }
 }

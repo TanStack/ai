@@ -44,14 +44,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on mount. Defaults to true. */
-  autoResume?: boolean
-  /** Initial lightweight resume snapshot restored by the app. */
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -90,14 +86,12 @@ export interface UseGenerationReturn<TOutput> {
   reset: () => void
   /** Lightweight generation resume snapshot, if one is available */
   resumeSnapshot: DeepReadonly<ShallowRef<GenerationResumeSnapshot | undefined>>
-  /** Current resumable run/cursor state, if one is available */
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
   resumeState: DeepReadonly<ShallowRef<GenerationResumeState | null>>
   /** Pending persisted artifact references observed during generation/replay */
   pendingArtifacts: DeepReadonly<ShallowRef<Array<GenerationPendingArtifact>>>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: DeepReadonly<ShallowRef<Array<PersistedArtifactRef>>>
-  /** Resume the current/initial generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
@@ -178,12 +172,8 @@ export function useGeneration<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.autoResume !== undefined && { autoResume: options.autoResume }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(options.resumeState !== undefined && {
-      resumeState: options.resumeState,
     }),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
@@ -243,36 +233,22 @@ export function useGeneration<
     )
   }
 
-  // Sync body/resumeState changes to the client.
+  // Sync body changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
   // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
-    () => [options.body, options.resumeState] as const,
-    ([newBody, newResumeState]) => {
+    () => options.body,
+    (newBody) => {
       client.updateOptions({
         ...(newBody !== undefined && { body: newBody }),
-        ...(newResumeState !== undefined && {
-          resumeState: newResumeState,
-        }),
       })
     },
   )
 
+  // Mount devtools only. Generation runs are never auto-started on mount —
+  // persisted state is read-only for display.
   onMounted(() => {
     client.mountDevtools()
-    void client
-      .maybeAutoResume()
-      .catch((err: unknown) => {
-        if (disposed) return
-        const nextError = err instanceof Error ? err : new Error(String(err))
-        options.onError?.(nextError)
-        error.value = nextError
-        status.value = 'error'
-      })
-      .finally(() => {
-        if (disposed) return
-        setResumeSnapshotState(client.getResumeSnapshot())
-      })
   })
 
   // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
@@ -293,14 +269,6 @@ export function useGeneration<
     client.reset()
   }
 
-  const resume = async (state?: GenerationResumeState) => {
-    const didResume = await client.resume(state)
-    if (!disposed) {
-      setResumeSnapshotState(client.getResumeSnapshot())
-    }
-    return didResume
-  }
-
   return {
     generate: generate as (input: Record<string, any>) => Promise<void>,
     // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
@@ -317,6 +285,5 @@ export function useGeneration<
     resumeState: readonly(resumeState),
     pendingArtifacts: readonly(pendingArtifacts),
     resultArtifacts: readonly(resultArtifacts),
-    resume,
   }
 }

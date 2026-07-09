@@ -13,6 +13,7 @@ import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,
+  GenerationServerPersistence,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -80,7 +81,6 @@ const videoResumeSnapshot: GenerationResumeSnapshot = {
   resumeState: {
     threadId: 'thread-resume',
     runId: 'run-resume',
-    cursor: 'cursor-resume',
   },
   status: 'running',
 }
@@ -91,7 +91,6 @@ function createReplayVideoChunks(): Array<StreamChunk> {
       type: EventType.RUN_STARTED,
       runId: 'run-resume',
       threadId: 'thread-resume',
-      cursor: 'cursor-start',
       timestamp: Date.now(),
     },
     {
@@ -102,14 +101,12 @@ function createReplayVideoChunks(): Array<StreamChunk> {
         status: 'completed',
         url: 'https://example.com/video.mp4',
       },
-      cursor: 'cursor-result',
       timestamp: Date.now(),
     },
     {
       type: EventType.RUN_FINISHED,
       runId: 'run-resume',
       threadId: 'thread-resume',
-      cursor: 'cursor-finished',
       timestamp: Date.now(),
     },
   ]
@@ -1138,35 +1135,36 @@ describe('useGenerateVideo', () => {
       expect(result.status()).toBe('idle')
     })
 
-    it('should explicitly resume from the current snapshot', async () => {
-      const { adapter, connect, runContexts } = createRunContextCaptureAdapter(
+    it('does not auto-fire a video generation on mount from a persisted running snapshot', async () => {
+      // Regression guard for the removed generation resume surface (video).
+      const { adapter, connect } = createRunContextCaptureAdapter(
         createReplayVideoChunks(),
       )
+      const persistence: GenerationServerPersistence = {
+        getItem: vi.fn(() => videoResumeSnapshot),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
 
       const { result } = renderHook(() =>
         useGenerateVideo({
+          id: 'video-no-auto-fire',
           connection: adapter,
+          persistence: { server: persistence },
           initialResumeSnapshot: videoResumeSnapshot,
-          autoResume: false,
         }),
       )
 
-      const didResume = await result.resume()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(didResume).toBe(true)
-      expect(connect).toHaveBeenCalledTimes(1)
-      expect(runContexts[0]).toEqual(videoResumeSnapshot.resumeState)
-      expect(result.resumeSnapshot()).toEqual(
-        expect.objectContaining({
-          status: 'complete',
-          resumeState: null,
-        }),
-      )
-      expect(result.result()).toEqual(
-        expect.objectContaining({
-          jobId: 'job-replay',
-        }),
-      )
+      expect(connect).not.toHaveBeenCalled()
+      expect(persistence.getItem).not.toHaveBeenCalled()
+      expect(result.isLoading()).toBe(false)
+      expect(result.status()).toBe('idle')
+      // The persisted snapshot remains exposed as read-only state.
+      expect(result.resumeSnapshot()).toEqual(videoResumeSnapshot)
+      expect(result.resumeState()).toEqual(videoResumeSnapshot.resumeState)
     })
   })
 

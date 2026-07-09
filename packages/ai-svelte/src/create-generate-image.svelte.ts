@@ -22,7 +22,7 @@ export interface CreateGenerateImageOptions<
   TOutput = ImageGenerationResult,
 > extends Pick<
   CreateGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
-  'persistence' | 'autoResume' | 'initialResumeSnapshot' | 'resumeState'
+  'persistence' | 'initialResumeSnapshot'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
@@ -157,6 +157,5 @@ export function createGenerateImage<TTransformed = void>(
     get resultArtifacts() {
       return gen.resultArtifacts
     },
-    resume: gen.resume,
   }
 }

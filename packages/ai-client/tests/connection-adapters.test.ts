@@ -416,7 +416,7 @@ describe('connection-adapters', () => {
       expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
-    it('should include cursor and resume in the AG-UI request body', async () => {
+    it('should include resume in the AG-UI request body', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -440,7 +440,6 @@ describe('connection-adapters', () => {
         {
           threadId: 'thread-1',
           runId: 'run-1',
-          cursor: 'cursor-1',
           resume: [
             {
               interruptId: 'interrupt-1',
@@ -459,7 +458,6 @@ describe('connection-adapters', () => {
 
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.cursor).toBe('cursor-1')
       expect(body.resume).toEqual([
         {
           interruptId: 'interrupt-1',
@@ -1066,7 +1064,6 @@ describe('connection-adapters', () => {
       const runContext = {
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         resume: [
           {
             interruptId: 'interrupt-1',
@@ -1311,7 +1308,6 @@ describe('connection-adapters', () => {
       const runContext = {
         threadId: 'thread-1',
         runId: 'run-1',
-        cursor: 'cursor-1',
         resume: [
           {
             interruptId: 'interrupt-1',
@@ -1339,7 +1335,7 @@ describe('connection-adapters', () => {
   })
 
   describe('fetcherToConnectionAdapter', () => {
-    it('should forward cursor and resume to custom fetchers', async () => {
+    it('should forward resume to custom fetchers', async () => {
       const fetcher = vi.fn<ChatFetcher>(async function* () {
         yield {
           type: EventType.RUN_FINISHED,
@@ -1358,7 +1354,6 @@ describe('connection-adapters', () => {
         {
           threadId: 'thread-1',
           runId: 'run-1',
-          cursor: 'cursor-1',
           resume: [
             {
               interruptId: 'interrupt-1',
@@ -1372,7 +1367,6 @@ describe('connection-adapters', () => {
       }
 
       const [input] = fetcher.mock.calls[0]!
-      expect(input.cursor).toBe('cursor-1')
       expect(input.resume).toEqual([
         {
           interruptId: 'interrupt-1',

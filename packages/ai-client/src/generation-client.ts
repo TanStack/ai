@@ -20,7 +20,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationResumeSnapshot,
-  GenerationResumeState,
   GenerationServerPersistence,
 } from './generation-types'
 
@@ -90,7 +89,6 @@ export class GenerationClient<
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
-  private readonly autoResume: boolean
   private readonly serverPersistence: GenerationServerPersistence | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
@@ -100,9 +98,7 @@ export class GenerationClient<
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
   private resumeSnapshot: GenerationResumeSnapshot | undefined
-  private resumeState: GenerationResumeState | undefined
   private resumeSnapshotPersistenceQueue: Promise<void> = Promise.resolve()
-  private resumeLifecycleToken = 0
   private resumePersistenceError: Error | undefined = undefined
   private abortController: AbortController | null = null
   private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
@@ -124,13 +120,8 @@ export class GenerationClient<
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.body = options.body ?? {}
-    this.autoResume = options.autoResume ?? true
     this.serverPersistence = options.persistence?.server
     this.resumeSnapshot = options.initialResumeSnapshot
-    this.resumeState =
-      options.resumeState ??
-      options.initialResumeSnapshot?.resumeState ??
-      undefined
 
     this.callbacksRef = {
       onResult: options.onResult,
@@ -201,10 +192,7 @@ export class GenerationClient<
     try {
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(input, {
-          signal,
-          ...(this.resumeState ? { resumeState: this.resumeState } : {}),
-        })
+        const result = await this.fetcher(input, { signal })
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
@@ -264,41 +252,6 @@ export class GenerationClient<
         this.setIsLoading(false)
       }
     }
-  }
-
-  async resume(state?: GenerationResumeState): Promise<boolean> {
-    const resumeToken = this.resumeLifecycleToken
-    if (state) {
-      this.resumeState = state
-      this.resumeSnapshot = {
-        ...(this.resumeSnapshot ?? { status: 'running' }),
-        resumeState: state,
-      }
-      this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
-    } else {
-      await this.hydrateResumeSnapshot()
-    }
-
-    if (this.disposed || resumeToken !== this.resumeLifecycleToken) {
-      return false
-    }
-
-    if (!this.resumeState) {
-      return false
-    }
-
-    // Resume requests are identified by resumeState/runContext. They do not
-    // need user media input and must not require callers to retain large input
-    // payloads across a reload.
-    await this.generate({} as TInput)
-    return true
-  }
-
-  async maybeAutoResume(): Promise<boolean> {
-    if (!this.autoResume || this.isLoading) {
-      return false
-    }
-    return this.resume()
   }
 
   /**
@@ -368,7 +321,6 @@ export class GenerationClient<
    * Abort any in-flight generation request.
    */
   stop(): void {
-    this.resumeLifecycleToken++
     const runId = this.devtoolsBridge.getActiveRunId()
     if (this.abortController) {
       this.abortController.abort()
@@ -409,7 +361,6 @@ export class GenerationClient<
         | 'onError'
         | 'onProgress'
         | 'onChunk'
-        | 'resumeState'
       >
     >,
   ): void {
@@ -427,9 +378,6 @@ export class GenerationClient<
     }
     if (options.onChunk !== undefined) {
       this.callbacksRef.onChunk = options.onChunk
-    }
-    if (options.resumeState !== undefined) {
-      this.resumeState = options.resumeState
     }
   }
 
@@ -575,13 +523,6 @@ export class GenerationClient<
   }
 
   private createRunContext(runId: string): RunAgentInputContext {
-    if (this.resumeState) {
-      return {
-        threadId: this.resumeState.threadId,
-        runId: this.resumeState.runId,
-        cursor: this.resumeState.cursor,
-      }
-    }
     return {
       threadId: this.threadId,
       runId,
@@ -593,36 +534,21 @@ export class GenerationClient<
       this.resumeSnapshot,
       chunk,
     )
-    this.resumeState = this.resumeSnapshot.resumeState ?? undefined
     this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
     void this.persistResumeSnapshot(this.resumeSnapshot)
   }
 
   private completePlainFetcherResumeSnapshot(): void {
-    if (!this.resumeState && !this.resumeSnapshot) {
+    if (!this.resumeSnapshot) {
       return
     }
-    this.resumeState = undefined
     this.resumeSnapshot = {
-      ...(this.resumeSnapshot ?? {}),
+      ...this.resumeSnapshot,
       resumeState: null,
       status: 'complete',
     }
     this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
     void this.persistResumeSnapshot(this.resumeSnapshot)
-  }
-
-  private async hydrateResumeSnapshot(): Promise<void> {
-    if (this.resumeSnapshot || !this.serverPersistence) {
-      return
-    }
-    const snapshot = await this.serverPersistence.getItem(this.threadId)
-    if (!snapshot) {
-      return
-    }
-    this.resumeSnapshot = snapshot
-    this.resumeState = snapshot.resumeState ?? undefined
-    this.callbacksRef.onResumeSnapshotChange?.(snapshot)
   }
 
   private async persistResumeSnapshot(

@@ -30,14 +30,10 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight resume state persistence. */
+  /** Server-side lightweight generation state persistence. */
   persistence?: GenerationPersistenceOptions
-  /** Whether to resume a persisted run on mount. Defaults to true. */
-  autoResume?: boolean
   /** Initial lightweight resume snapshot restored by the app. */
   initialResumeSnapshot?: GenerationResumeSnapshot
-  /** Explicit run/cursor state to use for the next resume/generation request. */
-  resumeState?: GenerationResumeState
   /**
    * Callback when images are generated. Can optionally return a transformed value.
    *
@@ -82,8 +78,6 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
   pendingArtifacts: Array<GenerationPendingArtifact>
   /** Final persisted artifact references observed from a replayed result */
   resultArtifacts: Array<PersistedArtifactRef>
-  /** Resume the current/initial image generation run, if resumable */
-  resume: (state?: GenerationResumeState) => Promise<boolean>
 }
 
 /**
