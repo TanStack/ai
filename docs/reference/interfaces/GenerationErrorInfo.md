@@ -5,7 +5,7 @@ title: GenerationErrorInfo
 
 # Interface: GenerationErrorInfo
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L161)
+Defined in: [packages/ai/src/activities/middleware/types.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L105)
 
 Information passed to [GenerationMiddleware.onError](GenerationMiddleware.md#onerror).
 
@@ -17,7 +17,7 @@ Information passed to [GenerationMiddleware.onError](GenerationMiddleware.md#one
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:165](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L165)
+Defined in: [packages/ai/src/activities/middleware/types.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L109)
 
 Wall-clock duration until the failure, in milliseconds.
 
@@ -29,6 +29,6 @@ Wall-clock duration until the failure, in milliseconds.
 error: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L163)
+Defined in: [packages/ai/src/activities/middleware/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L107)
 
 The thrown value (typically an `Error`).

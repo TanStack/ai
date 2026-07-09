@@ -15,7 +15,7 @@ function getVideoJobStatus<TAdapter>(options): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:671](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L671)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:584](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L584)
 
 **`Experimental`**
 
@@ -36,7 +36,13 @@ it will automatically fetch and include the video URL.
 
 ### options
 
-`object` & [`GenerationRunIdentity`](../interfaces/GenerationRunIdentity.md)
+#### adapter
+
+`TAdapter` & `object`
+
+#### jobId
+
+`string`
 
 ## Returns
 

@@ -5,7 +5,7 @@ title: GenerationMiddleware
 
 # Interface: GenerationMiddleware\<TContext\>
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:201](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L201)
+Defined in: [packages/ai/src/activities/middleware/types.ts:145](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L145)
 
 Activity-agnostic, observe-only middleware.
 
@@ -50,7 +50,7 @@ await generateImage({
 optional name: string;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:203](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L203)
+Defined in: [packages/ai/src/activities/middleware/types.ts:147](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L147)
 
 Optional name, surfaced in diagnostics.
 
@@ -62,7 +62,7 @@ Optional name, surfaced in diagnostics.
 optional onAbort: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L217)
+Defined in: [packages/ai/src/activities/middleware/types.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L161)
 
 Called when the activity is aborted (e.g. an abandoned stream).
 
@@ -88,7 +88,7 @@ Called when the activity is aborted (e.g. an abandoned stream).
 optional onError: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:222](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L222)
+Defined in: [packages/ai/src/activities/middleware/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L166)
 
 Called when the activity throws before completing.
 
@@ -114,7 +114,7 @@ Called when the activity throws before completing.
 optional onFinish: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L212)
+Defined in: [packages/ai/src/activities/middleware/types.ts:156](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L156)
 
 Called after the activity completes successfully.
 
@@ -140,7 +140,7 @@ Called after the activity completes successfully.
 optional onStart: (ctx) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L205)
+Defined in: [packages/ai/src/activities/middleware/types.ts:149](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L149)
 
 Called before the adapter request begins.
 
@@ -162,7 +162,7 @@ Called before the adapter request begins.
 optional onUsage: (ctx, usage) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L207)
+Defined in: [packages/ai/src/activities/middleware/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L151)
 
 Called when the provider reports usage, before `onFinish`.
 

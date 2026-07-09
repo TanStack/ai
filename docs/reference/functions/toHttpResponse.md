@@ -9,7 +9,7 @@ title: toHttpResponse
 function toHttpResponse(stream, init?): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:412](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L412)
+Defined in: [packages/ai/src/stream-to-response.ts:240](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L240)
 
 Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
 
@@ -18,10 +18,6 @@ This creates a Response that emits chunks in HTTP stream format:
 - No SSE formatting (no "data: " prefix)
 
 This format is compatible with `fetchHttpStream` connection adapter.
-
-Pass a `durability` sink to make the stream resumable (same semantics as
-[toServerSentEventsResponse](toServerSentEventsResponse.md)); ndjson carries no `id:` line, so this
-relies on the `?offset` query param rather than native `Last-Event-ID`.
 
 ## Parameters
 
@@ -35,7 +31,7 @@ AsyncIterable of StreamChunks from chat()
 
 `ResponseInit` & `object`
 
-Optional Response initialization options (including `abortController`, `durability`, `batch`)
+Optional Response initialization options (including `abortController`)
 
 ## Returns
 
@@ -46,6 +42,6 @@ Response in HTTP stream format (newline-delimited JSON)
 ## Example
 
 ```typescript
-const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
-return toHttpResponse(stream, { durability: memoryStream(request) });
+const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
+return toHttpResponse(stream, { abortController });
 ```

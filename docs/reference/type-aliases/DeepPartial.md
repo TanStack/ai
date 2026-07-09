@@ -9,7 +9,7 @@ title: DeepPartial
 type DeepPartial<T> = T extends ReadonlyArray<infer U> ? DeepPartial<U>[] : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 ```
 
-Defined in: [packages/ai/src/types.ts:416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L416)
+Defined in: [packages/ai/src/types.ts:413](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L413)
 
 Recursive `Partial` — every nested field becomes optional. Used as the
 `partial` type on a streaming structured-output part since the progressive

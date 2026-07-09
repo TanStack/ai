@@ -17,7 +17,6 @@ function chatParamsFromRequestBody(body): Promise<{
      | null>
     | UIMessage<unknown>)[];
   parentRunId?: string;
-  resume?: object[];
   runId: string;
   state: unknown;
   threadId: string;
@@ -25,7 +24,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L45)
+Defined in: [packages/ai/src/utilities/chat-params.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L44)
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 
@@ -53,7 +52,6 @@ reasoning/activity/developer-role normalization internally.
      \| `null`\>
     \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
-  `resume?`: `object`[];
   `runId`: `string`;
   `state`: `unknown`;
   `threadId`: `string`;
@@ -63,5 +61,5 @@ reasoning/activity/developer-role normalization internally.
 ## Throws
 
 An error with a migration-pointing message when the body does
-  not conform to AG-UI `RunAgentInputSchema`. Surface this as a
+  not conform to AG-UI 0.0.52 `RunAgentInputSchema`. Surface this as a
   400 Bad Request to the client.

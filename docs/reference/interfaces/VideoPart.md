@@ -5,7 +5,7 @@ title: VideoPart
 
 # Interface: VideoPart\<TMetadata\>
 
-Defined in: [packages/ai/src/types.ts:275](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L275)
+Defined in: [packages/ai/src/types.ts:272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L272)
 
 Video content part for multimodal messages.
 
@@ -25,7 +25,7 @@ Provider-specific metadata type
 optional metadata: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:280](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L280)
+Defined in: [packages/ai/src/types.ts:277](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L277)
 
 Provider-specific metadata (e.g., duration, resolution)
 
@@ -37,7 +37,7 @@ Provider-specific metadata (e.g., duration, resolution)
 source: ContentPartSource;
 ```
 
-Defined in: [packages/ai/src/types.ts:278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L278)
+Defined in: [packages/ai/src/types.ts:275](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L275)
 
 Source of the video content
 
@@ -49,4 +49,4 @@ Source of the video content
 type: "video";
 ```
 
-Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
+Defined in: [packages/ai/src/types.ts:273](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L273)
