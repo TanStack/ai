@@ -206,7 +206,8 @@ export default function ImageGenerator({
             </label>
             <span className="text-xs text-gray-500">
               Supported by Gemini multimodal models only
-              (gemini-3.1-flash-image-preview, gemini-3-pro-image-preview)
+              (gemini-3.1-flash-image-preview, gemini-3-pro-image-preview) —
+              uploaded once via the Gemini Files API
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
