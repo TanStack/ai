@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-drizzle",
-  "version": "0.1.0",
-  "description": "Drizzle ORM backend for TanStack AI state persistence — the batteries-included sqlPersistence (bundled migrations) and bring-your-own drizzlePersistence(db), with an exported schema you can drive with drizzle-kit.",
+  "version": "0.0.0",
+  "description": "SQLite-family Drizzle persistence for TanStack AI, with an edge-safe bring-your-own database adapter, a Node SQLite factory, and bundled migrations.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -23,9 +23,17 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/esm/sqlite.d.ts",
+      "import": "./dist/esm/sqlite.js"
     }
   },
+  "bin": {
+    "tanstack-ai-drizzle-migrations": "./bin/tanstack-ai-drizzle-migrations.mjs"
+  },
   "files": [
+    "bin",
     "dist",
     "src",
     "drizzle",

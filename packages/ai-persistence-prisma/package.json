@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-prisma",
-  "version": "0.1.0",
-  "description": "Prisma backend for TanStack AI state persistence — bring your own PrismaClient. Ships a schema.prisma fragment mirroring @tanstack/ai-persistence-drizzle column-for-column, plus prismaPersistence(prisma) wiring the AIPersistence stores over a PrismaClient.",
+  "version": "0.0.0",
+  "description": "Prisma persistence for TanStack AI with a provider-neutral models fragment and bring-your-own migrated PrismaClient.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,7 @@
     "tanstack",
     "persistence",
     "prisma",
-    "sqlite"
+    "database"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -25,15 +25,19 @@
       "import": "./dist/esm/index.js"
     }
   },
+  "bin": {
+    "tanstack-ai-prisma-models": "./bin/tanstack-ai-prisma-models.mjs"
+  },
   "files": [
+    "bin",
     "dist",
     "src",
-    "prisma"
+    "prisma/tanstack-ai.prisma"
   ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate --schema ./prisma",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
@@ -73,7 +77,7 @@
     }
   },
   "peerDependencies": {
-    "@prisma/client": ">=6",
+    "@prisma/client": ">=6.7.0",
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^"
   },

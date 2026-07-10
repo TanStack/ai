@@ -1,60 +1,97 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { DatabaseSync } from 'node:sqlite'
 import { afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { prismaPersistence } from '../src/index'
 
-const migrationsDir = fileURLToPath(
-  new URL('../prisma/migrations', import.meta.url),
-)
-
 const clients: Array<PrismaClient> = []
+const temporaryDirectories: Array<string> = []
 
-/** Read every generated migration's DDL, in journal order, as raw statements. */
-async function migrationStatements(): Promise<Array<string>> {
-  const entries = await readdir(migrationsDir, { withFileTypes: true })
-  const dirs = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-  const statements: Array<string> = []
-  for (const dir of dirs) {
-    const sql = await readFile(
-      join(migrationsDir, dir, 'migration.sql'),
-      'utf8',
-    )
-    for (const raw of sql.split(';')) {
-      const statement = raw
-        .split('\n')
-        .filter((line) => !line.trimStart().startsWith('--'))
-        .join('\n')
-        .trim()
-      if (statement) statements.push(statement)
-    }
+const sqliteTestSchema = `
+  CREATE TABLE messages (
+    thread_id TEXT NOT NULL PRIMARY KEY,
+    messages_json TEXT NOT NULL
+  );
+  CREATE TABLE runs (
+    run_id TEXT NOT NULL PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_at BIGINT NOT NULL,
+    finished_at BIGINT,
+    error TEXT,
+    usage_json TEXT
+  );
+  CREATE TABLE interrupts (
+    interrupt_id TEXT NOT NULL PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    requested_at BIGINT NOT NULL,
+    resolved_at BIGINT,
+    payload_json TEXT NOT NULL,
+    response_json TEXT
+  );
+  CREATE TABLE metadata (
+    scope TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    PRIMARY KEY (scope, key)
+  );
+  CREATE TABLE artifacts (
+    artifact_id TEXT NOT NULL PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size BIGINT NOT NULL,
+    external_url TEXT,
+    created_at BIGINT NOT NULL
+  );
+  CREATE TABLE blobs (
+    key TEXT NOT NULL PRIMARY KEY,
+    content_type TEXT,
+    size BIGINT,
+    etag TEXT,
+    custom_metadata_json TEXT,
+    created_at BIGINT,
+    updated_at BIGINT,
+    body BLOB
+  );
+`
+
+function initializeSqliteTestDatabase(path: string): void {
+  const database = new DatabaseSync(path)
+  try {
+    database.exec(sqliteTestSchema)
+  } finally {
+    database.close()
   }
-  return statements
 }
 
-/** Create a PrismaClient over a fresh temp sqlite file with migrations applied. */
+/** Create a PrismaClient over a fresh initialized temporary SQLite database. */
 async function makeTestClient(): Promise<PrismaClient> {
   const dir = mkdtempSync(join(tmpdir(), 'tanstack-ai-prisma-'))
+  temporaryDirectories.push(dir)
   const dbPath = join(dir, 'state.db').replace(/\\/g, '/')
+  initializeSqliteTestDatabase(dbPath)
   const prisma = new PrismaClient({
     datasources: { db: { url: `file:${dbPath}` } },
   })
   clients.push(prisma)
-  for (const statement of await migrationStatements()) {
-    await prisma.$executeRawUnsafe(statement)
-  }
   return prisma
 }
 
 afterAll(async () => {
   await Promise.all(clients.map((client) => client.$disconnect()))
+  await Promise.all(
+    temporaryDirectories.map((directory) =>
+      rm(directory, { recursive: true, force: true }),
+    ),
+  )
 })
 
 runPersistenceConformance('prisma', async () =>

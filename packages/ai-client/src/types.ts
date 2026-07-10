@@ -310,23 +310,12 @@ export type ChatClientPersistence<
 
 export type ChatServerPersistence = ChatStorageAdapter<ChatResumeSnapshot>
 
-/**
- * @deprecated Passing a message adapter directly as `persistence: adapter`
- * remains supported for compatibility. Use `persistence: { client: adapter }`
- * instead.
- */
-export type LegacyChatPersistenceOptions<
+export interface ChatPersistenceOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> = ChatClientPersistence<TTools>
-
-export type ChatPersistenceOptions<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
-> =
-  | LegacyChatPersistenceOptions<TTools>
-  | {
-      client?: ChatClientPersistence<TTools>
-      server?: ChatServerPersistence
-    }
+> {
+  client?: ChatClientPersistence<TTools>
+  server?: ChatServerPersistence
+}
 
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
@@ -421,9 +410,9 @@ export interface ChatClientBaseOptions<
   /**
    * Optional persistence adapters for chat state.
    *
-   * Prefer `persistence: { client, server }`. `client` stores client-rendered
-   * `UIMessage[]` using this chat's `id`; `server` stores the resume snapshot
-   * `{ resumeState, pendingInterrupts }` using this chat's `threadId`.
+   * `client` stores client-rendered `UIMessage[]` using this chat's `id`;
+   * `server` stores `{ resumeState, pendingInterrupts }` using this chat's
+   * `threadId`.
    */
   persistence?: ChatPersistenceOptions<TTools>
 

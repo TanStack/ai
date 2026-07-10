@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
+import { clientTools, localStoragePersistence } from '@tanstack/ai-client'
 import type {
-  ChatClientPersistence,
   ChatPendingInterrupt,
   ChatResumeSnapshot,
   UIMessage,
@@ -71,25 +70,16 @@ const addToCartClient = addToCartToolDef.client((args) => ({
   quantity: args.quantity,
 }))
 
-const localStoragePersistence: ChatClientPersistence = {
-  getItem: (id) => {
-    const item = window.localStorage.getItem(id)
-    return item
-      ? (JSON.parse(item) as Array<UIMessage>).map((message) => ({
-          ...message,
-          createdAt:
-            typeof message.createdAt === 'string'
-              ? new Date(message.createdAt)
-              : message.createdAt,
-        }))
-      : null
-  },
-  setItem: (id, messages) => {
-    window.localStorage.setItem(id, JSON.stringify(messages))
-  },
-  removeItem: (id) => {
-    window.localStorage.removeItem(id)
-  },
+type StoredUIMessage = Omit<UIMessage, 'createdAt'> & {
+  createdAt?: Date | string
+}
+
+function serializeJson(value: unknown): string {
+  const serialized = JSON.stringify(value)
+  if (serialized === undefined) {
+    throw new TypeError('The persistence value is not JSON serializable')
+  }
+  return serialized
 }
 
 const isProvider = (s: string): s is Provider =>
@@ -99,13 +89,43 @@ const isFeature = (s: string): s is Feature =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
+function isStoredUIMessage(value: unknown): value is StoredUIMessage {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    (value.role === 'system' ||
+      value.role === 'user' ||
+      value.role === 'assistant') &&
+    Array.isArray(value.parts) &&
+    (value.createdAt === undefined ||
+      value.createdAt instanceof Date ||
+      typeof value.createdAt === 'string')
+  )
+}
+
+function deserializeMessages(raw: string): Array<UIMessage> {
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
+    throw new TypeError('Stored messages are invalid')
+  }
+  return parsed.map(({ createdAt, ...message }) => ({
+    ...message,
+    ...(createdAt
+      ? {
+          createdAt:
+            createdAt instanceof Date ? createdAt : new Date(createdAt),
+        }
+      : {}),
+  }))
+}
+
 function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
   if (!Array.isArray(value)) return []
 
   const interrupts: Array<ChatPendingInterrupt> = []
   for (const item of value) {
-    if (!item || typeof item !== 'object') continue
-    const interrupt = item as Record<string, unknown>
+    if (!isRecord(item)) continue
+    const interrupt = item
     if (
       typeof interrupt.id !== 'string' ||
       typeof interrupt.reason !== 'string'
@@ -124,23 +144,19 @@ function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
   return interrupts
 }
 
-function parseStoredResumeSnapshot(
-  raw: string | null,
-): ChatResumeSnapshot | null {
-  if (!raw) return null
-  const parsed = JSON.parse(raw) as unknown
-  if (!parsed || typeof parsed !== 'object') return null
-  const value = parsed as Record<string, unknown>
-  const resumeState =
-    value.resumeState && typeof value.resumeState === 'object'
-      ? (value.resumeState as Record<string, unknown>)
-      : value
+function deserializeResumeSnapshot(raw: string): ChatResumeSnapshot {
+  const parsed: unknown = JSON.parse(raw)
+  if (!isRecord(parsed)) {
+    throw new TypeError('Stored resume snapshot is invalid')
+  }
+  const value = parsed
+  const resumeState = isRecord(value.resumeState) ? value.resumeState : value
 
   if (
     typeof resumeState.threadId !== 'string' ||
     typeof resumeState.runId !== 'string'
   ) {
-    return null
+    throw new TypeError('Stored resume state is invalid')
   }
 
   return {
@@ -151,6 +167,18 @@ function parseStoredResumeSnapshot(
     pendingInterrupts: parsePendingInterrupts(value.pendingInterrupts),
   }
 }
+
+const messagePersistence = localStoragePersistence<Array<UIMessage>>({
+  keyPrefix: '',
+  serialize: serializeJson,
+  deserialize: deserializeMessages,
+})
+
+const resumePersistence = localStoragePersistence<ChatResumeSnapshot>({
+  keyPrefix: 'tanstack-ai:e2e:resume:',
+  serialize: serializeJson,
+  deserialize: deserializeResumeSnapshot,
+})
 
 function FeaturePage() {
   const { provider, feature } = Route.useParams()
@@ -306,19 +334,6 @@ function ChatFeature({
     persistenceEnabled ? 'a' : null,
   )
   const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId
-  const resumeStorageKey = `${chatId}:resume-state`
-  const [initialResumeSnapshot] = useState<ChatResumeSnapshot | null>(() => {
-    if (!serverPersistenceEnabled) return null
-    if (typeof window === 'undefined') return null
-    try {
-      return parseStoredResumeSnapshot(
-        window.localStorage.getItem(resumeStorageKey),
-      )
-    } catch {
-      window.localStorage.removeItem(resumeStorageKey)
-      return null
-    }
-  })
 
   const [structuredObject, setStructuredObject] = useState<unknown>(null)
   const [contentDeltaCount, setContentDeltaCount] = useState(0)
@@ -380,6 +395,7 @@ function ChatFeature({
     clear,
   } = useChat({
     id: chatId,
+    threadId: chatId,
     ...transport,
     tools,
     body: {
@@ -391,10 +407,12 @@ function ChatFeature({
       serverPersistence: serverPersistenceEnabled,
     },
     persistence:
-      persistence === 'localStorage' || serverPersistenceEnabled
-        ? localStoragePersistence
+      persistenceEnabled || serverPersistenceEnabled
+        ? {
+            client: messagePersistence,
+            ...(serverPersistenceEnabled ? { server: resumePersistence } : {}),
+          }
         : undefined,
-    ...(initialResumeSnapshot ? { initialResumeSnapshot } : {}),
     onCustomEvent: (eventType, data) => {
       if (eventType === 'structured-output.complete') {
         const value = data as { object: unknown; raw: string } | undefined
@@ -412,28 +430,6 @@ function ChatFeature({
       }
     },
   })
-
-  // Delivery-durability resume is transparent now (the resumable SSE
-  // connection adapter reattaches via the browser's native Last-Event-ID),
-  // so there is no client `resume()` call. We still persist the interrupt
-  // (state) resume snapshot so a full reload can restore pending interrupts.
-  useEffect(() => {
-    if (!serverPersistenceEnabled) return
-    if (resumeState) {
-      const snapshot: ChatResumeSnapshot = {
-        resumeState,
-        pendingInterrupts,
-      }
-      window.localStorage.setItem(resumeStorageKey, JSON.stringify(snapshot))
-    } else {
-      window.localStorage.removeItem(resumeStorageKey)
-    }
-  }, [
-    pendingInterrupts,
-    resumeState,
-    resumeStorageKey,
-    serverPersistenceEnabled,
-  ])
 
   return (
     <>

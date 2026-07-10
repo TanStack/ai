@@ -74,7 +74,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -103,7 +103,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {

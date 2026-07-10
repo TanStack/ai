@@ -11,10 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
+import { Route as SqlitePersistenceRouteImport } from './routes/sqlite-persistence'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
-import { Route as MysqlPersistenceRouteImport } from './routes/mysql-persistence'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -37,8 +37,8 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiSqlitePersistentChatRouteImport } from './routes/api.sqlite-persistent-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
-import { Route as ApiMysqlPersistentChatRouteImport } from './routes/api.mysql-persistent-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -67,6 +67,11 @@ const ThreadsRoute = ThreadsRouteImport.update({
   path: '/threads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SqlitePersistenceRoute = SqlitePersistenceRouteImport.update({
+  id: '/sqlite-persistence',
+  path: '/sqlite-persistence',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
   id: '/server-fn-chat',
   path: '/server-fn-chat',
@@ -80,11 +85,6 @@ const SandboxesRoute = SandboxesRouteImport.update({
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MysqlPersistenceRoute = MysqlPersistenceRouteImport.update({
-  id: '/mysql-persistence',
-  path: '/mysql-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpDemoRoute = McpDemoRouteImport.update({
@@ -200,14 +200,14 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSqlitePersistentChatRoute = ApiSqlitePersistentChatRouteImport.update({
+  id: '/api/sqlite-persistent-chat',
+  path: '/api/sqlite-persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   id: '/api/sandbox-triage',
   path: '/api/sandbox-triage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMysqlPersistentChatRoute = ApiMysqlPersistentChatRouteImport.update({
-  id: '/api/mysql-persistent-chat',
-  path: '/api/mysql-persistent-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
@@ -305,10 +305,10 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
-  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -322,8 +322,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
-  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -354,10 +354,10 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
-  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -371,8 +371,8 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
-  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -404,10 +404,10 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
-  '/mysql-persistence': typeof MysqlPersistenceRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -421,8 +421,8 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
-  '/api/mysql-persistent-chat': typeof ApiMysqlPersistentChatRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -455,10 +455,10 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
-    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -472,8 +472,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
-    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -504,10 +504,10 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
-    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -521,8 +521,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
-    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -553,10 +553,10 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
-    | '/mysql-persistence'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -570,8 +570,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
-    | '/api/mysql-persistent-chat'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -603,10 +603,10 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
-  MysqlPersistenceRoute: typeof MysqlPersistenceRoute
   RealtimeRoute: typeof RealtimeRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
+  SqlitePersistenceRoute: typeof SqlitePersistenceRoute
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
@@ -620,8 +620,8 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
-  ApiMysqlPersistentChatRoute: typeof ApiMysqlPersistentChatRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
+  ApiSqlitePersistentChatRoute: typeof ApiSqlitePersistentChatRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -660,6 +660,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sqlite-persistence': {
+      id: '/sqlite-persistence'
+      path: '/sqlite-persistence'
+      fullPath: '/sqlite-persistence'
+      preLoaderRoute: typeof SqlitePersistenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/server-fn-chat': {
       id: '/server-fn-chat'
       path: '/server-fn-chat'
@@ -679,13 +686,6 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mysql-persistence': {
-      id: '/mysql-persistence'
-      path: '/mysql-persistence'
-      fullPath: '/mysql-persistence'
-      preLoaderRoute: typeof MysqlPersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp-demo': {
@@ -842,18 +842,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sqlite-persistent-chat': {
+      id: '/api/sqlite-persistent-chat'
+      path: '/api/sqlite-persistent-chat'
+      fullPath: '/api/sqlite-persistent-chat'
+      preLoaderRoute: typeof ApiSqlitePersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sandbox-triage': {
       id: '/api/sandbox-triage'
       path: '/api/sandbox-triage'
       fullPath: '/api/sandbox-triage'
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/mysql-persistent-chat': {
-      id: '/api/mysql-persistent-chat'
-      path: '/api/mysql-persistent-chat'
-      fullPath: '/api/mysql-persistent-chat'
-      preLoaderRoute: typeof ApiMysqlPersistentChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-status': {
@@ -987,10 +987,10 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
-  MysqlPersistenceRoute: MysqlPersistenceRoute,
   RealtimeRoute: RealtimeRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
+  SqlitePersistenceRoute: SqlitePersistenceRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
@@ -1004,8 +1004,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
-  ApiMysqlPersistentChatRoute: ApiMysqlPersistentChatRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
+  ApiSqlitePersistentChatRoute: ApiSqlitePersistentChatRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

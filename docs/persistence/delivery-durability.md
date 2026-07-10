@@ -3,155 +3,172 @@ title: Delivery Durability
 id: delivery-durability
 ---
 
-**Delivery durability** is the transport-layer concern of letting a client
-disconnect, reload, or open a second tab and still receive the full, ordered
-run stream **exactly once**. It is distinct from **state durability** (thread
-messages, run status, interrupts, artifacts — the middleware layer covered by
-[Chat Persistence](./chat-persistence.md) and
-[Generation Persistence](./generation-persistence.md)).
+# Delivery Durability
 
-You get it by handing the transport helper a `durability` sink. The sink owns
-**zero** application storage of its own — it appends the produced chunks to a
-log and replays them on resume. Two backends ship:
+Delivery durability records an ordered SSE stream so a dropped connection can
+replay chunks without invoking the provider again. It is separate from state
+persistence for messages, runs, interrupts, metadata, and artifacts.
 
-- `memoryStream(request)` — a process-local log. Zero infrastructure; the right
-  default for local dev and tests.
-- `durableStream(request, { server })` — the
-  [durable-streams](https://durablestreams.com) protocol, for production. The
-  durable-streams server owns the bytes (its own WAL / group-commit); we store
-  nothing.
+Two adapters ship:
 
-## How resume works
+- `memoryStream(request)` stores a process-local log for development and tests.
+- `durableStream(request, options)` writes to an external Durable Streams
+  protocol URL.
 
-`chat()` is lazy — calling it runs no provider request until the first
-`for await`. The transport helper uses that:
+Delivery durability is supported by `toServerSentEventsResponse`. NDJSON
+helpers do not accept durability and do not resume.
 
-- **Fresh request** — the helper iterates the stream, batches the chunks,
-  `append`s each batch to the durability log, and forwards them as SSE, tagging
-  every event with `id: <runId@seq>`.
-- **Reconnect / second tab** — the helper reads the resume offset off the
-  request (the browser's native `Last-Event-ID`, or a `?offset` query param),
-  replays the log strictly after that offset, and **never iterates the input
-  stream** — so `chat()` never calls the provider again. The untouched iterator
-  is simply garbage-collected.
-
-Because each SSE event carries an `id:`, native `EventSource` resends
-`Last-Event-ID` on reconnect with zero application code. Joining an
-already-running run passes `?offset=-1`.
-
-## Server: wire a durability sink
-
-Pass `durability` to any transport helper. In development, `memoryStream` needs
-no setup:
+## Server setup
 
 ```ts
-import { chat, memoryStream, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-
-export async function POST(request: Request) {
-  const stream = chat({
-    adapter: openaiText('gpt-5.5'),
-    messages: [{ role: 'user', content: 'Tell me about guitars.' }],
-    stream: true,
-  })
-
-  return toServerSentEventsResponse(stream, {
-    durability: { adapter: memoryStream(request) },
-  })
-}
-```
-
-For production, swap in `durableStream` — the only change is the sink:
-
-```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { durableStream } from '@tanstack/ai-durable-stream'
 import { openaiText } from '@tanstack/ai-openai'
 
-export async function POST(request: Request) {
+declare function getDurableStreamsToken(): Promise<string>
+
+const durableOptions = {
+  server: 'https://streams.example.com',
+  streamPrefix: 'chat-runs',
+  headers: async () => ({
+    Authorization: `Bearer ${await getDurableStreamsToken()}`,
+  }),
+}
+
+type ChatInput = Pick<
+  Awaited<ReturnType<typeof chatParamsFromRequest>>,
+  'messages' | 'threadId' | 'runId' | 'resume'
+>
+
+async function respond(request: Request, input: ChatInput) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
-    messages: [{ role: 'user', content: 'Tell me about guitars.' }],
-    stream: true,
+    messages: input.messages,
+    threadId: input.threadId,
+    runId: input.runId,
+    ...(input.resume ? { resume: input.resume } : {}),
   })
 
   return toServerSentEventsResponse(stream, {
     durability: {
-      adapter: durableStream(request, { server: process.env.DS_URL ?? '' }),
-      // Optional: how many chunks to buffer per append (default 32).
+      adapter: durableStream(request, durableOptions),
       batch: 32,
     },
   })
 }
+
+export async function POST(request: Request) {
+  return respond(request, await chatParamsFromRequest(request))
+}
+
+export async function GET(request: Request) {
+  const runId = new URL(request.url).searchParams.get('runId')
+  if (!runId) return new Response('runId is required', { status: 400 })
+
+  // A resume request replays the durability log and never iterates this lazy
+  // provider stream. The placeholder input is therefore not sent upstream.
+  return respond(request, {
+    messages: [],
+    threadId: `replay:${runId}`,
+    runId,
+  })
+}
 ```
 
-The same `durability` option is available on `toHttpResponse` for
-newline-delimited JSON transports (they resume via `?offset` rather than native
-`Last-Event-ID`).
+Use a static `headers` object for fixed credentials or an async resolver for
+rotating tokens. The resolver runs for every create, append, read, and close
+request. This option belongs to the external URL adapter; a future direct
+Cloudflare binding would use binding authorization instead.
 
-## Client: plain, resumable SSE
+The external service must return a non-empty `Stream-Next-Offset` header for
+create and append operations. Missing headers fail loudly. The adapter never
+guesses an offset.
 
-The client needs **no cursor machinery**. A plain `sse` connection is
-resumable: when the server tags events with `id:` offsets, a dropped connection
-reconnects with `Last-Event-ID` automatically and de-dupes any replayed prefix.
+## Client setup
 
-```ts
-import { useChat } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
-function Chat() {
+export function Chat() {
   const chat = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
-  // ...render chat.messages
+
+  return <button onClick={() => void chat.sendMessage('Hello')}>Send</button>
 }
 ```
 
-### Joining an in-flight or finished run
+When the server emits SSE `id:` lines, `fetchServerSentEvents` remembers the
+last id, reconnects with `Last-Event-ID`, and de-duplicates the replayed prefix.
+The id is opaque to the client.
 
-To attach a second tab (or re-attach after a full reload) to a run that is
-already streaming, `joinRun(runId)` opens the stream from the start via
-`?offset=-1`:
+To attach to a known run from the beginning, use the adapter's `joinRun`:
 
-```ts ignore
+```ts
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 
+declare const runId: string
 const connection = fetchServerSentEvents('/api/chat')
 
 for await (const chunk of connection.joinRun(runId)) {
-  // Same ordered event stream the original tab is receiving.
-  if (chunk.type === 'TEXT_MESSAGE_CONTENT' && 'delta' in chunk) {
-    appendDelta(chunk.delta)
-  }
+  console.log(chunk.type)
 }
 ```
 
-## Ceiling: producer lifetime (`waitUntil`)
+`joinRun` performs a GET with `offset=-1` and `runId`. The endpoint must accept
+that GET, as shown above.
 
-Delivery durability replays what was **produced**. It cannot resume an LLM
-completion that never finished producing: if the **producer process** dies
-mid-run (e.g. a serverless function torn down the instant the client socket
-closes), the log holds only the partial output and cannot continue it.
+## Offset ownership
 
-The fix is deployment, not code — run the producer in something that outlives
-the client socket:
+`StreamDurability<TOffset>` owns its offset format. Core only passes returned
+values back to that adapter and writes them to SSE `id:` fields.
 
-- a platform `waitUntil(...)` (Cloudflare Workers, Vercel) so the function keeps
-  running after the response is returned,
-- a durable object, or
-- a background queue / worker.
+For every appended batch:
 
-With the producer kept alive, the log fills to completion and any reconnect or
-second tab replays the whole run exactly once.
+1. core calls `append(chunks)` before forwarding the chunks;
+2. the adapter returns exactly one offset per chunk in the same order;
+3. core rejects missing, extra, empty, or CR/LF-containing offsets;
+4. a resume reads strictly after the supplied offset.
 
-## Escape hatch: CDN fan-out
+Core never derives an offset from an array index and never stamps an offset onto
+the `StreamChunk` object.
 
-The shipped default keeps your app server in the connection path — it tails the
-durability log and re-emits SSE. That is fine for hundreds to low-thousands of
-concurrent readers.
+## Completion, stop, and errors
 
-For kernel-speed CDN fan-out, point the browser **directly** at the
-durable-streams server (the app server only writes; the CDN collapses many
-readers onto one origin read). That direct-to-DS wiring is an advanced,
-documented pattern, not shipped API — reach for it only when the app-server
-fan-out ceiling is the actual bottleneck.
+The producer awaits `close()` on all in-process exits:
+
+- normal completion;
+- `stop()` / response cancellation;
+- provider iteration errors;
+- caught server-side durability failures.
+
+Cancellation and provider failure also attempt to append a terminal
+`RUN_ERROR` with an aborted or failed error payload before closing. If terminal
+append or close fails, the failure is surfaced. This prevents a known error
+from leaving readers parked on an apparently live log.
+
+## Process death
+
+A process that has already terminated cannot execute cleanup code. Therefore
+literal process death cannot be guaranteed by `finally` or `close()` alone.
+
+Production backends should add a lease/reaper mechanism:
+
+1. the producer acquires or renews a lease while writing;
+2. a timer, alarm, or background worker detects expired leases;
+3. the reaper appends or records an aborted terminal state and closes the log;
+4. readers observe the terminal state instead of waiting forever.
+
+This mechanism belongs to the durability service or deployment. It is not
+implemented by the in-process response helper.
+
+## State is still separate
+
+Delivery logs replay chunks. They are not the queryable source of truth for
+thread messages, pending interrupts, generation artifacts, or retention
+policies. Add [Chat Persistence](./chat-persistence) or
+[Generation Persistence](./generation-persistence) for that state.

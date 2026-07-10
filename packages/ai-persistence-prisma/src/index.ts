@@ -1,20 +1,9 @@
 /**
- * Prisma-backed **state** persistence for TanStack AI.
+ * Prisma-backed state persistence for TanStack AI.
  *
- * Bring your own `PrismaClient`: add the model fragment shipped in this
- * package's `prisma/schema.prisma` to your own Prisma schema, run
- * `prisma migrate` through your normal workflow, then pass the generated
- * client to {@link prismaPersistence}. This wires the `AIPersistence` stores
- * (messages, runs, interrupts, metadata, artifacts, blobs) over it.
- *
- * The Prisma schema mirrors `@tanstack/ai-persistence-drizzle`'s exported
- * schema column-for-column — see coupling `persistence-schema-dual-source`.
- * Any change to one schema MUST be mirrored in the other, with regenerated
- * migrations for both ORMs and the shared conformance suite re-run.
- *
- * Locks are not part of the SQL schema — an in-memory lock is provided as a dev
- * default so the returned persistence is complete. Swap in a distributed lock
- * for multi-process deployments.
+ * Add the provider-neutral {@link prismaModels} fragment to a Prisma multi-file
+ * schema, run Prisma's normal migration workflow for your selected provider,
+ * then pass the generated client to {@link prismaPersistence}.
  */
 import { InMemoryLockStore } from '@tanstack/ai'
 import {
@@ -25,11 +14,14 @@ import {
   createMetadataStore,
   createRunStore,
 } from './stores'
+import type { LockStore } from '@tanstack/ai'
 import type { PrismaClient } from '@prisma/client'
-import type { AIPersistence } from '@tanstack/ai-persistence'
 
-/** Wire the AIPersistence stores over an existing Prisma `PrismaClient`. */
-export function prismaPersistence(prisma: PrismaClient): AIPersistence {
+export { prismaModels, prismaModelsFilename } from './models'
+
+/** Wire TanStack AI persistence stores over a migrated Prisma client. */
+export function prismaPersistence(prisma: PrismaClient) {
+  const locks: LockStore = new InMemoryLockStore()
   return {
     stores: {
       messages: createMessageStore(prisma),
@@ -38,7 +30,7 @@ export function prismaPersistence(prisma: PrismaClient): AIPersistence {
       metadata: createMetadataStore(prisma),
       artifacts: createArtifactStore(prisma),
       blobs: createBlobStore(prisma),
-      locks: new InMemoryLockStore(),
+      locks,
     },
   }
 }

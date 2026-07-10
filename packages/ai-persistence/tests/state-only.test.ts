@@ -51,14 +51,6 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
 }
 
 describe('state-only persistence', () => {
-  it('exposes only state stores (no delivery event stores)', () => {
-    const stores = memoryPersistence().stores as Record<string, unknown>
-    expect('publicEvents' in stores).toBe(false)
-    expect('internalEvents' in stores).toBe(false)
-    // The delivery stream sink is gone too.
-    expect('stream' in memoryPersistence()).toBe(false)
-  })
-
   it('persists thread messages and run status', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter(script())

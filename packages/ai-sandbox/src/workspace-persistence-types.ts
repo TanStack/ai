@@ -19,6 +19,7 @@ export interface WorkspacePersistenceManifest {
     string,
     {
       artifactId: string
+      blobKey: string
       size: number
       updatedAt: number
     }
@@ -52,8 +53,17 @@ export function workspacePersistenceManifestKey(key: string): string {
 export function workspacePersistenceArtifactId(
   key: string,
   path: string,
+  revision: string,
 ): string {
-  return `workspace:${key}:file:${encodeURIComponent(path)}`
+  return `workspace:${key}:file:${encodeURIComponent(path)}:${encodeURIComponent(revision)}`
+}
+
+export function workspacePersistenceBlobKey(
+  key: string,
+  path: string,
+  revision: string,
+): string {
+  return `workspace:${key}:blob:${encodeURIComponent(path)}:${encodeURIComponent(revision)}`
 }
 
 export function resolveWorkspacePersistenceOptions(input: {
@@ -70,13 +80,19 @@ export function resolveWorkspacePersistenceOptions(input: {
 
   const options =
     input.workspacePersistence === true ? {} : input.workspacePersistence
+  const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
+  if (!Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0) {
+    throw new Error(
+      `workspacePersistence.maxFileBytes must be a positive safe integer, received ${maxFileBytes}`,
+    )
+  }
 
   return {
     key: options.key ?? input.defaultKey,
     root: options.root ?? input.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
     include: options.include,
     exclude: [...DEFAULT_EXCLUDE, ...(options.exclude ?? [])],
-    maxFileBytes: options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES,
+    maxFileBytes,
     consistency: options.consistency ?? 'strict',
   }
 }

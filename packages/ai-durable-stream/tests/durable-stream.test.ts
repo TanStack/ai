@@ -1,423 +1,1016 @@
 import { describe, expect, it, vi } from 'vitest'
-import { encodeOffset, toServerSentEventsResponse } from '@tanstack/ai'
+import { EventType, toServerSentEventsResponse } from '@tanstack/ai'
 import { durableStream } from '../src'
 import type { StreamChunk } from '@tanstack/ai'
+import type { DurableStreamOffset } from '../src'
 
-function textChunk(delta: string): StreamChunk {
-  return { type: 'TEXT_MESSAGE_CONTENT', delta, timestamp: 0 } as StreamChunk
+interface WireRecord {
+  v: 1
+  seq: number
+  chunk: StreamChunk
 }
 
-async function readBody(res: Response): Promise<string> {
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-  let out = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    out += decoder.decode(value)
+interface CapturedRequest {
+  url: URL
+  method: string
+  headers: Headers
+  body?: string
+  signal?: AbortSignal | null
+}
+
+interface StoredBatch {
+  startOffset: string
+  nextOffset: string
+  records: Array<WireRecord>
+}
+
+interface ProtocolServerOptions {
+  createOffset?: string
+  appendOffsets?: Array<string | null>
+  closeResponse?: () => Promise<Response>
+  readStatus?: number
+  loseAppendResponses?: number
+}
+
+function textChunk(delta: string) {
+  return {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId: 'message-1',
+    delta,
+    timestamp: 0,
+  } as const
+}
+
+function textStream(deltas: Array<string>): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const delta of deltas) yield textChunk(delta)
+    },
   }
-  return out
 }
 
-function parseSseEvents(body: string): Array<{ id?: string; data: string }> {
+function isStreamChunk(value: unknown): value is StreamChunk {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof value.type === 'string'
+  )
+}
+
+function isWireRecord(value: unknown): value is WireRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'v' in value &&
+    value.v === 1 &&
+    'seq' in value &&
+    typeof value.seq === 'number' &&
+    'chunk' in value &&
+    isStreamChunk(value.chunk)
+  )
+}
+
+function parseRecords(body: string | undefined) {
+  if (body === undefined) throw new Error('Expected an append body')
+  const parsed: unknown = JSON.parse(body)
+  if (!Array.isArray(parsed)) throw new Error('Expected a JSON record array')
+  const records: Array<WireRecord> = []
+  for (const value of parsed) {
+    if (!isWireRecord(value)) throw new Error('Invalid versioned wire record')
+    records.push(value)
+  }
+  return records
+}
+
+function requestUrl(input: Parameters<typeof fetch>[0]) {
+  if (input instanceof Request) return new URL(input.url)
+  return new URL(input.toString())
+}
+
+function createHeaders(offset: string | null, closed = false) {
+  const headers = new Headers()
+  if (offset !== null) headers.set('Stream-Next-Offset', offset)
+  if (closed) headers.set('Stream-Closed', 'true')
+  return headers
+}
+
+function dataEvent(records: Array<WireRecord>) {
+  return `event: data\ndata: ${JSON.stringify(records)}\n\n`
+}
+
+function controlEvent(control: {
+  streamNextOffset: string
+  streamCursor?: string
+  upToDate?: boolean
+  streamClosed?: boolean
+}) {
+  return `event: control\ndata: ${JSON.stringify(control)}\n\n`
+}
+
+function makeProtocolServer(options: ProtocolServerOptions = {}) {
+  const requests: Array<CapturedRequest> = []
+  const batches: Array<StoredBatch> = []
+  const createOffset =
+    options.createOffset ?? 'origin::partition/A?cursor=%2F+=='
+  let tailOffset = createOffset
+  let closed = false
+  let appendIndex = 0
+  let lostAppendResponses = options.loseAppendResponses ?? 0
+  const producerResponses = new Map<string, string>()
+
+  const fetchStub = vi.fn<typeof fetch>(async (input, init) => {
+    const url = requestUrl(input)
+    const method = (init?.method ?? 'GET').toUpperCase()
+    const headers = new Headers(init?.headers)
+    const body = init?.body === undefined ? undefined : String(init.body)
+    requests.push({
+      url,
+      method,
+      headers,
+      ...(body === undefined ? {} : { body }),
+      signal: init?.signal,
+    })
+
+    if (method === 'PUT') {
+      return new Response(null, {
+        status: 201,
+        headers: createHeaders(createOffset),
+      })
+    }
+
+    if (method === 'POST' && headers.get('Stream-Closed') === 'true') {
+      if (options.closeResponse) {
+        const response = await options.closeResponse()
+        if (response.ok) closed = true
+        return response
+      }
+      closed = true
+      return new Response(null, {
+        status: 204,
+        headers: createHeaders(tailOffset, true),
+      })
+    }
+
+    if (method === 'POST') {
+      const records = parseRecords(body)
+      const producerId = headers.get('Producer-Id')
+      const producerEpoch = headers.get('Producer-Epoch')
+      const producerSeq = headers.get('Producer-Seq')
+      const producerHeaders = [producerId, producerEpoch, producerSeq]
+      if (
+        producerHeaders.some((value) => value !== null) &&
+        producerHeaders.some((value) => value === null)
+      ) {
+        return new Response(null, { status: 400 })
+      }
+      const producerKey =
+        producerId === null || producerEpoch === null || producerSeq === null
+          ? undefined
+          : `${producerId}:${producerEpoch}:${producerSeq}`
+      const deduplicatedOffset =
+        producerKey === undefined
+          ? undefined
+          : producerResponses.get(producerKey)
+      if (deduplicatedOffset !== undefined) {
+        return new Response(null, {
+          status: 204,
+          headers: createHeaders(deduplicatedOffset),
+        })
+      }
+      const configuredOffset = options.appendOffsets?.[appendIndex]
+      const nextOffset =
+        configuredOffset === undefined
+          ? `opaque::next/${appendIndex}?token=%2B==`
+          : configuredOffset
+      appendIndex += 1
+      if (nextOffset !== null && nextOffset.length > 0) {
+        batches.push({ startOffset: tailOffset, nextOffset, records })
+        tailOffset = nextOffset
+        if (producerKey !== undefined) {
+          producerResponses.set(producerKey, nextOffset)
+        }
+      }
+      if (lostAppendResponses > 0) {
+        lostAppendResponses -= 1
+        throw new TypeError('append response was lost')
+      }
+      return new Response(null, {
+        status: 204,
+        headers: createHeaders(nextOffset),
+      })
+    }
+
+    if (options.readStatus !== undefined) {
+      return new Response(null, { status: options.readStatus })
+    }
+
+    const requestedOffset = url.searchParams.get('offset') ?? '-1'
+    let firstBatch = 0
+    if (requestedOffset === 'now' || requestedOffset === tailOffset) {
+      firstBatch = batches.length
+    } else if (requestedOffset !== '-1') {
+      firstBatch = batches.findIndex(
+        (batch) => batch.startOffset === requestedOffset,
+      )
+      if (firstBatch === -1) return new Response(null, { status: 400 })
+    }
+
+    let sse = ''
+    for (let index = firstBatch; index < batches.length; index += 1) {
+      const batch = batches[index]
+      if (!batch) continue
+      const isFinal = index === batches.length - 1
+      sse += dataEvent(batch.records)
+      sse += controlEvent({
+        streamNextOffset: batch.nextOffset,
+        ...(!closed || !isFinal
+          ? { streamCursor: `collapse::${index}?edge=%2F` }
+          : {}),
+        ...(isFinal ? { upToDate: true } : {}),
+        ...(closed && isFinal ? { streamClosed: true } : {}),
+      })
+    }
+    if (firstBatch === batches.length) {
+      sse += controlEvent({
+        streamNextOffset: tailOffset,
+        ...(closed
+          ? { streamClosed: true }
+          : { streamCursor: 'collapse::tail', upToDate: true }),
+      })
+    }
+    return new Response(sse, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  })
+
+  return {
+    fetchStub,
+    requests,
+    batches,
+    createOffset,
+    closeCount: () =>
+      requests.filter(
+        (request) =>
+          request.method === 'POST' &&
+          request.headers.get('Stream-Closed') === 'true',
+      ).length,
+  }
+}
+
+function requestWithMethod(requests: Array<CapturedRequest>, method: string) {
+  const request = requests.find((candidate) => candidate.method === method)
+  if (!request) throw new Error(`Expected a ${method} request`)
+  return request
+}
+
+async function readBody(response: Response) {
+  if (!response.body) throw new Error('Expected a response body')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let body = ''
+  for (;;) {
+    const result = await reader.read()
+    if (result.done) return body
+    body += decoder.decode(result.value)
+  }
+}
+
+function parseTransportEvents(body: string) {
   return body
     .split('\n\n')
-    .filter((block) => block.trim().length > 0)
+    .filter((block) => block.length > 0)
     .map((block) => {
       const lines = block.split('\n')
-      const idLine = lines.find((l) => l.startsWith('id: '))
-      const dataLine = lines.find((l) => l.startsWith('data: '))
-      return {
-        ...(idLine ? { id: idLine.slice('id: '.length) } : {}),
-        data: dataLine ? dataLine.slice('data: '.length) : '',
-      }
+      const id = lines.find((line) => line.startsWith('id: '))?.slice(4)
+      const data = lines.find((line) => line.startsWith('data: '))?.slice(6)
+      if (!data) throw new Error(`Missing transport data in ${block}`)
+      const parsed: unknown = JSON.parse(data)
+      return { id, data: parsed }
     })
 }
 
-/**
- * A fake DS server that assigns NON-1-based, non-contiguous offsets (1000,
- * 1007, 1014, …) so a test can prove the client-facing ids are the BACKEND's
- * offsets rather than a transport-local 1-based counter.
- */
-function makeNon1BasedDsServer() {
-  const entries: Array<{ offset: number; data: string }> = []
-  let nextOffset = 1000
-  const fetchStub = vi.fn(
-    async (input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(typeof input === 'string' ? input : input.toString())
-      const method = (init?.method ?? 'GET').toUpperCase()
-      if (method === 'PUT') return new Response(null, { status: 201 })
-      if (method === 'POST') {
-        const body = JSON.parse(String(init?.body)) as Array<unknown>
-        let last = nextOffset
-        for (const c of body) {
-          last = nextOffset
-          entries.push({ offset: nextOffset, data: JSON.stringify(c) })
-          nextOffset += 7
-        }
-        return new Response(null, {
-          status: 200,
-          headers: { 'Stream-Next-Offset': String(last) },
-        })
-      }
-      // GET (read strictly after ?offset)
-      const offsetParam = url.searchParams.get('offset') ?? '-1'
-      const from =
-        offsetParam === '-1' || offsetParam === ''
-          ? Number.NEGATIVE_INFINITY
-          : Number(offsetParam)
-      let sse = ''
-      for (const e of entries) {
-        if (e.offset > from) sse += `id: ${e.offset}\ndata: ${e.data}\n\n`
-      }
-      return new Response(sse, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Stream-Closed': 'true',
-        },
-      })
-    },
-  )
-  return { fetchStub, entries }
+function deltaFrom(value: unknown) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('delta' in value) ||
+    typeof value.delta !== 'string'
+  ) {
+    throw new Error('Expected a text chunk')
+  }
+  return value.delta
 }
 
-/**
- * An in-memory fake of the durable-streams HTTP protocol:
- * - PUT  /streams/{name}         create (idempotent)
- * - POST /streams/{name}         append JSON array; sets `Stream-Next-Offset`
- * - GET  /streams/{name}?offset= read SSE from strictly after `offset`
- */
-function makeFakeDsServer() {
-  const streams = new Map<string, Array<string>>()
-  const puts: Array<{ name: string; created: boolean }> = []
-
-  const fetchStub = vi.fn(
-    async (input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(typeof input === 'string' ? input : input.toString())
-      const method = (init?.method ?? 'GET').toUpperCase()
-      const name = decodeURIComponent(url.pathname.replace(/^\/streams\//, ''))
-
-      if (method === 'PUT') {
-        const created = !streams.has(name)
-        if (created) streams.set(name, [])
-        puts.push({ name, created })
-        return new Response(null, { status: created ? 201 : 200 })
-      }
-
-      if (method === 'POST') {
-        const body = JSON.parse(String(init?.body)) as Array<unknown>
-        const arr = streams.get(name) ?? []
-        if (!streams.has(name)) streams.set(name, arr)
-        for (const c of body) arr.push(JSON.stringify(c))
-        return new Response(null, {
-          status: 200,
-          headers: { 'Stream-Next-Offset': String(arr.length) },
-        })
-      }
-
-      // GET (read)
-      const arr = streams.get(name) ?? []
-      const offsetParam = url.searchParams.get('offset') ?? '-1'
-      const from =
-        offsetParam === '-1' || offsetParam === ''
-          ? 0
-          : offsetParam === 'now'
-            ? arr.length
-            : Number(offsetParam)
-      let sse = ''
-      for (let i = from; i < arr.length; i++) {
-        const pos = i + 1
-        sse += `id: ${pos}\ndata: ${arr[i]}\n\n`
-      }
-      // This fake returns the finalized stored range then EOF, so flag the
-      // stream closed — a genuine end (not a cut-short live window).
-      return new Response(sse, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Stream-Closed': 'true',
-        },
-      })
-    },
-  )
-
-  return { fetchStub, streams, puts }
+function deferred<T>() {
+  let resolve = (_value: T): void => undefined
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
 }
 
-describe('durableStream', () => {
-  it('parses runId and stream identity from the request', () => {
-    const { fetchStub } = makeFakeDsServer()
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-1', { method: 'POST' }),
-      { server: 'https://ds.test', fetch: fetchStub },
-    )
-    expect(d.resumeFrom()).toBeNull()
-    expect(d.runId()).toBe('run-1')
-  })
-
-  it('creates the stream once (PUT idempotent) and advances the offset on append', async () => {
-    const { fetchStub, puts } = makeFakeDsServer()
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-2', { method: 'POST' }),
-      { server: 'https://ds.test', fetch: fetchStub },
+describe('durableStream official HTTP protocol', () => {
+  it('appends one versioned batch and returns one adapter offset per record', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-batch'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
     )
 
-    // append POSTs each chunk INDIVIDUALLY and reads back its own backend
-    // offset, so EVERY chunk carries a resume offset (fully populated array,
-    // no `undefined`) — this is what makes a mid-batch reconnect exactly-once.
-    const first = await d.append(
-      [textChunk('a'), textChunk('b'), textChunk('c')],
-      1,
-    )
-    expect(first).toEqual([
-      encodeOffset('run-2', 1),
-      encodeOffset('run-2', 2),
-      encodeOffset('run-2', 3),
+    const offsets = await durability.append([
+      textChunk('a'),
+      textChunk('b'),
+      textChunk('c'),
     ])
 
-    const second = await d.append([textChunk('d'), textChunk('e')], 4)
-    expect(second).toEqual([encodeOffset('run-2', 4), encodeOffset('run-2', 5)])
-
-    // The stream is created exactly once, on the first append (PUT-once);
-    // per-chunk POSTs never re-PUT. The server-side PUT stays idempotent.
-    expect(puts).toHaveLength(1)
-    expect(puts[0]).toEqual({ name: 'runs/run-2', created: true })
+    expect(offsets).toHaveLength(3)
+    expect(new Set(offsets).size).toBe(3)
+    expect(server.requests.map((request) => request.method)).toEqual([
+      'PUT',
+      'POST',
+    ])
+    expect(
+      requestWithMethod(server.requests, 'PUT').headers.get('Content-Type'),
+    ).toBe('application/json')
+    const appendRequest = requestWithMethod(server.requests, 'POST')
+    expect(appendRequest.headers.get('Content-Type')).toBe('application/json')
+    expect(parseRecords(appendRequest.body)).toEqual([
+      { v: 1, seq: 1, chunk: textChunk('a') },
+      { v: 1, seq: 2, chunk: textChunk('b') },
+      { v: 1, seq: 3, chunk: textChunk('c') },
+    ])
   })
 
-  it('reads the full stream from the start', async () => {
-    const { fetchStub } = makeFakeDsServer()
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-3', { method: 'POST' }),
-      { server: 'https://ds.test', fetch: fetchStub },
+  it('retries an ambiguously committed append with one producer tuple', async () => {
+    const server = makeProtocolServer({ loseAppendResponses: 1 })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-idempotent-producer'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
     )
-    await d.append([textChunk('a'), textChunk('b'), textChunk('c')], 1)
-
-    const read: Array<{ seq: number; delta: string }> = []
-    for await (const { seq, chunk } of d.read('-1')) {
-      read.push({ seq, delta: (chunk as { delta: string }).delta })
+    const source: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield textChunk('persisted-before-failure')
+        throw new Error('provider failed')
+      },
     }
-    expect(read).toEqual([
-      { seq: 1, delta: 'a' },
-      { seq: 2, delta: 'b' },
-      { seq: 3, delta: 'c' },
+
+    await readBody(
+      toServerSentEventsResponse(source, {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const appendRequests = server.requests.filter(
+      (request) =>
+        request.method === 'POST' &&
+        request.headers.get('Stream-Closed') !== 'true',
+    )
+    expect(
+      appendRequests.map((request) => request.headers.get('Producer-Seq')),
+    ).toEqual(['0', '0', '1'])
+    expect(
+      new Set(
+        appendRequests.map((request) => request.headers.get('Producer-Id')),
+      ).size,
+    ).toBe(1)
+    expect(server.batches).toHaveLength(2)
+
+    const replayed: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) replayed.push(chunk)
+    expect(replayed.map((chunk) => chunk.type)).toEqual([
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.RUN_ERROR,
     ])
   })
 
-  it('reads exactly the tail strictly after a resume offset', async () => {
-    const { fetchStub } = makeFakeDsServer()
-    // Produce under a known run.
-    const producer = durableStream(
-      new Request('https://app.test/api/chat?runId=run-4', { method: 'POST' }),
-      { server: 'https://ds.test', fetch: fetchStub },
-    )
-    await producer.append(
-      [textChunk('a'), textChunk('b'), textChunk('c'), textChunk('d')],
-      1,
-    )
-
-    // Reconnect carrying Last-Event-ID at seq 2.
-    const reconnect = durableStream(
-      new Request('https://app.test/api/chat', {
-        method: 'POST',
-        headers: { 'Last-Event-ID': encodeOffset('run-4', 2) },
-      }),
-      { server: 'https://ds.test', fetch: fetchStub },
-    )
-    expect(reconnect.resumeFrom()).toBe(encodeOffset('run-4', 2))
-    expect(reconnect.runId()).toBe('run-4')
-
-    const read: Array<{ seq: number; delta: string }> = []
-    for await (const { seq, chunk } of reconnect.read(
-      reconnect.resumeFrom()!,
-    )) {
-      read.push({ seq, delta: (chunk as { delta: string }).delta })
-    }
-    expect(read).toEqual([
-      { seq: 3, delta: 'c' },
-      { seq: 4, delta: 'd' },
-    ])
-  })
-
-  // Finding 7b: a malformed server URL is rejected at construction.
-  it('rejects a malformed server URL at construction', () => {
-    expect(() =>
-      durableStream(
-        new Request('https://app.test/api/chat', { method: 'POST' }),
-        { server: 'not a url' },
-      ),
-    ).toThrow(/invalid server URL/)
-  })
-
-  // Finding 7c: a read data event without a usable numeric id must throw rather
-  // than yield a `NaN` seq that would corrupt the resume cursor.
-  it('throws on a read data event missing its id', async () => {
-    const fetchStub = vi.fn(async (_input: unknown, init?: RequestInit) => {
-      const method = (init?.method ?? 'GET').toUpperCase()
-      if (method === 'PUT') return new Response(null, { status: 201 })
-      // A data event with no `id:` line.
-      return new Response(`data: ${JSON.stringify(textChunk('x'))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    })
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-noid', {
-        method: 'POST',
-      }),
+  it('applies static auth headers to create, append, close, and read', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-static-auth'),
       {
         server: 'https://ds.test',
-        fetch: fetchStub as unknown as typeof fetch,
+        fetch: server.fetchStub,
+        headers: {
+          Authorization: 'Bearer static-token',
+          'Content-Type': 'text/plain',
+          'Stream-Closed': 'false',
+        },
       },
     )
-    await expect(async () => {
-      for await (const _ of d.read('-1')) {
-        // drain
-      }
-    }).rejects.toThrow(/missing id/)
+
+    await durability.append([textChunk('secured')])
+    await durability.close()
+    for await (const _entry of durability.read('-1')) {
+      // drain
+    }
+
+    expect(server.requests).toHaveLength(4)
+    expect(
+      server.requests.map((request) => request.headers.get('Authorization')),
+    ).toEqual(Array.from({ length: 4 }, () => 'Bearer static-token'))
+    expect(server.requests[0]?.headers.get('Content-Type')).toBe(
+      'application/json',
+    )
+    expect(server.requests[1]?.headers.get('Content-Type')).toBe(
+      'application/json',
+    )
+    expect(server.requests[2]?.headers.get('Stream-Closed')).toBe('true')
   })
 
-  it('throws on a read data event with a non-numeric id', async () => {
-    const fetchStub = vi.fn(async (_input: unknown, init?: RequestInit) => {
-      const method = (init?.method ?? 'GET').toUpperCase()
-      if (method === 'PUT') return new Response(null, { status: 201 })
-      return new Response(
-        `id: abc\ndata: ${JSON.stringify(textChunk('x'))}\n\n`,
-        {
-          status: 200,
-          headers: { 'Content-Type': 'text/event-stream' },
-        },
-      )
-    })
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-badid', {
-        method: 'POST',
-      }),
+  it('resolves rotating async auth headers for every protocol request', async () => {
+    const server = makeProtocolServer()
+    let token = 0
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-rotating-auth'),
       {
         server: 'https://ds.test',
-        fetch: fetchStub as unknown as typeof fetch,
+        fetch: server.fetchStub,
+        headers: async () => ({ Authorization: `Bearer token-${++token}` }),
       },
     )
-    await expect(async () => {
-      for await (const _ of d.read('-1')) {
-        // drain
-      }
-    }).rejects.toThrow(/non-numeric id/)
+
+    await durability.append([textChunk('secured')])
+    await durability.close()
+    for await (const _entry of durability.read('-1')) {
+      // drain
+    }
+
+    expect(
+      server.requests.map((request) => request.headers.get('Authorization')),
+    ).toEqual([
+      'Bearer token-1',
+      'Bearer token-2',
+      'Bearer token-3',
+      'Bearer token-4',
+    ])
   })
 
-  // Finding 5: a read that ends without a terminal / close signal (a cut-short
-  // live window) must surface rather than silently truncating.
-  it('surfaces a bare-EOF end of a still-in-flight read', async () => {
-    const fetchStub = vi.fn(async (_input: unknown, init?: RequestInit) => {
-      const method = (init?.method ?? 'GET').toUpperCase()
-      if (method === 'PUT') return new Response(null, { status: 201 })
-      // Two data events, then EOF — no terminal chunk, no Stream-Closed header,
-      // no rollover control frame.
+  it.each([
+    ['missing', null],
+    ['empty', ''],
+  ])('fails when an append returns a %s next offset', async (_name, offset) => {
+    const server = makeProtocolServer({ appendOffsets: [offset] })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-bad-offset'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+
+    await expect(durability.append([textChunk('x')])).rejects.toThrow(
+      /Stream-Next-Offset/,
+    )
+  })
+
+  it('parses conforming id-less data and control events', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-idless'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await durability.append([textChunk('a'), textChunk('b')])
+    await durability.close()
+
+    const received: Array<{ offset: DurableStreamOffset; delta: string }> = []
+    for await (const entry of durability.read('-1')) {
+      received.push({
+        offset: entry.offset,
+        delta:
+          entry.chunk.type === EventType.TEXT_MESSAGE_CONTENT
+            ? entry.chunk.delta
+            : entry.chunk.type,
+      })
+    }
+
+    expect(received.map((entry) => entry.delta)).toEqual(['a', 'b'])
+    expect(new Set(received.map((entry) => entry.offset)).size).toBe(2)
+  })
+
+  it('reconnects an open SSE window with control offset and cursor', async () => {
+    const requests: Array<CapturedRequest> = []
+    let readNumber = 0
+    const fetchStub = vi.fn<typeof fetch>(async (input, init) => {
+      const url = requestUrl(input)
+      const headers = new Headers(init?.headers)
+      requests.push({
+        url,
+        method: (init?.method ?? 'GET').toUpperCase(),
+        headers,
+        signal: init?.signal,
+      })
+      readNumber += 1
+      const record = {
+        v: 1,
+        seq: readNumber,
+        chunk: textChunk(String(readNumber)),
+      } satisfies WireRecord
+      const nextOffset = `opaque::window/${readNumber}?token=%2F`
       return new Response(
-        `id: 1\ndata: ${JSON.stringify(textChunk('a'))}\n\n` +
-          `id: 2\ndata: ${JSON.stringify(textChunk('b'))}\n\n`,
+        dataEvent([record]) +
+          controlEvent({
+            streamNextOffset: nextOffset,
+            ...(readNumber === 1
+              ? { streamCursor: 'collapse::window-1', upToDate: true }
+              : { streamClosed: true }),
+          }),
         { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
       )
     })
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-trunc', {
-        method: 'POST',
-      }),
-      {
-        server: 'https://ds.test',
-        fetch: fetchStub as unknown as typeof fetch,
-      },
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-rollover'),
+      { server: 'https://ds.test', fetch: fetchStub },
     )
-    const seen: Array<string> = []
-    await expect(async () => {
-      for await (const { chunk } of d.read('-1')) {
-        seen.push((chunk as { delta: string }).delta)
-      }
-    }).rejects.toThrow(/ended without a terminal event or close signal/)
-    // It still delivered what it saw before surfacing the truncation.
-    expect(seen).toEqual(['a', 'b'])
+
+    const deltas: Array<string> = []
+    for await (const { chunk } of durability.read('-1')) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+
+    expect(deltas).toEqual(['1', '2'])
+    expect(requests[1]?.url.searchParams.get('offset')).toBe(
+      'opaque::window/1?token=%2F',
+    )
+    expect(requests[1]?.url.searchParams.get('cursor')).toBe(
+      'collapse::window-1',
+    )
   })
 
-  it('surfaces a malformed control frame instead of silently ending', async () => {
-    const fetchStub = vi.fn(async (_input: unknown, init?: RequestInit) => {
-      const method = (init?.method ?? 'GET').toUpperCase()
-      if (method === 'PUT') return new Response(null, { status: 201 })
-      // A control frame with unparseable data (neither a rollover offset nor a
-      // close signal).
-      return new Response(`event: control\ndata: not-json\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
+  it('reconnects after a body read failure from the last valid control', async () => {
+    const requests: Array<CapturedRequest> = []
+    let readNumber = 0
+    const fetchStub = vi.fn<typeof fetch>(async (input, init) => {
+      const url = requestUrl(input)
+      requests.push({
+        url,
+        method: (init?.method ?? 'GET').toUpperCase(),
+        headers: new Headers(init?.headers),
+        signal: init?.signal,
       })
+      readNumber += 1
+
+      if (readNumber === 1) {
+        let pullNumber = 0
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pullNumber += 1
+            if (pullNumber === 1) {
+              controller.enqueue(
+                new TextEncoder().encode(
+                  dataEvent([
+                    { v: 1, seq: 1, chunk: textChunk('before-failure') },
+                  ]) +
+                    controlEvent({
+                      streamNextOffset: 'opaque::after/1?token=%2F',
+                      streamCursor: 'collapse::after-1',
+                      upToDate: true,
+                    }),
+                ),
+              )
+              return
+            }
+            controller.error(new TypeError('socket read failed'))
+          },
+        })
+        return new Response(body, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+
+      return new Response(
+        dataEvent([{ v: 1, seq: 2, chunk: textChunk('after-reconnect') }]) +
+          controlEvent({
+            streamNextOffset: 'opaque::after/2?token=%2F',
+            streamClosed: true,
+          }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
     })
-    const d = durableStream(
-      new Request('https://app.test/api/chat?runId=run-ctrl', {
-        method: 'POST',
-      }),
-      {
-        server: 'https://ds.test',
-        fetch: fetchStub as unknown as typeof fetch,
-      },
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-body-reconnect'),
+      { server: 'https://ds.test', fetch: fetchStub },
     )
+
+    const deltas: Array<string> = []
+    for await (const { chunk } of durability.read('-1')) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+        deltas.push(chunk.delta)
+      }
+    }
+
+    expect(deltas).toEqual(['before-failure', 'after-reconnect'])
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.url.searchParams.get('offset')).toBe(
+      'opaque::after/1?token=%2F',
+    )
+    expect(requests[1]?.url.searchParams.get('cursor')).toBe(
+      'collapse::after-1',
+    )
+  })
+
+  it('reconnects from the same control after data is read before a body failure', async () => {
+    const requests: Array<CapturedRequest> = []
+    let readNumber = 0
+    const fetchStub = vi.fn<typeof fetch>(async (input, init) => {
+      const url = requestUrl(input)
+      requests.push({
+        url,
+        method: (init?.method ?? 'GET').toUpperCase(),
+        headers: new Headers(init?.headers),
+        signal: init?.signal,
+      })
+      readNumber += 1
+
+      if (readNumber === 1) {
+        return new Response(
+          dataEvent([{ v: 1, seq: 1, chunk: textChunk('before-drop') }]) +
+            controlEvent({
+              streamNextOffset: 'opaque::stable/window?token=%2F',
+              streamCursor: 'collapse::stable-window',
+            }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      }
+
+      if (readNumber === 2) {
+        let pullNumber = 0
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              pullNumber += 1
+              if (pullNumber === 1) {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    dataEvent([
+                      { v: 1, seq: 2, chunk: textChunk('during-drop') },
+                    ]),
+                  ),
+                )
+                return
+              }
+              controller.error(new TypeError('socket read failed'))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      }
+
+      return new Response(
+        dataEvent([
+          { v: 1, seq: 2, chunk: textChunk('during-drop') },
+          { v: 1, seq: 3, chunk: textChunk('after-reconnect') },
+        ]) +
+          controlEvent({
+            streamNextOffset: 'opaque::tail/window?token=%3D',
+            streamClosed: true,
+          }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-data-body-reconnect'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+
+    const deltas: Array<string> = []
+    for await (const { chunk } of durability.read('-1')) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+        deltas.push(chunk.delta)
+      }
+    }
+
+    expect(deltas).toEqual(['before-drop', 'during-drop', 'after-reconnect'])
+    expect(requests).toHaveLength(3)
+    expect(requests[2]?.url.searchParams.get('offset')).toBe(
+      requests[1]?.url.searchParams.get('offset'),
+    )
+    expect(requests[2]?.url.searchParams.get('cursor')).toBe(
+      requests[1]?.url.searchParams.get('cursor'),
+    )
+    expect(requests[2]?.url.searchParams.get('offset')).toBe(
+      'opaque::stable/window?token=%2F',
+    )
+    expect(requests[2]?.url.searchParams.get('cursor')).toBe(
+      'collapse::stable-window',
+    )
+  })
+
+  it('fails loudly when a control event omits streamNextOffset', async () => {
+    const fetchStub = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          'event: control\ndata: {"upToDate":true,"streamCursor":"c"}\n\n',
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+    )
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-bad-control'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+
     await expect(async () => {
-      for await (const _ of d.read('-1')) {
+      for await (const _entry of durability.read('-1')) {
         // drain
       }
-    }).rejects.toThrow(/malformed control frame/)
+    }).rejects.toThrow(/streamNextOffset/)
+  })
+
+  it('requires a separate runId when resuming from an adapter offset', async () => {
+    const server = makeProtocolServer()
+    const producer = durableStream(
+      new Request('https://app.test/api/chat?runId=run-resume'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    const [resumeOffset] = await producer.append([textChunk('x')])
+    if (!resumeOffset) throw new Error('Expected a resume offset')
+
+    expect(() =>
+      durableStream(
+        new Request('https://app.test/api/chat', {
+          headers: { 'Last-Event-ID': resumeOffset },
+        }),
+        { server: 'https://ds.test', fetch: server.fetchStub },
+      ),
+    ).toThrow(/resume offset requires a runId/)
+
+    expect(
+      durableStream(
+        new Request('https://app.test/api/chat?runId=run-resume', {
+          headers: { 'Last-Event-ID': resumeOffset },
+        }),
+        { server: 'https://ds.test', fetch: server.fetchStub },
+      ).resumeFrom(),
+    ).toBe(resumeOffset)
+  })
+
+  it('rejects CR/LF injection in run ids, prefixes, cursors, and controls', async () => {
+    expect(() =>
+      durableStream(
+        new Request(
+          `https://app.test/api/chat?runId=${encodeURIComponent('bad\nrun')}`,
+        ),
+        { server: 'https://ds.test' },
+      ),
+    ).toThrow(/CR\/LF/)
+    expect(() =>
+      durableStream(new Request('https://app.test/api/chat'), {
+        server: 'https://ds.test',
+        streamPrefix: 'bad\rprefix',
+      }),
+    ).toThrow(/CR\/LF/)
+
+    const forgedCursor = `tanstack-ai-ds:v1:${encodeURIComponent(
+      JSON.stringify({
+        v: 1,
+        backendOffset: 'bad\noffset',
+        seq: 1,
+      }),
+    )}`
+    expect(() =>
+      durableStream(
+        new Request('https://app.test/api/chat', {
+          headers: { 'Last-Event-ID': forgedCursor },
+        }),
+        { server: 'https://ds.test' },
+      ),
+    ).toThrow(/CR\/LF/)
+
+    const fetchStub = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          controlEvent({
+            streamNextOffset: 'bad\ncontrol-offset',
+            streamClosed: true,
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+    )
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-control-injection'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+    await expect(async () => {
+      for await (const _entry of durability.read('-1')) {
+        // drain
+      }
+    }).rejects.toThrow(/CR\/LF/)
+  })
+
+  it('awaits external close and sends the protocol close header', async () => {
+    const closing = deferred<Response>()
+    const server = makeProtocolServer({
+      closeResponse: () => closing.promise,
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-close'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await durability.append([textChunk('x')])
+
+    const closePromise = durability.close()
+    let settled = false
+    void closePromise.then(() => {
+      settled = true
+    })
+    await vi.waitFor(() => expect(server.closeCount()).toBe(1))
+    expect(settled).toBe(false)
+    const closeRequest = server.requests.at(-1)
+    expect(closeRequest?.headers.get('Stream-Closed')).toBe('true')
+
+    closing.resolve(
+      new Response(null, {
+        status: 204,
+        headers: createHeaders('opaque::closed', true),
+      }),
+    )
+    await expect(closePromise).resolves.toBeUndefined()
+  })
+
+  it('surfaces close and read HTTP failures', async () => {
+    const closeServer = makeProtocolServer({
+      closeResponse: async () => new Response(null, { status: 503 }),
+    })
+    const closeDurability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-close-error'),
+      { server: 'https://ds.test', fetch: closeServer.fetchStub },
+    )
+    await closeDurability.append([textChunk('x')])
+    await expect(closeDurability.close()).rejects.toThrow(/failed to close/)
+
+    const readServer = makeProtocolServer({ readStatus: 502 })
+    const readDurability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-read-error'),
+      { server: 'https://ds.test', fetch: readServer.fetchStub },
+    )
+    await expect(async () => {
+      for await (const _entry of readDurability.read('-1')) {
+        // drain
+      }
+    }).rejects.toThrow(/failed to read/)
+  })
+
+  it.each([
+    ['next offset', createHeaders(null, true)],
+    ['closed state', createHeaders('opaque::closed', false)],
+  ])(
+    'rejects a successful close response missing its %s',
+    async (_name, headers) => {
+      const server = makeProtocolServer({
+        closeResponse: async () => new Response(null, { status: 204, headers }),
+      })
+      const durability = durableStream(
+        new Request('https://app.test/api/chat?runId=run-invalid-close'),
+        { server: 'https://ds.test', fetch: server.fetchStub },
+      )
+      await durability.append([textChunk('x')])
+
+      await expect(durability.close()).rejects.toThrow(/close response/i)
+    },
+  )
+
+  it('retries close after a transient failure', async () => {
+    let closeAttempt = 0
+    const server = makeProtocolServer({
+      closeResponse: async () => {
+        closeAttempt += 1
+        return closeAttempt === 1
+          ? new Response(null, { status: 503 })
+          : new Response(null, {
+              status: 204,
+              headers: createHeaders('opaque::closed', true),
+            })
+      },
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-close-retry'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await durability.append([textChunk('x')])
+
+    await expect(durability.close()).rejects.toThrow(/failed to close/i)
+    await expect(durability.close()).resolves.toBeUndefined()
+    expect(server.closeCount()).toBe(2)
+  })
+
+  it.each([
+    [
+      'closed control',
+      controlEvent({ streamNextOffset: 'opaque::closed', streamClosed: true }),
+    ],
+    ['parse failure', 'event: unexpected\ndata: {}\n\n'],
+  ])('cancels the replay body after %s', async (_name, body) => {
+    const cancel = vi.fn<UnderlyingSourceCancelCallback>(() => undefined)
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(body))
+        },
+        cancel,
+      }),
+      { headers: { 'Content-Type': 'text/event-stream' } },
+    )
+    const fetchStub = vi.fn<typeof fetch>(async () => response)
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-cancel-body'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+
+    const consume = async () => {
+      for await (const _entry of durability.read('-1')) {
+        // drain
+      }
+    }
+    if (_name === 'parse failure') {
+      await expect(consume()).rejects.toThrow(/unexpected SSE event type/)
+    } else {
+      await expect(consume()).resolves.toBeUndefined()
+    }
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it(
+    'cancels a pending replay body when aborted',
+    { timeout: 500 },
+    async () => {
+      const cancel = vi.fn<UnderlyingSourceCancelCallback>(() => undefined)
+      const response = new Response(
+        new ReadableStream<Uint8Array>({ cancel }),
+        { headers: { 'Content-Type': 'text/event-stream' } },
+      )
+      const fetchStub = vi.fn<typeof fetch>(async () => response)
+      const durability = durableStream(
+        new Request('https://app.test/api/chat?runId=run-abort-body'),
+        { server: 'https://ds.test', fetch: fetchStub },
+      )
+      const controller = new AbortController()
+      const iterator = durability
+        .read('-1', controller.signal)
+        [Symbol.asyncIterator]()
+      const next = iterator.next()
+
+      await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledOnce())
+      controller.abort()
+
+      await expect(next).resolves.toEqual({ done: true, value: undefined })
+      expect(cancel).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('propagates read abort and ends the iterator cleanly', async () => {
+    const fetchStub = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal
+          if (!signal) throw new Error('Expected a read abort signal')
+          signal.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          )
+        }),
+    )
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-abort'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+    const controller = new AbortController()
+    const iterator = durability
+      .read('-1', controller.signal)
+      [Symbol.asyncIterator]()
+    const next = iterator.next()
+
+    await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledOnce())
+    controller.abort()
+    await expect(next).resolves.toEqual({ done: true, value: undefined })
   })
 })
 
-// Finding 1: the client-facing SSE ids on a FRESH run must be the offsets the
-// backend actually assigns (here, non-1-based 1000/1007/1014…), and a reconnect
-// carrying one of those backend offsets must resume correctly.
-describe('durableStream + toServerSentEventsResponse (backend-offset ids)', () => {
-  function textStream(deltas: Array<string>): AsyncIterable<StreamChunk> {
-    return {
-      async *[Symbol.asyncIterator]() {
-        for (const d of deltas) yield textChunk(d)
-      },
-    }
-  }
-
-  async function sseIds(res: Response): Promise<Array<string | undefined>> {
-    return parseSseEvents(await readBody(res)).map((e) => e.id)
-  }
-
-  it('tags fresh-run events with the backend offsets (not a 1-based counter)', async () => {
-    const { fetchStub } = makeNon1BasedDsServer()
-    const durability = durableStream(
-      new Request('https://app.test/api/chat?runId=run-x', { method: 'POST' }),
-      { server: 'https://ds.test', fetch: fetchStub },
-    )
-    // batch:1 so every chunk flushes as its own append and carries a backend id.
-    const res = toServerSentEventsResponse(textStream(['1', '2', '3']), {
-      durability: { adapter: durability, batch: 1 },
+describe('durableStream exact-once resume', () => {
+  it('resumes mid-way through a coalesced data batch without gaps or duplicates', async () => {
+    const server = makeProtocolServer({
+      createOffset: 'opaque::batch-start/A?token=%2F+==',
+      appendOffsets: ['opaque::batch-end/Z?token=%3D'],
     })
-    expect(await sseIds(res)).toEqual([
-      encodeOffset('run-x', 1000),
-      encodeOffset('run-x', 1007),
-      encodeOffset('run-x', 1014),
-    ])
-  })
-
-  it('resumes from a backend offset carried in Last-Event-ID', async () => {
-    const { fetchStub } = makeNon1BasedDsServer()
-    // Produce the full run first.
-    await readBody(
-      toServerSentEventsResponse(textStream(['1', '2', '3']), {
-        durability: {
-          adapter: durableStream(
-            new Request('https://app.test/api/chat?runId=run-x', {
-              method: 'POST',
-            }),
-            { server: 'https://ds.test', fetch: fetchStub },
-          ),
-          batch: 1,
-        },
-      }),
+    const full = ['a', 'b', 'c', 'd', 'e', 'f']
+    const producer = durableStream(
+      new Request('https://app.test/api/chat?runId=run-exact-once'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    const produced = parseTransportEvents(
+      await readBody(
+        toServerSentEventsResponse(textStream(full), {
+          durability: { adapter: producer },
+        }),
+      ),
     )
 
-    // Reconnect at the backend offset 1007; the input stream must NOT be
-    // iterated on resume.
+    expect(server.batches).toHaveLength(1)
+    expect(produced.every((event) => event.id !== undefined)).toBe(true)
+    const beforeDrop = produced.slice(0, 2)
+    const resumeOffset = beforeDrop.at(-1)?.id
+    if (!resumeOffset) throw new Error('Expected a resume offset')
+    expect(decodeURIComponent(resumeOffset)).not.toContain('runId')
     const exploding: AsyncIterable<StreamChunk> = {
       [Symbol.asyncIterator]() {
         return {
@@ -428,105 +1021,28 @@ describe('durableStream + toServerSentEventsResponse (backend-offset ids)', () =
       },
     }
     const reconnect = durableStream(
-      new Request('https://app.test/api/chat', {
-        method: 'POST',
-        headers: { 'Last-Event-ID': encodeOffset('run-x', 1007) },
+      new Request('https://app.test/api/chat?runId=run-exact-once', {
+        headers: { 'Last-Event-ID': resumeOffset },
       }),
-      { server: 'https://ds.test', fetch: fetchStub },
+      { server: 'https://ds.test', fetch: server.fetchStub },
     )
-    const res = toServerSentEventsResponse(exploding, {
-      durability: { adapter: reconnect },
-    })
-    const events = parseSseEvents(await readBody(res))
-    expect(events.map((e) => e.id)).toEqual([encodeOffset('run-x', 1014)])
-    expect(events.map((e) => JSON.parse(e.data).delta)).toEqual(['3'])
-  })
-})
-
-// Finding 1 (exactly-once): with the DEFAULT batch (>1), an entire short run is
-// one `append` call. Per-chunk POSTing tags EVERY chunk with its own backend
-// offset, so a mid-batch drop (including a drop within the very first batch)
-// resumes at the exact chunk it dropped on — each chunk is delivered exactly
-// once, no dup and no skip. The old per-batch tagging left every non-last chunk
-// id-less, so this fails against it (and it must NOT be weakened to batch:1).
-describe('durableStream — exactly-once across a mid-batch reconnect', () => {
-  function textStream(deltas: Array<string>): AsyncIterable<StreamChunk> {
-    return {
-      async *[Symbol.asyncIterator]() {
-        for (const d of deltas) yield textChunk(d)
-      },
-    }
-  }
-
-  it('delivers each chunk exactly once when the socket drops mid-first-batch', async () => {
-    const { fetchStub } = makeNon1BasedDsServer()
-    const full = ['a', 'b', 'c', 'd', 'e', 'f']
-
-    // Produce the whole run with the DEFAULT batch (no `batch` option). All 6
-    // chunks (< 32) buffer into a single `append`; the fix POSTs them one-by-one
-    // so each gets its own backend offset (1000, 1007, 1014, …).
-    const produced = parseSseEvents(
-      await readBody(
-        toServerSentEventsResponse(textStream(full), {
-          durability: {
-            adapter: durableStream(
-              new Request('https://app.test/api/chat?runId=run-eo', {
-                method: 'POST',
-              }),
-              { server: 'https://ds.test', fetch: fetchStub },
-            ),
-          },
-        }),
-      ),
-    )
-
-    // Core of the fix: EVERY chunk in the batch carries a resume id. Under the
-    // old per-batch tagging only the last chunk did (the rest were id-less), so
-    // this assertion fails against the pre-fix code.
-    expect(produced).toHaveLength(6)
-    expect(produced.every((e) => e.id !== undefined)).toBe(true)
-    expect(produced.map((e) => JSON.parse(e.data).delta)).toEqual(full)
-
-    // Simulate a socket drop MID-BATCH after receiving only the first 2 chunks
-    // (well within the single 6-chunk first batch). The client's last-seen id is
-    // the 2nd chunk's backend offset — defined only because of per-chunk tagging.
-    const beforeDrop = produced.slice(0, 2)
-    const lastSeenId = beforeDrop.at(-1)?.id
-    expect(lastSeenId).toBeDefined()
-
-    // Reconnect carrying that id as Last-Event-ID; the input stream must NOT be
-    // re-iterated on resume (replay reads only from the backend).
-    const exploding: AsyncIterable<StreamChunk> = {
-      [Symbol.asyncIterator]() {
-        return {
-          next() {
-            throw new Error('input stream must not be iterated on resume')
-          },
-        }
-      },
-    }
-    const afterDrop = parseSseEvents(
+    const afterDrop = parseTransportEvents(
       await readBody(
         toServerSentEventsResponse(exploding, {
-          durability: {
-            adapter: durableStream(
-              new Request('https://app.test/api/chat', {
-                method: 'POST',
-                headers: { 'Last-Event-ID': lastSeenId! },
-              }),
-              { server: 'https://ds.test', fetch: fetchStub },
-            ),
-          },
+          durability: { adapter: reconnect },
         }),
       ),
     )
 
-    // What the joiner actually saw = pre-drop prefix + post-reconnect tail. The
-    // backend replays strictly AFTER the offset, so there is no overlap: each
-    // chunk appears exactly once, in order, with none skipped.
-    const received = [...beforeDrop, ...afterDrop].map(
-      (e) => JSON.parse(e.data).delta as string,
+    expect(
+      [...beforeDrop, ...afterDrop].map((event) => deltaFrom(event.data)),
+    ).toEqual(full)
+    const replayRequest = server.requests.find(
+      (request) => request.method === 'GET',
     )
-    expect(received).toEqual(full)
+    expect(replayRequest?.url.searchParams.get('offset')).toBe(
+      server.createOffset,
+    )
+    expect(server.closeCount()).toBe(1)
   })
 })

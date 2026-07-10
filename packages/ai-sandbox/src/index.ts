@@ -42,6 +42,7 @@ export type {
 export {
   WORKSPACE_PERSISTENCE_METADATA_SCOPE,
   workspacePersistenceArtifactId,
+  workspacePersistenceBlobKey,
   workspacePersistenceManifestKey,
 } from './workspace-persistence-types'
 export type {

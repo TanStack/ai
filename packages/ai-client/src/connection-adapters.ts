@@ -48,6 +48,13 @@ export class StreamTruncatedError extends Error {
   }
 }
 
+class StreamReadError extends Error {
+  constructor(cause: unknown) {
+    super('SSE response body read failed', { cause })
+    this.name = 'StreamReadError'
+  }
+}
+
 /**
  * Thrown when a durable (id-tagged) run's stream ends with no terminal event
  * and a reconnect makes no forward progress — the run cannot complete, so the
@@ -103,6 +110,21 @@ function mergeHeaders(
   return customHeaders
 }
 
+function withSearchParams(url: string, values: Record<string, string>): string {
+  const hashIndex = url.indexOf('#')
+  const hash = hashIndex === -1 ? '' : url.slice(hashIndex)
+  const withoutHash = hashIndex === -1 ? url : url.slice(0, hashIndex)
+  const queryIndex = withoutHash.indexOf('?')
+  const base =
+    queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex)
+  const search = new URLSearchParams(
+    queryIndex === -1 ? '' : withoutHash.slice(queryIndex + 1),
+  )
+  for (const [key, value] of Object.entries(values)) search.set(key, value)
+  const query = search.toString()
+  return `${base}${query.length === 0 ? '' : `?${query}`}${hash}`
+}
+
 /**
  * Read lines from a stream (newline-delimited)
  */
@@ -115,7 +137,14 @@ async function* readStreamLines(
     let buffer = ''
 
     while (!abortSignal?.aborted) {
-      const { done, value } = await reader.read()
+      let result: ReadableStreamReadResult<Uint8Array>
+      try {
+        result = await reader.read()
+      } catch (error) {
+        if (abortSignal?.aborted) return
+        throw new StreamReadError(error)
+      }
+      const { done, value } = result
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
@@ -159,7 +188,7 @@ async function* readStreamLines(
 /**
  * Yield StreamChunks parsed from an SSE Response body, each paired with the
  * `id:` offset of the SSE event it arrived on (if any). Delivery durability
- * tags every event with `id: <runId@seq>`; carrying that id up lets the
+ * tags every event with an adapter-owned opaque `id:`; carrying that id up lets the
  * resumable adapter track the last offset (for reconnect) and de-dupe replays.
  */
 async function* responseToSSEEvents(
@@ -228,7 +257,7 @@ async function* responseToSSEChunks(
 
 /**
  * Iterate an SSE endpoint with native-style resumability. Each SSE event's
- * `id:` (a `runId@seq` delivery-durability offset) is remembered; if the
+ * adapter-owned `id:` delivery-durability offset is remembered; if the
  * connection drops or ends before a terminal event, the request is re-issued
  * with a `Last-Event-ID` header so the server replays strictly after the last
  * offset. Already-seen offsets are de-duped, so an overlapping replay is safe.
@@ -283,7 +312,8 @@ async function* resumableServerSentEvents(
       // A truncated connection is resumable only if we have an offset and made
       // forward progress; otherwise surface the failure.
       if (
-        error instanceof StreamTruncatedError &&
+        (error instanceof StreamTruncatedError ||
+          error instanceof StreamReadError) &&
         lastEventId !== undefined &&
         progressed
       ) {
@@ -668,6 +698,9 @@ export function fetchServerSentEvents(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
+      const requestUrl = runContext?.runId
+        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
+        : resolvedUrl
 
       // Resumable SSE: if the server tags events with `id:` offsets (delivery
       // durability), a dropped/rolled-over connection auto-reconnects with a
@@ -675,7 +708,7 @@ export function fetchServerSentEvents(
       // this is a single plain fetch.
       yield* resumableServerSentEvents(
         fetchClient,
-        resolvedUrl,
+        requestUrl,
         {
           method: 'POST',
           headers: requestHeaders,
@@ -693,10 +726,10 @@ export function fetchServerSentEvents(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      const separator = resolvedUrl.includes('?') ? '&' : '?'
-      const joinUrl = `${resolvedUrl}${separator}offset=-1&runId=${encodeURIComponent(
+      const joinUrl = withSearchParams(resolvedUrl, {
+        offset: '-1',
         runId,
-      )}`
+      })
 
       const requestHeaders: Record<string, string> = {
         ...mergeHeaders(resolvedOptions.headers),

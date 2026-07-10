@@ -3,103 +3,108 @@ title: Persistence with Drizzle
 id: drizzle
 ---
 
-`@tanstack/ai-persistence-drizzle` is the batteries-included SQL backend for
-TanStack AI **state** persistence. It ships a Drizzle schema, drizzle-kit
-migrations, and two entry points that both return the same `AIPersistence`
-contract consumed by `withChatPersistence(...)` and `withGenerationPersistence(...)`.
+# Persistence with Drizzle
 
-- `sqlPersistence({ dialect, url, migrate })` — **batteries-included.** Give it a
-  dialect and a URL; it builds the database and applies the migrations bundled
-  in the package.
-- `drizzlePersistence(db)` — **bring your own.** Pass a Drizzle database you
-  already constructed and migrated against the exported `schema`.
+`@tanstack/ai-persistence-drizzle` supports SQLite-family Drizzle databases.
+It has two entry points:
 
-```sh
-pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-drizzle drizzle-orm
-```
+- the package root accepts an already-created, migrated `DrizzleDb` and is
+  safe to import in edge runtimes;
+- `/sqlite` is a Node-only convenience factory built on `node:sqlite`.
 
-## Batteries-included: `sqlPersistence`
+There is no dialect option. For MySQL, PostgreSQL, or another Drizzle dialect,
+implement the `AIPersistence` stores for that database or use the Prisma
+backend.
 
-For local development and single-node deployments, `sqlPersistence` is the
-fastest path. The `sqlite` dialect is bundled with pre-generated migrations, so
-`migrate: true` creates the schema on first use.
+## Node SQLite
 
 ```ts
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-export const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:./.tanstack-ai/state.sqlite',
+export const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
-
-export const middleware = withChatPersistence(persistence)
 ```
 
-Use `url: ':memory:'` for tests. For production, generate and review the
-migrations ahead of time (see below) and leave `migrate` unset so the schema is
-deployed by your own pipeline rather than lazily at runtime.
+`url` may be `:memory:`, a filesystem path, or a `file:`-prefixed path.
+`migrate: true` applies the bundled migrations before creating stores. Prefer
+deployment-time migrations in production.
 
-## Bring your own: `drizzlePersistence`
+## Bring your own SQLite Drizzle database
 
-When Drizzle already owns your database connection and migration workflow, pass
-your `db` directly. This works with any Drizzle sqlite driver
-(`better-sqlite3`, `libsql`/Turso, D1, `node:sqlite`).
+```ts
+import { drizzle } from 'drizzle-orm/d1'
+import {
+  drizzlePersistence,
+  schema,
+} from '@tanstack/ai-persistence-drizzle'
 
-```ts ignore
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import Database from 'better-sqlite3'
-import { drizzlePersistence, schema } from '@tanstack/ai-persistence-drizzle'
+declare const env: { AI_STATE: D1Database }
+
+const db = drizzle(env.AI_STATE, { schema })
+export const persistence = drizzlePersistence(db)
+```
+
+The root entry does not import Node built-ins and works with Cloudflare D1 and
+other SQLite-compatible Drizzle drivers. The application owns connection
+lifecycle and migration timing.
+
+## Use the middleware
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { withChatPersistence } from '@tanstack/ai-persistence'
 
-const db = drizzle(new Database('state.sqlite'), { schema })
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    middleware: [withChatPersistence(persistence)],
+  })
 
-export const persistence = drizzlePersistence(db)
-export const middleware = withChatPersistence(persistence)
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-The package re-exports the `schema` (and each table) so you can compose it into
-your own Drizzle schema and drive migrations from your existing setup.
+`drizzlePersistence` provides all state stores. Its lock store is in-process;
+use `composePersistence` to replace `locks` when multiple workers need a shared
+lock service.
 
-## Generate migrations with drizzle-kit
+## Get the migrations
 
-The schema is the single source of truth for migrations. The package ships a
-`drizzle.config.ts`; regenerate the SQL under `drizzle/` after any schema change:
+The package exports the ordered `sqliteMigrations` manifest:
 
-```sh
-pnpm --filter @tanstack/ai-persistence-drizzle db:generate
+```ts
+import { sqliteMigrations } from '@tanstack/ai-persistence-drizzle'
+
+for (const migration of sqliteMigrations) {
+  console.log(migration.id, migration.filename)
+}
 ```
 
-For a bring-your-own database, point drizzle-kit at the exported schema in your
-own `drizzle.config.ts` and run `drizzle-kit generate` / `drizzle-kit migrate`
-through your normal workflow. See [Migrations](./migrations) for the full flow.
+Or copy canonical SQL files with the CLI:
 
-## What is persisted
+```bash
+pnpm exec tanstack-ai-drizzle-migrations --out migrations/tanstack-ai
+```
 
-The schema mirrors the `AIPersistence` state records column-for-column:
+Use `--stdout` to print the SQL. The CLI refuses to replace a divergent file
+unless `--force` is passed. Commit the copied files and apply them using your
+normal SQLite, D1, or Drizzle deployment workflow.
 
-- `messages` — thread message history
-- `runs` — run lifecycle (status, usage, timing)
-- `interrupts` — interrupts / approvals
-- `metadata` — scoped key/value metadata
-- `artifacts` — generation artifact references
-- `blobs` — generic blob objects
+## Schema ownership
 
-Delivery durability (resuming an interrupted stream) is a **transport** concern
-and is not stored here. Locks are not part of the SQL schema; an in-memory lock
-is provided as a dev default. Swap in a distributed lock for multi-process
-deployments via [Custom Stores](./custom-stores).
-
-## Use it across the guides
-
-The same Drizzle-backed `AIPersistence` object works across the topic guides:
-
-- [Chat Persistence](./chat-persistence) for server-owned transcripts.
-- [Persistence Controls](./controls) when you need to choose a feature list.
-- [Custom Stores](./custom-stores) when you want Drizzle for SQL state but a
-  separate object store for blobs.
-
-Other dialects (`postgres`, `mysql`) are bring-your-own today: construct a
-Drizzle db with your own driver and use `drizzlePersistence(db)` with migrations
-generated from the exported `schema`.
+The exported `schema` contains `messages`, `runs`, `interrupts`, `metadata`,
+`artifacts`, and `blobs`. Artifact rows contain metadata; blob bodies are stored
+in the separate blob table. Application tables may live beside these tables in
+the same database.

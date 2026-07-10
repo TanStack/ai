@@ -37,25 +37,26 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
-MYSQL_URL=mysql://root:password@127.0.0.1:3306/tanstack_ai_chat
+SQLITE_CHAT_DB_URL=file:./sqlite-chat-persistence.db
 ```
 
-## MySQL Persistence Demo
+## SQLite Persistence Demo
 
-The `/mysql-persistence` route demonstrates durable chat resume with MySQL.
-Create a database, set either `MYSQL_URL` or the individual `MYSQL_HOST`,
-`MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` variables,
-then run the app and open `/mysql-persistence`.
+The `/sqlite-persistence` route demonstrates server state persistence with the
+Node SQLite adapter and browser hydration with `localStorage`. Set
+`SQLITE_CHAT_DB_URL` or use the default `file:./sqlite-chat-persistence.db`,
+then run the app and open `/sqlite-persistence`.
 
-```sql
-CREATE DATABASE tanstack_ai_chat;
-```
+The server uses `@tanstack/ai-persistence-drizzle/sqlite` for messages, runs,
+and interrupts. The client stores rendered messages and its lightweight
+interrupt resume snapshot separately. Refresh after a completed response to
+see both sides hydrate the same stable thread.
 
-The example stores messages, durable replay events, and interrupts through
-`@tanstack/ai-persistence-sql`. Refresh while a response is streaming to
-continue tailing the in-progress run from MySQL within the same dev/server
-process. Reattaching to a producer after restarting the server process is out
-of scope for this example.
+SSE delivery durability is configured independently with the process-local
+`memoryStream` adapter. It can replay a transiently dropped connection while
+the dev server remains alive, but it does not survive a server restart and it
+does not store a cursor in browser persistence. Use an external delivery
+adapter for horizontally scaled production deployments.
 
 ## Trying Out Lazy Tool Discovery
 

@@ -1,126 +1,131 @@
-import { decodeOffset, encodeOffset } from '@tanstack/ai'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
-/**
- * Options for {@link durableStream}.
- */
-export interface DurableStreamOptions {
-  /** Base URL of the durable-streams server (no trailing slash needed). */
-  server: string
-  /**
-   * Prefix for the stream name (`{prefix}/{runId}`). Defaults to `runs`, so a
-   * run lands at `runs/{runId}`.
-   */
-  streamPrefix?: string
-  /**
-   * `fetch` implementation to use. Defaults to the global `fetch`. Injectable
-   * for testing and for wiring a custom transport / auth layer.
-   */
-  fetch?: typeof globalThis.fetch
+declare const durableStreamCursorBrand: unique symbol
+
+/** A validated, versioned offset produced by this adapter. */
+type DurableStreamCursor = string & {
+  readonly [durableStreamCursorBrand]: true
 }
 
-/** One parsed SSE event from a durable-streams read. */
+/** Adapter offsets also include the Durable Streams protocol sentinels. */
+export type DurableStreamOffset = DurableStreamCursor | '-1' | 'now'
+
+export interface DurableStreamOptions {
+  /** Base URL of the Durable Streams server (no trailing slash needed). */
+  server: string
+  /** Stream-name prefix. Defaults to `runs`. */
+  streamPrefix?: string
+  /** Fetch implementation. Defaults to the global fetch. */
+  fetch?: typeof globalThis.fetch
+  /**
+   * Headers applied to every create, append, read, and close request. A
+   * resolver is called for every request so credentials can rotate.
+   */
+  headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>)
+}
+
+export class DurableStreamError extends Error {
+  override name = 'DurableStreamError'
+
+  constructor(message: string) {
+    super(`durableStream: ${message}`)
+  }
+}
+
 interface SseEvent {
-  id?: string
   event?: string
   data?: string
 }
 
-/** Read a byte `ReadableStream` as `\n`-delimited lines (blank lines included). */
-async function* readLines(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const parts = buffer.split('\n')
-      buffer = parts.pop() ?? ''
-      for (const raw of parts) {
-        yield raw.endsWith('\r') ? raw.slice(0, -1) : raw
-      }
-    }
-    if (buffer) {
-      yield buffer.endsWith('\r') ? buffer.slice(0, -1) : buffer
-    }
-  } finally {
-    reader.releaseLock()
+interface WireRecord {
+  v: 1
+  seq: number
+  chunk: StreamChunk
+}
+
+interface CursorPayload {
+  v: 1
+  backendOffset: string
+  seq: number
+}
+
+interface ControlFrame {
+  streamNextOffset: string
+  streamCursor?: string
+  upToDate?: boolean
+  streamClosed?: boolean
+}
+
+const CURSOR_PREFIX = 'tanstack-ai-ds:v1:'
+const READ_ABORTED = Symbol('read aborted')
+
+class ResponseBodyReadFailure extends Error {
+  override name = 'ResponseBodyReadFailure'
+
+  constructor(readonly readError: unknown) {
+    super('response body read failed')
   }
 }
 
-/**
- * Parse an SSE `ReadableStream` into discrete events. Events are separated by a
- * blank line; `id:` / `event:` / `data:` fields are collected per event. `:`
- * comment lines (proxy/CDN keepalives) are skipped. A final event not
- * terminated by a trailing blank line is still flushed.
- */
-async function* parseSseEvents(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<SseEvent> {
-  let current: SseEvent = {}
-  let hasField = false
-
-  for await (const line of readLines(body)) {
-    if (line === '') {
-      if (hasField) {
-        yield current
-        current = {}
-        hasField = false
-      }
-      continue
-    }
-    if (line.startsWith(':')) continue
-    const colon = line.indexOf(':')
-    const field = colon === -1 ? line : line.slice(0, colon)
-    let value = colon === -1 ? '' : line.slice(colon + 1)
-    if (value.startsWith(' ')) value = value.slice(1)
-    if (field === 'id') current.id = value
-    else if (field === 'event') current.event = value
-    else if (field === 'data') {
-      current.data =
-        current.data === undefined ? value : `${current.data}\n${value}`
-    }
-    hasField = true
+function assertTransportField(value: string, name: string): string {
+  if (value.trim().length === 0 || /[\r\n]/.test(value)) {
+    throw new DurableStreamError(
+      `${name} must be non-empty and contain no CR/LF`,
+    )
   }
-  if (hasField) yield current
+  return value
 }
 
-/** Extract the seq token (`-1` / `now` / a number) from a `runId@seq` offset. */
-function offsetToken(offset: string): string {
-  return offset.includes('@')
-    ? offset.slice(offset.lastIndexOf('@') + 1)
-    : offset
+function assertRunId(value: string): string {
+  return assertTransportField(value, 'runId')
 }
 
-/**
- * Interpret a live-read `event: control` frame's `data`. A rollover frame
- * carries `{ offset }` (resume the read from there across a live-window
- * boundary); a close frame carries `{ closed: true }` (the server finalized the
- * stream). Anything else — absent data, invalid JSON, or an object with neither
- * signal — yields `{}`, which the caller treats as malformed.
- */
-function parseControlFrame(data: string | undefined): {
-  offset?: string
-  closed?: boolean
-} {
-  if (data === undefined) return {}
+function isDurableStreamCursor(value: string): value is DurableStreamCursor {
+  return value.startsWith(CURSOR_PREFIX)
+}
+
+function isCursorPayload(value: unknown): value is CursorPayload {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'v' in value &&
+    value.v === 1 &&
+    'backendOffset' in value &&
+    typeof value.backendOffset === 'string' &&
+    'seq' in value &&
+    typeof value.seq === 'number' &&
+    Number.isSafeInteger(value.seq) &&
+    value.seq > 0
+  )
+}
+
+function encodeCursor(payload: CursorPayload): DurableStreamCursor {
+  assertTransportField(payload.backendOffset, 'backend offset')
+  if (!Number.isSafeInteger(payload.seq) || payload.seq < 1) {
+    throw new DurableStreamError(`invalid record sequence: ${payload.seq}`)
+  }
+  const cursor = `${CURSOR_PREFIX}${encodeURIComponent(JSON.stringify(payload))}`
+  if (!isDurableStreamCursor(cursor)) {
+    throw new DurableStreamError('failed to encode cursor')
+  }
+  return cursor
+}
+
+function decodeCursor(cursor: string): CursorPayload {
+  if (!isDurableStreamCursor(cursor)) {
+    throw new DurableStreamError('invalid or unsupported resume offset')
+  }
   let parsed: unknown
   try {
-    parsed = JSON.parse(data)
+    parsed = JSON.parse(decodeURIComponent(cursor.slice(CURSOR_PREFIX.length)))
   } catch {
-    return {}
+    throw new DurableStreamError('invalid or unsupported resume offset')
   }
-  if (typeof parsed !== 'object' || parsed === null) return {}
-  const result: { offset?: string; closed?: boolean } = {}
-  const offset = (parsed as { offset?: unknown }).offset
-  if (typeof offset === 'string') result.offset = offset
-  const closed = (parsed as { closed?: unknown }).closed
-  if (closed === true) result.closed = true
-  return result
+  if (!isCursorPayload(parsed)) {
+    throw new DurableStreamError('invalid or unsupported resume offset')
+  }
+  assertTransportField(parsed.backendOffset, 'backend offset')
+  return parsed
 }
 
 function safeSearchParam(request: Request, key: string): string | null {
@@ -131,197 +136,499 @@ function safeSearchParam(request: Request, key: string): string | null {
   }
 }
 
-/**
- * A {@link StreamDurability} backed by the
- * [durable-streams](https://durablestreams.com) HTTP protocol. We own **zero**
- * delivery-event storage — the durable-streams server owns the bytes (its own
- * WAL / group-commit), and this adapter is a thin append/read/resume shim.
- *
- * - `runId()` — fresh: minted; resume: parsed from `Last-Event-ID` / `?offset`.
- * - stream name — `${streamPrefix ?? 'runs'}/${runId}`.
- * - `append` — `PUT` the stream once (idempotent create), then `POST` each chunk
- *   INDIVIDUALLY (sequential awaited POSTs preserve order); every chunk is tagged
- *   with its OWN backend offset (from that POST's `Stream-Next-Offset`), so the
- *   returned offset array is fully populated (one resume offset per chunk) and
- *   exactly-once holds at any batch size. durable-streams is built for
- *   high-throughput per-append writes with server-side group-commit, so
- *   one-POST-per-chunk is the intended usage.
- * - `read` — `GET ?offset=&live=sse`, parsing `data` events into `{ seq, chunk }`
- *   and reconnecting across the CDN live-window boundary via the last offset. The
- *   `id:` the server replays for chunk i equals the offset `append` tagged chunk
- *   i with on the fresh pass — the invariant that makes resume exactly-once.
- *
- * @example
- * ```ts
- * import { toServerSentEventsResponse } from '@tanstack/ai'
- * import { durableStream } from '@tanstack/ai-durable-stream'
- *
- * export async function POST(request: Request) {
- *   const stream = chat({ adapter, model: 'gpt-5.5', messages })
- *   return toServerSentEventsResponse(stream, {
- *     durability: { adapter: durableStream(request, { server: process.env.DS_URL! }) },
- *   })
- * }
- * ```
- */
+function parseResumeOffset(raw: string | null): DurableStreamOffset | null {
+  if (raw === null || raw === '-1' || raw === 'now') return raw
+  decodeCursor(raw)
+  if (!isDurableStreamCursor(raw)) {
+    throw new DurableStreamError('invalid or unsupported resume offset')
+  }
+  return raw
+}
+
+async function* readLines(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal,
+): AsyncGenerator<string> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let completed = false
+  let cancelled = false
+  let readFailed = false
+  try {
+    for (;;) {
+      let result: ReadableStreamReadResult<Uint8Array> | typeof READ_ABORTED
+      try {
+        result = await readWithAbort(reader, signal)
+      } catch (error) {
+        readFailed = true
+        throw new ResponseBodyReadFailure(error)
+      }
+      if (result === READ_ABORTED) {
+        cancelled = true
+        await reader.cancel(signal?.reason)
+        return
+      }
+      if (result.done) {
+        completed = true
+        break
+      }
+      buffer += decoder.decode(result.value, { stream: true })
+      const parts = buffer.split('\n')
+      buffer = parts.pop() ?? ''
+      for (const raw of parts) {
+        yield raw.endsWith('\r') ? raw.slice(0, -1) : raw
+      }
+    }
+    buffer += decoder.decode()
+    if (buffer.length > 0) {
+      yield buffer.endsWith('\r') ? buffer.slice(0, -1) : buffer
+    }
+  } finally {
+    try {
+      if (!completed && !cancelled && !readFailed) await reader.cancel()
+    } finally {
+      reader.releaseLock()
+    }
+  }
+}
+
+function readWithAbort(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal | undefined,
+): Promise<ReadableStreamReadResult<Uint8Array> | typeof READ_ABORTED> {
+  if (!signal) return reader.read()
+  if (signal.aborted) return Promise.resolve(READ_ABORTED)
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      resolve(READ_ABORTED)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    reader.read().then(
+      (result) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function* parseSseEvents(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal,
+): AsyncGenerator<SseEvent> {
+  let current: SseEvent = {}
+  let hasField = false
+
+  for await (const line of readLines(body, signal)) {
+    if (line === '') {
+      if (hasField) yield current
+      current = {}
+      hasField = false
+      continue
+    }
+    if (line.startsWith(':')) continue
+
+    const colon = line.indexOf(':')
+    const field = colon === -1 ? line : line.slice(0, colon)
+    let value = colon === -1 ? '' : line.slice(colon + 1)
+    if (value.startsWith(' ')) value = value.slice(1)
+    if (field === 'event') {
+      current.event = value
+      hasField = true
+    } else if (field === 'data') {
+      current.data =
+        current.data === undefined ? value : `${current.data}\n${value}`
+      hasField = true
+    }
+  }
+  if (hasField) yield current
+}
+
+function isStreamChunk(value: unknown): value is StreamChunk {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof value.type === 'string'
+  )
+}
+
+function isWireRecord(value: unknown): value is WireRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'v' in value &&
+    value.v === 1 &&
+    'seq' in value &&
+    typeof value.seq === 'number' &&
+    Number.isSafeInteger(value.seq) &&
+    value.seq > 0 &&
+    'chunk' in value &&
+    isStreamChunk(value.chunk)
+  )
+}
+
+function parseDataRecords(data: string | undefined): Array<WireRecord> {
+  if (data === undefined) {
+    throw new DurableStreamError('data event had no payload')
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    throw new DurableStreamError('data event contained invalid JSON')
+  }
+  if (!Array.isArray(parsed)) {
+    throw new DurableStreamError('data event payload must be a JSON array')
+  }
+  const records: Array<WireRecord> = []
+  for (const value of parsed) {
+    if (!isWireRecord(value)) {
+      throw new DurableStreamError('data event contained an invalid record')
+    }
+    records.push(value)
+  }
+  return records
+}
+
+function optionalBoolean(
+  value: object,
+  name: 'upToDate' | 'streamClosed',
+): boolean | undefined {
+  const field =
+    name === 'upToDate'
+      ? 'upToDate' in value
+        ? value.upToDate
+        : undefined
+      : 'streamClosed' in value
+        ? value.streamClosed
+        : undefined
+  if (field === undefined) return undefined
+  if (typeof field !== 'boolean') {
+    throw new DurableStreamError(`control field ${name} must be boolean`)
+  }
+  return field
+}
+
+function parseControlFrame(data: string | undefined): ControlFrame {
+  if (data === undefined) {
+    throw new DurableStreamError('control event had no payload')
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    throw new DurableStreamError('control event contained invalid JSON')
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new DurableStreamError('control event payload must be an object')
+  }
+  if (
+    !('streamNextOffset' in parsed) ||
+    typeof parsed.streamNextOffset !== 'string'
+  ) {
+    throw new DurableStreamError(
+      'control event requires string streamNextOffset',
+    )
+  }
+  const streamNextOffset = assertTransportField(
+    parsed.streamNextOffset,
+    'control streamNextOffset',
+  )
+  let streamCursor: string | undefined
+  if ('streamCursor' in parsed) {
+    if (typeof parsed.streamCursor !== 'string') {
+      throw new DurableStreamError('control streamCursor must be a string')
+    }
+    streamCursor = assertTransportField(
+      parsed.streamCursor,
+      'control streamCursor',
+    )
+  }
+  const upToDate = optionalBoolean(parsed, 'upToDate')
+  const streamClosed = optionalBoolean(parsed, 'streamClosed')
+  if (streamClosed !== true && streamCursor === undefined) {
+    throw new DurableStreamError(
+      'open control event requires string streamCursor',
+    )
+  }
+  return {
+    streamNextOffset,
+    ...(streamCursor === undefined ? {} : { streamCursor }),
+    ...(upToDate === undefined ? {} : { upToDate }),
+    ...(streamClosed === undefined ? {} : { streamClosed }),
+  }
+}
+
+function requireNextOffset(response: Response, operation: string): string {
+  const offset = response.headers.get('Stream-Next-Offset')
+  if (offset === null || offset.trim().length === 0) {
+    throw new DurableStreamError(
+      `${operation} response missing non-empty Stream-Next-Offset`,
+    )
+  }
+  return assertTransportField(offset, `${operation} Stream-Next-Offset`)
+}
+
+function httpFailure(
+  operation: string,
+  response: Response,
+): DurableStreamError {
+  return new DurableStreamError(
+    `failed to ${operation} (${response.status} ${response.statusText})`,
+  )
+}
+
+/** External-URL Durable Streams protocol adapter. */
 export function durableStream(
   request: Request,
   options: DurableStreamOptions,
-): StreamDurability {
+): StreamDurability<DurableStreamOffset> {
   const fetchFn = options.fetch ?? globalThis.fetch
-  const prefix = options.streamPrefix ?? 'runs'
-  // Validate the server as an absolute URL at construction, so a malformed
-  // base fails loudly here rather than surfacing later as an opaque fetch
-  // error deep inside `append` / `read`.
+  assertTransportField(options.server, 'server URL')
   try {
     void new URL(options.server)
   } catch {
-    throw new Error(
-      `durableStream: invalid server URL: ${JSON.stringify(options.server)}`,
+    throw new DurableStreamError(
+      `invalid server URL: ${JSON.stringify(options.server)}`,
     )
   }
-  const server = options.server.replace(/\/$/, '')
-
-  const resumeOffset =
+  const server = options.server.replace(/\/+$/, '')
+  const prefix = assertTransportField(
+    options.streamPrefix ?? 'runs',
+    'streamPrefix',
+  )
+  const rawResumeOffset =
     request.headers.get('Last-Event-ID') ?? safeSearchParam(request, 'offset')
+  const resumeOffset = parseResumeOffset(rawResumeOffset)
+  const requestedRunId = safeSearchParam(request, 'runId')
+  if (resumeOffset !== null && requestedRunId === null) {
+    throw new DurableStreamError('resume offset requires a runId')
+  }
+  const runId = assertRunId(requestedRunId ?? crypto.randomUUID())
 
-  let cachedRunId: string | undefined
-  const runId = (): string => {
-    if (cachedRunId === undefined) {
-      if (resumeOffset && resumeOffset.includes('@')) {
-        cachedRunId = decodeOffset(resumeOffset).runId
-      } else {
-        cachedRunId = safeSearchParam(request, 'runId') ?? crypto.randomUUID()
-      }
+  const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
+  let createPromise: Promise<string> | undefined
+  let appendTailOffset: string | undefined
+  let nextSeq = 1
+  const producerId = crypto.randomUUID()
+  const producerEpoch = 0
+  let producerSeq = 0
+  let closePromise: Promise<void> | undefined
+
+  const resolveHeaders = async (required?: HeadersInit): Promise<Headers> => {
+    const configured =
+      typeof options.headers === 'function'
+        ? await options.headers()
+        : options.headers
+    const headers = new Headers(configured)
+    if (required) {
+      new Headers(required).forEach((value, key) => headers.set(key, value))
     }
-    return cachedRunId
+    return headers
   }
 
-  const streamUrl = (): string =>
-    `${server}/streams/${encodeURIComponent(`${prefix}/${runId()}`)}`
-
-  let created = false
-  const ensureCreated = async (): Promise<void> => {
-    if (created) return
-    // Idempotent create. A repeat PUT (e.g. a second server instance for the
-    // same run) is a server-side no-op.
-    const res = await fetchFn(streamUrl(), { method: 'PUT' })
-    if (!res.ok) {
-      throw new Error(
-        `durableStream: failed to create stream (${res.status} ${res.statusText})`,
-      )
-    }
-    created = true
+  const ensureCreated = (): Promise<string> => {
+    if (createPromise) return createPromise
+    createPromise = (async () => {
+      const response = await fetchFn(streamUrl, {
+        method: 'PUT',
+        headers: await resolveHeaders({ 'Content-Type': 'application/json' }),
+      })
+      if (!response.ok) throw httpFailure('create stream', response)
+      const offset = requireNextOffset(response, 'create')
+      appendTailOffset = offset
+      return offset
+    })().catch((error: unknown) => {
+      createPromise = undefined
+      throw error
+    })
+    return createPromise
   }
 
   return {
     resumeFrom: () => resumeOffset,
-    runId,
-    append: async (chunks, startSeq) => {
-      await ensureCreated()
-      // POST each chunk INDIVIDUALLY (sequential awaited POSTs preserve order)
-      // and capture EACH message's own backend offset from its response's
-      // `Stream-Next-Offset`. This yields a fully-populated per-chunk offset
-      // array — every chunk carries a backend-addressable resume id — so a
-      // mid-batch reconnect resumes at the exact chunk it dropped on and
-      // exactly-once holds at ANY batch size (the transport `batch` option only
-      // controls how many chunks are handed to one `append` call; we POST them
-      // one-by-one internally). The tagged offset MUST equal the `id:` the
-      // server will emit for that same chunk on a GET replay, so the fresh path
-      // and the resume path share one key space.
-      const id = runId()
-      const offsets: Array<string> = []
-      for (let i = 0; i < chunks.length; i++) {
-        const res = await fetchFn(streamUrl(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([chunks[i]]),
-        })
-        if (!res.ok) {
-          throw new Error(
-            `durableStream: failed to append (${res.status} ${res.statusText})`,
+    append: async (chunks) => {
+      if (chunks.length === 0) return []
+      const batchStartOffset = appendTailOffset ?? (await ensureCreated())
+      const firstSeq = nextSeq
+      const records = chunks.map(
+        (chunk, index): WireRecord => ({
+          v: 1,
+          seq: firstSeq + index,
+          chunk,
+        }),
+      )
+      nextSeq += records.length
+      const requestProducerSeq = producerSeq
+      producerSeq += 1
+      const requestInit: RequestInit = {
+        method: 'POST',
+        headers: await resolveHeaders({
+          'Content-Type': 'application/json',
+          'Producer-Id': producerId,
+          'Producer-Epoch': String(producerEpoch),
+          'Producer-Seq': String(requestProducerSeq),
+        }),
+        body: JSON.stringify(records),
+      }
+      let response: Response
+      try {
+        response = await fetchFn(streamUrl, requestInit)
+      } catch (firstError) {
+        try {
+          response = await fetchFn(streamUrl, requestInit)
+        } catch (retryError) {
+          throw new AggregateError(
+            [firstError, retryError],
+            'durableStream: append failed before its outcome could be confirmed',
           )
         }
-        const next = res.headers.get('Stream-Next-Offset')
-        const seq =
-          next !== null && Number.isFinite(Number(next))
-            ? Number(next)
-            : startSeq + i
-        offsets.push(encodeOffset(id, seq))
       }
-      return offsets
+      if (!response.ok) throw httpFailure('append', response)
+      const nextOffset = requireNextOffset(response, 'append')
+      appendTailOffset = nextOffset
+      return records.map((record) =>
+        encodeCursor({
+          v: 1,
+          backendOffset: batchStartOffset,
+          seq: record.seq,
+        }),
+      )
+    },
+    close: () => {
+      if (closePromise) return closePromise
+      closePromise = (async () => {
+        await ensureCreated()
+        const response = await fetchFn(streamUrl, {
+          method: 'POST',
+          headers: await resolveHeaders({ 'Stream-Closed': 'true' }),
+        })
+        if (!response.ok) throw httpFailure('close', response)
+        const nextOffset = requireNextOffset(response, 'close')
+        if (response.headers.get('Stream-Closed')?.toLowerCase() !== 'true') {
+          throw new DurableStreamError(
+            'close response missing Stream-Closed: true',
+          )
+        }
+        appendTailOffset = nextOffset
+      })().catch((error: unknown) => {
+        closePromise = undefined
+        throw error
+      })
+      return closePromise
     },
     read: async function* (offset, signal) {
-      let cursor = offsetToken(offset)
-      // Reconnect loop: the CDN live window closes the SSE response
-      // periodically (~60s); resume from the last delivered offset.
-      reconnect: for (;;) {
+      let backendOffset: string
+      let deliveredThroughSeq = 0
+      if (offset === '-1' || offset === 'now') {
+        backendOffset = offset
+      } else {
+        const cursor = decodeCursor(offset)
+        backendOffset = cursor.backendOffset
+        deliveredThroughSeq = cursor.seq
+      }
+      let streamCursor: string | undefined
+
+      for (;;) {
         if (signal?.aborted) return
-        const url = `${streamUrl()}?offset=${encodeURIComponent(
-          cursor,
-        )}&live=sse`
-        const res = await fetchFn(url, { method: 'GET', signal })
-        if (!res.ok) {
-          throw new Error(
-            `durableStream: failed to read (${res.status} ${res.statusText})`,
-          )
+        const requestOffset = backendOffset
+        const requestCursor = streamCursor
+        const url = new URL(streamUrl)
+        url.searchParams.set('offset', backendOffset)
+        url.searchParams.set('live', 'sse')
+        if (streamCursor !== undefined) {
+          url.searchParams.set('cursor', streamCursor)
         }
-        if (!res.body) {
-          throw new Error('durableStream: read response had no body')
+
+        let response: Response
+        try {
+          response = await fetchFn(url, {
+            method: 'GET',
+            headers: await resolveHeaders(),
+            signal,
+          })
+        } catch (error) {
+          if (signal?.aborted) return
+          throw error
         }
-        // A read ends legitimately only when it saw the run's terminal event
-        // or the server flagged the stream closed (`Stream-Closed` header /
-        // a `{ closed: true }` control frame). A bare EOF without either means
-        // the live window was cut mid-run — surface it rather than silently
-        // truncating a still-in-flight read.
-        const streamClosed = res.headers.get('Stream-Closed') === 'true'
-        let genuineEnd = streamClosed
-        for await (const evt of parseSseEvents(res.body)) {
-          if (evt.event === 'control') {
-            const parsed = parseControlFrame(evt.data)
-            if (parsed.offset !== undefined) {
-              cursor = parsed.offset
-              continue reconnect
-            }
-            if (parsed.closed) {
-              genuineEnd = true
+        if (!response.ok) throw httpFailure('read', response)
+        if (!response.body) {
+          throw new DurableStreamError('read response had no body')
+        }
+
+        let dataStartOffset = backendOffset
+        let sawControl = false
+        let dataAwaitingControl = false
+        let yieldedData = false
+        try {
+          for await (const event of parseSseEvents(response.body, signal)) {
+            if (signal?.aborted) return
+            if (event.event === 'data') {
+              dataAwaitingControl = true
+              for (const record of parseDataRecords(event.data)) {
+                if (record.seq <= deliveredThroughSeq) continue
+                deliveredThroughSeq = record.seq
+                yieldedData = true
+                yield {
+                  offset: encodeCursor({
+                    v: 1,
+                    backendOffset: dataStartOffset,
+                    seq: record.seq,
+                  }),
+                  chunk: record.chunk,
+                }
+              }
               continue
             }
-            // A control frame we cannot act on (unparseable, or neither a
-            // rollover offset nor a close signal) — surface rather than
-            // silently ending the read.
-            throw new Error(
-              'durableStream: malformed control frame (no offset or close signal) in read stream',
+            if (event.event === 'control') {
+              const control = parseControlFrame(event.data)
+              backendOffset = control.streamNextOffset
+              streamCursor = control.streamCursor
+              dataStartOffset = backendOffset
+              sawControl = true
+              dataAwaitingControl = false
+              if (control.streamClosed === true) return
+              continue
+            }
+            throw new DurableStreamError(
+              `unexpected SSE event type: ${JSON.stringify(event.event)}`,
             )
           }
-          if (evt.data === undefined) continue
-          const chunk = JSON.parse(evt.data) as StreamChunk
-          // Every data event MUST carry a numeric offset id; a missing /
-          // non-numeric id would yield a `NaN` seq that corrupts the resume
-          // cursor, so reject the frame instead.
-          if (evt.id === undefined) {
-            throw new Error(
-              'durableStream: read event missing id (cannot derive resume offset)',
-            )
+        } catch (error) {
+          if (signal?.aborted) return
+          if (error instanceof ResponseBodyReadFailure) {
+            if (
+              yieldedData ||
+              (sawControl &&
+                (backendOffset !== requestOffset ||
+                  streamCursor !== requestCursor))
+            ) {
+              continue
+            }
+            throw error.readError
           }
-          const seq = Number(evt.id)
-          if (!Number.isFinite(seq)) {
-            throw new Error(
-              `durableStream: read event has non-numeric id: ${JSON.stringify(
-                evt.id,
-              )}`,
-            )
-          }
-          cursor = evt.id
-          if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-            genuineEnd = true
-          }
-          yield { seq, chunk }
+          throw error
         }
-        if (genuineEnd) return
-        throw new Error(
-          'durableStream: read stream ended without a terminal event or close signal — connection was likely cut short.',
-        )
+
+        if (signal?.aborted) return
+        if (dataAwaitingControl || !sawControl) {
+          throw new DurableStreamError(
+            'read SSE window ended without a matching control event',
+          )
+        }
+        if (backendOffset === requestOffset && streamCursor === requestCursor) {
+          throw new DurableStreamError(
+            'read SSE window ended without advancing offset or cursor',
+          )
+        }
       }
     },
   }

@@ -15,10 +15,16 @@ import { createCapability } from './activities/chat/middleware/capabilities'
 /**
  * Mutual exclusion around a critical section keyed by `key`. Used by the
  * sandbox `ensure` algorithm so two concurrent runs for the same thread don't
- * both create a sandbox, and available to any middleware that needs a named lock.
+ * both create a sandbox, and available to any middleware that needs a named
+ * lock. Lease-backed implementations abort `signal` as soon as ownership can
+ * no longer be guaranteed. The callback must stop starting externally visible
+ * mutations when the signal aborts and pass it to cancellable dependencies.
  */
 export interface LockStore {
-  withLock: <T>(key: string, fn: () => Promise<T>) => Promise<T>
+  withLock: <T>(
+    key: string,
+    fn: (signal: AbortSignal) => Promise<T>,
+  ) => Promise<T>
 }
 
 /**
@@ -39,10 +45,14 @@ export const [getLocks, provideLocks] = LocksCapability
 export class InMemoryLockStore implements LockStore {
   private readonly chains = new Map<string, Promise<unknown>>()
 
-  withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  withLock<T>(
+    key: string,
+    fn: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
     const prior = this.chains.get(key) ?? Promise.resolve()
+    const runCriticalSection = () => fn(new AbortController().signal)
     // Chain after the prior holder regardless of how it settled.
-    const run = prior.then(fn, fn)
+    const run = prior.then(runCriticalSection, runCriticalSection)
     // Keep the chain alive but swallow rejections so one failure doesn't poison the lock.
     this.chains.set(
       key,

@@ -8,18 +8,18 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { createChatPersistence } from '@/lib/mysql-persistence'
+import { createChatPersistence } from '@/lib/sqlite-persistence'
 
 const SYSTEM_PROMPT = `You are a concise assistant in a durable chat demo.
 
 Chat state (messages, run status, interrupts) is persisted via the state
-middleware. Delivery durability — so the browser can refresh and reconnect to an
-in-progress response — is handled by the transport helper's durability sink.
+middleware. Delivery durability for a transiently dropped active SSE connection
+is handled by the transport helper's durability sink.
 Keep answers short enough that the streaming behavior is easy to inspect.`
 
 const persistence = createChatPersistence()
 
-export const Route = createFileRoute('/api/mysql-persistent-chat')({
+export const Route = createFileRoute('/api/sqlite-persistent-chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -38,11 +38,7 @@ export const Route = createFileRoute('/api/mysql-persistent-chat')({
         // `for await` inside the transport helper.
         const stream = chat({
           adapter: openaiText('gpt-5.5'),
-          middleware: [
-            withChatPersistence(persistence, {
-              features: ['messages', 'interrupts'],
-            }),
-          ],
+          middleware: [withChatPersistence(persistence)],
           systemPrompts: [SYSTEM_PROMPT],
           agentLoopStrategy: maxIterations(4),
           messages: params.messages,
@@ -51,12 +47,12 @@ export const Route = createFileRoute('/api/mysql-persistent-chat')({
           ...(params.resume ? { resume: params.resume } : {}),
         })
 
-        // Delivery durability: the durability sink appends each batch and tags
-        // every SSE event with an `id: runId@seq` offset, so a reconnect
-        // (native Last-Event-ID) or second-tab join replays the ordered stream
-        // exactly once without re-invoking the provider. `memoryStream` is the
-        // zero-infra dev default; swap in `durableStream(request, { server })`
-        // for horizontally-scaled deployments.
+        // Delivery durability: the sink appends each batch and tags every SSE
+        // event with an opaque adapter-owned offset. The active client can
+        // reconnect with Last-Event-ID and replay without re-invoking the
+        // provider. `memoryStream` is the zero-infra dev default; swap in
+        // `durableStream(request, { server })` for horizontally scaled
+        // deployments.
         const durability = memoryStream(request)
         return toServerSentEventsResponse(stream, {
           durability: { adapter: durability, batch: 8 },

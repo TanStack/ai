@@ -63,8 +63,10 @@ function prefixUpperBound(prefix: string): string | undefined {
   return prefix.slice(0, i) + String.fromCharCode(prefix.charCodeAt(i) + 1)
 }
 
-function copyBytes(bytes: Uint8Array): Uint8Array {
-  return new Uint8Array(bytes)
+function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength))
+  copy.set(bytes)
+  return copy
 }
 
 function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -75,7 +77,7 @@ function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 async function bytesFromStream(
   stream: ReadableStream<Uint8Array>,
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const reader = stream.getReader()
   const chunks: Array<Uint8Array> = []
   let total = 0
@@ -90,7 +92,7 @@ async function bytesFromStream(
   } finally {
     reader.releaseLock()
   }
-  const bytes = new Uint8Array(total)
+  const bytes = new Uint8Array(new ArrayBuffer(total))
   let offset = 0
   for (const chunk of chunks) {
     bytes.set(chunk, offset)
@@ -99,7 +101,9 @@ async function bytesFromStream(
   return bytes
 }
 
-async function bytesFromBlobBody(body: BlobBody): Promise<Uint8Array> {
+async function bytesFromBlobBody(
+  body: BlobBody,
+): Promise<Uint8Array<ArrayBuffer>> {
   if (typeof body === 'string') return textEncoder.encode(body)
   if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0))
   if (ArrayBuffer.isView(body)) {
@@ -435,7 +439,7 @@ export function createBlobStore(db: DrizzleDb): BlobStore {
         customMetadataJson: customMetadata ?? null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-        body: Buffer.from(bytes),
+        body: bytes,
       }
       await db
         .insert(blobs)

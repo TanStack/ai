@@ -31,6 +31,7 @@ import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import {
   checkpointWorkspacePersistenceEvent,
+  requireWorkspacePersistence,
   restoreWorkspacePersistence,
 } from './workspace-persistence'
 import { resolveWorkspacePersistenceOptions } from './workspace-persistence-types'
@@ -268,6 +269,9 @@ export function withSandbox(
         workspace: definition.workspace,
         defaultKey: definition.key(ensureCtx),
       })
+      const workspacePersistence = workspacePersistenceOptions
+        ? requireWorkspacePersistence(persistence)
+        : undefined
       // Pull the runtime (and its logger) up front so `baseSha` capture and
       // hook dispatch below can log through the same `sandbox`/`errors`
       // categories the engine uses.
@@ -332,10 +336,10 @@ export function withSandbox(
       }
 
       const hooks = definition.hooks
-      if (workspacePersistenceOptions) {
+      if (workspacePersistenceOptions && workspacePersistence) {
         await restoreWorkspacePersistence({
           handle,
-          persistence,
+          persistence: workspacePersistence,
           options: workspacePersistenceOptions,
           runId: ctx.runId,
           threadId: ctx.threadId,
@@ -349,12 +353,12 @@ export function withSandbox(
       const workspacePersistenceErrors: Array<unknown> = []
       const watchers: Array<SandboxWatchHandle> = []
       const enqueueWorkspacePersistence = (event: SandboxFileEvent): void => {
-        if (!workspacePersistenceOptions) return
+        if (!workspacePersistenceOptions || !workspacePersistence) return
         pendingWorkspacePersistence.push(
           checkpointWorkspacePersistenceEvent(
             {
               handle,
-              persistence,
+              persistence: workspacePersistence,
               options: workspacePersistenceOptions,
               runId: ctx.runId,
               threadId: ctx.threadId,

@@ -1,23 +1,5 @@
-// Prisma schema for the TanStack AI **state** persistence contract.
-//
-// Kept in sync with packages/ai-persistence-drizzle/src/schema.ts — see coupling
-// persistence-schema-dual-source. The two ORMs describe the SAME state tables and
-// have NO auto-converter: any change here MUST be mirrored in the drizzle schema,
-// with regenerated migrations for BOTH ORMs and the shared conformance suite
-// re-run against memory + drizzle + prisma.
-//
-// JSON-valued fields are stored in `*_json` TEXT columns (portable, and matching
-// drizzle's `text({ mode: 'json' })` on-disk shape); epoch-millisecond timestamps
-// and sizes are stored as integers. Prisma's `Json` type is unavailable on
-// sqlite, so the store layer serializes/deserializes those columns with
-// JSON.stringify/parse.
-//
-// Integer columns use Prisma `BigInt` (not `Int`): both map to a sqlite
-// `INTEGER` column — so the DDL matches drizzle's `integer()` column-for-column
-// — but `BigInt` covers the full 64-bit range that epoch-millisecond timestamps
-// require (`Int` caps at 32 bits). The store layer converts bigint <-> number at
-// the boundary so records stay plain `number`s, matching the drizzle backend.
-
+// Internal test-client configuration. The models live in the provider-neutral
+// sibling fragment that is shipped to package consumers.
 generator client {
   provider = "prisma-client-js"
 }
@@ -25,77 +7,4 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-/// Thread message history (`MessageStore`).
-model Message {
-  threadId     String @id @map("thread_id")
-  messagesJson String @map("messages_json")
-
-  @@map("messages")
-}
-
-/// Run lifecycle records (`RunStore`).
-model Run {
-  runId      String  @id @map("run_id")
-  threadId   String  @map("thread_id")
-  status     String
-  startedAt  BigInt  @map("started_at")
-  finishedAt BigInt? @map("finished_at")
-  error      String?
-  usageJson  String? @map("usage_json")
-
-  @@map("runs")
-}
-
-/// Interrupt / approval records (`InterruptStore`).
-model Interrupt {
-  interruptId  String  @id @map("interrupt_id")
-  runId        String  @map("run_id")
-  threadId     String  @map("thread_id")
-  status       String
-  requestedAt  BigInt  @map("requested_at")
-  resolvedAt   BigInt? @map("resolved_at")
-  payloadJson  String  @map("payload_json")
-  responseJson String? @map("response_json")
-
-  @@map("interrupts")
-}
-
-/// Scoped key/value metadata (`MetadataStore`).
-model Metadata {
-  scope     String
-  key       String
-  valueJson String @map("value_json")
-
-  @@id([scope, key])
-  @@map("metadata")
-}
-
-/// Generation artifact references (`ArtifactStore`). Bytes live in the blob store.
-model Artifact {
-  artifactId  String  @id @map("artifact_id")
-  runId       String  @map("run_id")
-  threadId    String  @map("thread_id")
-  name        String
-  mimeType    String  @map("mime_type")
-  size        BigInt
-  externalUrl String? @map("external_url")
-  createdAt   BigInt  @map("created_at")
-
-  @@map("artifacts")
-}
-
-/// Generic blob objects (`BlobStore`).
-model Blob {
-  key                String  @id
-  contentType        String? @map("content_type")
-  size               BigInt?
-  etag               String?
-  customMetadataJson String? @map("custom_metadata_json")
-  createdAt          BigInt? @map("created_at")
-  updatedAt          BigInt? @map("updated_at")
-  body               Bytes?
-
-  @@map("blobs")
 }

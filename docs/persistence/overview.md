@@ -3,56 +3,61 @@ title: Persistence Overview
 id: overview
 ---
 
-Persistence makes server-side runs durable. TanStack AI splits durability into
-two independent concerns:
+# Persistence Overview
 
-- **State durability (this section)** — thread messages, run records,
-  interrupts/approvals, metadata, locks, and generation artifacts. This is a
-  store concern and lives on the **middleware** layer: add
-  `withChatPersistence(...)` to a `chat()` call, or `withGenerationPersistence(...)`
-  to `generateImage` / `generateAudio` / TTS / video / transcription.
-- **Delivery durability (transport)** — a client disconnects, reloads, or opens
-  a second tab and still receives the full ordered stream. This is a *transport*
-  concern, handled by a pluggable delivery sink on the transport helpers
-  (`toServerSentEvents*`), **not** by the persistence middleware. That half is
-  documented separately once the transport delivery layer lands.
+TanStack AI separates two independent durability concerns:
 
-The persistence middleware persists **state only**. It never rewrites the chunk
-stream and stamps no cursor — a persisted run produces byte-identical chunks to
-a non-persisted one.
+- **State persistence** stores messages, runs, pending interrupts, metadata,
+  locks, and generated artifacts. It is configured with persistence middleware.
+- **Delivery durability** stores an ordered SSE event stream so a client can
+  reconnect without re-running the provider. It is configured on the response
+  transport.
 
-By the end of this section, you can choose the smallest state store your app
-needs, wire it to your server route, and move from local development migrations
-to a production-owned schema.
+Persisting state does not automatically make a live response replayable, and a
+replayable response does not replace authoritative application state.
 
-## How state persistence works
+## Store contract
 
-Both middlewares are opt-in. A run without them stays in-memory. A run with
-either middleware calls the stores exposed by your `AIPersistence` object at
-boundaries (load thread on config, save thread + run status on finish, record
-interrupts on pause) — low volume, not per-token.
+An `AIPersistence` object can expose these stores:
+
+| Store | Purpose |
+| --- | --- |
+| `messages` | Authoritative model-message history per thread. |
+| `runs` | Run status, timing, errors, and usage. |
+| `interrupts` | Pending, resolved, or cancelled human/tool waits. |
+| `metadata` | App and integration key/value state. |
+| `locks` | Cross-worker coordination. |
+| `artifacts` | Generated file/media metadata. |
+| `blobs` | Generated file/media bytes. |
+
+Middleware activates behavior from the stores that are present; there is no
+separate enablement list.
+
+## Minimal server state persistence
 
 ```ts
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:./chat.db',
+const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
 
 export async function POST(request: Request) {
-  const { messages, threadId, runId, resume } = await request.json()
-
+  const params = await chatParamsFromRequest(request)
   const stream = chat({
-    threadId,
-    runId,
-    resume,
-    adapter: anthropicText('claude-sonnet-4-6'),
-    messages,
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
     middleware: [withChatPersistence(persistence)],
   })
 
@@ -60,99 +65,71 @@ export async function POST(request: Request) {
 }
 ```
 
-The `resume` array carries AG-UI interrupt responses (approvals, client-tool
-results) for a thread that has pending interrupts — that is state, resolved by
-`withChatPersistence`. Making the *stream itself* replayable across a disconnect
-is a separate transport-layer delivery concern.
+The Node convenience factory is SQLite-only. For an existing SQLite-family
+Drizzle database, including Cloudflare D1, use the edge-safe root
+`drizzlePersistence(db)`. For another database engine, implement the
+`AIPersistence` store interfaces or use Prisma.
 
-### Run IDs must be unique across activities
+## Compose backends by store
 
-`withChatPersistence` and `withGenerationPersistence` may share one
-`AIPersistence` backend. The `runs` store is keyed only by `runId` (there is no
-activity discriminator), so **every chat run and every generation run needs a
-distinct `runId`**. Reusing the same id across activities overwrites run status.
-
-How ids are created:
-
-| Path | Default `runId` |
-| --- | --- |
-| Client chat (`useChat` / `ChatClient`) | New `run-${Date.now()}-…` per send; interrupt resume reuses the stored id |
-| Client generation hooks | New `run-${Date.now()}-…` per generate via the generation client |
-| Server `chat({ runId })` | Caller-supplied, or falls back to a per-request `chat-…` id from the engine |
-| Server generation (`generateImage`, …) | Caller-supplied `runId`, else `requestId` for run tracking |
-
-Default client/SDK ids are unique enough for normal use. Only force a shared
-`runId` if you deliberately control identity — and never reuse one id for both
-a chat turn and a media generation. Sharing a **`threadId`** across chat and
-generation for the same conversation is fine.
-
-## What `AIPersistence` contains
-
-`AIPersistence` is an object with optional state stores. Implement only the
-stores your scenario needs, or use a packaged backend that implements them for
-you.
+Use one backend as the first argument and replace only selected stores through
+the second argument:
 
 ```ts
+import { composePersistence } from '@tanstack/ai-persistence'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
-import type {
-  ArtifactStore,
-  BlobStore,
-  InterruptStore,
-  MessageStore,
-  MetadataStore,
-  RunStore,
-} from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai'
+import type { AIPersistenceStores } from '@tanstack/ai-persistence'
 
-declare const messages: MessageStore
-declare const runs: RunStore
-declare const interrupts: InterruptStore
-declare const metadata: MetadataStore
-declare const locks: LockStore
-declare const artifacts: ArtifactStore
-declare const blobs: BlobStore
+declare const env: {
+  AI_STATE: D1Database
+  AI_MEDIA: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+declare const myInterruptStore: NonNullable<
+  AIPersistenceStores['interrupts']
+>
+declare const myRunStore: NonNullable<AIPersistenceStores['runs']>
 
-export const persistence = defineAIPersistence({
+const base = cloudflarePersistence({
+  d1: env.AI_STATE,
+  r2: env.AI_MEDIA,
+  durableObjects: env.AI_LOCKS,
+})
+
+const appStores = defineAIPersistence({
   stores: {
-    messages,
-    runs,
-    interrupts,
-    metadata,
-    locks,
-    artifacts,
-    blobs,
+    interrupts: myInterruptStore,
+    runs: myRunStore,
+  },
+})
+
+const persistence = composePersistence(base, {
+  overrides: {
+    interrupts: appStores.stores.interrupts,
+    runs: appStores.stores.runs,
   },
 })
 ```
 
-There is no separate high-level callback builder. Production apps usually keep
-their own database, object storage, queues, and retention policies, then expose
-those systems through `AIPersistence` store methods such as
-`messages.loadThread`, `runs.createOrResume`, or `metadata.set`.
+An omitted or explicitly `undefined` override inherits the base store. A store
+object replaces that one store. `false` removes it. The return type tracks the
+resulting keys, and runtime validation rejects unknown keys from untyped
+JavaScript.
 
-## Choose your path
+Cross-store consistency remains your responsibility. If `runs` and
+`interrupts` live in separate systems, design for partial failure and retries.
 
-Start with [Persistence Controls](./controls) when you need to decide which
-stores and client options to enable.
+## Choose a backend
 
-Read [Migrations](./migrations) before deploying a packaged backend. Each ORM
-owns its own migrations (drizzle-kit / prisma migrate).
+- [Cloudflare](./cloudflare): D1 structured state, R2 artifacts/blobs, Durable
+  Object locks.
+- [Drizzle](./drizzle): SQLite-family Drizzle databases and a Node SQLite
+  convenience factory.
+- [Prisma](./prisma): provider-neutral Prisma models with your migrated client.
+- [Custom Stores](./custom-stores): implement only the store contracts you
+  need.
 
-Use the topic pages when you know the feature you are building:
-
-- [Chat Persistence](./chat-persistence) for server-authoritative chat threads
-  and pending human decisions.
-- [Generation Persistence](./generation-persistence) for image, audio, speech,
-  transcription, and video hooks with durable artifact refs.
-- [Sandbox Persistence](./sandbox-persistence) for coding-agent sandboxes,
-  workspace checkpoints, records, and locks.
-- [MCP Persistence](./mcp-persistence) for durable MCP session metadata and
-  tool-call correlation.
-
-Use the adapter pages when you know the infrastructure you are deploying on:
-
-- [Prisma](./prisma) when Prisma owns your database access.
-- [Drizzle](./drizzle) when Drizzle owns your database access.
-- [Custom Stores](./custom-stores) when your app owns the persistence boundary
-  or you are writing an integration.
-- [Persistence Internals](./internals) when you need the exact store contracts.
+Then choose a journey: [Chat](./chat-persistence),
+[Generation](./generation-persistence), [Sandbox](./sandbox-persistence), or
+[MCP](./mcp-persistence).

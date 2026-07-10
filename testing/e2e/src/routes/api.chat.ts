@@ -7,9 +7,9 @@ import {
 } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 import {
+  composePersistence,
   memoryPersistence,
   withChatPersistence,
-  type AIPersistence,
 } from '@tanstack/ai-persistence'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
@@ -17,13 +17,26 @@ import { featureConfigs } from '@/lib/features'
 import { guitarRecommendationSchema, recipeSchema } from '@/lib/schemas'
 
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant for a guitar store.'
-const persistenceByTestId = new Map<string, AIPersistence>()
+type TestPersistence = ReturnType<typeof createTestPersistence>
 
-function getPersistence(testId: string | undefined): AIPersistence {
+const persistenceByTestId = new Map<string, TestPersistence>()
+
+function createTestPersistence() {
+  return composePersistence(memoryPersistence(), {
+    overrides: {
+      metadata: false,
+      locks: false,
+      artifacts: false,
+      blobs: false,
+    },
+  })
+}
+
+function getPersistence(testId: string | undefined): TestPersistence {
   const key = testId ?? '__default__'
   let persistence = persistenceByTestId.get(key)
   if (!persistence) {
-    persistence = memoryPersistence()
+    persistence = createTestPersistence()
     persistenceByTestId.set(key, persistence)
   }
   return persistence
@@ -86,11 +99,7 @@ export const Route = createFileRoute('/api/chat')({
         try {
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
           const middleware = serverPersistence
-            ? [
-                withChatPersistence(getPersistence(testId), {
-                  features: ['messages', 'interrupts'],
-                }),
-              ]
+            ? [withChatPersistence(getPersistence(testId))]
             : undefined
 
           // Test-only flag — when truthy, the route promotes the system

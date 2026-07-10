@@ -6,24 +6,31 @@ import {
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
 
-function readerFromString(body: string) {
-  let sent = false
-  return {
-    read: vi.fn(async () => {
-      if (sent) return { done: true, value: undefined }
-      sent = true
-      return { done: false, value: new TextEncoder().encode(body) }
-    }),
-    releaseLock: vi.fn(),
-  }
+function sseResponse(body: string): Response {
+  return new Response(body, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
 }
 
-function sseResponse(body: string): Response {
-  return {
-    ok: true,
-    body: { getReader: () => readerFromString(body) },
-    headers: new Headers(),
-  } as unknown as Response
+function failingSseResponse(body: string, error: Error): Response {
+  const bytes = new TextEncoder().encode(body)
+  let sent = false
+  return new Response(
+    new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (!sent) {
+            sent = true
+            controller.enqueue(bytes)
+            return
+          }
+          controller.error(error)
+        },
+      },
+      { highWaterMark: 0 },
+    ),
+    { headers: { 'Content-Type': 'text/event-stream' } },
+  )
 }
 
 function contentEvent(id: string, delta: string): string {
@@ -52,7 +59,8 @@ function finishedEvent(id: string): string {
 
 describe('resumable SSE connection adapter', () => {
   it('reconnects with Last-Event-ID and de-dupes already-seen chunks', async () => {
-    const fetchClient = vi.fn(async (_url: any, init: any) => {
+    const fetchClient = vi.fn<typeof fetch>(async (url, init) => {
+      expect(String(url)).toBe('/api/chat?runId=r')
       if (fetchClient.mock.calls.length === 1) {
         // First response: 3 tagged chunks, then the connection closes with no
         // terminal event (a mid-stream drop).
@@ -64,9 +72,7 @@ describe('resumable SSE connection adapter', () => {
       }
       // Second response (reconnect): server replays from the offset — it
       // re-sends seq 3 (must be de-duped), then the tail + terminal.
-      expect((init.headers as Record<string, string>)['Last-Event-ID']).toBe(
-        'run@3',
-      )
+      expect(new Headers(init?.headers).get('Last-Event-ID')).toBe('run@3')
       return sseResponse(
         contentEvent('run@3', '3') +
           contentEvent('run@4', '4') +
@@ -74,9 +80,7 @@ describe('resumable SSE connection adapter', () => {
       )
     })
 
-    const adapter = fetchServerSentEvents('/api/chat', {
-      fetchClient: fetchClient as unknown as typeof fetch,
-    })
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.connect(
@@ -90,19 +94,40 @@ describe('resumable SSE connection adapter', () => {
 
     const deltas = chunks
       .filter((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)
-      .map((c) => (c as { delta: string }).delta)
+      .map((c) => c.delta)
     expect(deltas).toEqual(['1', '2', '3', '4'])
     expect(chunks[chunks.length - 1]?.type).toBe(EventType.RUN_FINISHED)
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 
-  it('joinRun opens the stream from the start with ?offset=-1', async () => {
-    const fetchClient = vi.fn(async (_url: unknown, _init?: unknown) =>
+  it('preserves query parameters while replacing a stale runId', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () =>
       sseResponse(finishedEvent('run@1')),
     )
-    const adapter = fetchServerSentEvents('/api/chat', {
-      fetchClient: fetchClient as unknown as typeof fetch,
-    })
+    const adapter = fetchServerSentEvents(
+      '/api/chat?provider=openai&runId=stale#response',
+      { fetchClient },
+    )
+
+    for await (const _chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'current' },
+    )) {
+      // drain
+    }
+
+    expect(String(fetchClient.mock.calls[0]![0])).toBe(
+      '/api/chat?provider=openai&runId=current#response',
+    )
+  })
+
+  it('joinRun opens the stream from the start with ?offset=-1', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () =>
+      sseResponse(finishedEvent('run@1')),
+    )
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.joinRun('run-x')) {
@@ -119,7 +144,7 @@ describe('resumable SSE connection adapter', () => {
   // makes no forward progress on reconnect must surface an error, not silently
   // return leaving the consumer with neither a terminal nor a failure.
   it('surfaces an error when a durable run ends without a terminal and cannot progress', async () => {
-    const fetchClient = vi.fn(async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () => {
       if (fetchClient.mock.calls.length === 1) {
         // First pass: two tagged content events, then a clean end with NO
         // terminal — the adapter reconnects from run@2.
@@ -132,9 +157,7 @@ describe('resumable SSE connection adapter', () => {
       return sseResponse('')
     })
 
-    const adapter = fetchServerSentEvents('/api/chat', {
-      fetchClient: fetchClient as unknown as typeof fetch,
-    })
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
 
     const deltas: Array<string> = []
     await expect(async () => {
@@ -145,13 +168,95 @@ describe('resumable SSE connection adapter', () => {
         { threadId: 't', runId: 'r' },
       )) {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
-          deltas.push((chunk as { delta: string }).delta)
+          deltas.push(chunk.delta)
         }
       }
     }).rejects.toBeInstanceOf(DurableStreamIncompleteError)
 
     // The consumer still received everything delivered before the failure.
     expect(deltas).toEqual(['1', '2'])
+    expect(fetchClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('reconnects after a body reader failure and resumes exactly once', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async (_url, init) => {
+      if (fetchClient.mock.calls.length === 1) {
+        return failingSseResponse(
+          contentEvent('run@1', '1'),
+          new TypeError('socket disconnected'),
+        )
+      }
+      expect(new Headers(init?.headers).get('Last-Event-ID')).toBe('run@1')
+      return sseResponse(
+        contentEvent('run@1', '1') +
+          contentEvent('run@2', '2') +
+          finishedEvent('run@3'),
+      )
+    })
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        .map((chunk) => chunk.delta),
+    ).toEqual(['1', '2'])
+    expect(fetchClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not reconnect a body reader after the caller aborts', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () =>
+      failingSseResponse(
+        contentEvent('run@1', '1'),
+        new TypeError('socket disconnected'),
+      ),
+    )
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const controller = new AbortController()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      controller.signal,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+      controller.abort()
+    }
+
+    expect(chunks).toHaveLength(1)
+    expect(fetchClient).toHaveBeenCalledOnce()
+  })
+
+  it('does not retry HTTP setup failures after earlier progress', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      if (fetchClient.mock.calls.length === 1) {
+        return sseResponse(contentEvent('run@1', '1'))
+      }
+      return new Response(null, { status: 503, statusText: 'Unavailable' })
+    })
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+
+    await expect(async () => {
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        // drain
+      }
+    }).rejects.toThrow(/503 Unavailable/)
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 })

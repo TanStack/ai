@@ -3,176 +3,171 @@ title: Persistence Controls
 id: controls
 ---
 
-Use persistence controls to choose how much durability a run needs. Start with
-the lowest lever that satisfies the user experience, then add stores only when a
-feature would otherwise lose data.
+# Persistence Controls
 
-By the end, you can map a product requirement such as "resume after refresh" or
-"store generated media" to the client option, middleware feature, and
-`AIPersistence` stores it needs.
+Persistence is controlled by store presence. Supply only the state stores your
+workflow needs, compose backends per store, and configure SSE delivery
+durability independently.
 
-## Lever 1: no persistence
+## Decision table
 
-Use no persistence when a run can disappear after the request ends.
+| Requirement | Stores or option |
+| --- | --- |
+| Rendered messages after a browser reload | `useChat({ persistence: { client } })` |
+| Pending client interrupt state after reload | `useChat({ persistence: { server } })` |
+| Authoritative server transcript | `messages` |
+| Run status and usage | `runs` |
+| Durable approvals or human input | `interrupts` and `runs` |
+| App or integration checkpoints | `metadata` |
+| Cross-worker coordination | `locks` |
+| Generated media or workspace files | `artifacts` and `blobs` |
+| Replay an in-flight response | SSE `durability.adapter` |
+
+`withChatPersistence(persistence)` and
+`withGenerationPersistence(persistence)` inspect the stores. Store presence is
+the complete capability selection mechanism.
+
+## Compose and override stores
+
+`composePersistence` takes the base backend first and a configuration object
+second:
 
 ```ts
-import { chat } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import {
+  composePersistence,
+  defineAIPersistence,
+} from '@tanstack/ai-persistence'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import type {
+  InterruptStore,
+  RunStore,
+} from '@tanstack/ai-persistence'
 
-chat({
-  adapter: anthropicText('claude-sonnet-4-6'),
-  messages: [{ role: 'user', content: 'Draft a release note.' }],
+declare const env: {
+  AI_STATE: D1Database
+  AI_MEDIA: R2Bucket
+  AI_LOCKS: DurableObjectNamespace
+}
+declare const interrupts: InterruptStore
+declare const runs: RunStore
+
+const base = cloudflarePersistence({
+  d1: env.AI_STATE,
+  r2: env.AI_MEDIA,
+  durableObjects: env.AI_LOCKS,
+})
+
+const custom = defineAIPersistence({ stores: { interrupts, runs } })
+
+const persistence = composePersistence(base, {
+  overrides: {
+    interrupts: custom.stores.interrupts,
+    runs: custom.stores.runs,
+  },
 })
 ```
 
-There is no server transcript and no durable run record. This is enough for
-one-shot server work, tests, or prototypes where reload recovery does not
-matter.
+Each override is independent:
 
-## Lever 2: client snapshots
+| Override value | Result |
+| --- | --- |
+| key omitted | Inherit the base store. |
+| `undefined` | Inherit the base store. |
+| a store object | Replace that store only. |
+| `false` | Remove that store. |
 
-Use client persistence when the browser should remember local UI state or the
-latest server resume identity.
+```ts
+const withoutGeneratedMedia = composePersistence(base, {
+  overrides: {
+    artifacts: false,
+    blobs: false,
+  },
+})
+```
+
+The type of `withoutGeneratedMedia.stores` no longer contains required
+`artifacts` or `blobs` keys. Unknown store names fail type checking and are
+also rejected at runtime when values arrive from untyped JavaScript.
+
+## Valid store combinations
+
+Some capabilities require related stores:
+
+- `interrupts` requires `runs` for chat persistence.
+- Generation artifact persistence requires both `artifacts` and `blobs`.
+- Sandbox workspace persistence requires `metadata`, `artifacts`, and `blobs`;
+  `locks` is optional.
+
+Known-invalid static compositions fail to type-check at the middleware call.
+Runtime validation covers dynamically typed inputs.
+
+```ts
+import { withGenerationPersistence } from '@tanstack/ai-persistence'
+
+// Valid: both stores remain present.
+const mediaPersistence = composePersistence(base, {
+  overrides: {},
+})
+
+const middleware = withGenerationPersistence(mediaPersistence)
+```
+
+## Consistency across backends
+
+Composition routes each method call to its selected store. It does not add a
+distributed transaction across stores. When related state spans services:
+
+- make writes idempotent;
+- use stable run, interrupt, artifact, and blob keys;
+- decide which store is authoritative;
+- handle a successful write followed by a failed related write;
+- use a lock when concurrent workers can mutate the same logical record.
+
+Overriding `interrupts` and `runs` together is often safer when the custom
+database needs transactional guarantees across those records.
+
+## Client controls
+
+Browser persistence is also per concern:
 
 ```tsx
-import { localStorageAIPersistence } from '@tanstack/ai-client'
+import {
+  indexedDBPersistence,
+  sessionStoragePersistence,
+} from '@tanstack/ai-client'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type {
+  ChatResumeSnapshot,
+  UIMessage,
+} from '@tanstack/ai-client'
 
-const chat = useChat({
-  id: 'thread-123',
-  threadId: 'thread-123',
-  connection: fetchServerSentEvents('/api/chat'),
-  persistence: {
-    client: localStorageAIPersistence({
-      keyPrefix: 'tanstack-ai:messages:',
-    }),
-    server: localStorageAIPersistence({
-      keyPrefix: 'tanstack-ai:resume:',
-    }),
-  },
-})
-```
-
-`persistence.client` stores rendered UI messages. `persistence.server` stores
-the lightweight server resume snapshot: `{ threadId, runId }`, pending interrupt
-descriptors, status, and errors. The snapshot is not the source of truth for a
-server-authoritative transcript; it only lets the client restore pending
-interrupts after a full reload.
-
-## Lever 3: server messages
-
-Use message persistence when the server owns the chat transcript instead of
-trusting the browser to send the whole history.
-
-```ts
-import { defineAIPersistence, withChatPersistence } from '@tanstack/ai-persistence'
-import type { MessageStore } from '@tanstack/ai-persistence'
-import type { ModelMessage } from '@tanstack/ai'
-
-declare const db: {
-  loadMessages: (threadId: string) => Promise<Array<ModelMessage>>
-  replaceMessages: (
-    threadId: string,
-    messages: Array<ModelMessage>,
-  ) => Promise<void>
+function serializeJson(value: unknown): string {
+  const stringify: (input: unknown) => unknown = JSON.stringify
+  const serialized = stringify(value)
+  if (typeof serialized !== 'string') {
+    throw new TypeError('The value is not JSON serializable.')
+  }
+  return serialized
 }
 
-const messages: MessageStore = {
-  loadThread: (threadId) => db.loadMessages(threadId),
-  saveThread: (threadId, nextMessages: Array<ModelMessage>) =>
-    db.replaceMessages(threadId, nextMessages),
+export function Chat() {
+  const chat = useChat({
+    id: 'chat-1',
+    threadId: 'thread-1',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: {
+      client: indexedDBPersistence<Array<UIMessage>>(),
+      server: sessionStoragePersistence<ChatResumeSnapshot>({
+        serialize: serializeJson,
+        deserialize: JSON.parse,
+      }),
+    },
+  })
+
+  return <button onClick={() => chat.clear()}>Clear</button>
 }
-
-const persistence = defineAIPersistence({
-  stores: { messages },
-})
-
-const middleware = withChatPersistence(persistence, {
-  features: ['messages'],
-})
 ```
 
-`stores.messages` is enough for server-owned history. It does not make the
-delivered stream resumable after a disconnect — that is **delivery durability**,
-a transport concern handled by a durability sink on `toServerSentEvents(...)`,
-not a persistence store. See [Delivery Durability](./delivery-durability).
-
-## Lever 4: interrupts and approvals
-
-Use interrupt persistence when a run can pause for a user decision and resume
-later.
-
-```ts
-import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
-
-const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
-})
-
-export const middleware = withChatPersistence(persistence, {
-  features: ['interrupts'],
-})
-```
-
-The `interrupts` feature requires `stores.runs` and `stores.interrupts`. A
-pending wait is surfaced on the stream, then the client resumes the same run
-with AG-UI `resume[]` entries.
-
-```ts
-import type { UseChatReturn } from '@tanstack/ai-react'
-
-declare const chat: Pick<UseChatReturn, 'resumeInterrupts'>
-
-await chat.resumeInterrupts([
-  {
-    interruptId: 'send-email-approval',
-    status: 'resolved',
-    payload: { approved: true },
-  },
-])
-```
-
-Approval UIs are one common presentation of interrupts. New durable flows should
-treat the interrupt outcome and `resume[]` payload as the source of truth.
-
-## Lever 5: extension stores
-
-Use extension stores when persistence must support integrations beyond the
-basic message/interrupt path.
-
-| Store | Use it for |
-| --- | --- |
-| `stores.metadata` | App-owned session ids, manifests, correlation state, and pointers. |
-| `stores.locks` | Cross-worker coordination for the same thread, sandbox, or workflow. |
-| `stores.artifacts` | Named outputs tied to a run and thread. |
-| `stores.blobs` | Raw object bytes used by artifacts or app-owned indexes. |
-
-Artifacts require both `stores.artifacts` and `stores.blobs` for generated
-media and file storage. If you pass a manual feature list, include both
-`'artifacts'` and `'blobs'` so metadata and bytes stay paired.
-
-```ts
-import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
-
-const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
-})
-
-export const middleware = withChatPersistence(persistence, {
-  features: ['messages', 'metadata', 'locks', 'artifacts', 'blobs'],
-})
-```
-
-If `features` is omitted, `withChatPersistence(...)` and
-`withGenerationPersistence(...)` enable the features supported by the stores
-present on the `AIPersistence` object. Pass `features` when you want fail-loud
-validation for a required capability.
-
-For exact store method contracts and resume invariants behind these controls,
-see [Persistence Internals](./internals).
+Web Storage uses JSON and needs codecs for non-JSON values. IndexedDB uses
+structured clone. All browser adapters fail visibly when used in an SSR
+environment without the corresponding browser API.

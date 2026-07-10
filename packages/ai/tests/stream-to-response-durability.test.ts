@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { encodeOffset, memoryStream } from '../src/stream-durability'
+import { memoryStream } from '../src/stream-durability'
 import { toServerSentEventsResponse } from '../src/stream-to-response'
+import { EventType } from '../src/types'
+import { ev } from './test-utils'
+import type { StreamDurability } from '../src/stream-durability'
 import type { StreamChunk } from '../src/types'
-
-function textChunk(delta: string): StreamChunk {
-  return { type: 'TEXT_MESSAGE_CONTENT', delta, timestamp: 0 } as StreamChunk
-}
 
 function fiveChunkStream(): {
   stream: AsyncIterable<StreamChunk>
@@ -15,91 +14,125 @@ function fiveChunkStream(): {
   const stream: AsyncIterable<StreamChunk> = {
     async *[Symbol.asyncIterator]() {
       started = true
-      for (const d of ['1', '2', '3', '4', '5']) {
-        yield textChunk(d)
+      for (const delta of ['1', '2', '3', '4', '5']) {
+        yield ev.textContent(delta)
       }
     },
   }
   return { stream, iterated: () => started }
 }
 
-async function readBody(res: Response): Promise<string> {
-  const reader = res.body!.getReader()
+async function readBody(response: Response): Promise<string> {
+  if (!response.body) throw new Error('Expected a response body')
+  const reader = response.body.getReader()
   const decoder = new TextDecoder()
-  let out = ''
+  let body = ''
   for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    out += decoder.decode(value)
+    const result = await reader.read()
+    if (result.done) return body
+    body += decoder.decode(result.value)
   }
-  return out
 }
 
-function parseSseEvents(body: string): Array<{ id?: string; data: string }> {
+interface ParsedSseEvent {
+  id?: string
+  data: unknown
+}
+
+function parseSseEvents(body: string): Array<ParsedSseEvent> {
   return body
     .split('\n\n')
     .filter((block) => block.trim().length > 0)
     .map((block) => {
       const lines = block.split('\n')
-      const idLine = lines.find((l) => l.startsWith('id: '))
-      const dataLine = lines.find((l) => l.startsWith('data: '))
-      return {
-        ...(idLine ? { id: idLine.slice('id: '.length) } : {}),
-        data: dataLine ? dataLine.slice('data: '.length) : '',
-      }
+      const id = lines.find((line) => line.startsWith('id: '))?.slice(4)
+      const data = lines.find((line) => line.startsWith('data: '))?.slice(6)
+      if (!data) throw new Error(`Missing SSE data line in ${block}`)
+      return { ...(id === undefined ? {} : { id }), data: JSON.parse(data) }
     })
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function field(event: ParsedSseEvent, name: string): unknown {
+  if (!isRecord(event.data)) throw new Error('Expected an object SSE payload')
+  return event.data[name]
+}
+
+function label(chunk: StreamChunk): string {
+  return chunk.type === EventType.TEXT_MESSAGE_CONTENT
+    ? chunk.delta
+    : `[${chunk.type}]`
+}
+
+function fixedOffsetDurability(
+  offsets: Array<string>,
+): StreamDurability<string> {
+  return {
+    resumeFrom: () => null,
+    append: async () => offsets,
+    close: async () => undefined,
+    async *read() {
+      // No replay is needed by these validation tests.
+    },
+  }
+}
+
 describe('toServerSentEventsResponse with durability', () => {
-  it('appends + forwards a fresh run, tagging each event with an id offset', async () => {
-    const request = new Request('https://example.test/api/chat', {
-      method: 'POST',
-    })
-    const durability = memoryStream(request)
-    const runId = durability.runId()
+  it('appends a fresh run and tags every event with its adapter offset', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-fresh', {
+        method: 'POST',
+      }),
+    )
     const { stream, iterated } = fiveChunkStream()
 
-    const res = toServerSentEventsResponse(stream, {
-      durability: { adapter: durability },
-    })
-    const events = parseSseEvents(await readBody(res))
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+    )
+    const eventOffsets = events.map((event) => event.id)
 
     expect(iterated()).toBe(true)
     expect(events).toHaveLength(5)
-    expect(events.map((e) => e.id)).toEqual([
-      encodeOffset(runId, 1),
-      encodeOffset(runId, 2),
-      encodeOffset(runId, 3),
-      encodeOffset(runId, 4),
-      encodeOffset(runId, 5),
-    ])
+    expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
+    expect(new Set(eventOffsets).size).toBe(5)
 
-    // The durability log now holds all 5 chunks.
-    const logged: Array<string> = []
-    for await (const { chunk } of durability.read('-1')) {
-      logged.push((chunk as { delta: string }).delta)
+    const loggedOffsets: Array<string> = []
+    const loggedLabels: Array<string> = []
+    for await (const entry of durability.read('-1')) {
+      loggedOffsets.push(entry.offset)
+      loggedLabels.push(label(entry.chunk))
     }
-    expect(logged).toEqual(['1', '2', '3', '4', '5'])
+    expect(loggedOffsets).toEqual(eventOffsets)
+    expect(loggedLabels).toEqual(['1', '2', '3', '4', '5'])
   })
 
-  it('replays from the log on resume and never iterates the input stream', async () => {
-    // Produce a run under a known id.
-    const producerReq = new Request(
-      'https://example.test/api/chat?runId=run-x',
-      { method: 'POST' },
-    )
+  it('replays opaque IDs from the log without iterating the input stream', async () => {
     const { stream } = fiveChunkStream()
-    await readBody(
-      toServerSentEventsResponse(stream, {
-        durability: { adapter: memoryStream(producerReq) },
-      }),
+    const produced = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: {
+            adapter: memoryStream(
+              new Request(
+                'https://example.test/api/chat?runId=response-replay',
+                {
+                  method: 'POST',
+                },
+              ),
+            ),
+          },
+        }),
+      ),
     )
-
-    // Reconnect carrying Last-Event-ID at seq 2.
-    const reconnectReq = new Request('https://example.test/api/chat', {
-      method: 'POST',
-      headers: { 'Last-Event-ID': encodeOffset('run-x', 2) },
-    })
+    const resumeOffset = produced[1]?.id
+    if (!resumeOffset) throw new Error('Expected a replay offset')
     const exploding: AsyncIterable<StreamChunk> = {
       [Symbol.asyncIterator]() {
         return {
@@ -110,24 +143,37 @@ describe('toServerSentEventsResponse with durability', () => {
       },
     }
 
-    const res = toServerSentEventsResponse(exploding, {
-      durability: { adapter: memoryStream(reconnectReq) },
-    })
-    const events = parseSseEvents(await readBody(res))
+    const replayed = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(exploding, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat', {
+                method: 'POST',
+                headers: { 'Last-Event-ID': resumeOffset },
+              }),
+            ),
+          },
+        }),
+      ),
+    )
 
-    expect(events.map((e) => e.id)).toEqual([
-      encodeOffset('run-x', 3),
-      encodeOffset('run-x', 4),
-      encodeOffset('run-x', 5),
+    expect(replayed.map((event) => event.id)).toEqual(
+      produced.slice(2).map((event) => event.id),
+    )
+    expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '3',
+      '4',
+      '5',
     ])
-    expect(events.map((e) => JSON.parse(e.data).delta)).toEqual(['3', '4', '5'])
   })
 
-  it('batches appends to at most `batch` chunks', async () => {
-    const request = new Request('https://example.test/api/chat?runId=run-b', {
-      method: 'POST',
-    })
-    const durability = memoryStream(request)
+  it('batches appends to at most the configured batch size', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-batch', {
+        method: 'POST',
+      }),
+    )
     const appendSpy = vi.spyOn(durability, 'append')
     const { stream } = fiveChunkStream()
 
@@ -138,51 +184,66 @@ describe('toServerSentEventsResponse with durability', () => {
     )
 
     const batchSizes = appendSpy.mock.calls.map(([chunks]) => chunks.length)
-    expect(batchSizes.every((n) => n <= 2)).toBe(true)
-    expect(batchSizes.reduce((a, b) => a + b, 0)).toBe(5)
+    expect(batchSizes.every((size) => size <= 2)).toBe(true)
+    expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(5)
   })
 
-  // Finding 7a: a non-positive-integer batch is rejected loudly (a NaN used to
-  // silently disable size-based flushing: `length >= NaN` is always false).
   it('rejects a non-positive-integer batch size', () => {
     const durability = memoryStream(
-      new Request('https://example.test/api/chat?runId=run-bad-batch', {
+      new Request('https://example.test/api/chat?runId=response-bad-batch', {
         method: 'POST',
       }),
     )
     const { stream } = fiveChunkStream()
-    for (const bad of [0, -1, 1.5, NaN]) {
+    for (const batch of [0, -1, 1.5, NaN]) {
       expect(() =>
         toServerSentEventsResponse(stream, {
-          durability: { adapter: durability, batch: bad },
+          durability: { adapter: durability, batch },
         }),
       ).toThrow(/Invalid durability batch size/)
     }
-    // A valid positive integer is accepted.
-    expect(() =>
-      toServerSentEventsResponse(stream, {
-        durability: { adapter: durability, batch: 4 },
-      }),
-    ).not.toThrow()
   })
 
-  // Finding 4: when the provider stream throws, a terminal RUN_ERROR must be
-  // persisted to the durability log, so a later reader / join learns the run
-  // failed instead of finding a log with no terminal.
-  it('persists a terminal RUN_ERROR to the log when the stream throws', async () => {
-    const request = new Request('https://example.test/api/chat?runId=run-err', {
-      method: 'POST',
+  it('rejects duplicate offsets before emitting distinct chunks', async () => {
+    const { stream } = fiveChunkStream()
+    const response = toServerSentEventsResponse(stream, {
+      durability: {
+        adapter: fixedOffsetDurability(Array.from({ length: 5 }, () => 'same')),
+      },
     })
-    const durability = memoryStream(request)
 
+    const events = parseSseEvents(await readBody(response))
+    expect(events).toHaveLength(1)
+    expect(events[0]?.id).toBeUndefined()
+    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[0]!, 'message')).toMatch(/unique.*offset/i)
+  })
+
+  it('rejects SSE offsets containing U+0000', async () => {
+    const response = toServerSentEventsResponse(textStreamWithOneChunk(), {
+      durability: { adapter: fixedOffsetDurability(['bad\0offset']) },
+    })
+
+    const events = parseSseEvents(await readBody(response))
+    expect(events).toHaveLength(1)
+    expect(events[0]?.id).toBeUndefined()
+    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[0]!, 'message')).toMatch(/Invalid durability offset/)
+  })
+
+  it('persists a terminal RUN_ERROR before closing when the source throws', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-error', {
+        method: 'POST',
+      }),
+    )
     const throwing: AsyncIterable<StreamChunk> = {
       async *[Symbol.asyncIterator]() {
-        yield textChunk('1')
+        yield ev.textContent('1')
         throw new Error('provider exploded')
       },
     }
 
-    // The live consumer still sees a RUN_ERROR (emitted by the transport).
     const liveEvents = parseSseEvents(
       await readBody(
         toServerSentEventsResponse(throwing, {
@@ -190,22 +251,26 @@ describe('toServerSentEventsResponse with durability', () => {
         }),
       ),
     )
-    const liveTypes = liveEvents.map((e) => JSON.parse(e.data).type)
-    expect(liveTypes).toContain('RUN_ERROR')
-
-    // A second reader / joiner replaying the log sees the persisted terminal.
-    const joiner = memoryStream(
-      new Request('https://example.test/api/chat?runId=run-err', {
-        method: 'POST',
-      }),
+    expect(liveEvents.map((event) => field(event, 'type'))).toContain(
+      'RUN_ERROR',
     )
+
     const logged: Array<StreamChunk> = []
-    for await (const { chunk } of joiner.read('-1')) {
-      logged.push(chunk)
-    }
-    expect(logged.map((c) => c.type)).toEqual([
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    expect(logged.map((chunk) => chunk.type)).toEqual([
       'TEXT_MESSAGE_CONTENT',
       'RUN_ERROR',
     ])
+    expect(logged.at(-1)).toMatchObject({
+      message: 'provider exploded',
+    })
   })
 })
+
+function textStreamWithOneChunk(): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield ev.textContent('one')
+    },
+  }
+}

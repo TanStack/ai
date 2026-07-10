@@ -616,7 +616,6 @@ export interface ImageRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   prompt: string
@@ -635,7 +634,6 @@ export interface ImageRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   images: Array<{ url?: string; b64Json?: string }>
@@ -647,7 +645,6 @@ export interface ImageUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   model: string
   usage: TokenUsage
 }
@@ -661,7 +658,6 @@ export interface SpeechRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   text: string
@@ -675,7 +671,6 @@ export interface SpeechRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   audio: string
@@ -690,7 +685,6 @@ export interface SpeechUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   model: string
   usage: TokenUsage
 }
@@ -704,7 +698,6 @@ export interface TranscriptionRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   language?: string
@@ -717,7 +710,6 @@ export interface TranscriptionRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   text: string
@@ -730,7 +722,6 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   model: string
   usage: TokenUsage
 }
@@ -744,7 +735,6 @@ export interface AudioRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   prompt: string
@@ -775,7 +765,6 @@ export interface AudioRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   audio: AudioRequestCompletedAudio
@@ -787,7 +776,6 @@ export interface AudioRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -799,7 +787,6 @@ export interface SpeechRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -811,7 +798,6 @@ export interface TranscriptionRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -823,7 +809,6 @@ export interface AudioUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   model: string
   usage: TokenUsage
 }
@@ -837,7 +822,6 @@ export interface VideoRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
@@ -852,7 +836,6 @@ export interface VideoRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
@@ -869,7 +852,6 @@ export interface VideoUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
-  cursor?: string
   model: string
   usage: TokenUsage
 }

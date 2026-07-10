@@ -1,6 +1,6 @@
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
-import { sqlPersistence } from '../src/index'
+import { sqlitePersistence } from '../src/sqlite'
 
 runPersistenceConformance('drizzle-sqlite', () =>
-  sqlPersistence({ dialect: 'sqlite', url: ':memory:', migrate: true }),
+  sqlitePersistence({ url: ':memory:', migrate: true }),
 )

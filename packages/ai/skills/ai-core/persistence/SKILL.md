@@ -4,10 +4,10 @@ description: >
   Durable STATE for chat() via withChatPersistence middleware and AIPersistence;
   media generation via withGenerationPersistence. Persists thread messages, run
   records, interrupts, metadata, locks, and artifacts/blobs through optional
-  feature-validated stores. Interrupts resume with RunAgentInput.resume[].
+  composable stores. Interrupts resume with RunAgentInput.resume[].
   Delivery durability (replaying a disconnected/reloaded stream) is a separate
   TRANSPORT concern, not part of this middleware. Backends: memoryPersistence,
-  drizzlePersistence/sqlPersistence, prismaPersistence.
+  drizzlePersistence/sqlitePersistence, prismaPersistence.
 type: sub-skill
 library: tanstack-ai
 library_version: '0.30.0'
@@ -33,22 +33,22 @@ sources:
   `toServerSentEventsResponse(stream, { durability: { adapter } })`
   (or `toHttpResponse`): `memoryStream(request)` (process-local, dev/test) or
   `durableStream(request, { server })` from `@tanstack/ai-durable-stream`
-  (durable-streams protocol, production). Each SSE event is tagged
-  `id: <runId@seq>`; native `EventSource` resumes via `Last-Event-ID` with zero
-  client cursor code, and `fetchServerSentEvents(...).joinRun(runId)` attaches a
-  second tab from the start (`?offset=-1`). Ceiling: replays what was PRODUCED,
-  not an interrupted completion — keep the producer alive past the socket
+  (durable-streams protocol, production). Each SSE event is tagged with an
+  opaque adapter-owned offset; native `EventSource` resumes via `Last-Event-ID`
+  with zero application cursor code. Ceiling: replays what was PRODUCED, not an
+  interrupted completion — keep the producer alive past the socket
   (`waitUntil`/durable object/queue). See `docs/persistence/delivery-durability.md`.
-- The primary interface is `AIPersistence`; use `defineAIPersistence(...)` for
-  custom stores. `ChatPersistence` / `defineChatPersistence` are deprecated
-  compatibility aliases only.
-- Use **`withChatPersistence(persistence, { features? })`** for `chat()`:
+- The persistence interface is `AIPersistence`; use
+  `defineAIPersistence({ stores })` for custom stores and
+  `composePersistence(base, { overrides })` to replace or disable individual
+  stores.
+- Use **`withChatPersistence(persistence)`** for `chat()`:
   `setup` (provide capabilities), `onConfig` (load+merge thread messages,
   server-authoritative; validate + apply pending interrupt resumes),
   `onChunk` (interrupt boundary side-effects only — create interrupt records,
   mark the run interrupted, snapshot messages), and `onFinish`/`onError`/`onAbort`
   (run status + usage + transcript save).
-- Use **`withGenerationPersistence(persistence, { features? })`** for media
+- Use **`withGenerationPersistence(persistence)`** for media
   generation (`generateImage`, `generateAudio`, TTS, video, transcription):
   run status updates and optional artifact/blob persistence.
 - Pending user-actionable interrupts are represented by
@@ -63,10 +63,9 @@ sources:
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-const persistence = sqlPersistence({
-  dialect: 'sqlite',
+const persistence = sqlitePersistence({
   url: 'file:./chat.db',
   migrate: true,
 })
@@ -90,25 +89,43 @@ export async function POST(request: Request) {
 For pending interrupts, send resume entries matching every pending interrupt
 with `resumeInterrupts(...)`:
 
-```ts
-await chat.resumeInterrupts([
-  {
-    interruptId: 'interrupt-1',
-    status: 'resolved',
-    payload: { approved: true },
-  },
-])
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function ApprovalChat() {
+  const chat = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void chat.resumeInterrupts([
+          {
+            interruptId: 'interrupt-1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ])
+      }}
+    >
+      Approve
+    </button>
+  )
+}
 ```
 
 `chat.getResumeState()` returns `{ threadId, runId }` for the interrupted run so
 the interrupt resume can be reissued across a full page reload (persist it via
 `persistence: { server }`).
 
-## Stores and features
+## Stores and composition
 
-`AIPersistence` stores are optional, but feature validation is fail-loud:
+`AIPersistence` stores are optional, but dependent store pairs are validated
+fail-loud:
 
-| Feature      | Required stores                 |
+| Capability   | Required stores                 |
 | ------------ | ------------------------------- |
 | `messages`   | `messages`                      |
 | `interrupts` | `runs`, `interrupts`            |
@@ -122,14 +139,18 @@ the interrupt resume can be reissued across a full page reload (persist it via
 ```ts
 import { memoryPersistence } from '@tanstack/ai-persistence' // tests/prototypes
 import {
-  sqlPersistence, // batteries: builds the db + runs bundled migrations
-  drizzlePersistence, // BYO drizzle db
+  drizzlePersistence, // BYO migrated SQLite-family Drizzle db, including D1
+  sqliteMigrations, // bundled SQL for custom migration workflows
 } from '@tanstack/ai-persistence-drizzle'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 import { prismaPersistence } from '@tanstack/ai-persistence-prisma' // BYO PrismaClient
 ```
 
-Each ORM owns its own migrations (drizzle-kit / prisma migrate). The state
-tables are `messages`, `runs`, `interrupts`, `metadata`, `artifacts`, `blobs`.
+The Drizzle package exports `sqliteMigrations` and a migration-copy CLI. The
+Prisma package exports `prismaModels` and a model-copy CLI so applications can
+incorporate the models into their own provider-specific migration workflow.
+The state tables are `messages`, `runs`, `interrupts`, `metadata`, `artifacts`,
+and `blobs`.
 
 ## Sandboxes
 

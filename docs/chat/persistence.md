@@ -2,165 +2,225 @@
 title: Persistence
 id: chat-persistence
 order: 5
-description: "Persist chat conversations on the client with TanStack AI — hydrate on load, save on change, and clear on reset using a simple getItem/setItem/removeItem adapter."
+description: "Persist rendered chat state and interrupt resume state in the browser with localStorage, sessionStorage, IndexedDB, or a custom adapter."
 keywords:
   - tanstack ai
   - persistence
   - chat history
   - localStorage
+  - sessionStorage
   - indexeddb
   - offline
-  - hydration
 ---
 
-By default a `ChatClient` (and every framework `useChat`/`createChat` wrapper) keeps messages in memory only — reload the page or navigate away and the conversation is gone. The optional **persistence adapter** wires the client to a storage backend so conversations survive reloads, with no manual `initialMessages` + `onFinish` boilerplate.
+# Client Chat Persistence
 
-This is especially useful for SPAs, Electron apps, and offline-first setups where the client is the source of truth and there's no server managing conversation state.
+`useChat` can persist two browser-side values independently:
 
-If your server owns the transcript and you need durable event replay after a
-reconnect or reload, use server-side persistence instead. See
-[Chat Persistence](../persistence/chat-persistence) for the full
-`withChatPersistence` server/client wiring.
+- `persistence.client` stores the rendered `UIMessage[]` under the chat `id`.
+- `persistence.server` stores the latest `ChatResumeSnapshot` under the
+  `threadId`. The snapshot contains the run identity and any pending
+  interrupts needed after a reload.
 
-## The adapter interface
+This is client hydration, not server state durability. Persist authoritative
+messages, runs, and interrupts with `withChatPersistence(...)`; make an
+in-flight response replayable with SSE delivery durability. See
+[Chat Persistence](../persistence/chat-persistence) for the complete flow.
 
-A persistence adapter is any object with three methods — the same `getItem`/`setItem`/`removeItem` shape used elsewhere in TanStack AI. Each method may be synchronous or return a `Promise`:
+## Use IndexedDB for chat messages
 
-```typescript
-import type { UIMessage } from "@tanstack/ai-client";
+IndexedDB uses the browser's structured-clone algorithm, so values such as the
+optional `UIMessage.createdAt` `Date` survive a round trip without a custom
+codec.
 
-interface ChatClientPersistence {
-  getItem: (
-    id: string,
-  ) =>
-    | Array<UIMessage>
-    | null
-    | undefined
-    | Promise<Array<UIMessage> | null | undefined>;
-  setItem: (id: string, messages: Array<UIMessage>) => void | Promise<void>;
-  removeItem: (id: string) => void | Promise<void>;
+```tsx
+import {
+  indexedDBPersistence,
+} from '@tanstack/ai-client'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { UIMessage } from '@tanstack/ai-react'
+
+export function SupportChat() {
+  const chat = useChat({
+    id: 'support-chat',
+    threadId: 'support-thread',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: {
+      client: indexedDBPersistence<Array<UIMessage>>({
+        databaseName: 'support-app',
+        objectStoreName: 'chat-state',
+      }),
+    },
+  })
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        const data = new FormData(event.currentTarget)
+        const message = data.get('message')
+        if (typeof message === 'string' && message.trim()) {
+          void chat.sendMessage(message)
+          event.currentTarget.reset()
+        }
+      }}
+    >
+      {chat.messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === 'text' ? (
+              <span key={index}>{part.content}</span>
+            ) : null,
+          )}
+        </p>
+      ))}
+      <input name="message" />
+      <button disabled={chat.isLoading}>Send</button>
+      <button type="button" onClick={() => chat.clear()}>
+        Clear
+      </button>
+    </form>
+  )
 }
 ```
 
-The `id` passed to each method is the client's `id` option. Provide a stable `id` per conversation so the right history is loaded back:
+`clear()` removes both in-memory state and the persisted entries. Storage
+operations may be synchronous or asynchronous; the chat client serializes its
+writes so a slower write cannot overwrite newer state.
 
-```typescript
-import { ChatClient } from "@tanstack/ai-client";
-import { adapter, myPersistenceAdapter } from "./chat-setup";
+## Use localStorage or sessionStorage
 
-const client = new ChatClient({
-  id: "conversation-123",
-  connection: adapter,
-  persistence: {
-    client: myPersistenceAdapter,
-  },
-});
-```
-
-## What the client does for you
-
-When a `persistence.client` adapter is provided, `ChatClient`:
-
-- **Hydrates on construction** — calls `getItem(id)`. If it returns an array, those messages populate the client (overriding `initialMessages`). Async adapters hydrate as soon as the promise resolves, unless you've already started a new conversation in the meantime.
-- **Saves on every change** — calls `setItem(id, messages)` whenever the message list changes (new user message, streamed assistant content, tool calls/results, approval responses). Writes are queued so they never overlap or land out of order.
-- **Clears on `clear()`** — calls `removeItem(id)` and discards any in-flight stream so a cleared conversation doesn't get repopulated by late chunks.
-
-When `persistence` is omitted, nothing changes — the client behaves exactly as before. Passing a message adapter directly as `persistence: adapter` remains supported for compatibility, but it is deprecated. Use `persistence: { client: adapter }` in new code.
-
-Persistence is **best-effort**: if an adapter method throws or rejects, the error is swallowed so storage problems never break the chat. Handle and surface errors inside your adapter if you need to react to them.
-
-## Framework usage
-
-Every framework wrapper accepts the same `persistence` option and forwards it to the underlying `ChatClient`:
+Web Storage only stores strings. `localStoragePersistence` and
+`sessionStoragePersistence` use JSON by default for JSON-safe values. Chat
+messages can contain `Date`, so provide a codec that restores it.
 
 ```tsx
-// React / Preact
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { myPersistenceAdapter } from "./persistence";
+import {
+  localStoragePersistence,
+  sessionStoragePersistence,
+} from '@tanstack/ai-client'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { ChatResumeSnapshot } from '@tanstack/ai-client'
+import type { UIMessage } from '@tanstack/ai-react'
 
-const chat = useChat({
-  id: "conversation-123",
-  connection: fetchServerSentEvents("/api/chat"),
-  persistence: {
-    client: myPersistenceAdapter,
-  },
-});
-```
+type StoredMessage = Omit<UIMessage, 'createdAt'> & {
+  createdAt?: string
+}
 
-```ts
-// Solid / Vue — same option
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
-import { myPersistenceAdapter } from "./persistence";
+function serializeJson(value: unknown): string {
+  const stringify: (input: unknown) => unknown = JSON.stringify
+  const serialized = stringify(value)
+  if (typeof serialized !== 'string') {
+    throw new TypeError('The value is not JSON serializable.')
+  }
+  return serialized
+}
 
-const chat = useChat({
-  id: "conversation-123",
-  connection: fetchServerSentEvents("/api/chat"),
-  persistence: {
-    client: myPersistenceAdapter,
-  },
-});
-```
-
-```ts ignore
-// Svelte
-const chat = createChat({
-  id: "conversation-123",
-  connection: fetchServerSentEvents("/api/chat"),
-  persistence: {
-    client: myPersistenceAdapter,
-  },
-});
-```
-
-## Example: `localStorage`
-
-A synchronous adapter backed by `localStorage`. Note that `UIMessage.createdAt` is a `Date`, which `JSON.stringify` turns into a string — revive it on read if you depend on it:
-
-```typescript
-import type { ChatClientPersistence, UIMessage } from "@tanstack/ai-client";
-
-const localStoragePersistence: ChatClientPersistence = {
-  getItem: (id) => {
-    const raw = window.localStorage.getItem(id);
-    if (!raw) return null;
-    const stored: Array<UIMessage> = JSON.parse(raw);
+const messages = localStoragePersistence<Array<UIMessage>>({
+  keyPrefix: 'my-app:messages:',
+  serialize: serializeJson,
+  deserialize(value) {
+    const stored: Array<StoredMessage> = JSON.parse(value)
     return stored.map((message) => ({
       ...message,
-      createdAt:
-        typeof message.createdAt === "string"
-          ? new Date(message.createdAt)
-          : message.createdAt,
-    }));
+      ...(message.createdAt
+        ? { createdAt: new Date(message.createdAt) }
+        : {}),
+    }))
   },
-  setItem: (id, messages) => {
-    window.localStorage.setItem(id, JSON.stringify(messages));
+})
+
+const resumes = sessionStoragePersistence<ChatResumeSnapshot>({
+  keyPrefix: 'my-app:resume:',
+  serialize: serializeJson,
+  deserialize(value) {
+    return JSON.parse(value)
   },
-  removeItem: (id) => {
-    window.localStorage.removeItem(id);
-  },
-};
+})
+
+export function PersistentChat() {
+  const chat = useChat({
+    id: 'chat-1',
+    threadId: 'thread-1',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: { client: messages, server: resumes },
+  })
+
+  return <p>{chat.messages.length} messages</p>
+}
 ```
 
-## Example: IndexedDB (async)
+`localStorage` survives browser restarts. `sessionStorage` is scoped to the
+current tab. Both adapters default to the key prefix `tanstack-ai:`.
 
-For larger histories or structured queries, back the adapter with an async store such as IndexedDB. The client awaits async methods automatically:
+## Resume pending interrupts after reload
 
-```typescript
-import type { ChatClientPersistence } from "@tanstack/ai-client";
-import { db } from "./db";
+The hook exposes the persisted interrupt state directly. Render
+`pendingInterrupts` and call the returned `resumeInterrupts` function; do not
+manufacture a hook return type outside a component.
 
-const indexedDbPersistence: ChatClientPersistence = {
-  getItem: async (id) => {
-    const record = await db.conversations.get(id);
-    return record?.messages;
-  },
-  setItem: async (id, messages) => {
-    await db.conversations.put({ id, messages, updatedAt: Date.now() });
-  },
-  removeItem: async (id) => {
-    await db.conversations.delete(id);
-  },
-};
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Interrupts() {
+  const { pendingInterrupts, resumeInterrupts } = useChat({
+    threadId: 'thread-1',
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <ul>
+      {pendingInterrupts.map((interrupt) => (
+        <li key={interrupt.id}>
+          <span>{interrupt.reason}</span>
+          <button
+            onClick={() =>
+              void resumeInterrupts([
+                {
+                  interruptId: interrupt.id,
+                  status: 'resolved',
+                  payload: { approved: true },
+                },
+              ])
+            }
+          >
+            Continue
+          </button>
+          <button
+            onClick={() =>
+              void resumeInterrupts([
+                { interruptId: interrupt.id, status: 'cancelled' },
+              ])
+            }
+          >
+            Cancel
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
 ```
 
-Any backend works — IndexedDB, SQLite (Electron/Tauri), a remote database, or an in-memory `Map` for tests — as long as it implements the three methods.
+The server still validates that every resume entry matches a pending
+interrupt. Normal new input is rejected while interrupts remain unresolved.
+
+## SSR and custom adapters
+
+Browser storage is unavailable during SSR. The built-in adapters throw
+`StorageUnavailableError` when first used outside a browser rather than
+silently dropping data. Construct and use them in client components, or pass a
+custom `ChatStorageAdapter<T>` backed by your runtime's storage.
+
+```ts
+import type { ChatStorageAdapter } from '@tanstack/ai-client'
+
+declare const adapter: ChatStorageAdapter<string>
+
+await adapter.setItem('chat-1', 'value')
+const value = await adapter.getItem('chat-1')
+await adapter.removeItem('chat-1')
+```
+
+Keep `id` and `threadId` stable. Changing either selects a different persisted
+record.

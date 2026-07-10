@@ -244,23 +244,11 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [
-          withChatPersistence(persistence, { features: ['messages'] }),
-        ],
+        middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).not.toEqual([])
-  })
-
-  it('fails loudly when interrupts are requested without a run store', () => {
-    const persistence = defineAIPersistence({
-      stores: { messages: memoryPersistence().stores.messages },
-    })
-
-    expect(() =>
-      withChatPersistence(persistence, { features: ['interrupts'] }),
-    ).toThrow(/interrupts.*stores\.runs.*stores\.interrupts/i)
   })
 
   it('is a no-op without the middleware: the stream is unchanged', async () => {

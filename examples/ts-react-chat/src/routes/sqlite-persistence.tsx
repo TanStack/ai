@@ -1,16 +1,63 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { localStorageAIPersistence } from '@tanstack/ai-client'
+import { localStoragePersistence } from '@tanstack/ai-client'
 import { Square } from 'lucide-react'
 import type { ChatResumeSnapshot, UIMessage } from '@tanstack/ai-client'
 
-const THREAD_ID_KEY = 'tanstack-ai:mysql-persistence:thread-id'
-const RESUME_KEY_PREFIX = 'tanstack-ai:mysql-persistence:resume:'
-const MESSAGES_KEY_PREFIX = 'tanstack-ai:mysql-persistence:messages:'
+const THREAD_ID_KEY = 'tanstack-ai:sqlite-persistence:thread-id'
+const RESUME_KEY_PREFIX = 'tanstack-ai:sqlite-persistence:resume:'
+const MESSAGES_KEY_PREFIX = 'tanstack-ai:sqlite-persistence:messages:'
+
+type StoredUIMessage = Omit<UIMessage, 'createdAt'> & {
+  createdAt?: Date | string
+}
+
+function isStoredUIMessage(value: unknown): value is StoredUIMessage {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'role' in value &&
+    (value.role === 'system' ||
+      value.role === 'user' ||
+      value.role === 'assistant') &&
+    'parts' in value &&
+    Array.isArray(value.parts) &&
+    (!('createdAt' in value) ||
+      value.createdAt instanceof Date ||
+      typeof value.createdAt === 'string')
+  )
+}
+
+function serializeJson(value: unknown): string {
+  const stringify: (input: unknown) => unknown = JSON.stringify
+  const serialized = stringify(value)
+  if (typeof serialized !== 'string') {
+    throw new TypeError('The persistence value is not JSON serializable')
+  }
+  return serialized
+}
+
+function deserializeMessages(raw: string): Array<UIMessage> {
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
+    throw new TypeError('Stored messages are invalid')
+  }
+  return parsed.map(({ createdAt, ...message }) => ({
+    ...message,
+    ...(createdAt
+      ? {
+          createdAt:
+            createdAt instanceof Date ? createdAt : new Date(createdAt),
+        }
+      : {}),
+  }))
+}
 
 function getStableThreadId(): string {
-  if (typeof window === 'undefined') return 'mysql-persistence-ssr'
+  if (typeof window === 'undefined') return 'sqlite-persistence-ssr'
   const existing = window.localStorage.getItem(THREAD_ID_KEY)
   if (existing) return existing
   const id = crypto.randomUUID()
@@ -18,12 +65,16 @@ function getStableThreadId(): string {
   return id
 }
 
-const messagePersistence = localStorageAIPersistence<Array<UIMessage>>({
+const messagePersistence = localStoragePersistence<Array<UIMessage>>({
   keyPrefix: MESSAGES_KEY_PREFIX,
+  serialize: serializeJson,
+  deserialize: deserializeMessages,
 })
 
-const resumePersistence = localStorageAIPersistence<ChatResumeSnapshot>({
+const resumePersistence = localStoragePersistence<ChatResumeSnapshot>({
   keyPrefix: RESUME_KEY_PREFIX,
+  serialize: serializeJson,
+  deserialize: JSON.parse,
 })
 
 function messageText(message: UIMessage): string {
@@ -38,7 +89,7 @@ function messageText(message: UIMessage): string {
     .join('\n')
 }
 
-function MysqlPersistenceRoute() {
+function SqlitePersistenceRoute() {
   const [threadId] = useState(getStableThreadId)
   const [input, setInput] = useState('')
 
@@ -46,7 +97,7 @@ function MysqlPersistenceRoute() {
     useChat({
       id: threadId,
       threadId,
-      connection: fetchServerSentEvents('/api/mysql-persistent-chat'),
+      connection: fetchServerSentEvents('/api/sqlite-persistent-chat'),
       persistence: {
         client: messagePersistence,
         server: resumePersistence,
@@ -94,10 +145,10 @@ function MysqlPersistenceRoute() {
         <div className="mx-auto max-w-3xl space-y-4">
           {messages.length === 0 && (
             <div className="rounded-lg border border-gray-800 bg-gray-950 p-6 text-gray-400">
-              Send a prompt, then refresh while the response is streaming. The
-              transport's delivery-durability sink replays the ordered stream on
-              reconnect (native Last-Event-ID), while chat state persists to the
-              SQLite state backend.
+              Send a prompt and wait for it to finish, then refresh to hydrate
+              the same thread from browser and SQLite state. During an active
+              request, the process-local delivery log can replay a transiently
+              dropped SSE connection.
             </div>
           )}
           {messages.map((message) => (
@@ -133,7 +184,7 @@ function MysqlPersistenceRoute() {
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask for a detailed answer, then refresh mid-stream"
+            placeholder="Ask for a detailed answer, then refresh after it completes"
             className="min-w-0 flex-1 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-white placeholder-gray-500 focus:border-orange-500/50 focus:outline-none"
           />
           {isLoading ? (
@@ -160,6 +211,6 @@ function MysqlPersistenceRoute() {
   )
 }
 
-export const Route = createFileRoute('/mysql-persistence')({
-  component: MysqlPersistenceRoute,
+export const Route = createFileRoute('/sqlite-persistence')({
+  component: SqlitePersistenceRoute,
 })

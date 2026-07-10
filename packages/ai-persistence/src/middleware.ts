@@ -8,7 +8,10 @@ import {
   provideLocks,
   providePersistence,
 } from './capabilities'
-import { validatePersistenceFeatures } from './types'
+import {
+  validateChatPersistenceStores,
+  validateGenerationPersistenceStores,
+} from './types'
 import type {
   AbortInfo,
   ChatMiddleware,
@@ -31,15 +34,14 @@ import type {
 } from '@tanstack/ai'
 import type {
   AIPersistence,
+  AIPersistenceStores,
   ArtifactRecord,
   BlobBody,
   InterruptRecord,
-  PersistenceFeature,
   RunStore,
 } from './types'
 
 export interface WithPersistenceOptions {
-  features?: Array<PersistenceFeature>
   extractArtifacts?: (
     input: GenerationArtifactExtractionInput,
   ) =>
@@ -85,22 +87,6 @@ const runState = new WeakMap<
   object,
   { merged: boolean; interrupted: boolean }
 >()
-
-function defaultFeatures(
-  persistence: AIPersistence,
-): Array<PersistenceFeature> {
-  const features: Array<PersistenceFeature> = []
-  if (persistence.stores.messages) features.push('messages')
-  if (persistence.stores.runs && persistence.stores.interrupts) {
-    features.push('interrupts')
-  }
-  if (persistence.stores.metadata) features.push('metadata')
-  if (persistence.stores.locks) features.push('locks')
-  if (persistence.stores.artifacts && persistence.stores.blobs) {
-    features.push('artifacts', 'blobs')
-  }
-  return features
-}
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
 
@@ -677,7 +663,6 @@ async function persistGenerationArtifacts(
 // ---------------------------------------------------------------------------
 
 interface PersistencePlan {
-  features: Array<PersistenceFeature>
   wantsMessages: boolean
   wantsInterrupts: boolean
   wantsLocks: boolean
@@ -685,33 +670,60 @@ interface PersistencePlan {
   runs: AIPersistence['stores']['runs']
 }
 
-function resolvePersistencePlan(
-  persistence: AIPersistence,
-  opts?: WithPersistenceOptions,
-): PersistencePlan {
-  const features = opts?.features ?? defaultFeatures(persistence)
-  validatePersistenceFeatures(persistence, features)
-
-  const wantsMessages = features.includes('messages')
-  const wantsInterrupts = features.includes('interrupts')
-  const wantsLocks = features.includes('locks')
-  const wantsArtifactStore = features.includes('artifacts')
-  const wantsBlobStore = features.includes('blobs')
-  if (wantsArtifactStore !== wantsBlobStore) {
-    throw new Error(
-      'Generation artifact persistence requires both stores.artifacts and stores.blobs.',
-    )
-  }
+function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
+  const wantsMessages = persistence.stores.messages !== undefined
+  const wantsInterrupts = persistence.stores.interrupts !== undefined
+  const wantsLocks = persistence.stores.locks !== undefined
+  const wantsArtifactPersistence =
+    persistence.stores.artifacts !== undefined &&
+    persistence.stores.blobs !== undefined
 
   return {
-    features,
     wantsMessages,
     wantsInterrupts,
     wantsLocks,
-    wantsArtifactPersistence: wantsArtifactStore && wantsBlobStore,
+    wantsArtifactPersistence,
     runs: persistence.stores.runs,
   }
 }
+
+type StoreIsDefinitelyPresent<
+  TStores extends AIPersistenceStores,
+  TKey extends keyof AIPersistenceStores,
+> = TKey extends keyof TStores
+  ? object extends Pick<TStores, TKey>
+    ? false
+    : [Exclude<TStores[TKey], undefined>] extends [never]
+      ? false
+      : true
+  : false
+
+type StoreIsDefinitelyAbsent<
+  TStores extends AIPersistenceStores,
+  TKey extends keyof AIPersistenceStores,
+> = TKey extends keyof TStores
+  ? [Exclude<TStores[TKey], undefined>] extends [never]
+    ? true
+    : false
+  : true
+
+type InvalidChatPersistence<TStores extends AIPersistenceStores> =
+  StoreIsDefinitelyPresent<TStores, 'interrupts'> extends true
+    ? StoreIsDefinitelyAbsent<TStores, 'runs'>
+    : false
+
+type InvalidGenerationPersistence<TStores extends AIPersistenceStores> =
+  StoreIsDefinitelyPresent<TStores, 'artifacts'> extends true
+    ? StoreIsDefinitelyAbsent<TStores, 'blobs'>
+    : StoreIsDefinitelyPresent<TStores, 'blobs'> extends true
+      ? StoreIsDefinitelyAbsent<TStores, 'artifacts'>
+      : false
+
+type ValidChatPersistence<TStores extends AIPersistenceStores> =
+  InvalidChatPersistence<TStores> extends true ? never : unknown
+
+type ValidGenerationPersistence<TStores extends AIPersistenceStores> =
+  InvalidGenerationPersistence<TStores> extends true ? never : unknown
 
 async function createOrResumeRun(
   runs: RunStore | undefined,
@@ -769,11 +781,14 @@ async function interruptRun(
  * (replaying a disconnected/reloaded stream) lives on the transport layer via
  * `StreamDurability`, not here — this middleware never mutates the chunk stream.
  */
+export function withChatPersistence<TStores extends AIPersistenceStores>(
+  persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
+): ChatMiddleware
 export function withChatPersistence(
   persistence: AIPersistence,
-  opts?: WithPersistenceOptions,
 ): ChatMiddleware {
-  const plan = resolvePersistencePlan(persistence, opts)
+  validateChatPersistenceStores(persistence)
+  const plan = resolvePersistencePlan(persistence)
   const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
 
   const provides = [
@@ -907,11 +922,16 @@ export function withChatPersistence(
  * persists media artifacts/blobs for image, audio, TTS, video, and
  * transcription activities.
  */
+export function withGenerationPersistence<TStores extends AIPersistenceStores>(
+  persistence: AIPersistence<TStores> & ValidGenerationPersistence<TStores>,
+  opts?: WithPersistenceOptions,
+): GenerationMiddleware
 export function withGenerationPersistence(
   persistence: AIPersistence,
   opts?: WithPersistenceOptions,
 ): GenerationMiddleware {
-  const plan = resolvePersistencePlan(persistence, opts)
+  validateGenerationPersistenceStores(persistence)
+  const plan = resolvePersistencePlan(persistence)
   const { wantsArtifactPersistence, runs } = plan
 
   return {

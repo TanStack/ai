@@ -42,8 +42,19 @@ export type {
   DistributedOmit,
   MultimodalContent,
 } from './types'
-export { localStorageAIPersistence } from './client-persistor'
-export type { LocalStorageAIPersistenceOptions } from './client-persistor'
+export {
+  StorageUnavailableError,
+  indexedDBPersistence,
+  localStoragePersistence,
+  sessionStoragePersistence,
+} from './storage-adapters'
+export type {
+  IndexedDBPersistenceOptions,
+  JsonPrimitive,
+  JsonValue,
+  StorageCodec,
+  WebStoragePersistenceOptions,
+} from './storage-adapters'
 // Generation client types
 export type {
   InferGenerationOutput,

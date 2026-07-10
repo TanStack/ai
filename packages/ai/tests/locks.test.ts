@@ -67,6 +67,18 @@ describe('InMemoryLockStore', () => {
     // Lock is not poisoned: a subsequent acquire still runs.
     await expect(store.withLock('k', async () => 'ok')).resolves.toBe('ok')
   })
+
+  it('provides a live lease signal to the critical section', async () => {
+    const store = new InMemoryLockStore()
+
+    await expect(
+      store.withLock('k', async (signal) => {
+        expect(signal).toBeInstanceOf(AbortSignal)
+        expect(signal.aborted).toBe(false)
+        return 'ok'
+      }),
+    ).resolves.toBe('ok')
+  })
 })
 
 describe('LocksCapability', () => {

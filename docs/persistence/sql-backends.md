@@ -3,85 +3,78 @@ title: SQL Backends
 id: sql-backends
 ---
 
-Use a SQL backend when your app runs in Node or another server runtime with a
-database connection. TanStack AI ships a single, Drizzle-backed SQL backend —
-`@tanstack/ai-persistence-drizzle` — that exposes the `AIPersistence` state
-stores to `withChatPersistence(...)` and `withGenerationPersistence(...)`.
+# SQL Backends
 
-There are two entry points, both returning the same contract:
+TanStack AI ships two SQL-oriented state adapters with different ownership
+models.
 
-- `sqlPersistence({ dialect, url, migrate })` — batteries-included: builds the
-  database and applies the bundled migrations.
-- `drizzlePersistence(db)` — bring your own Drizzle database and migration
-  workflow, driven by the exported `schema`.
+| Adapter | Database support | Connection ownership | Schema workflow |
+| --- | --- | --- | --- |
+| `@tanstack/ai-persistence-drizzle` | SQLite-family only | Bring a migrated Drizzle DB, or use Node `/sqlite` | Bundled SQLite migration manifest and CLI |
+| `@tanstack/ai-persistence-prisma` | Providers supported by your Prisma schema | Bring your generated `PrismaClient` | Copy models fragment, then use Prisma migrate |
 
-```sh
-pnpm add @tanstack/ai-persistence @tanstack/ai-persistence-drizzle drizzle-orm
-```
+The Drizzle adapter does not accept a dialect selector. Its schema and stores
+use SQLite APIs. For a non-SQLite Drizzle database, implement the public
+`AIPersistence` store interfaces for that dialect.
 
-## Batteries-included
-
-The `sqlite` dialect ships pre-generated migrations, so a fresh database can
-create its tables on first use with `migrate: true`.
+## Local SQLite
 
 ```ts
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-export const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:./.tanstack-ai/state.sqlite',
+export const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
 ```
 
-Use `url: ':memory:'` for tests. For production, generate and review the
-migrations ahead of time and deploy them before traffic reaches the persistence
-stores; leave `migrate` unset so tables are not created lazily at runtime.
+## Existing SQLite or D1 Drizzle database
 
-## Bring your own Drizzle database
+```ts
+import {
+  drizzlePersistence,
+  schema,
+} from '@tanstack/ai-persistence-drizzle'
+import { drizzle } from 'drizzle-orm/d1'
 
-When Drizzle already owns your database access, pass your `db`. This works with
-any Drizzle sqlite driver (`better-sqlite3`, `libsql`/Turso, D1, `node:sqlite`).
+declare const stateDatabase: D1Database
 
-```ts ignore
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import Database from 'better-sqlite3'
-import { drizzlePersistence, schema } from '@tanstack/ai-persistence-drizzle'
-
-const db = drizzle(new Database('state.sqlite'), { schema })
-
+const db = drizzle(stateDatabase, { schema })
 export const persistence = drizzlePersistence(db)
 ```
 
-See [Drizzle](./drizzle) for the full adapter guide and [Migrations](./migrations)
-for the drizzle-kit workflow.
+The package root is edge-safe; `/sqlite` is Node-only.
 
-## Schema
+## Prisma
 
-The schema mirrors the `AIPersistence` state records column-for-column:
+```ts
+import { PrismaClient } from '@prisma/client'
+import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
 
-- `messages`
-- `runs`
-- `interrupts`
-- `metadata`
-- `artifacts`
-- `blobs`
+const prisma = new PrismaClient()
+export const persistence = prismaPersistence(prisma)
+```
 
-Delivery durability (replaying an interrupted stream) is a transport concern and
-is not stored in these tables. Locks are not part of the SQL schema; an
-in-memory lock is provided as a dev default — see [Custom Stores](./custom-stores)
-to plug in a distributed lock.
+Copy the package's models fragment and create provider-native migrations before
+constructing the adapter. See [Prisma](./prisma).
 
-## Other dialects
+## Store coverage
 
-`sqlPersistence` bundles the `sqlite` dialect. For `postgres` or `mysql`,
-construct a Drizzle database with your own driver and use `drizzlePersistence(db)`,
-generating migrations from the exported `schema` with drizzle-kit. Prisma users
-can use [Prisma](./prisma) as a peer backend.
+Both adapters provide messages, runs, interrupts, metadata, artifacts, blobs,
+and an in-process lock store. Replace `locks` with a distributed store when
+multiple processes can mutate the same run:
 
-## Choosing a backend
+```ts
+import { composePersistence } from '@tanstack/ai-persistence'
+import type { LockStore } from '@tanstack/ai'
 
-Use `sqlPersistence` with sqlite when one process owns the database file or for
-local development. Use `drizzlePersistence(db)` when Drizzle already owns your
-database connection — including Postgres, MySQL, libsql/Turso, or D1 — and you
-manage migrations yourself.
+declare const distributedLocks: LockStore
+
+const coordinated = composePersistence(persistence, {
+  overrides: { locks: distributedLocks },
+})
+```
+
+For Cloudflare-native state, [Cloudflare Persistence](./cloudflare) combines D1,
+R2, and Durable Object locks. For another SQL library, start with
+[Custom Stores](./custom-stores).

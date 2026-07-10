@@ -1,12 +1,6 @@
 // Store contracts + aggregate
-export {
-  defineAIPersistence,
-  defineChatPersistence,
-  validatePersistenceFeatures,
-} from './types'
+export { composePersistence, defineAIPersistence } from './types'
 export type {
-  PersistenceMode,
-  PersistenceFeature,
   MessageStore,
   RunStatus,
   RunRecord,
@@ -24,7 +18,9 @@ export type {
   BlobListOptions,
   BlobStore,
   AIPersistence,
-  ChatPersistence,
+  AIPersistenceStores,
+  AIPersistenceOverrides,
+  ComposedAIPersistenceStores,
 } from './types'
 
 // Middleware

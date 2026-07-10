@@ -1,15 +1,5 @@
 import type { LockStore, ModelMessage, TokenUsage } from '@tanstack/ai'
 
-export type PersistenceMode = 'messages' | 'chat' | 'agent'
-
-export type PersistenceFeature =
-  | 'messages'
-  | 'interrupts'
-  | 'metadata'
-  | 'locks'
-  | 'artifacts'
-  | 'blobs'
-
 export interface MessageStore {
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
@@ -78,7 +68,6 @@ export interface ArtifactRecord {
   name: string
   mimeType: string
   size: number
-  bytes?: Uint8Array
   externalUrl?: string
   createdAt: number
 }
@@ -144,66 +133,208 @@ export interface BlobStore {
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
-export interface AIPersistence {
-  stores: {
-    messages?: MessageStore
-    runs?: RunStore
-    interrupts?: InterruptStore
-    metadata?: MetadataStore
-    locks?: LockStore
-    artifacts?: ArtifactStore
-    blobs?: BlobStore
-  }
+export interface AIPersistenceStores {
+  messages?: MessageStore
+  runs?: RunStore
+  interrupts?: InterruptStore
+  metadata?: MetadataStore
+  locks?: LockStore
+  artifacts?: ArtifactStore
+  blobs?: BlobStore
 }
 
-/** @deprecated Use AIPersistence. */
-export type ChatPersistence = AIPersistence
+export interface AIPersistence<
+  TStores extends AIPersistenceStores = AIPersistenceStores,
+> {
+  stores: ExactStoreKeys<TStores>
+}
 
-const featureRequirements: Record<
-  PersistenceFeature,
-  Array<keyof AIPersistence['stores']>
+type StoreKey = keyof AIPersistenceStores
+type ExactStoreKeys<TStores> =
+  Exclude<keyof TStores, StoreKey> extends never
+    ? TStores
+    : TStores & Record<Exclude<keyof TStores, StoreKey>, never>
+
+export type AIPersistenceOverrides = {
+  [TKey in StoreKey]?: AIPersistenceStores[TKey] | false
+}
+
+type BaseStoreValue<
+  TBase extends AIPersistenceStores,
+  TKey extends StoreKey,
+> = TKey extends keyof TBase ? TBase[TKey] : never
+
+type OverrideStoreValue<
+  TOverrides extends AIPersistenceOverrides,
+  TKey extends StoreKey,
+> = TKey extends keyof TOverrides ? TOverrides[TKey] : never
+
+type ResolvedStoreValue<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
+  TKey extends StoreKey,
+> = TKey extends keyof TOverrides
+  ?
+      | Exclude<OverrideStoreValue<TOverrides, TKey>, false | undefined>
+      | (undefined extends OverrideStoreValue<TOverrides, TKey>
+          ? Exclude<BaseStoreValue<TBase, TKey>, undefined>
+          : never)
+  : Exclude<BaseStoreValue<TBase, TKey>, undefined>
+
+type BaseStoreIsRequired<
+  TBase extends AIPersistenceStores,
+  TKey extends StoreKey,
+> = TKey extends keyof TBase
+  ? object extends Pick<TBase, TKey>
+    ? false
+    : true
+  : false
+
+type ResolvedStoreIsRequired<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
+  TKey extends StoreKey,
+> = TKey extends keyof TOverrides
+  ? false extends OverrideStoreValue<TOverrides, TKey>
+    ? false
+    : undefined extends OverrideStoreValue<TOverrides, TKey>
+      ? BaseStoreIsRequired<TBase, TKey>
+      : true
+  : BaseStoreIsRequired<TBase, TKey>
+
+type ResolvedRequiredKeys<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
 > = {
-  messages: ['messages'],
-  interrupts: ['runs', 'interrupts'],
-  metadata: ['metadata'],
-  locks: ['locks'],
-  artifacts: ['artifacts'],
-  blobs: ['blobs'],
-}
+  [TKey in StoreKey]-?: [ResolvedStoreValue<TBase, TOverrides, TKey>] extends [
+    never,
+  ]
+    ? never
+    : ResolvedStoreIsRequired<TBase, TOverrides, TKey> extends true
+      ? TKey
+      : never
+}[StoreKey]
 
-export function validatePersistenceFeatures(
-  persistence: AIPersistence,
-  features: Array<PersistenceFeature>,
-): void {
-  const missing = new Map<
-    PersistenceFeature,
-    Array<keyof AIPersistence['stores']>
-  >()
-  for (const feature of features) {
-    const missingStores = featureRequirements[feature].filter(
-      (store) => !persistence.stores[store],
-    )
-    if (missingStores.length > 0) {
-      missing.set(feature, missingStores)
+type ResolvedOptionalKeys<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
+> = {
+  [TKey in StoreKey]-?: [ResolvedStoreValue<TBase, TOverrides, TKey>] extends [
+    never,
+  ]
+    ? never
+    : ResolvedStoreIsRequired<TBase, TOverrides, TKey> extends true
+      ? never
+      : TKey
+}[StoreKey]
+
+type Simplify<T> = { [TKey in keyof T]: T[TKey] }
+
+export type ComposedAIPersistenceStores<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
+> = Simplify<
+  {
+    [TKey in ResolvedRequiredKeys<TBase, TOverrides>]: ResolvedStoreValue<
+      TBase,
+      TOverrides,
+      TKey
+    >
+  } & {
+    [TKey in ResolvedOptionalKeys<TBase, TOverrides>]?: ResolvedStoreValue<
+      TBase,
+      TOverrides,
+      TKey
+    >
+  }
+>
+
+const storeKeys = [
+  'messages',
+  'runs',
+  'interrupts',
+  'metadata',
+  'locks',
+  'artifacts',
+  'blobs',
+] satisfies Array<StoreKey>
+
+const storeKeySet = new Set<string>(storeKeys)
+
+function assertKnownStoreKeys(stores: object, location: string): void {
+  for (const key of Object.keys(stores)) {
+    if (!storeKeySet.has(key)) {
+      throw new Error(`Unknown AIPersistence ${location} key: ${key}`)
     }
   }
-  if (missing.size === 0) return
-
-  const details = [...missing]
-    .map(
-      ([feature, stores]) =>
-        `${feature} requires ${stores.map((s) => `stores.${s}`).join(', ')}`,
-    )
-    .join('; ')
-  throw new Error(`AIPersistence is missing required stores: ${details}`)
 }
 
-export function defineAIPersistence(persistence: AIPersistence): AIPersistence {
+export function validatePersistenceStoreKeys(persistence: AIPersistence): void {
+  assertKnownStoreKeys(persistence.stores, 'store')
+}
+
+export function validateChatPersistenceStores(
+  persistence: AIPersistence,
+): void {
+  validatePersistenceStoreKeys(persistence)
+  if (persistence.stores.interrupts && !persistence.stores.runs) {
+    throw new Error('Chat persistence stores.interrupts requires stores.runs.')
+  }
+}
+
+export function validateGenerationPersistenceStores(
+  persistence: AIPersistence,
+): void {
+  validatePersistenceStoreKeys(persistence)
+  const hasArtifacts = persistence.stores.artifacts !== undefined
+  const hasBlobs = persistence.stores.blobs !== undefined
+  if (hasArtifacts !== hasBlobs) {
+    throw new Error(
+      'Generation artifact persistence requires both stores.artifacts and stores.blobs.',
+    )
+  }
+}
+
+export function defineAIPersistence<TStores extends AIPersistenceStores>(
+  persistence: AIPersistence<ExactStoreKeys<TStores>>,
+): AIPersistence<TStores> {
+  validatePersistenceStoreKeys(persistence)
   return persistence
 }
 
-/**
- * @deprecated Use defineAIPersistence.
- * @alias
- */
-export const defineChatPersistence = defineAIPersistence
+export function composePersistence<
+  TBase extends AIPersistenceStores,
+  TOverrides extends AIPersistenceOverrides,
+>(
+  base: AIPersistence<TBase>,
+  config: {
+    overrides: ExactStoreKeys<TOverrides>
+  },
+): AIPersistence<ComposedAIPersistenceStores<TBase, TOverrides>>
+export function composePersistence(
+  base: AIPersistence,
+  config: { overrides: AIPersistenceOverrides },
+): AIPersistence {
+  validatePersistenceStoreKeys(base)
+  assertKnownStoreKeys(config.overrides, 'override')
+
+  const stores: AIPersistenceStores = { ...base.stores }
+  for (const key of storeKeys) {
+    if (!Object.prototype.hasOwnProperty.call(config.overrides, key)) continue
+    const override = config.overrides[key]
+    if (override === false) {
+      delete stores[key]
+    } else if (override !== undefined) {
+      setStore(stores, key, override)
+    }
+  }
+  return { stores }
+}
+
+function setStore<TKey extends StoreKey>(
+  stores: AIPersistenceStores,
+  key: TKey,
+  value: NonNullable<AIPersistenceStores[TKey]>,
+): void {
+  stores[key] = value
+}

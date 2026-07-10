@@ -1,8 +1,7 @@
 import { InMemoryLockStore } from '@tanstack/ai'
 import { defineAIPersistence } from './types'
-import type { ModelMessage } from '@tanstack/ai'
+import type { LockStore, ModelMessage } from '@tanstack/ai'
 import type {
-  AIPersistence,
   ArtifactRecord,
   ArtifactStore,
   BlobBody,
@@ -176,6 +175,16 @@ interface MemoryBlobEntry {
   bytes: Uint8Array
 }
 
+interface MemoryPersistenceStores {
+  messages: MessageStore
+  runs: RunStore
+  interrupts: InterruptStore
+  metadata: MetadataStore
+  artifacts: ArtifactStore
+  blobs: BlobStore
+  locks: LockStore
+}
+
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 
@@ -339,16 +348,15 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
-export function memoryPersistence(): AIPersistence {
-  return defineAIPersistence({
-    stores: {
-      messages: new MemoryMessageStore(),
-      runs: new MemoryRunStore(),
-      interrupts: new MemoryInterruptStore(),
-      metadata: new MemoryMetadataStore(),
-      artifacts: new MemoryArtifactStore(),
-      blobs: new MemoryBlobStore(),
-      locks: new InMemoryLockStore(),
-    },
-  })
+export function memoryPersistence() {
+  const stores: MemoryPersistenceStores = {
+    messages: new MemoryMessageStore(),
+    runs: new MemoryRunStore(),
+    interrupts: new MemoryInterruptStore(),
+    metadata: new MemoryMetadataStore(),
+    artifacts: new MemoryArtifactStore(),
+    blobs: new MemoryBlobStore(),
+    locks: new InMemoryLockStore(),
+  }
+  return defineAIPersistence({ stores })
 }

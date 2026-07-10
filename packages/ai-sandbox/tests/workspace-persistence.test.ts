@@ -2,16 +2,23 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import {
+  composePersistence,
   memoryPersistence,
   withChatPersistence,
 } from '@tanstack/ai-persistence'
 import { defineSandbox, defineWorkspace, withSandbox } from '../src'
 import {
   WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+  checkpointWorkspacePersistenceEvent,
+  requireWorkspacePersistence,
+  resolveWorkspacePersistenceOptions,
+  restoreWorkspacePersistence,
   workspacePersistenceArtifactId,
+  workspacePersistenceBlobKey,
   workspacePersistenceManifestKey,
 } from '../src/workspace-persistence'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AIPersistence } from '@tanstack/ai-persistence'
 import type { SandboxHandle, SandboxProvider } from '../src/contracts'
 
 const encoder = new TextEncoder()
@@ -27,23 +34,38 @@ function finishChunk(runId: string, threadId: string): StreamChunk {
   }
 }
 
+class WorkspaceTestAdapter implements AnyTextAdapter {
+  readonly kind = 'text'
+  readonly name = 'mock'
+  readonly model = 'test-model'
+  declare '~types': AnyTextAdapter['~types']
+
+  constructor(
+    private readonly run: (input: {
+      runId: string
+      threadId: string
+    }) => Promise<void> | void,
+  ) {}
+
+  chatStream(input: Parameters<AnyTextAdapter['chatStream']>[0]) {
+    const run = this.run
+    return (async function* () {
+      const runId = input.runId ?? 'run'
+      const threadId = input.threadId ?? 'thread'
+      await run({ runId, threadId })
+      yield finishChunk(runId, threadId)
+    })()
+  }
+
+  structuredOutput() {
+    return Promise.resolve({ data: {}, rawText: '{}' })
+  }
+}
+
 function adapter(
   run: (input: { runId: string; threadId: string }) => Promise<void> | void,
 ): AnyTextAdapter {
-  return {
-    kind: 'text',
-    name: 'mock',
-    model: 'test-model',
-    '~types': {},
-    chatStream: (input: { runId?: string; threadId?: string }) =>
-      (async function* () {
-        const runId = input.runId ?? 'run'
-        const threadId = input.threadId ?? 'thread'
-        await run({ runId, threadId })
-        yield finishChunk(runId, threadId)
-      })(),
-    structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
-  } as unknown as AnyTextAdapter
+  return new WorkspaceTestAdapter(run)
 }
 
 async function collect(stream: AsyncIterable<StreamChunk>): Promise<void> {
@@ -190,7 +212,120 @@ function workspaceSandbox(handle: SandboxHandle) {
   })
 }
 
+function workspaceOptions() {
+  const options = resolveWorkspacePersistenceOptions({
+    workspacePersistence: { key: 'project-123' },
+    workspace: undefined,
+    defaultKey: 'unused',
+  })
+  if (!options) throw new Error('Expected workspace persistence options')
+  return options
+}
+
+function workspaceContext(handle: SandboxHandle, persistence: AIPersistence) {
+  return {
+    handle,
+    persistence: requireWorkspacePersistence(persistence),
+    options: workspaceOptions(),
+    runId: 'run-1',
+    threadId: 'thread-1',
+  }
+}
+
+async function checkpointText(
+  handle: ReturnType<typeof fakeWorkspaceHandle>,
+  persistence: AIPersistence,
+  path: string,
+  text: string,
+  timestamp: number,
+): Promise<void> {
+  handle.files.set(path, encoder.encode(text))
+  await checkpointWorkspacePersistenceEvent(
+    workspaceContext(handle, persistence),
+    { type: 'change', path, timestamp },
+  )
+}
+
+async function expectRestoredText(
+  persistence: AIPersistence,
+  path: string,
+  expected: string,
+): Promise<void> {
+  const restored = fakeWorkspaceHandle()
+  await restoreWorkspacePersistence(workspaceContext(restored, persistence))
+  await expect(restored.fs.read(path)).resolves.toBe(expected)
+}
+
+function manifestFile(value: unknown, path: string) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('files' in value) ||
+    typeof value.files !== 'object' ||
+    value.files === null
+  ) {
+    throw new Error('Expected a workspace manifest')
+  }
+  const file = Object.getOwnPropertyDescriptor(value.files, path)?.value
+  if (
+    typeof file !== 'object' ||
+    file === null ||
+    !('artifactId' in file) ||
+    typeof file.artifactId !== 'string' ||
+    !('blobKey' in file) ||
+    typeof file.blobKey !== 'string'
+  ) {
+    throw new Error(`Expected a manifest file for ${path}`)
+  }
+  return { artifactId: file.artifactId, blobKey: file.blobKey }
+}
+
 describe('managed workspace persistence', () => {
+  it.each([NaN, Infinity, -Infinity, 0, -1, 1.5])(
+    'rejects invalid maxFileBytes %s',
+    (maxFileBytes) => {
+      expect(() =>
+        resolveWorkspacePersistenceOptions({
+          workspacePersistence: { maxFileBytes },
+          workspace: undefined,
+          defaultKey: 'project-123',
+        }),
+      ).toThrow(/maxFileBytes/)
+    },
+  )
+
+  it('requires blob storage even when persistence consistency is best-effort', async () => {
+    const persistence = composePersistence(memoryPersistence(), {
+      overrides: { blobs: false },
+    })
+    const handle = fakeWorkspaceHandle()
+    const sandbox = defineSandbox({
+      id: 'project',
+      provider: fakeProvider(handle),
+      workspace: defineWorkspace({ source: { type: 'none' } }),
+      persistence: {
+        workspace: {
+          consistency: 'best-effort',
+          key: 'project-123',
+        },
+      },
+    })
+
+    await expect(
+      collect(
+        chat({
+          adapter: adapter(() => undefined),
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ role: 'user', content: 'build app' }],
+          middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
+        }),
+      ),
+    ).rejects.toThrow(
+      'Workspace persistence requires AIPersistence stores.metadata, stores.artifacts with delete(), and stores.blobs',
+    )
+  })
+
   it('persists changed workspace files through artifacts and metadata', async () => {
     const persistence = memoryPersistence()
     const handle = fakeWorkspaceHandle()
@@ -210,33 +345,171 @@ describe('managed workspace persistence', () => {
       }),
     )
 
-    const artifact = await persistence.stores.artifacts?.get(
-      workspacePersistenceArtifactId('project-123', path),
-    )
     const manifest = await persistence.stores.metadata?.get(
       WORKSPACE_PERSISTENCE_METADATA_SCOPE,
       workspacePersistenceManifestKey('project-123'),
     )
+    const file = manifestFile(manifest, path)
+    const artifact = await persistence.stores.artifacts?.get(file.artifactId)
+    const blob = await persistence.stores.blobs?.get(file.blobKey)
 
-    expect(decoder.decode(artifact?.bytes)).toBe('export const app = 1\n')
+    expect(artifact).toMatchObject({ size: 21 })
+    expect(await blob?.text()).toBe('export const app = 1\n')
     expect(manifest).toMatchObject({
       version: 1,
       files: {
         [path]: {
-          artifactId: workspacePersistenceArtifactId('project-123', path),
+          artifactId: file.artifactId,
+          blobKey: file.blobKey,
           size: 21,
         },
       },
     })
   })
 
+  it('preserves the previous checkpoint when artifact metadata save fails', async () => {
+    const persistence = memoryPersistence()
+    const handle = fakeWorkspaceHandle()
+    const path = '/workspace/src/app.ts'
+    await checkpointText(handle, persistence, path, 'previous', 1)
+    const failing = composePersistence(persistence, {
+      overrides: {
+        artifacts: {
+          save: () => Promise.reject(new Error('artifact save failed')),
+          get: (artifactId) => persistence.stores.artifacts.get(artifactId),
+          list: (runId) => persistence.stores.artifacts.list(runId),
+          delete: (artifactId) => {
+            const deleteArtifact = persistence.stores.artifacts.delete
+            if (!deleteArtifact) throw new Error('Expected artifact delete')
+            return deleteArtifact.call(persistence.stores.artifacts, artifactId)
+          },
+        },
+      },
+    })
+    handle.files.set(path, encoder.encode('uncommitted'))
+
+    await expect(
+      checkpointWorkspacePersistenceEvent(workspaceContext(handle, failing), {
+        type: 'change',
+        path,
+        timestamp: 2,
+      }),
+    ).rejects.toThrow('artifact save failed')
+
+    await expectRestoredText(persistence, path, 'previous')
+    await expect(
+      persistence.stores.artifacts.list('run-1'),
+    ).resolves.toHaveLength(1)
+    await expect(
+      persistence.stores.blobs.list({ prefix: 'workspace:project-123:blob:' }),
+    ).resolves.toMatchObject({ objects: [expect.any(Object)] })
+  })
+
+  it('retains both revisions when the manifest commit result is unknown', async () => {
+    const persistence = memoryPersistence()
+    const handle = fakeWorkspaceHandle()
+    const path = '/workspace/src/app.ts'
+    await checkpointText(handle, persistence, path, 'previous', 1)
+    const manifestKey = workspacePersistenceManifestKey('project-123')
+    const failing = composePersistence(persistence, {
+      overrides: {
+        metadata: {
+          get: (scope, key) => persistence.stores.metadata.get(scope, key),
+          set: (scope, key, value) =>
+            scope === WORKSPACE_PERSISTENCE_METADATA_SCOPE &&
+            key === manifestKey
+              ? Promise.reject(new Error('manifest commit failed'))
+              : persistence.stores.metadata.set(scope, key, value),
+          delete: (scope, key) =>
+            persistence.stores.metadata.delete(scope, key),
+        },
+      },
+    })
+    handle.files.set(path, encoder.encode('uncommitted'))
+
+    await expect(
+      checkpointWorkspacePersistenceEvent(workspaceContext(handle, failing), {
+        type: 'change',
+        path,
+        timestamp: 2,
+      }),
+    ).rejects.toThrow('manifest commit failed')
+
+    await expectRestoredText(persistence, path, 'previous')
+    await expect(
+      persistence.stores.artifacts.list('run-1'),
+    ).resolves.toHaveLength(2)
+    await expect(
+      persistence.stores.blobs.list({ prefix: 'workspace:project-123:blob:' }),
+    ).resolves.toMatchObject({
+      objects: [expect.any(Object), expect.any(Object)],
+    })
+  })
+
+  it('retains a revision when the manifest commits but its response is lost', async () => {
+    const persistence = memoryPersistence()
+    const handle = fakeWorkspaceHandle()
+    const path = '/workspace/src/app.ts'
+    await checkpointText(handle, persistence, path, 'previous', 1)
+    const manifestKey = workspacePersistenceManifestKey('project-123')
+    const responseLost = composePersistence(persistence, {
+      overrides: {
+        metadata: {
+          get: (scope, key) => persistence.stores.metadata.get(scope, key),
+          set: async (scope, key, value) => {
+            await persistence.stores.metadata.set(scope, key, value)
+            if (
+              scope === WORKSPACE_PERSISTENCE_METADATA_SCOPE &&
+              key === manifestKey
+            ) {
+              throw new Error('manifest commit response was lost')
+            }
+          },
+          delete: (scope, key) =>
+            persistence.stores.metadata.delete(scope, key),
+        },
+      },
+    })
+    handle.files.set(path, encoder.encode('committed despite response loss'))
+
+    await expect(
+      checkpointWorkspacePersistenceEvent(
+        workspaceContext(handle, responseLost),
+        { type: 'change', path, timestamp: 2 },
+      ),
+    ).rejects.toThrow('manifest commit response was lost')
+
+    const manifest = await persistence.stores.metadata.get(
+      WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+      manifestKey,
+    )
+    const committed = manifestFile(manifest, path)
+    await expect(
+      persistence.stores.artifacts.get(committed.artifactId),
+    ).resolves.not.toBeNull()
+    await expect(
+      persistence.stores.blobs.get(committed.blobKey),
+    ).resolves.not.toBeNull()
+    await expectRestoredText(
+      persistence,
+      path,
+      'committed despite response loss',
+    )
+  })
+
   it('restores persisted workspace files before onReady hooks run', async () => {
     const persistence = memoryPersistence()
     const handle = fakeWorkspaceHandle()
     const path = '/workspace/src/app.ts'
-    const artifactId = workspacePersistenceArtifactId('project-123', path)
+    const artifactId = workspacePersistenceArtifactId(
+      'project-123',
+      path,
+      'seed',
+    )
+    const blobKey = workspacePersistenceBlobKey('project-123', path, 'seed')
     let contentSeenOnReady = ''
 
+    await persistence.stores.blobs?.put(blobKey, encoder.encode('restored app'))
     await persistence.stores.artifacts?.save({
       artifactId,
       runId: 'seed-run',
@@ -244,7 +517,6 @@ describe('managed workspace persistence', () => {
       name: path,
       mimeType: 'application/octet-stream',
       size: 12,
-      bytes: encoder.encode('restored app'),
       createdAt: 1,
     })
     await persistence.stores.metadata?.set(
@@ -255,6 +527,7 @@ describe('managed workspace persistence', () => {
         files: {
           [path]: {
             artifactId,
+            blobKey,
             size: 12,
             updatedAt: 1,
           },
@@ -312,11 +585,9 @@ describe('managed workspace persistence', () => {
       }),
     )
 
-    expect(
-      await persistence.stores.artifacts?.get(
-        workspacePersistenceArtifactId('project-123', path),
-      ),
-    ).toBeNull()
+    await expect(persistence.stores.artifacts.list('run-1')).resolves.toEqual(
+      [],
+    )
   })
 
   it('persists workspace files when public file events are disabled', async () => {
@@ -348,11 +619,15 @@ describe('managed workspace persistence', () => {
       }),
     )
 
-    const artifact = await persistence.stores.artifacts?.get(
-      workspacePersistenceArtifactId('project-123', path),
+    const manifest = await persistence.stores.metadata.get(
+      WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+      workspacePersistenceManifestKey('project-123'),
+    )
+    const blob = await persistence.stores.blobs?.get(
+      manifestFile(manifest, path).blobKey,
     )
 
-    expect(decoder.decode(artifact?.bytes)).toBe('export const app = 2\n')
+    expect(await blob?.text()).toBe('export const app = 2\n')
     expect(
       chunks.some(
         (chunk) =>
@@ -393,11 +668,15 @@ describe('managed workspace persistence', () => {
       }),
     )
 
-    const artifact = await persistence.stores.artifacts?.get(
-      workspacePersistenceArtifactId('project-123', path),
+    const manifest = await persistence.stores.metadata.get(
+      WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+      workspacePersistenceManifestKey('project-123'),
+    )
+    const blob = await persistence.stores.blobs?.get(
+      manifestFile(manifest, path).blobKey,
     )
 
-    expect(decoder.decode(artifact?.bytes)).toBe('export const custom = true\n')
+    expect(await blob?.text()).toBe('export const custom = true\n')
     expect(handle.watchedPaths).toEqual(['/project'])
   })
 
@@ -439,12 +718,16 @@ describe('managed workspace persistence', () => {
         chunk.name === 'sandbox.file' &&
         chunk.value.path === publicPath,
     )
-    const artifact = await persistence.stores.artifacts?.get(
-      workspacePersistenceArtifactId('project-123', persistedPath),
+    const manifest = await persistence.stores.metadata.get(
+      WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+      workspacePersistenceManifestKey('project-123'),
+    )
+    const blob = await persistence.stores.blobs?.get(
+      manifestFile(manifest, persistedPath).blobKey,
     )
 
     expect(publicEvent).toBeDefined()
-    expect(decoder.decode(artifact?.bytes)).toBe('{"ok":true}\n')
+    expect(await blob?.text()).toBe('{"ok":true}\n')
     expect(handle.watchedPaths).toEqual(['/workspace', '/workspace/.persist'])
   })
 
@@ -488,11 +771,54 @@ describe('managed workspace persistence', () => {
     })
   })
 
+  it('removes persisted artifact metadata and blob bodies for deleted files', async () => {
+    const persistence = memoryPersistence()
+    const handle = fakeWorkspaceHandle()
+    const path = '/workspace/src/deleted.ts'
+    const sandbox = workspaceSandbox(handle)
+
+    await collect(
+      chat({
+        adapter: adapter(async () => {
+          handle.files.set(path, encoder.encode('export const value = 1\n'))
+          await handle.fire(path)
+          handle.files.delete(path)
+          await handle.fire(path)
+        }),
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messages: [{ role: 'user', content: 'delete persisted file' }],
+        middleware: [withChatPersistence(persistence), withSandbox(sandbox)],
+      }),
+    )
+
+    await expect(persistence.stores.artifacts.list('run-1')).resolves.toEqual(
+      [],
+    )
+    await expect(
+      persistence.stores.blobs.list({ prefix: 'workspace:project-123:blob:' }),
+    ).resolves.toMatchObject({ objects: [] })
+    await expect(
+      persistence.stores.metadata.get(
+        WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+        workspacePersistenceManifestKey('project-123'),
+      ),
+    ).resolves.toMatchObject({
+      files: {},
+      deleted: { [path]: expect.any(Number) },
+    })
+  })
+
   it('ignores traversal paths from persisted manifests during restore', async () => {
     const persistence = memoryPersistence()
     const handle = fakeWorkspaceHandle()
     const path = '/workspace/../outside.txt'
-    const artifactId = workspacePersistenceArtifactId('project-123', path)
+    const artifactId = workspacePersistenceArtifactId(
+      'project-123',
+      path,
+      'seed',
+    )
+    const blobKey = workspacePersistenceBlobKey('project-123', path, 'seed')
 
     await persistence.stores.artifacts?.save({
       artifactId,
@@ -501,7 +827,6 @@ describe('managed workspace persistence', () => {
       name: path,
       mimeType: 'application/octet-stream',
       size: 7,
-      bytes: encoder.encode('outside'),
       createdAt: 1,
     })
     await persistence.stores.metadata?.set(
@@ -512,6 +837,7 @@ describe('managed workspace persistence', () => {
         files: {
           [path]: {
             artifactId,
+            blobKey,
             size: 7,
             updatedAt: 1,
           },
@@ -553,7 +879,7 @@ describe('managed workspace persistence', () => {
       )
     }).not.toThrow()
     expect(indexSource).toMatch(
-      /export\s+\{[\s\S]*WORKSPACE_PERSISTENCE_METADATA_SCOPE[\s\S]*workspacePersistenceArtifactId[\s\S]*workspacePersistenceManifestKey[\s\S]*\}\s+from '\.\/workspace-persistence-types'/,
+      /export\s+\{[\s\S]*WORKSPACE_PERSISTENCE_METADATA_SCOPE[\s\S]*workspacePersistenceArtifactId[\s\S]*workspacePersistenceBlobKey[\s\S]*workspacePersistenceManifestKey[\s\S]*\}\s+from '\.\/workspace-persistence-types'/,
     )
     expect(indexSource).toMatch(
       /export type\s+\{[\s\S]*WorkspacePersistenceManifest[\s\S]*WorkspacePersistenceOptions[\s\S]*\}\s+from '\.\/workspace-persistence-types'/,

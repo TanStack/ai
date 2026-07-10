@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '../src/memory'
-import {
-  defineAIPersistence,
-  defineChatPersistence,
-  validatePersistenceFeatures,
-} from '../src/types'
-import type { AIPersistence, ChatPersistence } from '../src/types'
+import { defineAIPersistence } from '../src/types'
 
 describe('memoryPersistence', () => {
   it('returns a namespaced AIPersistence with every state store present', () => {
@@ -18,51 +13,21 @@ describe('memoryPersistence', () => {
     expect(p.stores.locks).toBeDefined()
   })
 
-  it('exposes only state stores (no delivery event stores)', () => {
-    const stores = memoryPersistence().stores as Record<string, unknown>
-    expect('publicEvents' in stores).toBe(false)
-    expect('internalEvents' in stores).toBe(false)
+  it('exposes the complete state store set', () => {
+    expect(Object.keys(memoryPersistence().stores).sort()).toEqual([
+      'artifacts',
+      'blobs',
+      'interrupts',
+      'locks',
+      'messages',
+      'metadata',
+      'runs',
+    ])
   })
 
   it('defineAIPersistence is an identity helper', () => {
     const persistence = memoryPersistence()
     expect(defineAIPersistence(persistence)).toBe(persistence)
-  })
-
-  it('keeps deprecated ChatPersistence compatibility exports as aliases', () => {
-    const persistence: ChatPersistence = memoryPersistence()
-    const aiPersistence: AIPersistence = persistence
-    expect(defineChatPersistence(persistence)).toBe(aiPersistence)
-  })
-
-  it('fails loudly when requested feature stores are missing', () => {
-    expect(() =>
-      validatePersistenceFeatures(
-        defineAIPersistence({
-          stores: { messages: memoryPersistence().stores.messages },
-        }),
-        ['interrupts'],
-      ),
-    ).toThrow(/interrupts.*stores\.runs.*stores\.interrupts/i)
-  })
-
-  it('allows message-only persistence without event stores', () => {
-    const messages = memoryPersistence().stores.messages!
-    expect(() =>
-      validatePersistenceFeatures(
-        defineAIPersistence({ stores: { messages } }),
-        ['messages'],
-      ),
-    ).not.toThrow()
-  })
-
-  it('allows blob persistence when a blob store is present', () => {
-    const blobs = memoryPersistence().stores.blobs!
-    expect(() =>
-      validatePersistenceFeatures(defineAIPersistence({ stores: { blobs } }), [
-        'blobs',
-      ]),
-    ).not.toThrow()
   })
 
   describe('runs', () => {

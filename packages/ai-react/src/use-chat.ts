@@ -97,6 +97,17 @@ export function useChat<
       ? { connection: initialOptions.connection }
       : { fetcher: initialOptions.fetcher }
 
+    const instanceHolder: {
+      current: ChatClient<TTools, TContext> | undefined
+    } = { current: undefined }
+    const getActiveInstance = () => {
+      const currentInstance = instanceHolder.current
+      if (!currentInstance || activeClientRef.current !== currentInstance) {
+        return undefined
+      }
+      return currentInstance
+    }
+    const pendingInitializationErrors: Array<Error> = []
     const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
@@ -125,67 +136,78 @@ export function useChat<
         outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
       },
       onResponse: (response) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         void optionsRef.current.onResponse?.(response)
       },
       onChunk: (chunk: StreamChunk) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         optionsRef.current.onChunk?.(chunk)
       },
       onFinish: (message: UIMessage<TTools>) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
-        if (activeClientRef.current !== instance) return
+        const currentInstance = instanceHolder.current
+        if (!currentInstance) {
+          pendingInitializationErrors.push(error)
+          return
+        }
+        if (activeClientRef.current !== currentInstance) return
         optionsRef.current.onError?.(error)
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
       }),
       onCustomEvent: (eventType, data, context) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         optionsRef.current.onCustomEvent?.(eventType, data, context)
       },
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setMessages(newMessages)
       },
       onLoadingChange: (newIsLoading: boolean) => {
-        if (activeClientRef.current !== instance) return
+        const currentInstance = getActiveInstance()
+        if (!currentInstance) return
         setIsLoading(newIsLoading)
-        syncResumeState(instance)
+        syncResumeState(currentInstance)
       },
       onErrorChange: (newError: Error | undefined) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setError(newError)
       },
       onStatusChange: (status: ChatClientState) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setStatus(status)
       },
       onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setIsSubscribed(nextIsSubscribed)
       },
       onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setConnectionStatus(nextStatus)
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setSessionGenerating(isGenerating)
       },
       onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setResumeState(nextResumeState)
         setPendingInterrupts(nextPendingInterrupts)
       },
     })
+    instanceHolder.current = instance
     activeClientRef.current = instance
+    for (const error of pendingInitializationErrors) {
+      if (activeClientRef.current !== instance) break
+      optionsRef.current.onError?.(error)
+    }
     return instance
   }, [clientId, syncResumeState])
 

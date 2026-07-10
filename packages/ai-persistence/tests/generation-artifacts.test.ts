@@ -5,13 +5,14 @@ import {
   generateImage,
   generateTranscription,
 } from '@tanstack/ai'
-import { defineAIPersistence } from '../src/types'
+import { composePersistence, defineAIPersistence } from '../src/types'
 import { memoryPersistence } from '../src/memory'
 import { withGenerationPersistence } from '../src/middleware'
 import type {
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,
   GenerationArtifactNameInput,
+  AIPersistence,
 } from '../src'
 import type {
   AudioAdapter,
@@ -210,7 +211,7 @@ describe('withGenerationPersistence generation artifacts', () => {
     })
   })
 
-  it('fails loudly when artifact persistence is explicitly enabled but stores are missing', () => {
+  it('allows run tracking without artifact stores', () => {
     const full = memoryPersistence()
     const persistence = defineAIPersistence({
       stores: {
@@ -218,11 +219,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       },
     })
 
-    expect(() =>
-      withGenerationPersistence(persistence, {
-        features: ['artifacts', 'blobs'],
-      }),
-    ).toThrow(/artifacts.*stores\.artifacts.*blobs.*stores\.blobs/i)
+    expect(() => withGenerationPersistence(persistence)).not.toThrow()
   })
 
   it('uses custom artifact extraction instead of built-in extraction', async () => {
@@ -416,19 +413,20 @@ describe('withGenerationPersistence generation artifacts', () => {
     expect(put).not.toHaveBeenCalled()
   })
 
-  it('does not persist generation artifacts when artifact features are disabled', async () => {
-    const persistence = memoryPersistence()
-    const put = vi.spyOn(persistence.stores.blobs!, 'put')
-    const save = vi.spyOn(persistence.stores.artifacts!, 'save')
+  it('does not persist generation artifacts when artifact stores are removed', async () => {
+    const full = memoryPersistence()
+    const put = vi.spyOn(full.stores.blobs, 'put')
+    const save = vi.spyOn(full.stores.artifacts, 'save')
+    const persistence = composePersistence(full, {
+      overrides: { artifacts: false, blobs: false },
+    })
 
     const result = await generateImage({
       adapter: imageAdapter(),
       prompt: 'make an image',
       threadId: 'thread-messages-only',
       runId: 'run-messages-only',
-      middleware: [
-        withGenerationPersistence(persistence, { features: ['messages'] }),
-      ],
+      middleware: [withGenerationPersistence(persistence)],
     })
 
     expect(result.artifacts).toBeUndefined()
@@ -438,15 +436,13 @@ describe('withGenerationPersistence generation artifacts', () => {
 
   it('fails early when artifact persistence is enabled without a paired blob store', () => {
     const full = memoryPersistence()
-    const persistence = defineAIPersistence({
+    const persistence: AIPersistence = defineAIPersistence({
       stores: {
         artifacts: full.stores.artifacts,
       },
     })
 
-    expect(() =>
-      withGenerationPersistence(persistence, { features: ['artifacts'] }),
-    ).toThrow(
+    expect(() => withGenerationPersistence(persistence)).toThrow(
       /artifact persistence requires both stores\.artifacts and stores\.blobs/i,
     )
   })

@@ -247,7 +247,7 @@ export default function Header() {
           </Link>
 
           <Link
-            to="/mysql-persistence"
+            to="/sqlite-persistence"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
@@ -256,7 +256,7 @@ export default function Header() {
             }}
           >
             <Database size={20} />
-            <span className="font-medium">MySQL Persistence</span>
+            <span className="font-medium">SQLite Persistence</span>
           </Link>
 
           <Link

@@ -3,67 +3,83 @@ title: Persistence Migrations
 id: migrations
 ---
 
-The Drizzle backend owns its schema and migrations through drizzle-kit — there
-is no hand-authored DDL. The default is production-safe: the packaged backend
-does not create tables unless you opt in with `migrate: true` or apply the
-generated migrations through your own workflow.
+# Persistence Migrations
 
-By the end, you can regenerate migrations after a schema change and know when
-lazy migration is appropriate.
+Migration ownership depends on the backend. Apply schema changes before
+deploying code that reads or writes the corresponding stores.
 
-## Use lazy migration only for local development
+## Drizzle SQLite
 
-Pass `migrate: true` when a local or development database should apply the
-bundled migrations on first use.
+The Drizzle package bundles ordered canonical SQLite migrations. Copy them into
+your repository:
+
+```bash
+pnpm exec tanstack-ai-drizzle-migrations --out migrations/tanstack-ai
+```
+
+Or print the ordered SQL:
+
+```bash
+pnpm exec tanstack-ai-drizzle-migrations --stdout
+```
+
+The CLI preserves existing identical files and refuses to overwrite divergent
+files without `--force`. Apply the copied SQL using your normal SQLite,
+Drizzle, or D1 deployment process.
+
+For local Node development, the `/sqlite` factory can apply the same manifest:
 
 ```ts
-import { sqlPersistence } from '@tanstack/ai-persistence-drizzle'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-export const persistence = sqlPersistence({
-  dialect: 'sqlite',
-  url: 'file:./.tanstack-ai/state.sqlite',
+const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
   migrate: true,
 })
 ```
 
-For production, leave `migrate` unset, apply the migrations with your own
-pipeline, and deploy them before traffic uses the persistence stores.
+Avoid request-time migrations in production.
 
-## Regenerate the bundled migrations
+## Cloudflare D1
 
-The schema in `src/schema.ts` is the single source of truth. After changing it,
-regenerate the SQL under `drizzle/` with drizzle-kit:
+The Cloudflare package provides D1-specific migration assets:
 
-```sh
-pnpm --filter @tanstack/ai-persistence-drizzle db:generate
+```bash
+pnpm exec tanstack-ai-cloudflare-migrations --out migrations
+wrangler d1 migrations apply tanstack-ai-state --remote
 ```
 
-This runs `drizzle-kit generate` against the package's `drizzle.config.ts`,
-diffing the schema and emitting a new migration file. Commit the generated
-`drizzle/` output alongside the schema change.
+It also exports `d1Migrations` for programmatic tooling. R2 and Durable Object
+locks do not use the D1 table migration set; configure their bindings and
+Durable Object migration tags in Wrangler.
 
-## Bring-your-own migrations
+## Prisma
 
-When you construct your own Drizzle database and use `drizzlePersistence(db)`,
-drive migrations from the exported `schema` with your own drizzle-kit config:
+Prisma ships a provider-neutral models fragment, then delegates SQL generation
+to your application:
 
-```ts
-// drizzle.config.ts
-import { defineConfig } from 'drizzle-kit'
-
-export default defineConfig({
-  dialect: 'sqlite',
-  schema: './node_modules/@tanstack/ai-persistence-drizzle/dist/esm/schema.js',
-  out: './drizzle',
-})
+```bash
+pnpm exec tanstack-ai-prisma-models --out prisma/schema
+pnpm prisma migrate dev --name add-tanstack-ai-persistence
+pnpm prisma generate
+pnpm prisma migrate deploy
 ```
 
-```sh
-pnpm drizzle-kit generate
-pnpm drizzle-kit migrate
-```
+The copied fragment contains no datasource or generator. Keep those in your
+application schema and commit the native migration Prisma creates for your
+provider.
 
-Compose the exported tables into your own schema file when you want TanStack AI
-state to live in the same migration history as the rest of your app. See
-[Drizzle](./drizzle) for adapter wiring and [Prisma](./prisma) for the peer
-Prisma backend.
+## Custom stores
+
+Custom `AIPersistence` adapters own their schema and migrations entirely.
+Maintain compatibility with the public store records and method semantics;
+TanStack AI does not inspect your table layout.
+
+## Upgrade discipline
+
+1. Read the package release notes for schema changes.
+2. Refresh copied assets in a reviewable branch.
+3. Inspect the diff rather than using `--force` blindly.
+4. Back up production state where required.
+5. Apply migrations before deploying code that depends on them.
+6. Keep rollback and partial-deployment behavior explicit.

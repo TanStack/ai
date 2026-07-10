@@ -3,216 +3,183 @@ title: Custom Stores
 id: custom-stores
 ---
 
-Use custom stores when the built-in backends do not match your infrastructure,
-or when an integration needs to add durable metadata, locks, artifacts, blobs,
-or internal checkpoints without changing the public chat replay stream.
+# Custom Persistence Stores
 
-This page is reference material for adapter authors. If you only need to choose
-a packaged backend, start with [SQL Backends](./sql-backends) or
-[Cloudflare](./cloudflare). If you need the end-to-end chat journey, start with
-[Chat Persistence](./chat-persistence).
+Implement custom stores when your infrastructure is not covered by the
+packaged backends or when selected data must remain in an application-owned
+database.
 
-For production apps, this is the recommended ownership model: keep persistence
-inside your app's database, queue, object store, and retention policies, then
-expose those systems to TanStack AI through `AIPersistence` store callback
-methods. The packaged SQL and Cloudflare backends are TanStack primitives you
-can opt into when they match your stack, but the store contract is the stable
-boundary for user-owned persistence.
+## Define the stores you provide
 
-If you are deciding how to model generated files, workspace checkpoints, object
-bytes, metadata manifests, and locks together, read
-[Generation Persistence](./generation-persistence) and
-[Sandbox Persistence](./sandbox-persistence) first. This page explains the store
-interfaces behind those patterns.
-
-## Define an `AIPersistence`
-
-`AIPersistence` is an aggregate of optional stores. Implement only the stores
-your scenario needs, then validate features with `withChatPersistence(...)` or
-`withGenerationPersistence(...)`. During
-development, `memoryPersistence()` is a useful complete baseline: replace one
-store at a time with your backend implementation while keeping the feature
-validation behavior realistic.
-
-```ts group=custom-stores-define
-import {
-  defineAIPersistence,
-  memoryPersistence,
-  withChatPersistence,
+```ts
+import { defineAIPersistence } from '@tanstack/ai-persistence'
+import type {
+  MessageStore,
+  RunStore,
 } from '@tanstack/ai-persistence'
-import type { MetadataStore } from '@tanstack/ai-persistence'
 
-class AcmeMetadataStore implements MetadataStore {
-  private values = new Map<string, unknown>()
+declare const messages: MessageStore
+declare const runs: RunStore
 
-  async get(scope: string, key: string) {
-    return this.values.get(`${scope}:${key}`) ?? null
-  }
-
-  async set(scope: string, key: string, value: unknown) {
-    this.values.set(`${scope}:${key}`, value)
-  }
-
-  async delete(scope: string, key: string) {
-    this.values.delete(`${scope}:${key}`)
-  }
-}
-
-const baseline = memoryPersistence()
-
-const persistence = defineAIPersistence({
-  stores: {
-    ...baseline.stores,
-    metadata: new AcmeMetadataStore(),
-  },
-})
-
-const middleware = withChatPersistence(persistence, {
-  features: ['messages', 'interrupts', 'metadata'],
+export const persistence = defineAIPersistence({
+  stores: { messages, runs },
 })
 ```
 
-If any required store is missing, setup fails before the run starts.
+`defineAIPersistence` preserves the exact store keys in the type and rejects
+unknown keys at runtime. Middleware behavior follows the keys that exist.
 
-`defineAIPersistence(...)` is only an identity helper for the aggregate store
-object. There is no separate high-level callback builder: implement the store
-methods directly and pass them under `stores`.
+## Store interfaces
 
-## Use your existing persistence boundary
+### Messages
 
-Most production apps already have repositories or service methods for threads,
-runs, event logs, user decisions, metadata, and files. Wrap those methods in the
-store callbacks instead of adding a second persistence path.
-
-```ts group=custom-stores-app-boundary
-import {
-  defineAIPersistence,
-  withChatPersistence,
-} from '@tanstack/ai-persistence'
-import type { MessageStore, RunStore } from '@tanstack/ai-persistence'
+```ts
 import type { ModelMessage } from '@tanstack/ai'
 
-type AppDb = {
-  threads: {
-    loadMessages: (threadId: string) => Promise<Array<ModelMessage>>
-    replaceMessages: (
-      threadId: string,
-      messages: Array<ModelMessage>,
-    ) => Promise<void>
-  }
-  runs: {
-    createOrResume: RunStore['createOrResume']
-    update: RunStore['update']
-    get: RunStore['get']
-  }
-}
-
-function appMessageStore(db: AppDb): MessageStore {
-  return {
-    loadThread: (threadId) => db.threads.loadMessages(threadId),
-    saveThread: (threadId, messages) =>
-      db.threads.replaceMessages(threadId, messages),
-  }
-}
-
-export function appPersistence(db: AppDb) {
-  return defineAIPersistence({
-    stores: {
-      messages: appMessageStore(db),
-      runs: db.runs,
-    },
-  })
-}
-
-export function persistenceMiddleware(db: AppDb) {
-  return withChatPersistence(appPersistence(db), {
-    features: ['messages'],
-  })
+interface MessageStore {
+  loadThread(threadId: string): Promise<Array<ModelMessage>>
+  saveThread(
+    threadId: string,
+    messages: Array<ModelMessage>,
+  ): Promise<void>
 }
 ```
 
-Add `interrupts` when runs pause for user action, `metadata` for app-owned
-correlation, `locks` for cross-process coordination, and `artifacts` plus
-`blobs` when runs produce durable files or media. Every persistence feature is
-supported by implementing the corresponding stores. (Delivery durability —
-replaying an in-flight stream after a disconnect — is a transport concern, not a
-store; see [Delivery Durability](./delivery-durability).)
+`saveThread` receives the full authoritative model-message history, not a
+delta.
 
-| Feature | Required stores |
-| --- | --- |
-| `messages` | `stores.messages` |
-| `interrupts` | `stores.runs`, `stores.interrupts` |
-| `metadata` | `stores.metadata` |
-| `locks` | `stores.locks` |
-| `artifacts` | `stores.artifacts` |
-| `blobs` | `stores.blobs` |
+### Runs
 
-## Keep public and internal events separate
+```ts
+import type { RunRecord } from '@tanstack/ai-persistence'
 
-`PublicEventStore` is the user-visible AG-UI stream. It is what reconnecting
-clients replay after an opaque cursor. Store exactly the public `StreamChunk`
-events there.
-
-`InternalEventStore` is for package-owned or app-owned checkpoints:
-compare-and-swap coordination, workflow checkpoints, adapter internals, or
-other state that must not be replayed to the UI. Keep those events namespaced
-and separate from the public stream.
-
-## Store app metadata
-
-Use `MetadataStore` for durable key/value state associated with a thread, run,
-or integration. MCP session correlation is a good example: the base persistence
-schema records public stream replay, while app-owned metadata can map a thread
-or run to an MCP session id.
-
-```ts group=custom-stores-metadata
-import { memoryPersistence } from '@tanstack/ai-persistence'
-
-const persistence = memoryPersistence()
-
-await persistence.stores.metadata?.set(
-  'thread:weather-chat',
-  'mcp-session',
-  { serverId: 'weather', sessionId: 'session-123' },
-)
+interface RunStore {
+  createOrResume(input: {
+    runId: string
+    threadId: string
+    status?: 'running' | 'completed' | 'failed' | 'interrupted'
+    startedAt: number
+  }): Promise<RunRecord>
+  update(
+    runId: string,
+    patch: Partial<
+      Pick<RunRecord, 'status' | 'finishedAt' | 'error' | 'usage'>
+    >,
+  ): Promise<void>
+  get(runId: string): Promise<RunRecord | null>
+}
 ```
 
-Use a stable scope convention such as `thread:<threadId>` or `run:<runId>` so
-multiple integrations do not collide.
+Implement `createOrResume` idempotently. Retries may repeat the same run id.
 
-## Add locks, artifacts, and blobs when needed
+### Interrupts
 
-`stores.locks` provides a shared `LockStore` capability. Sandboxes and workflow
-extensions use it to prevent two processes from resuming or mutating the same
-durable resource at the same time.
+```ts
+import type { InterruptRecord } from '@tanstack/ai-persistence'
 
-`stores.artifacts` stores generated artifacts by `artifactId`, `runId`, and
-`threadId`. `stores.blobs` stores raw bytes and can be shared by artifacts or
-other integrations. A backend may store artifact metadata in SQL and bytes in
-object storage, as the [Cloudflare backend](./cloudflare) does with D1 and R2.
-For concrete generated media and sandbox workspace examples, see
-[Generation Persistence](./generation-persistence) and
-[Sandbox Persistence](./sandbox-persistence).
+interface InterruptStore {
+  create(record: Omit<InterruptRecord, 'resolvedAt'>): Promise<void>
+  resolve(interruptId: string, response?: unknown): Promise<void>
+  cancel(interruptId: string): Promise<void>
+  get(interruptId: string): Promise<InterruptRecord | null>
+  list(threadId: string): Promise<Array<InterruptRecord>>
+  listPending(threadId: string): Promise<Array<InterruptRecord>>
+  listByRun(runId: string): Promise<Array<InterruptRecord>>
+  listPendingByRun(runId: string): Promise<Array<InterruptRecord>>
+}
+```
 
-The same hybrid pattern works outside Workers: use your SQL database for runs,
-messages, events, metadata, and artifact indexes, then implement `stores.blobs`
-against R2 or another object store for large bytes. Keep the blob key or
-artifact id in your SQL-owned records so your app, not TanStack AI, controls
-garbage collection, access checks, and retention.
+An `interrupts` store requires a `runs` store when used with chat persistence.
 
-## Extend without growing the base schema
+### Metadata
 
-MCP and workflow packages should build on the common stores instead of adding
-new base persistence tables for every feature:
+```ts
+interface MetadataStore {
+  get(scope: string, key: string): Promise<unknown | null>
+  set(scope: string, key: string, value: unknown): Promise<void>
+  delete(scope: string, key: string): Promise<void>
+}
+```
 
-- use public events for UI replay,
-- use internal events for checkpoints,
-- use metadata for app-owned correlation,
-- use locks for cross-process coordination,
-- use artifacts and blobs for durable outputs.
+Namespaces and value schemas are application-owned.
 
-That keeps resumable chat small for apps that only need messages and replay,
-while still giving advanced integrations durable primitives.
+### Artifacts and blobs
 
-For the complete method-by-method contract, event ordering rules, and storage
-schema map, see [Persistence Internals](./internals).
+`ArtifactStore` contains searchable metadata only:
+
+```ts
+interface ArtifactRecord {
+  artifactId: string
+  runId: string
+  threadId: string
+  name: string
+  mimeType: string
+  size: number
+  externalUrl?: string
+  createdAt: number
+}
+```
+
+Bytes live in `BlobStore`, keyed separately. Generation and sandbox workspace
+persistence require both stores. Blob listing may use its own pagination
+`cursor`; that cursor belongs to the blob store and is unrelated to SSE resume
+offsets.
+
+### Locks
+
+`LockStore` comes from `@tanstack/ai`. Use it to serialize work that may run on
+multiple workers. A lock implementation should use leases or another recovery
+mechanism so a crashed owner cannot block forever. `withLock` passes an
+`AbortSignal` to the critical section. Lease-backed implementations abort that
+signal when ownership can no longer be guaranteed; callbacks must stop starting
+external mutations and pass the signal to cancellable dependencies.
+
+## Example message store
+
+```ts
+import type {
+  MessageStore,
+} from '@tanstack/ai-persistence'
+import type { ModelMessage } from '@tanstack/ai'
+
+const threads = new Map<string, Array<ModelMessage>>()
+
+export const messages: MessageStore = {
+  async loadThread(threadId) {
+    return [...(threads.get(threadId) ?? [])]
+  },
+  async saveThread(threadId, nextMessages) {
+    threads.set(threadId, [...nextMessages])
+  },
+}
+```
+
+For durable infrastructure, preserve the same semantics with database
+transactions, conditional writes, or stable idempotency keys.
+
+## Override selected packaged stores
+
+```ts
+/// <reference types="@cloudflare/workers-types" />
+
+import { composePersistence } from '@tanstack/ai-persistence'
+import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import type { InterruptStore, RunStore } from '@tanstack/ai-persistence'
+
+declare const env: {
+  AI_STATE: D1Database
+  AI_MEDIA: R2Bucket
+}
+declare const interrupts: InterruptStore
+declare const runs: RunStore
+
+const base = cloudflarePersistence({ d1: env.AI_STATE, r2: env.AI_MEDIA })
+
+export const persistence = composePersistence(base, {
+  overrides: { interrupts, runs },
+})
+```
+
+Only those two stores move to the custom database. D1 still owns messages and
+metadata, while R2 still owns artifacts and blobs. Composition does not create
+a transaction across those systems; design related writes accordingly.

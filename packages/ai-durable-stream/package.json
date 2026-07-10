@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-durable-stream",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Delivery durability for TanStack AI over the durable-streams HTTP protocol — a resumable StreamDurability transport sink (append/read/resume) that stores zero delivery events itself.",
   "author": "",
   "license": "MIT",

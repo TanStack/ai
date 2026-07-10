@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
  * Delivery durability (transport layer) over real HTTP.
  *
  * These exercise the server-side `durability` sink end-to-end: a fresh run is
- * appended to the log and each SSE event is tagged with an `id: runId@seq`
+ * appended to the log and each SSE event is tagged with an opaque adapter-owned
  * offset; a reconnect (native `Last-Event-ID`) or a `?offset` join replays from
  * the log without re-producing.
  *
@@ -77,12 +77,9 @@ test.describe('delivery durability', () => {
     // Exactly the tail, in order, exactly once — content "3","4","5" then RUN_FINISHED.
     expect(contentDeltas(resumed)).toEqual(['3', '4', '5'])
     expect(eventType(resumed[resumed.length - 1]!)).toBe('RUN_FINISHED')
-    // Every resumed offset is strictly after the resume point (no replay overlap).
-    const resumeSeq = Number(resumeFrom.slice(resumeFrom.lastIndexOf('@') + 1))
-    for (const e of resumed) {
-      const seq = Number(e.id!.slice(e.id!.lastIndexOf('@') + 1))
-      expect(seq).toBeGreaterThan(resumeSeq)
-    }
+    // Adapter offsets are opaque; no replayed event may reuse the acknowledged
+    // resume offset.
+    expect(resumed.map((event) => event.id)).not.toContain(resumeFrom)
   })
 
   test('a second tab joins an existing run from the start', async ({
@@ -90,8 +87,8 @@ test.describe('delivery durability', () => {
   }) => {
     const produce = await request.post('/api/durable-delivery', { data: {} })
     const produced = parseSse(await produce.text())
-    const firstId = produced[0]!.id!
-    const runId = firstId.slice(0, firstId.lastIndexOf('@'))
+    const runId = produce.headers()['x-run-id']
+    if (!runId) throw new Error('Missing X-Run-Id response header')
 
     // Join from the start with ?offset=-1 (a fresh tab attaching to the run).
     const join = await request.get(

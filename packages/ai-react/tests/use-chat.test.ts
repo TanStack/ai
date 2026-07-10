@@ -40,6 +40,29 @@ describe('useChat', () => {
       expect(result.current.sessionGenerating).toBe(false)
     })
 
+    it('reports persistence errors raised while the client is initializing', () => {
+      const persistenceError = new Error('resume persistence unavailable')
+      const onError = vi.fn()
+
+      expect(() =>
+        renderUseChat({
+          connection: createMockConnectionAdapter(),
+          onError,
+          persistence: {
+            server: {
+              getItem: () => {
+                throw persistenceError
+              },
+              setItem: vi.fn(),
+              removeItem: vi.fn(),
+            },
+          },
+        }),
+      ).not.toThrow()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(onError).toHaveBeenCalledWith(persistenceError)
+    })
+
     it('should subscribe immediately when live is true', async () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderUseChat({ connection: adapter, live: true })
@@ -90,7 +113,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -119,7 +142,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -159,7 +182,7 @@ describe('useChat', () => {
         const chat = useChat({
           connection: createMockConnectionAdapter(),
           id,
-          persistence,
+          persistence: { client: persistence },
         })
 
         return { ...chat, setId }

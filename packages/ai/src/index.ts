@@ -80,7 +80,7 @@ export {
 } from './stream-to-response'
 
 // Delivery durability (transport layer)
-export { memoryStream, encodeOffset, decodeOffset } from './stream-durability'
+export { memoryStream } from './stream-durability'
 export type { StreamDurability } from './stream-durability'
 
 // Tool call management

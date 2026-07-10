@@ -3,8 +3,8 @@
  *
  * Each table mirrors the corresponding record in
  * `@tanstack/ai-persistence`'s `types.ts` column-for-column. JSON-valued fields
- * are stored in `*_json` text columns (portable across sqlite/pg/mysql); epoch
- * millisecond timestamps are stored as integers.
+ * are stored in `*_json` text columns; epoch millisecond timestamps are stored
+ * as integers.
  *
  * This schema is the single source of truth for migrations: run
  * `pnpm db:generate` (drizzle-kit) after any change here. It is also exported
@@ -15,7 +15,7 @@
  * (`@tanstack/ai-persistence-prisma`). See coupling `persistence-schema-dual-source`.
  */
 import {
-  blob,
+  customType,
   integer,
   primaryKey,
   sqliteTable,
@@ -23,6 +23,24 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+
+const bytes = customType<{
+  data: Uint8Array<ArrayBuffer>
+  driverData: ArrayBuffer | Uint8Array
+}>({
+  dataType() {
+    return 'blob'
+  },
+  fromDriver(value) {
+    const source = value instanceof Uint8Array ? value : new Uint8Array(value)
+    const owned = new Uint8Array(new ArrayBuffer(source.byteLength))
+    owned.set(source)
+    return owned
+  },
+  toDriver(value) {
+    return value
+  },
+})
 
 /** Thread message history (`MessageStore`). */
 export const messages = sqliteTable('messages', {
@@ -91,7 +109,7 @@ export const blobs = sqliteTable('blobs', {
   >(),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
-  body: blob('body', { mode: 'buffer' }),
+  body: bytes('body'),
 })
 
 /** The full state schema, for `drizzlePersistence(db)` and drizzle-kit. */
