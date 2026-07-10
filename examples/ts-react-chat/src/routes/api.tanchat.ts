@@ -358,7 +358,7 @@ export const Route = createFileRoute('/api/tanchat')({
 
           const stream = chat({
             ...options,
-            tools: Object.values(mergedTools),
+            tools: mergedTools,
             middleware: [loggingMiddleware, runtimeContextMiddleware],
             context: runtimeContext,
             systemPrompts: [SYSTEM_PROMPT],

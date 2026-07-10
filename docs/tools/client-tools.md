@@ -118,6 +118,13 @@ export async function POST(request: Request) {
 }
 ```
 
+> **Security:** registering the definitions statically (as above) is the safe
+> default — the server alone decides which tools the model sees, so a client
+> can't advertise tools you didn't sanction. If you'd instead like the client
+> to declare its tools per request via AG-UI `RunAgentInput.tools`, use
+> [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3--optional-let-the-client-advertise-its-tools) —
+> read its security note first, since `params.tools` is client-controlled.
+
 ### Client-Side
 
 Create client implementations with automatic execution and full type safety:
@@ -126,7 +133,6 @@ Create client implementations with automatic execution and full type safety:
 // app/chat.tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages,
   type ToolCallPart,
@@ -167,8 +173,9 @@ const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
   return { saved: true };
 });
 
-// Step 2: Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToLocalStorage);
+// Step 2: A plain array is all you need — literal tool names, inputs and
+// outputs are inferred without any wrapper or `as const`.
+const tools = [updateUI, saveToLocalStorage];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -235,7 +242,7 @@ Client tools are **automatically executed** when the model calls them. The flow 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 import { toast } from "./toast";
@@ -257,7 +264,7 @@ const showToast = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(showToast),
+  tools: [showToast],
   context: {
     activeProjectId,
     toast: (message) => toast(message),
@@ -268,6 +275,23 @@ const chat = useChat(chatOptions);
 ```
 
 Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
+
+## The `clientTools()` helper (optional)
+
+Passing a plain array — `tools: [toolA, toolB]` — is all you need: tool names, inputs and outputs are inferred without any wrapper and without `as const`. `clientTools()` is an optional identity helper that performs the same capture explicitly. Reach for it only when you want to build a shared, reusable tools tuple **outside** the hook/options call:
+
+```ts
+import { clientTools } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+
+const notify = toolDefinition({
+  name: "notify",
+  description: "Show a notification",
+}).client(() => ({ ok: true }));
+
+// Equivalent to `const tools = [notify]` — just captured explicitly.
+const tools = clientTools(notify);
+```
 
 ## Type Safety Benefits
 

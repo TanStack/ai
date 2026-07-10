@@ -6,6 +6,7 @@ import {
   modelMessagesToUIMessages,
   toolDefinition,
   type ModelMessage,
+  type ToolCallPart,
 } from '@tanstack/ai'
 import { z } from 'zod'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
@@ -218,7 +219,11 @@ function ToolsTestPage() {
     // Include scenario in ID so client is recreated when scenario changes
     id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
     connection: fetchServerSentEvents('/api/tools-test'),
-    initialMessages,
+    // History fixtures are untyped model-message replays; cast to the typed
+    // message shape so they don't fight the concrete `tools` tuple inference.
+    initialMessages: initialMessages as unknown as Array<
+      UIMessage<typeof clientTools>
+    >,
     forwardedProps: {
       scenario,
       testId,
@@ -278,15 +283,22 @@ function ToolsTestPage() {
     sendMessage(`[${scenario}] run test`)
   }, [sendMessage])
 
-  // Extract tool call parts from messages for display
-  const toolCalls = messages.flatMap((msg) =>
-    msg.parts
-      .filter((p) => p.type === 'tool-call')
-      .map((p) => ({
-        messageId: msg.id,
-        ...p,
-      })),
-  )
+  // Extract tool call parts from messages for display. This harness inspects
+  // `approval` across a mixed tool set, so it uses the generic (untyped)
+  // `ToolCallPart` view — the typed per-tool parts gate `approval` behind
+  // `needsApproval`, which is exactly what we don't want to narrow on here.
+  const toolCalls: Array<ToolCallPart & { messageId: string }> =
+    messages.flatMap((msg) =>
+      msg.parts
+        .filter(
+          (p): p is Extract<typeof p, { type: 'tool-call' }> =>
+            p.type === 'tool-call',
+        )
+        .map((p) => ({
+          messageId: msg.id,
+          ...p,
+        })),
+    )
 
   // Extract tool result parts (for server tools)
   const toolResultIds = new Set(

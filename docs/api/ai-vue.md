@@ -28,7 +28,6 @@ Main composable for managing chat state in Vue with full type safety.
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -50,7 +49,7 @@ const updateUI = updateUIDef.client((input) => {
   return { success: true };
 });
 
-const tools = clientTools(updateUI);
+const tools = [updateUI];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -243,7 +242,6 @@ const { messages, sendMessage, addToolApprovalResponse } = useChat({
 import { ref } from "vue";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -277,7 +275,7 @@ const saveToStorage = saveToStorageDef.client((input) => {
 });
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToStorage);
+const tools = [updateUI, saveToStorage];
 
 const { messages, sendMessage } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
@@ -348,7 +346,6 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -356,7 +353,7 @@ import { fetchServerSentEvents } from "@tanstack/ai-vue";
 import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
