@@ -13,12 +13,13 @@ import {
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs' | 'grok'
+type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'gemini', label: 'Google Gemini' },
   { value: 'grok', label: 'Grok Voice Agent' },
 ]
 
@@ -287,7 +288,9 @@ function RealtimePage() {
               )}
 
               {/* Output mode selector (OpenAI-compatible realtime) */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Output
@@ -310,7 +313,9 @@ function RealtimePage() {
               )}
 
               {/* Temperature slider */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Temp: {temperature.toFixed(1)}
@@ -366,7 +371,9 @@ function RealtimePage() {
         </div>
 
         {/* Tools indicator */}
-        {(provider === 'openai' || provider === 'grok') && (
+        {(provider === 'openai' ||
+          provider === 'gemini' ||
+          provider === 'grok') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Wrench className="w-3 h-3" />
@@ -522,7 +529,9 @@ function RealtimePage() {
                 className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
               />
               {/* Image upload button (OpenAI-compatible realtime) */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <>
                   <input
                     ref={imageInputRef}

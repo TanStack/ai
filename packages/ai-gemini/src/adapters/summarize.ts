@@ -3,7 +3,7 @@ import { getGeminiApiKeyFromEnv } from '../utils'
 import { GeminiTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { GEMINI_MODELS } from '../model-meta'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini summarize adapter

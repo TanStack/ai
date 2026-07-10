@@ -6,8 +6,8 @@ import type { MediaPrompt } from '@tanstack/ai/client'
 import { generateImageFn } from '@/lib/server-functions'
 import { getRandomImagePrompt } from '@/lib/prompts'
 import { IMAGE_MODELS } from '@/lib/models'
-import { readImageFile, toImagePart } from '@/lib/media'
-import type { AttachedImage } from '@/lib/media'
+import { readMediaFile, toImagePart } from '@/lib/media'
+import type { AttachedMedia } from '@/lib/media'
 
 interface ImageGeneratorProps {
   onImageGenerated?: (imageUrl: string) => void
@@ -36,7 +36,7 @@ export default function ImageGenerator({
   const [selectedModel, setSelectedModel] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<Record<string, ModelResult>>({})
-  const [images, setImages] = useState<Array<AttachedImage>>([])
+  const [images, setImages] = useState<Array<AttachedMedia>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentModel = IMAGE_MODELS.find((m) => m.id === selectedModel)
@@ -56,7 +56,7 @@ export default function ImageGenerator({
     const files = Array.from(e.target.files ?? [])
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (files.length === 0) return
-    const attached = await Promise.all(files.map((file) => readImageFile(file)))
+    const attached = await Promise.all(files.map((file) => readMediaFile(file)))
     setImages((prev) => [...prev, ...attached])
   }
 

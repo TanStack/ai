@@ -23,6 +23,19 @@ TanStack AI adds: `model?`
 - [`ApprovalRequestedEvent`](ApprovalRequestedEvent.md)
 - [`ToolInputAvailableEvent`](ToolInputAvailableEvent.md)
 - [`UIResourceEvent`](UIResourceEvent.md)
+- [`SandboxFileCustomEvent`](SandboxFileCustomEvent.md)
+- [`SandboxFileDiffEvent`](SandboxFileDiffEvent.md)
+- [`FileChangedEvent`](FileChangedEvent.md)
+- [`SessionIdEvent`](SessionIdEvent.md)
+- [`CodeModeExecutionStartedEvent`](CodeModeExecutionStartedEvent.md)
+- [`CodeModeConsoleEvent`](CodeModeConsoleEvent.md)
+- [`CodeModeExternalCallEvent`](CodeModeExternalCallEvent.md)
+- [`CodeModeExternalResultEvent`](CodeModeExternalResultEvent.md)
+- [`CodeModeExternalErrorEvent`](CodeModeExternalErrorEvent.md)
+- [`CodeModeSkillCallEvent`](CodeModeSkillCallEvent.md)
+- [`CodeModeSkillResultEvent`](CodeModeSkillResultEvent.md)
+- [`CodeModeSkillErrorEvent`](CodeModeSkillErrorEvent.md)
+- [`SkillRegisteredEvent`](SkillRegisteredEvent.md)
 
 ## Indexable
 
