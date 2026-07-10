@@ -5,7 +5,7 @@ import type {
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
-import type { AnthropicContainerSkill, AnthropicTool } from '../tools'
+import type { AnthropicContainerSkill, AnthropicTool } from '../tools/index'
 import type {
   MessageParam,
   TextBlockParam,

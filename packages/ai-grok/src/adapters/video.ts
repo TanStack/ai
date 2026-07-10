@@ -26,7 +26,7 @@ import type {
   GrokVideoModelSizeByName,
   GrokVideoProviderOptions,
 } from '../video/video-provider-options'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
 
 /**
  * Configuration for Grok video adapter.

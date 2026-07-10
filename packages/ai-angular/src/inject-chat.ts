@@ -35,7 +35,7 @@ import type {
 let nextId = 0
 
 export function injectChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(

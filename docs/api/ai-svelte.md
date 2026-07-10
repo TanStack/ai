@@ -28,7 +28,6 @@ Factory function for managing chat state in Svelte 5 with full type safety.
 ```typescript
 import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -52,7 +51,7 @@ const updateUI = updateUIDef.client((input) => {
   return { success: true };
 });
 
-const tools = clientTools(updateUI);
+const tools = [updateUI];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -240,7 +239,6 @@ import {
 <script lang="ts">
   import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
   import {
-    clientTools,
     createChatClientOptions,
     type InferChatMessages,
   } from "@tanstack/ai-client";
@@ -261,7 +259,7 @@ import {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToStorage);
+  const tools = [updateUI, saveToStorage];
 
   const chat = createChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -334,7 +332,6 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import {
-  clientTools,
   createChatClientOptions,
   fetchServerSentEvents,
   type InferChatMessages,
@@ -342,7 +339,7 @@ import {
 import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

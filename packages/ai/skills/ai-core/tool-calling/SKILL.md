@@ -297,7 +297,10 @@ function ChatPage() {
               return (
                 <div key={part.id}>
                   <p>Approve "{part.name}"?</p>
-                  <pre>{part.arguments}</pre>
+                  {/* `part.input` is the parsed, typed object (populated once
+                      the arguments are complete, as they are at approval
+                      time); `part.arguments` remains the raw JSON string. */}
+                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
                   <button
                     onClick={() =>
                       addToolApprovalResponse({
@@ -342,6 +345,15 @@ await resumeInterrupts([
   },
 ])
 ```
+
+> **Type-safe approval:** With typed `tools`, `part.approval` exists **only**
+> on parts for tools defined with `needsApproval: true`. Tools without approval
+> have no `approval` field (reading it is a compile error). For a
+> tool-agnostic handler over a typed union, narrow with `'approval' in part`
+> (`if (part.type === 'tool-call' && 'approval' in part && part.approval)`),
+> or type a shared component against the base `ToolCallPart`. An untyped
+> `useChat()` keeps `approval` on every tool-call part, which is why the
+> snippet above (no `tools` generic) reads it directly.
 
 ### Pattern 4: Lazy Tool Discovery
 

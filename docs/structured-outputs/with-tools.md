@@ -132,7 +132,6 @@ Client tools â€” defined with `.client((input) => ...)` on the tool definition â
 
 ```tsx
 import { toolDefinition } from "@tanstack/ai";
-import { clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { z } from "zod";
 import { runLookupOnClient } from "./client-utils";
@@ -154,7 +153,7 @@ const lookupContact = lookupContactDef.client((input) => {
 
 const { messages, sendMessage, partial, final } = useChat({
   outputSchema: RecommendationSchema,
-  tools: clientTools(lookupContact),
+  tools: [lookupContact],
   connection: fetchServerSentEvents("/api/recommend"),
 });
 ```

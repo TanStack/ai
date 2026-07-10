@@ -1724,7 +1724,7 @@ importers:
   packages/ai-gemini:
     dependencies:
       '@google/genai':
-        specifier: ^2.8.0
+        specifier: ^2.10.0
         version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai-utils':
         specifier: workspace:*

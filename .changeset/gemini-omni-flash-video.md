@@ -1,0 +1,5 @@
+---
+'@tanstack/ai-gemini': minor
+---
+
+Add Gemini Omni Flash (`gemini-omni-flash-preview`) video generation via the Interactions API. Omni only serves the Interactions API (`generateContent` rejects it), so the video adapter now routes by model: Veo models keep the `:predictLongRunning` operations flow, while `geminiVideo('gemini-omni-flash-preview')` creates a background interaction with `response_modalities: ['video']`, polls it by id, and returns the inline base64 MP4 as a `data:` URL (Files-API URI delivery passes through). Usage is mapped from the interaction's `output_tokens_by_modality`. Image and video prompt parts are sent as interaction content blocks, and `modelOptions.previous_interaction_id` chains a new prompt onto a prior Omni generation for conversational video editing. The top-level `size` option maps onto `response_format.aspect_ratio` (`'16:9' | '9:16'`) and `duration` onto `response_format.duration` — any value in the 3–10 second range (fractional seconds included, verified against the live API), defaulting to a 10-second clip when omitted. Raises the `@google/genai` floor to `^2.10.0` for the Interactions API surface.

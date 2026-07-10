@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
@@ -56,6 +57,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
+  id: '/typesafe-tools',
+  path: '/typesafe-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
   path: '/threads',
@@ -304,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -352,6 +359,7 @@ export interface FileRoutesByTo {
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -401,6 +409,7 @@ export interface FileRoutesById {
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -451,6 +460,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -499,6 +509,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -596,6 +608,7 @@ export interface RootRouteChildren {
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
+  TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
@@ -633,6 +646,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/typesafe-tools': {
+      id: '/typesafe-tools'
+      path: '/typesafe-tools'
+      fullPath: '/typesafe-tools'
+      preLoaderRoute: typeof TypesafeToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/threads': {
       id: '/threads'
       path: '/threads'
@@ -972,6 +992,7 @@ const rootRouteChildren: RootRouteChildren = {
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
+  TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,

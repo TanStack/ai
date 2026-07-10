@@ -33,7 +33,6 @@ Main hook for managing chat state in React with full type safety.
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
@@ -60,7 +59,7 @@ function ChatComponent() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI);
+  const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
     connection: fetchServerSentEvents("/api/chat"),
@@ -293,7 +292,6 @@ export function ChatWithApproval() {
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
@@ -337,7 +335,7 @@ export function ChatWithClientTools() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToStorage);
+  const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -366,7 +364,6 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import { 
-  clientTools, 
   createChatClientOptions, 
   fetchServerSentEvents,
   type InferChatMessages 
@@ -374,7 +371,7 @@ import {
 import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

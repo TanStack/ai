@@ -10,7 +10,7 @@ import {
   generationIdentityFields,
   replayGenerationEvents,
 } from './generation-run'
-import type { GenerationRunOptions } from './middleware'
+import type { GenerationRunOptions } from './middleware/types'
 import type { StreamChunk } from '../types'
 
 function createId(prefix: string): string {

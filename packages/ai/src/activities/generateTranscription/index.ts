@@ -19,10 +19,13 @@ import {
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
-} from '../middleware'
+} from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware, GenerationRunOptions } from '../middleware'
+import type {
+  GenerationMiddleware,
+  GenerationRunOptions,
+} from '../middleware/types'
 import type { TranscriptionAdapter } from './adapter'
 import type {
   StreamChunk,

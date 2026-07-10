@@ -5,6 +5,7 @@ import {
   Activity,
   BadgeCheck,
   Braces,
+  Code2,
   Database,
   FileAudio,
   FileText,
@@ -217,6 +218,19 @@ export default function Header() {
           >
             <Guitar size={20} />
             <span className="font-medium">Guitar Demo</span>
+          </Link>
+
+          <Link
+            to="/typesafe-tools"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Code2 size={20} />
+            <span className="font-medium">Type-Safe Tools</span>
           </Link>
 
           <Link

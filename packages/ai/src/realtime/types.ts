@@ -4,6 +4,8 @@ import type { AnyClientTool } from '../activities/chat/tools/tool-definition'
 // Token Types
 // ============================================================================
 
+import type { UsageInfo } from '../activities/chat/middleware/types'
+
 /**
  * Voice activity detection configuration
  */
@@ -24,6 +26,7 @@ export interface RealtimeToolConfig {
   name: string
   description: string
   inputSchema?: Record<string, any>
+  outputSchema?: Record<string, any>
 }
 
 /**
@@ -246,6 +249,8 @@ export type RealtimeEvent =
   | 'message_complete'
   | 'interrupted'
   | 'error'
+  | 'go_away' // Event that signals that the current connection will soon be terminated
+  | 'usage'
 
 /**
  * Event payloads for realtime events
@@ -263,6 +268,8 @@ export interface RealtimeEventPayloads {
   message_complete: { message: RealtimeMessage }
   interrupted: { messageId?: string }
   error: { error: Error }
+  go_away: { timeLeft?: string }
+  usage: UsageInfo
 }
 
 /**
@@ -355,6 +362,8 @@ export interface RealtimeConnection {
   // Session management
   /** Update session configuration */
   updateSession: (config: Partial<RealtimeSessionConfig>) => void
+  /** Update the ephemeral token (e.g. on refresh); provider may reconnect */
+  updateToken?: (token: RealtimeToken) => void
   /** Interrupt the current response */
   interrupt: () => void
 

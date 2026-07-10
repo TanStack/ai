@@ -1,9 +1,9 @@
 import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getAnthropicApiKeyFromEnv } from '../utils'
+import { getAnthropicApiKeyFromEnv } from '../utils/client'
 import { AnthropicTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { ANTHROPIC_MODELS } from '../model-meta'
-import type { AnthropicClientConfig } from '../utils'
+import type { AnthropicClientConfig } from '../utils/client'
 
 /**
  * Configuration for Anthropic summarize adapter

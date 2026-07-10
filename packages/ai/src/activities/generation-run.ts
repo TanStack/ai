@@ -1,4 +1,7 @@
-import type { GenerationReplayInput, GenerationRunIdentity } from './middleware'
+import type {
+  GenerationReplayInput,
+  GenerationRunIdentity,
+} from './middleware/types'
 import type { StreamChunk } from '../types'
 
 export function rejectEventsOnlyReplay(

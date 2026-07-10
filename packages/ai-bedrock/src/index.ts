@@ -13,7 +13,7 @@ import { BEDROCK_CHAT_MODELS, BEDROCK_RESPONSES_MODELS } from './model-meta'
 import type { BedrockTextConfig } from './adapters/text'
 import type { BedrockResponsesConfig } from './adapters/responses-text'
 import type { BedrockConverseConfig } from './adapters/converse-text'
-import type { BedrockClientConfig } from './utils'
+import type { BedrockClientConfig } from './utils/client'
 import type {
   BedrockChatModels,
   BedrockConverseModels,
@@ -168,7 +168,7 @@ export {
   type BedrockClientConfig,
   type BedrockEndpoint,
   type ResolvedBedrockAuth,
-} from './utils'
+} from './utils/client'
 export {
   BEDROCK_CHAT_MODELS,
   BEDROCK_RESPONSES_MODELS,

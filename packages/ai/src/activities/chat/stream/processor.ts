@@ -1299,15 +1299,35 @@ export class StreamProcessor {
       // received, back-fill the arguments string so the UIMessage ToolCallPart
       // carries the correct value (defensive against adapters that skip ARGS).
       if (chunk.input !== undefined && !existingToolCall.arguments) {
-        existingToolCall.arguments = JSON.stringify(chunk.input)
+        try {
+          existingToolCall.arguments = JSON.stringify(chunk.input)
+        } catch {
+          // circular refs, BigInt, etc. — leave arguments empty rather than
+          // aborting stream processing
+        }
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
       this.completeToolCall(messageId, index, existingToolCall)
       // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
       // arguments (overrides the accumulated string parse from completeToolCall)
+      // and refresh the rendered part's `input` so it reflects the canonical
+      // value rather than the possibly-divergent accumulated-args parse that
+      // completeToolCall wrote (e.g. an adapter that coerces values differently
+      // between the streamed args and the final structured input).
       if (chunk.input !== undefined) {
         existingToolCall.parsedArguments = chunk.input
+        this.messages = updateToolCallPart(this.messages, messageId, {
+          id: existingToolCall.id,
+          name: existingToolCall.name,
+          arguments: existingToolCall.arguments,
+          state: 'input-complete',
+          input: chunk.input,
+          ...(existingToolCall.metadata !== undefined && {
+            metadata: existingToolCall.metadata,
+          }),
+        })
+        this.emitMessagesChange()
       }
     }
 
@@ -1964,12 +1984,20 @@ export class StreamProcessor {
       return
     }
 
-    // Update UIMessage
+    // Update UIMessage. The arguments are complete now, so surface the parsed
+    // input on the part. For adapters that skip TOOL_CALL_ARGS the arguments
+    // string was back-filled from TOOL_CALL_END.input, so this parse matches
+    // the canonical input. If a TOOL_CALL_END.input diverges from the
+    // accumulated args, handleToolCallEndEvent re-updates the part with the
+    // canonical value after this call.
     this.messages = updateToolCallPart(this.messages, messageId, {
       id: toolCall.id,
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
+      ...(toolCall.parsedArguments !== undefined && {
+        input: toolCall.parsedArguments,
+      }),
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()

@@ -61,9 +61,9 @@ export {
   type GeminiAudioProviderOptions,
 } from './adapters/audio'
 
-// Video / Veo generation adapter (experimental)
+// Video generation adapter — Veo + Gemini Omni Flash (experimental)
 /**
- * @experimental Veo video generation is an experimental feature and may change.
+ * @experimental Video generation is an experimental feature and may change.
  */
 export {
   GeminiVideoAdapter,
@@ -74,8 +74,11 @@ export {
 export {
   GEMINI_VIDEO_DURATIONS,
   getGeminiVideoDurationOptions,
+  isInteractionsVideoModel,
 } from './video/video-provider-options'
 export type {
+  GeminiInteractionsVideoModel,
+  GeminiOmniVideoProviderOptions,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
   GeminiVideoModelInputModalitiesByName,
@@ -96,6 +99,7 @@ export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export { GEMINI_AUDIO_MODELS as GeminiAudioModels } from './model-meta'
 export { GEMINI_VIDEO_MODELS as GeminiVideoModels } from './model-meta'
+export { GEMINI_INTERACTIONS_VIDEO_MODELS as GeminiInteractionsVideoModels } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'
@@ -125,3 +129,17 @@ export type {
 
 // Export provider usage types
 export type { GeminiProviderUsageDetails } from './usage'
+
+// ============================================================================
+// Realtime (Voice) Adapters
+// ============================================================================
+
+export { geminiRealtime, geminiRealtimeToken } from './realtime/index'
+
+export type {
+  GeminiRealtimeModel,
+  GeminiRealtimeOptions,
+  GeminiRealtimeProviderOptions,
+  GeminiRealtimeTokenOptions,
+  GeminiRealtimeVoice,
+} from './realtime/index'

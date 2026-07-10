@@ -375,6 +375,15 @@ export interface ToolCallPart<TMetadata = unknown> {
   id: string
   name: string
   arguments: string // JSON string (may be incomplete)
+  /**
+   * Parsed tool input. Set from the parsed arguments once they are complete
+   * (`state: 'input-complete'` and later). `undefined` while the raw
+   * `arguments` string is still streaming, and may stay `undefined` for a call
+   * that terminates in an error state — the raw `arguments` string is always
+   * available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+   * `@tanstack/ai-client`); `unknown` on this base type.
+   */
+  input?: unknown
   state: ToolCallState
   /** Approval metadata if tool requires user approval */
   approval?: {

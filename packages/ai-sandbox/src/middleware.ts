@@ -34,6 +34,7 @@ import {
   restoreWorkspacePersistence,
 } from './workspace-persistence'
 import { resolveWorkspacePersistenceOptions } from './workspace-persistence-types'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
@@ -65,6 +66,8 @@ interface SandboxRunState {
   pendingWorkspacePersistence: Array<Promise<void>>
   workspacePersistenceErrors: Array<unknown>
   workspacePersistenceOptions?: ResolvedWorkspacePersistenceOptions
+  /** Logger captured at setup, so terminal hooks can log watcher teardown. */
+  logger?: InternalLogger
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -132,6 +135,35 @@ function sandboxStoreFromPersistence(
   return store
 }
 
+/**
+ * Stop the watcher and drain any in-flight `diff()` promises before teardown,
+ * so the final file's diff isn't dropped when a run finishes/aborts/errors
+ * mid-computation. The `pendingDiffs` await is the load-bearing line — without
+ * it a deferred diff resolves after the run is gone and its chunk is lost.
+ */
+async function drainWatcher(
+  state: SandboxRunState,
+  phase: 'finish' | 'abort' | 'error',
+): Promise<void> {
+  // Guard `stop()`: a rejecting watcher teardown must NOT propagate out of
+  // here, or the caller skips the `definition.destroy(...)` that follows —
+  // leaking the sandbox on exactly the abort path that must ALWAYS tear down.
+  for (const watcher of state.watchers) {
+    try {
+      await watcher.stop()
+    } catch (error) {
+      state.logger?.warn('sandbox watcher stop failed', { phase, error })
+    }
+  }
+  await Promise.allSettled(state.pendingDiffs)
+  if (state.watchers.length > 0) {
+    state.logger?.sandbox('sandbox watcher stopped', {
+      phase,
+      count: state.watchers.length,
+    })
+  }
+}
+
 /** Defensively pull tenant scoping out of the runtime context, if present. */
 function tenantFrom(
   context: unknown,
@@ -163,11 +195,14 @@ function buildEnsureCtx(
 /**
  * Dispatch a sandbox file event to the per-type hooks declared on the
  * definition. Errors in individual hooks are swallowed so one bad hook
- * cannot break the run.
+ * cannot break the run — but are logged under the `errors` category first, so
+ * a throwing hook is observable (matching the run-scoped path in the engine
+ * and the behavior the observability docs promise).
  */
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
   event: SandboxFileHookEvent,
+  logger?: InternalLogger,
 ): Promise<void> {
   if (!hooks) return
   const typed = (
@@ -181,8 +216,14 @@ async function dispatchDefinitionHooks(
     if (!fn) continue
     try {
       await fn(event)
-    } catch {
-      // swallowed — one bad hook must not break the run
+    } catch (error) {
+      // swallowed — one bad hook must not break the run — but logged so the
+      // failure isn't invisible.
+      logger?.errors('sandbox file hook failed', {
+        path: event.path,
+        type: event.type,
+        error,
+      })
     }
   }
 }
@@ -227,16 +268,43 @@ export function withSandbox(
         workspace: definition.workspace,
         defaultKey: definition.key(ensureCtx),
       })
-      const publicWatchRoot =
-        definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+      // Pull the runtime (and its logger) up front so `baseSha` capture and
+      // hook dispatch below can log through the same `sandbox`/`errors`
+      // categories the engine uses.
+      const runtime = getSandboxRuntime(ctx, { optional: true })
+      const logger = runtime?.logger
+
+      const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
       let baseSha = ''
       try {
         const shaRes = await handle.process.exec('git rev-parse HEAD', {
-          cwd: publicWatchRoot,
+          cwd: watchRoot,
         })
-        if (shaRes.exitCode === 0) baseSha = shaRes.stdout.trim()
-      } catch {
-        // non-git workspace / exec rejects → baseSha stays '' (accessors fall back)
+        if (shaRes.exitCode === 0) {
+          baseSha = shaRes.stdout.trim()
+          logger?.sandbox('sandbox git baseline captured', {
+            root: watchRoot,
+            baseSha,
+          })
+        } else {
+          // Non-zero exit: either not a git repository (non-git workspace) or a
+          // repo with no commits (no HEAD). Expected, but it silently degrades
+          // every subsequent diff to a full-file add-patch, so surface it
+          // under `sandbox` (with stderr) rather than leaving nothing to grep.
+          logger?.sandbox('sandbox git baseline unavailable (non-zero exit)', {
+            root: watchRoot,
+            exitCode: shaRes.exitCode,
+            stderr: shaRes.stderr,
+          })
+        }
+      } catch (error) {
+        // exec rejected (git not on PATH, exec seam broken) → baseSha stays ''
+        // and accessors fall back, but this is a real anomaly, not a plain
+        // non-git workspace, so warn.
+        logger?.warn('sandbox git baseline capture failed', {
+          root: watchRoot,
+          error,
+        })
       }
 
       const workspace = definition.workspace
@@ -280,7 +348,6 @@ export function withSandbox(
       const pendingWorkspacePersistence: Array<Promise<void>> = []
       const workspacePersistenceErrors: Array<unknown> = []
       const watchers: Array<SandboxWatchHandle> = []
-      const runtime = getSandboxRuntime(ctx, { optional: true })
       const enqueueWorkspacePersistence = (event: SandboxFileEvent): void => {
         if (!workspacePersistenceOptions) return
         pendingWorkspacePersistence.push(
@@ -295,23 +362,28 @@ export function withSandbox(
             event,
           ).catch((error) => {
             workspacePersistenceErrors.push(error)
+            logger?.warn('sandbox workspace persistence checkpoint failed', {
+              path: event.path,
+              error,
+            })
           }),
         )
       }
       if (fe.enabled) {
         const persistenceSharesPublicRoot =
-          workspacePersistenceOptions?.root === publicWatchRoot
+          workspacePersistenceOptions?.root === watchRoot
         watchers.push(
           await watchWorkspace(handle, {
-            root: publicWatchRoot,
+            root: watchRoot,
             onEvent: (event: SandboxFileEvent) => {
               const enriched = buildFileHookEvent(
                 handle,
-                publicWatchRoot,
+                watchRoot,
                 baseSha,
                 event,
+                logger,
               )
-              void dispatchDefinitionHooks(hooks, enriched)
+              void dispatchDefinitionHooks(hooks, enriched, logger)
               runtime?.emit(enriched)
               if (persistenceSharesPublicRoot) {
                 enqueueWorkspacePersistence(event)
@@ -323,25 +395,41 @@ export function withSandbox(
                     .then((diff) => {
                       runtime?.emitFileDiff({ path: event.path, diff })
                     })
-                    .catch(() => undefined),
+                    .catch((error: unknown) => {
+                      logger?.warn('sandbox file diff emit failed', {
+                        path: event.path,
+                        error,
+                      })
+                    }),
                 )
               }
             },
             ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+            ...(logger !== undefined ? { logger } : {}),
           }),
         )
+        logger?.sandbox('sandbox watcher started', {
+          root: watchRoot,
+          diff: fe.diff,
+        })
       }
       if (
         workspacePersistenceOptions &&
-        (!fe.enabled || workspacePersistenceOptions.root !== publicWatchRoot)
+        (!fe.enabled || workspacePersistenceOptions.root !== watchRoot)
       ) {
         watchers.push(
           await watchWorkspace(handle, {
             root: workspacePersistenceOptions.root,
             onEvent: enqueueWorkspacePersistence,
             ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+            ...(logger !== undefined ? { logger } : {}),
           }),
         )
+        logger?.sandbox('sandbox watcher started', {
+          root: workspacePersistenceOptions.root,
+          diff: false,
+          persistence: true,
+        })
       }
 
       runState.set(ctx, {
@@ -352,6 +440,7 @@ export function withSandbox(
         workspacePersistenceErrors,
         watchers,
         ...(workspacePersistenceOptions ? { workspacePersistenceOptions } : {}),
+        ...(logger !== undefined ? { logger } : {}),
       })
     },
 
@@ -360,8 +449,7 @@ export function withSandbox(
       if (!state) return
       const { handle, ensureCtx } = state
 
-      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'finish')
       const persistenceError = await workspacePersistenceError(state)
 
       const lifecycle = definition.lifecycle
@@ -403,8 +491,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'abort')
       const persistenceError = await workspacePersistenceError(state)
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
@@ -422,8 +509,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await Promise.all(state.watchers.map((watcher) => watcher.stop()))
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'error')
       const persistenceError = await workspacePersistenceError(state)
       await definition.hooks?.onError?.(info.error)
 

@@ -468,6 +468,8 @@ describe('StreamProcessor', () => {
       expect(toolCallPart.name).toBe('getWeather')
       expect(toolCallPart.arguments).toBe('{"city":"NYC"}')
       expect(toolCallPart.state).toBe('input-complete')
+      // Parsed input is surfaced on the part once the arguments are complete.
+      expect(toolCallPart.input).toEqual({ city: 'NYC' })
 
       const state = processor.getState()
       expect(state.content).toBe('')
@@ -547,6 +549,47 @@ describe('StreamProcessor', () => {
         city: 'NYC',
         unit: 'celsius',
       })
+    })
+
+    it('populates part.input from TOOL_CALL_END.input when no args were streamed', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      // Adapter skips TOOL_CALL_ARGS and only sends parsed input on END.
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', {
+          input: { city: 'NYC', unit: 'celsius' },
+        }),
+      )
+      processor.finalizeStream()
+
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      expect(toolCallPart.state).toBe('input-complete')
+      expect(toolCallPart.input).toEqual({ city: 'NYC', unit: 'celsius' })
+    })
+
+    it('part.input reflects TOOL_CALL_END.input when it diverges from streamed args', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      // Args stream one value, then END provides a canonical (coerced) input
+      // that differs. The rendered part must reflect the END override, not the
+      // stale accumulated-args parse.
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"city":"nyc"}'))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }),
+      )
+      processor.finalizeStream()
+
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      expect(toolCallPart.state).toBe('input-complete')
+      expect(toolCallPart.input).toEqual({ city: 'NYC' })
     })
 
     it('should default tool call index to toolCalls.size when index is not provided', () => {
@@ -2846,6 +2889,7 @@ describe('StreamProcessor', () => {
           id: 'tc-1',
           name: 'getWeather',
           arguments: '{"loc":"Berlin"}',
+          input: { loc: 'Berlin' },
           state: 'input-complete',
         },
         {
@@ -3249,6 +3293,7 @@ describe('StreamProcessor', () => {
           id: 'tc-1',
           name: 'lookupWeather',
           arguments: '{"location":"Berlin"}',
+          input: { location: 'Berlin' },
           state: 'input-complete',
         },
         {
