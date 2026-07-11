@@ -1,0 +1,62 @@
+{
+  "name": "@tanstack/ai-cohere",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cohere adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-cohere"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./adapters/embedding": {
+      "types": "./dist/esm/adapters/embedding.d.ts",
+      "import": "./dist/esm/adapters/embedding.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "cohere",
+    "tanstack",
+    "adapter",
+    "embeddings",
+    "multimodal"
+  ],
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.3.3"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:*"
+  }
+}

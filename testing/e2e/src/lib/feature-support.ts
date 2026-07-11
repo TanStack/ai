@@ -218,6 +218,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'mistral',
   ]),
+  // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
+  // natively mocks OpenAI's /v1/embeddings (JSON fixture in
+  // fixtures/embedding/). The other providers run through custom mounts in
+  // global-setup.ts: Gemini because @google/genai posts to
+  // `:batchEmbedContents` (aimock only handles `:embedContent`); Ollama
+  // because aimock's /api/embed handler returns the legacy singular
+  // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
+  // `embed()` expects; Mistral because its SDK Zod-validates the response and
+  // requires an `id` field aimock's OpenAI-format builder omits.
+  embedding: new Set(['openai', 'gemini', 'ollama', 'mistral']),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
   // image-to-image (image parts in the generateImage prompt). aimock 1.29

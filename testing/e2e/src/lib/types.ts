@@ -33,6 +33,7 @@ export type Feature =
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
+  | 'embedding'
   | 'image-gen'
   | 'image-to-image'
   | 'audio-gen'
@@ -79,6 +80,7 @@ export const ALL_FEATURES: Feature[] = [
   'multimodal-structured',
   'summarize',
   'summarize-stream',
+  'embedding',
   'image-gen',
   'image-to-image',
   'audio-gen',
