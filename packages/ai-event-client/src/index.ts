@@ -660,6 +660,8 @@ export interface EmbeddingRequestStartedEvent extends BaseEventContext {
   imageInputCount: number
   /** Requested output dimensionality, when specified. */
   dimensions?: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
 }
 
 /** Emitted when an embedding request completes. */
@@ -671,6 +673,8 @@ export interface EmbeddingRequestCompletedEvent extends BaseEventContext {
   /** Dimensionality of the returned vectors. */
   dimensions?: number
   duration: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
 }
 
 /** Emitted when an embedding request fails. */
@@ -680,6 +684,8 @@ export interface EmbeddingRequestErrorEvent extends BaseEventContext {
   model: string
   error: { message: string; name?: string }
   duration: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
 }
 
 /** Emitted when embedding usage metrics are available. */
