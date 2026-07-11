@@ -168,7 +168,11 @@ export {
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 
 // Media-generation prompt resolution (used by image / video adapters)
-export { resolveMediaPrompt } from './utilities/media-prompt'
+export {
+  resolveMediaPrompt,
+  generatedImageToImagePart,
+  generatedVideoUrlToVideoPart,
+} from './utilities/media-prompt'
 export type { ResolvedMediaPrompt } from './utilities/media-prompt'
 
 // System prompts (type + normaliser used by adapters)

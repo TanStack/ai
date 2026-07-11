@@ -140,6 +140,14 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'video-edit': {
+    tools: [],
+    modelOptions: {},
+  },
+  'image-edit': {
+    tools: [],
+    modelOptions: {},
+  },
   'stateful-interactions': {
     tools: [],
     modelOptions: {},

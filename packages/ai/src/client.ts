@@ -96,6 +96,8 @@ export type {
   ContentPartUrlSource,
   CustomEvent,
   DocumentPart,
+  GeneratedImage,
+  GeneratedMediaSource,
   ImagePart,
   MediaInputMetadata,
   MediaInputRole,
@@ -115,6 +117,7 @@ export type {
   ToolResultPart,
   UIMessage,
   UIResourcePart,
+  VideoEditKind,
   VideoPart,
   InferSchemaType,
 } from './types'

@@ -25,6 +25,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       numberOfImages?: number
       aimockPort?: number
       testId?: string
+      previousImage?: { url?: string; b64Json?: string }
     }) => {
       const isEmpty =
         typeof data.prompt === 'string'
@@ -42,10 +43,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       data.aimockPort,
       data.testId,
     )
+    const previousImage =
+      data.previousImage?.url != null
+        ? { url: data.previousImage.url }
+        : data.previousImage?.b64Json != null
+          ? { b64Json: data.previousImage.b64Json }
+          : undefined
     return generateImage({
       adapter,
       prompt: data.prompt,
       numberOfImages: data.numberOfImages ?? 1,
+      ...(previousImage ? { previousImage } : {}),
     })
   })
 
@@ -152,6 +160,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       aimockPort?: number
       testId?: string
       feature?: Feature
+      previousJobId?: string
     }) => {
       const isEmpty =
         typeof data.prompt === 'string'
@@ -174,6 +183,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     const { jobId } = await generateVideo({
       adapter,
       prompt: data.prompt,
+      ...(data.previousJobId ? { previousJobId: data.previousJobId } : {}),
     })
     // Poll for completion (aimock returns completed immediately)
     const result = await getVideoJobStatus({ adapter, jobId })

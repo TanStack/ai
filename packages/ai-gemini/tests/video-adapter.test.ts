@@ -720,7 +720,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       await adapter.createVideoJob({
         model: 'gemini-omni-flash-preview',
         prompt: 'make the violin invisible',
-        modelOptions: { previous_interaction_id: 'v1_prior-turn' },
+        previousJobId: 'v1_prior-turn',
         logger: testLogger,
       })
 
@@ -853,6 +853,41 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       expect(stub.interactions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           response_format: { type: 'video', duration: '4.5s' },
+        }),
+      )
+    })
+  })
+
+  describe('previousJobId (previous_interaction_id chaining)', () => {
+    it('reports job-kind edit support for Omni and none for Veo', () => {
+      expect(
+        createGeminiVideo(
+          'gemini-omni-flash-preview',
+          'test-key',
+        ).supportedEditKind(),
+      ).toBe('job')
+      expect(
+        createGeminiVideo(
+          'veo-3.1-generate-preview',
+          'test-key',
+        ).supportedEditKind(),
+      ).toBeUndefined()
+    })
+
+    it('maps previousJobId onto previous_interaction_id', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'make the violin invisible',
+        previousJobId: 'v1_prior-turn',
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          previous_interaction_id: 'v1_prior-turn',
         }),
       )
     })

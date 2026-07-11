@@ -78,6 +78,19 @@ export type OpenAIVideoModelInputModalitiesByName = {
 }
 
 /**
+ * Per-model follow-up edit support. Sora models remix a completed video by
+ * its job id (`POST /videos/{id}/remix`), so `previousJobId` is the prior
+ * generation's job id. Remix accepts only a prompt — size, duration, and
+ * image inputs are rejected.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type OpenAIVideoModelEditByName = {
+  'sora-2': 'job'
+  'sora-2-pro': 'job'
+}
+
+/**
  * Validate video size for a given model.
  *
  * @experimental Video generation is an experimental feature and may change.

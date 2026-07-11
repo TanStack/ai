@@ -79,6 +79,7 @@ All image adapters support these common options:
 | `prompt` | `string \| MediaPromptPart[]` | Description of the image to generate (required). A plain string, or — on models that support image-conditioned generation — an ordered array of content parts interleaving text with image inputs. See [Image-Conditioned Generation](#image-conditioned-generation) below. |
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Size of the generated image in WIDTHxHEIGHT format |
+| `previousImage?` | `GeneratedImage \| GeneratedImage[] \| { images }` | A previously generated image (or images) to edit — prepended to the prompt as image input(s). Only offered (at compile time) for models that accept image inputs — see [Editing generated images](#editing-generated-images-previousimage). |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
 
 ### Size Options
@@ -182,6 +183,69 @@ separated).
 The accepted part types are narrowed **per model at compile time**: passing
 an image part to a text-only model (e.g. `dall-e-3`, Imagen) is a type
 error, not just a runtime throw.
+
+### Editing generated images (previousImage)
+
+To run a **follow-up edit** on something you just generated, pass the prior
+result's image as `previousImage` — sugar that prepends it to the prompt as an
+image part, so it flows through the model's regular edit path (OpenAI
+`/images/edits`, Gemini `generateContent`, xAI `/images/edits`, fal).
+
+**Server:**
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const adapter = openaiImage('gpt-image-2')
+
+const first = await generateImage({ adapter, prompt: 'A city street at dusk' })
+
+const edited = await generateImage({
+  adapter,
+  prompt: 'Same scene, but make it rain',
+  previousImage: first.images[0],
+})
+```
+
+`previousImage` accepts a single `GeneratedImage`, an array of them, or the
+whole prior result (`{ images }`). URL results pass through as `url`
+sources (`data:` URLs are decomposed into raw bytes for adapters that
+upload files); `b64Json` results become `data` sources with the mime type
+sniffed from the payload (defaulting to `image/png`). Like image parts, the
+option is offered **per model at compile time** — text-only models
+(`dall-e-3`, Imagen) reject it as a type error.
+
+**Client** — the hook's `ImageGenerateInput.previousImage` is a wire-friendly
+`{ url? }` / `{ b64Json? }` shape; your server route should narrow it back
+to a `GeneratedImage` before calling `generateImage`:
+
+```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function ImageEditor() {
+  const { generate, result, isLoading } = useGenerateImage({
+    connection: fetchServerSentEvents('/api/generate/image'),
+  })
+
+  const handleEdit = () => {
+    const image = result?.images[0]
+    if (!image) return
+    void generate({
+      prompt: 'Same scene, but make it rain',
+      previousImage: image.url
+        ? { url: image.url }
+        : { b64Json: image.b64Json },
+    })
+  }
+
+  return (
+    <button onClick={handleEdit} disabled={isLoading || !result}>
+      Edit
+    </button>
+  )
+}
+```
 
 ### Referencing images from your prompt
 

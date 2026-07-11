@@ -1,5 +1,7 @@
 import type {
+  ModelEditKindByName,
   ModelInputModalitiesByName,
+  VideoEditKind,
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
@@ -56,6 +58,10 @@ export interface VideoAdapterConfig {
  * - TModelDurationByName: Map from model name to its supported duration
  *   union. Defaults to `Record<string, number>` so adapters that haven't
  *   declared a map keep today's `duration?: number` typing.
+ * - TModelEditByName: Map from model name to how it edits previously
+ *   generated videos (`'job' | 'media' | undefined`). Defaults to the loose
+ *   `ModelEditKindByName` so adapters that haven't declared a map keep an
+ *   unconstrained `previousJobId` option (runtime-gated).
  */
 export interface VideoAdapter<
   TModel extends string = string,
@@ -69,6 +75,7 @@ export interface VideoAdapter<
     ModelInputModalitiesByName,
   TModelDurationByName extends Record<string, string | number | undefined> =
     Record<string, number>,
+  TModelEditByName extends ModelEditKindByName = ModelEditKindByName,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
@@ -86,6 +93,7 @@ export interface VideoAdapter<
     modelSizeByName: TModelSizeByName
     modelInputModalitiesByName: TModelInputModalitiesByName
     modelDurationByName: TModelDurationByName
+    modelEditByName: TModelEditByName
   }
 
   /**
@@ -123,13 +131,20 @@ export interface VideoAdapter<
    * Returns `undefined` for models with no duration field.
    */
   snapDuration: (seconds: number) => TModelDurationByName[TModel] | undefined
+
+  /**
+   * How this adapter's model edits previously generated videos, or
+   * `undefined` when it cannot. Consumed by the generateVideo() activity to
+   * gate `previousJobId` at runtime.
+   */
+  supportedEditKind: () => VideoEditKind | undefined
 }
 
 /**
  * A VideoAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any>
+export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any, any>
 
 /**
  * Abstract base class for video generation adapters.
@@ -151,13 +166,15 @@ export abstract class BaseVideoAdapter<
     ModelInputModalitiesByName,
   TModelDurationByName extends Record<string, string | number | undefined> =
     Record<string, number>,
+  TModelEditByName extends ModelEditKindByName = ModelEditKindByName,
 > implements VideoAdapter<
   TModel,
   TProviderOptions,
   TModelProviderOptionsByName,
   TModelSizeByName,
   TModelInputModalitiesByName,
-  TModelDurationByName
+  TModelDurationByName,
+  TModelEditByName
 > {
   readonly kind = 'video' as const
   abstract readonly name: string
@@ -170,6 +187,7 @@ export abstract class BaseVideoAdapter<
     modelSizeByName: TModelSizeByName
     modelInputModalitiesByName: TModelInputModalitiesByName
     modelDurationByName: TModelDurationByName
+    modelEditByName: TModelEditByName
   }
 
   protected config: VideoAdapterConfig
@@ -205,6 +223,30 @@ export abstract class BaseVideoAdapter<
    */
   snapDuration(_seconds: number): TModelDurationByName[TModel] | undefined {
     return undefined
+  }
+
+  /**
+   * Default implementation returns `undefined` (no follow-up editing).
+   * Adapters whose models can edit previous generations should override.
+   */
+  supportedEditKind(): VideoEditKind | undefined {
+    return undefined
+  }
+
+  /**
+   * Resolve the source video URL for a media-kind edit by fetching the
+   * finished clip for `previousJobId`. Callers always pass the prior
+   * generation's job id; media-kind adapters call this instead of
+   * requiring a URL.
+   */
+  protected async resolvePreviousJobUrl(previousJobId: string): Promise<string> {
+    const result = await this.getVideoUrl(previousJobId)
+    if (!result.url) {
+      throw new Error(
+        `${this.name}: could not resolve a video URL from previousJobId "${previousJobId}".`,
+      )
+    }
+    return result.url
   }
 
   protected generateId(): string {

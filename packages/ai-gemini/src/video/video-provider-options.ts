@@ -89,11 +89,13 @@ export type GeminiVideoProviderOptions = Omit<
  * - `tools` / `response_mime_type` — not applicable to video generation
  *
  * Notable passthroughs:
- * - `previous_interaction_id` — conversational video editing: chain a new
- *   prompt onto a prior Omni interaction to refine its video
  * - `generation_config.video_config.task` — pin the task mode
  *   (`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`)
  *   instead of letting the model infer it
+ *
+ * Conversational video editing uses the top-level `previousJobId` option
+ * (mapped onto the wire's `previous_interaction_id` by the adapter), not
+ * a modelOptions field.
  *
  * @experimental Omni video generation is an experimental feature and may change.
  */
@@ -107,6 +109,7 @@ export type GeminiOmniVideoProviderOptions = Omit<
   | 'response_format'
   | 'response_mime_type'
   | 'tools'
+  | 'previous_interaction_id'
 >
 
 /**
@@ -141,6 +144,20 @@ export type GeminiVideoModelInputModalitiesByName = {
   [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
     ? readonly ['image', 'video']
     : readonly ['image']
+}
+
+/**
+ * Per-model follow-up edit support. Omni Flash conversationally edits a
+ * prior generation by chaining its interaction id (the job id) via the
+ * Interactions API's `previous_interaction_id`, so `previousJobId` is the
+ * prior generation's job id. Veo models cannot edit previous generations.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GeminiVideoModelEditByName = {
+  [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
+    ? 'job'
+    : undefined
 }
 
 /**

@@ -81,6 +81,7 @@ export type {
   GeminiOmniVideoProviderOptions,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
+  GeminiVideoModelEditByName,
   GeminiVideoModelInputModalitiesByName,
   GeminiVideoModelProviderOptionsByName,
   GeminiVideoModelSizeByName,

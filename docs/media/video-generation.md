@@ -383,6 +383,7 @@ And returns:
 | `prompt` | `string \| MediaPromptPart[]` | Description of the video to generate (required). A plain string, or — on models that support conditioned generation — an ordered array of content parts interleaving text with image / video / audio inputs. See [Image-to-Video](#image-to-video) below. |
 | `size` | `string` | Video resolution in WIDTHxHEIGHT format |
 | `duration` | `number` | Video duration in seconds (maps to `seconds` parameter in API) |
+| `previousJobId?` | `string` | Prior generation's job id to edit instead of generating from scratch. Only offered (at compile time) for models that support follow-up edits — see [Editing Generated Videos](#editing-generated-videos-previousjobid). |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
 
 ## Image-to-Video
@@ -488,6 +489,91 @@ The API uses the `seconds` parameter. Allowed values:
 - `4` seconds
 - `8` seconds (default)
 - `12` seconds
+
+## Editing Generated Videos (previousJobId)
+
+Models that support **follow-up runs** can edit a previously generated
+video instead of generating from scratch: pass the prior generation's
+job id as `previousJobId` and describe the change in the prompt. The
+canonical call is the same for every provider.
+
+**Server:**
+
+```typescript ignore
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const adapter = openaiVideo('sora-2')
+
+// Turn 1: generate
+const first = await generateVideo({ adapter, prompt: 'A city street at dusk' })
+// …poll first.jobId to completion…
+
+// Turn 2: edit the result
+const edited = await generateVideo({
+  adapter,
+  prompt: 'Make it rain',
+  previousJobId: first.jobId,
+})
+```
+
+**Client** — pass the completed job's id through the hook; your server
+forwards it to `generateVideo`:
+
+```tsx
+import { useGenerateVideo, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function VideoEditor() {
+  const { generate, result, isLoading } = useGenerateVideo({
+    connection: fetchServerSentEvents('/api/generate/video'),
+  })
+
+  const handleEdit = () => {
+    if (!result?.jobId) return
+    void generate({
+      prompt: 'Make it rain',
+      previousJobId: result.jobId,
+    })
+  }
+
+  return (
+    <button onClick={handleEdit} disabled={isLoading || !result}>
+      Edit
+    </button>
+  )
+}
+```
+
+Each model declares **how** it consumes that job id via
+`adapter.supportedEditKind()`:
+
+| Kind | How the adapter uses `previousJobId` | Providers |
+| --- | --- | --- |
+| `'job'` | References the prior job server-side | OpenAI Sora 2 / Sora 2 Pro (remix), Gemini Omni Flash |
+| `'media'` | Resolves the finished clip via `getVideoUrl(previousJobId)` | xAI `grok-imagine-video` (`/videos/edits`), fal video-to-video endpoints (`xai/grok-imagine-video/edit-video`, `fal-ai/wan/v2.7/edit-video`, Seedance 2.0 reference-to-video) |
+
+Models without follow-up support (Veo, `grok-imagine-video-1.5`, fal
+text/image-to-video endpoints without a known edit sibling) reject
+`previousJobId` at compile time.
+
+Provider-specific constraints:
+
+- **OpenAI Sora (remix)** accepts only a text prompt — the output inherits
+  the source video's size and duration, so `size`, `duration`, and image
+  parts are rejected when `previousJobId` is set.
+- **Grok `/videos/edits`** inherits duration and aspect ratio from the
+  source (capped at 720p, input truncated to 8 seconds); `size` / `duration`
+  options are rejected when `previousJobId` is set. The resolved source rides
+  `video_url` (public URL, base64 `data:` URI, or `file_id`).
+- **Gemini Omni Flash** maps `previousJobId` onto the Interactions API's
+  `previous_interaction_id` wire field internally. That field is **not**
+  exposed on Omni `modelOptions` — use `previousJobId` only.
+- **fal** resolves `previousJobId` via `getVideoUrl` on the generate
+  model, then routes the URL onto the edit endpoint's video input
+  (`video_url`, or the endpoint's list field — Seedance 2.0's
+  reference-to-video takes `video_urls`). Generate endpoints with a known
+  edit sibling (e.g. Grok text/image-to-video → `edit-video`) do this
+  automatically.
 
 ## Model Options
 
@@ -618,10 +704,10 @@ the Files API first).
 
 #### Conversational video editing
 
-Omni's headline capability is iterative refinement: pass the interaction id
-of a prior generation (its `jobId`) as
-`modelOptions.previous_interaction_id` and describe the change — the model
-edits the video while preserving everything you didn't mention:
+Omni's headline capability is iterative refinement: pass a prior
+generation's `jobId` (its interaction id) as `previousJobId` and describe the
+change — the model edits the video while preserving everything you didn't
+mention (see [Editing Generated Videos](#editing-generated-videos-previousjobid)):
 
 ```typescript ignore
 import { generateVideo } from '@tanstack/ai'
@@ -641,12 +727,15 @@ const first = await generateVideo({
 const second = await generateVideo({
   adapter,
   prompt: 'Make the violin invisible',
-  modelOptions: { previous_interaction_id: first.jobId },
+  previousJobId: first.jobId,
 })
 ```
 
-`modelOptions` also passes through the Interactions API's request fields
-(e.g. `generation_config.video_config.task` to pin
+The adapter maps `previousJobId` onto the Interactions API's
+`previous_interaction_id` wire field. That field is not available on Omni
+`modelOptions` — always use `previousJobId`. `modelOptions` still passes
+through the Interactions API's other request fields (e.g.
+`generation_config.video_config.task` to pin
 `'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`
 instead of letting the model infer the task mode).
 
@@ -707,6 +796,8 @@ adapter.snapDuration(99) // 15
 ```
 
 Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
+
+`grok-imagine-video` can also edit a previously generated clip via [`previousJobId`](#editing-generated-videos-previousjobid) — pass the prior job id and an edit prompt; the adapter resolves the finished clip and posts to xAI's `/videos/edits` endpoint, then polls like any other job. The output inherits duration and aspect ratio from the source (capped at 720p, input truncated to 8 seconds).
 
 ## Response Types
 

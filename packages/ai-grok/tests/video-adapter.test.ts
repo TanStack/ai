@@ -641,4 +641,147 @@ describe('Grok Video Adapter', () => {
       expect(adapter.snapDuration(7)).toBe(7)
     })
   })
+
+  describe('previousJobId (/videos/edits)', () => {
+    it('reports media-kind edit support for grok-imagine-video only', () => {
+      expect(
+        createGrokVideo('grok-imagine-video', 'k').supportedEditKind(),
+      ).toBe('media')
+      expect(
+        createGrokVideo('grok-imagine-video-1.5', 'k').supportedEditKind(),
+      ).toBeUndefined()
+    })
+
+    it('posts the edit prompt and resolved source URL to /videos/edits', async () => {
+      const fetchMock = vi.fn(
+        async (input: string | URL | Request, _init?: RequestInit) => {
+          const url = String(input)
+          if (url.includes('/videos/edits')) {
+            return jsonResponse({ request_id: 'edit-req-1' })
+          }
+          return jsonResponse({
+            status: 'done',
+            video: { url: 'https://example.com/source.mp4' },
+          })
+        },
+      )
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+
+      const result = await adapter.createVideoJob({
+        model: 'grok-imagine-video',
+        prompt: 'Give the rider a red scarf',
+        previousJobId: 'prior-job',
+        logger: testLogger,
+      })
+
+      expect(result).toEqual({
+        jobId: 'edit-req-1',
+        model: 'grok-imagine-video',
+      })
+      expect(String(fetchMock.mock.calls[0]![0])).toContain('/videos/prior-job')
+      const [, editInit] = fetchMock.mock.calls[1]!
+      expect(String(fetchMock.mock.calls[1]![0])).toContain('/videos/edits')
+      expect(JSON.parse(String(editInit?.body))).toEqual({
+        model: 'grok-imagine-video',
+        prompt: 'Give the rider a red scarf',
+        video_url: 'https://example.com/source.mp4',
+      })
+    })
+
+    it('throws for the image-to-video-only model', async () => {
+      const fetchMock = mockFetch(() =>
+        jsonResponse({ request_id: 'edit-req-1' }),
+      )
+      const adapter = adapterWithFetch(fetchMock)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: 'x',
+          previousJobId: 'prior-job',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support editing previous generations/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects size/duration options and media parts on edit', async () => {
+      const fetchMock = mockFetch(() =>
+        jsonResponse({ request_id: 'edit-req-1' }),
+      )
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+      const previousJobId = 'prior-job'
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: 'x',
+          size: '16:9_720p',
+          previousJobId,
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherit duration and aspect ratio/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: 'x',
+          duration: 8,
+          previousJobId,
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherit duration and aspect ratio/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: 'x',
+          modelOptions: { resolution: '720p' },
+          previousJobId,
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherit duration and aspect ratio/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: i2vPrompt('x'),
+          previousJobId,
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/media prompt parts are not supported/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('surfaces edit endpoint errors with the API message', async () => {
+      const fetchMock = vi.fn(
+        async (input: string | URL | Request, _init?: RequestInit) => {
+          const url = String(input)
+          if (url.includes('/videos/edits')) {
+            return jsonResponse({ code: 'bad', error: 'video too long' }, 400)
+          }
+          return jsonResponse({
+            status: 'done',
+            video: { url: 'https://example.com/source.mp4' },
+          })
+        },
+      )
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: 'x',
+          previousJobId: 'prior-job',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/video edit request failed/)
+    })
+  })
 })

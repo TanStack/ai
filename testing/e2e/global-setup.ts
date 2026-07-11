@@ -68,8 +68,17 @@ export default async function globalSetup() {
   // GET /v1beta/interactions/{id} → inline base64 mp4). The adapter under
   // test points its baseUrl at this dedicated prefix so aimock's native
   // interactions handling stays untouched for the stateful-interactions
-  // text tests.
+  // text tests. The mount also chains follow-up edits: a create carrying
+  // `previous_interaction_id` gets a distinct job id whose poll returns a
+  // different clip, so the video-edit spec can assert the edit round-trip.
   mock.mount('/omni-video', geminiOmniVideoMount())
+
+  // Sora follow-up edits (`POST /v1/videos/{id}/remix`). aimock 1.29's native
+  // /v1/videos pipeline covers create/retrieve but not the remix endpoint,
+  // so this fall-through mount answers remix creates (and the poll of the
+  // remix job id) and returns false for everything else, which drops through
+  // to aimock's native handler.
+  mock.mount('/v1/videos', openaiVideoRemixMount())
 
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
@@ -434,9 +443,13 @@ function geminiVeoMount(): Mountable {
  */
 function geminiOmniVideoMount(): Mountable {
   const JOB_ID = 'v1_omni-video-e2e'
-  // Minimal MP4-ish base64 payload — the spec only asserts the <video>
-  // element renders with the data: URL the adapter builds from it.
+  const EDIT_JOB_ID = 'v1_omni-video-edit-e2e'
+  // Minimal MP4-ish base64 payloads — the specs only assert the <video>
+  // element renders with the data: URL the adapter builds from them. The
+  // edit payload differs from the create payload so the video-edit spec can
+  // prove the follow-up job produced a different clip.
   const VIDEO_BASE64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28y'
+  const EDITED_VIDEO_BASE64 = 'AAAAIGZ0eXBpc29tAAACAGVkaXRlZA=='
   return {
     async handleRequest(
       req: http.IncomingMessage,
@@ -447,12 +460,21 @@ function geminiOmniVideoMount(): Mountable {
       pathname: string,
     ): Promise<boolean> {
       if (pathname === '/v1beta/interactions' && req.method === 'POST') {
-        await drainBody(req)
+        const body = await readBody(req)
+        let isEdit = false
+        try {
+          const parsed = JSON.parse(body) as {
+            previous_interaction_id?: string
+          }
+          isEdit = typeof parsed.previous_interaction_id === 'string'
+        } catch {
+          // non-JSON body — treat as a plain create
+        }
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/json')
         res.end(
           JSON.stringify({
-            id: JOB_ID,
+            id: isEdit ? EDIT_JOB_ID : JOB_ID,
             object: 'interaction',
             status: 'in_progress',
             model: 'gemini-omni-flash-preview',
@@ -463,6 +485,7 @@ function geminiOmniVideoMount(): Mountable {
 
       const pollMatch = pathname.match(/^\/v1beta\/interactions\/([^/]+)$/)
       if (pollMatch && req.method === 'GET') {
+        const isEdit = pollMatch[1] === EDIT_JOB_ID
         res.statusCode = 200
         res.setHeader('Content-Type', 'application/json')
         res.end(
@@ -488,7 +511,7 @@ function geminiOmniVideoMount(): Mountable {
                   {
                     type: 'video',
                     mime_type: 'video/mp4',
-                    data: VIDEO_BASE64,
+                    data: isEdit ? EDITED_VIDEO_BASE64 : VIDEO_BASE64,
                   },
                 ],
               },
@@ -498,6 +521,67 @@ function geminiOmniVideoMount(): Mountable {
         return true
       }
 
+      return false
+    },
+  }
+}
+
+/**
+ * Fall-through mount for Sora's remix endpoint. Handles:
+ *
+ * - `POST /v1/videos/{id}/remix` — creates the follow-up job (returns the
+ *   remix job id, already completed so the poll settles immediately).
+ * - `GET /v1/videos/video-job-remix-e2e` — the poll/URL fetch for that job,
+ *   returning a distinct URL so the spec can assert the edit round-trip.
+ *
+ * Everything else returns false and falls through to aimock's native
+ * /v1/videos pipeline (create + retrieve backed by onVideo fixtures).
+ */
+function openaiVideoRemixMount(): Mountable {
+  const REMIX_JOB_ID = 'video-job-remix-e2e'
+  const REMIX_URL = 'https://example.com/guitar-store-remixed.mp4'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1/videos') and any query string,
+      // so pathname looks like '/{id}/remix' or '/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      const remixMatch = pathname.match(/^\/([^/]+)\/remix$/)
+      if (remixMatch && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: REMIX_JOB_ID,
+            object: 'video',
+            status: 'completed',
+            model: 'sora-2',
+            remixed_from_video_id: remixMatch[1],
+            url: REMIX_URL,
+          }),
+        )
+        return true
+      }
+
+      if (pathname === `/${REMIX_JOB_ID}` && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: REMIX_JOB_ID,
+            object: 'video',
+            status: 'completed',
+            model: 'sora-2',
+            url: REMIX_URL,
+          }),
+        )
+        return true
+      }
+
+      // Not a remix path — fall through to aimock's native videos handler.
       return false
     },
   }

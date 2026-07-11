@@ -247,6 +247,11 @@ export interface ImageGenerateInput {
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: string
+  /**
+   * A previously generated image to edit — forwarded to generateImage's
+   * `previousImage`, which prepends it to the prompt as an image input.
+   */
+  previousImage?: { url?: string; b64Json?: string }
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }
@@ -325,6 +330,12 @@ export interface VideoGenerateInput {
   size?: string
   /** Video duration in seconds */
   duration?: number
+  /**
+   * Prior generation's job id to edit instead of generating from scratch.
+   * Job-kind adapters reference it server-side; media-kind adapters resolve
+   * the finished clip via `getVideoUrl`.
+   */
+  previousJobId?: string
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }

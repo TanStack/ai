@@ -288,13 +288,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-07"
+          "updatedAt": "2026-07-10"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-07-10"
         },
         {
           "label": "Generation Hooks",

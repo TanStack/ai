@@ -4,7 +4,7 @@
  * These types give you full autocomplete and type safety for any model.
  */
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
-import type { MediaPromptModality } from '@tanstack/ai'
+import type { MediaPromptModality, VideoEditKind } from '@tanstack/ai'
 import type { FalImageFieldName } from './image/generated/image-field-overrides'
 
 export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
@@ -183,6 +183,43 @@ export type FalVideoPromptModalitiesFor<TModel extends string> =
             : 'audio')
       >
     : ReadonlyArray<MediaPromptModality>
+
+/**
+ * Generate endpoints that edit via a dedicated video-to-video sibling.
+ * When `previousJobId` is set on the generate model, the fal adapter resolves
+ * the prior clip via `getVideoUrl(previousJobId)` on the generate endpoint,
+ * then submits to the mapped edit endpoint.
+ */
+export const FAL_VIDEO_EDIT_BY_SOURCE = {
+  'xai/grok-imagine-video/text-to-video':
+    'xai/grok-imagine-video/edit-video',
+  'xai/grok-imagine-video/image-to-video':
+    'xai/grok-imagine-video/edit-video',
+} as const
+
+export type FalVideoEditSourceModel = keyof typeof FAL_VIDEO_EDIT_BY_SOURCE
+
+/**
+ * Follow-up edit kind for a fal video endpoint. An endpoint supports
+ * `previousJobId` when:
+ * - it declares a video-conditioning input (`video_url` / `video_urls` /
+ *   `reference_video_urls`), or
+ * - it is a generate endpoint with a known edit sibling in
+ *   `FAL_VIDEO_EDIT_BY_SOURCE` (e.g. Grok text/image-to-video → edit-video).
+ * Endpoints unknown to the installed SDK are unconstrained and gated at the
+ * API instead.
+ */
+export type FalVideoEditKindFor<TModel extends string> =
+  TModel extends FalVideoEditSourceModel
+    ? 'media'
+    : TModel extends keyof EndpointTypeMap
+      ? Extract<
+          keyof FalModelInput<TModel>,
+          'video_url' | 'video_urls' | 'reference_video_urls'
+        > extends never
+        ? undefined
+        : 'media'
+      : VideoEditKind
 
 /**
  * Provider options for video generation, excluding fields TanStack AI handles.

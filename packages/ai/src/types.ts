@@ -1886,6 +1886,27 @@ export interface AudioGenerationResult {
 // ============================================================================
 
 /**
+ * How a video model edits previously generated media in a follow-up run:
+ * - `'job'` — the provider references the prior generation by its job id
+ *   (OpenAI Sora remix, Gemini Omni `previous_interaction_id`).
+ * - `'media'` — the provider takes the prior video itself, by URL or data URI
+ *   (xAI Grok `/videos/edits`, fal video-to-video endpoints).
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type VideoEditKind = 'job' | 'media'
+
+/**
+ * Per-model map from model name to its edit kind (`undefined` = the model
+ * cannot edit previous generations). Adapters declare this map to narrow the
+ * `previousJobId` option per model at compile time, mirroring
+ * `ModelInputModalitiesByName`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type ModelEditKindByName = Record<string, VideoEditKind | undefined>
+
+/**
  * Options for video generation.
  * These are the common options supported across providers.
  *
@@ -1917,6 +1938,14 @@ export interface VideoGenerationOptions<
   duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Prior generation's job id to edit instead of generating from scratch.
+   * Only present when the model supports follow-up edits (see
+   * `VideoEditKind`); the activity validates support before the adapter is
+   * called. `'job'`-kind adapters reference it server-side; `'media'`-kind
+   * adapters resolve the finished clip via `getVideoUrl`.
+   */
+  previousJobId?: string
   /**
    * Internal logger threaded from the generateVideo() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.

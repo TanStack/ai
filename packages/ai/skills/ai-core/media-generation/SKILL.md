@@ -493,8 +493,8 @@ Image/video prompt parts are sent as interaction content blocks, grouped
 as images, then videos, then text (no
 `metadata.role` routing); `data` sources go inline, `url` sources pass
 through as-is (never downloaded — use Gemini Files API URIs for remote
-media). For conversational editing, pass a prior generation's `jobId` as
-`modelOptions.previous_interaction_id` with a prompt describing the change:
+media). For conversational editing, pass a prior generation's job id via
+`previousJobId` with a prompt describing the change:
 
 ```typescript
 import { geminiVideo } from '@tanstack/ai-gemini'
@@ -508,13 +508,28 @@ const first = await generateVideo({
 const edited = await generateVideo({
   adapter: omni,
   prompt: 'Make the violin invisible',
-  modelOptions: { previous_interaction_id: first.jobId },
+  previousJobId: first.jobId,
 })
 ```
 
+`previousJobId` is the general follow-up-edit option for video. Callers pass
+the prior generation's job id; `'job'`-kind models reference it server-side
+(Sora 2 / Sora 2 Pro remix, Omni Flash interaction chaining) while
+`'media'`-kind models resolve the finished clip via `getVideoUrl`
+(`grokVideo('grok-imagine-video')` → xAI `/videos/edits`; fal video-to-video
+endpoints like `xai/grok-imagine-video/edit-video`). Non-editing models (Veo,
+`grok-imagine-video-1.5`) reject the option at compile time;
+`adapter.supportedEditKind()` reports `'job' | 'media' | undefined` at
+runtime. Sora remix and Grok edits take only a prompt — `size`/`duration`
+are rejected because the output inherits them from the source video.
+`generateImage` has the same option for image models that accept image
+inputs: `previousImage: priorResult.images[0]` prepends the previous image to
+the prompt so it flows through the model's regular edit path.
+
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
-durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
-(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
+durations 4/8/12s, single `input_reference` image prompt part, remix via
+`previousJobId`), `grokVideo(...)`
+(`grok-imagine-video` does text-to-video + image-to-video + edits via `previousJobId`; `grok-imagine-video-1.5` is
 image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
 aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
 `usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).

@@ -12,16 +12,31 @@ export const Route = createFileRoute('/api/image/stream')({
         const abortController = new AbortController()
         const body = await request.json()
         const data = body.forwardedProps ?? body.data ?? body
-        const { prompt, provider, numberOfImages, testId, aimockPort } =
-          data as {
-            prompt: MediaPrompt
-            provider: Provider
-            numberOfImages?: number
-            testId?: string
-            aimockPort?: number
-          }
+        const {
+          prompt,
+          provider,
+          numberOfImages,
+          testId,
+          aimockPort,
+          previousImage,
+        } = data as {
+          prompt: MediaPrompt
+          provider: Provider
+          numberOfImages?: number
+          testId?: string
+          aimockPort?: number
+          previousImage?: { url?: string; b64Json?: string }
+        }
 
         const adapter = createImageAdapter(provider, aimockPort, testId)
+        // The wire shape is a loose optional pair; generateImage's previousImage
+        // takes the strict GeneratedImage union, so narrow to one branch.
+        const editImage =
+          previousImage?.url != null
+            ? { url: previousImage.url }
+            : previousImage?.b64Json != null
+              ? { b64Json: previousImage.b64Json }
+              : undefined
 
         try {
           const stream = generateImage({
@@ -29,6 +44,7 @@ export const Route = createFileRoute('/api/image/stream')({
             prompt,
             numberOfImages: numberOfImages ?? 1,
             stream: true,
+            ...(editImage ? { previousImage: editImage } : {}),
           })
           return toHttpResponse(stream, { abortController })
         } catch (error: any) {

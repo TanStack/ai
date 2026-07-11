@@ -1,5 +1,8 @@
+import { detectImageMimeType } from '../utils'
 import type {
   AudioPart,
+  ContentPartSource,
+  GeneratedImage,
   ImagePart,
   MediaInputMetadata,
   MediaPrompt,
@@ -82,5 +85,64 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
     images,
     videos,
     audios,
+  }
+}
+
+/**
+ * Convert a media URL into a {@link ContentPartSource}: remote URLs pass
+ * through as `url` sources; `data:` URLs are decomposed into `data` sources
+ * so adapters that upload raw bytes (OpenAI edits, Gemini `inlineData`) get
+ * the payload without re-parsing.
+ */
+function mediaUrlToSource(url: string): ContentPartSource {
+  if (!url.startsWith('data:')) {
+    return { type: 'url', value: url }
+  }
+  const comma = url.indexOf(',')
+  const mimeType = comma === -1 ? '' : url.slice(5, comma).split(';')[0]
+  if (comma === -1 || !mimeType) {
+    throw new Error('data: URL is missing a mime type')
+  }
+  return { type: 'data', value: url.slice(comma + 1), mimeType }
+}
+
+/**
+ * Convert a previously generated image into an {@link ImagePart} so it can
+ * be fed back into a media prompt (follow-up edits, image-to-image). URL
+ * results pass through as `url` sources (`data:` URLs are decomposed into
+ * `data` sources); `b64Json` results become `data` sources with the mime
+ * type sniffed from the payload's magic bytes (defaulting to `image/png`,
+ * the format every provider's b64 output uses today).
+ */
+export function generatedImageToImagePart(
+  image: GeneratedImage,
+): ImagePart<MediaInputMetadata> {
+  if (image.url !== undefined) {
+    return { type: 'image', source: mediaUrlToSource(image.url) }
+  }
+  return {
+    type: 'image',
+    source: {
+      type: 'data',
+      value: image.b64Json,
+      mimeType: detectImageMimeType(image.b64Json) ?? 'image/png',
+    },
+  }
+}
+
+/**
+ * Convert a previously generated video URL into a {@link VideoPart} so it
+ * can be fed back into a media prompt (follow-up edits). Remote URLs pass
+ * through; `data:` URLs (e.g. Gemini Omni's inline MP4 results) are
+ * decomposed into `data` sources.
+ */
+export function generatedVideoUrlToVideoPart(
+  url: string,
+  metadata?: MediaInputMetadata,
+): VideoPart<MediaInputMetadata> {
+  return {
+    type: 'video',
+    source: mediaUrlToSource(url),
+    ...(metadata ? { metadata } : {}),
   }
 }

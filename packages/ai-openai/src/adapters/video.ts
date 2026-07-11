@@ -11,6 +11,7 @@ import {
   validateVideoSize,
 } from '../video/video-provider-options'
 import type {
+  VideoEditKind,
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
@@ -19,6 +20,7 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { OpenAIVideoModel } from '../model-meta'
 import type {
+  OpenAIVideoModelEditByName,
   OpenAIVideoModelInputModalitiesByName,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
@@ -81,7 +83,9 @@ export class OpenAIVideoAdapter<
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
-  OpenAIVideoModelInputModalitiesByName
+  OpenAIVideoModelInputModalitiesByName,
+  Record<string, number>,
+  OpenAIVideoModelEditByName
 > {
   readonly name = 'openai' as const
 
@@ -98,10 +102,19 @@ export class OpenAIVideoAdapter<
     this.client = new OpenAI(clientOptions)
   }
 
+  /** Sora models remix a completed video by its job id. */
+  override supportedEditKind(): VideoEditKind {
+    return 'job'
+  }
+
   async createVideoJob(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Promise<VideoJobResult> {
     const { model, size, duration, modelOptions } = options
+
+    if (options.previousJobId) {
+      return this.remixVideoJob(options)
+    }
 
     const resolvedSize = size ?? modelOptions?.size
     validateVideoSize(model, resolvedSize)
@@ -178,12 +191,74 @@ export class OpenAIVideoAdapter<
   }
 
   /**
+   * Remix a previously generated Sora video (`POST /videos/{id}/remix`).
+   * The endpoint accepts only an updated prompt — the output inherits size
+   * and duration from the source video — so conflicting options are
+   * rejected up front instead of being silently dropped.
+   */
+  private async remixVideoJob(
+    options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
+  ): Promise<VideoJobResult> {
+    const { model, size, duration, modelOptions, previousJobId } = options
+    if (!previousJobId) {
+      throw new Error(
+        `${this.name}: previousJobId is required to remix a previous Sora generation.`,
+      )
+    }
+    if (size !== undefined || modelOptions?.size !== undefined) {
+      throw new Error(
+        `${this.name}: Sora remix accepts only a prompt — the output inherits the source video's size. Remove the size option.`,
+      )
+    }
+    if (duration !== undefined || modelOptions?.seconds !== undefined) {
+      throw new Error(
+        `${this.name}: Sora remix accepts only a prompt — the output inherits the source video's duration. Remove the duration/seconds option.`,
+      )
+    }
+
+    const resolved = resolveMediaPrompt(options.prompt)
+    if (
+      resolved.images.length > 0 ||
+      resolved.videos.length > 0 ||
+      resolved.audios.length > 0
+    ) {
+      throw new Error(
+        `${this.name}: Sora remix accepts only a text prompt; media prompt parts are not supported when previousJobId is set.`,
+      )
+    }
+    if (!resolved.text) {
+      throw new Error(
+        `${this.name}: Sora remix requires a text prompt describing the edit.`,
+      )
+    }
+
+    try {
+      options.logger.request(
+        `activity=video.remix provider=${this.name} model=${model} source=${previousJobId}`,
+        { provider: this.name, model },
+      )
+      const videosClient = this.getVideosClient()
+      const response = await videosClient.remix(previousJobId, {
+        prompt: resolved.text,
+      })
+      return { jobId: response.id, model }
+    } catch (error: any) {
+      options.logger.errors(`${this.name}.remixVideoJob fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.remixVideoJob failed`),
+        source: `${this.name}.remixVideoJob`,
+      })
+      throw error
+    }
+  }
+
+  /**
    * The video API on the OpenAI SDK is still experimental and shipped on some
    * SDK versions but not others; access through `videosClient` lets us treat
    * the path uniformly even when the SDK lacks first-class typings here.
    */
   private getVideosClient(): {
     create: (req: Record<string, any>) => Promise<{ id: string }>
+    remix: (id: string, body: { prompt: string }) => Promise<{ id: string }>
     retrieve: (id: string) => Promise<{
       id: string
       status: string

@@ -40,6 +40,7 @@ export {
 } from './adapters/video'
 export {
   GROK_VIDEO_DURATIONS,
+  GROK_VIDEO_EDIT_KINDS,
   getGrokVideoDurationOptions,
 } from './video/video-provider-options'
 export type {
@@ -47,6 +48,7 @@ export type {
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelDurationByName,
+  GrokVideoModelEditByName,
   GrokVideoAspectRatio,
   GrokVideoResolution,
   GrokVideoSize,

@@ -12,13 +12,15 @@ export const Route = createFileRoute('/api/video')({
         const abortController = new AbortController()
         const body = await request.json()
         const data = body.forwardedProps ?? body.data ?? body
-        const { prompt, provider, testId, aimockPort, feature } = data as {
-          prompt: MediaPrompt
-          provider: Provider
-          testId?: string
-          aimockPort?: number
-          feature?: Feature
-        }
+        const { prompt, provider, testId, aimockPort, feature, previousJobId } =
+          data as {
+            prompt: MediaPrompt
+            provider: Provider
+            testId?: string
+            aimockPort?: number
+            feature?: Feature
+            previousJobId?: string
+          }
 
         const adapter = createVideoAdapter(
           provider,
@@ -33,6 +35,7 @@ export const Route = createFileRoute('/api/video')({
             prompt,
             stream: true,
             pollingInterval: 500,
+            ...(previousJobId ? { previousJobId } : {}),
           })
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
