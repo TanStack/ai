@@ -191,10 +191,8 @@ export type FalVideoPromptModalitiesFor<TModel extends string> =
  * then submits to the mapped edit endpoint.
  */
 export const FAL_VIDEO_EDIT_BY_SOURCE = {
-  'xai/grok-imagine-video/text-to-video':
-    'xai/grok-imagine-video/edit-video',
-  'xai/grok-imagine-video/image-to-video':
-    'xai/grok-imagine-video/edit-video',
+  'xai/grok-imagine-video/text-to-video': 'xai/grok-imagine-video/edit-video',
+  'xai/grok-imagine-video/image-to-video': 'xai/grok-imagine-video/edit-video',
 } as const
 
 export type FalVideoEditSourceModel = keyof typeof FAL_VIDEO_EDIT_BY_SOURCE

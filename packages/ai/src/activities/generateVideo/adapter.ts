@@ -239,7 +239,9 @@ export abstract class BaseVideoAdapter<
    * generation's job id; media-kind adapters call this instead of
    * requiring a URL.
    */
-  protected async resolvePreviousJobUrl(previousJobId: string): Promise<string> {
+  protected async resolvePreviousJobUrl(
+    previousJobId: string,
+  ): Promise<string> {
     const result = await this.getVideoUrl(previousJobId)
     if (!result.url) {
       throw new Error(
