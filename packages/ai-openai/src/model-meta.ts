@@ -7,6 +7,7 @@ import type {
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
 } from './text/text-provider-options'
+import type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
@@ -2303,6 +2304,33 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
 
 export type OpenAITranscriptionModel =
   (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
+
+/**
+ * Embedding models (based on endpoints: "embeddings")
+ */
+export const OPENAI_EMBEDDING_MODELS = [
+  'text-embedding-3-small',
+  'text-embedding-3-large',
+] as const
+
+export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
+
+/**
+ * Type-only map from embedding model name to its provider options type.
+ */
+export type OpenAIEmbeddingModelProviderOptionsByName = {
+  'text-embedding-3-small': OpenAIEmbeddingProviderOptions
+  'text-embedding-3-large': OpenAIEmbeddingProviderOptions
+}
+
+/**
+ * Per-model input modalities for embedding models. OpenAI embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
+export type OpenAIEmbeddingModelInputModalitiesByName = {
+  'text-embedding-3-small': readonly ['text']
+  'text-embedding-3-large': readonly ['text']
+}
 
 /**
  * Type-only map from chat model name to its provider options type.

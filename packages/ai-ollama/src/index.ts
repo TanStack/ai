@@ -21,6 +21,19 @@ export {
 } from './adapters/summarize'
 export { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from './model-meta'
 
+// Embedding adapter - for embedding vectors
+export {
+  OllamaEmbeddingAdapter,
+  createOllamaEmbedding,
+  ollamaEmbedding,
+  type OllamaEmbeddingConfig,
+} from './adapters/embedding'
+export type { OllamaEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+export {
+  OLLAMA_EMBEDDING_MODELS,
+  type OllamaEmbeddingModel,
+} from './model-meta'
+
 // Tool converters
 export {
   convertFunctionToolToAdapterFormat,

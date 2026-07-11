@@ -1028,7 +1028,12 @@ generateImage({ model: openai.image('dall-e-3'), ... })
 #### After (TanStack AI)
 
 ```typescript ignore
-import { openaiText, openaiImage, openaiSpeech } from '@tanstack/ai-openai'
+import {
+  openaiText,
+  openaiImage,
+  openaiSpeech,
+  openaiEmbedding,
+} from '@tanstack/ai-openai'
 
 // Chat
 chat({ adapter: openaiText('gpt-4o'), ... })
@@ -1039,7 +1044,8 @@ generateImage({ adapter: openaiImage('dall-e-3'), ... })
 // Text to speech
 generateSpeech({ adapter: openaiSpeech('tts-1'), ... })
 
-// Embeddings: Use OpenAI SDK directly or your vector DB's built-in support
+// Embeddings
+embed({ adapter: openaiEmbedding('text-embedding-3-small'), ... })
 ```
 
 ### Anthropic
@@ -1405,23 +1411,51 @@ const text = await streamToText(stream)
 
 For structured (non-streaming) output — the `generateObject` equivalent — pass `outputSchema` instead; see [Structured Output](#structured-output).
 
+## Embeddings
+
+Vercel's `embed` and `embedMany` both map to TanStack AI's single `embed()` function — `input` accepts one item or an array, and the result always carries one vector per input item.
+
+### Before (Vercel AI SDK)
+
+```typescript ignore
+import { embed, embedMany } from 'ai'
+import { openai } from '@ai-sdk/openai'
+
+const { embedding } = await embed({
+  model: openai.embedding('text-embedding-3-small'),
+  value: 'Hello, world!',
+})
+
+const { embeddings } = await embedMany({
+  model: openai.embedding('text-embedding-3-small'),
+  values: ['one', 'two'],
+})
+```
+
+### After (TanStack AI)
+
+```typescript
+import { embed } from '@tanstack/ai'
+import { openaiEmbedding } from '@tanstack/ai-openai'
+
+const single = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
+  input: 'Hello, world!',
+})
+const vector = single.embeddings[0]?.vector
+
+const batch = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
+  input: ['one', 'two'],
+})
+const vectors = batch.embeddings.map((e) => e.vector)
+```
+
+TanStack AI's `embed()` additionally supports multimodal (text + image) inputs for models like Cohere embed-v4.0 and Amazon Titan Multimodal — see the [Embeddings guide](../embeddings.md).
+
 ## Features Not Yet Covered
 
 A few AI SDK features don't have direct TanStack AI equivalents today:
-
-### Embeddings
-
-TanStack AI doesn't include embeddings. Use your provider's SDK directly, or the built-in embedding support most vector DBs already offer:
-
-```typescript
-import OpenAI from 'openai'
-
-const openaiClient = new OpenAI()
-const result = await openaiClient.embeddings.create({
-  model: 'text-embedding-3-small',
-  input: 'Hello, world!',
-})
-```
 
 ### Partial object streaming (`streamObject().elementStream` / `partialObjectStream`)
 

@@ -38,6 +38,7 @@ export type GenerationActivity =
   | 'audio'
   | 'tts'
   | 'transcription'
+  | 'embedding'
 
 /**
  * Stable context passed to every {@link GenerationMiddleware} hook. Created

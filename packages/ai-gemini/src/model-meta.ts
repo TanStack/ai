@@ -6,6 +6,7 @@ import type {
   GeminiThinkingOptions,
   GeminiToolConfigOptions,
 } from './text/text-provider-options'
+import type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
@@ -896,6 +897,28 @@ export const GEMINI_VIDEO_MODELS = [
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
+
+/**
+ * Embedding models
+ */
+export const GEMINI_EMBEDDING_MODELS = ['gemini-embedding-001'] as const
+
+export type GeminiEmbeddingModel = (typeof GEMINI_EMBEDDING_MODELS)[number]
+
+/**
+ * Type-only map from embedding model name to its provider options type.
+ */
+export type GeminiEmbeddingModelProviderOptionsByName = {
+  'gemini-embedding-001': GeminiEmbeddingProviderOptions
+}
+
+/**
+ * Per-model input modalities for embedding models. Gemini embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
+export type GeminiEmbeddingModelInputModalitiesByName = {
+  'gemini-embedding-001': readonly ['text']
+}
 
 // Manual type map for per-model provider options
 export type GeminiChatModelProviderOptionsByName = {

@@ -16,6 +16,7 @@ import { TTSUI } from '@/components/TTSUI'
 import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 import { AudioGenUI } from '@/components/AudioGenUI'
+import { EmbeddingUI } from '@/components/EmbeddingUI'
 
 const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
 
@@ -51,6 +52,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'interactions-video',
   'audio-gen',
   'sound-effects',
+  'embedding',
 ])
 
 const addToCartClient = addToCartToolDef.client((args) => ({
@@ -193,6 +195,16 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
           feature="interactions-video"
+        />
+      )
+    case 'embedding':
+      // embed() is Promise-based (no streaming), so the embedding page has a
+      // single fetch flow and ignores the `mode` search param.
+      return (
+        <EmbeddingUI
+          provider={provider}
+          testId={testId}
+          aimockPort={aimockPort}
         />
       )
     case 'audio-gen':
