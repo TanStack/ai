@@ -105,7 +105,8 @@ export abstract class BaseEmbeddingAdapter<
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult>
 
-  protected generateId(): string {
-    return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  protected generateId(prefix?: string): string {
+    const p = prefix ?? this.name
+    return `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   }
 }

@@ -23,6 +23,52 @@ import type { CohereClientConfig } from '../utils/client'
 export interface CohereEmbeddingConfig extends CohereClientConfig {}
 
 const DEFAULT_BASE_URL = 'https://api.cohere.com'
+const DEFAULT_TIMEOUT_MS = 30_000
+
+/**
+ * Returns true when `url` is malformed, non-http(s), or targets a private /
+ * loopback / link-local host. Used to block SSRF via `allowUrlFetch`.
+ */
+function isPrivateOrInternalUrl(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return true
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return true
+  }
+  const host = parsed.hostname.toLowerCase()
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '::1' ||
+    host === '[::1]' ||
+    host.startsWith('127.') ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    host.startsWith('169.254.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  ) {
+    return true
+  }
+  return false
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 /** One content part of a Cohere v2/embed fused input. */
 type CohereEmbedContentPart =
@@ -137,7 +183,8 @@ export class CohereEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      const response = await fetch(
+      const timeoutMs = this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS
+      const response = await fetchWithTimeout(
         `${this.clientConfig.baseUrl ?? DEFAULT_BASE_URL}/v2/embed`,
         {
           method: 'POST',
@@ -148,6 +195,7 @@ export class CohereEmbeddingAdapter<
           },
           body: JSON.stringify(body),
         },
+        timeoutMs,
       )
 
       if (!response.ok) {
@@ -231,7 +279,17 @@ export class CohereEmbeddingAdapter<
       )
     }
 
-    const response = await fetch(source.value)
+    if (isPrivateOrInternalUrl(source.value)) {
+      throw new Error(
+        `Refusing to fetch internal or private URL for Cohere embedding: ${source.value}`,
+      )
+    }
+
+    const response = await fetchWithTimeout(
+      source.value,
+      undefined,
+      this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS,
+    )
     if (!response.ok) {
       throw new Error(
         `Failed to fetch image URL for Cohere embedding (${response.status}): ${source.value}`,

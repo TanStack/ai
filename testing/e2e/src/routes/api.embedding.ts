@@ -44,7 +44,7 @@ function createEmbeddingAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiEmbedding('text-embedding-3-small', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),

@@ -20,6 +20,9 @@ export interface CohereClientConfig {
    * base64 `data:` URIs before sending the request. Disabled by default.
    */
   allowUrlFetch?: boolean
+
+  /** Request timeout in milliseconds for API and image URL fetches (default: 30_000). */
+  timeout?: number
 }
 
 /**

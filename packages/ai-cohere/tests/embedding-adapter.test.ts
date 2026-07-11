@@ -344,11 +344,54 @@ describe('Cohere Embedding Adapter', () => {
       })
 
       expect(fetchMock).toHaveBeenCalledTimes(2)
-      expect(fetchMock).toHaveBeenCalledWith(imageUrl)
+      expect(fetchMock).toHaveBeenCalledWith(
+        imageUrl,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
       expect(lastRequestBody().inputs[0].content[0].image_url.url).toBe(
         'data:image/png;base64,SGVsbG8=',
       )
       expect(result.embeddings).toEqual([{ vector: [0.7], index: 0 }])
+    })
+
+    it('rejects private/loopback image URLs even when allowUrlFetch is enabled', async () => {
+      const adapter = createCohereEmbedding('embed-v4.0', 'test-key', {
+        allowUrlFetch: true,
+      })
+
+      for (const value of [
+        'http://127.0.0.1/secret.png',
+        'http://localhost/secret.png',
+        'http://169.254.169.254/latest/meta-data/',
+        'http://192.168.1.1/img.png',
+        'http://10.0.0.5/img.png',
+        'http://172.16.0.1/img.png',
+      ]) {
+        await expect(
+          adapter.createEmbeddings({
+            model: 'embed-v4.0',
+            input: [{ type: 'image', source: { type: 'url', value } }],
+            modelOptions: { inputType: 'search_document' },
+            logger: testLogger,
+          }),
+        ).rejects.toThrow('Refusing to fetch internal or private URL')
+      }
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('passes an AbortSignal on the Cohere API fetch', async () => {
+      fetchMock.mockResolvedValue(embedResponse({ vectors: [[0.1]] }))
+      const adapter = createCohereEmbedding('embed-v4.0', 'test-key')
+
+      await adapter.createEmbeddings({
+        model: 'embed-v4.0',
+        input: ['hello'],
+        modelOptions: { inputType: 'search_document' },
+        logger: testLogger,
+      })
+
+      const [, init] = nthCall(0)
+      expect(init.signal).toBeInstanceOf(AbortSignal)
     })
 
     it('omits usage when billed_units.input_tokens is absent', async () => {
