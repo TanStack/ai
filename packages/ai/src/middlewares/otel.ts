@@ -28,6 +28,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
 } from '../activities/middleware/types'
+import type { TokenUsage } from '../types'
 
 /**
  * Scope (role) of an OTel span emitted by this middleware.
@@ -138,12 +139,37 @@ interface RequestState {
    * from the (base-shaped) finish info, which doesn't carry it.
    */
   lastFinishReason: string | null
+  rootUsageAttributes: Record<string, number> | null
+  rootUsageApplied: boolean
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
 
 const DEFAULT_MAX_CONTENT_LENGTH = 100_000
 const REDACTION_FAILED_SENTINEL = '[redaction_failed]'
+
+function accumulateUsageAttributes(
+  current: Record<string, number> | null,
+  usage: TokenUsage,
+): Record<string, number> {
+  const accumulated = current ?? {}
+  for (const [key, value] of Object.entries(usageAttributes(usage))) {
+    if (typeof value === 'number') {
+      accumulated[key] = (accumulated[key] ?? 0) + value
+    }
+  }
+  return accumulated
+}
+
+function applyRootUsage(state: RequestState, fallbackUsage?: TokenUsage): void {
+  if (state.rootUsageApplied) return
+
+  const attributes =
+    state.rootUsageAttributes ??
+    (fallbackUsage ? usageAttributes(fallbackUsage) : null)
+  if (attributes) state.rootSpan.setAttributes(attributes)
+  state.rootUsageApplied = true
+}
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') return content
@@ -395,6 +421,8 @@ export function otelMiddleware(
           assistantTextBufferTruncated: false,
           startTime: Date.now(),
           lastFinishReason: null,
+          rootUsageAttributes: null,
+          rootUsageApplied: false,
         })
       })
     },
@@ -650,6 +678,11 @@ export function otelMiddleware(
         const state = stateByCtx.get(chatCtx)
         if (!state) return
 
+        state.rootUsageAttributes = accumulateUsageAttributes(
+          state.rootUsageAttributes,
+          usage,
+        )
+
         // Always record the token histogram — metrics don't depend on having
         // an iteration span, and skipping here would drop metric data if an
         // adapter emits `onUsage` outside the iteration window.
@@ -889,6 +922,7 @@ export function otelMiddleware(
           })
         }
 
+        applyRootUsage(state)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
@@ -970,6 +1004,7 @@ export function otelMiddleware(
           })
         }
 
+        applyRootUsage(state)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
@@ -1027,9 +1062,6 @@ export function otelMiddleware(
           })
         }
 
-        if (info.usage) {
-          state.rootSpan.setAttributes(usageAttributes(info.usage))
-        }
         if (state.lastFinishReason) {
           state.rootSpan.setAttribute('gen_ai.response.finish_reasons', [
             state.lastFinishReason,
@@ -1040,6 +1072,7 @@ export function otelMiddleware(
           state.iterationCount,
         )
 
+        applyRootUsage(state, info.usage)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
