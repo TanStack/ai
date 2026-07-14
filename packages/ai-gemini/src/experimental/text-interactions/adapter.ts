@@ -6,6 +6,10 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../../utils/client'
+import {
+  getGeminiProviderToolKind,
+  getGeminiProviderToolMetadata,
+} from '../../tools/gemini-provider-tool'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelToolCapabilitiesByName,
@@ -785,16 +789,24 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
   const result: Array<InteractionsTool> = []
 
   for (const tool of tools) {
-    switch (tool.name) {
+    switch (getGeminiProviderToolKind(tool)) {
       case 'google_search': {
-        const metadata = (tool.metadata ?? {}) as {
-          search_types?: Array<'web_search' | 'image_search'>
+        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
+          searchTypes?: {
+            webSearch?: unknown
+            imageSearch?: unknown
+          }
+        }
+        const searchTypes: Array<'web_search' | 'image_search'> = []
+        if (metadata.searchTypes?.webSearch !== undefined) {
+          searchTypes.push('web_search')
+        }
+        if (metadata.searchTypes?.imageSearch !== undefined) {
+          searchTypes.push('image_search')
         }
         result.push({
           type: 'google_search',
-          ...(metadata.search_types
-            ? { search_types: metadata.search_types }
-            : {}),
+          ...(searchTypes.length > 0 ? { search_types: searchTypes } : {}),
         })
         break
       }
@@ -807,7 +819,7 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
         break
       }
       case 'file_search': {
-        const metadata = (tool.metadata ?? {}) as {
+        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
           fileSearchStoreNames?: Array<string>
           topK?: number
           metadataFilter?: string
@@ -825,7 +837,7 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
         break
       }
       case 'computer_use': {
-        const metadata = (tool.metadata ?? {}) as {
+        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
           environment?: string
           excludedPredefinedFunctions?: Array<string>
         }
@@ -856,11 +868,7 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
         throw new Error(
           '`google_maps` is not yet supported on the Gemini Interactions API. Use `geminiText()` for Google Maps grounding.',
         )
-      case 'mcp_server':
-        throw new Error(
-          '`mcp_server` is not yet supported on the `geminiTextInteractions()` adapter.',
-        )
-      default: {
+      case undefined: {
         if (!tool.description) {
           throw new Error(
             `Tool ${tool.name} requires a description for the Gemini Interactions adapter`,

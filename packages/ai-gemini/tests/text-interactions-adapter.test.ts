@@ -3,6 +3,14 @@ import { z } from 'zod'
 import { chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
+import {
+  codeExecutionTool,
+  fileSearchTool,
+  googleMapsTool,
+  googleSearchRetrievalTool,
+  googleSearchTool,
+  urlContextTool,
+} from '../src/tools'
 import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
 import type {
   GeminiInteractionsCustomEvent,
@@ -809,14 +817,10 @@ describe('GeminiTextInteractionsAdapter', () => {
         adapter,
         messages: [{ role: 'user', content: 'What happened yesterday?' }],
         tools: [
-          {
-            name: 'google_search',
-            description: '',
-            metadata: { search_types: ['web_search'] },
-          },
-          { name: 'code_execution', description: '', metadata: {} },
-          { name: 'url_context', description: '', metadata: {} },
-        ] as Array<Tool>,
+          googleSearchTool({ searchTypes: { webSearch: {} } }),
+          codeExecutionTool(),
+          urlContextTool(),
+        ],
       }),
     )
 
@@ -826,6 +830,51 @@ describe('GeminiTextInteractionsAdapter', () => {
       { type: 'code_execution' },
       { type: 'url_context' },
     ])
+  })
+
+  it('keeps provider-reserved names as ordinary function tools without a factory marker', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_custom_names', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_custom_names', status: 'completed' },
+        },
+      ]),
+    )
+
+    const tools = [
+      'code_execution',
+      'computer_use',
+      'file_search',
+      'google_maps',
+      'google_search',
+      'google_search_retrieval',
+      'mcp_server',
+      'url_context',
+    ].map((name) => ({
+      name,
+      description: 'Run an application function',
+    })) satisfies Array<Tool>
+
+    await collectChunks(
+      chat({
+        adapter: createAdapter(),
+        messages: [{ role: 'user', content: 'Use an application function.' }],
+        tools,
+      }),
+    )
+
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
+    expect(payload.tools).toHaveLength(tools.length)
+    expect(payload.tools).toEqual(
+      tools.map((tool) =>
+        expect.objectContaining({ type: 'function', name: tool.name }),
+      ),
+    )
   })
 
   it('translates file_search metadata fields into snake_case', async () => {
@@ -848,16 +897,12 @@ describe('GeminiTextInteractionsAdapter', () => {
         adapter,
         messages: [{ role: 'user', content: 'Find it.' }],
         tools: [
-          {
-            name: 'file_search',
-            description: '',
-            metadata: {
-              fileSearchStoreNames: ['fileSearchStores/my-store'],
-              topK: 5,
-              metadataFilter: 'kind="faq"',
-            },
-          },
-        ] as Array<Tool>,
+          fileSearchTool({
+            fileSearchStoreNames: ['fileSearchStores/my-store'],
+            topK: 5,
+            metadataFilter: 'kind="faq"',
+          }),
+        ],
       }),
     )
 
@@ -990,9 +1035,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
-        tools: [
-          { name: 'google_search', description: '', metadata: {} },
-        ] as Array<Tool>,
+        tools: [googleSearchTool()],
       }),
     )
 
@@ -1023,9 +1066,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Search' }],
-        tools: [
-          { name: 'google_search_retrieval', description: '', metadata: {} },
-        ] as Array<Tool>,
+        tools: [googleSearchRetrievalTool()],
       }),
     )
 
@@ -1044,9 +1085,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Directions' }],
-        tools: [
-          { name: 'google_maps', description: '', metadata: {} },
-        ] as Array<Tool>,
+        tools: [googleMapsTool()],
       }),
     )
 
