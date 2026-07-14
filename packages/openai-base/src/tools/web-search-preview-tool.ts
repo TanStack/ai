@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { WebSearchPreviewTool as WebSearchPreviewToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -42,7 +46,3 @@ export function webSearchPreviewTool(
     'web_search_preview',
   )
 }
-import {
-  getOpenAIProviderToolMetadata,
-  openAIProviderTool,
-} from './openai-provider-tool'

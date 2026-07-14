@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -26,13 +30,13 @@ export function convertMCPToolToAdapterFormat(tool: Tool): MCPToolConfig {
     'type'
   >
 
-  const mcpTool: MCPToolConfig = {
+  const convertedTool: MCPToolConfig = {
     ...metadata,
     type: 'mcp',
   }
 
-  validateMCPtool(mcpTool)
-  return mcpTool
+  validateMCPtool(convertedTool)
+  return convertedTool
 }
 
 /**
@@ -53,7 +57,3 @@ export function mcpTool(toolData: Omit<MCPToolConfig, 'type'>): Tool {
     'mcp',
   )
 }
-import {
-  getOpenAIProviderToolMetadata,
-  openAIProviderTool,
-} from './openai-provider-tool'

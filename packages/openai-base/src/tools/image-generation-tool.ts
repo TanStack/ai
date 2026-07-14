@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -55,7 +59,3 @@ export function imageGenerationTool(
 }
 
 export { validatePartialImages }
-import {
-  getOpenAIProviderToolMetadata,
-  openAIProviderTool,
-} from './openai-provider-tool'
