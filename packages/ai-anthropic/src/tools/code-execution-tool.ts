@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandAnthropicProviderTool } from './anthropic-provider-tool'
 import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
@@ -88,9 +88,12 @@ export function codeExecutionTool(
     config,
     ...(skills && { skills }),
   }
-  return brandProviderTool<AnthropicCodeExecutionTool>({
-    name: 'code_execution',
-    description: '',
-    metadata,
-  })
+  return brandAnthropicProviderTool<AnthropicCodeExecutionTool>(
+    {
+      name: 'code_execution',
+      description: '',
+      metadata,
+    },
+    'code_execution',
+  )
 }

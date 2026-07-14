@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandAnthropicProviderTool } from './anthropic-provider-tool'
 import type { BetaMemoryTool20250818 } from '@anthropic-ai/sdk/resources/beta'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -18,9 +18,12 @@ export function convertMemoryToolToAdapterFormat(tool: Tool): MemoryToolConfig {
 }
 
 export function memoryTool(config?: MemoryToolConfig): AnthropicMemoryTool {
-  return brandProviderTool<AnthropicMemoryTool>({
-    name: 'memory',
-    description: '',
-    metadata: config,
-  })
+  return brandAnthropicProviderTool<AnthropicMemoryTool>(
+    {
+      name: 'memory',
+      description: '',
+      metadata: config,
+    },
+    'memory',
+  )
 }

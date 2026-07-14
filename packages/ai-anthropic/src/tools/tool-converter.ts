@@ -1,3 +1,4 @@
+import { getAnthropicProviderToolKind } from './anthropic-provider-tool'
 import { convertBashToolToAdapterFormat } from './bash-tool'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
@@ -8,20 +9,6 @@ import { convertWebFetchToolToAdapterFormat } from './web-fetch-tool'
 import { convertWebSearchToolToAdapterFormat } from './web-search-tool'
 import type { AnthropicTool } from './index'
 import type { Tool } from '@tanstack/ai'
-
-function isAnthropicWebSearchTool(tool: Tool): boolean {
-  const metadata = tool.metadata
-  if (!metadata) {
-    return false
-  }
-
-  return (
-    'type' in metadata &&
-    metadata.type === 'web_search_20250305' &&
-    'name' in metadata &&
-    metadata.name === 'web_search'
-  )
-}
 
 /**
  * Converts standard Tool format to Anthropic-specific tool format
@@ -51,26 +38,22 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool>,
 ): Array<AnthropicTool> {
   return tools.map((tool) => {
-    const name = tool.name
-
-    switch (name) {
+    switch (getAnthropicProviderToolKind(tool)) {
       case 'bash':
         return convertBashToolToAdapterFormat(tool)
       case 'code_execution':
         return convertCodeExecutionToolToAdapterFormat(tool)
-      case 'computer':
+      case 'computer_use':
         return convertComputerUseToolToAdapterFormat(tool)
       case 'memory':
         return convertMemoryToolToAdapterFormat(tool)
-      case 'str_replace_editor':
+      case 'text_editor':
         return convertTextEditorToolToAdapterFormat(tool)
       case 'web_fetch':
         return convertWebFetchToolToAdapterFormat(tool)
       case 'web_search':
-        return isAnthropicWebSearchTool(tool)
-          ? convertWebSearchToolToAdapterFormat(tool)
-          : convertCustomToolToAdapterFormat(tool)
-      default:
+        return convertWebSearchToolToAdapterFormat(tool)
+      case undefined:
         return convertCustomToolToAdapterFormat(tool)
     }
   })

@@ -88,11 +88,13 @@ describe('Anthropic provider tool factories — runtime shape', () => {
 describe('convertToolsToProviderFormat — end-to-end shape', () => {
   it('converts webSearchTool output to the SDK web_search shape', () => {
     const [converted] = convertToolsToProviderFormat([
-      webSearchTool({
-        name: 'web_search',
-        type: 'web_search_20250305',
-        max_uses: 2,
-      }) as unknown as Tool,
+      {
+        ...webSearchTool({
+          name: 'web_search',
+          type: 'web_search_20250305',
+          max_uses: 2,
+        }),
+      } as unknown as Tool,
     ])
     expect(converted).toMatchObject({
       name: 'web_search',
@@ -116,11 +118,19 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
     expect(names).toContain('bash')
   })
 
-  it('keeps an ordinary function named web_search as a custom tool', () => {
+  it.each([
+    'bash',
+    'code_execution',
+    'computer',
+    'memory',
+    'str_replace_editor',
+    'web_fetch',
+    'web_search',
+  ])('keeps an ordinary function named %s as a custom tool', (name) => {
     const [converted] = convertToolsToProviderFormat([
       {
-        name: 'web_search',
-        description: 'Search an application index',
+        name,
+        description: 'Run an application function',
         inputSchema: {
           type: 'object',
           properties: { query: { type: 'string' } },
@@ -130,9 +140,9 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
     ])
 
     expect(converted).toMatchObject({
-      name: 'web_search',
+      name,
       type: 'custom',
-      description: 'Search an application index',
+      description: 'Run an application function',
       input_schema: {
         properties: { query: { type: 'string' } },
         required: ['query'],

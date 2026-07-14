@@ -2,4 +2,4 @@
 '@tanstack/ai-anthropic': patch
 ---
 
-Keep ordinary function tools named `web_search` distinct from Anthropic's native web-search tool by checking the provider metadata before conversion.
+Classify Anthropic-native tools with a stable runtime discriminator so ordinary functions can use the same public names without depending on versioned provider wire identifiers.

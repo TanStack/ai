@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandAnthropicProviderTool } from './anthropic-provider-tool'
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
 import type { ProviderTool, Tool } from '@tanstack/ai'
@@ -92,9 +92,12 @@ export function webSearchTool(
 ): AnthropicWebSearchTool {
   validateDomains(config)
   validateUserLocation(config)
-  return brandProviderTool<AnthropicWebSearchTool>({
-    name: 'web_search',
-    description: '',
-    metadata: config,
-  })
+  return brandAnthropicProviderTool<AnthropicWebSearchTool>(
+    {
+      name: 'web_search',
+      description: '',
+      metadata: config,
+    },
+    'web_search',
+  )
 }
