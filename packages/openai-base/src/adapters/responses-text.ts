@@ -7,6 +7,7 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type OpenAI from 'openai'
@@ -783,6 +784,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<StreamChunk> {
+    const normalizeToolInput = createToolInputNormalizer(options.tools)
     let accumulatedContent = ''
     let accumulatedReasoning = ''
 
@@ -1303,7 +1305,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           if (chunk.arguments) {
             try {
               const parsed = JSON.parse(chunk.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = normalizeToolInput(
+                name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
             } catch (parseError) {
               options.logger.errors(
                 `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -1383,8 +1388,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               if (rawArgs) {
                 try {
                   const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
@@ -1466,8 +1473,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               if (rawArgs) {
                 try {
                   const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,

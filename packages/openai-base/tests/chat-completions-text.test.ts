@@ -451,6 +451,69 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   })
 
   describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-null-input',
+          model: 'test-model',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call-null-input',
+                    type: 'function',
+                    function: {
+                      name: 'ask_user',
+                      arguments:
+                        '{"question":"Which one?","options":null,"nullableNote":null}',
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          id: 'chatcmpl-null-input',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+        },
+      ])
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(
+        chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
+      ).toMatchObject({
+        input: { question: 'Which one?', nullableNote: null },
+      })
+    })
+
     it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
       const streamChunks = [
         {
