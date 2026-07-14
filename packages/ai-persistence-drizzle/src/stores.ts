@@ -6,14 +6,7 @@
  * Drizzle's `text({ mode: 'json' })`; blob bytes by `blob({ mode: 'buffer' })`.
  */
 import { and, asc, eq, gt, gte, lt } from 'drizzle-orm'
-import {
-  artifacts,
-  blobs,
-  interrupts,
-  messages,
-  metadata,
-  runs,
-} from './schema'
+import type { artifacts, blobs, interrupts, runs, schema } from './schema'
 import type { SQL } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import type { ModelMessage } from '@tanstack/ai'
@@ -45,6 +38,16 @@ export type DrizzleDb = Pick<
   BaseSQLiteDatabase<'sync' | 'async', unknown>,
   'select' | 'insert' | 'update' | 'delete'
 >
+
+/**
+ * The concrete table set the stores are written against. A user-supplied
+ * {@link TanstackAiSchema} is validated by `assertTanstackAiSchema` and then
+ * used through this type: only column *data* shapes matter to the store code —
+ * table/column database names are carried by the runtime objects, so a schema
+ * with different names (drizzle `casing` transforms, renamed tables, extra
+ * app-owned columns) produces correct SQL through the same code paths.
+ */
+export type TanstackAiTables = typeof schema
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
@@ -120,7 +123,10 @@ async function bytesFromBlobBody(
   throw new TypeError('Unsupported blob body.')
 }
 
-export function createMessageStore(db: DrizzleDb): MessageStore {
+export function createMessageStore(
+  db: DrizzleDb,
+  { messages }: TanstackAiTables,
+): MessageStore {
   return {
     async loadThread(threadId) {
       const rows = await db
@@ -153,7 +159,10 @@ function mapRun(row: typeof runs.$inferSelect): RunRecord {
   }
 }
 
-export function createRunStore(db: DrizzleDb): RunStore {
+export function createRunStore(
+  db: DrizzleDb,
+  { runs }: TanstackAiTables,
+): RunStore {
   const store: RunStore = {
     async createOrResume(input) {
       const existing = await store.get(input.runId)
@@ -206,7 +215,10 @@ function mapInterrupt(row: typeof interrupts.$inferSelect): InterruptRecord {
   }
 }
 
-export function createInterruptStore(db: DrizzleDb): InterruptStore {
+export function createInterruptStore(
+  db: DrizzleDb,
+  { interrupts }: TanstackAiTables,
+): InterruptStore {
   return {
     async create(record) {
       await db
@@ -288,7 +300,10 @@ export function createInterruptStore(db: DrizzleDb): InterruptStore {
   }
 }
 
-export function createMetadataStore(db: DrizzleDb): MetadataStore {
+export function createMetadataStore(
+  db: DrizzleDb,
+  { metadata }: TanstackAiTables,
+): MetadataStore {
   return {
     async get(scope, key) {
       const rows = await db
@@ -328,7 +343,10 @@ function mapArtifact(row: typeof artifacts.$inferSelect): ArtifactRecord {
   }
 }
 
-export function createArtifactStore(db: DrizzleDb): ArtifactStore {
+export function createArtifactStore(
+  db: DrizzleDb,
+  { artifacts }: TanstackAiTables,
+): ArtifactStore {
   return {
     async save(record) {
       const values = {
@@ -413,7 +431,10 @@ function blobObject(row: typeof blobs.$inferSelect): BlobObject {
   }
 }
 
-export function createBlobStore(db: DrizzleDb): BlobStore {
+export function createBlobStore(
+  db: DrizzleDb,
+  { blobs }: TanstackAiTables,
+): BlobStore {
   const readRow = async (key: string) => {
     const rows = await db.select().from(blobs).where(eq(blobs.key, key))
     return rows[0] ?? null

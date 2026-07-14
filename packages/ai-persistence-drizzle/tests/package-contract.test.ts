@@ -18,6 +18,7 @@ describe('drizzle package contract', () => {
     expect(packageJson.bin).toEqual({
       'tanstack-ai-drizzle-migrations':
         './bin/tanstack-ai-drizzle-migrations.mjs',
+      'tanstack-ai-drizzle-schema': './bin/tanstack-ai-drizzle-schema.mjs',
     })
     expect(packageJson.files).toEqual(
       expect.arrayContaining(['bin', 'dist', 'src', 'drizzle']),
@@ -25,7 +26,14 @@ describe('drizzle package contract', () => {
   })
 
   it('keeps Node built-ins and Buffer out of the root import graph', async () => {
-    const rootFiles = ['index.ts', 'migrations.ts', 'schema.ts', 'stores.ts']
+    const rootFiles = [
+      'index.ts',
+      'migrations.ts',
+      'schema.ts',
+      'schema-contract.ts',
+      'schema-source.ts',
+      'stores.ts',
+    ]
     for (const filename of rootFiles) {
       const contents = await readFile(
         fileURLToPath(new URL(`../src/${filename}`, import.meta.url)),
