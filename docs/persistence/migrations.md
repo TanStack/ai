@@ -57,6 +57,12 @@ const persistence = sqlitePersistence({
 
 Avoid request-time migrations in production.
 
+Projects that already run drizzle-kit can skip the bundled SQL entirely: emit
+the schema module with `tanstack-ai-drizzle-schema`, add it to your drizzle-kit
+schema paths, and let your own journal generate the DDL. See
+[Own the schema](./drizzle#own-the-schema). Pick one DDL owner per database —
+bundled SQL or your journal, not both.
+
 ## Cloudflare D1
 
 The Cloudflare package provides D1-specific migration assets:

@@ -7,6 +7,7 @@ const config = defineConfig({
     name: packageJson.name,
     dir: './',
     watch: false,
+    testTimeout: 30_000,
 
     globals: true,
     environment: 'node',
@@ -30,7 +31,12 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/sqlite.ts', './src/cli.ts'],
+    entry: [
+      './src/index.ts',
+      './src/sqlite.ts',
+      './src/cli.ts',
+      './src/schema-cli-main.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

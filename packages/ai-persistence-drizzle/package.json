@@ -30,7 +30,8 @@
     }
   },
   "bin": {
-    "tanstack-ai-drizzle-migrations": "./bin/tanstack-ai-drizzle-migrations.mjs"
+    "tanstack-ai-drizzle-migrations": "./bin/tanstack-ai-drizzle-migrations.mjs",
+    "tanstack-ai-drizzle-schema": "./bin/tanstack-ai-drizzle-schema.mjs"
   },
   "files": [
     "bin",

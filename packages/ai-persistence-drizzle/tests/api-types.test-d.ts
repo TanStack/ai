@@ -11,7 +11,10 @@ import type {
   RunStore,
 } from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
-import type { DrizzleTransactionExecutor } from '../src/index'
+import { schema as emittedSchema } from '../src/assets/tanstack-ai-schema'
+import { variantSchema } from './variant-schema'
+import { schema } from '../src/index'
+import type { DrizzleTransactionExecutor, TanstackAiSchema } from '../src/index'
 
 declare const d1Database: DrizzleD1Database
 declare const transactionExecutor: DrizzleTransactionExecutor
@@ -41,3 +44,17 @@ expectTypeOf(missingExecutor).toEqualTypeOf<never>()
 const sqlite = sqlitePersistence({ url: ':memory:', migrate: true })
 expectTypeOf(sqlite.stores).toEqualTypeOf<typeof genericPersistence.stores>()
 expectTypeOf(sqlite.close).toEqualTypeOf<() => void>()
+
+// The bundled schema, the emitted schema asset, and a renamed/extended variant
+// must all satisfy the injectable schema contract.
+expectTypeOf(schema).toExtend<TanstackAiSchema>()
+expectTypeOf(emittedSchema).toExtend<TanstackAiSchema>()
+expectTypeOf(variantSchema).toExtend<TanstackAiSchema>()
+
+const customPersistence = drizzlePersistence(d1Database, {
+  schema: variantSchema,
+  interrupts: transactionExecutor,
+})
+expectTypeOf(customPersistence.stores).toEqualTypeOf<
+  typeof genericPersistence.stores
+>()

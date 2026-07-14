@@ -46,12 +46,14 @@ declare const env: {
 }
 
 const db = drizzle(env.AI_STATE, { schema })
-export const persistence = drizzlePersistence(db)
+export const persistence = drizzlePersistence(db, { interrupts: false })
 ```
 
 The root entry does not import Node built-ins and works with Cloudflare D1 and
 other SQLite-compatible Drizzle drivers. The application owns connection
-lifecycle and migration timing.
+lifecycle and migration timing. The low-level factory requires either an
+atomic `interrupts` transaction executor or `interrupts: false`; use the
+Cloudflare persistence adapter when you need interrupt recovery on D1.
 
 ## Use the middleware
 
@@ -107,7 +109,68 @@ normal SQLite, D1, or Drizzle deployment workflow.
 
 ## Schema ownership
 
-The exported `schema` contains `messages`, `runs`, `interrupts`, `metadata`,
-`artifacts`, and `blobs`. Artifact rows contain metadata; blob bodies are stored
-in the separate blob table. Application tables may live beside these tables in
-the same database.
+The exported `schema` contains `messages`, `runs`, `interrupts`,
+`interruptBatches`, `metadata`, `artifacts`, and `blobs`. Artifact rows contain
+metadata; blob bodies are stored in the separate blob table. Application tables
+may live beside these tables in the same database.
+
+## Own the schema
+
+If your project already uses drizzle-kit, you can own the TanStack AI schema
+outright instead of applying the bundled SQL. Emit the schema module into your
+project:
+
+```bash
+pnpm exec tanstack-ai-drizzle-schema --out src/db
+```
+
+This writes `src/db/tanstack-ai-schema.ts` — a regular Drizzle schema file that
+imports from **your** installed `drizzle-orm`. The CLI refuses to replace a
+divergent file unless `--force` is passed; `--stdout` prints the module instead.
+
+Add the file to your drizzle-kit schema paths so your own migration journal
+owns the DDL:
+
+```ts
+import { defineConfig } from 'drizzle-kit'
+
+export default defineConfig({
+  dialect: 'sqlite',
+  schema: ['./src/db/schema.ts', './src/db/tanstack-ai-schema.ts'],
+  out: './drizzle',
+})
+```
+
+Then pass the schema back so the runtime reads and writes through your copy:
+
+```ts
+import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
+import { schema } from './tanstack-ai-schema'
+import { db } from './db'
+import type { DrizzleTransactionExecutor } from '@tanstack/ai-persistence-drizzle'
+
+declare const transactionExecutor: DrizzleTransactionExecutor
+
+export const persistence = drizzlePersistence(db, {
+  schema,
+  interrupts: transactionExecutor,
+})
+```
+
+Because the runtime operates on the table objects you pass, the file is truly
+yours to shape:
+
+- **Rename tables and columns**, or drop the explicit column names and rely on
+  your drizzle `casing` configuration — the stores read database names from
+  your objects, so the generated SQL follows your conventions.
+- **Add app-owned columns** — for example a `userId` column on `messages` to
+  scope threads to users. Keep added columns nullable or defaulted so the
+  store inserts succeed; the TanStack AI stores never read or write them.
+- **Keep the contract columns** with their data shapes. The
+  `TanstackAiSchema` type enforces the shapes at compile time, and
+  `drizzlePersistence` validates the tables and columns exist at construction.
+
+When you own the schema this way, migrations flow entirely through your
+drizzle-kit journal — package upgrades that change the schema surface as
+drizzle-kit diffs when you update the emitted file. Don't mix this with the
+bundled SQL migrations: pick one DDL owner per database.

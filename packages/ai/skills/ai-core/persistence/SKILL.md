@@ -152,6 +152,17 @@ incorporate the models into their own provider-specific migration workflow.
 The state tables are `messages`, `runs`, `interrupts`, `metadata`, `artifacts`,
 and `blobs`.
 
+Projects that run their own drizzle-kit journal can own the schema instead of
+applying the bundled SQL: emit it with the `tanstack-ai-drizzle-schema` CLI
+(`--out <dir>` / `--stdout`), add the emitted file to the drizzle-kit `schema`
+paths, and pass it back via
+`drizzlePersistence(db, { schema, interrupts: transactionExecutor })`. The
+runtime reads and writes through the injected table objects, so renamed tables/columns
+(including drizzle `casing` conventions) and extra app-owned columns (for
+example a nullable `userId` on `messages` for thread ownership) are supported;
+the `TanstackAiSchema` type pins the required column data shapes and
+construction validates tables/columns exist (`DrizzleSchemaError`).
+
 ## Sandboxes
 
 Place `withChatPersistence(...)` before `withSandbox(...)` to make sandbox
