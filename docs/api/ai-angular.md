@@ -234,7 +234,6 @@ import { Component } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -280,7 +279,7 @@ export class TypedChatComponent {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  private tools = clientTools(this.updateUI, this.saveToStorage);
+  private tools = [this.updateUI, this.saveToStorage];
 
   chat = injectChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -526,7 +525,6 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import {
-  clientTools,
   createChatClientOptions,
   type InferChatMessages,
 } from "@tanstack/ai-client";
@@ -534,7 +532,7 @@ import { fetchServerSentEvents } from "@tanstack/ai-angular";
 import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

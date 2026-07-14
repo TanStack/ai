@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
+  Code2,
   FileAudio,
   FileText,
   Github,
@@ -198,6 +199,13 @@ function Messages({
             >
               <Braces size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Structured Chat</span>
+            </Link>
+            <Link
+              to="/typesafe-tools"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Code2 size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Type-Safe Tools</span>
             </Link>
             <Link
               to="/sandboxes"
