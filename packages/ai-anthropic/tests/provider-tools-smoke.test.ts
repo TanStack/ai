@@ -115,4 +115,28 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
     expect(names).toContain('code_execution')
     expect(names).toContain('bash')
   })
+
+  it('keeps an ordinary function named web_search as a custom tool', () => {
+    const [converted] = convertToolsToProviderFormat([
+      {
+        name: 'web_search',
+        description: 'Search an application index',
+        inputSchema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+      } satisfies Tool,
+    ])
+
+    expect(converted).toMatchObject({
+      name: 'web_search',
+      type: 'custom',
+      description: 'Search an application index',
+      input_schema: {
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
+    })
+  })
 })

@@ -9,6 +9,20 @@ import { convertWebSearchToolToAdapterFormat } from './web-search-tool'
 import type { AnthropicTool } from './index'
 import type { Tool } from '@tanstack/ai'
 
+function isAnthropicWebSearchTool(tool: Tool): boolean {
+  const metadata = tool.metadata
+  if (!metadata) {
+    return false
+  }
+
+  return (
+    'type' in metadata &&
+    metadata.type === 'web_search_20250305' &&
+    'name' in metadata &&
+    metadata.name === 'web_search'
+  )
+}
+
 /**
  * Converts standard Tool format to Anthropic-specific tool format
  *
@@ -53,7 +67,9 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
       case 'web_fetch':
         return convertWebFetchToolToAdapterFormat(tool)
       case 'web_search':
-        return convertWebSearchToolToAdapterFormat(tool)
+        return isAnthropicWebSearchTool(tool)
+          ? convertWebSearchToolToAdapterFormat(tool)
+          : convertCustomToolToAdapterFormat(tool)
       default:
         return convertCustomToolToAdapterFormat(tool)
     }
