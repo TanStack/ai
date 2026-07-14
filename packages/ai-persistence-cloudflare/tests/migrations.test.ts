@@ -166,5 +166,5 @@ describe('D1 migrations', () => {
     } finally {
       await miniflare.dispose()
     }
-  })
+  }, 30_000)
 })

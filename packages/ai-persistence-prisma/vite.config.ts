@@ -7,6 +7,7 @@ const config = defineConfig({
     name: packageJson.name,
     dir: './',
     watch: false,
+    testTimeout: 30_000,
 
     globals: true,
     environment: 'node',

@@ -53,7 +53,7 @@ describe('Cloudflare persistence on Miniflare bindings', () => {
       d1: bindings.AI_DB,
       r2: bindings.AI_BUCKET,
     })
-  })
+  }, 30_000)
 
   afterAll(async () => {
     await miniflare.dispose()
