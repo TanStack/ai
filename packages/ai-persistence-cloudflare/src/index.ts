@@ -15,7 +15,8 @@ import type { LockStore } from '@tanstack/ai'
 import type { R2BucketBinding } from './bindings'
 import type { DurableObjectLockStoreOptions } from './locks'
 
-export { createD1Stores } from './d1'
+export { createD1InterruptStore, createD1Stores } from './d1'
+export type { D1InterruptStoreOptions } from './d1'
 export {
   CloudflareLockDurableObject,
   createDurableObjectLockStore,

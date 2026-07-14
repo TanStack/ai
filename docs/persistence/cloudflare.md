@@ -66,13 +66,14 @@ export { CloudflareLockDurableObject } from '@tanstack/ai-persistence-cloudflare
 
 ## Create persistence
 
-```ts
+```ts group=cloudflare-persistence
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import type { CloudflarePersistenceOptions } from '@tanstack/ai-persistence-cloudflare'
 
 interface Env {
-  AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
+  AI_STATE: NonNullable<CloudflarePersistenceOptions['d1']>
+  AI_MEDIA: NonNullable<CloudflarePersistenceOptions['r2']>
+  AI_LOCKS: NonNullable<CloudflarePersistenceOptions['durableObjects']>
 }
 
 export function createPersistence(env: Env) {
@@ -96,7 +97,7 @@ serializes owners and uses leases/alarms for recovery.
 
 ## Use it with chat
 
-```ts
+```ts group=cloudflare-persistence
 import {
   chat,
   chatParamsFromRequest,
@@ -157,12 +158,13 @@ for (const migration of d1Migrations) {
 
 Use Cloudflare as the base and replace only application-owned stores:
 
-```ts
+```ts group=cloudflare-persistence
 import { composePersistence } from '@tanstack/ai-persistence'
 import type { InterruptStore, RunStore } from '@tanstack/ai-persistence'
 
 declare const customInterrupts: InterruptStore
 declare const customRuns: RunStore
+declare const env: Env
 
 const persistence = composePersistence(createPersistence(env), {
   overrides: {

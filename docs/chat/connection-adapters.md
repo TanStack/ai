@@ -195,6 +195,9 @@ declare function callRpc(input: {
 
 const connection: ConnectConnectionAdapter = {
   connect(messages, _data, signal) {
+    if (!signal) {
+      throw new TypeError('An AbortSignal is required.')
+    }
     return callRpc({ messages, signal })
   },
 }

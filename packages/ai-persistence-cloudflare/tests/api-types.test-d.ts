@@ -4,6 +4,8 @@ import { composePersistence } from '@tanstack/ai-persistence'
 import {
   CloudflareLockDurableObject,
   cloudflarePersistence,
+  createD1InterruptStore,
+  createD1Stores,
 } from '../src/index'
 import type {
   ArtifactStore,
@@ -14,6 +16,7 @@ import type {
   RunStore,
 } from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
+import type { D1InterruptStoreOptions } from '../src/index'
 
 declare const d1: D1Database
 declare const r2: R2Bucket
@@ -21,6 +24,12 @@ declare const durableObjects: DurableObjectNamespace
 declare const durableObjectState: DurableObjectState
 
 new CloudflareLockDurableObject(durableObjectState)
+
+declare const d1InterruptOptions: D1InterruptStoreOptions
+expectTypeOf(
+  createD1InterruptStore(d1, d1InterruptOptions),
+).toEqualTypeOf<InterruptStore>()
+expectTypeOf(createD1Stores(d1).interrupts).toEqualTypeOf<InterruptStore>()
 
 expectTypeOf(cloudflarePersistence({}).stores).toEqualTypeOf<{}>()
 expectTypeOf(cloudflarePersistence({ d1 }).stores).toEqualTypeOf<{

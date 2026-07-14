@@ -30,18 +30,25 @@ describe('drizzle migrations CLI', () => {
       },
     })
 
-    expect(output).toBe(`${sqliteMigrations[0]?.sql.trimEnd()}\n`)
+    expect(output).toBe(
+      `${sqliteMigrations.map((migration) => migration.sql.trimEnd()).join('\n\n')}\n`,
+    )
   })
 
   it('copies migrations without overwriting divergent files by default', async () => {
     const directory = await createTemporaryDirectory()
     await runDrizzleMigrationsCli(['--out', directory])
 
-    const migration = sqliteMigrations[0]
+    for (const migration of sqliteMigrations) {
+      expect(await readFile(join(directory, migration.filename), 'utf8')).toBe(
+        migration.sql,
+      )
+    }
+
+    const migration = sqliteMigrations[1]
     expect(migration).toBeDefined()
     if (!migration) return
     const destination = join(directory, migration.filename)
-    expect(await readFile(destination, 'utf8')).toBe(migration.sql)
 
     await writeFile(destination, 'user-owned contents', 'utf8')
     await expect(runDrizzleMigrationsCli(['--out', directory])).rejects.toThrow(

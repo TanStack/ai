@@ -155,7 +155,7 @@ handled. This prevents accidental conversation forks.
 To reconnect to an in-flight SSE response, add a `StreamDurability` adapter to
 the response:
 
-```ts
+```ts ignore
 import { durableStream } from '@tanstack/ai-durable-stream'
 
 declare function getDurableStreamsToken(): Promise<string>

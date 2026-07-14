@@ -16,13 +16,19 @@
  */
 import {
   customType,
+  index,
   integer,
   primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
-import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
-import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type {
+  InterruptBatchRecord,
+  InterruptRecord,
+  RunStatus,
+} from '@tanstack/ai-persistence'
+import type { InterruptBinding, ModelMessage, TokenUsage } from '@tanstack/ai'
 
 const bytes = customType<{
   data: Uint8Array<ArrayBuffer>
@@ -62,18 +68,65 @@ export const runs = sqliteTable('runs', {
 })
 
 /** Interrupt / approval records (`InterruptStore`). */
-export const interrupts = sqliteTable('interrupts', {
-  interruptId: text('interrupt_id').primaryKey(),
-  runId: text('run_id').notNull(),
-  threadId: text('thread_id').notNull(),
-  status: text('status').$type<InterruptRecord['status']>().notNull(),
-  requestedAt: integer('requested_at').notNull(),
-  resolvedAt: integer('resolved_at'),
-  payloadJson: text('payload_json', { mode: 'json' })
-    .$type<Record<string, unknown>>()
-    .notNull(),
-  responseJson: text('response_json', { mode: 'json' }).$type<unknown>(),
-})
+export const interrupts = sqliteTable(
+  'interrupts',
+  {
+    interruptId: text('interrupt_id').primaryKey(),
+    runId: text('run_id').notNull(),
+    threadId: text('thread_id').notNull(),
+    generation: integer('generation').notNull(),
+    status: text('status').$type<InterruptRecord['status']>().notNull(),
+    requestedAt: integer('requested_at').notNull(),
+    resolvedAt: integer('resolved_at'),
+    payloadJson: text('payload_json', { mode: 'json' })
+      .$type<InterruptRecord['payload']>()
+      .notNull(),
+    bindingJson: text('binding_json', { mode: 'json' })
+      .$type<InterruptBinding>()
+      .notNull(),
+    responseSchemaHash: text('response_schema_hash').notNull(),
+    responseJson: text('response_json', { mode: 'json' }).$type<unknown>(),
+  },
+  (table) => [
+    index('interrupts_thread_status_requested_at_idx').on(
+      table.threadId,
+      table.status,
+      table.requestedAt,
+    ),
+    index('interrupts_run_status_requested_at_idx').on(
+      table.runId,
+      table.status,
+      table.requestedAt,
+    ),
+  ],
+)
+
+/** Durable winner records for atomic interrupt resolution batches. */
+export const interruptBatches = sqliteTable(
+  'interrupt_batches',
+  {
+    interruptedRunId: text('interrupted_run_id').primaryKey(),
+    threadId: text('thread_id').notNull(),
+    generation: integer('generation').notNull(),
+    expectedInterruptIdsJson: text('expected_interrupt_ids_json', {
+      mode: 'json',
+    })
+      .$type<InterruptBatchRecord['expectedInterruptIds']>()
+      .notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    canonicalResolutions: text('canonical_resolutions').notNull(),
+    resolutionsJson: text('resolutions_json', { mode: 'json' })
+      .$type<InterruptBatchRecord['resolutions']>()
+      .notNull(),
+    continuationRunId: text('continuation_run_id').notNull(),
+    committedAt: integer('committed_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('interrupt_batches_continuation_run_id_unique').on(
+      table.continuationRunId,
+    ),
+  ],
+)
 
 /** Scoped key/value metadata (`MetadataStore`). */
 export const metadata = sqliteTable(
@@ -117,6 +170,7 @@ export const schema = {
   messages,
   runs,
   interrupts,
+  interruptBatches,
   metadata,
   artifacts,
   blobs,

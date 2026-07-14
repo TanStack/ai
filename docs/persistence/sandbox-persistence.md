@@ -129,14 +129,13 @@ product contract.
 Cloudflare can back all workspace checkpoint stores:
 
 ```ts
-/// <reference types="@cloudflare/workers-types" />
-
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import type { CloudflarePersistenceOptions } from '@tanstack/ai-persistence-cloudflare'
 
 declare const env: {
-  AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
+  AI_STATE: NonNullable<CloudflarePersistenceOptions['d1']>
+  AI_MEDIA: NonNullable<CloudflarePersistenceOptions['r2']>
+  AI_LOCKS: NonNullable<CloudflarePersistenceOptions['durableObjects']>
 }
 
 const persistence = cloudflarePersistence({

@@ -45,12 +45,30 @@ export {
   type ToolDefinitionInstance,
   type ToolDefinitionConfig,
   type ServerTool,
+  type AnyServerTool,
   type ClientTool,
   type AnyClientTool,
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
+  type ApprovalCapabilityOf,
+  type ApprovalSchemaConfig,
+  type ApprovalSchemaOf,
+  type InputSchemaOf,
+  type OutputSchemaOf,
+  type NoSchema,
 } from './activities/chat/tools/tool-definition'
+export {
+  hashSchemaInput,
+  normalizeApprovalSchema,
+  type NormalizedApprovalSchema,
+  type NormalizedSchemaInput,
+} from './activities/chat/tools/approval-schema'
+export {
+  canonicalInterruptJson,
+  cloneAndDeepFreezeJson,
+  digestInterruptJson,
+} from './interrupt-serialization'
 
 // MCP chat option types
 export type {
@@ -67,8 +85,14 @@ export {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
+  validateWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
+export {
+  JsonSchemaCompilationError,
+  compileJsonSchema202012,
+  type JsonSchemaValidationIssue,
+} from './activities/chat/tools/json-schema-validator'
 
 // Stream utilities
 export {
@@ -115,6 +139,7 @@ export type {
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
   ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -129,6 +154,8 @@ export type {
   SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
+
+export * from './interrupts'
 
 // Base, activity-agnostic middleware. The observe-only superset that media
 // activities accept via their `middleware` option; `ChatMiddleware` adds the

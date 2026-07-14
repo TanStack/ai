@@ -9,6 +9,12 @@ Delivery durability records an ordered SSE stream so a dropped connection can
 replay chunks without invoking the provider again. It is separate from state
 persistence for messages, runs, interrupts, metadata, and artifacts.
 
+Interrupt submission has a second exact-replay rule. The persistence store
+canonicalizes the complete resolution set into an idempotency fingerprint and
+commits it with the continuation run ID. Repeating that exact set returns the
+same winning continuation; it never executes approved tools twice. A different
+set or stale generation is a conflict and returns authoritative recovery state.
+
 Two adapters ship:
 
 - `memoryStream(request)` stores a process-local log for development and tests.
@@ -115,12 +121,43 @@ declare const runId: string
 const connection = fetchServerSentEvents('/api/chat')
 
 for await (const chunk of connection.joinRun(runId)) {
-  console.log(chunk.type)
+  if ('type' in chunk) {
+    console.log(chunk.type)
+  }
 }
 ```
 
 `joinRun` performs a GET with `offset=-1` and `runId`. The endpoint must accept
 that GET, as shown above.
+
+For interrupt recovery, configure this winning-run loader explicitly with
+`createInterruptContinuationLoader`. TanStack AI never guesses a continuation
+or recovery route from the chat URL. See [Interrupts](../chat/interrupts) for
+the client setup.
+
+## Accepted tombstones and exact replay
+
+After a native batch is accepted, the browser first persists a V2
+`phase: 'accepted'` tombstone containing the winning continuation ID and no
+drafts, then attempts to remove the resume record. If removal fails, reload does
+not show stale pending UI. Authoritative committed recovery confirms the winner
+and retries cleanup.
+
+The layers cooperate without sharing identifiers:
+
+1. Interrupt persistence compares the generation, exact ID set, and canonical
+   resolution fingerprint.
+2. A first valid submission atomically stores the resolutions and winning
+   continuation receipt.
+3. An exact retry returns `replayed` with that continuation ID.
+4. The client joins the winning run through SSE durability or an explicit
+   continuation loader.
+5. SSE delivery resumes from the adapter-owned opaque offset and de-duplicates
+   the replayed prefix.
+
+The fingerprint is not an SSE offset. The accepted tombstone is not the
+authoritative server commit. Keep both state persistence and delivery
+durability when the workflow must survive request retries and connection loss.
 
 ## Offset ownership
 
@@ -172,3 +209,7 @@ Delivery logs replay chunks. They are not the queryable source of truth for
 thread messages, pending interrupts, generation artifacts, or retention
 policies. Add [Chat Persistence](./chat-persistence) or
 [Generation Persistence](./generation-persistence) for that state.
+
+For atomic interrupt store requirements and conflict receipts, see
+[Custom stores](./custom-stores). For the legacy-to-native transition, see
+[Migrate to AG-UI interrupts](../migration/interrupts).

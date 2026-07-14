@@ -15,6 +15,11 @@ keywords:
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. A tool call moves through the `ToolCallState` lifecycle:
 
+The current client API exposes approvals as bound AG-UI interrupts. For the
+complete server/client lifecycle, atomic batch controls, generic interrupts,
+and recovery, see [Interrupts](../chat/interrupts). For deprecated API mapping,
+see [Migrate to AG-UI interrupts](../migration/interrupts).
+
 1. **`awaiting-input`** — Tool call started, no arguments yet
 2. **`input-streaming`** — Arguments arriving incrementally
 3. **`input-complete`** — All arguments received
@@ -35,6 +40,69 @@ When a tool requires approval, the typical flow is:
 3. User is prompted to approve or deny
 4. Tool executes (if approved) or is cancelled (if denied)
 5. Conversation continues with the result
+
+## Resolve an approval interrupt
+
+Without an `approvalSchema`, use the boolean shorthand. Approval uses the
+original tool input by default:
+
+```ts ignore
+const approval = interrupts.find(
+  (interrupt) => interrupt.kind === 'tool-approval',
+)
+
+if (approval?.kind === 'tool-approval') {
+  approval.resolveInterrupt(true)
+}
+```
+
+An `approvalSchema` can define separate application payloads for approval and
+rejection:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferDefinition = toolDefinition({
+  name: 'transfer',
+  description: 'Transfer funds',
+  needsApproval: true,
+  inputSchema: z.object({
+    amount: z.number().positive(),
+    recipient: z.string(),
+  }),
+  approvalSchema: {
+    approve: z.object({ note: z.string() }),
+    reject: z.object({ reason: z.string() }),
+  },
+})
+```
+
+Keep branch data under `payload`. Approved arguments can optionally be replaced
+in full with `editedArgs`; rejection never accepts edits:
+
+```ts ignore
+approval.resolveInterrupt(true, {
+  editedArgs: { amount: 12, recipient: 'Ada' },
+  payload: { note: 'Reviewed' },
+})
+
+approval.resolveInterrupt(false, {
+  payload: { reason: 'Policy limit' },
+})
+```
+
+Denial and cancellation are different. `resolveInterrupt(false, ...)` records a
+resolved rejection for the continuation. `cancel()` is payloadless and
+does not select the reject schema:
+
+```ts ignore
+approval.cancel()
+```
+
+A singleton submits after its valid resolution. Multiple items stage until all
+are valid, then submit atomically. Use root `resolveInterrupts(...)` for one
+synchronous batch transaction. See [Interrupts](../chat/interrupts#singleton-and-batch-submission).
 
 ## Enabling Approval
 
@@ -91,9 +159,11 @@ export async function POST(request: Request) {
 }
 ```
 
-## Client-Side Approval Handling
+## Deprecated approval response compatibility
 
-The client receives approval requests and can respond:
+`addToolApprovalResponse` remains temporarily available for old approval UIs,
+but new code should use the bound interrupt API above. A compatibility
+`approved: false` is a denial, not a cancellation.
 
 ```tsx
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -186,7 +256,7 @@ const listData = toolDefinition({
   name: 'list_data',
   description: 'List available keys',
   inputSchema: z.object({}),
-}).client(async () => ({ keys: [] as Array<string> }))
+}).client(async () => ({ keys: new Array<string>() }))
 
 function ApprovalHandler() {
   const { messages, addToolApprovalResponse } = useChat({

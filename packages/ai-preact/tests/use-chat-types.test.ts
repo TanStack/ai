@@ -7,7 +7,16 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
 import { useChat } from '../src/use-chat'
-import type { UseChatOptions } from '../src/types'
+import type { UseChatOptions, UseChatReturn } from '../src/types'
+
+type TestSchema<T> = {
+  readonly '~standard': {
+    readonly version: 1
+    readonly vendor: 'test'
+    readonly types: { readonly input: T; readonly output: T }
+    readonly validate: (value: unknown) => { readonly value: T }
+  }
+}
 
 describe('useChat() return type (preact)', () => {
   describe('with typed client tool context', () => {
@@ -68,5 +77,135 @@ describe('useChat() return type (preact)', () => {
       }
       void checkUseChatCall
     })
+  })
+})
+
+describe('useChat() interrupt types', () => {
+  it('preserves approval, generic, and client-tool inference', () => {
+    const inputSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { cents: 0 },
+          output: { cents: 0 },
+        },
+        validate: (value: unknown) => ({
+          value:
+            value !== null &&
+            typeof value === 'object' &&
+            'cents' in value &&
+            typeof value.cents === 'number'
+              ? { cents: value.cents }
+              : { cents: 0 },
+        }),
+      },
+    }
+    const approveSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { note: '' },
+          output: { note: '' },
+        },
+        validate: () => ({ value: { note: '' } }),
+      },
+    }
+    const rejectSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { reason: '' },
+          output: { reason: '' },
+        },
+        validate: () => ({ value: { reason: '' } }),
+      },
+    }
+    const outputSchema: TestSchema<{ accountId: string }> = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { accountId: '' },
+          output: { accountId: '' },
+        },
+        validate: () => ({ value: { accountId: '' } }),
+      },
+    }
+    const transfer = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      inputSchema,
+      approvalSchema: {
+        approve: approveSchema,
+        reject: rejectSchema,
+      },
+    }).client()
+    const confirm = toolDefinition({
+      name: 'confirm',
+      description: 'Confirm without schemas',
+      needsApproval: true,
+    }).client()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Lookup account',
+      outputSchema,
+    }).client()
+    const tools = clientTools(transfer, confirm, lookup)
+    type Interrupt = UseChatReturn<typeof tools>['interrupts'][number]
+    type Transfer = Extract<
+      Interrupt,
+      { kind: 'tool-approval'; toolName: 'transfer' }
+    >
+    type Confirm = Extract<
+      Interrupt,
+      { kind: 'tool-approval'; toolName: 'confirm' }
+    >
+    type Lookup = Extract<
+      Interrupt,
+      { kind: 'client-tool-execution'; toolName: 'lookup' }
+    >
+    type Generic = Extract<Interrupt, { kind: 'generic' }>
+
+    const check = (
+      transferInterrupt: Transfer,
+      confirmInterrupt: Confirm,
+      lookupInterrupt: Lookup,
+      genericInterrupt: Generic,
+    ) => {
+      transferInterrupt.resolveInterrupt(true, {
+        editedArgs: { cents: 100 },
+        payload: { note: 'approved' },
+      })
+      transferInterrupt.resolveInterrupt(false, {
+        payload: { reason: 'declined' },
+      })
+      // @ts-expect-error rejected approvals cannot edit tool input
+      transferInterrupt.resolveInterrupt(false, { editedArgs: { cents: 1 } })
+      // @ts-expect-error approve payload uses the approve branch
+      transferInterrupt.resolveInterrupt(true, {
+        payload: { reason: 'wrong branch' },
+      })
+
+      confirmInterrupt.resolveInterrupt(true)
+      confirmInterrupt.resolveInterrupt(false)
+      // @ts-expect-error omitted input schema forbids edited input
+      confirmInterrupt.resolveInterrupt(true, { editedArgs: { cents: 1 } })
+      // @ts-expect-error omitted approval branches forbid payloads
+      confirmInterrupt.resolveInterrupt(false, {
+        payload: { reason: 'no branch' },
+      })
+
+      lookupInterrupt.resolveInterrupt({ accountId: 'account-1' })
+      // @ts-expect-error client-tool output is inferred
+      lookupInterrupt.resolveInterrupt({ account: 'account-1' })
+      expectTypeOf(genericInterrupt.resolveInterrupt)
+        .parameter(0)
+        .toEqualTypeOf<unknown>()
+    }
+    void check
   })
 })

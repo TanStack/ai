@@ -4,6 +4,7 @@ export type {
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
   ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,

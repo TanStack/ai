@@ -8,6 +8,7 @@ import type {
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
+import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   Capability,
   CapabilityHandle,
@@ -91,6 +92,8 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   streamId: string
   /** AG-UI run identifier for correlating client and server events */
   runId: string
+  /** Interrupted or parent run correlated with this continuation. */
+  parentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -221,9 +224,18 @@ export interface ChatMiddlewareConfig {
  * without relying on client message history.
  */
 export interface ChatResumeToolState {
-  approvals?: ReadonlyMap<string, boolean> | undefined
+  approvals?: ReadonlyMap<string, ToolApprovalResolution> | undefined
   clientToolResults?: ReadonlyMap<string, unknown> | undefined
+  genericInterrupts?:
+    | ReadonlyMap<string, ChatResumeGenericResolution>
+    | undefined
+  deniedToolResults?: ReadonlyMap<string, unknown> | undefined
+  cancelledToolCallIds?: ReadonlySet<string> | undefined
 }
+
+export type ChatResumeGenericResolution =
+  | { interruptId: string; status: 'resolved'; payload: unknown }
+  | { interruptId: string; status: 'cancelled'; payload?: never }
 
 /**
  * Config passed to onStructuredOutputConfig.

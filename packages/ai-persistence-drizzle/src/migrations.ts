@@ -1,4 +1,5 @@
 import initialMigrationSql from './assets/0000_tanstack_ai_initial.sql?raw'
+import interruptBatchesMigrationSql from './assets/0001_tanstack_ai_interrupt_batches.sql?raw'
 
 /** A canonical SQLite migration bundled with the adapter. */
 export interface SqliteMigration {
@@ -16,5 +17,10 @@ export const sqliteMigrations: ReadonlyArray<SqliteMigration> = [
     id: '0000_tanstack_ai_initial',
     filename: '0000_tanstack_ai_initial.sql',
     sql: initialMigrationSql,
+  },
+  {
+    id: '0001_tanstack_ai_interrupt_batches',
+    filename: '0001_tanstack_ai_interrupt_batches.sql',
+    sql: interruptBatchesMigrationSql,
   },
 ]

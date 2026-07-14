@@ -1,4 +1,11 @@
-import type { LockStore, ModelMessage, TokenUsage } from '@tanstack/ai'
+import type {
+  InterruptBinding,
+  InterruptPersistenceGateway,
+  LockStore,
+  ModelMessage,
+  RunAgentResumeItem,
+  TokenUsage,
+} from '@tanstack/ai'
 
 export interface MessageStore {
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
@@ -37,16 +44,41 @@ export interface InterruptRecord {
   interruptId: string
   runId: string
   threadId: string
+  generation: number
   status: 'pending' | 'resolved' | 'cancelled'
   requestedAt: number
   resolvedAt?: number
-  payload: Record<string, unknown>
+  payload: unknown
+  binding: InterruptBinding
   response?: unknown
 }
 
-export interface InterruptStore {
-  create: (record: Omit<InterruptRecord, 'resolvedAt'>) => Promise<void>
+export interface InterruptBatchRecord {
+  threadId: string
+  interruptedRunId: string
+  generation: number
+  expectedInterruptIds: ReadonlyArray<string>
+  fingerprint: string
+  canonicalResolutions: string
+  resolutions: ReadonlyArray<RunAgentResumeItem>
+  continuationRunId: string
+  committedAt: number
+}
+
+export type LegacyInterruptRecordInput = Omit<
+  InterruptRecord,
+  'binding' | 'generation' | 'resolvedAt'
+> & {
+  binding?: InterruptBinding
+  generation?: number
+}
+
+export interface InterruptStore extends InterruptPersistenceGateway {
+  /** @deprecated Use openInterruptBatch for native interrupt writes. */
+  create: (record: LegacyInterruptRecordInput) => Promise<void>
+  /** @deprecated Use commitInterruptResolutions for native interrupt writes. */
   resolve: (interruptId: string, response?: unknown) => Promise<void>
+  /** @deprecated Use commitInterruptResolutions for native interrupt writes. */
   cancel: (interruptId: string) => Promise<void>
   get: (interruptId: string) => Promise<InterruptRecord | null>
   list: (threadId: string) => Promise<Array<InterruptRecord>>
@@ -271,6 +303,17 @@ function assertKnownStoreKeys(stores: object, location: string): void {
 
 export function validatePersistenceStoreKeys(persistence: AIPersistence): void {
   assertKnownStoreKeys(persistence.stores, 'store')
+  const interrupts = persistence.stores.interrupts
+  if (
+    interrupts !== undefined &&
+    (typeof interrupts.openInterruptBatch !== 'function' ||
+      typeof interrupts.commitInterruptResolutions !== 'function' ||
+      typeof interrupts.getInterruptRecoveryState !== 'function')
+  ) {
+    throw new Error(
+      'atomic-commit-unsupported: stores.interrupts must implement the atomic interrupt gateway.',
+    )
+  }
 }
 
 export function validateChatPersistenceStores(

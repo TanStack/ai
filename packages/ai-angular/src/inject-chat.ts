@@ -15,11 +15,15 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   StructuredOutputPart,
@@ -31,6 +35,9 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 let nextId = 0
 
@@ -63,6 +70,12 @@ export function injectChat<
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
+  const interruptState = signal<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Reactive option sources. Plain values become constant computeds.
   const bodySource =
@@ -112,6 +125,10 @@ export function injectChat<
     onResumeStateChange: (resumeState, pendingInterrupts) => {
       options.onResumeStateChange?.(resumeState, pendingInterrupts)
     },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState.set(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState)
+    },
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
@@ -128,6 +145,7 @@ export function injectChat<
   })
 
   messages.set(client.getMessages())
+  interruptState.set(client.getInterruptState())
 
   // Sync reactive body / forwardedProps / context to the client.
   if (bodySource || forwardedPropsSource || contextSource) {
@@ -245,6 +263,25 @@ export function injectChat<
   }) => {
     await client.addToolApprovalResponse(response)
   }
+  const interrupts = computed(() => interruptState().interrupts)
+  const pendingInterrupts = computed(() => interruptState().interrupts)
+  const interruptErrors = computed(() => interruptState().interruptErrors)
+  const resuming = computed(() => interruptState().resuming)
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+  const cancelInterrupts = () => client.cancelInterrupts()
+  const retryInterrupts = () => client.retryInterrupts()
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
   // eslint-disable-next-line no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
   return {
@@ -263,6 +300,14 @@ export function injectChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    interrupts,
+    pendingInterrupts,
+    interruptErrors,
+    resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     partial,
     final,
   } as unknown as InjectChatResult<TTools, TSchema>

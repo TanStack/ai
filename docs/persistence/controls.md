@@ -32,21 +32,22 @@ the complete capability selection mechanism.
 `composePersistence` takes the base backend first and a configuration object
 second:
 
-```ts
+```ts group=persistence-controls
 import {
   composePersistence,
   defineAIPersistence,
 } from '@tanstack/ai-persistence'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
+import type { CloudflarePersistenceOptions } from '@tanstack/ai-persistence-cloudflare'
 import type {
   InterruptStore,
   RunStore,
 } from '@tanstack/ai-persistence'
 
 declare const env: {
-  AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
+  AI_STATE: NonNullable<CloudflarePersistenceOptions['d1']>
+  AI_MEDIA: NonNullable<CloudflarePersistenceOptions['r2']>
+  AI_LOCKS: NonNullable<CloudflarePersistenceOptions['durableObjects']>
 }
 declare const interrupts: InterruptStore
 declare const runs: RunStore
@@ -76,7 +77,7 @@ Each override is independent:
 | a store object | Replace that store only. |
 | `false` | Remove that store. |
 
-```ts
+```ts group=persistence-controls
 const withoutGeneratedMedia = composePersistence(base, {
   overrides: {
     artifacts: false,
@@ -101,7 +102,7 @@ Some capabilities require related stores:
 Known-invalid static compositions fail to type-check at the middleware call.
 Runtime validation covers dynamically typed inputs.
 
-```ts
+```ts group=persistence-controls
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
 
 // Valid: both stores remain present.

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as InterruptsV2RouteImport } from './routes/interrupts-v2'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
@@ -44,6 +45,7 @@ import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-serv
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiInterruptsV2RouteImport } from './routes/api.interrupts-v2'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -56,6 +58,7 @@ import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
+import { Route as ApiInterruptsV2RecoveryRouteImport } from './routes/api.interrupts-v2.recovery'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
@@ -72,6 +75,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterruptsV2Route = InterruptsV2RouteImport.update({
+  id: '/interrupts-v2',
+  path: '/interrupts-v2',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
@@ -238,6 +246,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   path: '/api/lazy-tools-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInterruptsV2Route = ApiInterruptsV2RouteImport.update({
+  id: '/api/interrupts-v2',
+  path: '/api/interrupts-v2',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -299,6 +312,11 @@ const ApiTranscriptionStreamRoute = ApiTranscriptionStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiTranscriptionRoute,
 } as any)
+const ApiInterruptsV2RecoveryRoute = ApiInterruptsV2RecoveryRouteImport.update({
+  id: '/recovery',
+  path: '/recovery',
+  getParentRoute: () => ApiInterruptsV2Route,
+} as any)
 const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -319,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-v2': typeof InterruptsV2Route
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -331,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-v2': typeof ApiInterruptsV2RouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -357,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/interrupts-v2/recovery': typeof ApiInterruptsV2RecoveryRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
   '/api/video/stream': typeof ApiVideoStreamRoute
@@ -370,6 +391,7 @@ export interface FileRoutesByTo {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-v2': typeof InterruptsV2Route
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -382,6 +404,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-v2': typeof ApiInterruptsV2RouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -408,6 +431,7 @@ export interface FileRoutesByTo {
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/interrupts-v2/recovery': typeof ApiInterruptsV2RecoveryRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
   '/api/video/stream': typeof ApiVideoStreamRoute
@@ -422,6 +446,7 @@ export interface FileRoutesById {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-v2': typeof InterruptsV2Route
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -434,6 +459,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-v2': typeof ApiInterruptsV2RouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -460,6 +486,7 @@ export interface FileRoutesById {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/interrupts-v2/recovery': typeof ApiInterruptsV2RecoveryRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
   '/api/video/stream': typeof ApiVideoStreamRoute
@@ -475,6 +502,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-v2'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -487,6 +515,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-v2'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -513,6 +542,7 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
+    | '/api/interrupts-v2/recovery'
     | '/api/transcription/stream'
     | '/api/tts/stream'
     | '/api/video/stream'
@@ -526,6 +556,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-v2'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -538,6 +569,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-v2'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -564,6 +596,7 @@ export interface FileRouteTypes {
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
+    | '/api/interrupts-v2/recovery'
     | '/api/transcription/stream'
     | '/api/tts/stream'
     | '/api/video/stream'
@@ -577,6 +610,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-v2'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -589,6 +623,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-v2'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -615,6 +650,7 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
+    | '/api/interrupts-v2/recovery'
     | '/api/transcription/stream'
     | '/api/tts/stream'
     | '/api/video/stream'
@@ -629,6 +665,7 @@ export interface RootRouteChildren {
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  InterruptsV2Route: typeof InterruptsV2Route
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
@@ -641,6 +678,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiInterruptsV2Route: typeof ApiInterruptsV2RouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
@@ -688,6 +726,13 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interrupts-v2': {
+      id: '/interrupts-v2'
+      path: '/interrupts-v2'
+      fullPath: '/interrupts-v2'
+      preLoaderRoute: typeof InterruptsV2RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-tools': {
@@ -914,6 +959,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/interrupts-v2': {
+      id: '/api/interrupts-v2'
+      path: '/api/interrupts-v2'
+      fullPath: '/api/interrupts-v2'
+      preLoaderRoute: typeof ApiInterruptsV2RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -998,6 +1050,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTranscriptionStreamRouteImport
       parentRoute: typeof ApiTranscriptionRoute
     }
+    '/api/interrupts-v2/recovery': {
+      id: '/api/interrupts-v2/recovery'
+      path: '/recovery'
+      fullPath: '/api/interrupts-v2/recovery'
+      preLoaderRoute: typeof ApiInterruptsV2RecoveryRouteImport
+      parentRoute: typeof ApiInterruptsV2Route
+    }
     '/api/image/stream': {
       id: '/api/image/stream'
       path: '/stream'
@@ -1037,6 +1096,18 @@ const ApiImageRouteChildren: ApiImageRouteChildren = {
 
 const ApiImageRouteWithChildren = ApiImageRoute._addFileChildren(
   ApiImageRouteChildren,
+)
+
+interface ApiInterruptsV2RouteChildren {
+  ApiInterruptsV2RecoveryRoute: typeof ApiInterruptsV2RecoveryRoute
+}
+
+const ApiInterruptsV2RouteChildren: ApiInterruptsV2RouteChildren = {
+  ApiInterruptsV2RecoveryRoute: ApiInterruptsV2RecoveryRoute,
+}
+
+const ApiInterruptsV2RouteWithChildren = ApiInterruptsV2Route._addFileChildren(
+  ApiInterruptsV2RouteChildren,
 )
 
 interface ApiTranscriptionRouteChildren {
@@ -1082,6 +1153,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
+  InterruptsV2Route: InterruptsV2Route,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
@@ -1094,6 +1166,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiInterruptsV2Route: ApiInterruptsV2RouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,

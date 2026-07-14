@@ -46,6 +46,22 @@ export function createRunStore(): RunStore {
 
 export function createInterruptStore(): InterruptStore {
   return {
+    openInterruptBatch: (input) =>
+      Promise.resolve({ generation: 1, descriptors: input.descriptors }),
+    commitInterruptResolutions: (input) =>
+      Promise.resolve({
+        status: 'committed',
+        continuationRunId: input.continuationRunId,
+      }),
+    getInterruptRecoveryState: (input) =>
+      Promise.resolve({
+        schemaVersion: 1,
+        state: 'missing',
+        threadId: input.threadId,
+        interruptedRunId: input.interruptedRunId,
+        generation: input.knownGeneration,
+        pendingInterrupts: [],
+      }),
     create: () => Promise.resolve(),
     resolve: () => Promise.resolve(),
     cancel: () => Promise.resolve(),

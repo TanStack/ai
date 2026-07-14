@@ -11,7 +11,8 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
-  ChatPendingInterrupt,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
@@ -32,6 +33,9 @@ import type {
   UseChatOptions,
   UseChatReturn,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -60,13 +64,18 @@ export function useChat<
   const [resumeState, setResumeState] = createSignal<ChatResumeState | null>(
     options.initialResumeSnapshot?.resumeState ?? null,
   )
-  const [pendingInterrupts, setPendingInterrupts] = createSignal<
-    Array<ChatPendingInterrupt>
-  >(options.initialResumeSnapshot?.pendingInterrupts ?? [])
+  const [interruptState, setInterruptState] = createSignal<
+    ChatInterruptState<TTools>
+  >({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   const syncResumeState = () => {
     setResumeState(client().getResumeState())
-    setPendingInterrupts(client().getPendingInterrupts())
+    setInterruptState(client().getInterruptState())
   }
 
   // Structured-output `partial` / `final` are derived from `messages` —
@@ -155,7 +164,15 @@ export function useChat<
       },
       onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
         setResumeState(nextResumeState)
-        setPendingInterrupts(nextPendingInterrupts)
+        setInterruptState((current) => ({
+          ...current,
+          interrupts: nextPendingInterrupts,
+          pendingInterrupts: nextPendingInterrupts,
+        }))
+      },
+      onInterruptStateChange: (nextInterruptState) => {
+        setInterruptState(nextInterruptState)
+        options.onInterruptStateChange?.(nextInterruptState)
       },
     })
     // Only recreate when clientId changes
@@ -163,6 +180,7 @@ export function useChat<
   }, [clientId])
 
   setMessages(client().getMessages())
+  syncResumeState()
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -279,6 +297,34 @@ export function useChat<
     return result
   }
 
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client().resolveInterrupts(resolution)
+    } else {
+      client().resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client().cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client().retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client().resumeInterruptsUnsafe(resumeItems, state)
+
+  const interrupts = () => interruptState().interrupts
+  const pendingInterrupts = () => interruptState().pendingInterrupts
+  const interruptErrors = () => interruptState().interruptErrors
+  const resuming = () => interruptState().resuming
+
   // The "active" structured-output part is on the assistant message after
   // the latest user message. When no user message exists yet, return null
   // rather than scanning history — otherwise a stale `final` from
@@ -337,7 +383,14 @@ export function useChat<
     addToolResult,
     addToolApprovalResponse,
     resumeState,
+    interrupts,
     pendingInterrupts,
+    interruptErrors,
+    resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     resumeInterrupts,
     partial,
     final,

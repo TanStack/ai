@@ -1,6 +1,20 @@
-import { InMemoryLockStore } from '@tanstack/ai'
+import {
+  InMemoryLockStore,
+  canonicalInterruptJson,
+  canonicalizeInterruptResolutions,
+  cloneAndDeepFreezeJson,
+} from '@tanstack/ai'
 import { defineAIPersistence } from './types'
-import type { LockStore, ModelMessage } from '@tanstack/ai'
+import { hasExactInterruptIds, projectInterruptRecovery } from './interrupts'
+import type {
+  CommitInterruptResolutionsInput,
+  InterruptCommitResult,
+  InterruptRecoveryQuery,
+  InterruptRecoveryStateV1,
+  LockStore,
+  ModelMessage,
+  OpenInterruptBatchInput,
+} from '@tanstack/ai'
 import type {
   ArtifactRecord,
   ArtifactStore,
@@ -9,8 +23,10 @@ import type {
   BlobObject,
   BlobRecord,
   BlobStore,
+  InterruptBatchRecord,
   InterruptRecord,
   InterruptStore,
+  LegacyInterruptRecordInput,
   MessageStore,
   MetadataStore,
   RunRecord,
@@ -63,34 +79,351 @@ class MemoryRunStore implements RunStore {
 }
 
 class MemoryInterruptStore implements InterruptStore {
-  private readonly interrupts = new Map<string, InterruptRecord>()
-  create(record: Omit<InterruptRecord, 'resolvedAt'>): Promise<void> {
-    this.interrupts.set(record.interruptId, { ...record })
+  private interrupts = new Map<string, InterruptRecord>()
+  private batches = new Map<string, InterruptBatchRecord>()
+  private readonly interruptLocks = new Map<string, Promise<void>>()
+
+  constructor(private readonly clock: () => number) {}
+
+  private async withInterruptLock<T>(
+    interruptedRunId: string,
+    operation: () => Promise<T> | T,
+  ): Promise<T> {
+    const previous =
+      this.interruptLocks.get(interruptedRunId) ?? Promise.resolve()
+    let release = (): void => undefined
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const queued = previous.then(() => current)
+    this.interruptLocks.set(interruptedRunId, queued)
+    await previous
+    try {
+      return await operation()
+    } finally {
+      release()
+      if (this.interruptLocks.get(interruptedRunId) === queued) {
+        this.interruptLocks.delete(interruptedRunId)
+      }
+    }
+  }
+
+  private rowsForRun(interruptedRunId: string): Array<InterruptRecord> {
+    return [...this.interrupts.values()].filter(
+      (record) => record.runId === interruptedRunId,
+    )
+  }
+
+  private recoveryForRun(input: {
+    threadId: string
+    interruptedRunId: string
+    expectedGeneration: number
+  }): InterruptRecoveryStateV1 {
+    const rows = this.rowsForRun(input.interruptedRunId).filter(
+      (record) => record.threadId === input.threadId,
+    )
+    const batch = this.batches.get(input.interruptedRunId)
+    return projectInterruptRecovery({
+      query: {
+        threadId: input.threadId,
+        interruptedRunId: input.interruptedRunId,
+        knownGeneration: input.expectedGeneration,
+      },
+      rows,
+      batch: batch?.threadId === input.threadId ? batch : null,
+      now: this.clock(),
+      includeResolutions: true,
+    })
+  }
+
+  create(record: LegacyInterruptRecordInput): Promise<void> {
+    const generation = record.generation ?? 0
+    const binding =
+      record.binding ??
+      ({
+        kind: 'generic',
+        interruptId: record.interruptId,
+        interruptedRunId: record.runId,
+        generation,
+        responseSchemaHash: 'legacy:unknown',
+      } as const)
+    this.interrupts.set(
+      record.interruptId,
+      cloneAndDeepFreezeJson({
+        ...record,
+        generation,
+        binding,
+      }),
+    )
     return Promise.resolve()
   }
+
   resolve(interruptId: string, response?: unknown): Promise<void> {
     const existing = this.interrupts.get(interruptId)
     if (existing) {
-      this.interrupts.set(interruptId, {
-        ...existing,
-        status: 'resolved',
-        resolvedAt: Date.now(),
-        response,
-      })
+      this.interrupts.set(
+        interruptId,
+        cloneAndDeepFreezeJson({
+          ...existing,
+          status: 'resolved',
+          resolvedAt: this.clock(),
+          ...(response !== undefined && { response }),
+        }),
+      )
     }
     return Promise.resolve()
   }
+
   cancel(interruptId: string): Promise<void> {
     const existing = this.interrupts.get(interruptId)
     if (existing) {
-      this.interrupts.set(interruptId, {
-        ...existing,
-        status: 'cancelled',
-        resolvedAt: Date.now(),
-      })
+      this.interrupts.set(
+        interruptId,
+        cloneAndDeepFreezeJson({
+          ...existing,
+          status: 'cancelled',
+          resolvedAt: this.clock(),
+        }),
+      )
     }
     return Promise.resolve()
   }
+
+  openInterruptBatch(input: OpenInterruptBatchInput): Promise<{
+    generation: number
+    descriptors: OpenInterruptBatchInput['descriptors']
+  }> {
+    return this.withInterruptLock(input.interruptedRunId, () => {
+      const descriptorIds = input.descriptors.map((descriptor) => descriptor.id)
+      const bindingIds = input.bindings.map((binding) => binding.interruptId)
+      if (
+        descriptorIds.length === 0 ||
+        !hasExactInterruptIds(descriptorIds, bindingIds)
+      ) {
+        throw new TypeError(
+          'Interrupt descriptors and bindings must contain the same exact nonempty IDs.',
+        )
+      }
+      if (this.batches.has(input.interruptedRunId)) {
+        throw new Error('Cannot reopen a committed interrupt batch.')
+      }
+
+      const existing = this.rowsForRun(input.interruptedRunId)
+      if (existing.length > 0) {
+        const generation = existing[0]?.generation
+        const existingDescriptors = [...existing]
+          .sort((left, right) =>
+            left.interruptId.localeCompare(right.interruptId),
+          )
+          .map((record) => record.payload)
+        const requestedDescriptors = [...input.descriptors].sort(
+          (left, right) => left.id.localeCompare(right.id),
+        )
+        const existingBindings = [...existing]
+          .map((record) => record.binding)
+          .sort((left, right) =>
+            left.interruptId.localeCompare(right.interruptId),
+          )
+        const requestedBindings = [...input.bindings]
+          .map((binding) => ({
+            ...binding,
+            interruptedRunId: input.interruptedRunId,
+            generation,
+          }))
+          .sort((left, right) =>
+            left.interruptId.localeCompare(right.interruptId),
+          )
+        const sameDescriptors =
+          hasExactInterruptIds(
+            descriptorIds,
+            existing.map((record) => record.interruptId),
+          ) &&
+          canonicalInterruptJson(existingDescriptors) ===
+            canonicalInterruptJson(requestedDescriptors)
+        const sameBindings =
+          canonicalInterruptJson(existingBindings) ===
+          canonicalInterruptJson(requestedBindings)
+        if (
+          sameDescriptors &&
+          sameBindings &&
+          generation !== undefined &&
+          existing.every(
+            (record) =>
+              record.status === 'pending' &&
+              record.threadId === input.threadId &&
+              record.generation === generation,
+          )
+        ) {
+          return {
+            generation,
+            descriptors: cloneAndDeepFreezeJson(input.descriptors),
+          }
+        }
+        throw new Error('An incompatible interrupt batch is already open.')
+      }
+
+      const generation = 1
+      const bindings = new Map(
+        input.bindings.map((binding) => [binding.interruptId, binding]),
+      )
+      const nextInterrupts = new Map(this.interrupts)
+      const descriptors = cloneAndDeepFreezeJson(input.descriptors)
+      for (const descriptor of descriptors) {
+        if (nextInterrupts.has(descriptor.id)) {
+          throw new Error(`Interrupt ID already exists: ${descriptor.id}`)
+        }
+        const unopened = bindings.get(descriptor.id)
+        if (!unopened) {
+          throw new Error(`Missing binding for interrupt: ${descriptor.id}`)
+        }
+        const binding = cloneAndDeepFreezeJson({
+          ...unopened,
+          interruptedRunId: input.interruptedRunId,
+          generation,
+        })
+        nextInterrupts.set(
+          descriptor.id,
+          cloneAndDeepFreezeJson({
+            interruptId: descriptor.id,
+            runId: input.interruptedRunId,
+            threadId: input.threadId,
+            generation,
+            status: 'pending',
+            requestedAt: this.clock(),
+            payload: descriptor,
+            binding,
+          }),
+        )
+      }
+      this.interrupts = nextInterrupts
+      return { generation, descriptors }
+    })
+  }
+
+  commitInterruptResolutions(
+    input: CommitInterruptResolutionsInput,
+  ): Promise<InterruptCommitResult> {
+    return this.withInterruptLock(input.interruptedRunId, () => {
+      const candidate = canonicalizeInterruptResolutions(input.resolutions)
+      if (
+        candidate.fingerprint !== input.fingerprint ||
+        candidate.canonicalResolutions !== input.canonicalResolutions
+      ) {
+        throw new TypeError(
+          'Interrupt batch identity does not match its resolutions.',
+        )
+      }
+
+      const winner = this.batches.get(input.interruptedRunId)
+      if (winner) {
+        return winner.threadId === input.threadId &&
+          winner.fingerprint === input.fingerprint &&
+          winner.canonicalResolutions === input.canonicalResolutions
+          ? {
+              status: 'replayed',
+              continuationRunId: winner.continuationRunId,
+            }
+          : {
+              status: 'conflict',
+              authoritativeState: this.recoveryForRun(input),
+            }
+      }
+
+      const pending = this.rowsForRun(input.interruptedRunId).filter(
+        (record) => record.status === 'pending',
+      )
+      const resolutionIds = candidate.resolutions.map(
+        (resolution) => resolution.interruptId,
+      )
+      if (
+        !hasExactInterruptIds(
+          input.expectedInterruptIds,
+          pending.map((record) => record.interruptId),
+        ) ||
+        !hasExactInterruptIds(input.expectedInterruptIds, resolutionIds) ||
+        pending.some((record) => record.threadId !== input.threadId) ||
+        pending.some(
+          (record) => record.generation !== input.expectedGeneration,
+        ) ||
+        pending.some(
+          (record) =>
+            record.binding.expiresAt !== undefined &&
+            Date.parse(record.binding.expiresAt) <= this.clock(),
+        )
+      ) {
+        return {
+          status: 'conflict',
+          authoritativeState: this.recoveryForRun(input),
+        }
+      }
+
+      const committedAt = this.clock()
+      const nextInterrupts = new Map(this.interrupts)
+      for (const resolution of candidate.resolutions) {
+        const current = nextInterrupts.get(resolution.interruptId)
+        if (
+          !current ||
+          current.runId !== input.interruptedRunId ||
+          current.status !== 'pending' ||
+          current.generation !== input.expectedGeneration
+        ) {
+          throw new Error(
+            `Pending interrupt changed: ${resolution.interruptId}`,
+          )
+        }
+        nextInterrupts.set(
+          resolution.interruptId,
+          cloneAndDeepFreezeJson({
+            ...current,
+            status:
+              resolution.status === 'cancelled' ? 'cancelled' : 'resolved',
+            response: resolution,
+            resolvedAt: committedAt,
+          }),
+        )
+      }
+
+      const immutableWinner = cloneAndDeepFreezeJson({
+        threadId: input.threadId,
+        interruptedRunId: input.interruptedRunId,
+        generation: input.expectedGeneration,
+        expectedInterruptIds: [...input.expectedInterruptIds],
+        fingerprint: candidate.fingerprint,
+        canonicalResolutions: candidate.canonicalResolutions,
+        resolutions: candidate.resolutions,
+        continuationRunId: input.continuationRunId,
+        committedAt,
+      })
+      const nextBatches = new Map(this.batches)
+      nextBatches.set(input.interruptedRunId, immutableWinner)
+
+      this.interrupts = nextInterrupts
+      this.batches = nextBatches
+      return {
+        status: 'committed',
+        continuationRunId: input.continuationRunId,
+      }
+    })
+  }
+
+  getInterruptRecoveryState(
+    input: InterruptRecoveryQuery,
+  ): Promise<InterruptRecoveryStateV1> {
+    return this.withInterruptLock(input.interruptedRunId, () => {
+      const rows = this.rowsForRun(input.interruptedRunId).filter(
+        (record) => record.threadId === input.threadId,
+      )
+      const batch = this.batches.get(input.interruptedRunId)
+      return projectInterruptRecovery({
+        query: input,
+        rows,
+        batch: batch?.threadId === input.threadId ? batch : null,
+        now: this.clock(),
+        includeResolutions: true,
+      })
+    })
+  }
+
   get(interruptId: string): Promise<InterruptRecord | null> {
     return Promise.resolve(this.interrupts.get(interruptId) ?? null)
   }
@@ -348,11 +681,11 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
-export function memoryPersistence() {
+export function memoryPersistence(options?: { clock?: () => number }) {
   const stores: MemoryPersistenceStores = {
     messages: new MemoryMessageStore(),
     runs: new MemoryRunStore(),
-    interrupts: new MemoryInterruptStore(),
+    interrupts: new MemoryInterruptStore(options?.clock ?? Date.now),
     metadata: new MemoryMetadataStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),

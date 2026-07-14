@@ -102,13 +102,13 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-09"
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -175,10 +175,15 @@
           "addedAt": "2026-04-15"
         },
         {
+          "label": "Interrupts",
+          "to": "chat/interrupts",
+          "addedAt": "2026-07-14"
+        },
+        {
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-14"
         }
       ]
     },
@@ -417,7 +422,7 @@
           "label": "Delivery Durability",
           "to": "persistence/delivery-durability",
           "addedAt": "2026-07-09",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Persistence Controls",
@@ -429,7 +434,7 @@
           "label": "Migrations",
           "to": "persistence/migrations",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Chat Persistence",
@@ -483,7 +488,7 @@
           "label": "Custom Stores",
           "to": "persistence/custom-stores",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Persistence Internals",
@@ -536,6 +541,12 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25"
+        },
+        {
+          "label": "Approval Flow Processing",
+          "to": "architecture/approval-flow-processing",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-14"
         }
       ]
     },
@@ -558,6 +569,11 @@
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
           "updatedAt": "2026-07-08"
+        },
+        {
+          "label": "AG-UI Interrupts",
+          "to": "migration/interrupts",
+          "addedAt": "2026-07-14"
         },
         {
           "label": "Sampling \u2192 modelOptions",
@@ -901,7 +917,8 @@
         {
           "label": "toolDefinition",
           "to": "reference/functions/toolDefinition",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "uiMessageToModelMessages",

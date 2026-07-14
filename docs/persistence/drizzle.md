@@ -18,7 +18,7 @@ backend.
 
 ## Node SQLite
 
-```ts
+```ts group=drizzle-node
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 export const persistence = sqlitePersistence({
@@ -34,13 +34,16 @@ deployment-time migrations in production.
 ## Bring your own SQLite Drizzle database
 
 ```ts
-import { drizzle } from 'drizzle-orm/d1'
+import type { CloudflarePersistenceOptions } from '@tanstack/ai-persistence-cloudflare'
 import {
   drizzlePersistence,
   schema,
 } from '@tanstack/ai-persistence-drizzle'
+import { drizzle } from 'drizzle-orm/d1'
 
-declare const env: { AI_STATE: D1Database }
+declare const env: {
+  AI_STATE: NonNullable<CloudflarePersistenceOptions['d1']>
+}
 
 const db = drizzle(env.AI_STATE, { schema })
 export const persistence = drizzlePersistence(db)
@@ -52,7 +55,7 @@ lifecycle and migration timing.
 
 ## Use the middleware
 
-```ts
+```ts group=drizzle-node
 import {
   chat,
   chatParamsFromRequest,

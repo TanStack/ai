@@ -5,6 +5,10 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type {
+  InterruptRecoveryStateV1,
+  InterruptSubmissionError,
+} from './interrupts'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -572,8 +576,8 @@ export type ToolExecutionContext<TContext = unknown> =
   }
 
 export type ToolExecuteFunction<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TContext = unknown,
 > = undefined extends TContext
   ? (
@@ -599,8 +603,8 @@ export type ToolExecuteFunction<
  * @see https://standardschema.dev/json-schema
  */
 export interface Tool<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
 > {
@@ -982,6 +986,9 @@ export interface TextOptions<
    */
   parentRunId?: string
 
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: unknown
+
   /**
    * AG-UI interrupt resume responses supplied by the client on a follow-up run.
    * Threaded through request parsing now so later runtime behavior can resolve
@@ -1108,6 +1115,10 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
 export interface RunErrorEvent extends AGUIRunErrorEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Exhaustive TanStack interrupt submission failures for this run. */
+  'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
+  /** Authoritative interrupt state returned with stale/conflicting submissions. */
+  'tanstack:interruptRecovery'?: InterruptRecoveryStateV1
   /**
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
@@ -1368,6 +1379,10 @@ export interface StructuredOutputStartEvent extends CustomEvent {
  * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
  * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
+ */
 export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
@@ -1383,6 +1398,10 @@ export interface ApprovalRequestedEvent extends CustomEvent {
  * pauses to let the caller run the tool client-side — `structured-output.complete`
  * will not fire for that run. Shape fixed by the agent-loop forwarding in
  * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
+ */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
  */
 export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'

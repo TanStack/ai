@@ -30,19 +30,25 @@ describe('Cloudflare D1 migrations CLI', () => {
       },
     })
 
-    expect(output).toBe(`${d1Migrations[0]?.sql.trimEnd()}\n`)
+    expect(output).toBe(
+      `${d1Migrations.map((migration) => migration.sql.trimEnd()).join('\n\n')}\n`,
+    )
   })
 
   it('copies migrations without overwriting divergent files by default', async () => {
     const directory = await createTemporaryDirectory()
     await runCloudflareMigrationsCli(['--out', directory])
 
-    const migration = d1Migrations[0]
+    for (const migration of d1Migrations) {
+      expect(await readFile(join(directory, migration.filename), 'utf8')).toBe(
+        migration.sql,
+      )
+    }
+
+    const migration = d1Migrations[1]
     expect(migration).toBeDefined()
     if (!migration) return
     const destination = join(directory, migration.filename)
-    expect(await readFile(destination, 'utf8')).toBe(migration.sql)
-
     await writeFile(destination, 'user-owned contents', 'utf8')
     await expect(
       runCloudflareMigrationsCli(['--out', directory]),

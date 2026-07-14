@@ -112,7 +112,7 @@ const baseDir = path.join(os.tmpdir(), `tanstack-ai-acp-prov-${Date.now()}`)
 // No removeOnDestroy: destroying a sandbox right after killing its agent races
 // the OS releasing the dir (EBUSY on Windows). Clean the whole tree once at the
 // end instead, with retries for any lingering handle.
-const provider = localProcessSandbox({ baseDir })
+const provider = localProcessSandbox({ baseDir, removeOnDestroy: false })
 
 afterAll(async () => {
   await fsp.rm(baseDir, {

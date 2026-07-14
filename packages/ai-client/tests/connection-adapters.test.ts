@@ -440,6 +440,7 @@ describe('connection-adapters', () => {
         {
           threadId: 'thread-1',
           runId: 'run-1',
+          parentRunId: 'interrupted-run',
           resume: [
             {
               interruptId: 'interrupt-1',
@@ -1230,6 +1231,60 @@ describe('connection-adapters', () => {
         expect(received[0].error?.message).toBe('already failed')
       }
     })
+
+    it('preserves read-only join and explicit interrupt recovery operations', async () => {
+      const recovery = {
+        schemaVersion: 1 as const,
+        state: 'pending' as const,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 2,
+        pendingInterrupts: [],
+      }
+      const loadInterruptState = vi.fn(async () => recovery)
+      const base = {
+        async *connect() {
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 'thread-1',
+            runId: 'run-new',
+            timestamp: Date.now(),
+          } as const
+        },
+        async *joinRun(runId: string) {
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 'thread-1',
+            runId,
+            timestamp: Date.now(),
+          } as const
+        },
+        loadInterruptState,
+      }
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const received = (async () => {
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          abortController.abort()
+          return chunk
+        }
+        return undefined
+      })()
+
+      await adapter.joinRun?.('winner-run')
+      expect(await received).toMatchObject({
+        type: EventType.RUN_FINISHED,
+        runId: 'winner-run',
+      })
+      await expect(
+        adapter.loadInterruptState?.({
+          threadId: 'thread-1',
+          interruptedRunId: 'run-1',
+          knownGeneration: 1,
+        }),
+      ).resolves.toBe(recovery)
+      expect(loadInterruptState).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('rpcStream', () => {
@@ -1354,6 +1409,7 @@ describe('connection-adapters', () => {
         {
           threadId: 'thread-1',
           runId: 'run-1',
+          parentRunId: 'interrupted-run',
           resume: [
             {
               interruptId: 'interrupt-1',
@@ -1374,6 +1430,7 @@ describe('connection-adapters', () => {
           payload: { approved: true },
         },
       ])
+      expect(input.parentRunId).toBe('interrupted-run')
     })
   })
 })

@@ -10,10 +10,10 @@ import {
   skillsToTools,
 } from '@tanstack/ai-code-mode-skills'
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { openaiText } from '@tanstack/ai-openai'
-import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
+import { ANTHROPIC_MODELS, anthropicText } from '@tanstack/ai-anthropic'
+import { OPENAI_CHAT_MODELS, openaiText } from '@tanstack/ai-openai'
+import { GEMINI_MODELS, geminiText } from '@tanstack/ai-gemini'
+import type { AnyServerTool, AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
 import { databaseTools, getSchemaInfoTool } from '@/lib/tools/database-tools'
@@ -21,15 +21,25 @@ import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
+function selectModel<TModel extends string>(
+  requested: string | undefined,
+  fallback: TModel,
+  available: ReadonlyArray<TModel>,
+): TModel {
+  return available.find((candidate) => candidate === requested) ?? fallback
+}
+
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
     case 'openai':
-      return openaiText((model || 'gpt-4o') as 'gpt-4o')
+      return openaiText(selectModel(model, 'gpt-5.5', OPENAI_CHAT_MODELS))
     case 'gemini':
-      return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
+      return geminiText(selectModel(model, 'gemini-2.5-flash', GEMINI_MODELS))
     case 'anthropic':
     default:
-      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
+      return anthropicText(
+        selectModel(model, 'claude-haiku-4-5', ANTHROPIC_MODELS),
+      )
   }
 }
 
@@ -115,7 +125,7 @@ Rules:
 This is not optional — skill registration is a core part of your workflow.`
 
 async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
-  skillTools: Array<ServerTool<any, any, any>>
+  skillTools: Array<AnyServerTool>
   skillsPrompt: string
 }> {
   const allSkills = await skillStorage.loadAll()
@@ -250,7 +260,7 @@ export const Route = createFileRoute(
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
-          let tools: Array<ServerTool<any, any, any>>
+          let tools: Array<AnyServerTool>
           let systemPrompts: Array<string>
 
           if (useCodeMode) {

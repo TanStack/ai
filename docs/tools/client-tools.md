@@ -27,7 +27,7 @@ sequenceDiagram
     
     Note over Server: No execute function<br/>= client tool
     
-    Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
+    Server->>Browser: RUN_FINISHED client-tool<br/>interrupt via SSE/HTTP
     Browser->>Browser: Find registered<br/>client tool
     Browser->>ClientTool: execute(args)
     ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
@@ -53,11 +53,56 @@ sequenceDiagram
 
 1. **Tool Call from LLM**: LLM decides to call a client tool
 2. **Server Detection**: Server sees the tool has no `execute` function
-3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
+3. **Client Notification**: Server emits a `client-tool-execution` AG-UI interrupt
 4. **Client Execution**: The browser finds the registered `.client()` implementation by tool name and runs it with the parsed input
 5. **Result Return**: Client executes the tool and returns the result
 6. **Server Update**: Result is sent back to the server and added to the conversation
 7. **LLM Continuation**: LLM receives the result and continues the conversation
+
+Native client-tool execution uses the same atomic interrupt lifecycle as other
+waits. See [Interrupts](../chat/interrupts) for persistence, batches, recovery,
+and migration from the historical `tool-input-available` custom event.
+
+## Approval and execution are separate axes
+
+A client tool can require approval, but approval is not the browser result. A
+tool with `needsApproval: true` first produces a `tool-approval` interrupt. Once
+approved, its browser work is represented separately by a
+`client-tool-execution` interrupt.
+
+```ts ignore
+const approval = interrupts.find(
+  (interrupt) =>
+    interrupt.kind === 'tool-approval' &&
+    interrupt.toolName === 'delete_local_data',
+)
+
+if (
+  approval?.kind === 'tool-approval' &&
+  approval.toolName === 'delete_local_data'
+) {
+  approval.resolveInterrupt(true)
+}
+
+const execution = interrupts.find(
+  (interrupt) =>
+    interrupt.kind === 'client-tool-execution' &&
+    interrupt.toolName === 'delete_local_data',
+)
+
+if (
+  execution?.kind === 'client-tool-execution' &&
+  execution.toolName === 'delete_local_data'
+) {
+  execution.resolveInterrupt({ deleted: true })
+}
+```
+
+The result is validated against the tool's output schema. The existing
+`addToolResult` API remains supported and delegates to the same staged native
+item when one matches; it also preserves the historical path for legacy
+streams. See [Tool approval flow](./tool-approval) for approval forms and
+[Migrate to AG-UI interrupts](../migration/interrupts) for compatibility limits.
 
 ## Defining Client Tools
 
@@ -232,7 +277,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 Client tools are **automatically executed** when the model calls them. The flow is:
 
 1. LLM calls a client tool
-2. Server sends `tool-input-available` chunk to browser
+2. Server sends a `client-tool-execution` interrupt to the browser
 3. Client automatically executes the matching tool implementation
 4. Result is sent back to server
 5. Conversation continues with the result

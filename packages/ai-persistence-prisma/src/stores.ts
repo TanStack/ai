@@ -7,8 +7,26 @@
  * provider-neutral Prisma `String` fields, so they are serialized with
  * `JSON.stringify`/`JSON.parse` here; blob bytes use Prisma's `Bytes`.
  */
-import type { PrismaClient } from '@prisma/client'
-import type { ModelMessage } from '@tanstack/ai'
+import {
+  canonicalInterruptJson,
+  canonicalizeInterruptResolutions,
+  cloneAndDeepFreezeJson,
+} from '@tanstack/ai'
+import {
+  InterruptStoreCorruptionError,
+  hasExactInterruptIds,
+  projectInterruptRecovery,
+} from '@tanstack/ai-persistence'
+import type { Prisma, PrismaClient } from '@prisma/client'
+import type {
+  CommitInterruptResolutionsInput,
+  InterruptBinding,
+  InterruptCommitResult,
+  InterruptRecoveryQuery,
+  InterruptRecoveryStateV1,
+  ModelMessage,
+  RunAgentResumeItem,
+} from '@tanstack/ai'
 import type {
   ArtifactRecord,
   ArtifactStore,
@@ -18,6 +36,7 @@ import type {
   BlobObject,
   BlobRecord,
   BlobStore,
+  InterruptBatchRecord,
   InterruptRecord,
   InterruptStore,
   MessageStore,
@@ -197,42 +216,473 @@ interface InterruptRow {
   interruptId: string
   runId: string
   threadId: string
+  generation: number
   status: string
   requestedAt: bigint
   resolvedAt: bigint | null
   payloadJson: string
+  bindingJson: string | null
+  schemaHash: string | null
   responseJson: string | null
 }
 
-function mapInterrupt(row: InterruptRow): InterruptRecord {
-  return {
-    interruptId: row.interruptId,
-    runId: row.runId,
-    threadId: row.threadId,
-    status: row.status as InterruptRecord['status'],
-    requestedAt: Number(row.requestedAt),
-    ...(row.resolvedAt != null ? { resolvedAt: Number(row.resolvedAt) } : {}),
-    payload: JSON.parse(row.payloadJson) as Record<string, unknown>,
-    ...(row.responseJson != null
-      ? { response: JSON.parse(row.responseJson) as unknown }
-      : {}),
+interface InterruptBatchRow {
+  interruptedRunId: string
+  threadId: string
+  generation: number
+  expectedInterruptIdsJson: string
+  fingerprint: string
+  canonicalResolutions: string
+  resolutionsJson: string
+  continuationRunId: string
+  committedAt: bigint
+}
+
+function parseStoredJson(value: string, label: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new InterruptStoreCorruptionError(
+      `Stored ${label} is not valid JSON.`,
+      { cause: error },
+    )
   }
 }
 
-export function createInterruptStore(prisma: PrismaClient): InterruptStore {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasOptionalString(
+  value: Record<string, unknown>,
+  key: string,
+): boolean {
+  return value[key] === undefined || typeof value[key] === 'string'
+}
+
+function isInterruptBinding(value: unknown): value is InterruptBinding {
+  if (
+    !isRecord(value) ||
+    typeof value.kind !== 'string' ||
+    typeof value.interruptId !== 'string' ||
+    typeof value.interruptedRunId !== 'string' ||
+    typeof value.generation !== 'number' ||
+    !Number.isInteger(value.generation) ||
+    typeof value.responseSchemaHash !== 'string' ||
+    !hasOptionalString(value, 'expiresAt')
+  ) {
+    return false
+  }
+  if (value.kind === 'generic') return true
+  if (value.kind === 'client-tool-execution') {
+    return (
+      typeof value.toolName === 'string' &&
+      typeof value.toolCallId === 'string' &&
+      typeof value.outputSchemaHash === 'string'
+    )
+  }
+  if (value.kind === 'tool-approval') {
+    return (
+      typeof value.toolName === 'string' &&
+      typeof value.toolCallId === 'string' &&
+      'originalArgs' in value &&
+      typeof value.inputSchemaHash === 'string' &&
+      typeof value.approvalSchemaHash === 'string'
+    )
+  }
+  return false
+}
+
+function decodeBinding(row: InterruptRow): InterruptBinding {
+  const fallback: InterruptBinding = {
+    kind: 'generic',
+    interruptId: row.interruptId,
+    interruptedRunId: row.runId,
+    generation: row.generation,
+    responseSchemaHash: row.schemaHash ?? 'legacy:unknown',
+  }
+  const parsed =
+    row.bindingJson === null
+      ? fallback
+      : parseStoredJson(row.bindingJson, `binding for ${row.interruptId}`)
+  if (!isInterruptBinding(parsed)) {
+    throw new InterruptStoreCorruptionError(
+      `Stored binding for interrupt ${row.interruptId} is malformed.`,
+    )
+  }
+  if (
+    parsed.interruptId !== row.interruptId ||
+    parsed.interruptedRunId !== row.runId ||
+    parsed.generation !== row.generation
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored binding correlation does not match interrupt ${row.interruptId}.`,
+    )
+  }
+  if (row.schemaHash !== null && parsed.responseSchemaHash !== row.schemaHash) {
+    throw new InterruptStoreCorruptionError(
+      `Stored schema hash does not match interrupt ${row.interruptId}.`,
+    )
+  }
+  return parsed
+}
+
+function decodeInterruptPayload(row: InterruptRow): unknown {
+  const payload = parseStoredJson(
+    row.payloadJson,
+    `payload for ${row.interruptId}`,
+  )
+  if (isRecord(payload) && 'id' in payload && payload.id !== row.interruptId) {
+    throw new InterruptStoreCorruptionError(
+      `Stored payload ID does not match interrupt ${row.interruptId}.`,
+    )
+  }
+  if (
+    row.generation > 0 &&
+    (!isRecord(payload) || payload.id !== row.interruptId)
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored native interrupt ${row.interruptId} has no matching payload ID.`,
+    )
+  }
+  return payload
+}
+
+function mapInterrupt(row: InterruptRow): InterruptRecord {
+  if (
+    !Number.isInteger(row.generation) ||
+    row.generation < 0 ||
+    (row.status !== 'pending' &&
+      row.status !== 'resolved' &&
+      row.status !== 'cancelled')
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored interrupt ${row.interruptId} has invalid lifecycle fields.`,
+    )
+  }
+  const record: InterruptRecord = {
+    interruptId: row.interruptId,
+    runId: row.runId,
+    threadId: row.threadId,
+    generation: row.generation,
+    status: row.status,
+    requestedAt: Number(row.requestedAt),
+    ...(row.resolvedAt != null ? { resolvedAt: Number(row.resolvedAt) } : {}),
+    payload: decodeInterruptPayload(row),
+    binding: decodeBinding(row),
+    ...(row.responseJson != null
+      ? {
+          response: parseStoredJson(
+            row.responseJson,
+            `response for ${row.interruptId}`,
+          ),
+        }
+      : {}),
+  }
+  return cloneAndDeepFreezeJson(record)
+}
+
+function isResumeItem(value: unknown): value is RunAgentResumeItem {
+  return (
+    isRecord(value) &&
+    typeof value.interruptId === 'string' &&
+    (value.status === 'resolved' || value.status === 'cancelled')
+  )
+}
+
+function decodeStringArray(
+  value: string,
+  label: string,
+): ReadonlyArray<string> {
+  const parsed = parseStoredJson(value, label)
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((item): item is string => typeof item === 'string') ||
+    !hasExactInterruptIds(parsed, parsed)
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored ${label} is not an exact set of string IDs.`,
+    )
+  }
+  return cloneAndDeepFreezeJson(parsed)
+}
+
+function decodeInterruptBatch(
+  row: InterruptBatchRow,
+  expectedInterruptedRunId: string,
+): InterruptBatchRecord {
+  if (
+    row.interruptedRunId !== expectedInterruptedRunId ||
+    !Number.isInteger(row.generation) ||
+    row.generation < 0
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored interrupt batch correlation does not match ${expectedInterruptedRunId}.`,
+    )
+  }
+  const expectedInterruptIds = decodeStringArray(
+    row.expectedInterruptIdsJson,
+    `expected IDs for ${row.interruptedRunId}`,
+  )
+  const resolutions = parseStoredJson(
+    row.resolutionsJson,
+    `resolutions for ${row.interruptedRunId}`,
+  )
+  if (!Array.isArray(resolutions) || !resolutions.every(isResumeItem)) {
+    throw new InterruptStoreCorruptionError(
+      `Stored resolutions for ${row.interruptedRunId} are malformed.`,
+    )
+  }
+  const canonical = canonicalizeInterruptResolutions(resolutions)
+  if (
+    canonical.fingerprint !== row.fingerprint ||
+    canonical.canonicalResolutions !== row.canonicalResolutions ||
+    !hasExactInterruptIds(
+      expectedInterruptIds,
+      canonical.resolutions.map((resolution) => resolution.interruptId),
+    )
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored interrupt batch identity is corrupt for ${row.interruptedRunId}.`,
+    )
+  }
+  return cloneAndDeepFreezeJson({
+    threadId: row.threadId,
+    interruptedRunId: row.interruptedRunId,
+    generation: row.generation,
+    expectedInterruptIds,
+    fingerprint: row.fingerprint,
+    canonicalResolutions: row.canonicalResolutions,
+    resolutions: canonical.resolutions,
+    continuationRunId: row.continuationRunId,
+    committedAt: Number(row.committedAt),
+  })
+}
+
+function legacyBindingForRow(row: InterruptRow): InterruptBinding {
   return {
+    kind: 'generic',
+    interruptId: row.interruptId,
+    interruptedRunId: row.runId,
+    generation: row.generation,
+    responseSchemaHash: row.schemaHash ?? 'legacy:unknown',
+  }
+}
+
+async function upgradeLegacyPendingRows(
+  transaction: Prisma.TransactionClient,
+  rows: ReadonlyArray<InterruptRow>,
+): Promise<ReadonlyArray<InterruptRow>> {
+  const upgraded: Array<InterruptRow> = []
+  for (const row of rows) {
+    if (row.status !== 'pending' || row.bindingJson !== null) {
+      upgraded.push(row)
+      continue
+    }
+    const binding = legacyBindingForRow(row)
+    const bindingJson = canonicalInterruptJson(binding)
+    const result = await transaction.interrupt.updateMany({
+      where: {
+        interruptId: row.interruptId,
+        runId: row.runId,
+        generation: row.generation,
+        status: 'pending',
+        bindingJson: null,
+      },
+      data: {
+        bindingJson,
+        schemaHash: binding.responseSchemaHash,
+      },
+    })
+    if (result.count !== 1) {
+      throw new Error(`Pending interrupt changed: ${row.interruptId}`)
+    }
+    upgraded.push({
+      ...row,
+      bindingJson,
+      schemaHash: binding.responseSchemaHash,
+    })
+  }
+  return upgraded
+}
+
+async function loadRowsForRun(
+  transaction: Prisma.TransactionClient,
+  interruptedRunId: string,
+): Promise<ReadonlyArray<InterruptRecord>> {
+  const rows = await transaction.interrupt.findMany({
+    where: { runId: interruptedRunId },
+    orderBy: [{ requestedAt: 'asc' }, { interruptId: 'asc' }],
+  })
+  const upgraded = await upgradeLegacyPendingRows(transaction, rows)
+  return upgraded.map(mapInterrupt)
+}
+
+function validateBatchRowCorrelation(
+  batch: InterruptBatchRecord,
+  rows: ReadonlyArray<InterruptRecord>,
+): void {
+  if (
+    !hasExactInterruptIds(
+      batch.expectedInterruptIds,
+      rows.map((row) => row.interruptId),
+    ) ||
+    rows.some(
+      (row) =>
+        row.runId !== batch.interruptedRunId ||
+        row.threadId !== batch.threadId ||
+        row.generation !== batch.generation ||
+        row.status === 'pending',
+    )
+  ) {
+    throw new InterruptStoreCorruptionError(
+      `Stored interrupt batch correlation is corrupt for ${batch.interruptedRunId}.`,
+    )
+  }
+}
+
+async function recoveryInTransaction(
+  transaction: Prisma.TransactionClient,
+  input: InterruptRecoveryQuery,
+  now: number,
+): Promise<InterruptRecoveryStateV1> {
+  const rows = await loadRowsForRun(transaction, input.interruptedRunId)
+  const batchRow = await transaction.interruptBatch.findUnique({
+    where: { interruptedRunId: input.interruptedRunId },
+  })
+  const batch = batchRow
+    ? decodeInterruptBatch(batchRow, input.interruptedRunId)
+    : null
+  if (batch?.threadId === input.threadId) {
+    validateBatchRowCorrelation(batch, rows)
+  }
+  return projectInterruptRecovery({
+    query: input,
+    rows: rows.filter((row) => row.threadId === input.threadId),
+    batch: batch?.threadId === input.threadId ? batch : null,
+    now,
+    includeResolutions: true,
+  })
+}
+
+async function winnerOutcome(
+  transaction: Prisma.TransactionClient,
+  input: CommitInterruptResolutionsInput,
+  winner: InterruptBatchRecord,
+  now: number,
+): Promise<InterruptCommitResult> {
+  const authoritativeState = await recoveryInTransaction(
+    transaction,
+    {
+      threadId: input.threadId,
+      interruptedRunId: input.interruptedRunId,
+      knownGeneration: input.expectedGeneration,
+    },
+    now,
+  )
+  if (
+    winner.threadId === input.threadId &&
+    winner.generation === input.expectedGeneration &&
+    hasExactInterruptIds(
+      winner.expectedInterruptIds,
+      input.expectedInterruptIds,
+    ) &&
+    winner.fingerprint === input.fingerprint &&
+    winner.canonicalResolutions === input.canonicalResolutions
+  ) {
+    return {
+      status: 'replayed',
+      continuationRunId: winner.continuationRunId,
+    }
+  }
+  return {
+    status: 'conflict',
+    authoritativeState,
+  }
+}
+
+function errorCode(error: unknown): string | undefined {
+  return isRecord(error) && typeof error.code === 'string'
+    ? error.code
+    : undefined
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isReloadableCommitRace(error: unknown): boolean {
+  if (errorCode(error) === 'P2002') return true
+  if (!['P1008', 'P2028', 'P2034', undefined].includes(errorCode(error))) {
+    return false
+  }
+  return /database is locked|database is busy|write conflict|deadlock|timed out|transaction.*closed/i.test(
+    errorMessage(error),
+  )
+}
+
+export function createInterruptStore(
+  prisma: PrismaClient,
+  clock: () => number = Date.now,
+): InterruptStore {
+  async function readRows(
+    where: Prisma.InterruptWhereInput,
+  ): Promise<Array<InterruptRecord>> {
+    return prisma.$transaction(async (transaction) => {
+      const rows = await transaction.interrupt.findMany({
+        where,
+        orderBy: [{ requestedAt: 'asc' }, { interruptId: 'asc' }],
+      })
+      const upgraded = await upgradeLegacyPendingRows(transaction, rows)
+      return upgraded.map(mapInterrupt)
+    })
+  }
+
+  async function reloadWinner(
+    input: CommitInterruptResolutionsInput,
+  ): Promise<InterruptCommitResult | null> {
+    return prisma.$transaction(async (transaction) => {
+      const row = await transaction.interruptBatch.findUnique({
+        where: { interruptedRunId: input.interruptedRunId },
+      })
+      if (!row) return null
+      return winnerOutcome(
+        transaction,
+        input,
+        decodeInterruptBatch(row, input.interruptedRunId),
+        clock(),
+      )
+    })
+  }
+
+  const store: InterruptStore = {
     async create(record) {
+      const generation = record.generation ?? 0
+      const binding =
+        record.binding ??
+        ({
+          kind: 'generic',
+          interruptId: record.interruptId,
+          interruptedRunId: record.runId,
+          generation,
+          responseSchemaHash: 'legacy:unknown',
+        } as const)
       await prisma.interrupt.upsert({
         where: { interruptId: record.interruptId },
         create: {
           interruptId: record.interruptId,
           runId: record.runId,
           threadId: record.threadId,
+          generation,
           status: record.status,
           requestedAt: BigInt(record.requestedAt),
-          payloadJson: JSON.stringify(record.payload),
+          payloadJson: canonicalInterruptJson(record.payload),
+          bindingJson: canonicalInterruptJson(binding),
+          schemaHash: binding.responseSchemaHash,
           responseJson:
-            record.response == null ? null : JSON.stringify(record.response),
+            record.response === undefined
+              ? null
+              : canonicalInterruptJson(record.response),
         },
         update: {},
       })
@@ -242,50 +692,274 @@ export function createInterruptStore(prisma: PrismaClient): InterruptStore {
         where: { interruptId },
         data: {
           status: 'resolved',
-          resolvedAt: BigInt(Date.now()),
-          responseJson: response == null ? null : JSON.stringify(response),
+          resolvedAt: BigInt(clock()),
+          ...(response === undefined
+            ? {}
+            : { responseJson: canonicalInterruptJson(response) }),
         },
       })
     },
     async cancel(interruptId) {
       await prisma.interrupt.updateMany({
         where: { interruptId },
-        data: { status: 'cancelled', resolvedAt: BigInt(Date.now()) },
+        data: { status: 'cancelled', resolvedAt: BigInt(clock()) },
       })
     },
     async get(interruptId) {
-      const row = await prisma.interrupt.findUnique({ where: { interruptId } })
-      return row ? mapInterrupt(row) : null
+      return prisma.$transaction(async (transaction) => {
+        const row = await transaction.interrupt.findUnique({
+          where: { interruptId },
+        })
+        if (!row) return null
+        const [upgraded] = await upgradeLegacyPendingRows(transaction, [row])
+        return upgraded ? mapInterrupt(upgraded) : null
+      })
     },
     async list(threadId) {
-      const rows = await prisma.interrupt.findMany({
-        where: { threadId },
-        orderBy: { requestedAt: 'asc' },
-      })
-      return rows.map(mapInterrupt)
+      return readRows({ threadId })
     },
     async listPending(threadId) {
-      const rows = await prisma.interrupt.findMany({
-        where: { threadId, status: 'pending' },
-        orderBy: { requestedAt: 'asc' },
-      })
-      return rows.map(mapInterrupt)
+      return readRows({ threadId, status: 'pending' })
     },
     async listByRun(runId) {
-      const rows = await prisma.interrupt.findMany({
-        where: { runId },
-        orderBy: { requestedAt: 'asc' },
-      })
-      return rows.map(mapInterrupt)
+      return readRows({ runId })
     },
     async listPendingByRun(runId) {
-      const rows = await prisma.interrupt.findMany({
-        where: { runId, status: 'pending' },
-        orderBy: { requestedAt: 'asc' },
+      return readRows({ runId, status: 'pending' })
+    },
+    async openInterruptBatch(input) {
+      const descriptors = cloneAndDeepFreezeJson(input.descriptors)
+      const bindings = cloneAndDeepFreezeJson(input.bindings)
+      const descriptorIds = descriptors.map((descriptor) => descriptor.id)
+      const bindingIds = bindings.map((binding) => binding.interruptId)
+      if (
+        descriptorIds.length === 0 ||
+        !hasExactInterruptIds(descriptorIds, bindingIds)
+      ) {
+        throw new TypeError(
+          'Interrupt descriptors and bindings must contain the same exact nonempty IDs.',
+        )
+      }
+
+      return prisma.$transaction(async (transaction) => {
+        const committed = await transaction.interruptBatch.findUnique({
+          where: { interruptedRunId: input.interruptedRunId },
+        })
+        if (committed) {
+          decodeInterruptBatch(committed, input.interruptedRunId)
+          throw new Error('Cannot reopen a committed interrupt batch.')
+        }
+
+        const existing = await loadRowsForRun(
+          transaction,
+          input.interruptedRunId,
+        )
+        if (existing.length > 0) {
+          const generation = existing[0]?.generation
+          const existingDescriptors = [...existing]
+            .sort((left, right) =>
+              left.interruptId.localeCompare(right.interruptId),
+            )
+            .map((record) => record.payload)
+          const requestedDescriptors = [...descriptors].sort((left, right) =>
+            left.id.localeCompare(right.id),
+          )
+          const existingBindings = [...existing]
+            .map((record) => record.binding)
+            .sort((left, right) =>
+              left.interruptId.localeCompare(right.interruptId),
+            )
+          const requestedBindings = bindings
+            .map((binding) => ({
+              ...binding,
+              interruptedRunId: input.interruptedRunId,
+              generation,
+            }))
+            .sort((left, right) =>
+              left.interruptId.localeCompare(right.interruptId),
+            )
+          if (
+            generation !== undefined &&
+            hasExactInterruptIds(
+              descriptorIds,
+              existing.map((record) => record.interruptId),
+            ) &&
+            canonicalInterruptJson(existingDescriptors) ===
+              canonicalInterruptJson(requestedDescriptors) &&
+            canonicalInterruptJson(existingBindings) ===
+              canonicalInterruptJson(requestedBindings) &&
+            existing.every(
+              (record) =>
+                record.status === 'pending' &&
+                record.threadId === input.threadId &&
+                record.generation === generation,
+            )
+          ) {
+            return { generation, descriptors }
+          }
+          throw new Error('An incompatible interrupt batch is already open.')
+        }
+
+        const generation = 1
+        const bindingsById = new Map(
+          bindings.map((binding) => [binding.interruptId, binding]),
+        )
+        const requestedAt = BigInt(clock())
+        for (const descriptor of descriptors) {
+          const unopened = bindingsById.get(descriptor.id)
+          if (!unopened) {
+            throw new Error(`Missing binding for interrupt: ${descriptor.id}`)
+          }
+          const binding = cloneAndDeepFreezeJson({
+            ...unopened,
+            interruptedRunId: input.interruptedRunId,
+            generation,
+          })
+          await transaction.interrupt.create({
+            data: {
+              interruptId: descriptor.id,
+              runId: input.interruptedRunId,
+              threadId: input.threadId,
+              generation,
+              status: 'pending',
+              requestedAt,
+              payloadJson: canonicalInterruptJson(descriptor),
+              bindingJson: canonicalInterruptJson(binding),
+              schemaHash: binding.responseSchemaHash,
+            },
+          })
+        }
+        return { generation, descriptors }
       })
-      return rows.map(mapInterrupt)
+    },
+    async commitInterruptResolutions(input) {
+      const candidate = canonicalizeInterruptResolutions(input.resolutions)
+      if (
+        candidate.fingerprint !== input.fingerprint ||
+        candidate.canonicalResolutions !== input.canonicalResolutions
+      ) {
+        throw new TypeError(
+          'Interrupt batch identity does not match its resolutions.',
+        )
+      }
+
+      try {
+        return await prisma.$transaction(async (transaction) => {
+          const winnerRow = await transaction.interruptBatch.findUnique({
+            where: { interruptedRunId: input.interruptedRunId },
+          })
+          if (winnerRow) {
+            return winnerOutcome(
+              transaction,
+              input,
+              decodeInterruptBatch(winnerRow, input.interruptedRunId),
+              clock(),
+            )
+          }
+
+          const rows = await loadRowsForRun(transaction, input.interruptedRunId)
+          const pending = rows.filter((row) => row.status === 'pending')
+          const resolutionIds = candidate.resolutions.map(
+            (resolution) => resolution.interruptId,
+          )
+          const now = clock()
+          if (
+            !hasExactInterruptIds(
+              input.expectedInterruptIds,
+              pending.map((record) => record.interruptId),
+            ) ||
+            !hasExactInterruptIds(input.expectedInterruptIds, resolutionIds) ||
+            pending.some((record) => record.threadId !== input.threadId) ||
+            pending.some(
+              (record) => record.generation !== input.expectedGeneration,
+            ) ||
+            pending.some(
+              (record) =>
+                record.binding.expiresAt !== undefined &&
+                Date.parse(record.binding.expiresAt) <= now,
+            )
+          ) {
+            return {
+              status: 'conflict',
+              authoritativeState: await recoveryInTransaction(
+                transaction,
+                {
+                  threadId: input.threadId,
+                  interruptedRunId: input.interruptedRunId,
+                  knownGeneration: input.expectedGeneration,
+                },
+                now,
+              ),
+            }
+          }
+
+          await transaction.interruptBatch.create({
+            data: {
+              interruptedRunId: input.interruptedRunId,
+              threadId: input.threadId,
+              generation: input.expectedGeneration,
+              expectedInterruptIdsJson: canonicalInterruptJson(
+                [...input.expectedInterruptIds].sort(),
+              ),
+              fingerprint: candidate.fingerprint,
+              canonicalResolutions: candidate.canonicalResolutions,
+              resolutionsJson: candidate.canonicalResolutions,
+              continuationRunId: input.continuationRunId,
+              committedAt: BigInt(now),
+            },
+          })
+
+          for (const resolution of candidate.resolutions) {
+            const transitioned = await transaction.interrupt.updateMany({
+              where: {
+                interruptId: resolution.interruptId,
+                runId: input.interruptedRunId,
+                threadId: input.threadId,
+                generation: input.expectedGeneration,
+                status: 'pending',
+              },
+              data: {
+                status:
+                  resolution.status === 'cancelled' ? 'cancelled' : 'resolved',
+                responseJson: canonicalInterruptJson(resolution),
+                resolvedAt: BigInt(now),
+              },
+            })
+            if (transitioned.count !== 1) {
+              throw new Error(
+                `Pending interrupt changed: ${resolution.interruptId}`,
+              )
+            }
+          }
+
+          return {
+            status: 'committed',
+            continuationRunId: input.continuationRunId,
+          }
+        })
+      } catch (error) {
+        if (!isReloadableCommitRace(error)) throw error
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            const winner = await reloadWinner(input)
+            if (winner) return winner
+          } catch (reloadError) {
+            if (!isReloadableCommitRace(reloadError)) throw reloadError
+          }
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10 * (attempt + 1))
+          })
+        }
+        throw error
+      }
+    },
+    async getInterruptRecoveryState(input) {
+      return prisma.$transaction((transaction) =>
+        recoveryInTransaction(transaction, input, clock()),
+      )
     },
   }
+  return store
 }
 
 export function createMetadataStore(prisma: PrismaClient): MetadataStore {

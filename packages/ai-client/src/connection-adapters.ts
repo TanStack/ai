@@ -5,6 +5,9 @@ import {
 } from './response-stream'
 import { parseSseDataLine } from './sse-utils'
 import type {
+  Interrupt,
+  InterruptRecoveryQuery,
+  InterruptRecoveryStateV1,
   ModelMessage,
   RunAgentResumeItem,
   RunErrorEvent,
@@ -376,6 +379,16 @@ export interface ConnectConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
+  /** Read-only replay of an existing continuation run. */
+  joinRun?: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
+  /** Explicit authoritative interrupt recovery operation. */
+  loadInterruptState?: (
+    query: InterruptRecoveryQuery,
+    abortSignal?: AbortSignal,
+  ) => Promise<InterruptRecoveryStateV1>
 }
 
 /**
@@ -408,6 +421,12 @@ export interface SubscribeConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => Promise<void>
+  /** Pumps a read-only continuation replay through subscribe(). */
+  joinRun?: (runId: string, abortSignal?: AbortSignal) => Promise<void>
+  loadInterruptState?: (
+    query: InterruptRecoveryQuery,
+    abortSignal?: AbortSignal,
+  ) => Promise<InterruptRecoveryStateV1>
 }
 
 /**
@@ -445,6 +464,14 @@ export function normalizeConnectionAdapter(
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),
+      ...(connection.joinRun !== undefined
+        ? { joinRun: connection.joinRun.bind(connection) }
+        : {}),
+      ...(connection.loadInterruptState !== undefined
+        ? {
+            loadInterruptState: connection.loadInterruptState.bind(connection),
+          }
+        : {}),
     }
   }
 
@@ -565,6 +592,23 @@ export function normalizeConnectionAdapter(
         throw err
       }
     },
+    ...(connection.joinRun !== undefined
+      ? {
+          async joinRun(runId: string, abortSignal?: AbortSignal) {
+            for await (const chunk of connection.joinRun?.(
+              runId,
+              abortSignal,
+            ) ?? []) {
+              push(chunk, runId)
+            }
+          },
+        }
+      : {}),
+    ...(connection.loadInterruptState !== undefined
+      ? {
+          loadInterruptState: connection.loadInterruptState.bind(connection),
+        }
+      : {}),
   }
 }
 
@@ -577,6 +621,195 @@ export interface FetchConnectionOptions {
   signal?: AbortSignal
   body?: Record<string, any>
   fetchClient?: typeof globalThis.fetch
+  /** Explicit authoritative interrupt recovery operation. */
+  interruptStateFetcher?: NonNullable<
+    ConnectConnectionAdapter['loadInterruptState']
+  >
+  /** Explicit read-only loader for a committed continuation run. */
+  continuationLoader?: NonNullable<ConnectConnectionAdapter['joinRun']>
+}
+
+export type InterruptStateFetcher = NonNullable<
+  ConnectConnectionAdapter['loadInterruptState']
+>
+
+export type InterruptContinuationLoader = NonNullable<
+  ConnectConnectionAdapter['joinRun']
+>
+
+export interface InterruptFetchOptions {
+  headers?: Record<string, string> | Headers
+  credentials?: RequestCredentials
+  signal?: AbortSignal
+  fetchClient?: typeof globalThis.fetch
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isInterruptDescriptor(value: unknown): value is Interrupt {
+  if (!isUnknownRecord(value)) return false
+  if (typeof value.id !== 'string' || typeof value.reason !== 'string') {
+    return false
+  }
+  if (value.message !== undefined && typeof value.message !== 'string') {
+    return false
+  }
+  if (value.toolCallId !== undefined && typeof value.toolCallId !== 'string') {
+    return false
+  }
+  if (
+    value.responseSchema !== undefined &&
+    !isUnknownRecord(value.responseSchema)
+  ) {
+    return false
+  }
+  if (value.expiresAt !== undefined && typeof value.expiresAt !== 'string') {
+    return false
+  }
+  return value.metadata === undefined || isUnknownRecord(value.metadata)
+}
+
+function isResumeEntry(value: unknown): value is RunAgentResumeItem {
+  return (
+    isUnknownRecord(value) &&
+    typeof value.interruptId === 'string' &&
+    (value.status === 'resolved' || value.status === 'cancelled')
+  )
+}
+
+function isInterruptRecoveryStateName(
+  value: unknown,
+): value is InterruptRecoveryStateV1['state'] {
+  return (
+    typeof value === 'string' &&
+    ['pending', 'committed', 'expired', 'missing', 'legacy-committed'].includes(
+      value,
+    )
+  )
+}
+
+/** @internal Runtime boundary parser shared by persistence and fetch recovery. */
+export function parseInterruptRecoveryState(
+  value: unknown,
+): InterruptRecoveryStateV1 {
+  if (
+    !isUnknownRecord(value) ||
+    value.schemaVersion !== 1 ||
+    !isInterruptRecoveryStateName(value.state) ||
+    typeof value.threadId !== 'string' ||
+    value.threadId.length === 0 ||
+    typeof value.interruptedRunId !== 'string' ||
+    value.interruptedRunId.length === 0 ||
+    typeof value.generation !== 'number' ||
+    !Number.isSafeInteger(value.generation) ||
+    value.generation < 0 ||
+    !Array.isArray(value.pendingInterrupts) ||
+    !value.pendingInterrupts.every(isInterruptDescriptor)
+  ) {
+    throw new TypeError('Invalid interrupt recovery response.')
+  }
+  let committed: InterruptRecoveryStateV1['committed']
+  if (value.committed !== undefined) {
+    if (
+      !isUnknownRecord(value.committed) ||
+      typeof value.committed.fingerprint !== 'string' ||
+      typeof value.committed.committedAt !== 'string' ||
+      (value.committed.continuationRunId !== undefined &&
+        typeof value.committed.continuationRunId !== 'string') ||
+      (value.committed.resolutions !== undefined &&
+        (!Array.isArray(value.committed.resolutions) ||
+          !value.committed.resolutions.every(isResumeEntry)))
+    ) {
+      throw new TypeError('Invalid interrupt recovery response.')
+    }
+    committed = {
+      fingerprint: value.committed.fingerprint,
+      committedAt: value.committed.committedAt,
+      ...(value.committed.continuationRunId === undefined
+        ? {}
+        : { continuationRunId: value.committed.continuationRunId }),
+      ...(value.committed.resolutions === undefined
+        ? {}
+        : { resolutions: value.committed.resolutions }),
+    }
+  }
+  return {
+    schemaVersion: 1,
+    state: value.state,
+    threadId: value.threadId,
+    interruptedRunId: value.interruptedRunId,
+    generation: value.generation,
+    pendingInterrupts: value.pendingInterrupts,
+    ...(typeof value.submissionId === 'string'
+      ? { submissionId: value.submissionId }
+      : {}),
+    ...(typeof value.continuationRunId === 'string'
+      ? { continuationRunId: value.continuationRunId }
+      : {}),
+    ...(committed === undefined ? {} : { committed }),
+  }
+}
+
+/** Create an authoritative interrupt-state fetcher for an explicit endpoint. */
+export function createInterruptStateFetcher(
+  url: string | (() => string),
+  options: InterruptFetchOptions = {},
+): InterruptStateFetcher {
+  return async (query, abortSignal) => {
+    const resolvedUrl = typeof url === 'function' ? url() : url
+    const requestUrl = withSearchParams(resolvedUrl, {
+      threadId: query.threadId,
+      interruptedRunId: query.interruptedRunId,
+      knownGeneration: String(query.knownGeneration),
+    })
+    const response = await (options.fetchClient ?? fetch)(requestUrl, {
+      method: 'POST',
+      headers: mergeHeaders(options.headers),
+      credentials: options.credentials ?? 'same-origin',
+      ...((abortSignal ?? options.signal) === undefined
+        ? {}
+        : { signal: abortSignal ?? options.signal }),
+    })
+    if (!response.ok) {
+      throw new Error(
+        `Interrupt recovery request failed with status ${response.status}.`,
+      )
+    }
+    const state = parseInterruptRecoveryState(await response.json())
+    if (
+      state.threadId !== query.threadId ||
+      state.interruptedRunId !== query.interruptedRunId
+    ) {
+      throw new TypeError('Invalid interrupt recovery response correlation.')
+    }
+    return state
+  }
+}
+
+/** Create a read-only continuation loader for an explicit endpoint. */
+export function createInterruptContinuationLoader(
+  url: string | (() => string),
+  options: InterruptFetchOptions = {},
+): InterruptContinuationLoader {
+  return async function* (runId, abortSignal) {
+    const resolvedUrl = typeof url === 'function' ? url() : url
+    const requestUrl = withSearchParams(resolvedUrl, {
+      offset: '-1',
+      runId,
+    })
+    yield* resumableServerSentEvents(
+      options.fetchClient ?? fetch,
+      requestUrl,
+      {
+        method: 'GET',
+        headers: mergeHeaders(options.headers),
+        credentials: options.credentials ?? 'same-origin',
+      },
+      abortSignal ?? options.signal,
+    )
+  }
 }
 
 /**
@@ -726,6 +959,14 @@ export function fetchServerSentEvents(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
+      if (resolvedOptions.continuationLoader !== undefined) {
+        yield* resolvedOptions.continuationLoader(
+          runId,
+          abortSignal ?? resolvedOptions.signal,
+        )
+        return
+      }
+
       const joinUrl = withSearchParams(resolvedUrl, {
         offset: '-1',
         runId,
@@ -746,6 +987,19 @@ export function fetchServerSentEvents(
           credentials: resolvedOptions.credentials || 'same-origin',
         },
         signal,
+      )
+    },
+    async loadInterruptState(query, abortSignal) {
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+      if (resolvedOptions.interruptStateFetcher === undefined) {
+        throw new Error(
+          'Interrupt recovery requires an explicit interruptStateFetcher.',
+        )
+      }
+      return resolvedOptions.interruptStateFetcher(
+        query,
+        abortSignal ?? resolvedOptions.signal,
       )
     },
   }
@@ -1197,6 +1451,9 @@ export function fetcherToConnectionAdapter(
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
+          ...(runContext.parentRunId !== undefined && {
+            parentRunId: runContext.parentRunId,
+          }),
           ...(runContext.resume !== undefined && { resume: runContext.resume }),
         },
         { signal: abortSignal },

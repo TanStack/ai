@@ -4,6 +4,11 @@ import {
   createReplayStream,
 } from '../src/activities/chat/stream/processor'
 import { chat } from '../src/activities/chat/index'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import {
+  InterruptPersistenceCapability,
+  provideInterruptPersistence,
+} from '../src/interrupts'
 import { EventType } from '../src/types'
 import {
   createMockAdapter,
@@ -23,10 +28,38 @@ import type {
   UIMessage,
 } from '../src/types'
 import type { Message as AGUIMessage } from '@ag-ui/core'
+import type { InterruptPersistenceGateway } from '../src/interrupts'
 
 // ============================================================================
 // Helpers
 // ============================================================================
+
+const testInterruptGateway: InterruptPersistenceGateway = {
+  openInterruptBatch: async (input) => ({
+    generation: 1,
+    descriptors: input.descriptors,
+  }),
+  commitInterruptResolutions: async (input) => ({
+    status: 'committed',
+    continuationRunId: input.continuationRunId,
+  }),
+  getInterruptRecoveryState: async (input) => ({
+    schemaVersion: 1,
+    state: 'missing',
+    threadId: input.threadId,
+    interruptedRunId: input.interruptedRunId,
+    generation: input.knownGeneration,
+    pendingInterrupts: [],
+  }),
+}
+
+const testInterruptPersistence = defineChatMiddleware({
+  name: 'test-interrupt-persistence',
+  provides: [InterruptPersistenceCapability],
+  setup(ctx) {
+    provideInterruptPersistence(ctx, testInterruptGateway)
+  },
+})
 
 /** Create a typed StreamChunk by event type. Narrows the return to the
  *  matching variant via `Extract`. */
@@ -1209,7 +1242,7 @@ describe('StreamProcessor', () => {
           interrupts: [
             {
               id: 'approval-1',
-              reason: 'approval_required',
+              reason: 'tool_call',
               toolCallId: 'tc-1',
               metadata: {
                 kind: 'approval',
@@ -1252,7 +1285,7 @@ describe('StreamProcessor', () => {
           interrupts: [
             {
               id: 'client_tool_tc-1',
-              reason: 'client_tool_input',
+              reason: 'tanstack:client_tool_execution',
               toolCallId: 'tc-1',
               metadata: {
                 kind: 'client_tool',
@@ -1302,6 +1335,7 @@ describe('StreamProcessor', () => {
           serverTool('searchTools', () => ({ results: ['a', 'b'] })),
           clientTool('showNotification'),
         ],
+        middleware: [testInterruptPersistence],
       })
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
@@ -1314,7 +1348,7 @@ describe('StreamProcessor', () => {
         toolName: 'showNotification',
         input: { message: 'done' },
       })
-      expect(order).toEqual(['tool-call', 'stream-end'])
+      expect(order).toEqual(['tool-call'])
     })
 
     it('addToolApprovalResponse should approve a tool call', () => {

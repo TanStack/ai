@@ -17,6 +17,15 @@ const persistence = prismaPersistence(prisma)
 expectTypeOf(persistence.stores.messages).toEqualTypeOf<MessageStore>()
 expectTypeOf(persistence.stores.runs).toEqualTypeOf<RunStore>()
 expectTypeOf(persistence.stores.interrupts).toEqualTypeOf<InterruptStore>()
+expectTypeOf(persistence.stores.interrupts.openInterruptBatch).toEqualTypeOf<
+  InterruptStore['openInterruptBatch']
+>()
+expectTypeOf(
+  persistence.stores.interrupts.commitInterruptResolutions,
+).toEqualTypeOf<InterruptStore['commitInterruptResolutions']>()
+expectTypeOf(
+  persistence.stores.interrupts.getInterruptRecoveryState,
+).toEqualTypeOf<InterruptStore['getInterruptRecoveryState']>()
 expectTypeOf(persistence.stores.metadata).toEqualTypeOf<MetadataStore>()
 expectTypeOf(persistence.stores.artifacts).toEqualTypeOf<ArtifactStore>()
 expectTypeOf(persistence.stores.blobs).toEqualTypeOf<BlobStore>()

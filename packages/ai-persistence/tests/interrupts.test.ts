@@ -1,610 +1,639 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
+import {
+  EventType,
+  canonicalInterruptJson,
+  digestInterruptJson,
+  chat,
+  hashSchemaInput,
+  normalizeApprovalSchema,
+  toolDefinition,
+} from '@tanstack/ai'
+import {
+  createInterruptRecoveryHandler,
+  getInterruptRecoveryState,
+} from '../src'
 import { memoryPersistence } from '../src/memory'
-import { withChatPersistence } from '../src/middleware'
+import {
+  validateInterruptResumeBatch,
+  withChatPersistence,
+} from '../src/middleware'
+import type {
+  AnyTextAdapter,
+  InterruptBinding,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
+import type { InterruptRecord } from '../src'
+
+const bindingMetadataKey = 'tanstack:interruptBinding'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
   const calls: Array<unknown> = []
-  let i = 0
-  const adapter = {
+  let index = 0
+  const adapter: AnyTextAdapter = {
     kind: 'text',
     name: 'mock',
     model: 'test-model',
-    '~types': {},
-    chatStream: (opts: unknown) => {
-      calls.push(opts)
-      const chunks = iterations[i] ?? []
-      i++
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {
+        text: undefined,
+        image: undefined,
+        audio: undefined,
+        video: undefined,
+        document: undefined,
+      },
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    chatStream: (options) => {
+      calls.push(options)
+      const chunks = iterations[index] ?? []
+      index++
       return (async function* () {
-        for (const c of chunks) yield c
+        for (const chunk of chunks) yield chunk
       })()
     },
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-  } as unknown as AnyTextAdapter
+  }
   return { adapter, calls }
 }
 
 async function collect(stream: AsyncIterable<StreamChunk>) {
-  const out: Array<StreamChunk> = []
-  for await (const c of stream) out.push(c)
-  return out
+  const chunks: Array<StreamChunk> = []
+  for await (const chunk of stream) chunks.push(chunk)
+  return chunks
 }
 
-const interruptFinished = (): StreamChunk => ({
-  type: EventType.RUN_FINISHED,
-  runId: 'r1',
-  threadId: 't1',
-  finishReason: 'tool_calls',
-  timestamp: 1,
-  outcome: {
-    type: 'interrupt',
-    interrupts: [
-      {
-        id: 'interrupt-1',
-        reason: 'tool_call',
-        message: 'Approve the tool call?',
-        toolCallId: 'tool-call-1',
-      },
-    ],
-  },
-})
+const responseSchema = {
+  type: 'object',
+  properties: { value: { type: 'number' } },
+  required: ['value'],
+  additionalProperties: false,
+}
 
-const runStarted = (): StreamChunk => ({
-  type: EventType.RUN_STARTED,
-  runId: 'r1',
-  threadId: 't1',
-  timestamp: 1,
-})
+function responseSchemaHash(): string {
+  return digestInterruptJson(canonicalInterruptJson(responseSchema))
+}
 
-const toolStart = (): StreamChunk => ({
-  type: EventType.TOOL_CALL_START,
-  toolCallId: 'tool-call-1',
-  toolCallName: 'clientSearch',
-  toolName: 'clientSearch',
-  timestamp: 1,
-})
-
-const toolArgs = (): StreamChunk => ({
-  type: EventType.TOOL_CALL_ARGS,
-  toolCallId: 'tool-call-1',
-  delta: '{"query":"test"}',
-  timestamp: 1,
-})
-
-const text = (delta: string): StreamChunk => ({
-  type: EventType.TEXT_MESSAGE_CONTENT,
-  messageId: 'm1',
-  delta,
-  timestamp: 1,
-})
-
-const runFinished = (runId = 'r1'): StreamChunk => ({
-  type: EventType.RUN_FINISHED,
-  runId,
-  threadId: 't1',
-  finishReason: 'stop',
-  timestamp: 1,
-})
-
-const clientTool = (name: string): Tool => ({
-  name,
-  description: `${name} client tool`,
-})
-
-const approvalClientTool = (name: string): Tool => ({
-  ...clientTool(name),
-  needsApproval: true,
-})
-
-describe('interrupt persistence', () => {
-  it('persists RUN_FINISHED interrupt outcomes as pending interrupt records', async () => {
-    const persistence = memoryPersistence()
-    const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])
-
-    const chunks = await collect(
-      chat({
-        adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const pending = await persistence.stores.interrupts!.listPending('t1')
-    expect(pending).toHaveLength(1)
-    expect(pending[0]?.interruptId).toBe('interrupt-1')
-    expect((await persistence.stores.runs!.get('r1'))?.status).toBe(
-      'interrupted',
-    )
-    // Persistence is state-only: it never stamps delivery cursors on the stream.
-    expect(chunks.every((chunk) => !('cursor' in chunk))).toBe(true)
-  })
-
-  it('saves thread messages when a messages-enabled run pauses on an interrupt', async () => {
-    const persistence = memoryPersistence()
-    const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])
-
-    await collect(
-      chat({
-        adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
-    ])
-  })
-
-  it('does not persist duplicate records before terminal interrupt outcome', async () => {
-    const persistence = memoryPersistence()
-    const create = vi.spyOn(persistence.stores.interrupts!, 'create')
-    const { adapter } = mockAdapter([
-      [
-        runStarted(),
-        toolStart(),
-        toolArgs(),
+function interruptFinished(options?: {
+  includeBinding?: boolean
+}): StreamChunk {
+  return {
+    type: EventType.RUN_FINISHED,
+    runId: 'interrupted-run',
+    threadId: 'thread-1',
+    finishReason: 'tool_calls',
+    timestamp: 1,
+    outcome: {
+      type: 'interrupt',
+      interrupts: [
         {
-          type: EventType.RUN_FINISHED,
-          runId: 'r1',
-          threadId: 't1',
-          finishReason: 'tool_calls',
-          timestamp: 1,
+          id: 'interrupt-1',
+          reason: 'generic',
+          responseSchema,
+          ...(options?.includeBinding === false
+            ? {}
+            : {
+                metadata: {
+                  [bindingMetadataKey]: {
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    responseSchemaHash: responseSchemaHash(),
+                  },
+                },
+              }),
         },
       ],
+    },
+  }
+}
+
+function successfulRun(runId: string): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId,
+      threadId: 'thread-1',
+      timestamp: 1,
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId: 'thread-1',
+      finishReason: 'stop',
+      timestamp: 2,
+    },
+  ]
+}
+
+function pendingRecord(input: {
+  interruptId: string
+  binding: InterruptBinding
+  payload?: unknown
+}): InterruptRecord {
+  return {
+    interruptId: input.interruptId,
+    runId: 'interrupted-run',
+    threadId: 'thread-1',
+    generation: 1,
+    status: 'pending',
+    requestedAt: 1,
+    payload:
+      input.payload ??
+      ({
+        id: input.interruptId,
+        reason: 'generic',
+        responseSchema,
+      } satisfies Record<string, unknown>),
+    binding: input.binding,
+  }
+}
+
+describe('authoritative interrupt persistence', () => {
+  it('opens one atomic batch before exposing an interrupt terminal', async () => {
+    const persistence = memoryPersistence()
+    const open = vi.spyOn(persistence.stores.interrupts!, 'openInterruptBatch')
+    const legacyCreate = vi.spyOn(persistence.stores.interrupts!, 'create')
+    const { adapter } = mockAdapter([
+      [interruptFinished({ includeBinding: true })],
     ])
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'pause' }],
+        runId: 'interrupted-run',
+        threadId: 'thread-1',
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(open).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      descriptors: expect.arrayContaining([
+        expect.objectContaining({ id: 'interrupt-1' }),
+      ]),
+      bindings: [
+        {
+          kind: 'generic',
+          interruptId: 'interrupt-1',
+          responseSchemaHash: responseSchemaHash(),
+        },
+      ],
+    })
+    expect(legacyCreate).not.toHaveBeenCalled()
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: { type: 'interrupt' },
+    })
+  })
+
+  it('reports a terminal with no reserved server binding before visibility', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [interruptFinished({ includeBinding: false })],
+    ])
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'pause' }],
+        runId: 'interrupted-run',
+        threadId: 'thread-1',
+        middleware: [withChatPersistence(persistence)],
+        stream: true,
+      }),
+    )
+
+    expect(chunks).toEqual([
+      expect.objectContaining({
+        type: EventType.RUN_ERROR,
+        'tanstack:interruptErrors': expect.arrayContaining([
+          expect.objectContaining({
+            scope: 'item',
+            interruptId: 'interrupt-1',
+            code: 'invalid-response-schema',
+          }),
+        ]),
+      }),
+    ])
+    expect(
+      await persistence.stores.interrupts!.listPendingByRun('interrupted-run'),
+    ).toEqual([])
+  })
+
+  it('reports duplicate, extra, missing, expiry, and payload failures together', async () => {
+    const expiredBinding: InterruptBinding = {
+      kind: 'generic',
+      interruptId: 'interrupt-a',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      responseSchemaHash: responseSchemaHash(),
+      expiresAt: '2026-07-13T10:00:00.000Z',
+    }
+    const missingBinding: InterruptBinding = {
+      kind: 'generic',
+      interruptId: 'interrupt-b',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      responseSchemaHash: responseSchemaHash(),
+    }
+
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      pending: [
+        pendingRecord({ interruptId: 'interrupt-a', binding: expiredBinding }),
+        pendingRecord({ interruptId: 'interrupt-b', binding: missingBinding }),
+      ],
+      resume: [
+        {
+          interruptId: 'interrupt-a',
+          status: 'resolved',
+          payload: { value: 'not-a-number' },
+        },
+        { interruptId: 'interrupt-a', status: 'cancelled', payload: true },
+        { interruptId: 'interrupt-extra', status: 'resolved' },
+      ],
+      tools: [],
+      now: Date.parse('2026-07-13T10:00:00.001Z'),
+    })
+
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-a',
+          code: 'conflict',
+        }),
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-a',
+          code: 'expired',
+        }),
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-a',
+          code: 'invalid-payload',
+        }),
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-b',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-extra',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
+    )
+  })
+
+  it('rejects cancelled tool interrupts after removal or schema drift', async () => {
+    const original = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      inputSchema: {
+        type: 'object',
+        properties: { cents: { type: 'number' } },
+        required: ['cents'],
+        additionalProperties: false,
+      },
+    })
+    const drifted = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      inputSchema: {
+        type: 'object',
+        properties: { amount: { type: 'number' } },
+        required: ['amount'],
+        additionalProperties: false,
+      },
+    })
+    const approval = normalizeApprovalSchema(
+      original.approvalSchema,
+      original.inputSchema,
+    )
+    const toolBinding = (
+      interruptId: string,
+      toolName: string,
+    ): InterruptBinding => ({
+      kind: 'tool-approval',
+      interruptId,
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      toolName,
+      toolCallId: `call-${interruptId}`,
+      originalArgs: { cents: 1 },
+      inputSchemaHash: hashSchemaInput(original.inputSchema),
+      approvalSchemaHash: approval.approvalSchemaHash,
+      responseSchemaHash: approval.responseSchemaHash,
+    })
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      pending: [
+        pendingRecord({
+          interruptId: 'removed',
+          binding: toolBinding('removed', 'removed-tool'),
+          payload: {
+            id: 'removed',
+            reason: 'tool_call',
+            responseSchema: approval.responseSchema,
+          },
+        }),
+        pendingRecord({
+          interruptId: 'drifted',
+          binding: toolBinding('drifted', 'transfer'),
+          payload: {
+            id: 'drifted',
+            reason: 'tool_call',
+            responseSchema: approval.responseSchema,
+          },
+        }),
+      ],
+      resume: [
+        { interruptId: 'removed', status: 'cancelled' },
+        { interruptId: 'drifted', status: 'cancelled' },
+      ],
+      tools: [drifted],
+    })
+
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ interruptId: 'removed', code: 'stale' }),
+        expect.objectContaining({ interruptId: 'drifted', code: 'stale' }),
+      ]),
+    )
+    expect(result.resolutions).toBeUndefined()
+  })
+
+  it('awaits async Standard Schema approval validation', async () => {
+    const asyncPayloadSchema = {
+      '~standard': {
+        version: 1,
+        vendor: 'interrupt-test',
+        validate: async (value: unknown) => {
+          await Promise.resolve()
+          if (
+            value !== null &&
+            typeof value === 'object' &&
+            'note' in value &&
+            typeof value.note === 'string'
+          ) {
+            return { value: { note: value.note } }
+          }
+          return {
+            issues: [{ message: 'Expected a note.', path: ['note'] }],
+          }
+        },
+      },
+    } satisfies SchemaInput
+    const tool = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      approvalSchema: { approve: asyncPayloadSchema },
+    })
+    const approval = normalizeApprovalSchema(
+      tool.approvalSchema,
+      tool.inputSchema,
+    )
+    const binding: InterruptBinding = {
+      kind: 'tool-approval',
+      interruptId: 'approval',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      toolName: tool.name,
+      toolCallId: 'call-approval',
+      originalArgs: {},
+      inputSchemaHash: hashSchemaInput(tool.inputSchema),
+      approvalSchemaHash: approval.approvalSchemaHash,
+      responseSchemaHash: approval.responseSchemaHash,
+    }
+
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      generation: 1,
+      pending: [
+        pendingRecord({
+          interruptId: 'approval',
+          binding,
+          payload: {
+            id: 'approval',
+            reason: 'tool_call',
+            responseSchema: approval.responseSchema,
+          },
+        }),
+      ],
+      resume: [
+        {
+          interruptId: 'approval',
+          status: 'resolved',
+          payload: { approved: true, payload: {} },
+        },
+      ],
+      tools: [tool],
+    })
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        scope: 'item',
+        interruptId: 'approval',
+        code: 'invalid-payload',
+        path: ['note'],
+      }),
+      expect.objectContaining({
+        scope: 'batch',
+        code: 'item-validation-failed',
+      }),
+    ])
+  })
+
+  it('commits one CAS batch with parent and continuation run correlation', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.openInterruptBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      descriptors: [{ id: 'interrupt-1', reason: 'generic', responseSchema }],
+      bindings: [
+        {
+          kind: 'generic',
+          interruptId: 'interrupt-1',
+          responseSchemaHash: responseSchemaHash(),
+        },
+      ],
+    })
+    const commit = vi.spyOn(
+      persistence.stores.interrupts!,
+      'commitInterruptResolutions',
+    )
+    const { adapter } = mockAdapter([successfulRun('continuation-run')])
 
     await collect(
       chat({
         adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        tools: [approvalClientTool('clientSearch')],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(create).toHaveBeenCalledTimes(1)
-    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
-      1,
-    )
-  })
-
-  it('blocks normal new input while a thread has pending interrupts', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'interrupt-1',
-      runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
-      payload: {},
-    })
-    const { adapter } = mockAdapter([[interruptFinished()]])
-
-    await expect(
-      collect(
-        chat({
-          adapter,
-          messages: [{ role: 'user', content: 'new input' }],
-          runId: 'r2',
-          threadId: 't1',
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow(/pending interrupt/i)
-
-    expect(await persistence.stores.runs!.get('r2')).toBeNull()
-  })
-
-  it('treats resume entries as interrupt continuation on the same run', async () => {
-    const persistence = memoryPersistence()
-    const first = mockAdapter([[runStarted(), interruptFinished()]])
-    await collect(
-      chat({
-        adapter: first.adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
-      1,
-    )
-
-    const continuation = mockAdapter([
-      [runStarted(), text('continued'), runFinished('r1')],
-    ])
-    const chunks = await collect(
-      chat({
-        adapter: continuation.adapter,
         messages: [],
-        runId: 'r1',
-        threadId: 't1',
+        runId: 'continuation-run',
+        parentRunId: 'interrupted-run',
+        threadId: 'thread-1',
         resume: [
           {
             interruptId: 'interrupt-1',
             status: 'resolved',
-            payload: { approved: true },
+            payload: { value: 42 },
           },
         ],
         middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
-    expect(continuation.calls).toHaveLength(1)
-    expect(chunks).toContainEqual(
-      expect.objectContaining({ delta: 'continued' }),
-    )
-    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
-    expect(
-      (await persistence.stores.interrupts!.get('interrupt-1'))?.status,
-    ).toBe('resolved')
-  })
-
-  it('applies persisted approval and client-tool resume decisions with empty client messages', async () => {
-    const persistence = memoryPersistence()
-    const toolCallChunks = () => [
-      runStarted(),
-      toolStart(),
-      toolArgs(),
-      {
-        type: EventType.RUN_FINISHED,
-        runId: 'r1',
-        threadId: 't1',
-        finishReason: 'tool_calls',
-        timestamp: 1,
-      } as StreamChunk,
-    ]
-    const first = mockAdapter([toolCallChunks()])
-    await collect(
-      chat({
-        adapter: first.adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        tools: [approvalClientTool('clientSearch')],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const approvalInterrupt = await persistence.stores.interrupts!.get(
-      'approval_tool-call-1',
-    )
-    expect(approvalInterrupt?.status).toBe('pending')
-
-    const afterApproval = mockAdapter([toolCallChunks()])
-    const approvalChunks = await collect(
-      chat({
-        adapter: afterApproval.adapter,
-        messages: [],
-        tools: [approvalClientTool('clientSearch')],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'approval_tool-call-1',
-            status: 'resolved',
-            payload: { approved: true },
-          },
-        ],
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(afterApproval.calls).toHaveLength(1)
-    expect(
-      (
-        afterApproval.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
-      ).approvals?.get('approval_tool-call-1'),
-    ).toBe(true)
-    expect(
-      approvalChunks.find(
-        (chunk) =>
-          chunk.type === EventType.RUN_FINISHED &&
-          chunk.outcome?.type === 'interrupt',
-      ),
-    ).toMatchObject({
-      outcome: {
-        interrupts: [
-          {
-            id: 'client_tool_tool-call-1',
-            reason: 'client_tool_input',
-            toolCallId: 'tool-call-1',
-          },
-        ],
-      },
-    })
-    expect(
-      (await persistence.stores.interrupts!.get('approval_tool-call-1'))
-        ?.status,
-    ).toBe('resolved')
-    expect(
-      (await persistence.stores.interrupts!.get('client_tool_tool-call-1'))
-        ?.status,
-    ).toBe('pending')
-
-    const afterClientTool = mockAdapter([
-      toolCallChunks(),
-      [runStarted(), text('done'), runFinished('r1')],
-    ])
-    const finalChunks = await collect(
-      chat({
-        adapter: afterClientTool.adapter,
-        messages: [],
-        tools: [clientTool('clientSearch')],
-        runId: 'r1',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'client_tool_tool-call-1',
-            status: 'resolved',
-            payload: { answer: 42 },
-          },
-        ],
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(afterClientTool.calls).toHaveLength(2)
-    expect(finalChunks).toContainEqual(
+    expect(commit).toHaveBeenCalledTimes(1)
+    expect(commit).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: EventType.TOOL_CALL_RESULT,
-        toolCallId: 'tool-call-1',
-        content: JSON.stringify({ answer: 42 }),
+        threadId: 'thread-1',
+        interruptedRunId: 'interrupted-run',
+        continuationRunId: 'continuation-run',
+        expectedGeneration: 1,
+        expectedInterruptIds: ['interrupt-1'],
       }),
     )
-    expect(finalChunks).toContainEqual(
-      expect.objectContaining({ delta: 'done' }),
-    )
-    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
   })
+})
 
-  it('rejects invalid resume entries against pending interrupts', async () => {
+describe('interrupt recovery', () => {
+  it('requires authorization and can redact committed resolutions', async () => {
     const persistence = memoryPersistence()
-    const first = mockAdapter([[runStarted(), interruptFinished()]])
-    await collect(
-      chat({
-        adapter: first.adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    const continuation = mockAdapter([[text('SHOULD NOT RUN')]])
-    await expect(
-      collect(
-        chat({
-          adapter: continuation.adapter,
-          messages: [],
-          runId: 'r1',
-          threadId: 't1',
-          resume: [],
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow(/pending interrupts.*resume is required/i)
-
-    await expect(
-      collect(
-        chat({
-          adapter: continuation.adapter,
-          messages: [],
-          runId: 'r1',
-          threadId: 't1',
-          resume: [{ interruptId: 'stale-interrupt', status: 'resolved' }],
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow(/missing resume entry.*interrupt-1/i)
-
-    expect(continuation.calls).toHaveLength(0)
-    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
-      1,
-    )
-  })
-
-  it('rejects stale resume entries when a thread has no pending interrupts', async () => {
-    const persistence = memoryPersistence()
-    const first = mockAdapter([[runStarted(), text('done'), runFinished()]])
-    await collect(
-      chat({
-        adapter: first.adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
-
-    const continuation = mockAdapter([[text('SHOULD NOT RUN')]])
-    await expect(
-      collect(
-        chat({
-          adapter: continuation.adapter,
-          messages: [],
-          runId: 'r1',
-          threadId: 't1',
-          resume: [{ interruptId: 'stale-interrupt', status: 'resolved' }],
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
-      ),
-    ).rejects.toThrow(/non-pending interrupt stale-interrupt/i)
-
-    expect(continuation.calls).toHaveLength(0)
-  })
-
-  it('accepts resume only when every pending interrupt has a valid matching entry', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
+    await persistence.stores.interrupts!.openInterruptBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      descriptors: [{ id: 'interrupt-1', reason: 'generic', responseSchema }],
+      bindings: [
+        {
+          kind: 'generic',
+          interruptId: 'interrupt-1',
+          responseSchemaHash: responseSchemaHash(),
+        },
+      ],
+    })
+    const resolution = {
       interruptId: 'interrupt-1',
-      runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
-      payload: {},
+      status: 'resolved' as const,
+      payload: { value: 42 },
+    }
+    const canonical = canonicalInterruptJson([resolution])
+    await persistence.stores.interrupts!.commitInterruptResolutions({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      continuationRunId: 'continuation-run',
+      expectedGeneration: 1,
+      expectedInterruptIds: ['interrupt-1'],
+      resolutions: [resolution],
+      canonicalResolutions: canonical,
+      fingerprint: digestInterruptJson(canonical),
     })
-    const bad = mockAdapter([[runStarted(), interruptFinished()]])
 
-    await expect(
-      collect(
-        chat({
-          adapter: bad.adapter,
-          messages: [{ role: 'user', content: 'new input' }],
-          runId: 'r2',
-          threadId: 't1',
-          resume: [{ interruptId: 'different', status: 'resolved' }],
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
+    const redacted = await getInterruptRecoveryState(
+      persistence.stores.interrupts!,
+      {
+        threadId: 'thread-1',
+        interruptedRunId: 'interrupted-run',
+        knownGeneration: 1,
+      },
+    )
+    expect(redacted.committed).not.toHaveProperty('resolutions')
+
+    const handler = createInterruptRecoveryHandler({
+      gateway: persistence.stores.interrupts!,
+      authorize: async (_request, _input) => ({
+        authorized: true,
+        includeResolutions: false,
+      }),
+    })
+    const response = await handler(
+      new Request(
+        'https://example.test/recovery?threadId=thread-1&interruptedRunId=interrupted-run&knownGeneration=1',
       ),
-    ).rejects.toThrow(/missing resume entry.*interrupt-1/i)
-
-    const good = mockAdapter([
-      [runStarted(), { ...interruptFinished(), runId: 'r2' }],
-    ])
-    await collect(
-      chat({
-        adapter: good.adapter,
-        messages: [{ role: 'user', content: 'new input' }],
-        runId: 'r2',
-        threadId: 't1',
-        resume: [{ interruptId: 'interrupt-1', status: 'resolved' }],
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
     )
-
-    expect(good.calls).toHaveLength(1)
+    expect(response.status).toBe(200)
+    expect(handler).toBeTypeOf('function')
+    expect(await response.json()).toMatchObject({
+      state: 'committed',
+      committed: { continuationRunId: 'continuation-run' },
+    })
   })
 
-  it('rejects extra stale resume entries when pending interrupts are satisfied', async () => {
+  it('validates the recovery query before resource authorization', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'interrupt-1',
-      runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
-      payload: {},
+    const authorize = vi.fn(() => ({
+      authorized: true,
+      includeResolutions: false,
+    }))
+    const handler = createInterruptRecoveryHandler({
+      gateway: persistence.stores.interrupts!,
+      authorize,
     })
-    const run = mockAdapter([[text('SHOULD NOT RUN')]])
+    const request = new Request(
+      'https://example.test/recovery?threadId=thread-1&knownGeneration=1',
+    )
 
-    await expect(
-      collect(
-        chat({
-          adapter: run.adapter,
-          messages: [{ role: 'user', content: 'new input' }],
-          runId: 'r2',
-          threadId: 't1',
-          resume: [
-            { interruptId: 'interrupt-1', status: 'resolved' },
-            { interruptId: 'stale-interrupt', status: 'resolved' },
-          ],
-          middleware: [withChatPersistence(persistence)],
-        }) as AsyncIterable<StreamChunk>,
+    const response = await handler(request)
+
+    expect(response.status).toBe(400)
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('passes the validated resource identity to authorization', async () => {
+    const persistence = memoryPersistence()
+    const authorize = vi.fn(() => ({ authorized: false }) as const)
+    const handler = createInterruptRecoveryHandler({
+      gateway: persistence.stores.interrupts!,
+      authorize,
+    })
+    const request = new Request(
+      'https://example.test/recovery?threadId=thread-1&interruptedRunId=interrupted-run&knownGeneration=2',
+    )
+
+    await handler(request)
+
+    expect(authorize).toHaveBeenCalledWith(request, {
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      knownGeneration: 2,
+    })
+  })
+
+  it('does not query recovery state when authorization is denied', async () => {
+    const persistence = memoryPersistence()
+    const recovery = vi.spyOn(
+      persistence.stores.interrupts!,
+      'getInterruptRecoveryState',
+    )
+    const handler = createInterruptRecoveryHandler({
+      gateway: persistence.stores.interrupts!,
+      authorize: () => ({ authorized: false }),
+    })
+    const response = await handler(
+      new Request(
+        'https://example.test/recovery?threadId=thread-1&interruptedRunId=interrupted-run&knownGeneration=1',
       ),
-    ).rejects.toThrow(/non-pending interrupt stale-interrupt/i)
-
-    expect(run.calls).toHaveLength(0)
-    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
-      1,
     )
-  })
-
-  it('applies valid resume entries and allows later normal input', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.interrupts!.create({
-      interruptId: 'resolve-me',
-      runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
-      payload: {},
-    })
-    await persistence.stores.interrupts!.create({
-      interruptId: 'cancel-me',
-      runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
-      payload: {},
-    })
-
-    const resumeRun = mockAdapter([
-      [runStarted(), text('ok'), runFinished('r2')],
-    ])
-    await collect(
-      chat({
-        adapter: resumeRun.adapter,
-        messages: [{ role: 'user', content: 'resume' }],
-        runId: 'r2',
-        threadId: 't1',
-        resume: [
-          {
-            interruptId: 'resolve-me',
-            status: 'resolved',
-            payload: { approved: true },
-          },
-          { interruptId: 'cancel-me', status: 'cancelled' },
-        ],
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
-    expect(
-      (await persistence.stores.interrupts!.get('resolve-me'))?.status,
-    ).toBe('resolved')
-    expect(
-      (await persistence.stores.interrupts!.get('resolve-me'))?.response,
-    ).toEqual({ approved: true })
-    expect(
-      (await persistence.stores.interrupts!.get('cancel-me'))?.status,
-    ).toBe('cancelled')
-
-    const nextRun = mockAdapter([
-      [runStarted(), text('next'), runFinished('r3')],
-    ])
-    await collect(
-      chat({
-        adapter: nextRun.adapter,
-        messages: [{ role: 'user', content: 'next' }],
-        runId: 'r3',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-    expect(nextRun.calls).toHaveLength(1)
-  })
-
-  it('marks terminal interrupt outcomes as interrupted', async () => {
-    const persistence = memoryPersistence()
-    const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])
-
-    await collect(
-      chat({
-        adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
-
-    expect((await persistence.stores.runs!.get('r1'))?.status).toBe(
-      'interrupted',
-    )
-    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
-      1,
-    )
+    expect(response.status).toBe(401)
+    expect(recovery).not.toHaveBeenCalled()
   })
 })

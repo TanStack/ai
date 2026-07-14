@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
+  InterruptPersistenceCapability,
   chat,
+  defineChatMiddleware,
+  provideInterruptPersistence,
   StreamProcessor,
   type Tool,
+  type InterruptPersistenceGateway,
   type StreamChunk,
   type UIMessage,
 } from '@tanstack/ai'
@@ -54,6 +58,43 @@ const weatherTool: Tool = {
     location: z.string(),
   }),
 }
+
+const testInterruptGateway: InterruptPersistenceGateway = {
+  openInterruptBatch: async (input) => ({
+    generation: 1,
+    descriptors: input.descriptors,
+  }),
+  commitInterruptResolutions: async (input) => ({
+    status: 'committed',
+    continuationRunId: input.continuationRunId,
+  }),
+  getInterruptRecoveryState: async (input) => ({
+    schemaVersion: 1,
+    state: 'missing',
+    threadId: input.threadId,
+    interruptedRunId: input.interruptedRunId,
+    generation: input.knownGeneration,
+    pendingInterrupts: [],
+  }),
+}
+
+const testInterruptPersistence = defineChatMiddleware({
+  name: 'anthropic-test-interrupt-persistence',
+  provides: [InterruptPersistenceCapability],
+  setup(ctx) {
+    provideInterruptPersistence(ctx, testInterruptGateway)
+  },
+  async onChunk(_ctx, chunk) {
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      await testInterruptGateway.openInterruptBatch({
+        threadId: chunk.threadId,
+        interruptedRunId: chunk.runId,
+        descriptors: chunk.outcome.interrupts,
+        bindings: [],
+      })
+    }
+  },
+})
 
 function createTextStream(text: string) {
   return (async function* () {
@@ -1715,6 +1756,7 @@ describe('Anthropic stream processing', () => {
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
+      middleware: [testInterruptPersistence],
     })) {
       chunks.push(chunk)
     }

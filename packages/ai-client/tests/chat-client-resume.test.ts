@@ -210,7 +210,8 @@ describe('ChatClient resume', () => {
     await client.resumeInterrupts(resumeItems)
 
     expect(contexts[1]?.threadId).toBe(resumeState?.threadId)
-    expect(contexts[1]?.runId).toBe(resumeState?.runId)
+    expect(contexts[1]?.runId).not.toBe(resumeState?.runId)
+    expect(contexts[1]?.parentRunId).toBe(resumeState?.runId)
     expect(contexts[1]?.resume).toEqual(resumeItems)
     expect(client.getPendingInterrupts()).toEqual([])
     expect(client.getResumeState()).toBeNull()
@@ -598,7 +599,11 @@ describe('ChatClient resume', () => {
                 id: 'approval-1',
                 reason: 'approval_required',
                 toolCallId: 'tool-1',
-                metadata: { kind: 'approval' },
+                metadata: {
+                  kind: 'approval',
+                  toolName: 'lookup',
+                  input: { query: 'first' },
+                },
               },
             ],
           },
@@ -650,13 +655,21 @@ describe('ChatClient resume', () => {
                 id: 'approval-1',
                 reason: 'approval_required',
                 toolCallId: 'tool-1',
-                metadata: { kind: 'approval' },
+                metadata: {
+                  kind: 'approval',
+                  toolName: 'lookup',
+                  input: { query: 'first' },
+                },
               },
               {
                 id: 'approval-2',
                 reason: 'approval_required',
                 toolCallId: 'tool-2',
-                metadata: { kind: 'approval' },
+                metadata: {
+                  kind: 'approval',
+                  toolName: 'lookup',
+                  input: { query: 'second' },
+                },
               },
             ],
           },
@@ -682,7 +695,7 @@ describe('ChatClient resume', () => {
       },
       {
         interruptId: 'approval-2',
-        status: 'cancelled',
+        status: 'resolved',
         payload: { approved: false },
       },
     ])
@@ -712,7 +725,11 @@ describe('ChatClient resume', () => {
             id: 'approval-1',
             reason: 'approval_required',
             toolCallId: 'tool-1',
-            metadata: { kind: 'approval' },
+            metadata: {
+              kind: 'approval',
+              toolName: 'lookup',
+              input: { query: 'restored' },
+            },
           },
         ],
       },
@@ -729,7 +746,8 @@ describe('ChatClient resume', () => {
     await client.addToolApprovalResponse({ id: 'approval-1', approved: true })
 
     expect(contexts[0]?.threadId).toBe('thread-1')
-    expect(contexts[0]?.runId).toBe('run-1')
+    expect(contexts[0]?.runId).not.toBe('run-1')
+    expect(contexts[0]?.parentRunId).toBe('run-1')
     expect(contexts[0]?.resume).toEqual([
       {
         interruptId: 'approval-1',
@@ -805,8 +823,30 @@ describe('ChatClient resume', () => {
     await client.sendMessage('hi')
 
     expect(persistence.setItem).toHaveBeenLastCalledWith('thread-1', {
+      schemaVersion: 2,
       resumeState: client.getResumeState(),
-      pendingInterrupts: client.getPendingInterrupts(),
+      pendingInterrupts: [
+        expect.objectContaining({
+          id: 'interrupt-1',
+          reason: 'client_tool_input',
+        }),
+      ],
+      interruptState: {
+        recoveryState: {
+          schemaVersion: 1,
+          state: 'pending',
+          threadId: 'thread-1',
+          interruptedRunId: client.getResumeState()?.runId,
+          generation: 0,
+          pendingInterrupts: [
+            expect.objectContaining({
+              id: 'interrupt-1',
+              reason: 'client_tool_input',
+            }),
+          ],
+        },
+        drafts: [],
+      },
     })
     expect(onResumeStateChange).toHaveBeenCalled()
   })
@@ -1300,6 +1340,11 @@ describe('ChatClient resume', () => {
                 id: 'interrupt-tool-1',
                 reason: 'client_tool_input',
                 toolCallId: 'tool-call-1',
+                metadata: {
+                  kind: 'client_tool',
+                  toolName: 'lookup',
+                  input: { query: 'first' },
+                },
               },
             ],
           },
@@ -1318,7 +1363,8 @@ describe('ChatClient resume', () => {
     })
 
     expect(contexts[1]?.threadId).toBe(resumeState?.threadId)
-    expect(contexts[1]?.runId).toBe(resumeState?.runId)
+    expect(contexts[1]?.runId).not.toBe(resumeState?.runId)
+    expect(contexts[1]?.parentRunId).toBe(resumeState?.runId)
     expect(contexts[1]?.resume).toEqual([
       {
         interruptId: 'interrupt-tool-1',
@@ -1350,11 +1396,21 @@ describe('ChatClient resume', () => {
                 id: 'interrupt-tool-1',
                 reason: 'client_tool_input',
                 toolCallId: 'tool-call-1',
+                metadata: {
+                  kind: 'client_tool',
+                  toolName: 'lookup',
+                  input: { query: 'first' },
+                },
               },
               {
                 id: 'interrupt-tool-2',
                 reason: 'client_tool_input',
                 toolCallId: 'tool-call-2',
+                metadata: {
+                  kind: 'client_tool',
+                  toolName: 'lookup',
+                  input: { query: 'second' },
+                },
               },
             ],
           },

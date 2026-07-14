@@ -14,15 +14,17 @@ database.
 ```ts
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type {
+  InterruptStore,
   MessageStore,
   RunStore,
 } from '@tanstack/ai-persistence'
 
 declare const messages: MessageStore
 declare const runs: RunStore
+declare const interrupts: InterruptStore
 
 export const persistence = defineAIPersistence({
-  stores: { messages, runs },
+  stores: { messages, runs, interrupts },
 })
 ```
 
@@ -74,22 +76,73 @@ Implement `createOrResume` idempotently. Retries may repeat the same run id.
 
 ### Interrupts
 
+Interrupt persistence is an atomic capability, not a collection of sequential
+`create`, `resolve`, and `cancel` calls. Opening a batch must store all
+descriptors and protected bindings together. Committing a response must compare
+the expected generation and exact ID set, then resolve every item and create
+the continuation receipt in the same transaction.
+
 ```ts
-import type { InterruptRecord } from '@tanstack/ai-persistence'
+import type {
+  CommitInterruptResolutionsInput,
+  InterruptCommitResult,
+  InterruptRecoveryQuery,
+  InterruptRecoveryStateV1,
+  OpenInterruptBatchInput,
+} from '@tanstack/ai'
 
 interface InterruptStore {
-  create(record: Omit<InterruptRecord, 'resolvedAt'>): Promise<void>
-  resolve(interruptId: string, response?: unknown): Promise<void>
-  cancel(interruptId: string): Promise<void>
-  get(interruptId: string): Promise<InterruptRecord | null>
-  list(threadId: string): Promise<Array<InterruptRecord>>
-  listPending(threadId: string): Promise<Array<InterruptRecord>>
-  listByRun(runId: string): Promise<Array<InterruptRecord>>
-  listPendingByRun(runId: string): Promise<Array<InterruptRecord>>
+  openInterruptBatch(input: OpenInterruptBatchInput): Promise<{
+    generation: number
+    descriptors: OpenInterruptBatchInput['descriptors']
+  }>
+  commitInterruptResolutions(
+    input: CommitInterruptResolutionsInput,
+  ): Promise<InterruptCommitResult>
+  getInterruptRecoveryState(
+    input: InterruptRecoveryQuery,
+  ): Promise<InterruptRecoveryStateV1>
 }
 ```
 
+The commit result is the durable receipt:
+
+- `committed` returns the newly accepted `continuationRunId`;
+- `replayed` returns the same winning continuation for an exact idempotent
+  retry;
+- `conflict` returns authoritative recovery state for a stale generation or a
+  different submission.
+
+Compute and compare the canonical submission fingerprint inside the same
+transaction as the current-run/parent-run compare-and-swap. Never rerun tools
+for `replayed`. Do not accept a subset or superset of the opened IDs.
+
 An `interrupts` store requires a `runs` store when used with chat persistence.
+`defineAIPersistence` rejects an adapter that advertises interrupts without the
+atomic methods. See [Interrupts](../chat/interrupts) for client semantics and
+[Delivery durability](./delivery-durability) for exact replay behavior.
+
+### Explicit recovery handler
+
+Expose recovery only on an application-owned route. The handler does not infer
+a URL and must authorize the caller and thread before reading state:
+
+```ts
+// app/api/interrupts/recovery/route.ts
+import { createInterruptRecoveryHandler } from '@tanstack/ai-persistence'
+import { persistence } from '../../../../persistence'
+import { authorizeInterruptRecovery } from '../../../../authorization'
+
+export const POST = createInterruptRecoveryHandler({
+  gateway: persistence.stores.interrupts,
+  authorize: authorizeInterruptRecovery,
+})
+```
+
+Treat the concrete authorization object as application policy: authenticate the
+request, authorize the requested thread, and redact protected bindings or
+responses that the caller must not receive. Configure the matching client URL
+explicitly with `createInterruptStateFetcher`.
 
 ### Metadata
 
@@ -159,7 +212,7 @@ transactions, conditional writes, or stable idempotency keys.
 
 ## Override selected packaged stores
 
-```ts
+```ts ignore
 /// <reference types="@cloudflare/workers-types" />
 
 import { composePersistence } from '@tanstack/ai-persistence'

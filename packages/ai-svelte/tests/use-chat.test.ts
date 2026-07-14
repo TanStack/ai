@@ -1,10 +1,90 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatClient } from '@tanstack/ai-client'
+import { tick } from 'svelte'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createChat } from '../src/create-chat.svelte'
-import { createMockConnectionAdapter, createTextChunks } from './test-utils'
+import {
+  createInterruptResumeSnapshot,
+  createMockConnectionAdapter,
+  createTextChunks,
+} from './test-utils'
 
 describe('createChat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  describe('interrupt state', () => {
+    it('projects one immutable reactive snapshot with the deprecated pending alias', async () => {
+      const onInterruptStateChange = vi.fn()
+      const chat = createChat({
+        connection: createMockConnectionAdapter(),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        onInterruptStateChange,
+      })
+
+      expect(Object.isFrozen(chat.interrupts)).toBe(true)
+      expect(chat.pendingInterrupts).toBe(chat.interrupts)
+      expect(chat.interrupts[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'staged',
+      })
+      expect(chat.interrupts[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'error',
+        error: { code: 'invalid-payload' },
+      })
+      expect(chat.interruptErrors).toEqual([])
+      expect(chat.resuming).toBe(false)
+      expect(chat.interrupts[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      chat.resolveInterrupts(false)
+      await tick()
+      expect(chat.interruptErrors[0]?.code).toBe('unsupported-bulk-operation')
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: chat.interrupts,
+          interruptErrors: chat.interruptErrors,
+        }),
+      )
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const chat = createChat({ connection: createMockConnectionAdapter() })
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      chat.resolveInterrupts(resolver)
+      chat.cancelInterrupts()
+      chat.retryInterrupts()
+      await expect(chat.resumeInterruptsUnsafe(resume)).resolves.toBe(true)
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
   })
 
   it('should initialize with empty messages', () => {

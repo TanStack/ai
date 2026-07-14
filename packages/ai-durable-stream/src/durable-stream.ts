@@ -152,25 +152,23 @@ async function* readLines(
   const reader = body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let completed = false
-  let cancelled = false
-  let readFailed = false
+  let shouldCancelReader = true
   try {
     for (;;) {
       let result: ReadableStreamReadResult<Uint8Array> | typeof READ_ABORTED
       try {
         result = await readWithAbort(reader, signal)
       } catch (error) {
-        readFailed = true
+        shouldCancelReader = false
         throw new ResponseBodyReadFailure(error)
       }
       if (result === READ_ABORTED) {
-        cancelled = true
+        shouldCancelReader = false
         await reader.cancel(signal?.reason)
         return
       }
       if (result.done) {
-        completed = true
+        shouldCancelReader = false
         break
       }
       buffer += decoder.decode(result.value, { stream: true })
@@ -186,7 +184,7 @@ async function* readLines(
     }
   } finally {
     try {
-      if (!completed && !cancelled && !readFailed) await reader.cancel()
+      if (shouldCancelReader) await reader.cancel()
     } finally {
       reader.releaseLock()
     }

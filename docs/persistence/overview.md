@@ -79,12 +79,13 @@ the second argument:
 import { composePersistence } from '@tanstack/ai-persistence'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
+import type { CloudflarePersistenceOptions } from '@tanstack/ai-persistence-cloudflare'
 import type { AIPersistenceStores } from '@tanstack/ai-persistence'
 
 declare const env: {
-  AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
-  AI_LOCKS: DurableObjectNamespace
+  AI_STATE: NonNullable<CloudflarePersistenceOptions['d1']>
+  AI_MEDIA: NonNullable<CloudflarePersistenceOptions['r2']>
+  AI_LOCKS: NonNullable<CloudflarePersistenceOptions['durableObjects']>
 }
 declare const myInterruptStore: NonNullable<
   AIPersistenceStores['interrupts']

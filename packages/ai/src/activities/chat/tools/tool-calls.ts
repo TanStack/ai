@@ -1,5 +1,6 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
+import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   AnyTool,
   ContentPart,
@@ -435,6 +436,36 @@ export interface ClientToolRequest {
   input: any
 }
 
+export interface ToolResumeExecutionState {
+  deniedToolResults?: ReadonlyMap<string, unknown>
+  cancelledToolCallIds?: ReadonlySet<string>
+}
+
+function approvalResolution(
+  approvals: ReadonlyMap<string, ToolApprovalResolution>,
+  toolCallId: string,
+): ToolApprovalResolution | undefined {
+  return approvals.get(toolCallId) ?? approvals.get(`approval_${toolCallId}`)
+}
+
+function isApproved(resolution: ToolApprovalResolution): boolean {
+  return typeof resolution === 'boolean' ? resolution : resolution.approved
+}
+
+function editedApprovalArgs(
+  resolution: ToolApprovalResolution,
+): unknown | undefined {
+  return typeof resolution === 'object' && resolution.approved
+    ? resolution.editedArgs
+    : undefined
+}
+
+function deniedApprovalResult(resolution: ToolApprovalResolution): unknown {
+  return typeof resolution === 'object' && !resolution.approved
+    ? (resolution.payload ?? { error: 'User declined tool execution' })
+    : { error: 'User declined tool execution' }
+}
+
 interface ExecuteToolCallsResult {
   /** Tool results ready to send to LLM */
   results: Array<ToolResult>
@@ -685,7 +716,7 @@ function buildClientToolResult(
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<AnyTool>,
-  approvals: Map<string, boolean> = new Map(),
+  approvals: Map<string, ToolApprovalResolution> = new Map(),
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
     eventName: string,
@@ -694,6 +725,7 @@ export async function* executeToolCalls<TContext = unknown>(
   middlewareHooks?: ToolExecutionMiddlewareHooks,
   userContext?: TContext,
   abortSignal?: AbortSignal,
+  resumeState?: ToolResumeExecutionState,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -709,7 +741,9 @@ export async function* executeToolCalls<TContext = unknown>(
   // defer all execution so side effects don't happen before the user decides.
   const hasPendingApprovals = toolCalls.some((tc) => {
     const t = toolMap.get(tc.function.name)
-    return t?.needsApproval && !approvals.has(`approval_${tc.id}`)
+    return (
+      t?.needsApproval && approvalResolution(approvals, tc.id) === undefined
+    )
   })
 
   for (const toolCall of toolCalls) {
@@ -729,9 +763,22 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Skip non-pending tools while approvals are outstanding
     if (hasPendingApprovals) {
-      if (!tool.needsApproval || approvals.has(`approval_${toolCall.id}`)) {
+      if (
+        !tool.needsApproval ||
+        approvalResolution(approvals, toolCall.id) !== undefined
+      ) {
         continue
       }
+    }
+
+    if (resumeState?.cancelledToolCallIds?.has(toolCall.id)) {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: 'Tool execution cancelled' },
+        state: 'output-error',
+      })
+      continue
     }
 
     // Parse arguments, throwing error if invalid JSON
@@ -792,12 +839,14 @@ export async function* executeToolCalls<TContext = unknown>(
       // Check if tool needs approval
       if (tool.needsApproval) {
         const approvalId = `approval_${toolCall.id}`
+        const resolution = approvalResolution(approvals, toolCall.id)
 
         // Check if approval decision exists
-        if (approvals.has(approvalId)) {
-          const approved = approvals.get(approvalId)
+        if (resolution !== undefined) {
+          const approved = isApproved(resolution)
 
           if (approved) {
+            input = editedApprovalArgs(resolution) ?? input
             // Approved - check if client has executed
             if (clientResults.has(toolCall.id)) {
               results.push(
@@ -821,7 +870,9 @@ export async function* executeToolCalls<TContext = unknown>(
             results.push({
               toolCallId: toolCall.id,
               toolName,
-              result: { error: 'User declined tool execution' },
+              result:
+                resumeState?.deniedToolResults?.get(toolCall.id) ??
+                deniedApprovalResult(resolution),
               state: 'output-error',
             })
           }
@@ -860,12 +911,14 @@ export async function* executeToolCalls<TContext = unknown>(
     // CASE 2: Server tool with approval required
     if (tool.needsApproval) {
       const approvalId = `approval_${toolCall.id}`
+      const resolution = approvalResolution(approvals, toolCall.id)
 
       // Check if approval decision exists
-      if (approvals.has(approvalId)) {
-        const approved = approvals.get(approvalId)
+      if (resolution !== undefined) {
+        const approved = isApproved(resolution)
 
         if (approved) {
+          input = editedApprovalArgs(resolution) ?? input
           // Apply middleware before-hook for approved tools
           if (middlewareHooks) {
             const decision = await applyBeforeToolCallDecision(
@@ -895,7 +948,9 @@ export async function* executeToolCalls<TContext = unknown>(
           results.push({
             toolCallId: toolCall.id,
             toolName,
-            result: { error: 'User declined tool execution' },
+            result:
+              resumeState?.deniedToolResults?.get(toolCall.id) ??
+              deniedApprovalResult(resolution),
             state: 'output-error',
           })
         }

@@ -11,7 +11,8 @@ import type {
 } from '@tanstack/ai/client'
 import type {
   ChatClientState,
-  ChatPendingInterrupt,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
@@ -25,6 +26,9 @@ import type {
   UseChatOptions,
   UseChatReturn,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -49,9 +53,14 @@ export function useChat<
   const [resumeState, setResumeState] = useState<ChatResumeState | null>(
     options.initialResumeSnapshot?.resumeState ?? null,
   )
-  const [pendingInterrupts, setPendingInterrupts] = useState<
-    Array<ChatPendingInterrupt>
-  >(options.initialResumeSnapshot?.pendingInterrupts ?? [])
+  const [interruptState, setInterruptState] = useState<
+    ChatInterruptState<TTools>
+  >(() => ({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  }))
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
@@ -80,7 +89,7 @@ export function useChat<
   const syncResumeState = useCallback((target: ChatClient | null) => {
     if (!target) return
     setResumeState(target.getResumeState())
-    setPendingInterrupts(target.getPendingInterrupts())
+    setInterruptState(target.getInterruptState())
   }, [])
 
   // Create ChatClient instance with callbacks to sync state
@@ -199,7 +208,16 @@ export function useChat<
       onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
         if (!getActiveInstance()) return
         setResumeState(nextResumeState)
-        setPendingInterrupts(nextPendingInterrupts)
+        setInterruptState((current) => ({
+          ...current,
+          interrupts: nextPendingInterrupts,
+          pendingInterrupts: nextPendingInterrupts,
+        }))
+      },
+      onInterruptStateChange: (nextInterruptState) => {
+        if (!getActiveInstance()) return
+        setInterruptState(nextInterruptState)
+        optionsRef.current.onInterruptStateChange?.(nextInterruptState)
       },
     })
     instanceHolder.current = instance
@@ -374,6 +392,33 @@ export function useChat<
     [client, syncResumeState],
   )
 
+  const resolveInterrupts = useCallback(
+    (
+      resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    ) => {
+      if (typeof resolution === 'boolean') {
+        client.resolveInterrupts(resolution)
+      } else {
+        client.resolveInterrupts(resolution)
+      }
+    },
+    [client],
+  )
+
+  const cancelInterrupts = useCallback(() => {
+    client.cancelInterrupts()
+  }, [client])
+
+  const retryInterrupts = useCallback(() => {
+    client.retryInterrupts()
+  }, [client])
+
+  const resumeInterruptsUnsafe = useCallback(
+    (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) =>
+      client.resumeInterruptsUnsafe(resumeItems, state),
+    [client],
+  )
+
   // The "active" structured-output part is the one on the assistant message
   // that follows the latest user message. No such message exists between
   // sendMessage() and the first chunk, so partial/final naturally read as
@@ -440,7 +485,14 @@ export function useChat<
     addToolResult,
     addToolApprovalResponse,
     resumeState,
-    pendingInterrupts,
+    interrupts: interruptState.interrupts,
+    pendingInterrupts: interruptState.pendingInterrupts,
+    interruptErrors: interruptState.interruptErrors,
+    resuming: interruptState.resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     resumeInterrupts,
     partial,
     final,

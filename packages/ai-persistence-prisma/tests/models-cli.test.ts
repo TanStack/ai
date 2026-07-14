@@ -30,6 +30,8 @@ describe('Prisma models CLI', () => {
       },
     })
     expect(output).toBe(`${prismaModels.trimEnd()}\n`)
+    expect(output).toContain('model InterruptBatch')
+    expect(output).toContain('bindingJson')
   })
 
   it('copies the fragment without overwriting divergent files by default', async () => {

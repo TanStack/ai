@@ -1,21 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import {
+  EventType,
+  canonicalInterruptJson,
+  chat,
+  defineChatMiddleware,
+  digestInterruptJson,
+} from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withChatPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
+import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
 
 // --- minimal mock text adapter ---------------------------------------------
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
   const calls: Array<unknown> = []
   let i = 0
-  const adapter = {
+  const adapter: AnyTextAdapter = {
     kind: 'text',
     name: 'mock',
     model: 'test-model',
-    '~types': {},
-    chatStream: (opts: unknown) => {
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {
+        text: undefined,
+        image: undefined,
+        audio: undefined,
+        video: undefined,
+        document: undefined,
+      },
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    chatStream: (opts) => {
       calls.push(opts)
       const chunks = iterations[i] ?? []
       i++
@@ -24,7 +43,7 @@ function mockAdapter(iterations: Array<Array<StreamChunk>>) {
       })()
     },
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-  } as unknown as AnyTextAdapter
+  }
   return { adapter, calls }
 }
 
@@ -52,16 +71,34 @@ const ev = {
     type: EventType.RUN_FINISHED,
     runId: 'r1',
     threadId: 't1',
-    finishReason: 'stop',
+    finishReason: 'tool_calls',
     timestamp: 1,
     outcome: {
       type: 'interrupt',
       interrupts: [
         {
           id: interruptId,
-          reason: 'approval_required',
-          toolCallId: 'tool-1',
-          metadata: { kind: 'approval' },
+          reason: 'generic',
+          responseSchema: {
+            type: 'object',
+            properties: { value: { type: 'number' } },
+            required: ['value'],
+            additionalProperties: false,
+          },
+          metadata: {
+            'tanstack:interruptBinding': {
+              kind: 'generic',
+              interruptId,
+              responseSchemaHash: digestInterruptJson(
+                canonicalInterruptJson({
+                  type: 'object',
+                  properties: { value: { type: 'number' } },
+                  required: ['value'],
+                  additionalProperties: false,
+                }),
+              ),
+            },
+          },
         },
       ],
     },
@@ -74,11 +111,17 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-async function expectCollectRejects(
+async function expectCollectInterruptError(
   stream: AsyncIterable<StreamChunk>,
   pattern: RegExp,
 ) {
-  await expect(collect(stream)).rejects.toThrow(pattern)
+  expect(await collect(stream)).toEqual([
+    expect.objectContaining({
+      type: EventType.RUN_ERROR,
+      message: expect.stringMatching(pattern),
+      'tanstack:interruptErrors': expect.any(Array),
+    }),
+  ])
 }
 
 describe('withChatPersistence (state-only)', () => {
@@ -131,6 +174,196 @@ describe('withChatPersistence (state-only)', () => {
     )
   })
 
+  it('emits only safe correlated bindings while persisting descriptors separately', async () => {
+    const persistence = memoryPersistence()
+    const approvalTool: Tool = {
+      name: 'dangerousAction',
+      description: 'Perform a dangerous action',
+      needsApproval: true,
+      inputSchema: {
+        type: 'object',
+        properties: { action: { type: 'string' } },
+        required: ['action'],
+        additionalProperties: false,
+      },
+      execute: ({ action }) => ({ action }),
+    }
+    const browserTool: Tool = {
+      name: 'browserAction',
+      description: 'Perform an action in the browser',
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+        additionalProperties: false,
+      },
+    }
+    const addPrivateBindingFields = defineChatMiddleware({
+      name: 'add-private-binding-fields',
+      onChunk(_ctx, chunk) {
+        if (
+          chunk.type !== EventType.RUN_FINISHED ||
+          chunk.outcome?.type !== 'interrupt'
+        ) {
+          return
+        }
+        return {
+          ...chunk,
+          outcome: {
+            ...chunk.outcome,
+            interrupts: chunk.outcome.interrupts.map((interrupt) => ({
+              ...interrupt,
+              metadata: {
+                ...interrupt.metadata,
+                'tanstack:interruptBinding': {
+                  ...interrupt.metadata?.['tanstack:interruptBinding'],
+                  authorizationToken: 'must-not-leak',
+                  internal: { serverOnly: true },
+                },
+              },
+            })),
+          },
+        }
+      },
+    })
+
+    async function runInterrupt(input: {
+      runId: string
+      threadId: string
+      toolCallId: string
+      tool: Tool
+      args: string
+    }) {
+      const { adapter } = mockAdapter([
+        [
+          ev.runStarted(input.runId, input.threadId),
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: input.toolCallId,
+            toolCallName: input.tool.name,
+            toolName: input.tool.name,
+            timestamp: 1,
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: input.toolCallId,
+            delta: input.args,
+            timestamp: 1,
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: input.runId,
+            threadId: input.threadId,
+            finishReason: 'tool_calls',
+            timestamp: 1,
+          },
+        ],
+      ])
+      const chunks = await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'pause' }],
+          runId: input.runId,
+          threadId: input.threadId,
+          tools: [input.tool],
+          middleware: [
+            withChatPersistence(persistence),
+            addPrivateBindingFields,
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const terminal = chunks.find(
+        (chunk) =>
+          chunk.type === EventType.RUN_FINISHED &&
+          chunk.outcome?.type === 'interrupt',
+      )
+      if (
+        terminal?.type !== EventType.RUN_FINISHED ||
+        terminal.outcome?.type !== 'interrupt'
+      ) {
+        throw new Error('Expected one public interrupt terminal.')
+      }
+      return terminal
+    }
+
+    const approvalTerminal = await runInterrupt({
+      runId: 'approval-run',
+      threadId: 'approval-thread',
+      toolCallId: 'approval-call-1',
+      tool: approvalTool,
+      args: '{"action":"delete"}',
+    })
+    const browserTerminal = await runInterrupt({
+      runId: 'client-run',
+      threadId: 'client-thread',
+      toolCallId: 'client-call-1',
+      tool: browserTool,
+      args: '{}',
+    })
+    expect(approvalTerminal).toMatchObject({
+      outcome: {
+        interrupts: [
+          {
+            id: 'approval_approval-call-1',
+            reason: 'tool_call',
+            toolCallId: 'approval-call-1',
+          },
+        ],
+      },
+    })
+    expect(browserTerminal).toMatchObject({
+      outcome: {
+        interrupts: [
+          {
+            id: 'client_tool_client-call-1',
+            reason: 'tanstack:client_tool_execution',
+            toolCallId: 'client-call-1',
+          },
+        ],
+      },
+    })
+
+    const stored = [
+      ...(await persistence.stores.interrupts.listPendingByRun('approval-run')),
+      ...(await persistence.stores.interrupts.listPendingByRun('client-run')),
+    ]
+    expect(stored).toHaveLength(2)
+    for (const record of stored) {
+      if (
+        record.payload === null ||
+        typeof record.payload !== 'object' ||
+        Array.isArray(record.payload)
+      ) {
+        throw new Error('Expected a persisted interrupt descriptor.')
+      }
+      const payload: Record<string, unknown> = Object.fromEntries(
+        Object.entries(record.payload),
+      )
+      expect(payload.metadata).not.toHaveProperty('tanstack:interruptBinding')
+      expect(record.binding).toMatchObject({
+        interruptId: record.interruptId,
+        interruptedRunId: record.runId,
+        generation: 1,
+      })
+      expect(record.binding).not.toHaveProperty('authorizationToken')
+      expect(record.binding).not.toHaveProperty('internal')
+    }
+
+    const publicBindings = [approvalTerminal, browserTerminal].flatMap(
+      (terminal) =>
+        terminal.outcome?.type === 'interrupt'
+          ? terminal.outcome.interrupts.map(
+              (interrupt) => interrupt.metadata?.['tanstack:interruptBinding'],
+            )
+          : [],
+    )
+    expect(publicBindings).toEqual(stored.map((record) => record.binding))
+    for (const binding of publicBindings) {
+      expect(binding).not.toHaveProperty('authorizationToken')
+      expect(binding).not.toHaveProperty('internal')
+    }
+  })
+
   it('blocks normal new input while a thread has pending interrupts', async () => {
     const persistence = memoryPersistence()
     const first = mockAdapter([[ev.runStarted(), ev.interrupted()]])
@@ -146,15 +379,16 @@ describe('withChatPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    await expectCollectInterruptError(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
         threadId: 't1',
         middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-      /pending interrupts.*resume is required/i,
+        stream: true,
+      }),
+      /parentRunId/i,
     )
     expect(next.calls.length).toBe(0)
   })
@@ -174,16 +408,18 @@ describe('withChatPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    await expectCollectInterruptError(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
+        parentRunId: 'r1',
         threadId: 't1',
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
         middleware: [withChatPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-      /missing resume entry for pending interrupt interrupt-1/i,
+        stream: true,
+      }),
+      /missing resume entry for interrupt interrupt-1/i,
     )
     expect(next.calls.length).toBe(0)
   })
@@ -208,12 +444,13 @@ describe('withChatPersistence (state-only)', () => {
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
+        parentRunId: 'r1',
         threadId: 't1',
         resume: [
           {
             interruptId: 'interrupt-1',
             status: 'resolved',
-            payload: { approved: true },
+            payload: { value: 42 },
           },
         ],
         middleware: [withChatPersistence(persistence)],

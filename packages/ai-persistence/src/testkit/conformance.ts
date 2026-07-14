@@ -11,7 +11,9 @@
  * hold identically for byte-storing (memory) and reference-only (SQL) backends.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import type { AIPersistence } from '../types'
+import { canonicalizeInterruptResolutions } from '@tanstack/ai'
+import type { CommitInterruptResolutionsInput } from '@tanstack/ai'
+import type { AIPersistence, InterruptStore } from '../types'
 
 type MakePersistence = () => Promise<AIPersistence> | AIPersistence
 
@@ -348,6 +350,270 @@ export function runPersistenceConformance(
         })
         expect(result).toBe(42)
         expect(order).toEqual(['inside'])
+      })
+    })
+  })
+}
+
+export interface InterruptConformanceHarness {
+  getStore: () => InterruptStore | undefined
+  advanceBy: (milliseconds: number) => void
+  inspect: (interruptedRunId: string) => Promise<{
+    statuses: ReadonlyArray<string>
+    batchCount: number
+  }>
+  failTransitionOnce: (interruptId: string) => void
+  reopen?: () => Promise<InterruptStore>
+}
+
+export async function openTwoInterrupts(store: InterruptStore) {
+  return store.openInterruptBatch({
+    threadId: 'thread-cas',
+    interruptedRunId: 'run-interrupted',
+    descriptors: [
+      { id: 'int-a', reason: 'confirmation' },
+      {
+        id: 'int-b',
+        reason: 'input_required',
+        expiresAt: '2026-07-13T10:01:00.000Z',
+      },
+    ],
+    bindings: [
+      {
+        interruptId: 'int-a',
+        kind: 'generic',
+        responseSchemaHash: 'sha256:a',
+      },
+      {
+        interruptId: 'int-b',
+        kind: 'generic',
+        responseSchemaHash: 'sha256:b',
+        expiresAt: '2026-07-13T10:01:00.000Z',
+      },
+    ],
+  })
+}
+
+export function validTwoItemCommit(
+  generation: number,
+  continuationRunId = 'run-continuation-a',
+): CommitInterruptResolutionsInput {
+  const candidate = canonicalizeInterruptResolutions([
+    { interruptId: 'int-b', status: 'cancelled' },
+    {
+      interruptId: 'int-a',
+      status: 'resolved',
+      payload: { ok: true },
+    },
+  ])
+  return {
+    threadId: 'thread-cas',
+    interruptedRunId: 'run-interrupted',
+    continuationRunId,
+    expectedGeneration: generation,
+    expectedInterruptIds: ['int-b', 'int-a'],
+    resolutions: candidate.resolutions,
+    fingerprint: candidate.fingerprint,
+    canonicalResolutions: candidate.canonicalResolutions,
+  }
+}
+
+export function runInterruptStoreConformance(
+  createHarness: () => Promise<InterruptConformanceHarness>,
+): void {
+  describe('atomic interrupt store conformance', () => {
+    it('requires the atomic interrupt capability', async () => {
+      const harness = await createHarness()
+      expect(
+        harness.getStore(),
+        'interrupt conformance requires stores.interrupts',
+      ).toBeDefined()
+      if (!harness.getStore()) throw new Error('interrupt store missing')
+    })
+
+    it('keeps canonical order stable and rejects malformed exact sets', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      const opened = await openTwoInterrupts(store)
+      const ordered = validTwoItemCommit(opened.generation)
+      const reordered = canonicalizeInterruptResolutions([
+        {
+          interruptId: 'int-a',
+          status: 'resolved',
+          payload: { ok: true },
+        },
+        { interruptId: 'int-b', status: 'cancelled' },
+      ])
+      expect(reordered.fingerprint).toBe(ordered.fingerprint)
+      expect(reordered.canonicalResolutions).toBe(ordered.canonicalResolutions)
+
+      for (const expectedInterruptIds of [
+        ['int-a'],
+        ['int-a', 'int-b', 'int-c'],
+        ['int-a', 'int-a'],
+      ]) {
+        await expect(
+          store.commitInterruptResolutions({
+            ...ordered,
+            expectedInterruptIds,
+          }),
+        ).resolves.toMatchObject({ status: 'conflict' })
+      }
+      await expect(
+        store.commitInterruptResolutions({
+          ...ordered,
+          expectedGeneration: opened.generation + 1,
+        }),
+      ).resolves.toMatchObject({ status: 'conflict' })
+      await expect(
+        store.commitInterruptResolutions({
+          ...ordered,
+          threadId: 'thread-other',
+        }),
+      ).resolves.toMatchObject({
+        status: 'conflict',
+        authoritativeState: { state: 'missing' },
+      })
+    })
+
+    it('checks canonical bytes and digest before any transition', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      const opened = await openTwoInterrupts(store)
+      const input = validTwoItemCommit(opened.generation)
+      await expect(
+        store.commitInterruptResolutions({
+          ...input,
+          canonicalResolutions: `${input.canonicalResolutions} `,
+        }),
+      ).rejects.toThrow(/identity/i)
+      await expect(harness.inspect('run-interrupted')).resolves.toEqual({
+        statuses: ['pending', 'pending'],
+        batchCount: 0,
+      })
+    })
+
+    it('rolls back every row when a transition fails', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      const opened = await openTwoInterrupts(store)
+      harness.failTransitionOnce('int-b')
+      await expect(
+        store.commitInterruptResolutions(validTwoItemCommit(opened.generation)),
+      ).rejects.toThrow()
+      await expect(harness.inspect('run-interrupted')).resolves.toEqual({
+        statuses: ['pending', 'pending'],
+        batchCount: 0,
+      })
+    })
+
+    it('projects pending, committed replay, restart, and one concurrent winner', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      const opened = await openTwoInterrupts(store)
+      await expect(
+        store.getInterruptRecoveryState({
+          threadId: 'thread-cas',
+          interruptedRunId: 'run-interrupted',
+          knownGeneration: opened.generation,
+        }),
+      ).resolves.toMatchObject({
+        state: 'pending',
+        generation: opened.generation,
+      })
+
+      const first = validTwoItemCommit(opened.generation, 'run-continuation-a')
+      const secondCandidate = canonicalizeInterruptResolutions([
+        { interruptId: 'int-a', status: 'cancelled' },
+        { interruptId: 'int-b', status: 'cancelled' },
+      ])
+      const second = {
+        ...first,
+        continuationRunId: 'run-continuation-b',
+        resolutions: secondCandidate.resolutions,
+        fingerprint: secondCandidate.fingerprint,
+        canonicalResolutions: secondCandidate.canonicalResolutions,
+      }
+      const results = await Promise.all([
+        store.commitInterruptResolutions(first),
+        store.commitInterruptResolutions(second),
+      ])
+      expect(results.map((result) => result.status).sort()).toEqual([
+        'committed',
+        'conflict',
+      ])
+      const winningRunId = results.find(
+        (result) => result.status === 'committed',
+      )?.continuationRunId
+      expect(winningRunId).toBeDefined()
+      const replayInput = winningRunId === 'run-continuation-a' ? first : second
+      await expect(
+        store.commitInterruptResolutions({
+          ...replayInput,
+          continuationRunId: 'ignored-replay-run',
+        }),
+      ).resolves.toEqual({
+        status: 'replayed',
+        continuationRunId: winningRunId,
+      })
+
+      const recoveredStore = harness.reopen ? await harness.reopen() : store
+      await expect(
+        recoveredStore.getInterruptRecoveryState({
+          threadId: 'thread-cas',
+          interruptedRunId: 'run-interrupted',
+          knownGeneration: opened.generation,
+        }),
+      ).resolves.toMatchObject({
+        state: 'committed',
+        committed: { continuationRunId: winningRunId },
+      })
+    })
+
+    it('projects missing and legacy-committed recovery states', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      await expect(
+        store.getInterruptRecoveryState({
+          threadId: 'thread-cas',
+          interruptedRunId: 'run-missing',
+          knownGeneration: 3,
+        }),
+      ).resolves.toMatchObject({ state: 'missing', generation: 3 })
+
+      await store.create({
+        interruptId: 'legacy-int',
+        runId: 'legacy-run',
+        threadId: 'thread-cas',
+        status: 'resolved',
+        requestedAt: 1,
+        payload: { id: 'legacy-int', reason: 'confirmation' },
+      })
+      await expect(
+        store.getInterruptRecoveryState({
+          threadId: 'thread-cas',
+          interruptedRunId: 'legacy-run',
+          knownGeneration: 0,
+        }),
+      ).resolves.toMatchObject({ state: 'legacy-committed' })
+    })
+
+    it('marks an uncommitted expired batch expired', async () => {
+      const harness = await createHarness()
+      const store = harness.getStore()
+      if (!store) throw new Error('interrupt store missing')
+      const opened = await openTwoInterrupts(store)
+      harness.advanceBy(60_001)
+      await expect(
+        store.commitInterruptResolutions(validTwoItemCommit(opened.generation)),
+      ).resolves.toMatchObject({
+        status: 'conflict',
+        authoritativeState: { state: 'expired' },
       })
     })
   })

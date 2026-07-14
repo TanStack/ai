@@ -19,7 +19,8 @@ import type {
 } from '@tanstack/ai'
 import type {
   ChatClientState,
-  ChatPendingInterrupt,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
@@ -32,6 +33,9 @@ import type {
   UseChatOptions,
   UseChatReturn,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -59,9 +63,12 @@ export function useChat<
   const resumeState = shallowRef<ChatResumeState | null>(
     options.initialResumeSnapshot?.resumeState ?? null,
   )
-  const pendingInterrupts = shallowRef<Array<ChatPendingInterrupt>>(
-    options.initialResumeSnapshot?.pendingInterrupts ?? [],
-  )
+  const interruptState = shallowRef<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -151,18 +158,22 @@ export function useChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating.value = isGenerating
     },
-    onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+    onResumeStateChange: (nextResumeState) => {
       resumeState.value = nextResumeState
-      pendingInterrupts.value = nextPendingInterrupts
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState.value = nextInterruptState
+      options.onInterruptStateChange?.(nextInterruptState)
     },
   })
 
   function syncResumeState() {
     resumeState.value = client.getResumeState()
-    pendingInterrupts.value = client.getPendingInterrupts()
+    interruptState.value = client.getInterruptState()
   }
 
   messages.value = client.getMessages()
+  interruptState.value = client.getInterruptState()
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -280,6 +291,34 @@ export function useChat<
     return result
   }
 
+  const interrupts = computed(() => interruptState.value.interrupts)
+  const pendingInterrupts = computed(() => interruptState.value.interrupts)
+  const interruptErrors = computed(() => interruptState.value.interruptErrors)
+  const resuming = computed(() => interruptState.value.resuming)
+
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client.cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client.retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
+
   // The "active" structured-output part is the one on the assistant message
   // that follows the latest user message. No such message exists between
   // sendMessage() and the first chunk, so partial/final naturally read as
@@ -342,7 +381,14 @@ export function useChat<
     addToolResult,
     addToolApprovalResponse,
     resumeState: readonly(resumeState),
+    interrupts: readonly(interrupts),
     pendingInterrupts: readonly(pendingInterrupts),
+    interruptErrors: readonly(interruptErrors),
+    resuming: readonly(resuming),
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     resumeInterrupts,
     partial: readonly(partial),
     final: readonly(final),

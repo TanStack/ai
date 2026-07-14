@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { chat } from '@tanstack/ai'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import {
+  InterruptPersistenceCapability,
+  chat,
+  defineChatMiddleware,
+  provideInterruptPersistence,
+} from '@tanstack/ai'
+import type {
+  InterruptPersistenceGateway,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
 import type {
@@ -52,6 +61,43 @@ const collectChunks = async (stream: AsyncIterable<StreamChunk>) => {
   }
   return chunks
 }
+
+const testInterruptGateway: InterruptPersistenceGateway = {
+  openInterruptBatch: async (input) => ({
+    generation: 1,
+    descriptors: input.descriptors,
+  }),
+  commitInterruptResolutions: async (input) => ({
+    status: 'committed',
+    continuationRunId: input.continuationRunId,
+  }),
+  getInterruptRecoveryState: async (input) => ({
+    schemaVersion: 1,
+    state: 'missing',
+    threadId: input.threadId,
+    interruptedRunId: input.interruptedRunId,
+    generation: input.knownGeneration,
+    pendingInterrupts: [],
+  }),
+}
+
+const testInterruptPersistence = defineChatMiddleware({
+  name: 'gemini-test-interrupt-persistence',
+  provides: [InterruptPersistenceCapability],
+  setup(ctx) {
+    provideInterruptPersistence(ctx, testInterruptGateway)
+  },
+  async onChunk(_ctx, chunk) {
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      await testInterruptGateway.openInterruptBatch({
+        threadId: chunk.threadId,
+        interruptedRunId: chunk.runId,
+        descriptors: chunk.outcome.interrupts,
+        bindings: [],
+      })
+    }
+  },
+})
 
 describe('GeminiTextInteractionsAdapter', () => {
   beforeEach(() => {
@@ -416,6 +462,7 @@ describe('GeminiTextInteractionsAdapter', () => {
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
         tools: [weatherTool],
+        middleware: [testInterruptPersistence],
       }),
     )
 
@@ -428,19 +475,20 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     ])
 
-    const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
-    expect(startEvent).toBeDefined()
-    expect(startEvent.toolCallId).toBe('call_1')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START')
+    expect(startEvent).toMatchObject({
+      toolCallId: 'call_1',
+      toolName: 'lookup_weather',
+    })
 
-    const argsEvent = chunks.find((c) => c.type === 'TOOL_CALL_ARGS') as any
-    expect(argsEvent.args).toBe('{"location":"Madrid"}')
+    const argsEvent = chunks.find((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(argsEvent).toMatchObject({ args: '{"location":"Madrid"}' })
 
-    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(endEvent.input).toEqual({ location: 'Madrid' })
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(endEvent).toMatchObject({ input: { location: 'Madrid' } })
 
-    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('tool_calls')
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({ finishReason: 'tool_calls' })
   })
 
   it('accumulates multi-fragment arguments_delta into the final tool input', async () => {
@@ -492,24 +540,27 @@ describe('GeminiTextInteractionsAdapter', () => {
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
+        middleware: [testInterruptPersistence],
       }),
     )
 
-    const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
-    expect(startEvent.toolCallId).toBe('call_frag')
-    expect(startEvent.toolName).toBe('lookup_weather')
+    const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START')
+    expect(startEvent).toMatchObject({
+      toolCallId: 'call_frag',
+      toolName: 'lookup_weather',
+    })
 
     // The last TOOL_CALL_ARGS event carries the fully-accumulated buffer.
-    const argsEvents = chunks.filter(
-      (c) => c.type === 'TOOL_CALL_ARGS',
-    ) as Array<any>
+    const argsEvents = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
     expect(argsEvents.length).toBeGreaterThan(1)
-    expect(argsEvents.at(-1)!.args).toBe(
-      '{"location":"Berlin","unit":"celsius"}',
-    )
+    expect(argsEvents.at(-1)).toMatchObject({
+      args: '{"location":"Berlin","unit":"celsius"}',
+    })
 
-    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(endEvent.input).toEqual({ location: 'Berlin', unit: 'celsius' })
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(endEvent).toMatchObject({
+      input: { location: 'Berlin', unit: 'celsius' },
+    })
   })
 
   it('preserves the last good args when the arguments stream truncates mid-fragment', async () => {
@@ -557,13 +608,14 @@ describe('GeminiTextInteractionsAdapter', () => {
         adapter,
         messages: [{ role: 'user', content: 'Weather in London?' }],
         tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
+        middleware: [testInterruptPersistence],
       }),
     )
 
     // No parse-failure RUN_ERROR, and the completed key survives truncation.
     expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
-    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(endEvent.input).toEqual({ city: 'London' })
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(endEvent).toMatchObject({ input: { city: 'London' } })
   })
 
   it('translates thought_summary deltas into REASONING events', async () => {

@@ -7,6 +7,7 @@ import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import { sqliteMigrations } from './migrations'
 import { applySqliteMigrations } from './sqlite-migrations'
 import { drizzlePersistence } from './index'
+import type { DrizzleTransactionExecutor } from './index'
 
 export { SqliteMigrationError } from './sqlite-migrations'
 
@@ -15,6 +16,41 @@ export interface SqlitePersistenceOptions {
   url: string
   /** Apply the bundled TanStack AI migrations before creating stores. */
   migrate?: boolean
+  /** Override wall-clock time, primarily for deterministic runtimes/tests. */
+  clock?: () => number
+}
+
+function createSqliteTransactionExecutor(
+  database: DatabaseSync,
+): DrizzleTransactionExecutor {
+  let tail = Promise.resolve()
+  return {
+    transaction(work) {
+      const result = tail.then(async () => {
+        database.exec('BEGIN IMMEDIATE')
+        try {
+          const value = await work()
+          database.exec('COMMIT')
+          return value
+        } catch (error) {
+          try {
+            database.exec('ROLLBACK')
+          } catch (rollbackError) {
+            throw new AggregateError(
+              [error, rollbackError],
+              'Interrupt transaction failed and could not be rolled back.',
+            )
+          }
+          throw error
+        }
+      })
+      tail = result.then(
+        () => undefined,
+        () => undefined,
+      )
+      return result
+    },
+  }
 }
 
 /** Build persistence over Node's built-in SQLite driver. */
@@ -43,7 +79,11 @@ export function sqlitePersistence(options: SqlitePersistenceOptions) {
     return Promise.resolve({ rows: rows.map((row) => Object.values(row)) })
   })
 
-  const persistence = drizzlePersistence(db)
+  const transactionExecutor = createSqliteTransactionExecutor(sqlite)
+  const persistence = drizzlePersistence(db, {
+    interrupts: transactionExecutor,
+    ...(options.clock !== undefined ? { clock: options.clock } : {}),
+  })
   let closed = false
   return {
     ...persistence,

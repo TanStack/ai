@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
+import {
+  EventType,
+  InterruptPersistenceCapability,
+  chat,
+  defineChatMiddleware,
+  provideInterruptPersistence,
+} from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  InterruptPersistenceGateway,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 let mockSend: any
@@ -33,6 +43,43 @@ const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
 }
+
+const testInterruptGateway: InterruptPersistenceGateway = {
+  openInterruptBatch: async (input) => ({
+    generation: 1,
+    descriptors: input.descriptors,
+  }),
+  commitInterruptResolutions: async (input) => ({
+    status: 'committed',
+    continuationRunId: input.continuationRunId,
+  }),
+  getInterruptRecoveryState: async (input) => ({
+    schemaVersion: 1,
+    state: 'missing',
+    threadId: input.threadId,
+    interruptedRunId: input.interruptedRunId,
+    generation: input.knownGeneration,
+    pendingInterrupts: [],
+  }),
+}
+
+const testInterruptPersistence = defineChatMiddleware({
+  name: 'openrouter-test-interrupt-persistence',
+  provides: [InterruptPersistenceCapability],
+  setup(ctx) {
+    provideInterruptPersistence(ctx, testInterruptGateway)
+  },
+  async onChunk(_ctx, chunk) {
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      await testInterruptGateway.openInterruptBatch({
+        threadId: chunk.threadId,
+        interruptedRunId: chunk.runId,
+        descriptors: chunk.outcome.interrupts,
+        bindings: [],
+      })
+    }
+  },
+})
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {
@@ -691,26 +738,27 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       tools: [weatherTool],
+      middleware: [testInterruptPersistence],
     })) {
       chunks.push(c)
     }
 
-    const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
+    const start = chunks.find((c) => c.type === 'TOOL_CALL_START')
     expect(start).toMatchObject({
       type: 'TOOL_CALL_START',
       toolCallId: 'item_1',
       toolCallName: 'lookup_weather',
     })
 
-    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as any[]
+    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
     expect(args.length).toBe(1)
-    expect(args[0]!.delta).toBe('{"location":"Berlin"}')
+    expect(args[0]).toMatchObject({ delta: '{"location":"Berlin"}' })
 
-    const end = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(end.input).toEqual({ location: 'Berlin' })
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ input: { location: 'Berlin' } })
 
-    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('tool_calls')
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({ finishReason: 'tool_calls' })
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {

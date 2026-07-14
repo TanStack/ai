@@ -29,7 +29,17 @@ describe('Prisma models asset', () => {
   it('is a models-only fragment with no provider or client generator', () => {
     expect(prismaModelsFilename).toBe('tanstack-ai.prisma')
     expect(prismaModels).toContain('model Message')
+    expect(prismaModels).toContain('model InterruptBatch')
     expect(prismaModels).toContain('model Blob')
+    expect(prismaModels).toMatch(/generation\s+Int\s+@default\(0\)/)
+    expect(prismaModels).toMatch(
+      /bindingJson\s+String\?\s+@map\("binding_json"\)/,
+    )
+    expect(prismaModels).toMatch(
+      /schemaHash\s+String\?\s+@map\("schema_hash"\)/,
+    )
+    expect(prismaModels).toContain('@@index([threadId, status])')
+    expect(prismaModels).toContain('@@index([runId, generation, status])')
     expect(prismaModels).not.toMatch(/\bgenerator\s+\w+\s*{/)
     expect(prismaModels).not.toMatch(/\bdatasource\s+\w+\s*{/)
   })

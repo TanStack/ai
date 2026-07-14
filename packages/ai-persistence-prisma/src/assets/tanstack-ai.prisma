@@ -30,13 +30,34 @@ model Interrupt {
   interruptId  String  @id @map("interrupt_id")
   runId        String  @map("run_id")
   threadId     String  @map("thread_id")
+  generation   Int     @default(0)
   status       String
   requestedAt  BigInt  @map("requested_at")
   resolvedAt   BigInt? @map("resolved_at")
   payloadJson  String  @map("payload_json")
+  bindingJson  String? @map("binding_json")
+  schemaHash   String? @map("schema_hash")
   responseJson String? @map("response_json")
 
+  @@index([threadId, status])
+  @@index([runId, generation, status])
   @@map("interrupts")
+}
+
+/// Immutable winner for an atomically committed interrupt batch.
+model InterruptBatch {
+  interruptedRunId        String @id @map("interrupted_run_id")
+  threadId                String @map("thread_id")
+  generation              Int
+  expectedInterruptIdsJson String @map("expected_interrupt_ids_json")
+  fingerprint             String
+  canonicalResolutions    String @map("canonical_resolutions")
+  resolutionsJson         String @map("resolutions_json")
+  continuationRunId       String @map("continuation_run_id")
+  committedAt             BigInt @map("committed_at")
+
+  @@index([threadId])
+  @@map("interrupt_batches")
 }
 
 /// Scoped key/value metadata (`MetadataStore`).

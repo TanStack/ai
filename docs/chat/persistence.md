@@ -18,14 +18,15 @@ keywords:
 `useChat` can persist two browser-side values independently:
 
 - `persistence.client` stores the rendered `UIMessage[]` under the chat `id`.
-- `persistence.server` stores the latest `ChatResumeSnapshot` under the
-  `threadId`. The snapshot contains the run identity and any pending
-  interrupts needed after a reload.
+- `persistence.server` stores the latest `ChatResumeSnapshotV2` under the
+  `threadId`. The snapshot contains run identity, authoritative recovery
+  correlation, and raw JSON-safe interrupt drafts.
 
 This is client hydration, not server state durability. Persist authoritative
 messages, runs, and interrupts with `withChatPersistence(...)`; make an
 in-flight response replayable with SSE delivery durability. See
-[Chat Persistence](../persistence/chat-persistence) for the complete flow.
+[Chat Persistence](../persistence/chat-persistence) for the complete flow and
+[Interrupts](./interrupts) for resolution and recovery semantics.
 
 ## Use IndexedDB for chat messages
 
@@ -121,10 +122,12 @@ const messages = localStoragePersistence<Array<UIMessage>>({
   serialize: serializeJson,
   deserialize(value) {
     const stored: Array<StoredMessage> = JSON.parse(value)
-    return stored.map((message) => ({
-      ...message,
-      ...(message.createdAt
-        ? { createdAt: new Date(message.createdAt) }
+    return stored.map(({ id, role, parts, createdAt }) => ({
+      id,
+      role,
+      parts,
+      ...(createdAt
+        ? { createdAt: new Date(createdAt) }
         : {}),
     }))
   },
@@ -153,57 +156,85 @@ export function PersistentChat() {
 `localStorage` survives browser restarts. `sessionStorage` is scoped to the
 current tab. Both adapters default to the key prefix `tanstack-ai:`.
 
-## Resume pending interrupts after reload
+## Recover interrupts before rebinding drafts
 
-The hook exposes the persisted interrupt state directly. Render
-`pendingInterrupts` and call the returned `resumeInterrupts` function; do not
-manufacture a hook return type outside a component.
+The browser stores raw V2 drafts, not hydrated bound items. It never serializes
+`resolveInterrupt`, validators, configured tools, discriminated `kind`, or
+hydrated error objects. On reload, authoritative server recovery must confirm
+the thread, interrupted run, generation, exact IDs, schema hashes, expiry, and
+commit state before the client rebinds descriptors or restores a draft.
+
+Render `interrupts` and use their bound methods. `pendingInterrupts` and raw
+`resumeInterrupts` remain deprecated compatibility surfaces.
 
 ```tsx
+import { toolDefinition } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
+const approvalTool = toolDefinition({
+  name: 'sensitive_action',
+  description: 'Perform a sensitive action',
+  needsApproval: true,
+})
+
 export function Interrupts() {
-  const { pendingInterrupts, resumeInterrupts } = useChat({
+  const { interrupts, interruptErrors, retryInterrupts } = useChat({
     threadId: 'thread-1',
     connection: fetchServerSentEvents('/api/chat'),
+    tools: [approvalTool] as const,
   })
 
   return (
     <ul>
-      {pendingInterrupts.map((interrupt) => (
+      {interrupts.map((interrupt) => (
         <li key={interrupt.id}>
           <span>{interrupt.reason}</span>
-          <button
-            onClick={() =>
-              void resumeInterrupts([
-                {
-                  interruptId: interrupt.id,
-                  status: 'resolved',
-                  payload: { approved: true },
-                },
-              ])
-            }
-          >
-            Continue
-          </button>
-          <button
-            onClick={() =>
-              void resumeInterrupts([
-                { interruptId: interrupt.id, status: 'cancelled' },
-              ])
-            }
-          >
-            Cancel
-          </button>
+          {interrupt.kind === 'tool-approval' ? (
+            <button onClick={() => interrupt.resolveInterrupt(true)}>
+              Approve
+            </button>
+          ) : null}
+          <button onClick={() => interrupt.cancel()}>Cancel</button>
         </li>
       ))}
+      {interruptErrors.map((error) => (
+        <li key={`${error.code}:${error.generation}`}>{error.message}</li>
+      ))}
+      <li>
+        <button onClick={() => void retryInterrupts()}>Retry</button>
+      </li>
     </ul>
   )
 }
 ```
 
-The server still validates that every resume entry matches a pending
-interrupt. Normal new input is rejected while interrupts remain unresolved.
+The server still validates every entry and commits the exact batch atomically.
+Normal new input is rejected while interrupts remain unresolved.
+
+Recovery is opt-in. Configure explicit application-owned recovery and winning
+continuation URLs; connection adapters never infer them from the chat URL:
+
+```ts
+import {
+  createInterruptContinuationLoader,
+  createInterruptStateFetcher,
+  fetchServerSentEvents,
+} from '@tanstack/ai-client'
+
+export const connection = fetchServerSentEvents('/api/chat', {
+  interruptStateFetcher: createInterruptStateFetcher(
+    '/api/interrupts/recovery',
+  ),
+  continuationLoader: createInterruptContinuationLoader(
+    '/api/interrupts/continuation',
+  ),
+})
+```
+
+Exact retries use the stored fingerprint and join the winning continuation.
+Stale tabs recover the authoritative generation instead of executing a second
+continuation. See [Migrate to AG-UI interrupts](../migration/interrupts) for V1
+compatibility and rollout steps.
 
 ## SSR and custom adapters
 

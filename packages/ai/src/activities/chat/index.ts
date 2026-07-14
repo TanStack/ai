@@ -11,6 +11,11 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
+import { getInterruptPersistence } from '../../interrupts'
+import {
+  canonicalInterruptJson,
+  digestInterruptJson,
+} from '../../interrupt-serialization'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -25,6 +30,10 @@ import {
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
+import {
+  hashSchemaInput,
+  normalizeApprovalSchema,
+} from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
@@ -33,10 +42,17 @@ import { CapabilityRegistry } from './middleware/capabilities'
 import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
+  InterruptBinding,
+  InterruptRecoveryStateV1,
+  InterruptSubmissionError,
+  ToolApprovalResolution,
+} from '../../interrupts'
+import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
+import type { ApprovalSchemaConfig } from './tools/tool-definition'
 import type {
   AnyTextAdapter,
   StructuredOutputOptions,
@@ -52,6 +68,7 @@ import type {
   Interrupt,
   JSONSchema,
   LazyToolsConfig,
+  MessagesSnapshotEvent,
   ModelMessage,
   RunFinishedEvent,
   SchemaInput,
@@ -96,6 +113,174 @@ import type { ChatMCPOptions } from './mcp/types'
 export const kind = 'text' as const
 
 type AnyRuntimeTool = AnyTool
+type RuntimeToolWithApproval = AnyRuntimeTool & {
+  approvalSchema?: ApprovalSchemaConfig
+}
+const interruptBindingMetadataKey = 'tanstack:interruptBinding'
+
+interface StructuralInterruptFailure {
+  error: Error
+  errors: ReadonlyArray<InterruptSubmissionError>
+  recovery?: InterruptRecoveryStateV1
+}
+
+function isInterruptSubmissionError(
+  value: unknown,
+): value is InterruptSubmissionError {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  if (
+    !('scope' in value) ||
+    !('code' in value) ||
+    !('message' in value) ||
+    !('source' in value) ||
+    !('retryable' in value) ||
+    !('threadId' in value) ||
+    !('interruptedRunId' in value) ||
+    !('generation' in value) ||
+    typeof value.code !== 'string' ||
+    typeof value.message !== 'string' ||
+    typeof value.retryable !== 'boolean' ||
+    typeof value.threadId !== 'string' ||
+    typeof value.interruptedRunId !== 'string' ||
+    typeof value.generation !== 'number'
+  ) {
+    return false
+  }
+  if (value.scope === 'item') {
+    return (
+      'interruptId' in value &&
+      typeof value.interruptId === 'string' &&
+      (value.source === 'client' || value.source === 'server')
+    )
+  }
+  return (
+    value.scope === 'batch' &&
+    'interruptIds' in value &&
+    Array.isArray(value.interruptIds) &&
+    value.interruptIds.every((id) => typeof id === 'string') &&
+    (value.source === 'client' ||
+      value.source === 'server' ||
+      value.source === 'transport')
+  )
+}
+
+function isInterruptRecoveryState(
+  value: unknown,
+): value is InterruptRecoveryStateV1 {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 1 &&
+    'state' in value &&
+    typeof value.state === 'string' &&
+    'threadId' in value &&
+    typeof value.threadId === 'string' &&
+    'interruptedRunId' in value &&
+    typeof value.interruptedRunId === 'string' &&
+    'generation' in value &&
+    typeof value.generation === 'number' &&
+    'pendingInterrupts' in value &&
+    Array.isArray(value.pendingInterrupts)
+  )
+}
+
+function structuralInterruptFailure(
+  error: unknown,
+): StructuralInterruptFailure | undefined {
+  if (
+    !(error instanceof Error) ||
+    error.name !== 'InterruptResumeValidationError' ||
+    !('errors' in error) ||
+    !Array.isArray(error.errors) ||
+    error.errors.length === 0 ||
+    !error.errors.every(isInterruptSubmissionError)
+  ) {
+    return undefined
+  }
+  const recovery =
+    'recovery' in error && isInterruptRecoveryState(error.recovery)
+      ? error.recovery
+      : undefined
+  return {
+    error,
+    errors: error.errors,
+    ...(recovery !== undefined ? { recovery } : {}),
+  }
+}
+
+function normalizePublicInterruptBinding(
+  value: unknown,
+  expectedInterruptId: string,
+): InterruptBinding | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const binding: Record<string, unknown> = Object.fromEntries(
+    Object.entries(value),
+  )
+  if (
+    binding.interruptId !== expectedInterruptId ||
+    typeof binding.interruptedRunId !== 'string' ||
+    typeof binding.generation !== 'number' ||
+    !Number.isInteger(binding.generation) ||
+    binding.generation < 0 ||
+    typeof binding.responseSchemaHash !== 'string' ||
+    (binding.expiresAt !== undefined && typeof binding.expiresAt !== 'string')
+  ) {
+    return undefined
+  }
+  const base = {
+    interruptId: binding.interruptId,
+    interruptedRunId: binding.interruptedRunId,
+    generation: binding.generation,
+    responseSchemaHash: binding.responseSchemaHash,
+    ...(typeof binding.expiresAt === 'string'
+      ? { expiresAt: binding.expiresAt }
+      : {}),
+  }
+  if (binding.kind === 'generic') {
+    return { kind: binding.kind, ...base }
+  }
+  if (
+    typeof binding.toolName !== 'string' ||
+    typeof binding.toolCallId !== 'string'
+  ) {
+    return undefined
+  }
+  if (
+    binding.kind === 'client-tool-execution' &&
+    typeof binding.outputSchemaHash === 'string'
+  ) {
+    return {
+      kind: binding.kind,
+      ...base,
+      toolName: binding.toolName,
+      toolCallId: binding.toolCallId,
+      outputSchemaHash: binding.outputSchemaHash,
+    }
+  }
+  if (
+    binding.kind === 'tool-approval' &&
+    Object.prototype.hasOwnProperty.call(binding, 'originalArgs') &&
+    typeof binding.inputSchemaHash === 'string' &&
+    typeof binding.approvalSchemaHash === 'string'
+  ) {
+    return {
+      kind: binding.kind,
+      ...base,
+      toolName: binding.toolName,
+      toolCallId: binding.toolCallId,
+      originalArgs: binding.originalArgs,
+      inputSchemaHash: binding.inputSchemaHash,
+      approvalSchemaHash: binding.approvalSchemaHash,
+    }
+  }
+  return undefined
+}
 
 // The leaf context-inference primitives (KnownContext, MergeContext,
 // UnionToIntersection, DefinedContext, ContextFromTool, ContextFromMiddleware)
@@ -255,6 +440,8 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: TextOptions['state']
   /**
    * AG-UI interrupt resume responses. Persistence middleware validates these
    * before accepting new input on a thread with pending interrupts.
@@ -542,10 +729,12 @@ class TextEngine<
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
-  private readonly initialApprovals: Map<string, boolean>
+  private readonly initialApprovals: Map<string, ToolApprovalResolution>
   private readonly initialClientToolResults: Map<string, any>
-  private readonly resumeApprovals = new Map<string, boolean>()
+  private readonly resumeApprovals = new Map<string, ToolApprovalResolution>()
   private readonly resumeClientToolResults = new Map<string, any>()
+  private readonly resumeDeniedToolResults = new Map<string, unknown>()
+  private readonly resumeCancelledToolCallIds = new Set<string>()
 
   // AG-UI protocol IDs
   private readonly threadId: string
@@ -669,6 +858,7 @@ class TextEngine<
       requestId: this.requestId,
       streamId: this.streamId,
       runId: this.runIdOverride ?? this.requestId,
+      parentRunId: this.parentRunIdOverride,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -926,6 +1116,41 @@ class TextEngine<
         }
       }
     } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.name === 'InterruptReplaySignal' &&
+        'continuationRunId' in error &&
+        typeof error.continuationRunId === 'string'
+      ) {
+        this.terminalHookCalled = true
+        yield {
+          type: EventType.RUN_FINISHED,
+          timestamp: Date.now(),
+          threadId: this.threadId,
+          runId: this.runIdOverride ?? this.requestId,
+          finishReason: 'stop',
+          outcome: { type: 'success' },
+          result: {
+            replayed: true,
+            continuationRunId: error.continuationRunId,
+          },
+        }
+        return
+      }
+      const interruptFailure = structuralInterruptFailure(error)
+      if (interruptFailure) {
+        this.terminalHookCalled = true
+        this.logger.errors('chat interrupt resume failed', {
+          error,
+          threadId: this.middlewareCtx.threadId,
+        })
+        await this.middlewareRunner.runOnError(this.middlewareCtx, {
+          error: interruptFailure.error,
+          duration: Date.now() - this.streamStartTime,
+        })
+        yield this.buildInterruptRunErrorChunk(error)
+        return
+      }
       if (!this.terminalHookCalled) {
         this.terminalHookCalled = true
         if (error instanceof MiddlewareAbortError) {
@@ -1061,6 +1286,13 @@ class TextEngine<
         : undefined
 
     const { approvals } = this.collectClientState()
+    const adapterApprovals = new Map<string, boolean>()
+    for (const [approvalId, resolution] of approvals) {
+      adapterApprovals.set(
+        approvalId,
+        typeof resolution === 'boolean' ? resolution : resolution.approved,
+      )
+    }
 
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
@@ -1077,7 +1309,7 @@ class TextEngine<
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
       capabilities: this.middlewareCtx,
       // Client approval decisions, for harness interactive-approval resolution.
-      approvals,
+      approvals: adapterApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
       if (this.isCancelled()) {
@@ -1391,6 +1623,10 @@ class TextEngine<
       },
       this.middlewareCtx.context,
       this.toolAbortSignal,
+      {
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      },
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1410,13 +1646,6 @@ class TextEngine<
       needsClientExecution: executionResult.needsClientExecution,
     })
 
-    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
-    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
-    const argsMap = new Map<string, string>()
-    for (const tc of pendingToolCalls) {
-      argsMap.set(tc.id, tc.function.arguments)
-    }
-
     if (
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
@@ -1427,28 +1656,23 @@ class TextEngine<
         for (const chunk of this.buildToolResultChunks(
           executionResult.results,
           finishEvent,
-          argsMap,
         )) {
           yield* this.pipeThroughMiddleware(chunk)
         }
       }
 
-      yield* this.pipeThroughMiddleware(
-        this.buildInterruptFinishedChunk(
-          finishEvent,
-          executionResult.needsApproval,
-          executionResult.needsClientExecution,
-        ),
+      const emitted = yield* this.emitActionableInterruptBoundary(
+        finishEvent,
+        executionResult.needsApproval,
+        executionResult.needsClientExecution,
       )
-
-      this.setToolPhase('wait')
-      return 'wait'
+      this.setToolPhase(emitted ? 'wait' : 'stop')
+      return emitted ? 'wait' : 'stop'
     }
 
     const toolResultChunks = this.buildToolResultChunks(
       executionResult.results,
       finishEvent,
-      argsMap,
     )
 
     for (const chunk of toolResultChunks) {
@@ -1550,6 +1774,10 @@ class TextEngine<
       },
       this.middlewareCtx.context,
       this.toolAbortSignal,
+      {
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      },
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1584,15 +1812,12 @@ class TextEngine<
         }
       }
 
-      yield* this.pipeThroughMiddleware(
-        this.buildInterruptFinishedChunk(
-          finishEvent,
-          executionResult.needsApproval,
-          executionResult.needsClientExecution,
-        ),
+      const emitted = yield* this.emitActionableInterruptBoundary(
+        finishEvent,
+        executionResult.needsApproval,
+        executionResult.needsClientExecution,
       )
-
-      this.setToolPhase('wait')
+      this.setToolPhase(emitted ? 'wait' : 'stop')
       return
     }
 
@@ -1677,10 +1902,10 @@ class TextEngine<
   private extractClientStateFromOriginalMessages(
     originalMessages: Array<any>,
   ): {
-    approvals: Map<string, boolean>
+    approvals: Map<string, ToolApprovalResolution>
     clientToolResults: Map<string, any>
   } {
-    const approvals = new Map<string, boolean>()
+    const approvals = new Map<string, ToolApprovalResolution>()
     const clientToolResults = new Map<string, any>()
 
     for (const message of originalMessages) {
@@ -1709,7 +1934,7 @@ class TextEngine<
   }
 
   private collectClientState(): {
-    approvals: Map<string, boolean>
+    approvals: Map<string, ToolApprovalResolution>
     clientToolResults: Map<string, any>
   } {
     // Start with the initial client state extracted from original messages
@@ -1766,34 +1991,62 @@ class TextEngine<
     const interrupts: Array<Interrupt> = []
 
     for (const approval of approvals) {
+      const tool = this.tools.find(
+        (candidate) => candidate.name === approval.toolName,
+      ) as RuntimeToolWithApproval | undefined
+      const normalized = normalizeApprovalSchema(
+        tool?.approvalSchema,
+        tool?.inputSchema,
+      )
       interrupts.push({
         id: approval.approvalId,
-        reason: 'approval_required',
+        reason: 'tool_call',
         message: `Approval required to run ${approval.toolName}`,
         toolCallId: approval.toolCallId,
-        responseSchema: {
-          type: 'object',
-          properties: { approved: { type: 'boolean' } },
-          required: ['approved'],
-        },
+        responseSchema: normalized.responseSchema,
         metadata: {
           kind: 'approval',
           toolName: approval.toolName,
           input: approval.input,
+          [interruptBindingMetadataKey]: {
+            kind: 'tool-approval',
+            interruptId: approval.approvalId,
+            toolName: approval.toolName,
+            toolCallId: approval.toolCallId,
+            originalArgs: approval.input,
+            inputSchemaHash: hashSchemaInput(tool?.inputSchema),
+            approvalSchemaHash: normalized.approvalSchemaHash,
+            responseSchemaHash: normalized.responseSchemaHash,
+          },
         },
       })
     }
 
     for (const clientTool of clientRequests) {
+      const tool = this.tools.find(
+        (candidate) => candidate.name === clientTool.toolName,
+      )
+      const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
       interrupts.push({
         id: `client_tool_${clientTool.toolCallId}`,
-        reason: 'client_tool_input',
+        reason: 'tanstack:client_tool_execution',
         message: `Client tool ${clientTool.toolName} is ready to run`,
         toolCallId: clientTool.toolCallId,
+        responseSchema,
         metadata: {
           kind: 'client_tool',
           toolName: clientTool.toolName,
           input: clientTool.input,
+          [interruptBindingMetadataKey]: {
+            kind: 'client-tool-execution',
+            interruptId: `client_tool_${clientTool.toolCallId}`,
+            toolName: clientTool.toolName,
+            toolCallId: clientTool.toolCallId,
+            outputSchemaHash: hashSchemaInput(tool?.outputSchema),
+            responseSchemaHash: digestInterruptJson(
+              canonicalInterruptJson(responseSchema),
+            ),
+          },
         },
       })
     }
@@ -1816,10 +2069,198 @@ class TextEngine<
     }
   }
 
+  private buildMessagesSnapshotChunk(): StreamChunk {
+    const messages: MessagesSnapshotEvent['messages'] = this.messages.map(
+      (message, index) => {
+        const content =
+          typeof message.content === 'string'
+            ? message.content
+            : message.content === null
+              ? undefined
+              : JSON.stringify(message.content)
+        return {
+          id: `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+          role: message.role,
+          ...(content !== undefined ? { content } : {}),
+          ...('toolCalls' in message && message.toolCalls
+            ? { toolCalls: message.toolCalls }
+            : {}),
+          ...('toolCallId' in message && message.toolCallId
+            ? { toolCallId: message.toolCallId }
+            : {}),
+        } as MessagesSnapshotEvent['messages'][number]
+      },
+    )
+    return {
+      type: EventType.MESSAGES_SNAPSHOT,
+      timestamp: Date.now(),
+      model: this.params.model,
+      messages,
+    }
+  }
+
+  private publicInterruptTerminal(chunk: StreamChunk): StreamChunk {
+    if (
+      chunk.type !== EventType.RUN_FINISHED ||
+      chunk.outcome?.type !== 'interrupt'
+    ) {
+      return chunk
+    }
+    return {
+      ...chunk,
+      outcome: {
+        ...chunk.outcome,
+        interrupts: chunk.outcome.interrupts.map((interrupt) => {
+          if (
+            !interrupt.metadata ||
+            typeof interrupt.metadata !== 'object' ||
+            Array.isArray(interrupt.metadata)
+          ) {
+            return interrupt
+          }
+          const metadata = { ...interrupt.metadata }
+          const binding = normalizePublicInterruptBinding(
+            metadata[interruptBindingMetadataKey],
+            interrupt.id,
+          )
+          if (binding) {
+            metadata[interruptBindingMetadataKey] = binding
+          } else {
+            delete metadata[interruptBindingMetadataKey]
+          }
+          return { ...interrupt, metadata }
+        }),
+      },
+    }
+  }
+
+  private interruptFailure(error: unknown): {
+    message: string
+    code: string
+    errors?: ReadonlyArray<InterruptSubmissionError>
+    recovery?: InterruptRecoveryStateV1
+  } {
+    const structured = structuralInterruptFailure(error)
+    if (structured) {
+      return {
+        message: structured.error.message,
+        code: structured.errors[0]?.code ?? 'server',
+        errors: structured.errors,
+        ...(structured.recovery !== undefined
+          ? { recovery: structured.recovery }
+          : {}),
+      }
+    }
+    if (error && typeof error === 'object' && 'errors' in error) {
+      const errors = error.errors
+      if (Array.isArray(errors)) {
+        const first = errors[0]
+        if (first && typeof first === 'object') {
+          const message =
+            'message' in first && typeof first.message === 'string'
+              ? first.message
+              : 'Interrupt persistence failed.'
+          const code =
+            'code' in first && typeof first.code === 'string'
+              ? first.code
+              : 'server'
+          return { message, code }
+        }
+      }
+    }
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Interrupt persistence failed.',
+      code: 'server',
+    }
+  }
+
+  private buildInterruptRunErrorChunk(error: unknown): StreamChunk {
+    const failure = this.interruptFailure(error)
+    return {
+      type: EventType.RUN_ERROR,
+      timestamp: Date.now(),
+      runId: this.runIdOverride ?? this.requestId,
+      threadId: this.threadId,
+      message: failure.message,
+      code: failure.code,
+      error: { message: failure.message, code: failure.code },
+      ...(failure.errors !== undefined
+        ? { 'tanstack:interruptErrors': failure.errors }
+        : {}),
+      ...(failure.recovery !== undefined
+        ? { 'tanstack:interruptRecovery': failure.recovery }
+        : {}),
+    }
+  }
+
+  private async *emitInterruptRunError(
+    error: unknown,
+  ): AsyncGenerator<StreamChunk, void, void> {
+    const failure = this.interruptFailure(error)
+    this.finalizationError = {
+      message: failure.message,
+      code: failure.code,
+      cause: error,
+    }
+    yield* this.pipeThroughMiddleware(this.buildInterruptRunErrorChunk(error))
+  }
+
+  private async *emitActionableInterruptBoundary(
+    finishEvent: RunFinishedEvent,
+    approvals: Array<ApprovalRequest>,
+    clientRequests: Array<ClientToolRequest>,
+  ): AsyncGenerator<StreamChunk, boolean, void> {
+    if (!getInterruptPersistence(this.middlewareCtx, { optional: true })) {
+      yield* this.emitInterruptRunError({
+        errors: [
+          {
+            code: 'persistence-required',
+            message:
+              'Actionable interrupts require an atomic interrupt persistence capability.',
+          },
+        ],
+      })
+      return false
+    }
+
+    const terminal = this.buildInterruptFinishedChunk(
+      finishEvent,
+      approvals,
+      clientRequests,
+    )
+    let terminalOutputs: Array<StreamChunk>
+    try {
+      terminalOutputs = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        terminal,
+      )
+    } catch (error) {
+      yield* this.emitInterruptRunError(error)
+      return false
+    }
+
+    yield* this.pipeThroughMiddleware(this.buildMessagesSnapshotChunk())
+    if (this.params.state !== undefined) {
+      yield* this.pipeThroughMiddleware({
+        type: EventType.STATE_SNAPSHOT,
+        timestamp: Date.now(),
+        model: this.params.model,
+        snapshot: this.params.state,
+      })
+    }
+    for (const output of terminalOutputs) {
+      yield this.publicInterruptTerminal(output)
+      this.middlewareCtx.chunkIndex++
+    }
+    return true
+  }
+
   private buildToolResultChunks(
     results: Array<ToolResult>,
     finishEvent: RunFinishedEvent,
-    argsMap?: Map<string, string>,
   ): Array<StreamChunk> {
     const chunks: Array<StreamChunk> = []
 
@@ -1833,41 +2274,6 @@ class TextEngine<
       const content = normalizeToolResult(result.result)
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
-
-      // argsMap is set only on continuation re-executions, where the adapter
-      // never streamed these calls. Otherwise it already emitted END, so a
-      // second one here would be an orphan that fails verifyEvents (#519).
-      if (argsMap) {
-        chunks.push({
-          type: 'TOOL_CALL_START',
-          timestamp: Date.now(),
-          model: finishEvent.model,
-          toolCallId: result.toolCallId,
-          toolCallName: result.toolName,
-          toolName: result.toolName,
-        } as StreamChunk)
-
-        const args = argsMap.get(result.toolCallId) ?? '{}'
-        chunks.push({
-          type: 'TOOL_CALL_ARGS',
-          timestamp: Date.now(),
-          model: finishEvent.model,
-          toolCallId: result.toolCallId,
-          delta: args,
-          args,
-        } as StreamChunk)
-
-        chunks.push({
-          type: 'TOOL_CALL_END',
-          timestamp: Date.now(),
-          model: finishEvent.model,
-          toolCallId: result.toolCallId,
-          toolCallName: result.toolName,
-          toolName: result.toolName,
-          result: wireContent,
-          ...(result.state !== undefined && { state: result.state }),
-        } as StreamChunk)
-      }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
       chunks.push({
@@ -2564,6 +2970,8 @@ class TextEngine<
       resumeToolState: {
         approvals: this.resumeApprovals,
         clientToolResults: this.resumeClientToolResults,
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
@@ -2572,14 +2980,25 @@ class TextEngine<
 
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     if (config.resumeToolState?.approvals) {
-      for (const [approvalId, approved] of config.resumeToolState.approvals) {
-        this.resumeApprovals.set(approvalId, approved)
+      for (const [approvalId, resolution] of config.resumeToolState.approvals) {
+        this.resumeApprovals.set(approvalId, resolution)
       }
     }
     if (config.resumeToolState?.clientToolResults) {
       for (const [toolCallId, result] of config.resumeToolState
         .clientToolResults) {
         this.resumeClientToolResults.set(toolCallId, result)
+      }
+    }
+    if (config.resumeToolState?.deniedToolResults) {
+      for (const [toolCallId, result] of config.resumeToolState
+        .deniedToolResults) {
+        this.resumeDeniedToolResults.set(toolCallId, result)
+      }
+    }
+    if (config.resumeToolState?.cancelledToolCallIds) {
+      for (const toolCallId of config.resumeToolState.cancelledToolCallIds) {
+        this.resumeCancelledToolCallIds.add(toolCallId)
       }
     }
     this.messages = config.messages

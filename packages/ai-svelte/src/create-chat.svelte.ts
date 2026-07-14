@@ -3,7 +3,8 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { onMount } from 'svelte'
 import type {
   ChatClientState,
-  ChatPendingInterrupt,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
@@ -24,6 +25,9 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -78,9 +82,12 @@ export function createChat<
   let resumeState = $state<ChatResumeState | null>(
     options.initialResumeSnapshot?.resumeState ?? null,
   )
-  let pendingInterrupts = $state<Array<ChatPendingInterrupt>>(
-    options.initialResumeSnapshot?.pendingInterrupts ?? [],
-  )
+  let interruptState = $state.raw<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -167,18 +174,22 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
-    onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+    onResumeStateChange: (nextResumeState) => {
       resumeState = nextResumeState
-      pendingInterrupts = nextPendingInterrupts
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState = nextInterruptState
+      options.onInterruptStateChange?.(nextInterruptState)
     },
   })
 
   function syncResumeState() {
     resumeState = client.getResumeState()
-    pendingInterrupts = client.getPendingInterrupts()
+    interruptState = client.getInterruptState()
   }
 
   messages = client.getMessages()
+  interruptState = client.getInterruptState()
 
   if (options.live) {
     client.subscribe()
@@ -273,6 +284,29 @@ export function createChat<
     return result
   }
 
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client.cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client.retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
+
   /**
    * @deprecated Use `updateForwardedProps` instead.
    * Both populate the same wire payload.
@@ -355,8 +389,17 @@ export function createChat<
     get resumeState() {
       return resumeState
     },
+    get interrupts() {
+      return interruptState.interrupts
+    },
     get pendingInterrupts() {
-      return pendingInterrupts
+      return interruptState.interrupts
+    },
+    get interruptErrors() {
+      return interruptState.interruptErrors
+    },
+    get resuming() {
+      return interruptState.resuming
     },
     get partial() {
       return partial
@@ -373,6 +416,10 @@ export function createChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     resumeInterrupts,
     updateBody,
     updateForwardedProps,

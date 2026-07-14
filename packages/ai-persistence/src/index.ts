@@ -6,7 +6,9 @@ export type {
   RunRecord,
   RunStore,
   InterruptRecord,
+  InterruptBatchRecord,
   InterruptStore,
+  LegacyInterruptRecordInput,
   MetadataStore,
   ArtifactRecord,
   ArtifactStore,
@@ -24,13 +26,32 @@ export type {
 } from './types'
 
 // Middleware
-export { withChatPersistence, withGenerationPersistence } from './middleware'
+export {
+  InterruptReplaySignal,
+  InterruptResumeValidationError,
+  validateInterruptResumeBatch,
+  withChatPersistence,
+  withGenerationPersistence,
+} from './middleware'
 export type {
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,
   GenerationArtifactNameInput,
+  ValidateInterruptResumeBatchInput,
+  ValidatedInterruptResumeBatch,
   WithPersistenceOptions,
 } from './middleware'
+
+// Authenticated recovery helpers (route registration remains application-owned)
+export {
+  createInterruptRecoveryHandler,
+  getInterruptRecoveryState,
+} from './recovery'
+export type {
+  GetInterruptRecoveryStateOptions,
+  InterruptRecoveryAuthorization,
+  InterruptRecoveryHandlerOptions,
+} from './recovery'
 
 export type {
   PersistedArtifactActivity,
@@ -42,17 +63,25 @@ export type {
 export { memoryPersistence } from './memory'
 
 // Interrupt controller
-export { createInterruptController } from './interrupts'
+export {
+  createInterruptController,
+  hasExactInterruptIds,
+  InterruptStoreCorruptionError,
+  projectInterruptRecovery,
+} from './interrupts'
 export type { InterruptController } from './interrupts'
 
 // Capabilities (incl. re-exported core Locks token)
 export {
   PersistenceCapability,
   InterruptsCapability,
+  InterruptPersistenceCapability,
   getPersistence,
   providePersistence,
   getInterrupts,
   provideInterrupts,
+  getInterruptPersistence,
+  provideInterruptPersistence,
   LocksCapability,
   getLocks,
   provideLocks,

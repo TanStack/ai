@@ -7,9 +7,11 @@ import type {
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatPendingInterrupt,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
   ClientContextOptionFromTools,
@@ -152,7 +154,22 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   resumeState: Accessor<ChatResumeState | null>
-  pendingInterrupts: Accessor<Array<ChatPendingInterrupt>>
+  interrupts: Accessor<BoundInterrupts<TTools>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: Accessor<BoundInterrupts<TTools>>
+  interruptErrors: Accessor<ChatInterruptState<TTools>['interruptErrors']>
+  resuming: Accessor<boolean>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
   resumeInterrupts: (
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,

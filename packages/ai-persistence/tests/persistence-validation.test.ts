@@ -5,6 +5,14 @@ import {
 } from '../src/middleware'
 import type { AIPersistence } from '../src'
 import {
+  InterruptPersistenceCapability,
+  InterruptsCapability,
+  getInterruptPersistence,
+  getInterrupts,
+  provideInterruptPersistence,
+  provideInterrupts,
+} from '../src'
+import {
   createArtifactStore,
   createBlobStore,
   createInterruptStore,
@@ -13,6 +21,11 @@ import {
 } from './persistence-fixtures'
 
 describe('persistence store dependency validation', () => {
+  it('keeps deprecated interrupt capability names as exact core aliases', () => {
+    expect(InterruptsCapability).toBe(InterruptPersistenceCapability)
+    expect(getInterrupts).toBe(getInterruptPersistence)
+    expect(provideInterrupts).toBe(provideInterruptPersistence)
+  })
   it('rejects a dynamic chat persistence with interrupts but no runs', () => {
     const persistence: AIPersistence = {
       stores: { interrupts: createInterruptStore() },
@@ -42,6 +55,18 @@ describe('persistence store dependency validation', () => {
     }
 
     expect(() => withChatPersistence(persistence)).not.toThrow()
+  })
+
+  it('rejects a sequential interrupt store without the atomic gateway', () => {
+    const interrupts = createInterruptStore()
+    Reflect.deleteProperty(interrupts, 'commitInterruptResolutions')
+    const persistence: AIPersistence = {
+      stores: { runs: createRunStore(), interrupts },
+    }
+
+    expect(() => withChatPersistence(persistence)).toThrow(
+      /atomic-commit-unsupported/,
+    )
   })
 
   it.each([

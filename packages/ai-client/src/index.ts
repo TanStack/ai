@@ -6,6 +6,12 @@ export type {
   InferAudioRecordingOutput,
 } from './audio-recorder'
 export { ChatClient } from './chat-client'
+export { InterruptManager } from './interrupt-manager'
+export type {
+  InterruptManagerHydration,
+  InterruptManagerOptions,
+  InterruptManagerSubmission,
+} from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
 export { RealtimeClient } from './realtime-client'
@@ -27,9 +33,21 @@ export type {
   ChatPersistenceOptions,
   ChatClientOptions,
   ChatPendingInterrupt,
+  BoundInterruptBase,
+  BoundInterrupts,
+  ChatInterrupt,
+  ChatInterruptState,
+  ClientToolExecutionInterrupt,
+  GenericAGUIInterrupt,
+  InterruptItemStatus,
+  ToolApprovalInterrupt,
   ClientContextOptionFromTools,
   ChatResumeState,
   ChatResumeSnapshot,
+  ChatResumeSnapshotV1,
+  ChatResumeSnapshotV2,
+  ChatContinuationLoader,
+  PersistedInterruptDraft,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -120,6 +138,8 @@ export type {
   RealtimeStateChangeCallback,
 } from './realtime-types'
 export {
+  createInterruptContinuationLoader,
+  createInterruptStateFetcher,
   fetchServerSentEvents,
   fetchHttpStream,
   xhrServerSentEvents,
@@ -131,6 +151,9 @@ export {
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type InterruptContinuationLoader,
+  type InterruptFetchOptions,
+  type InterruptStateFetcher,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
   type SubscribeConnectionAdapter,

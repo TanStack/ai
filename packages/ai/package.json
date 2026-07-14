@@ -86,9 +86,12 @@
   ],
   "dependencies": {
     "@ag-ui/core": "^0.0.57",
+    "@noble/hashes": "^2.0.1",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:*",
     "@tanstack/ai-utils": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
