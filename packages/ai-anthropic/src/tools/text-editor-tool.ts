@@ -1,4 +1,7 @@
-import { brandAnthropicProviderTool } from './anthropic-provider-tool'
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,
@@ -19,7 +22,9 @@ export type AnthropicTextEditorTool = ProviderTool<'anthropic', 'text_editor'>
 export function convertTextEditorToolToAdapterFormat(
   tool: Tool,
 ): TextEditorToolConfig {
-  const metadata = tool.metadata as TextEditorToolConfig
+  const metadata = getAnthropicProviderToolMetadata(
+    tool,
+  ) as TextEditorToolConfig
   return {
     ...metadata,
   }
