@@ -194,9 +194,8 @@ export function useAssistant<
             await c.sendMessage(content)
             const msgs = c.getMessages()
             const hasStructured =
-              msgs
-                .at(-1)
-                ?.parts.some((p) => p.type === 'structured-output') ?? false
+              msgs.at(-1)?.parts.some((p) => p.type === 'structured-output') ??
+              false
             // Cast: TS can't structurally narrow the conditional return of
             // AssistantChatSurface['sendMessage'] against this runtime branch,
             // mirroring the assembled-`system` cast below.
