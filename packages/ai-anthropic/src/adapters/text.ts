@@ -2,6 +2,7 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
 import {
   readCodeExecutionConfig,
   readCodeExecutionSkills,
@@ -171,7 +172,9 @@ export function computeAnthropicBetas(
 
   // Code-execution beta is version-aware: select from the FIRST code_execution
   // tool's config type.
-  const codeExecTool = tools?.find((t) => t.name === 'code_execution')
+  const codeExecTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'code_execution',
+  )
   if (codeExecTool) {
     const cfgType = readCodeExecutionConfig(codeExecTool)?.type
     // Each code_execution tool version pairs with a specific beta. Known
@@ -188,9 +191,9 @@ export function computeAnthropicBetas(
   // container-lift, which lifts skills from any code_execution tool that
   // carries them (not just the first).
   const hasSkills = tools?.some(
-    (t) =>
-      t.name === 'code_execution' &&
-      (readCodeExecutionSkills(t)?.length ?? 0) > 0,
+    (tool) =>
+      getAnthropicProviderToolKind(tool) === 'code_execution' &&
+      (readCodeExecutionSkills(tool)?.length ?? 0) > 0,
   )
   if (hasSkills) betas.add('skills-2025-10-02')
 
@@ -574,7 +577,7 @@ export class AnthropicTextAdapter<
     // canonical path for skills; `modelOptions.container.skills` is deprecated.
     const toolSkills = options.tools
       ?.map((tool) =>
-        tool.name === 'code_execution'
+        getAnthropicProviderToolKind(tool) === 'code_execution'
           ? readCodeExecutionSkills(tool)
           : undefined,
       )
