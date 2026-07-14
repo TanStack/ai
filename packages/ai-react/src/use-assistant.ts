@@ -4,7 +4,6 @@ import {
 } from '@tanstack/ai-client/assistant'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { AssistantDefinition } from '@tanstack/ai/assistant'
-import type { AnyClientTool } from '@tanstack/ai/client'
 import type {
   AssistantClientOptions,
   AssistantSystem,
@@ -69,20 +68,21 @@ const initialOneShotState: OneShotState = {
  */
 export function useAssistant<
   TDef extends AssistantDefinition<any>,
-  TChatTools extends ReadonlyArray<AnyClientTool> = [],
->(
-  assistant: TDef,
-  options: Omit<
-    AssistantClientOptions<TDef, TChatTools>,
+  // Capture the options object so per-capability `onResult` transforms flow
+  // into each one-shot capability's `result` type. `any` tools keep the
+  // client-executed `chat.tools` option unconstrained (tool typing on the chat
+  // surface comes from the assistant definition, not this generic).
+  TOptions extends Omit<
+    AssistantClientOptions<TDef, any>,
     'assistant' | 'callbacks'
   >,
-): AssistantSystem<TDef, TChatTools> {
+>(assistant: TDef, options: TOptions): AssistantSystem<TDef, [], TOptions> {
   const hookId = useId()
   const clientId = options.id ?? hookId
 
   const optionsRef = useRef(options)
   optionsRef.current = options
-  const activeClientRef = useRef<AssistantClient<TDef, TChatTools> | null>(null)
+  const activeClientRef = useRef<AssistantClient<TDef, any> | null>(null)
 
   const [chatState, setChatState] = useState<ChatState>(initialChatState)
   const [oneShotState, setOneShotState] = useState<
@@ -92,12 +92,10 @@ export function useAssistant<
   const client = useMemo(() => {
     const initial = optionsRef.current
 
-    const instance = new AssistantClient<TDef, TChatTools>({
+    const instance = new AssistantClient<TDef, any>({
+      ...initial,
       assistant,
-      connection: initial.connection,
       id: clientId,
-      threadId: initial.threadId,
-      chat: initial.chat,
       callbacks: {
         chat: {
           onMessagesChange: (m) => {
@@ -243,7 +241,7 @@ export function useAssistant<
       }
     }
 
-    return out as AssistantSystem<TDef, TChatTools>
+    return out as AssistantSystem<TDef, [], TOptions>
   }, [client, chatState, oneShotState, partial, final])
 
   return system

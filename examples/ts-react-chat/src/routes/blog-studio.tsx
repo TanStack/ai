@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { defineAssistant } from '@tanstack/ai/assistant'
@@ -51,28 +50,19 @@ export const Route = createFileRoute('/blog-studio')({
   component: BlogStudio,
 })
 
-// The chat step runs first; once the draft is ready, the image and voice-over
-// are produced in parallel. Each one-shot step tracks its own outcome because
-// `generate()` resolves to `null` on failure rather than rejecting.
-type Phase = 'idle' | 'writing' | 'producing' | 'done'
-type StepOutcome = 'pending' | 'active' | 'ok' | 'failed'
 type StepState = 'pending' | 'active' | 'done' | 'failed'
 
-function outcomeToState(outcome: StepOutcome): StepState {
-  return outcome === 'ok'
-    ? 'done'
-    : outcome === 'active'
-      ? 'active'
-      : outcome === 'failed'
+// The one-shot generation status maps directly onto a step state.
+function statusToStep(
+  status: 'idle' | 'generating' | 'success' | 'error',
+): StepState {
+  return status === 'generating'
+    ? 'active'
+    : status === 'success'
+      ? 'done'
+      : status === 'error'
         ? 'failed'
         : 'pending'
-}
-
-function base64ToObjectUrl(base64: string, contentType: string): string {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return URL.createObjectURL(new Blob([bytes], { type: contentType }))
 }
 
 // Prepare the post body for narration: strip Markdown so TTS doesn't read the
@@ -101,118 +91,75 @@ function forNarration(markdown: string, max = 4000): string {
 function BlogStudio() {
   const assistant = useAssistant(blogAssistant, {
     connection: fetchServerSentEvents('/api/blog-studio'),
+    // Transform the raw TTS result into a ready-to-play data URL at the hook.
+    // `result` is typed as the raw `TTSResult`; `assistant.speech.result`
+    // becomes `{ src: string } | null` — no component state, no cleanup.
+    speech: {
+      onResult: (result) => ({
+        src: `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`,
+      }),
+    },
   })
 
-  const [topic, setTopic] = useState('')
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
-  const [imageOutcome, setImageOutcome] = useState<StepOutcome>('pending')
-  const [audioOutcome, setAudioOutcome] = useState<StepOutcome>('pending')
-  const [error, setError] = useState<string | null>(null)
-  const audioObjectUrl = useRef<string | null>(null)
+  // Everything below is derived from the assistant's reactive state — no
+  // useState / useEffect. The chat carries loading/partial/final; each one-shot
+  // carries result/status/error.
+  const { chat: post, image, speech } = assistant
+  const draft = post.partial
+  const finished = post.final
+  const title = finished?.title ?? draft.title
+  const subtitle = finished?.subtitle ?? draft.subtitle
+  const body = finished?.body ?? draft.body ?? ''
 
-  // Revoke the last audio object URL when the component unmounts.
-  useEffect(
-    () => () => {
-      if (audioObjectUrl.current) URL.revokeObjectURL(audioObjectUrl.current)
-    },
-    [],
-  )
+  const heroImage = image.result?.images[0]
+  const imageUrl =
+    heroImage?.url ??
+    (heroImage?.b64Json ? `data:image/png;base64,${heroImage.b64Json}` : null)
+  // `speech.result` is the `onResult` transform's output — `{ src } | null`.
+  const audioSrc = speech.result?.src ?? null
 
-  const isRunning = phase === 'writing' || phase === 'producing'
+  const isRunning = post.isLoading || image.isLoading || speech.isLoading
+  const hasRun = post.messages.length > 0 || isRunning
+  const writingStep: StepState = post.error
+    ? 'failed'
+    : post.isLoading
+      ? 'active'
+      : hasRun
+        ? 'done'
+        : 'pending'
+  const showArticle = Boolean(finished) || Boolean(title) || Boolean(body)
 
-  async function run() {
-    const t = topic.trim()
-    if (!t || isRunning) return
-    setError(null)
-    setImageUrl(null)
-    setAudioUrl(null)
-    // Revoke the previous run's audio URL now, so it's freed regardless of
-    // whether this run's narration succeeds.
-    if (audioObjectUrl.current) {
-      URL.revokeObjectURL(audioObjectUrl.current)
-      audioObjectUrl.current = null
-    }
-    setImageOutcome('pending')
-    setAudioOutcome('pending')
-    setPhase('writing')
+  async function run(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const topic = String(
+      new FormData(e.currentTarget).get('topic') ?? '',
+    ).trim()
+    if (!topic || isRunning) return
 
-    try {
-      // 1. Draft the post. `sendMessage` resolves to the structured result
-      //    because the chat callback declared an `outputSchema`. We re-validate
-      //    it with the same schema before chaining: if the run errored (e.g. a
-      //    missing server API key) there's no completed structured output, so
-      //    guarding on the shape — not just a null check — keeps the pipeline
-      //    from proceeding with a half-finished draft.
-      const drafted = await assistant.chat.sendMessage(
-        `Write a blog post about: ${t}`,
-      )
-      const parsed = BlogPostSchema.safeParse(drafted)
-      if (!parsed.success) {
-        setError(
-          'Could not draft the post. Make sure OPENAI_API_KEY is set on the ' +
-            'server, then try again.',
-        )
-        setPhase('idle')
-        return
-      }
-      const post = parsed.data
+    // Reset the surfaces so a re-run starts clean (clears prior draft/results).
+    post.clear()
+    image.reset()
+    speech.reset()
 
-      // 2. Illustrate and narrate in parallel — both derive only from the
-      //    finished draft, so there's no reason to wait for one before the
-      //    other. Each resolves to `null` on failure (generate never rejects),
-      //    so each records its own outcome and the article ships best-effort.
-      setPhase('producing')
-      setImageOutcome('active')
-      setAudioOutcome('active')
+    // 1. Draft the post. `sendMessage` resolves to the schema-validated result;
+    //    re-validate before chaining so a failed run doesn't proceed with a
+    //    half-finished draft.
+    const parsed = BlogPostSchema.safeParse(
+      await post.sendMessage(`Write a blog post about: ${topic}`),
+    )
+    if (!parsed.success) return
+    const draftedPost = parsed.data
 
-      const illustrate = (async () => {
-        const image = await assistant.image.generate({
-          prompt:
-            `A striking editorial hero image for a blog post titled ` +
-            `"${post.title}". ${post.subtitle}. Modern, clean, cinematic, ` +
-            `high quality, no text.`,
-        })
-        const shot = image?.images[0]
-        const url =
-          shot?.url ??
-          (shot?.b64Json ? `data:image/png;base64,${shot.b64Json}` : null)
-        setImageUrl(url)
-        setImageOutcome(url ? 'ok' : 'failed')
-      })()
-
-      const narrate = (async () => {
-        const speech = await assistant.speech.generate({
-          text: forNarration(post.body),
-        })
-        if (speech?.audio) {
-          const audio = base64ToObjectUrl(
-            speech.audio,
-            speech.contentType ?? 'audio/mpeg',
-          )
-          audioObjectUrl.current = audio
-          setAudioUrl(audio)
-          setAudioOutcome('ok')
-        } else {
-          setAudioOutcome('failed')
-        }
-      })()
-
-      await Promise.all([illustrate, narrate])
-      setPhase('done')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
-      setPhase('idle')
-    }
+    // 2. Illustrate and narrate in parallel — fire and forget; the surfaces'
+    //    reactive result/status/error drive the UI. `generate()` never rejects.
+    void image.generate({
+      prompt:
+        `A striking editorial hero image for a blog post titled ` +
+        `"${draftedPost.title}". ${draftedPost.subtitle}. Modern, clean, ` +
+        `cinematic, high quality, no text.`,
+    })
+    void speech.generate({ text: forNarration(draftedPost.body) })
   }
-
-  const draft = assistant.chat.partial
-  const post = assistant.chat.final
-  const title = post?.title ?? draft.title
-  const subtitle = post?.subtitle ?? draft.subtitle
-  const body = post?.body ?? draft.body ?? ''
-  const showArticle = Boolean(post) || (phase === 'writing' && (title || body))
 
   return (
     <div className="flex h-[calc(100vh-72px)] flex-col bg-gradient-to-b from-stone-50 to-amber-50 text-stone-800 md:flex-row">
@@ -233,62 +180,58 @@ function BlogStudio() {
           endpoint.
         </p>
 
-        <label
-          htmlFor="blog-topic"
-          className="mb-1 block text-sm font-medium text-stone-600"
-        >
-          Topic
-        </label>
-        <input
-          id="blog-topic"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void run()
-          }}
-          placeholder="e.g. The quiet comeback of urban foxes"
-          disabled={isRunning}
-          className="mb-3 w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-60"
-        />
-        <button
-          type="button"
-          onClick={() => void run()}
-          disabled={isRunning || !topic.trim()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isRunning ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Wand2 size={18} />
-          )}
-          {isRunning ? 'Working…' : 'Write the post'}
-        </button>
+        <form onSubmit={run}>
+          <label
+            htmlFor="blog-topic"
+            className="mb-1 block text-sm font-medium text-stone-600"
+          >
+            Topic
+          </label>
+          <input
+            id="blog-topic"
+            name="topic"
+            defaultValue=""
+            placeholder="e.g. The quiet comeback of urban foxes"
+            disabled={isRunning}
+            className="mb-3 w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={isRunning}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isRunning ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Wand2 size={18} />
+            )}
+            {isRunning ? 'Working…' : 'Write the post'}
+          </button>
+        </form>
 
-        {phase !== 'idle' && (
+        {hasRun && (
           <div className="mt-5 flex flex-col gap-2 text-sm">
             <StepRow
               label="Writing the post"
               icon={<PenLine size={16} />}
-              // The stepper only renders once phase !== 'idle', so writing is
-              // either in progress or already finished.
-              state={phase === 'writing' ? 'active' : 'done'}
+              state={writingStep}
             />
             <StepRow
               label="Illustrating"
               icon={<ImageIcon size={16} />}
-              state={outcomeToState(imageOutcome)}
+              state={statusToStep(image.status)}
             />
             <StepRow
               label="Recording voice-over"
               icon={<Volume2 size={16} />}
-              state={outcomeToState(audioOutcome)}
+              state={statusToStep(speech.status)}
             />
           </div>
         )}
 
-        {error && (
+        {post.error && (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+            {post.error.message}
           </div>
         )}
       </aside>
@@ -307,12 +250,12 @@ function BlogStudio() {
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
-                  {imageOutcome === 'active' ? (
+                  {image.status === 'generating' ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <Loader2 size={28} className="animate-spin" />
                       <span className="text-sm">Illustrating…</span>
                     </div>
-                  ) : imageOutcome === 'failed' ? (
+                  ) : image.status === 'error' ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <AlertTriangle size={28} className="text-amber-500" />
                       <span className="text-sm">
@@ -340,17 +283,17 @@ function BlogStudio() {
                   <Sparkles size={16} />
                 </div>
                 <span>Written &amp; narrated by TanStack AI</span>
-                {audioUrl ? (
+                {audioSrc ? (
                   <div className="ml-auto flex items-center gap-2">
                     <Volume2 size={16} className="text-amber-700" />
-                    <audio src={audioUrl} controls className="h-8" />
+                    <audio src={audioSrc} controls className="h-8" />
                   </div>
-                ) : audioOutcome === 'active' ? (
+                ) : speech.status === 'generating' ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <Loader2 size={14} className="animate-spin" /> Recording
                     voice-over…
                   </span>
-                ) : audioOutcome === 'failed' ? (
+                ) : speech.status === 'error' ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <AlertTriangle size={14} className="text-amber-500" />
                     Voice-over unavailable

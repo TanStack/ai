@@ -288,6 +288,63 @@ function BlogOutlineForm() {
 
 `partial` and `final` only exist on the type when the `chat` callback declares `outputSchema` — omit it and `assistant.chat` has no such fields, exactly like `useChat` without `outputSchema`. See [Structured Outputs](../structured-outputs/overview) for the full story.
 
+## Transforming one-shot results
+
+Each one-shot capability accepts an optional `onResult` transform, keyed by the
+capability name on `useAssistant`'s options — the same shape as the standalone
+generation hooks. It runs on the raw backend result before it lands on
+`assistant.<capability>.result`, and **its return type becomes that
+capability's `result` type**. Use it to reshape a result once, at the hook,
+instead of deriving it in every component that reads it:
+
+```tsx
+// components/CoverArt.tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { useAssistant } from '@tanstack/ai-react/assistant'
+import { chat, generateImage } from '@tanstack/ai'
+import { defineAssistant } from '@tanstack/ai/assistant'
+import { openaiImage, openaiText } from '@tanstack/ai-openai'
+
+const blogAssistant = defineAssistant({
+  chat: (req) =>
+    chat({ adapter: openaiText('gpt-5.5'), messages: req.messages }),
+  image: (req) => {
+    if (typeof req.prompt !== 'string') {
+      throw new Error('image prompt must be a string')
+    }
+    return generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: req.prompt,
+    })
+  },
+})
+
+function CoverArt() {
+  const assistant = useAssistant(blogAssistant, {
+    connection: fetchServerSentEvents('/api/assistant'),
+    // `result` is the raw `ImageGenerationResult`; the return type flows
+    // through to `assistant.image.result`.
+    image: { onResult: (result) => result.images[0]?.url ?? null },
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => assistant.image.generate({ prompt: 'a red fox' })}
+      >
+        Generate
+      </button>
+      {/* `assistant.image.result` is now `string | null`, not the raw result */}
+      {assistant.image.result && <img src={assistant.image.result} alt="" />}
+    </div>
+  )
+}
+```
+
+Return `undefined` (or nothing) from `onResult` to keep the raw result. Each
+capability's option also takes `forwardedProps` to merge extra fields into that
+capability's request body.
+
 ## Which page do I read?
 
 | You want to… | Read |

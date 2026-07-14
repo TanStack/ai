@@ -5,6 +5,7 @@ import type { AnyClientTool } from '@tanstack/ai/client'
 import type {
   AssistantClientOptions,
   OneShotCapabilityName,
+  OneShotCapabilityOptions,
 } from './assistant-types.js'
 
 /**
@@ -45,12 +46,22 @@ export class AssistantClient<
       }
 
       const oneShotCapability = capability as OneShotCapabilityName
+      const capOptions: OneShotCapabilityOptions<any> | undefined =
+        options[oneShotCapability]
       this.oneShots.set(
         oneShotCapability,
         new GenerationClient({
           connection,
           id: id ? `${id}:${oneShotCapability}` : undefined,
-          body: { capability: oneShotCapability },
+          // Merge per-capability forwardedProps under the routing discriminator.
+          body: {
+            ...capOptions?.forwardedProps,
+            capability: oneShotCapability,
+          },
+          // Forward the result transform, if the caller supplied one.
+          ...(capOptions?.onResult !== undefined && {
+            onResult: capOptions.onResult,
+          }),
           ...callbacks?.oneShot?.(oneShotCapability),
         }),
       )

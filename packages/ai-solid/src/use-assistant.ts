@@ -76,13 +76,17 @@ const defaultOneShotState: OneShotState = {
 export function useAssistant<
   TDef extends AssistantDefinition<any>,
   TChatTools extends ReadonlyArray<AnyClientTool> = [],
+  // Capture the options so per-capability `onResult` transforms flow into each
+  // one-shot capability's `result` type (`any` tools keep `chat.tools`
+  // unconstrained; chat tool typing comes from the definition).
+  TOptions extends Omit<
+    AssistantClientOptions<TDef, any>,
+    'assistant' | 'callbacks'
+  > = Omit<AssistantClientOptions<TDef, any>, 'assistant' | 'callbacks'>,
 >(
   assistant: TDef,
-  options: Omit<
-    AssistantClientOptions<TDef, TChatTools>,
-    'assistant' | 'callbacks'
-  >,
-): AssistantSystem<TDef, TChatTools> {
+  options: TOptions,
+): AssistantSystem<TDef, TChatTools, TOptions> {
   const hookId = createUniqueId()
   const clientId = options.id || hookId
 
@@ -109,12 +113,10 @@ export function useAssistant<
   // constructor's `callbacks` option (VP2: ChatClient/GenerationClient only
   // accept these at construction time).
   const client = createMemo(() => {
-    return new AssistantClient<TDef, TChatTools>({
+    return new AssistantClient<TDef, any>({
+      ...options,
       assistant,
-      connection: options.connection,
       id: clientId,
-      ...(options.threadId !== undefined && { threadId: options.threadId }),
-      ...(options.chat !== undefined && { chat: options.chat }),
       callbacks: {
         chat: {
           onMessagesChange: (messages) =>
@@ -331,5 +333,5 @@ export function useAssistant<
   }
 
   // eslint-disable-next-line no-restricted-syntax -- built dynamically per declared capability; TS can't structurally verify the assembled object against the mapped AssistantSystem type
-  return system as unknown as AssistantSystem<TDef, TChatTools>
+  return system as unknown as AssistantSystem<TDef, TChatTools, TOptions>
 }

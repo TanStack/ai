@@ -29,6 +29,7 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   ImageGenerateInput,
+  InferGenerationOutput,
   SpeechGenerateInput,
   SummarizeGenerateInput,
   TranscriptionGenerateInput,
@@ -68,6 +69,22 @@ export interface AssistantClientCallbacks {
   >
 }
 
+/**
+ * Per-one-shot-capability options. Mirrors the standalone generation hooks:
+ * an optional `onResult` transform (its return type becomes the capability's
+ * `result` type) plus extra `forwardedProps` merged into the request body.
+ */
+export interface OneShotCapabilityOptions<TResult> {
+  /**
+   * Transform the raw backend result before it is stored on the surface.
+   * `assistant.<capability>.result` becomes this function's (non-nullish)
+   * return type. Return `undefined`/`null`/`void` to keep the raw result.
+   */
+  onResult?: (result: TResult) => unknown
+  /** Extra fields merged into this capability's request body. */
+  forwardedProps?: Record<string, any>
+}
+
 /** Options for AssistantClient (framework-agnostic core). */
 export interface AssistantClientOptions<
   TDef extends AssistantDefinition<any>,
@@ -89,6 +106,13 @@ export interface AssistantClientOptions<
     tools?: TChatTools
     forwardedProps?: Record<string, any>
   }
+  /** Per-capability one-shot options (`onResult` transform, forwardedProps). */
+  image?: OneShotCapabilityOptions<ImageGenerationResult>
+  audio?: OneShotCapabilityOptions<AudioGenerationResult>
+  speech?: OneShotCapabilityOptions<TTSResult>
+  video?: OneShotCapabilityOptions<VideoJobResult>
+  transcription?: OneShotCapabilityOptions<TranscriptionResult>
+  summarize?: OneShotCapabilityOptions<SummarizationResult>
   /**
    * Reactive state callbacks forwarded into the sub-clients' constructors.
    * Set by framework hooks (not users) to wire up reactive state.
@@ -330,6 +354,20 @@ export interface AssistantGenerationSurface<TInput, TResult> {
  * callback — its captured tools type `chat.messages`' tool-call/result parts,
  * and its `outputSchema` (if any) adds typed `chat.partial` / `chat.final`.
  */
+/**
+ * The stored `result` type for a one-shot capability `K`: the `onResult`
+ * transform's return type when the options declare one (via
+ * {@link InferGenerationOutput}), otherwise the raw backend result.
+ */
+export type OneShotResultType<
+  TOptions,
+  TCap extends OneShotCapabilityName,
+> = TCap extends keyof TOptions
+  ? TOptions[TCap] extends { onResult?: infer TFn }
+    ? InferGenerationOutput<ResultByCapability[TCap], TFn>
+    : ResultByCapability[TCap]
+  : ResultByCapability[TCap]
+
 export type AssistantSystem<
   TDef extends AssistantDefinition<any>,
   /**
@@ -338,6 +376,12 @@ export type AssistantSystem<
    * pass a second generic keep compiling; it has no effect on the surface.
    */
   TChatTools extends ReadonlyArray<AnyClientTool> = [],
+  /**
+   * The user's options object. Its per-capability `onResult` transforms drive
+   * each one-shot capability's `result` type. Defaults to `unknown` (no
+   * transforms → raw backend result types).
+   */
+  TOptions = unknown,
 > =
   // `TChatTools` is deprecated/unused for typing; the constraint always holds,
   // so this reads the parameter (keeping it for hook back-compat) without
@@ -349,7 +393,7 @@ export type AssistantSystem<
           : K extends OneShotCapabilityName
             ? AssistantGenerationSurface<
                 GenerateInputByCapability[K],
-                ResultByCapability[K]
+                OneShotResultType<TOptions, K>
               >
             : never
       }

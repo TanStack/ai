@@ -198,6 +198,26 @@ const assistant = useAssistant(blogAssistant, {
 `chat.forwardedProps` is also available on the same option, merged into
 every chat request alongside the reserved `capability` field.
 
+Each **one-shot** capability accepts an optional transform too, keyed by the
+capability name (`image`, `speech`, `audio`, `video`, `transcription`,
+`summarize`): `image: { onResult, forwardedProps }`. `onResult` runs on the
+raw backend result and its return type becomes `assistant.<capability>.result`
+— mirroring the standalone generation hooks. Return nothing to keep the raw
+result.
+
+```typescript
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { useAssistant } from '@tanstack/ai-react/assistant'
+import { blogAssistant } from '../lib/assistant'
+
+const assistant = useAssistant(blogAssistant, {
+  connection: fetchServerSentEvents('/api/assistant'),
+  image: { onResult: (result) => result.images[0]?.url ?? null },
+})
+
+assistant.image.result // string | null — the transform's return type
+```
+
 ### 2. Structured output via `outputSchema` in the chat callback
 
 If the `chat` callback passes `outputSchema` to `chat()`, `assistant.chat`
@@ -302,20 +322,22 @@ export const POST = (request: Request) => blogAssistant.handler(request)
 
 ### c. HIGH: Passing `model` or top-level generation options to `useAssistant`
 
-There is no `model`/`tools`-for-generation option on `useAssistant` itself.
-Model choice and per-capability options belong inside the server callback
-(`openaiImage('gpt-image-2')`, `openaiSpeech('tts-1')`, …); the
-only client-side option `useAssistant` accepts besides `connection` is
+There is no `model`/`prompt` option on `useAssistant` itself. Model choice and
+generation parameters belong inside the server callback
+(`openaiImage('gpt-image-2')`, `openaiSpeech('tts-1')`, …). The client-side
+options `useAssistant` accepts besides `connection` are `threadId`/`id`,
 `chat: { tools, forwardedProps }` (`tools` here registers **client-executed**
 tools' runtime implementations only — typing already comes from the server
-callback) and `threadId`/`id`.
+callback), and a per-one-shot-capability `{ onResult, forwardedProps }` (a
+result transform + extra request-body fields — not model/prompt).
 
 ```typescript
-// WRONG — no such options on useAssistant
+// WRONG — no model/prompt options on useAssistant
 useAssistant(blogAssistant, { connection, model: 'gpt-5.5', prompt: '...' })
 
-// CORRECT — model/prompt options live in the server callback; useAssistant
-// only takes connection, threadId/id, and chat.{tools,forwardedProps}
+// CORRECT — model/prompt live in the server callback; useAssistant takes
+// connection, threadId/id, chat.{tools,forwardedProps}, and per-capability
+// { onResult, forwardedProps }
 useAssistant(blogAssistant, {
   connection: fetchServerSentEvents('/api/assistant'),
 })

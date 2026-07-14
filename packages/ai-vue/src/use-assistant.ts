@@ -68,13 +68,17 @@ const DEFAULT_ONE_SHOT_STATE: OneShotState = {
 export function useAssistant<
   TDef extends AssistantDefinition<any>,
   TChatTools extends ReadonlyArray<AnyClientTool> = [],
+  // Capture the options so per-capability `onResult` transforms flow into each
+  // one-shot capability's `result` type (`any` tools keep `chat.tools`
+  // unconstrained; chat tool typing comes from the definition).
+  TOptions extends Omit<
+    AssistantClientOptions<TDef, any>,
+    'assistant' | 'callbacks'
+  > = Omit<AssistantClientOptions<TDef, any>, 'assistant' | 'callbacks'>,
 >(
   assistant: TDef,
-  options: Omit<
-    AssistantClientOptions<TDef, TChatTools>,
-    'assistant' | 'callbacks'
-  >,
-): AssistantSystem<TDef, TChatTools> {
+  options: TOptions,
+): AssistantSystem<TDef, TChatTools, TOptions> {
   // Chat sub-client state.
   const chatMessages = shallowRef<Array<UIMessage<TChatTools>>>([])
   const chatIsLoading = shallowRef(false)
@@ -101,7 +105,7 @@ export function useAssistant<
   // passed into the constructor's `callbacks` option — not wired up via
   // `updateOptions` afterwards — because the sub-clients (`ChatClient`,
   // `GenerationClient`) only accept these callbacks at construction time.
-  const client = new AssistantClient<TDef, TChatTools>({
+  const client = new AssistantClient<TDef, any>({
     ...options,
     assistant,
     callbacks: {
@@ -255,5 +259,5 @@ export function useAssistant<
   // `useChat` accepts for its return, since consumers unwrap refs via
   // `.value` (script) or Vue's template auto-unwrapping.
   // eslint-disable-next-line no-restricted-syntax -- composable return shape (nested refs per capability) diverges from the framework-agnostic AssistantSystem type (plain values); TS can't structurally relate the two
-  return system as unknown as AssistantSystem<TDef, TChatTools>
+  return system as unknown as AssistantSystem<TDef, TChatTools, TOptions>
 }

@@ -60,13 +60,17 @@ interface OneShotState {
 export function createAssistant<
   TDef extends AssistantDefinition<any>,
   TChatTools extends ReadonlyArray<AnyClientTool> = [],
+  // Capture the options so per-capability `onResult` transforms flow into each
+  // one-shot capability's `result` type (`any` tools keep `chat.tools`
+  // unconstrained; chat tool typing comes from the definition).
+  TOptions extends Omit<
+    AssistantClientOptions<TDef, any>,
+    'assistant' | 'callbacks'
+  > = Omit<AssistantClientOptions<TDef, any>, 'assistant' | 'callbacks'>,
 >(
   assistant: TDef,
-  options: Omit<
-    AssistantClientOptions<TDef, TChatTools>,
-    'assistant' | 'callbacks'
-  >,
-): AssistantSystem<TDef, TChatTools> & { dispose: () => void } {
+  options: TOptions,
+): AssistantSystem<TDef, TChatTools, TOptions> & { dispose: () => void } {
   // Reactive state for the chat capability, if declared.
   let chatMessages = $state<Array<UIMessage<TChatTools>>>([])
   let chatIsLoading = $state(false)
@@ -114,12 +118,9 @@ export function createAssistant<
   // Create the AssistantClient eagerly, once. Reactive callbacks are passed
   // into the constructor (the only place ChatClient/GenerationClient accept
   // them) rather than via `updateOptions`, mirroring `createChat`.
-  const client = new AssistantClient<TDef, TChatTools>({
+  const client = new AssistantClient<TDef, any>({
+    ...options,
     assistant,
-    connection: options.connection,
-    ...(options.id !== undefined && { id: options.id }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
-    ...(options.chat !== undefined && { chat: options.chat }),
     callbacks: {
       chat: {
         onMessagesChange: (newMessages) => {
@@ -300,7 +301,7 @@ export function createAssistant<
   system.dispose = dispose
 
   // eslint-disable-next-line no-restricted-syntax -- built dynamically from a runtime `assistant.capabilities` array; the static AssistantSystem<TDef, TChatTools> shape can't be verified structurally here, plus the added `dispose` field.
-  return system as unknown as AssistantSystem<TDef, TChatTools> & {
+  return system as unknown as AssistantSystem<TDef, TChatTools, TOptions> & {
     dispose: () => void
   }
 }

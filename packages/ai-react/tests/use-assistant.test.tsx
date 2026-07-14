@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { defineAssistant } from '@tanstack/ai/assistant'
 import { stream } from '@tanstack/ai-client'
+import type { ImageGenerationResult } from '@tanstack/ai'
 import { useAssistant } from '../src/use-assistant.js'
 
 // A connection adapter that replays canned chunks for both capabilities,
@@ -110,5 +111,41 @@ describe('useAssistant', () => {
 
     expect((result.current.chat as any).partial).toEqual({})
     expect((result.current.chat as any).final).toBeNull()
+  })
+
+  it('applies a one-shot onResult transform and infers its type', async () => {
+    const assistant = defineAssistant({
+      chat: async function* () {} as any,
+      image: async () => ({}) as any,
+    })
+    const { result } = renderHook(() =>
+      useAssistant(assistant, {
+        connection: fakeConnection(),
+        image: {
+          onResult: (raw) => {
+            // The transform's input is the raw backend result, fully typed
+            // (`toEqualTypeOf` fails if `raw` were `any`).
+            expectTypeOf(raw).toEqualTypeOf<ImageGenerationResult>()
+            return raw.images[0]?.url ?? null
+          },
+        },
+      }),
+    )
+
+    // The surface `result` is the transform's (non-nullish) return type — not
+    // the raw result, and not `any`.
+    expectTypeOf(result.current.image.result).toEqualTypeOf<string | null>()
+
+    const captured: { value: typeof result.current.image.result } = {
+      value: null,
+    }
+    await act(async () => {
+      captured.value = await result.current.image.generate({ prompt: 'a fox' })
+    })
+
+    // The transformed value flows to both the resolved return and the
+    // reactive result state.
+    expect(captured.value).toBe('u')
+    expect(result.current.image.result).toBe('u')
   })
 })
