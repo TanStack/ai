@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandAnthropicProviderTool } from './anthropic-provider-tool'
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -23,9 +23,12 @@ export function convertWebFetchToolToAdapterFormat(
 export function webFetchTool(
   config?: Omit<WebFetchToolConfig, 'type' | 'name'>,
 ): AnthropicWebFetchTool {
-  return brandProviderTool<AnthropicWebFetchTool>({
-    name: 'web_fetch',
-    description: '',
-    metadata: config,
-  })
+  return brandAnthropicProviderTool<AnthropicWebFetchTool>(
+    {
+      name: 'web_fetch',
+      description: '',
+      metadata: config,
+    },
+    'web_fetch',
+  )
 }

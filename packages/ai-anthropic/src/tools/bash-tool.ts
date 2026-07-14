@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandAnthropicProviderTool } from './anthropic-provider-tool'
 import type {
   BetaToolBash20241022,
   BetaToolBash20250124,
@@ -18,9 +18,12 @@ export function convertBashToolToAdapterFormat(tool: Tool): BashToolConfig {
 }
 
 export function bashTool(config: BashToolConfig): AnthropicBashTool {
-  return brandProviderTool<AnthropicBashTool>({
-    name: 'bash',
-    description: '',
-    metadata: config,
-  })
+  return brandAnthropicProviderTool<AnthropicBashTool>(
+    {
+      name: 'bash',
+      description: '',
+      metadata: config,
+    },
+    'bash',
+  )
 }
