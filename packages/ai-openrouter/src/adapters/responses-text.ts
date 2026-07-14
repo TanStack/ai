@@ -39,7 +39,10 @@ import type {
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
 } from '../model-meta'
-import type { OpenRouterMessageMetadataByModality } from '../message-types'
+import type {
+  OpenRouterMessageMetadataByModality,
+  OpenRouterResponsesToolCallMetadata,
+} from '../message-types'
 
 /** Element type of `ResponsesRequest.input` when it's the array form (the
  *  SDK union also allows a bare string). Pinning to the array element lets
@@ -48,6 +51,16 @@ import type { OpenRouterMessageMetadataByModality } from '../message-types'
 type InputsItem = Extract<InputsUnion, ReadonlyArray<unknown>>[number]
 /** ResponsesRequest input content part shape (per-content-part discriminated union). */
 type ResponsesInputContent = unknown
+
+interface StreamedFunctionCallMetadata {
+  callId: string
+  index: number
+  itemId: string
+  name: string
+  started: boolean
+  ended?: boolean
+  pendingArguments?: string
+}
 
 export interface OpenRouterResponsesConfig extends SDKOptions {}
 export type OpenRouterResponsesTextModels =
@@ -91,7 +104,8 @@ export class OpenRouterResponsesTextAdapter<
   OpenRouterResponsesTextProviderOptions,
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  OpenRouterResponsesToolCallMetadata
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
@@ -109,16 +123,7 @@ export class OpenRouterResponsesTextAdapter<
     // Track tool call metadata by unique ID. The Responses API streams tool
     // calls with deltas — first chunk has ID/name, subsequent chunks only
     // have args. We assign our own indices as we encounter unique ids.
-    const toolCallMetadata = new Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        ended?: boolean
-        pendingArguments?: string
-      }
-    >()
+    const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
     // AG-UI lifecycle tracking
     const aguiState = {
@@ -777,16 +782,7 @@ export class OpenRouterResponsesTextAdapter<
    */
   protected async *processStreamChunks(
     stream: AsyncIterable<StreamEvents>,
-    toolCallMetadata: Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        ended?: boolean
-        pendingArguments?: string
-      }
-    >,
+    toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
     aguiState: {
       runId: string
@@ -1159,24 +1155,30 @@ export class OpenRouterResponsesTextAdapter<
             let metadata = toolCallMetadata.get(item.id)
             if (!metadata) {
               metadata = {
+                callId: item.callId || item.id,
                 index: chunk.outputIndex ?? 0,
+                itemId: item.id,
                 name: item.name,
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name) {
-              metadata.name = item.name
+            } else {
+              if (item.callId) metadata.callId = item.callId
+              if (!metadata.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.outputIndex ?? 0,
+                metadata: {
+                  itemId: metadata.itemId,
+                } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1203,7 +1205,7 @@ export class OpenRouterResponsesTextAdapter<
           }
           yield {
             type: EventType.TOOL_CALL_ARGS,
-            toolCallId: itemId,
+            toolCallId: metadata.callId,
             model: model || options.model,
             timestamp: Date.now(),
             delta: typeof chunk.delta === 'string' ? chunk.delta : '',
@@ -1257,7 +1259,7 @@ export class OpenRouterResponsesTextAdapter<
 
           yield {
             type: EventType.TOOL_CALL_END,
-            toolCallId: itemId,
+            toolCallId: metadata.callId,
             toolCallName: name,
             toolName: name,
             model: model || options.model,
@@ -1272,25 +1274,31 @@ export class OpenRouterResponsesTextAdapter<
           const item = chunk.item
           if (item?.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.callId || item.id,
               index: chunk.outputIndex ?? 0,
+              itemId: item.id,
               name: item.name,
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name) {
-              metadata.name = item.name
+            } else {
+              if (item.callId) metadata.callId = item.callId
+              if (!metadata.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: metadata.itemId,
+                } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1325,7 +1333,7 @@ export class OpenRouterResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1348,25 +1356,31 @@ export class OpenRouterResponsesTextAdapter<
           for (const item of outputItems) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.callId || item.id,
               index: 0,
+              itemId: item.id,
               name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              metadata.name = item.name
+            } else {
+              if (item.callId) metadata.callId = item.callId
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: metadata.itemId,
+                } satisfies OpenRouterResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1401,7 +1415,7 @@ export class OpenRouterResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1631,10 +1645,15 @@ export class OpenRouterResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const itemId = (
+              toolCall.metadata as
+                | OpenRouterResponsesToolCallMetadata
+                | undefined
+            )?.itemId
             result.push({
               type: 'function_call',
               callId: toolCall.id,
-              id: toolCall.id,
+              id: itemId || toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
             })

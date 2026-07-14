@@ -960,7 +960,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
-    it('uses the internal function_call item id for tool call correlation', async () => {
+    it('uses call_id for tool correlation and preserves the item id as metadata', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -1027,26 +1027,26 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      // TOOL_CALL_* events should use the internal function_call item id
-      // (matches main's OpenAI adapter behavior; the agent loop carries this
-      // id back as `toolCallId` on the tool ModelMessage, which the Responses
-      // API accepts as `call_id` for function_call_output).
+      // `call_id` correlates the eventual function_call_output. The separate
+      // output item ID is provider metadata that the agent loop carries into
+      // the next request so both opaque identifiers can be replayed.
       const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
       expect(toolStart).toBeDefined()
       if (toolStart?.type === 'TOOL_CALL_START') {
-        expect(toolStart.toolCallId).toBe('fc_internal_001')
+        expect(toolStart.toolCallId).toBe('call_api_abc123')
+        expect(toolStart.metadata).toEqual({ itemId: 'fc_internal_001' })
       }
 
       const toolArgs = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
       expect(toolArgs.length).toBeGreaterThan(0)
       if (toolArgs[0]?.type === 'TOOL_CALL_ARGS') {
-        expect(toolArgs[0].toolCallId).toBe('fc_internal_001')
+        expect(toolArgs[0].toolCallId).toBe('call_api_abc123')
       }
 
       const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
       expect(toolEnd).toBeDefined()
       if (toolEnd?.type === 'TOOL_CALL_END') {
-        expect(toolEnd.toolCallId).toBe('fc_internal_001')
+        expect(toolEnd.toolCallId).toBe('call_api_abc123')
       }
     })
 
@@ -2128,6 +2128,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
                   name: 'lookup_weather',
                   arguments: '{"location":"Berlin"}',
                 },
+                metadata: { itemId: 'fc_123' },
               },
             ],
           },
@@ -2147,6 +2148,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: 'function_call',
+            id: 'fc_123',
             call_id: 'call_123',
             name: 'lookup_weather',
             arguments: '{"location":"Berlin"}',

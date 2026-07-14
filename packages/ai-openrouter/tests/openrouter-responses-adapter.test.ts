@@ -698,19 +698,136 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(start).toMatchObject({
       type: 'TOOL_CALL_START',
-      toolCallId: 'item_1',
+      toolCallId: 'call_abc',
       toolCallName: 'lookup_weather',
+      metadata: { itemId: 'item_1' },
     })
 
     const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as any[]
     expect(args.length).toBe(1)
+    expect(args[0]!.toolCallId).toBe('call_abc')
     expect(args[0]!.delta).toBe('{"location":"Berlin"}')
 
     const end = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+    expect(end.toolCallId).toBe('call_abc')
     expect(end.input).toEqual({ location: 'Berlin' })
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
     expect(finished.finishReason).toBe('tool_calls')
+  })
+
+  it('round-trips distinct Responses item and call IDs through a server tool', async () => {
+    const firstTurn = [
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 2,
+        itemId: 'item_1',
+        outputIndex: 0,
+        arguments: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [
+            {
+              type: 'function_call',
+              id: 'item_1',
+              callId: 'call_abc',
+              name: 'lookup_weather',
+              arguments: '{"location":"Berlin"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      },
+    ]
+    const secondTurn = [
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'Sunny',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+        },
+      },
+    ]
+    mockSend = vi
+      .fn()
+      .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+      .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+    const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+    for await (const _ of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'How is the weather?' }],
+      tools: [{ ...weatherTool, execute }],
+    })) {
+      // consume both agent-loop turns
+    }
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    const secondRequest = mockSend.mock.calls[1]![0].responsesRequest
+    expect(secondRequest.input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+        }),
+        expect.objectContaining({
+          type: 'function_call_output',
+          callId: 'call_abc',
+        }),
+      ]),
+    )
+    const serialized = ResponsesRequest$outboundSchema.parse(secondRequest)
+    expect(serialized.input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call',
+          id: 'item_1',
+          call_id: 'call_abc',
+        }),
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_abc',
+        }),
+      ]),
+    )
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
