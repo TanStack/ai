@@ -504,11 +504,9 @@ function geminiOmniVideoMount(): Mountable {
 }
 
 /**
- * Mounts a Claude-shaped SSE response that includes a client `tool_use` block
- * followed by a `web_fetch` `server_tool_use` block, plus its
- * `web_fetch_tool_result`. Reproduces the streaming scenario from issue #604
- * — the adapter must not let server-tool `input_json_delta`s leak into the
- * prior client tool's input buffer.
+ * Mounts Claude-shaped responses for server-tool regression coverage. The
+ * streaming response reproduces issue #604, while the request validator
+ * reproduces Anthropic's signed-thinking ordering check from issue #910.
  *
  * The first turn returns the mixed tool_use + server_tool_use response so the
  * adapter can dispatch the client tool. The second turn (after the client
@@ -529,21 +527,99 @@ function anthropicServerToolBugMount(): Mountable {
       }
 
       const bodyText = await readBody(req)
+      type RequestBlock = {
+        type: string
+        text?: string
+        thinking?: string
+        signature?: string
+      }
+      type RequestMessage = {
+        role: string
+        content?: Array<RequestBlock> | string
+      }
+
       let hasToolResult = false
+      let messages: Array<RequestMessage> = []
       try {
         const body = JSON.parse(bodyText) as {
-          messages?: Array<{
-            role: string
-            content?: Array<{ type: string }> | string
-          }>
+          messages?: Array<RequestMessage>
         }
-        hasToolResult = (body.messages ?? []).some(
+        messages = body.messages ?? []
+        hasToolResult = messages.some(
           (m) =>
             Array.isArray(m.content) &&
             m.content.some((c) => c.type === 'tool_result'),
         )
       } catch {
         // Malformed body — fall through and emit the first-turn stream.
+      }
+
+      const thinkingOrderMarker = '[thinking-tool-order] continue'
+      const hasThinkingOrderMarker = messages.some((message) => {
+        if (message.role !== 'user') return false
+        if (typeof message.content === 'string') {
+          return message.content === thinkingOrderMarker
+        }
+        return message.content?.some(
+          (block) =>
+            block.type === 'text' && block.text === thinkingOrderMarker,
+        )
+      })
+      const hasThinkingOrderSignature = messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          Array.isArray(message.content) &&
+          message.content.some(
+            (block) =>
+              block.type === 'thinking' &&
+              (block.signature === 'signature-1' ||
+                block.signature === 'signature-2'),
+          ),
+      )
+      const validatesThinkingOrder =
+        hasThinkingOrderMarker || hasThinkingOrderSignature
+
+      if (validatesThinkingOrder) {
+        const assistantMessage = messages.find(
+          (message) =>
+            message.role === 'assistant' && Array.isArray(message.content),
+        )
+        const blocks = Array.isArray(assistantMessage?.content)
+          ? assistantMessage.content
+          : []
+        const blockTypes = blocks.map((block) => block.type)
+        const expectedBlockTypes = [
+          'thinking',
+          'server_tool_use',
+          'web_search_tool_result',
+          'thinking',
+          'tool_use',
+        ]
+        const thinkingBlocks = blocks.filter(
+          (block) => block.type === 'thinking',
+        )
+        const preservesOrder =
+          JSON.stringify(blockTypes) === JSON.stringify(expectedBlockTypes) &&
+          thinkingBlocks[0]?.thinking === 'First signed thinking block' &&
+          thinkingBlocks[0]?.signature === 'signature-1' &&
+          thinkingBlocks[1]?.thinking === 'Second signed thinking block' &&
+          thinkingBlocks[1]?.signature === 'signature-2'
+
+        if (!preservesOrder) {
+          res.statusCode = 400
+          res.setHeader('Content-Type', 'application/json')
+          res.end(
+            JSON.stringify({
+              type: 'error',
+              error: {
+                type: 'invalid_request_error',
+                message:
+                  'Signed thinking blocks were reordered relative to tool-use blocks',
+              },
+            }),
+          )
+          return true
+        }
       }
 
       const events = hasToolResult

@@ -1,3 +1,4 @@
+import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
@@ -297,6 +298,12 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
       case 'thinking':
         if (part.content) {
+          // A thinking block after a tool call belongs to the next assistant
+          // segment. Provider-executed tools have no separate tool-result part
+          // to create this boundary for us.
+          if (current.toolCalls.some(isProviderExecutedToolCall)) {
+            flushSegment()
+          }
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),
