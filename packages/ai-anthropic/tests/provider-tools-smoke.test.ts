@@ -7,7 +7,7 @@
  *   2. Each factory produces a runtime shape with `name`, `description`, `metadata`.
  *   3. `convertToolsToProviderFormat` transforms those outputs into the SDK shape.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   bashTool,
   codeExecutionTool,
@@ -94,7 +94,7 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
           type: 'web_search_20250305',
           max_uses: 2,
         }),
-      } as unknown as Tool,
+      },
     ])
     expect(converted).toEqual({
       name: 'web_search',
@@ -142,7 +142,7 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
         type: 'text_editor_20250124',
         name: 'str_replace_editor',
       }),
-    ] as unknown as Tool[])
+    ])
     expect(converted).toHaveLength(7)
     expect(JSON.stringify(converted)).not.toContain('__kind')
     const names = converted.map((t) => ('name' in t ? t.name : undefined))

@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { ComputerUsePreviewTool as ComputerUseToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -39,7 +43,3 @@ export function computerUseTool(toolData: ComputerUseToolConfig): Tool {
     'computer_use',
   )
 }
-import {
-  getOpenAIProviderToolMetadata,
-  openAIProviderTool,
-} from './openai-provider-tool'

@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { CustomTool as CustomToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -40,7 +44,3 @@ export function customTool(toolData: CustomToolConfig): Tool {
     'custom',
   )
 }
-import {
-  getOpenAIProviderToolMetadata,
-  openAIProviderTool,
-} from './openai-provider-tool'
