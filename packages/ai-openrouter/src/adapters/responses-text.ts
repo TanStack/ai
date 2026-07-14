@@ -1158,13 +1158,13 @@ export class OpenRouterResponsesTextAdapter<
                 callId: item.callId || item.id,
                 index: chunk.outputIndex ?? 0,
                 itemId: item.id,
-                name: item.name,
+                name: item.name || '',
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
             } else {
               if (item.callId) metadata.callId = item.callId
-              if (!metadata.name) metadata.name = item.name
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
@@ -1277,14 +1277,14 @@ export class OpenRouterResponsesTextAdapter<
               callId: item.callId || item.id,
               index: chunk.outputIndex ?? 0,
               itemId: item.id,
-              name: item.name,
+              name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
             } else {
               if (item.callId) metadata.callId = item.callId
-              if (!metadata.name) metadata.name = item.name
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {

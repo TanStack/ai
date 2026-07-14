@@ -716,6 +716,74 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finished.finishReason).toBe('tool_calls')
   })
 
+  it('preserves a streamed function-call name when later items omit it', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 0,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.output_item.done',
+        sequenceNumber: 2,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          arguments: '{"location":"Berlin"}',
+        },
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks.find((chunk) => chunk.type === 'TOOL_CALL_START'),
+    ).toMatchObject({
+      toolCallName: 'lookup_weather',
+    })
+    expect(
+      chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
+    ).toMatchObject({
+      toolCallName: 'lookup_weather',
+    })
+  })
+
   it('round-trips distinct Responses item and call IDs through a server tool', async () => {
     const firstTurn = [
       {
