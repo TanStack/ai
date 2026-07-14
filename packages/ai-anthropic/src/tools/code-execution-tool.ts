@@ -1,4 +1,7 @@
-import { brandAnthropicProviderTool } from './anthropic-provider-tool'
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
 import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
@@ -56,7 +59,11 @@ export function convertCodeExecutionToolToAdapterFormat(
 export function readCodeExecutionConfig(
   tool: Tool,
 ): CodeExecutionToolConfig | undefined {
-  return (tool.metadata as CodeExecutionToolMetadata | undefined)?.config
+  return (
+    getAnthropicProviderToolMetadata(tool) as
+      | CodeExecutionToolMetadata
+      | undefined
+  )?.config
 }
 
 /**
@@ -66,7 +73,11 @@ export function readCodeExecutionConfig(
 export function readCodeExecutionSkills(
   tool: Tool,
 ): Array<AnthropicContainerSkill> | undefined {
-  return (tool.metadata as CodeExecutionToolMetadata | undefined)?.skills
+  return (
+    getAnthropicProviderToolMetadata(tool) as
+      | CodeExecutionToolMetadata
+      | undefined
+  )?.skills
 }
 
 export function codeExecutionTool(

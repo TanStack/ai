@@ -28,7 +28,7 @@ describe('Anthropic provider tool factories — runtime shape', () => {
     })
     expect(tool.name).toBe('web_search')
     expect(tool).toHaveProperty('description')
-    expect(tool).toHaveProperty('metadata')
+    expect(tool.metadata).toMatchObject({ __kind: 'anthropic.web_search' })
   })
 
   it('codeExecutionTool produces a Tool-shaped object', () => {
@@ -96,22 +96,55 @@ describe('convertToolsToProviderFormat — end-to-end shape', () => {
         }),
       } as unknown as Tool,
     ])
-    expect(converted).toMatchObject({
+    expect(converted).toEqual({
       name: 'web_search',
       type: 'web_search_20250305',
+      cache_control: null,
     })
+  })
+
+  it('keeps provider identity through a plain-data round trip', () => {
+    const tool = JSON.parse(
+      JSON.stringify(
+        webSearchTool({
+          name: 'web_search',
+          type: 'web_search_20250305',
+        }),
+      ),
+    ) as Tool
+
+    expect(convertToolsToProviderFormat([tool])).toEqual([
+      {
+        name: 'web_search',
+        type: 'web_search_20250305',
+        cache_control: null,
+      },
+    ])
   })
 
   it('converts multiple provider tools in one call', () => {
     const converted = convertToolsToProviderFormat([
       webSearchTool({ name: 'web_search', type: 'web_search_20250305' }),
+      webFetchTool(),
       codeExecutionTool({
         name: 'code_execution',
         type: 'code_execution_20250825',
       }),
       bashTool({ name: 'bash', type: 'bash_20250124' }),
+      computerUseTool({
+        type: 'computer_20250124',
+        name: 'computer',
+        display_width_px: 1024,
+        display_height_px: 768,
+      }),
+      memoryTool(),
+      textEditorTool({
+        type: 'text_editor_20250124',
+        name: 'str_replace_editor',
+      }),
     ] as unknown as Tool[])
-    expect(converted).toHaveLength(3)
+    expect(converted).toHaveLength(7)
+    expect(JSON.stringify(converted)).not.toContain('__kind')
     const names = converted.map((t) => ('name' in t ? t.name : undefined))
     expect(names).toContain('web_search')
     expect(names).toContain('code_execution')

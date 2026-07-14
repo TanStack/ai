@@ -1,4 +1,7 @@
-import { brandAnthropicProviderTool } from './anthropic-provider-tool'
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
 import type { ProviderTool, Tool } from '@tanstack/ai'
@@ -54,7 +57,7 @@ const validateUserLocation = (tool: WebSearchToolConfig) => {
 export function convertWebSearchToolToAdapterFormat(
   tool: Tool,
 ): WebSearchToolConfig {
-  const metadata = tool.metadata as {
+  const metadata = getAnthropicProviderToolMetadata(tool) as {
     allowedDomains?: Array<string> | null
     blockedDomains?: Array<string> | null
     maxUses?: number | null

@@ -1,4 +1,7 @@
-import { brandAnthropicProviderTool } from './anthropic-provider-tool'
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
 import type {
   BetaToolComputerUse20241022,
   BetaToolComputerUse20250124,
@@ -17,7 +20,9 @@ export type AnthropicComputerUseTool = ProviderTool<'anthropic', 'computer_use'>
 export function convertComputerUseToolToAdapterFormat(
   tool: Tool,
 ): ComputerUseToolConfig {
-  const metadata = tool.metadata as ComputerUseToolConfig
+  const metadata = getAnthropicProviderToolMetadata(
+    tool,
+  ) as ComputerUseToolConfig
   return metadata
 }
 
