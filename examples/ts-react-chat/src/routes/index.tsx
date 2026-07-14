@@ -10,6 +10,7 @@ import {
   ImagePlus,
   Mic,
   Music,
+  Newspaper,
   Send,
   Square,
   Video,
@@ -144,6 +145,13 @@ function Messages({
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Link
+              to="/blog-studio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Newspaper size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Blog Studio</span>
+            </Link>
             <Link
               to="/generations/image"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
