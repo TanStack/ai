@@ -1,9 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { codeExecutionTool } from '@tanstack/ai-anthropic/tools'
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
+
+const customWebSearchTool = {
+  name: 'web_search',
+  description: 'Search an application index',
+  inputSchema: {
+    type: 'object',
+    properties: { query: { type: 'string' } },
+    required: ['query'],
+  },
+} satisfies Tool
 
 /**
  * Drives the Anthropic chat adapter with a `codeExecutionTool` carrying a
@@ -138,6 +149,7 @@ export const Route = createFileRoute('/api/anthropic-skills-wire')({
                   ],
                 },
               ),
+              customWebSearchTool,
             ],
           })) {
             // Drain the stream.
