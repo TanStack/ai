@@ -32,6 +32,7 @@ import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
+import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
@@ -175,6 +176,12 @@ const ApiOpenaiUsageDetailsRoute = ApiOpenaiUsageDetailsRouteImport.update({
   path: '/api/openai-usage-details',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenaiStrictToolNullWireRoute =
+  ApiOpenaiStrictToolNullWireRouteImport.update({
+    id: '/api/openai-strict-tool-null-wire',
+    path: '/api/openai-strict-tool-null-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiShellSkillsWireRoute =
   ApiOpenaiShellSkillsWireRouteImport.update({
     id: '/api/openai-shell-skills-wire',
@@ -336,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -386,6 +394,7 @@ export interface FileRoutesByTo {
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -437,6 +446,7 @@ export interface FileRoutesById {
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
+  '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
@@ -489,6 +499,7 @@ export interface FileRouteTypes {
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
+    | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -539,6 +550,7 @@ export interface FileRouteTypes {
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
+    | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -589,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
+    | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-web-tools-wire'
@@ -640,6 +653,7 @@ export interface RootRouteChildren {
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
+  ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
@@ -815,6 +829,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-usage-details'
       fullPath: '/api/openai-usage-details'
       preLoaderRoute: typeof ApiOpenaiUsageDetailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-strict-tool-null-wire': {
+      id: '/api/openai-strict-tool-null-wire'
+      path: '/api/openai-strict-tool-null-wire'
+      fullPath: '/api/openai-strict-tool-null-wire'
+      preLoaderRoute: typeof ApiOpenaiStrictToolNullWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-shell-skills-wire': {
@@ -1085,6 +1106,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
+  ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,

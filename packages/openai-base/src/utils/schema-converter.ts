@@ -1,3 +1,5 @@
+import type { NullWideningMap } from '@tanstack/ai-utils'
+
 /**
  * String `format` values accepted by OpenAI's strict Structured Outputs subset.
  * Any other format (e.g. "uri", "uri-reference", "regex") causes the API to
@@ -61,7 +63,31 @@ export function makeStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
 ): Record<string, any> {
-  return stripUnsupportedFormats(coerceStrictSchema(schema, originalRequired))
+  return makeStructuredOutputCompatibleWithMap(schema, originalRequired).schema
+}
+
+interface StructuredOutputCompatibility {
+  schema: Record<string, any>
+  nullWideningMap: NullWideningMap | undefined
+}
+
+/**
+ * Strict-schema conversion plus an exact map of the nullability introduced by
+ * that conversion. Consumers can pass provider output through
+ * `undoNullWidening` before validating it against the original schema.
+ */
+export function makeStructuredOutputCompatibleWithMap(
+  schema: Record<string, any>,
+  originalRequired?: Array<string>,
+): StructuredOutputCompatibility {
+  const { schema: strictSchema, nullWideningMap } = coerceStrictSchema(
+    schema,
+    originalRequired,
+  )
+  return {
+    schema: stripUnsupportedFormats(strictSchema),
+    nullWideningMap,
+  }
 }
 
 /**
@@ -225,11 +251,16 @@ function containsTypelessSchema(node: unknown): boolean {
  * additionalProperties). Kept private so the public entry point can apply the
  * format-stripping pass exactly once over the fully-rewritten tree.
  */
+function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
+  return Object.keys(map).length > 0 ? map : undefined
+}
+
 function coerceStrictSchema(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
-): Record<string, any> {
+): StructuredOutputCompatibility {
   const result = { ...schema }
+  const nullWideningMap: NullWideningMap = {}
   const required =
     originalRequired ??
     (Array.isArray(result['required']) ? result['required'] : [])
@@ -237,21 +268,32 @@ function coerceStrictSchema(
   if (result.type === 'object' && result.properties) {
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
+    const propertyMaps: Record<string, NullWideningMap> = {}
 
     for (const propName of allPropertyNames) {
       let prop = properties[propName]
       const wasOptional = !required.includes(propName)
+      let childMap: NullWideningMap | undefined
+      let widenedHere = false
 
       // Step 1: Recurse into nested structures
       if (prop.type === 'object' && prop.properties) {
-        prop = coerceStrictSchema(prop, prop.required || [])
+        const nested = coerceStrictSchema(prop, prop.required || [])
+        prop = nested.schema
+        childMap = nested.nullWideningMap
       } else if (prop.type === 'array' && prop.items) {
+        const nested = coerceStrictSchema(prop.items, prop.items.required || [])
         prop = {
           ...prop,
-          items: coerceStrictSchema(prop.items, prop.items.required || []),
+          items: nested.schema,
         }
+        childMap = nested.nullWideningMap
+          ? { items: nested.nullWideningMap }
+          : undefined
       } else if (prop.anyOf) {
-        prop = coerceStrictSchema(prop, prop.required || [])
+        const nested = coerceStrictSchema(prop, prop.required || [])
+        prop = nested.schema
+        childMap = nested.nullWideningMap
       } else if (prop.oneOf) {
         throw new Error(
           'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
@@ -264,29 +306,45 @@ function coerceStrictSchema(
           // For anyOf, add a null variant if not already present
           if (!prop.anyOf.some((v: any) => v.type === 'null')) {
             prop = { ...prop, anyOf: [...prop.anyOf, { type: 'null' }] }
+            widenedHere = true
           }
         } else if (prop.type && !Array.isArray(prop.type)) {
           prop = { ...prop, type: [prop.type, 'null'] }
+          widenedHere = true
         } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
           prop = { ...prop, type: [...prop.type, 'null'] }
+          widenedHere = true
         }
       }
 
       properties[propName] = prop
+      if (childMap || widenedHere) {
+        propertyMaps[propName] = {
+          ...(childMap ?? {}),
+          ...(widenedHere ? { widened: true } : {}),
+        }
+      }
     }
 
     result.properties = properties
     result.required = allPropertyNames
     result.additionalProperties = false
+    if (Object.keys(propertyMaps).length > 0) {
+      nullWideningMap.properties = propertyMaps
+    }
   }
 
   if (result.type === 'array' && result.items) {
-    result.items = coerceStrictSchema(result.items, result.items.required || [])
+    const nested = coerceStrictSchema(result.items, result.items.required || [])
+    result.items = nested.schema
+    if (nested.nullWideningMap) {
+      nullWideningMap.items = nested.nullWideningMap
+    }
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {
-    result.anyOf = result.anyOf.map((variant) =>
-      coerceStrictSchema(variant, variant.required || []),
+    result.anyOf = result.anyOf.map(
+      (variant) => coerceStrictSchema(variant, variant.required || []).schema,
     )
   }
 
@@ -296,5 +354,8 @@ function coerceStrictSchema(
     )
   }
 
-  return result
+  return {
+    schema: result,
+    nullWideningMap: pruneMap(nullWideningMap),
+  }
 }
