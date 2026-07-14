@@ -33,6 +33,7 @@ import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.open
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
+import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
@@ -181,6 +182,11 @@ const ApiOpenaiShellSkillsWireRoute =
     path: '/api/openai-shell-skills-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiNonStreamingRunErrorRoute = ApiNonStreamingRunErrorRouteImport.update({
+  id: '/api/non-streaming-run-error',
+  path: '/api/non-streaming-run-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMultimodalToolResultWireRoute =
   ApiMultimodalToolResultWireRouteImport.update({
     id: '/api/multimodal-tool-result-wire',
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByTo {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -436,6 +444,7 @@ export interface FileRoutesById {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -538,6 +548,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -588,6 +599,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -639,6 +651,7 @@ export interface RootRouteChildren {
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
+  ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
@@ -822,6 +835,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-shell-skills-wire'
       fullPath: '/api/openai-shell-skills-wire'
       preLoaderRoute: typeof ApiOpenaiShellSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/non-streaming-run-error': {
+      id: '/api/non-streaming-run-error'
+      path: '/api/non-streaming-run-error'
+      fullPath: '/api/non-streaming-run-error'
+      preLoaderRoute: typeof ApiNonStreamingRunErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/multimodal-tool-result-wire': {
@@ -1084,6 +1104,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
+  ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,

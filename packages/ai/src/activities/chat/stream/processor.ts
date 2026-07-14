@@ -22,8 +22,9 @@ import {
   generateMessageId,
   uiMessageToModelMessages,
 } from '../messages.js'
-import { normalizeToolResult } from '../../../utilities/tool-result'
+import { runErrorEventToError } from '../../../utilities/errors'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -1501,15 +1502,7 @@ export class StreamProcessor {
     // the surfaced Error so consumers can recover the upstream detail that the
     // RUN_ERROR's `message` alone discards. Both are optional and added only
     // when present, keeping the Error backward compatible.
-    const error = new Error(errorMessage)
-    const code = chunk.code ?? chunk.error?.code
-    if (code !== undefined) {
-      Object.assign(error, { code })
-    }
-    if (chunk.rawEvent !== undefined) {
-      Object.assign(error, { rawEvent: chunk.rawEvent })
-    }
-    this.events.onError?.(error)
+    this.events.onError?.(runErrorEventToError(chunk))
   }
 
   /**
