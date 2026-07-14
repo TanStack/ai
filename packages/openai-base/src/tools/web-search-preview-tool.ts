@@ -9,13 +9,15 @@ export type WebSearchPreviewTool = WebSearchPreviewToolConfig
 /**
  * Converts a standard Tool to OpenAI WebSearchPreviewTool format. Force the
  * literal `type: 'web_search_preview'` instead of trusting `metadata.type`,
- * since a hand-authored tool with a missing or wrong `type` would emit a
- * malformed payload while the dispatcher already routed by `tool.name`.
+ * so a missing or wrong metadata type cannot produce a malformed payload.
  */
 export function convertWebSearchPreviewToolToAdapterFormat(
   tool: Tool,
 ): WebSearchPreviewToolConfig {
-  const metadata = tool.metadata as Omit<WebSearchPreviewToolConfig, 'type'>
+  const metadata = getOpenAIProviderToolMetadata(tool) as Omit<
+    WebSearchPreviewToolConfig,
+    'type'
+  >
   return {
     ...metadata,
     type: 'web_search_preview',
@@ -31,9 +33,16 @@ export function convertWebSearchPreviewToolToAdapterFormat(
 export function webSearchPreviewTool(
   toolData: WebSearchPreviewToolConfig,
 ): Tool {
-  return {
-    name: 'web_search_preview',
-    description: 'Search the web (preview version)',
-    metadata: toolData,
-  }
+  return openAIProviderTool(
+    {
+      name: 'web_search_preview',
+      description: 'Search the web (preview version)',
+      metadata: toolData,
+    },
+    'web_search_preview',
+  )
 }
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'

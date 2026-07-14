@@ -21,7 +21,10 @@ export function validateMCPtool(tool: MCPToolConfig) {
  * Converts a standard Tool to OpenAI MCPTool format
  */
 export function convertMCPToolToAdapterFormat(tool: Tool): MCPToolConfig {
-  const metadata = tool.metadata as Omit<MCPToolConfig, 'type'>
+  const metadata = getOpenAIProviderToolMetadata(tool) as Omit<
+    MCPToolConfig,
+    'type'
+  >
 
   const mcpTool: MCPToolConfig = {
     ...metadata,
@@ -41,9 +44,16 @@ export function convertMCPToolToAdapterFormat(tool: Tool): MCPToolConfig {
 export function mcpTool(toolData: Omit<MCPToolConfig, 'type'>): Tool {
   validateMCPtool({ ...toolData, type: 'mcp' })
 
-  return {
-    name: 'mcp',
-    description: toolData.server_description || '',
-    metadata: toolData,
-  }
+  return openAIProviderTool(
+    {
+      name: 'mcp',
+      description: toolData.server_description || '',
+      metadata: toolData,
+    },
+    'mcp',
+  )
 }
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'

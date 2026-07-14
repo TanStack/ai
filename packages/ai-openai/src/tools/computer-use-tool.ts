@@ -12,8 +12,8 @@ export {
 // runtime tool name (`computer_use_preview`). The brand matches the model-meta
 // tool-capability union (`tools: ['computer_use', ...]`) used to gate which
 // models can construct this tool at compile time, while the runtime name
-// matches the OpenAI SDK's literal `'computer_use_preview'` that the
-// special-tool dispatcher in `convertToolsToProviderFormat` switches on.
+// matches the OpenAI SDK's literal `'computer_use_preview'`. The base factory
+// records the canonical `computer_use` kind separately in adapter metadata.
 export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 
 /**

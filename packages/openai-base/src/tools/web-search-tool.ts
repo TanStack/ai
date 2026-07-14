@@ -8,15 +8,16 @@ export type WebSearchTool = WebSearchToolConfig
 
 /**
  * Converts a standard Tool to OpenAI WebSearchTool format. Spread `metadata`
- * first, then force `type: 'web_search'` last to keep the runtime `type`
- * matching the discriminator the dispatcher routed by — otherwise a tool
- * authored by hand with a different `metadata.type` would emit a malformed
- * payload.
+ * first, then force `type: 'web_search'` last so a different metadata type
+ * cannot produce a malformed payload.
  */
 export function convertWebSearchToolToAdapterFormat(
   tool: Tool,
 ): WebSearchToolConfig {
-  const metadata = tool.metadata as Omit<WebSearchToolConfig, 'type'>
+  const metadata = getOpenAIProviderToolMetadata(tool) as Omit<
+    WebSearchToolConfig,
+    'type'
+  >
   return {
     ...metadata,
     type: 'web_search',
@@ -30,9 +31,16 @@ export function convertWebSearchToolToAdapterFormat(
  * re-wrap this in their own package.
  */
 export function webSearchTool(toolData: WebSearchToolConfig): Tool {
-  return {
-    name: 'web_search',
-    description: 'Search the web',
-    metadata: toolData,
-  }
+  return openAIProviderTool(
+    {
+      name: 'web_search',
+      description: 'Search the web',
+      metadata: toolData,
+    },
+    'web_search',
+  )
 }
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'

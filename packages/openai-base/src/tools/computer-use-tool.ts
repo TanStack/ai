@@ -12,7 +12,7 @@ export type ComputerUseTool = ComputerUseToolConfig
 export function convertComputerUseToolToAdapterFormat(
   tool: Tool,
 ): ComputerUseToolConfig {
-  const metadata = tool.metadata as ComputerUseToolConfig
+  const metadata = getOpenAIProviderToolMetadata(tool) as ComputerUseToolConfig
   return {
     type: 'computer_use_preview',
     display_height: metadata.display_height,
@@ -28,11 +28,18 @@ export function convertComputerUseToolToAdapterFormat(
  * re-wrap this in their own package.
  */
 export function computerUseTool(toolData: ComputerUseToolConfig): Tool {
-  return {
-    name: 'computer_use_preview',
-    description: 'Control a virtual computer',
-    metadata: {
-      ...toolData,
+  return openAIProviderTool(
+    {
+      name: 'computer_use_preview',
+      description: 'Control a virtual computer',
+      metadata: {
+        ...toolData,
+      },
     },
-  }
+    'computer_use',
+  )
 }
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
