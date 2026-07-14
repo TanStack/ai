@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[assistant] recommend a guitar" },
+      "response": {
+        "content": "I'd recommend the Fender Stratocaster — versatile and comfortable."
+      }
+    }
+  ]
+}

@@ -25,6 +25,10 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./assistant": {
+      "types": "./dist/esm/assistant.d.ts",
+      "import": "./dist/esm/assistant.js"
+    },
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"

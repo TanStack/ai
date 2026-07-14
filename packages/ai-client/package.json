@@ -42,6 +42,10 @@
     "./devtools": {
       "types": "./dist/esm/devtools.d.ts",
       "import": "./dist/esm/devtools.js"
+    },
+    "./assistant": {
+      "types": "./dist/esm/assistant.d.ts",
+      "import": "./dist/esm/assistant.js"
     }
   },
   "files": [

@@ -876,3 +876,7 @@ and piping into a custom logger.
   returns unexpected output or fails mid-stream, toggle `debug: true` on
   any `generate*()` call to see request metadata, raw provider chunks, and
   errors. Covers per-category toggling and piping into pino/winston.
+- See also: **ai-core/assistant/SKILL.md** -- To combine multiple media
+  activities (image/audio/speech/video/transcription) with chat behind one
+  `defineAssistant` handler + `useAssistant` hook instead of wiring up each
+  `generate*()` activity and its own hook separately.

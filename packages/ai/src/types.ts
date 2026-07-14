@@ -1527,6 +1527,40 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | ToolInputAvailableEvent
 >
 
+/** Type-only carrier attached to chat()'s return so downstream consumers
+ *  (useAssistant) can recover the tool set + structured-output schema without
+ *  the info being erased. Never present at runtime — optional phantom. */
+export interface ChatResultMeta<TTools, TSchema, TStream> {
+  readonly '~chatMeta'?: {
+    tools: TTools
+    schema: TSchema
+    stream: TStream
+  }
+}
+
+/** Recovers the tool set passed to `chat({ tools })` from its return type. */
+export type InferChatTools<T> = T extends {
+  '~chatMeta'?: { tools: infer TTools } | undefined
+}
+  ? TTools
+  : never
+
+/** Recovers the `outputSchema` passed to `chat({ outputSchema })` from its
+ *  return type. `undefined` when no schema was provided. */
+export type InferChatSchema<T> = T extends {
+  '~chatMeta'?: { schema: infer TSchema } | undefined
+}
+  ? TSchema
+  : undefined
+
+/** Recovers the `stream` option passed to `chat({ stream })` from its return
+ *  type. */
+export type InferChatStream<T> = T extends {
+  '~chatMeta'?: { stream: infer TStream } | undefined
+}
+  ? TStream
+  : boolean
+
 // ============================================================================
 // AG-UI Reasoning Event Interfaces
 // ============================================================================

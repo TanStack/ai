@@ -159,6 +159,16 @@ export type {
 // All types
 export * from './types'
 
+// chat() result phantom (tool/schema/stream inference for downstream
+// consumers like useAssistant) — re-exported explicitly for discoverability
+// alongside the other activity-specific type blocks above.
+export type {
+  ChatResultMeta,
+  InferChatSchema,
+  InferChatStream,
+  InferChatTools,
+} from './types'
+
 export {
   firstSentence,
   renderLazyCatalogEntry,

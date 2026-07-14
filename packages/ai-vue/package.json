@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./assistant": {
+      "types": "./dist/assistant.d.ts",
+      "import": "./dist/assistant.js"
     }
   },
   "files": [
