@@ -96,8 +96,7 @@ import { useTransaction } from '@tanstack/ai-react/transaction'
 import { openaiText } from '@tanstack/ai-openai'
 
 // The same definition your server route exports — share it from one module
-// in a real app; mirrored here so this snippet type-checks on its own. It
-// is inert in the browser: the callback never runs client-side.
+// in a real app; repeated here so this snippet type-checks on its own.
 const supportTransaction = defineTransaction({
   supportChat: chatVerb((req) =>
     chat({ adapter: openaiText('gpt-5.5'), messages: req.messages }),
@@ -157,7 +156,7 @@ function StudioPage() {
 }
 ```
 
-Each page's `txn` object is typed to exactly its definition's verbs — `SupportPage` has no `txn.heroImage` to misuse, and there's no way to accidentally call the support route with an image request. (When a route builds its definition inside the handler, mirror it client-side as described in [Sharing the definition with the client](./overview#sharing-the-definition-with-the-client).)
+Each page's `txn` object is typed to exactly its definition's verbs — `SupportPage` has no `txn.heroImage` to misuse, and there's no way to accidentally call the support route with an image request. (When a route builds its definition inside the handler, bind the client with `clientTransaction` as described in [Sharing the definition with the client](./overview#sharing-the-definition-with-the-client).)
 
 ## Split, or one broad definition?
 

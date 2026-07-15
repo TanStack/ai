@@ -26,7 +26,7 @@ One click turns a topic into a finished post: draft the article as a typed objec
 ### Server: a `blogPost` verb that composes its siblings
 
 ```ts
-// api/blog-studio.ts
+// lib/blog-studio.ts
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
@@ -114,7 +114,10 @@ export const blogTransaction = defineTransaction({
   narration,
   blogPost,
 })
+```
 
+```ts
+// routes/api.blog-studio.ts
 export const POST = (request: Request) => blogTransaction.handler(request)
 ```
 
@@ -126,18 +129,10 @@ export const POST = (request: Request) => blogTransaction.handler(request)
 ### Client: one call, live progress, typed result
 
 ```tsx
-// components/BlogStudio.tsx
+// routes/blog-studio.tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { clientTransaction } from '@tanstack/ai/transaction'
-import type { blogTransaction } from './api/blog-studio'
-
-const blogTxnDef = clientTransaction<typeof blogTransaction>({
-  drafting: 'chat',
-  heroImage: 'one-shot',
-  narration: 'one-shot',
-  blogPost: 'one-shot',
-})
+import { blogTxnDef } from '../lib/blog-studio'
 
 function BlogStudio() {
   const txn = useTransaction(blogTxnDef, {
@@ -185,7 +180,7 @@ function BlogStudio() {
 }
 ```
 
-`blogPost.result` is typed as `{ post, hero, audio } | null` — inferred from `execute`'s return type on the server definition, nothing re-declared on the client. (If your route builds the definition inside the handler, mirror it client-side as described in [Sharing the definition with the client](./overview#sharing-the-definition-with-the-client) — the mirrored bodies never execute in the browser.)
+`blogPost.result` is typed as `{ post, hero, audio } | null` — inferred from `execute`'s return type on the server definition, nothing re-declared on the client. The lib module exports a `blogTxnDef` stub via `clientTransaction` so the page never duplicates verb callbacks (see [Sharing the definition with the client](./overview#sharing-the-definition-with-the-client)).
 
 And because `heroImage` and `narration` are ordinary declared verbs, the *same* client can also drive them directly — `txn.heroImage.run({ prompt })` for a "regenerate hero image" button — without another endpoint or another definition. Server-composed and user-driven are two ways to call the same verbs.
 

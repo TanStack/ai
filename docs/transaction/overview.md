@@ -22,9 +22,9 @@ Verb names are *your* domain language, not a fixed set of library nouns. A blog 
 `defineTransaction()` lives on the `/transaction` subpath of `@tanstack/ai`, and `useTransaction()` on the `/transaction` subpath of `@tanstack/ai-react` (Solid and Vue follow the same pattern; Svelte exports `createTransaction` from `@tanstack/ai-svelte/transaction`) — not the package root.
 
 ```ts
-// api/blog-studio.ts
+// lib/blog-studio.ts — define once; the API route only calls `.handler`
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
+import { chatVerb, clientTransaction, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -59,26 +59,26 @@ export const blogTransaction = defineTransaction({
   }),
 })
 
+export const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
+})
+```
+
+```ts
+// routes/api.blog-studio.ts — thin server route
 export const POST = (request: Request) => blogTransaction.handler(request)
 ```
 
 That one route now serves conversational drafting, image generation, and narration. On the client, one hook drives all three:
 
 ```tsx
-// components/BlogStudio.tsx
+// routes/blog-studio.tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { clientTransaction } from '@tanstack/ai/transaction'
-import type { blogTransaction } from './api/blog-studio'
-
-// Type-only binding to the server definition — no provider imports in the
-// browser bundle. See "Sharing the definition with the client" below.
-const blogTxnDef = clientTransaction<typeof blogTransaction>({
-  drafting: 'chat',
-  heroImage: 'one-shot',
-  narration: 'one-shot',
-  blogPost: 'one-shot',
-})
+import { blogTxnDef } from '../lib/blog-studio'
 
 function BlogStudio() {
   const txn = useTransaction(blogTxnDef, {
@@ -161,7 +161,21 @@ On the client, `txn.primaryChat` and `txn.summaryChat` are two fully independent
 
 `useTransaction` needs the definition's **type** to build the typed client — verb names and kinds at runtime, input/result/tool/schema types at compile time.
 
-The recommended pattern is **`clientTransaction<typeof serverDef>({ kinds })`**: define the transaction once on the server (export it, or export a `ReturnType<typeof createTransaction>` type when the definition is built per-request), then bind it on the client with a verb-name → kind map. The generic is supplied via `import type` — erased from the bundle, so provider SDKs never ship to the browser. The kinds map is checked exhaustively against the server definition, so drift fails at compile time.
+The recommended pattern is to **`defineTransaction` once in a shared module** and export a **`blogTxnDef`** client stub beside it via `clientTransaction<typeof blogTransaction>({ kinds })`. The page imports `blogTxnDef`; the API route imports `blogTransaction` and calls `.handler`. The kinds map is checked exhaustively against the server definition, so drift fails at compile time.
+
+```ts
+// lib/blog-studio.ts
+export const blogTransaction = defineTransaction({ /* … */ })
+
+export const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
+})
+```
+
+When the definition is built per-request inside a handler (for example, to pick adapters from routing props), export a `ReturnType<typeof createTransaction>` type and bind on the client with `import type` — the generic is erased from the bundle:
 
 ```tsx
 import type { blogTransaction } from './api/blog-studio'
@@ -175,7 +189,7 @@ const blogTxnDef = clientTransaction<typeof blogTransaction>({
 })
 ```
 
-When the definition truly has no provider imports — a shared isomorphic module works fine — you can also export one `defineTransaction(...)` value and pass it to both `handler` and `useTransaction` directly. The [`blog-studio` example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/routes/blog-studio.tsx) uses `clientTransaction` end to end.
+When the definition truly has no provider imports, you can also pass one shared `defineTransaction(...)` value to both `handler` and `useTransaction` directly. The [`blog-studio` example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/lib/blog-studio.ts) defines both exports in one lib module.
 
 ## When should you reach for a transaction endpoint?
 

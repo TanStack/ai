@@ -326,7 +326,8 @@
         {
           "label": "Scenarios",
           "to": "transaction/scenarios",
-          "addedAt": "2026-07-14"
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-14"
         }
       ]
     },

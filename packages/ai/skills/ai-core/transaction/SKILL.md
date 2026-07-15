@@ -53,9 +53,9 @@ a request actually reaches `handler`, so it's safe to import into an
 isomorphic module shared with the client.
 
 ```typescript
-// src/lib/blog-transaction.ts — shared/isomorphic module
+// src/lib/blog-studio.ts — shared module: server definition + client stub
 import { chat, generateImage } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
+import { chatVerb, clientTransaction, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { openaiText, openaiImage } from '@tanstack/ai-openai/adapters'
 import { z } from 'zod'
 import { BlogPostSchema } from './schemas'
@@ -103,12 +103,18 @@ export const blogTransaction = defineTransaction({
   heroImage,
   blogPost,
 })
+
+export const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  blogPost: 'one-shot',
+})
 ```
 
 ```typescript
 // src/routes/api.blog-studio.ts — server route, single handler
 import { createFileRoute } from '@tanstack/react-router'
-import { blogTransaction } from '../lib/blog-transaction'
+import { blogTransaction } from '../lib/blog-studio'
 
 export const Route = createFileRoute('/api/blog-studio')({
   server: {
@@ -132,10 +138,10 @@ before any callback runs.
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { blogTransaction } from '../lib/blog-transaction'
+import { blogTxnDef } from '../lib/blog-studio'
 
 function BlogStudio() {
-  const txn = useTransaction(blogTransaction, {
+  const txn = useTransaction(blogTxnDef, {
     connection: fetchServerSentEvents('/api/blog-studio'),
   })
 
@@ -290,9 +296,22 @@ neither field is present on the type — same conditional shape as
 ### 5. Client needs the definition's TYPE — use `clientTransaction`
 
 `useTransaction` reads verb names/kinds at runtime and everything else at
-the type level. Define the transaction on the server, export it (or export
-a `ReturnType<typeof createTransaction>` type when the definition is built
-per-request), then bind it on the client with `clientTransaction`:
+the type level. Define the transaction in a shared lib module, export
+`blogTransaction` for the API route and `blogTxnDef` beside it:
+
+```tsx
+// lib/blog-studio.ts
+export const blogTransaction = defineTransaction({ /* … */ })
+
+export const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  blogPost: 'one-shot',
+})
+```
+
+When the definition is built per-request inside a handler, export a
+`ReturnType<typeof createTransaction>` type and bind with `import type`:
 
 ```tsx
 import type { blogTransaction } from './api/blog-studio'
@@ -301,16 +320,13 @@ import { clientTransaction } from '@tanstack/ai/transaction'
 const blogTxnDef = clientTransaction<typeof blogTransaction>({
   drafting: 'chat',
   heroImage: 'one-shot',
-  narration: 'one-shot',
   blogPost: 'one-shot',
 })
 ```
 
-The generic is supplied via `import type` — erased from the bundle — so
-provider SDKs never ship to the browser. The kinds map is checked
-exhaustively against the server definition. When the definition truly has
-no provider imports, a shared isomorphic `defineTransaction` module also
-works (see `examples/ts-react-chat` blog-studio routes).
+The generic is supplied via `import type` — erased from the bundle. The
+kinds map is checked exhaustively against the server definition. See
+`examples/ts-react-chat/src/lib/blog-studio.ts` for the full pattern.
 
 ### 6. Only declared verbs are constructed; one shared connection
 
@@ -355,7 +371,7 @@ are `id`/`threadId` and the nested `verbs` map: chat verbs take
 useTransaction(blogTransaction, { connection, model: 'gpt-5.5' })
 
 // CORRECT
-useTransaction(blogTransaction, {
+useTransaction(blogTxnDef, {
   connection: fetchServerSentEvents('/api/blog-studio'),
   verbs: { heroImage: { onResult: (r) => r.images[0]?.url ?? null } },
 })
