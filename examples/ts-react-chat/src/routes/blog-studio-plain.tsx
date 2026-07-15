@@ -15,11 +15,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import { EventType } from '@tanstack/ai'
-import {
-  forNarration,
-  heroPromptFor,
-  type BlogPost,
-} from '../lib/blog-studio'
+import { forNarration, heroPromptFor, type BlogPost } from '../lib/blog-studio'
 import {
   BLOG_STUDIO_PLAIN_EVENTS,
   createBlogPostStreamFn,
