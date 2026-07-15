@@ -69,6 +69,16 @@ export {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
+export {
+  InterruptResumeValidationError,
+  interruptItemError,
+  readUnopenedInterruptBinding,
+  validateInterruptResumeBatch,
+  withoutInterruptBinding,
+  type PendingInterruptResumeRecord,
+  type ValidateInterruptResumeBatchInput,
+  type ValidatedInterruptResumeBatch,
+} from './interrupt-resume'
 
 // MCP chat option types
 export type {

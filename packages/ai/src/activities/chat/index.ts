@@ -13,6 +13,11 @@ import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import { getInterruptPersistence } from '../../interrupts'
 import {
+  InterruptResumeValidationError,
+  readUnopenedInterruptBinding,
+  validateInterruptResumeBatch,
+} from '../../interrupt-resume'
+import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
@@ -88,6 +93,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  ChatResumeToolState,
   SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
@@ -996,6 +1002,7 @@ class TextEngine<
         initialConfig,
       )
       this.applyMiddlewareConfig(transformedConfig)
+      await this.applyEphemeralInterruptResume(transformedConfig)
 
       // Run onStart (devtools middleware emits text:request:started and initial messages here)
       await this.middlewareRunner.runOnStart(this.middlewareCtx)
@@ -1892,6 +1899,7 @@ class TextEngine<
         }),
       },
     ]
+    this.middlewareCtx.messages = this.messages
   }
 
   /**
@@ -2213,24 +2221,14 @@ class TextEngine<
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
   ): AsyncGenerator<StreamChunk, boolean, void> {
-    if (!getInterruptPersistence(this.middlewareCtx, { optional: true })) {
-      yield* this.emitInterruptRunError({
-        errors: [
-          {
-            code: 'persistence-required',
-            message:
-              'Actionable interrupts require an atomic interrupt persistence capability.',
-          },
-        ],
-      })
-      return false
-    }
-
-    const terminal = this.buildInterruptFinishedChunk(
+    let terminal = this.buildInterruptFinishedChunk(
       finishEvent,
       approvals,
       clientRequests,
     )
+    if (!getInterruptPersistence(this.middlewareCtx, { optional: true })) {
+      terminal = this.completeEphemeralInterruptBindings(terminal)
+    }
     let terminalOutputs: Array<StreamChunk>
     try {
       terminalOutputs = await this.middlewareRunner.runOnChunk(
@@ -2256,6 +2254,46 @@ class TextEngine<
       this.middlewareCtx.chunkIndex++
     }
     return true
+  }
+
+  private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
+    if (
+      chunk.type !== EventType.RUN_FINISHED ||
+      chunk.outcome?.type !== 'interrupt'
+    ) {
+      return chunk
+    }
+    const interruptedRunId = this.runIdOverride ?? this.requestId
+    return {
+      ...chunk,
+      outcome: {
+        ...chunk.outcome,
+        interrupts: chunk.outcome.interrupts.map((interrupt) => {
+          if (
+            !interrupt.metadata ||
+            typeof interrupt.metadata !== 'object' ||
+            Array.isArray(interrupt.metadata)
+          ) {
+            return interrupt
+          }
+          const metadata = { ...interrupt.metadata }
+          const unopened = metadata[interruptBindingMetadataKey]
+          if (
+            unopened === null ||
+            typeof unopened !== 'object' ||
+            Array.isArray(unopened)
+          ) {
+            return interrupt
+          }
+          metadata[interruptBindingMetadataKey] = {
+            ...unopened,
+            interruptedRunId,
+            generation: 0,
+          }
+          return { ...interrupt, metadata }
+        }),
+      },
+    }
   }
 
   private buildToolResultChunks(
@@ -2320,6 +2358,7 @@ class TextEngine<
       } else {
         this.messages = [...this.messages, newToolMessage]
       }
+      this.middlewareCtx.messages = this.messages
     }
 
     return chunks
@@ -2978,29 +3017,167 @@ class TextEngine<
     }
   }
 
-  private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
-    if (config.resumeToolState?.approvals) {
-      for (const [approvalId, resolution] of config.resumeToolState.approvals) {
+  private async applyEphemeralInterruptResume(
+    config: ChatMiddlewareConfig,
+  ): Promise<void> {
+    if (
+      (config.resume?.length ?? 0) === 0 ||
+      getInterruptPersistence(this.middlewareCtx, { optional: true })
+    ) {
+      return
+    }
+
+    const interruptedRunId = this.parentRunIdOverride
+    if (!interruptedRunId) {
+      throw new InterruptResumeValidationError([
+        {
+          scope: 'batch',
+          threadId: this.threadId,
+          interruptedRunId: this.runIdOverride ?? this.requestId,
+          generation: 0,
+          interruptIds: config.resume?.map((entry) => entry.interruptId) ?? [],
+          code: 'stale',
+          message:
+            'Interrupt continuation requires parentRunId to identify the interrupted run.',
+          source: 'server',
+          retryable: false,
+        },
+      ])
+    }
+
+    const approvalRequests: Array<ApprovalRequest> = []
+    const clientRequests: Array<ClientToolRequest> = []
+    const pendingToolCalls = this.getPendingToolCallsFromMessages()
+    const resumeInterruptIds = new Set(
+      config.resume?.map((entry) => entry.interruptId),
+    )
+    const toolInputs = new Map<string, unknown>()
+    const toolsByCallId = new Map<string, AnyRuntimeTool>()
+    const clientExecutionCallIds = new Set<string>()
+
+    for (const toolCall of pendingToolCalls) {
+      const tool = this.tools.find(
+        (candidate) => candidate.name === toolCall.function.name,
+      )
+      if (!tool) continue
+      toolsByCallId.set(toolCall.id, tool)
+      let input: unknown = {}
+      try {
+        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
+        input = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        input = {}
+      }
+      toolInputs.set(toolCall.id, input)
+      if (
+        !tool.execute &&
+        resumeInterruptIds.has(`client_tool_${toolCall.id}`)
+      ) {
+        clientExecutionCallIds.add(toolCall.id)
+      }
+    }
+
+    // Mirror executeToolCalls' scheduling boundary. While any approval is
+    // outstanding, the server emits only that approval batch; plain client
+    // tools do not become interrupts until the approved continuation runs.
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)) {
+        approvalRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+          approvalId: `approval_${toolCall.id}`,
+        })
+      }
+    }
+
+    if (approvalRequests.length === 0) {
+      for (const toolCall of pendingToolCalls) {
+        const tool = toolsByCallId.get(toolCall.id)
+        if (!tool?.execute) {
+          clientRequests.push({
+            toolCallId: toolCall.id,
+            toolName: toolCall.function.name,
+            input: toolInputs.get(toolCall.id) ?? {},
+          })
+        }
+      }
+    }
+
+    const pending = this.buildActionableInterrupts(
+      approvalRequests,
+      clientRequests,
+    ).flatMap((descriptor) => {
+      const unopened = readUnopenedInterruptBinding(descriptor)
+      return unopened
+        ? [
+            {
+              interruptId: descriptor.id,
+              payload: descriptor,
+              binding: {
+                ...unopened,
+                interruptedRunId,
+                generation: 0,
+              } satisfies InterruptBinding,
+            },
+          ]
+        : []
+    })
+    const validated = await validateInterruptResumeBatch({
+      threadId: this.threadId,
+      interruptedRunId,
+      generation: 0,
+      pending,
+      resume: config.resume,
+      tools: this.tools,
+    })
+    if (validated.errors.length > 0 || !validated.resumeToolState) {
+      throw new InterruptResumeValidationError(validated.errors)
+    }
+
+    // A client-tool execution interrupt can only be emitted after an
+    // approval-required client tool was approved in the preceding ephemeral
+    // run. Reconstruct that phase marker from the trusted `client_tool_*`
+    // continuation so executeToolCalls consumes the validated client output
+    // instead of asking for approval again.
+    const approvals = new Map(validated.resumeToolState.approvals)
+    for (const request of clientRequests) {
+      if (toolsByCallId.get(request.toolCallId)?.needsApproval) {
+        approvals.set(request.toolCallId, true)
+      }
+    }
+    this.applyResumeToolState({
+      ...validated.resumeToolState,
+      approvals,
+    })
+  }
+
+  private applyResumeToolState(state: ChatResumeToolState | undefined): void {
+    if (state?.approvals) {
+      for (const [approvalId, resolution] of state.approvals) {
         this.resumeApprovals.set(approvalId, resolution)
       }
     }
-    if (config.resumeToolState?.clientToolResults) {
-      for (const [toolCallId, result] of config.resumeToolState
-        .clientToolResults) {
+    if (state?.clientToolResults) {
+      for (const [toolCallId, result] of state.clientToolResults) {
         this.resumeClientToolResults.set(toolCallId, result)
       }
     }
-    if (config.resumeToolState?.deniedToolResults) {
-      for (const [toolCallId, result] of config.resumeToolState
-        .deniedToolResults) {
+    if (state?.deniedToolResults) {
+      for (const [toolCallId, result] of state.deniedToolResults) {
         this.resumeDeniedToolResults.set(toolCallId, result)
       }
     }
-    if (config.resumeToolState?.cancelledToolCallIds) {
-      for (const toolCallId of config.resumeToolState.cancelledToolCallIds) {
+    if (state?.cancelledToolCallIds) {
+      for (const toolCallId of state.cancelledToolCallIds) {
         this.resumeCancelledToolCallIds.add(toolCallId)
       }
     }
+  }
+
+  private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
+    this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     this.systemPrompts = config.systemPrompts
     this.tools = config.tools

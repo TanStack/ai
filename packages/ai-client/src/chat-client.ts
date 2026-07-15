@@ -1638,9 +1638,6 @@ export class ChatClient<
     const resumeThreadId = this.pendingResumeThreadId
     const resumeParentRunId = this.pendingResumeParentRunId
     const resumeItems = this.pendingResumeItems
-    const isResumeRequest = Boolean(
-      resumeThreadId || resumeParentRunId || resumeItems,
-    )
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
@@ -1666,7 +1663,7 @@ export class ChatClient<
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = isResumeRequest ? [] : this.processor.getMessages()
+      const messages = this.processor.getMessages()
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 

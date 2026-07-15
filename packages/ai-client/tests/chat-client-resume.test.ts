@@ -5,8 +5,16 @@ import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,
 } from '../src/connection-adapters'
-import type { RunAgentResumeItem, StreamChunk } from '@tanstack/ai/client'
-import type { ChatResumeSnapshot, ChatServerPersistence } from '../src/types'
+import type {
+  ModelMessage,
+  RunAgentResumeItem,
+  StreamChunk,
+} from '@tanstack/ai/client'
+import type {
+  ChatResumeSnapshot,
+  ChatServerPersistence,
+  UIMessage,
+} from '../src/types'
 
 /**
  * Adapter that records each connect's runContext and yields scripted chunks.
@@ -19,7 +27,7 @@ type Script =
 
 function recordingAdapter(scripts: Array<Script>) {
   const contexts: Array<RunAgentInputContext | undefined> = []
-  const sentMessages: Array<Array<unknown>> = []
+  const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []
   let i = 0
   const adapter: ConnectConnectionAdapter = {
     // eslint-disable-next-line @typescript-eslint/require-await
@@ -217,7 +225,7 @@ describe('ChatClient resume', () => {
     expect(client.getResumeState()).toBeNull()
   })
 
-  it('resumeInterrupts reconnects without re-sending message history', async () => {
+  it('resumeInterrupts reconnects with the full current message history', async () => {
     const resumeItems: Array<RunAgentResumeItem> = [
       {
         interruptId: 'interrupt-1',
@@ -255,7 +263,8 @@ describe('ChatClient resume', () => {
     await client.resumeInterrupts(resumeItems)
 
     expect(contexts[1]?.resume).toEqual(resumeItems)
-    expect(sentMessages[1]).toEqual([])
+    expect(sentMessages[1]).not.toEqual([])
+    expect(sentMessages[1]).toEqual(client.getMessages())
   })
 
   it('clears resume state and pending interrupts on a runless RUN_ERROR', async () => {

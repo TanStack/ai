@@ -742,7 +742,9 @@ export async function* executeToolCalls<TContext = unknown>(
   const hasPendingApprovals = toolCalls.some((tc) => {
     const t = toolMap.get(tc.function.name)
     return (
-      t?.needsApproval && approvalResolution(approvals, tc.id) === undefined
+      t?.needsApproval &&
+      approvalResolution(approvals, tc.id) === undefined &&
+      !resumeState?.cancelledToolCallIds?.has(tc.id)
     )
   })
 

@@ -222,7 +222,7 @@ function submitGenericValue(
 The client performs canonical validation too, and server validation remains
 authoritative.
 
-## Migrate server events and persistence
+## Migrate server events; add persistence only when needed
 
 A native server must emit snapshots before the interrupt terminal:
 
@@ -230,17 +230,24 @@ A native server must emit snapshots before the interrupt terminal:
 2. optional `STATE_SNAPSHOT`
 3. `RUN_FINISHED` with a nonempty interrupt outcome
 
-It must persist the complete descriptor/binding batch before exposing that
-terminal. Without the atomic persistence capability, TanStack AI emits one
-`RUN_ERROR` with `persistence-required` instead.
+Persistence is optional. Without it, TanStack AI emits the interrupt terminal
+and reconstructs the expected batch from the full message history on the
+continuation request. It validates the entire resume array against the current
+tool definitions before executing anything.
 
 Continuations use a fresh `runId`, the same `threadId`, and the interrupted run
 as `parentRunId`. The resume request contains every pending ID exactly once.
-Persistence validates every payload, edited input, schema hash, expiry, and
-generation before one compare-and-swap commit. Exact retries attach to the
-winning continuation rather than executing tools again.
+In ephemeral mode, server validation covers every payload, edited input, and
+tool schema, but the submitted history remains client-provided input. There is
+no authoritative reload recovery, exactly-once execution, replay protection,
+restart recovery, or cross-instance compare-and-swap.
 
-Upgrade persistence before deploying the new runtime:
+When persistence is configured, it additionally validates stored schema hashes,
+expiry, and generation before one compare-and-swap commit. Exact retries attach
+to the winning continuation rather than executing tools again.
+
+If your application uses persistence, upgrade its schema before deploying the
+new runtime:
 
 - add the interrupt batch, binding, generation, submission fingerprint,
   continuation, and accepted-tombstone storage required by your adapter;

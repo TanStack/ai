@@ -465,6 +465,89 @@ describe('authoritative interrupt persistence', () => {
     ])
   })
 
+  it.each([
+    ['approve', true],
+    ['reject', false],
+  ] as const)(
+    'rejects a boolean %s decision when that branch requires a payload',
+    async (_branch, approved) => {
+      const tool = toolDefinition({
+        name: 'transfer',
+        description: 'Transfer funds',
+        needsApproval: true,
+        approvalSchema: {
+          approve: {
+            type: 'object',
+            properties: { note: { type: 'string' } },
+            required: ['note'],
+            additionalProperties: false,
+          },
+          reject: {
+            type: 'object',
+            properties: { reason: { type: 'string' } },
+            required: ['reason'],
+            additionalProperties: false,
+          },
+        },
+      })
+      const approval = normalizeApprovalSchema(
+        tool.approvalSchema,
+        tool.inputSchema,
+      )
+      const binding: InterruptBinding = {
+        kind: 'tool-approval',
+        interruptId: 'approval',
+        interruptedRunId: 'interrupted-run',
+        generation: 1,
+        toolName: tool.name,
+        toolCallId: 'call-approval',
+        originalArgs: {},
+        inputSchemaHash: hashSchemaInput(tool.inputSchema),
+        approvalSchemaHash: approval.approvalSchemaHash,
+        responseSchemaHash: approval.responseSchemaHash,
+      }
+
+      const result = await validateInterruptResumeBatch({
+        threadId: 'thread-1',
+        interruptedRunId: 'interrupted-run',
+        generation: 1,
+        pending: [
+          pendingRecord({
+            interruptId: 'approval',
+            binding,
+            payload: {
+              id: 'approval',
+              reason: 'tool_call',
+              responseSchema: approval.responseSchema,
+            },
+          }),
+        ],
+        resume: [
+          {
+            interruptId: 'approval',
+            status: 'resolved',
+            payload: approved,
+          },
+        ],
+        tools: [tool],
+      })
+
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            scope: 'item',
+            interruptId: 'approval',
+            code: 'invalid-payload',
+          }),
+          expect.objectContaining({
+            scope: 'batch',
+            code: 'item-validation-failed',
+          }),
+        ]),
+      )
+    },
+  )
+
   it('commits one CAS batch with parent and continuation run correlation', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.interrupts!.openInterruptBatch({
@@ -512,6 +595,176 @@ describe('authoritative interrupt persistence', () => {
         expectedGeneration: 1,
         expectedInterruptIds: ['interrupt-1'],
       }),
+    )
+  })
+
+  it('uses authoritative stored messages instead of tampered continuation arguments', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockImplementation((input) => input)
+    const defined = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      inputSchema: {
+        type: 'object',
+        properties: { cents: { type: 'number' } },
+        required: ['cents'],
+        additionalProperties: false,
+      },
+    })
+    const tool = { ...defined, execute }
+    const approval = normalizeApprovalSchema(
+      defined.approvalSchema,
+      defined.inputSchema,
+    )
+    const storedMessages = [
+      { role: 'user' as const, content: 'Transfer one dollar' },
+      {
+        role: 'assistant' as const,
+        content: '',
+        toolCalls: [
+          {
+            id: 'call-transfer',
+            type: 'function' as const,
+            function: {
+              name: 'transfer',
+              arguments: '{"cents":100}',
+            },
+          },
+        ],
+      },
+    ]
+    await persistence.stores.messages!.saveThread('thread-1', storedMessages)
+    await persistence.stores.interrupts!.openInterruptBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      descriptors: [
+        {
+          id: 'approval_call-transfer',
+          reason: 'tool_call',
+          toolCallId: 'call-transfer',
+          responseSchema: approval.responseSchema,
+        },
+      ],
+      bindings: [
+        {
+          kind: 'tool-approval',
+          interruptId: 'approval_call-transfer',
+          toolName: 'transfer',
+          toolCallId: 'call-transfer',
+          originalArgs: { cents: 100 },
+          inputSchemaHash: hashSchemaInput(defined.inputSchema),
+          approvalSchemaHash: approval.approvalSchemaHash,
+          responseSchemaHash: approval.responseSchemaHash,
+        },
+      ],
+    })
+    const { adapter } = mockAdapter([successfulRun('continuation-run')])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Transfer one dollar' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call-transfer',
+                type: 'function',
+                function: {
+                  name: 'transfer',
+                  arguments: '{"cents":999999}',
+                },
+              },
+            ],
+          },
+        ],
+        tools: [tool],
+        runId: 'continuation-run',
+        parentRunId: 'interrupted-run',
+        threadId: 'thread-1',
+        resume: [
+          {
+            interruptId: 'approval_call-transfer',
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(execute).toHaveBeenCalledWith({ cents: 100 }, expect.any(Object))
+  })
+
+  it('persists the complete native interrupt transcript for authoritative resume', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'interrupted-run',
+          threadId: 'thread-1',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call-transfer',
+          toolCallName: 'transfer',
+          toolName: 'transfer',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call-transfer',
+          delta: '{"cents":100}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'interrupted-run',
+          threadId: 'thread-1',
+          finishReason: 'tool_calls',
+          timestamp: 2,
+        },
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Transfer one dollar' }],
+        tools: [
+          {
+            name: 'transfer',
+            description: 'Transfer funds',
+            needsApproval: true,
+            execute: (input: unknown) => input,
+          },
+        ],
+        runId: 'interrupted-run',
+        threadId: 'thread-1',
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('thread-1')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assistant',
+          toolCalls: [
+            expect.objectContaining({
+              id: 'call-transfer',
+              function: expect.objectContaining({
+                name: 'transfer',
+                arguments: '{"cents":100}',
+              }),
+            }),
+          ],
+        }),
+      ]),
     )
   })
 })

@@ -40,10 +40,11 @@ const interruptTerminal = {
 }
 ```
 
-The canonical event stream is the only native approval event stream. Server
-state persistence stores the complete descriptor/binding batch before the
-terminal is exposed; SSE delivery durability separately assigns opaque resume
-offsets to delivered events. Native paths do not emit `approval-requested` or
+The canonical event stream is the only native approval event stream. It works
+ephemerally without persistence. When server state persistence is configured,
+it stores the complete descriptor/binding batch before the terminal is exposed;
+SSE delivery durability separately assigns opaque resume offsets to delivered
+events. Native paths do not emit `approval-requested` or
 `tool-input-available` custom events.
 
 See [Interrupts](../chat/interrupts) for the public server/client guide and
@@ -55,42 +56,50 @@ See [Interrupts](../chat/interrupts) for the public server/client guide and
 | --- | --- |
 | Tool definition | Declares `needsApproval: true` for a sensitive operation. |
 | Chat engine | Stops before tool execution and emits the interrupt outcome. |
-| Chat persistence middleware | Atomically opens the descriptor/binding batch, marks the run interrupted, and snapshots messages. |
+| Chat persistence middleware | Optionally opens the descriptor/binding batch atomically, marks the run interrupted, and snapshots authoritative messages. |
 | Chat client | Binds descriptors to typed methods, stages drafts, and submits one exact resume batch. |
 | Application UI | Explains the operation and uses `resolveInterrupt`, `cancel`, or root batch controls. |
 | Delivery adapter | Optionally replays SSE events by opaque adapter-owned offsets. |
 
 ## Descriptor to continuation pipeline
 
-The invariant is **descriptor â†’ validate all â†’ compare-and-swap â†’
-continuation â†’ history**:
+The base invariant is **descriptor → validate all → continuation → history**.
+Durable mode inserts **open batch → compare-and-swap → receipt** around that
+flow:
 
-1. The engine builds public descriptors and protected bindings, then requires
-   an atomic persistence capability.
-2. Persistence opens the entire batch and assigns its generation before output
-   includes `MESSAGES_SNAPSHOT`, optional `STATE_SNAPSHOT`, and the interrupt
-   `RUN_FINISHED` terminal.
-3. The client binds only descriptors whose reason, tool identity, call ID,
+1. The engine builds public descriptors and bindings. Output includes
+   `MESSAGES_SNAPSHOT`, optional `STATE_SNAPSHOT`, and the interrupt
+   `RUN_FINISHED` terminal. When persistence is configured, it first opens the
+   entire batch atomically and assigns its generation.
+2. The client binds only descriptors whose reason, tool identity, call ID,
    schema hashes, interrupted run, and generation match its tool registry.
    Anything untrusted degrades to `generic` rather than gaining a typed tool
    resolver.
-4. Item methods validate and stage local drafts. The submit boundary contains
+3. Item methods validate and stage local drafts. The submit boundary contains
    every pending interrupt ID exactly once.
-5. The server validates **all** payloads, edited inputs, outputs, expiry, hashes,
-   and correlation before mutating state.
-6. One transaction compares the current interrupted run and generation, stores
-   the canonical resolution fingerprint, creates a fresh continuation whose
-   `parentRunId` is the interrupted run, and records the receipt.
+4. The client submits a fresh run with the full current message history, the
+   interrupted `parentRunId`, and the complete resume batch.
+5. The server validates **all** payloads, edited inputs, outputs, hashes, and
+   correlation before executing anything. Ephemeral mode reconstructs the
+   expected batch from client-provided history and current tool definitions.
+   Durable mode instead uses stored authoritative state and also validates
+   expiry and generation.
+6. Durable mode uses one transaction to compare the current interrupted run and
+   generation, store the canonical resolution fingerprint, and record the
+   continuation receipt. Ephemeral mode proceeds directly after validation.
 7. Resumed tool calls emit results only; they do not replay synthetic tool-call
    start/argument events. Successful history belongs to the continuation run.
 
-An exact retry returns the recorded continuation. A stale or different
-submission returns authoritative recovery state. Neither path re-executes an
-approved tool.
+With persistence, an exact retry returns the recorded continuation and a stale
+or different submission returns authoritative recovery state. Ephemeral mode
+does not provide replay, exactly-once, restart, or cross-instance guarantees;
+its message history is validated but remains client-provided input.
 
 ## Server setup
 
-Define the tool and add state persistence before handling requests:
+Define the tool normally. The following route opts into state persistence for
+durable recovery and concurrency guarantees; omit the persistence imports,
+store, and middleware for the zero-configuration ephemeral flow:
 
 ```ts
 // tools.ts
@@ -137,6 +146,7 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
+    parentRunId: params.parentRunId,
     ...(params.resume ? { resume: params.resume } : {}),
     tools: [deleteProject],
     middleware: [withChatPersistence(persistence)],
@@ -146,10 +156,11 @@ export async function POST(request: Request) {
 }
 ```
 
-There is no feature flag. Middleware behavior follows the stores present on the
-`AIPersistence` object. `interrupts` requires `runs`; invalid store
-combinations fail at compile time when statically known and at runtime for
-untyped JavaScript.
+Persistence is not required to emit or resolve interrupts. When middleware is
+present, behavior follows the stores on the `AIPersistence` object.
+`interrupts` requires `runs` within that optional durable configuration;
+invalid store combinations fail at compile time when statically known and at
+runtime for untyped JavaScript.
 
 ## Client state machine
 
@@ -163,8 +174,9 @@ A single approval follows this sequence:
    submits immediately, while a multi-item batch waits for every valid draft.
 6. The next request carries a fresh `runId`, the interrupted `parentRunId`, and
    the exact AG-UI `resume` array.
-7. Persistence validates the full set and commits it atomically before the
-   engine continues the tool call.
+7. The server validates the full set before the engine continues the tool call.
+   With persistence, it also commits the set atomically against authoritative
+   state.
 
 Normal input is rejected at step 4. This prevents a second branch from being
 created while the existing run still waits for a decision.
@@ -242,9 +254,9 @@ function ResolveAll({ approved }: { approved: boolean }) {
 }
 ```
 
-## Persistence and concurrency
+## Optional persistence and concurrency
 
-`withChatPersistence` performs these state transitions:
+When configured, `withChatPersistence` performs these state transitions:
 
 | Run boundary | Run status | Other writes |
 | --- | --- | --- |
@@ -255,10 +267,10 @@ function ResolveAll({ approved }: { approved: boolean }) {
 | Provider/server error | `failed` | Save the error. |
 | Abort | `interrupted` | Mark the run interrupted. |
 
-The interrupt store's compare-and-swap is required even when a `locks` store is
-present. Locks reduce contention; they do not replace idempotent receipts or
-database conflict detection. Cloudflare Durable Objects can supply locks while
-D1 supplies messages, runs, and interrupts. See
+Within durable mode, the interrupt store's compare-and-swap is required even
+when a `locks` store is present. Locks reduce contention; they do not replace
+idempotent receipts or database conflict detection. Cloudflare Durable Objects
+can supply locks while D1 supplies messages, runs, and interrupts. See
 [Cloudflare Persistence](../persistence/cloudflare) and
 [Custom stores](../persistence/custom-stores).
 

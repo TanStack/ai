@@ -1,13 +1,6 @@
 import {
-  canonicalInterruptJson,
-  canonicalizeInterruptResolutions,
-  compileJsonSchema202012,
   defineChatMiddleware,
-  digestInterruptJson,
-  hashSchemaInput,
-  isStandardSchema,
-  normalizeApprovalSchema,
-  validateWithStandardSchema,
+  validateInterruptResumeBatch as validateCoreInterruptResumeBatch,
 } from '@tanstack/ai'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
@@ -46,7 +39,6 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
-  ToolApprovalResolution,
   UnopenedInterruptBinding,
 } from '@tanstack/ai'
 import type {
@@ -157,20 +149,6 @@ function stringField(
   return typeof value[key] === 'string' ? value[key] : undefined
 }
 
-function normalizeIssuePath(
-  path: ReadonlyArray<unknown> | undefined,
-): ReadonlyArray<string | number> | undefined {
-  if (!path) return undefined
-  return path.map((segment) => {
-    if (typeof segment === 'string' || typeof segment === 'number') {
-      return segment
-    }
-    const record = objectValue(segment)
-    const key = record?.key
-    return typeof key === 'number' ? key : String(key ?? segment)
-  })
-}
-
 function itemError(
   input: ValidateInterruptResumeBatchInput,
   interruptId: string,
@@ -196,547 +174,13 @@ function itemError(
   }
 }
 
-async function validateSchemaValue(input: {
-  schema: unknown
-  value: unknown
-  onIssue: (message: string, path?: ReadonlyArray<string | number>) => void
-}): Promise<void> {
-  if (isStandardSchema(input.schema)) {
-    const result = await validateWithStandardSchema<unknown>(
-      input.schema,
-      input.value,
-    )
-    if (!result.success) {
-      for (const issue of result.issues) {
-        input.onIssue(issue.message, normalizeIssuePath(issue.path))
-      }
-    }
-    return
-  }
-
-  const validate = compileJsonSchema202012(input.schema)
-  for (const issue of validate(input.value)) {
-    input.onIssue(issue.message, issue.path)
-  }
-}
-
-type RuntimeTool = ChatMiddlewareConfig['tools'][number] & {
-  approvalSchema?: Parameters<typeof normalizeApprovalSchema>[0]
-}
-
-function runtimeTool(
-  tools: ChatMiddlewareConfig['tools'],
-  name: string,
-): RuntimeTool | undefined {
-  return tools.find((tool) => tool.name === name) as RuntimeTool | undefined
-}
-
-function descriptorResponseSchema(record: InterruptRecord): unknown {
-  return objectValue(record.payload)?.responseSchema
-}
-
-function schemaHash(schema: unknown): string {
-  return digestInterruptJson(canonicalInterruptJson(schema))
-}
-
-async function pushSchemaIssues(input: {
-  request: ValidateInterruptResumeBatchInput
-  errors: Array<InterruptSubmissionError>
-  interruptId: string
-  schema: unknown
-  value: unknown
-  code: ItemInterruptErrorCode
-  label: string
-}): Promise<void> {
-  try {
-    await validateSchemaValue({
-      schema: input.schema,
-      value: input.value,
-      onIssue: (message, path) => {
-        input.errors.push(
-          itemError(
-            input.request,
-            input.interruptId,
-            input.code,
-            `${input.label}: ${message}`,
-            { path },
-          ),
-        )
-      },
-    })
-  } catch (error) {
-    input.errors.push(
-      itemError(
-        input.request,
-        input.interruptId,
-        'invalid-response-schema',
-        `${input.label} could not be validated: ${error instanceof Error ? error.message : String(error)}`,
-        { source: 'server' },
-      ),
-    )
-  }
-}
-
-function validateDescriptorSchema(
-  input: ValidateInterruptResumeBatchInput,
-  record: InterruptRecord,
-  binding: InterruptBinding,
-  errors: Array<InterruptSubmissionError>,
-): unknown {
-  const schema = descriptorResponseSchema(record)
-  if (
-    schema === undefined ||
-    schemaHash(schema) !== binding.responseSchemaHash
-  ) {
-    errors.push(
-      itemError(
-        input,
-        record.interruptId,
-        'invalid-response-schema',
-        `Interrupt ${record.interruptId} response schema no longer matches its binding.`,
-        { source: 'server' },
-      ),
-    )
-  }
-  return schema
-}
-
 export async function validateInterruptResumeBatch(
   input: ValidateInterruptResumeBatchInput,
 ): Promise<ValidatedInterruptResumeBatch> {
-  const grouped = new Map<string, Array<InterruptSubmissionError>>()
-  const batchErrors: Array<InterruptSubmissionError> = []
-  const group = (interruptId: string): Array<InterruptSubmissionError> => {
-    const existing = grouped.get(interruptId)
-    if (existing) return existing
-    const created: Array<InterruptSubmissionError> = []
-    grouped.set(interruptId, created)
-    return created
-  }
-  const pendingById = new Map(
-    input.pending.map((record) => [record.interruptId, record]),
-  )
-  const resumeById = new Map<string, RunAgentResumeItem>()
-  const counts = new Map<string, number>()
-  for (const entry of input.resume ?? []) {
-    counts.set(entry.interruptId, (counts.get(entry.interruptId) ?? 0) + 1)
-    if (!resumeById.has(entry.interruptId)) {
-      resumeById.set(entry.interruptId, entry)
-    }
-  }
-
-  for (const [interruptId, count] of counts) {
-    if (count > 1) {
-      group(interruptId).push(
-        itemError(
-          input,
-          interruptId,
-          'conflict',
-          `Interrupt ${interruptId} has duplicate resume entries.`,
-        ),
-      )
-    }
-  }
-
-  let incomplete = false
-  for (const record of input.pending) {
-    const errors = group(record.interruptId)
-    const entry = resumeById.get(record.interruptId)
-    const binding = record.binding
-    if (!entry) {
-      incomplete = true
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'unknown-interrupt',
-          `Missing resume entry for interrupt ${record.interruptId}.`,
-        ),
-      )
-    }
-    if (
-      binding.interruptedRunId !== input.interruptedRunId ||
-      binding.generation !== input.generation ||
-      binding.interruptId !== record.interruptId
-    ) {
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'stale',
-          `Interrupt ${record.interruptId} has stale correlation metadata.`,
-          { source: 'server' },
-        ),
-      )
-    }
-    if (
-      binding.expiresAt !== undefined &&
-      Date.parse(binding.expiresAt) <= (input.now ?? Date.now())
-    ) {
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'expired',
-          `Interrupt ${record.interruptId} has expired.`,
-          { source: 'server' },
-        ),
-      )
-    }
-
-    const responseSchema = validateDescriptorSchema(
-      input,
-      record,
-      binding,
-      errors,
-    )
-    if (!entry) continue
-    const entryStatus: unknown = entry.status
-    if (entryStatus !== 'resolved' && entryStatus !== 'cancelled') {
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'invalid-payload',
-          `Interrupt ${record.interruptId} has invalid status ${String(entryStatus)}.`,
-        ),
-      )
-      continue
-    }
-    if (binding.kind === 'generic') {
-      if (entry.status === 'cancelled') {
-        if (entry.payload !== undefined) {
-          errors.push(
-            itemError(
-              input,
-              record.interruptId,
-              'invalid-payload',
-              `Cancelled interrupt ${record.interruptId} must not include a payload.`,
-            ),
-          )
-        }
-        continue
-      }
-      if (responseSchema !== undefined) {
-        await pushSchemaIssues({
-          request: input,
-          errors,
-          interruptId: record.interruptId,
-          schema: responseSchema,
-          value: entry.payload,
-          code: 'invalid-payload',
-          label: `Interrupt ${record.interruptId} payload is invalid`,
-        })
-      }
-      continue
-    }
-
-    const tool = runtimeTool(input.tools, binding.toolName)
-    if (!tool) {
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'stale',
-          `Tool ${binding.toolName} is unavailable for interrupt ${record.interruptId}.`,
-          { source: 'server' },
-        ),
-      )
-      continue
-    }
-
-    let approval: ReturnType<typeof normalizeApprovalSchema> | undefined
-    let schemaDrifted = false
-    if (binding.kind === 'client-tool-execution') {
-      if (hashSchemaInput(tool.outputSchema) !== binding.outputSchemaHash) {
-        errors.push(
-          itemError(
-            input,
-            record.interruptId,
-            'stale',
-            `Tool ${binding.toolName} output schema has changed.`,
-            { source: 'server' },
-          ),
-        )
-        schemaDrifted = true
-      }
-    } else {
-      try {
-        approval = normalizeApprovalSchema(
-          tool.approvalSchema,
-          tool.inputSchema,
-        )
-      } catch {
-        errors.push(
-          itemError(
-            input,
-            record.interruptId,
-            'stale',
-            `Tool ${binding.toolName} approval schema is unavailable.`,
-            { source: 'server' },
-          ),
-        )
-        schemaDrifted = true
-      }
-      if (
-        approval !== undefined &&
-        (hashSchemaInput(tool.inputSchema) !== binding.inputSchemaHash ||
-          approval.approvalSchemaHash !== binding.approvalSchemaHash ||
-          approval.responseSchemaHash !== binding.responseSchemaHash)
-      ) {
-        errors.push(
-          itemError(
-            input,
-            record.interruptId,
-            'stale',
-            `Tool ${binding.toolName} approval schema has changed.`,
-            { source: 'server' },
-          ),
-        )
-        schemaDrifted = true
-      }
-    }
-
-    if (entry.status === 'cancelled') {
-      if (entry.payload !== undefined) {
-        errors.push(
-          itemError(
-            input,
-            record.interruptId,
-            'invalid-payload',
-            `Cancelled interrupt ${record.interruptId} must not include a payload.`,
-          ),
-        )
-      }
-      continue
-    }
-    if (schemaDrifted) continue
-
-    if (binding.kind === 'client-tool-execution') {
-      if (responseSchema !== undefined) {
-        await pushSchemaIssues({
-          request: input,
-          errors,
-          interruptId: record.interruptId,
-          schema: responseSchema,
-          value: entry.payload,
-          code: 'invalid-tool-output',
-          label: `Tool ${binding.toolName} output is invalid`,
-        })
-      }
-      if (tool.outputSchema !== undefined) {
-        await pushSchemaIssues({
-          request: input,
-          errors,
-          interruptId: record.interruptId,
-          schema: tool.outputSchema,
-          value: entry.payload,
-          code: 'invalid-tool-output',
-          label: `Tool ${binding.toolName} output is invalid`,
-        })
-      }
-      continue
-    }
-
-    if (approval === undefined) continue
-    const envelope = objectValue(entry.payload)
-    const approved =
-      typeof entry.payload === 'boolean'
-        ? entry.payload
-        : typeof envelope?.approved === 'boolean'
-          ? envelope.approved
-          : undefined
-    if (approved === undefined) {
-      errors.push(
-        itemError(
-          input,
-          record.interruptId,
-          'invalid-payload',
-          `Approval ${record.interruptId} must be a boolean or decision envelope.`,
-        ),
-      )
-      continue
-    }
-    if (envelope) {
-      await pushSchemaIssues({
-        request: input,
-        errors,
-        interruptId: record.interruptId,
-        schema: approval.responseSchema,
-        value: entry.payload,
-        code: 'invalid-payload',
-        label: `Approval ${record.interruptId} envelope is invalid`,
-      })
-    }
-    if (approved && envelope?.editedArgs !== undefined) {
-      if (tool.inputSchema === undefined) {
-        errors.push(
-          itemError(
-            input,
-            record.interruptId,
-            'invalid-edited-args',
-            `Approval ${record.interruptId} cannot edit arguments without an input schema.`,
-          ),
-        )
-      } else {
-        await pushSchemaIssues({
-          request: input,
-          errors,
-          interruptId: record.interruptId,
-          schema: tool.inputSchema,
-          value: envelope.editedArgs,
-          code: 'invalid-edited-args',
-          label: `Approval ${record.interruptId} edited arguments are invalid`,
-        })
-      }
-    }
-    const branch = approved
-      ? approval.branches.approve
-      : approval.branches.reject
-    if (branch && envelope) {
-      await pushSchemaIssues({
-        request: input,
-        errors,
-        interruptId: record.interruptId,
-        schema: branch.source,
-        value: envelope.payload,
-        code: 'invalid-payload',
-        label: `Approval ${record.interruptId} payload is invalid`,
-      })
-    }
-  }
-
-  for (const entry of input.resume ?? []) {
-    if (!pendingById.has(entry.interruptId)) {
-      incomplete = true
-      group(entry.interruptId).push(
-        itemError(
-          input,
-          entry.interruptId,
-          'unknown-interrupt',
-          `Resume entry references unknown interrupt ${entry.interruptId}.`,
-        ),
-      )
-    }
-  }
-
-  if (incomplete) {
-    batchErrors.push({
-      scope: 'batch',
-      threadId: input.threadId,
-      interruptedRunId: input.interruptedRunId,
-      generation: input.generation,
-      code: 'incomplete-batch',
-      message:
-        'Resume entries must resolve or cancel the complete interrupt batch.',
-      source: 'client',
-      retryable: false,
-      interruptIds: input.pending.map((record) => record.interruptId),
-    })
-  }
-
-  const itemErrors = [...grouped.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .flatMap(([, errors]) => errors)
-  if (itemErrors.length > 0) {
-    batchErrors.push({
-      scope: 'batch',
-      threadId: input.threadId,
-      interruptedRunId: input.interruptedRunId,
-      generation: input.generation,
-      code: 'item-validation-failed',
-      message: 'One or more interrupt resolutions are invalid.',
-      source: 'client',
-      retryable: false,
-      interruptIds: input.pending.map((record) => record.interruptId),
-    })
-    return { errors: [...itemErrors, ...batchErrors] }
-  }
-
-  const canonical = canonicalizeInterruptResolutions(input.resume ?? [])
-  const approvals = new Map<string, ToolApprovalResolution>()
-  const clientToolResults = new Map<string, unknown>()
-  const genericInterrupts = new Map<
-    string,
-    | { interruptId: string; status: 'resolved'; payload: unknown }
-    | {
-        interruptId: string
-        status: 'cancelled'
-      }
-  >()
-  const deniedToolResults = new Map<string, unknown>()
-  const cancelledToolCallIds = new Set<string>()
-
-  for (const record of input.pending) {
-    const entry = resumeById.get(record.interruptId)
-    if (!entry) continue
-    const binding = record.binding
-    if (binding.kind === 'generic') {
-      genericInterrupts.set(
-        record.interruptId,
-        entry.status === 'resolved'
-          ? {
-              interruptId: record.interruptId,
-              status: 'resolved',
-              payload: entry.payload,
-            }
-          : { interruptId: record.interruptId, status: 'cancelled' },
-      )
-      continue
-    }
-    if (entry.status === 'cancelled') {
-      cancelledToolCallIds.add(binding.toolCallId)
-      continue
-    }
-    if (binding.kind === 'client-tool-execution') {
-      clientToolResults.set(binding.toolCallId, entry.payload)
-      continue
-    }
-    const envelope = objectValue(entry.payload)
-    const resolution: ToolApprovalResolution =
-      typeof entry.payload === 'boolean'
-        ? entry.payload
-        : envelope?.approved === true
-          ? {
-              approved: true,
-              ...(envelope.editedArgs !== undefined
-                ? { editedArgs: envelope.editedArgs }
-                : {}),
-              ...(envelope.payload !== undefined
-                ? { payload: envelope.payload }
-                : {}),
-            }
-          : {
-              approved: false,
-              ...(envelope?.payload !== undefined
-                ? { payload: envelope.payload }
-                : {}),
-            }
-    approvals.set(binding.toolCallId, resolution)
-    if (
-      resolution === false ||
-      (typeof resolution === 'object' && !resolution.approved)
-    ) {
-      deniedToolResults.set(
-        binding.toolCallId,
-        typeof resolution === 'object' ? resolution.payload : undefined,
-      )
-    }
-  }
-
-  return {
-    errors: [],
-    resolutions: canonical.resolutions,
-    canonicalResolutions: canonical.canonicalResolutions,
-    fingerprint: canonical.fingerprint,
-    resumeToolState: {
-      approvals,
-      clientToolResults,
-      genericInterrupts,
-      deniedToolResults,
-      cancelledToolCallIds,
-    },
-  }
+  // Keep the persistence package's public compatibility wrapper while making
+  // core the single runtime validator/translator for both durable and
+  // ephemeral resumes.
+  return validateCoreInterruptResumeBatch(input)
 }
 
 function readUnopenedInterruptBinding(
@@ -1537,7 +981,16 @@ export function withChatPersistence(
       if (state) state.merged = true
 
       const stored = await persistence.stores.messages.loadThread(ctx.threadId)
-      const merged = config.messages.length > 0 ? config.messages : stored
+      // Once an interrupt batch has been authoritatively validated and
+      // committed, its stored transcript is the execution source of truth.
+      // Client-supplied history may be useful for ephemeral continuation, but
+      // it must never replace persisted tool-call arguments on the durable
+      // path.
+      const merged = resumeToolState
+        ? stored
+        : config.messages.length > 0
+          ? config.messages
+          : stored
       return {
         messages: merged,
         ...(resumeToolState ? { resumeToolState } : {}),
@@ -1561,17 +1014,14 @@ export function withChatPersistence(
         (interrupt) => interrupt.id,
       )
       if (!wantsInterrupts || !persistence.stores.interrupts) {
-        throw new InterruptResumeValidationError([
-          batchError({
-            threadId: ctx.threadId,
-            interruptedRunId: ctx.runId,
-            generation: 0,
-            interruptIds,
-            code: 'persistence-required',
-            message:
-              'Interrupt terminal events require an atomic interrupt persistence store.',
-          }),
-        ])
+        await interruptRun(runs, ctx.runId)
+        if (wantsMessages && persistence.stores.messages) {
+          await persistence.stores.messages.saveThread(ctx.threadId, [
+            ...ctx.messages,
+          ])
+        }
+        state.interrupted = true
+        return
       }
       const bindings: Array<UnopenedInterruptBinding> = []
       const descriptors: Array<Interrupt> = []

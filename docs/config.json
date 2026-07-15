@@ -177,7 +177,8 @@
         {
           "label": "Interrupts",
           "to": "chat/interrupts",
-          "addedAt": "2026-07-14"
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-15"
         },
         {
           "label": "Persistence",
@@ -546,7 +547,7 @@
           "label": "Approval Flow Processing",
           "to": "architecture/approval-flow-processing",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-15"
         }
       ]
     },
@@ -573,7 +574,8 @@
         {
           "label": "AG-UI Interrupts",
           "to": "migration/interrupts",
-          "addedAt": "2026-07-14"
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-15"
         },
         {
           "label": "Sampling \u2192 modelOptions",

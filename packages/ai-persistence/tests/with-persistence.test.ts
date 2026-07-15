@@ -488,6 +488,68 @@ describe('withChatPersistence (state-only)', () => {
     expect(await persistence.stores.messages!.loadThread('t1')).not.toEqual([])
   })
 
+  it('falls through to ephemeral native interrupts without an interrupt store', async () => {
+    const full = memoryPersistence()
+    const persistence = defineAIPersistence({
+      stores: { messages: full.stores.messages },
+    })
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call-client',
+          toolCallName: 'clientSearch',
+          toolName: 'clientSearch',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call-client',
+          delta: '{"query":"test"}',
+          timestamp: 1,
+        },
+        {
+          ...ev.runFinished(),
+          finishReason: 'tool_calls',
+        },
+      ],
+    ])
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [{ name: 'clientSearch', description: 'Search on the client' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: [
+          {
+            id: 'client_tool_call-client',
+            metadata: {
+              'tanstack:interruptBinding': {
+                interruptedRunId: 'r1',
+                generation: 0,
+              },
+            },
+          },
+        ],
+      },
+    })
+    expect(await persistence.stores.messages!.loadThread('t1')).not.toEqual([])
+  })
+
   it('is a no-op without the middleware: the stream is unchanged', async () => {
     const { adapter } = mockAdapter([
       [ev.runStarted(), ev.text('plain'), ev.runFinished()],

@@ -2,7 +2,7 @@
 title: Interrupts
 id: interrupts
 order: 6
-description: "Handle AG-UI interrupts with typed tool approvals, generic runtime validation, atomic batches, persistence, and recovery."
+description: "Handle AG-UI interrupts with typed tool approvals, generic runtime validation, ephemeral resume, and optional durable recovery."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -21,13 +21,19 @@ methods that validate, stage, and atomically submit its resolution.
 Native interrupts use the AG-UI lifecycle:
 
 1. The server snapshots messages and optional state.
-2. It persists the complete interrupt batch.
-3. It emits `RUN_FINISHED` with `outcome.type === 'interrupt'` and one or more
+2. It emits `RUN_FINISHED` with `outcome.type === 'interrupt'` and one or more
    descriptors.
-4. The client exposes bound items through `interrupts`.
-5. The application resolves or cancels every item.
-6. The client starts a new continuation run with `parentRunId` set to the
-   interrupted run and sends the complete AG-UI `resume` array.
+3. The client exposes bound items through `interrupts`.
+4. The application resolves or cancels every item.
+5. The client starts a new continuation run with `parentRunId` set to the
+   interrupted run, the complete AG-UI `resume` array, and the current message
+   history.
+
+This flow works without persistence. In the default ephemeral mode, the server
+reconstructs and validates the expected interrupt batch from the submitted
+message history and its current tool definitions. Persistence is an optional
+durability layer for authoritative recovery, compare-and-swap conflict
+handling, idempotent replay, and survival across reloads or server restarts.
 
 This is a breaking transition from native `approval-requested` and
 `tool-input-available` custom events. Native servers no longer emit those
@@ -71,8 +77,8 @@ export const transferTool = toolDefinition({
 })
 ```
 
-The server executes the tool only after the approval batch is accepted. Native
-interrupts require persistence with an atomic interrupt gateway:
+The server executes the tool only after the complete approval batch is
+accepted. No persistence middleware is required for the basic flow:
 
 ```ts
 // app/api/chat/route.ts
@@ -82,21 +88,14 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 import { transferTool } from '../../../tools/transfer'
-
-const persistence = sqlitePersistence({
-  url: 'file:.tanstack-ai/chat.sqlite',
-  migrate: true,
-})
 
 const transfer = transferTool.server(
   async (input: { amount: number; recipient: string }) => {
     const { amount, recipient } = input
-  return {
-    receiptId: `${recipient}-${amount}-${crypto.randomUUID()}`,
-  }
+    return {
+      receiptId: `${recipient}-${amount}-${crypto.randomUUID()}`,
+    }
   },
 )
 
@@ -110,20 +109,15 @@ export async function POST(request: Request) {
     parentRunId: params.parentRunId,
     ...(params.resume ? { resume: params.resume } : {}),
     tools: [transfer],
-    middleware: [withChatPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
 }
 ```
 
-`migrate: true` is for local SQLite development. Generate, review, and deploy
-your backend's native migration before production code uses interrupt batches.
-See [Persistence migrations](../persistence/migrations).
-
-Without a persistence capability, the server emits exactly one structured
-`RUN_ERROR` with `persistence-required`; it does not expose an interrupt that
-cannot be resumed safely.
+The client sends the full current message history when it submits a resume, so
+this stateless route can reconstruct the interrupted tool calls. The server
+still validates the complete batch before executing any tool.
 
 ## Render and resolve bound interrupts
 
@@ -335,10 +329,11 @@ client, and server validation remains authoritative. An invalid or unsupported
 wire schema surfaces an item or root `invalid-response-schema` error rather
 than bypassing validation.
 
-Applications that emit generic descriptors must persist the complete batch
-before exposing the interrupt terminal and must send JSON-compatible Draft
-2020-12 schemas. Tool approvals usually prefer shared `approvalSchema` because
-it adds compile-time branch inference as well as runtime validation.
+Applications that emit generic descriptors must send JSON-compatible Draft
+2020-12 schemas and validate the complete resume batch server-side. They may
+persist the batch when they need durable recovery or concurrency guarantees.
+Tool approvals usually prefer shared `approvalSchema` because it adds
+compile-time branch inference as well as runtime validation.
 
 ## Client-tool execution is a separate interrupt
 
@@ -378,7 +373,19 @@ form and call `resolveInterrupt` again, call `clearResolution()` to start over,
 or call `retryInterrupts()` after a retryable submission failure. Non-retryable
 stale and conflict errors require authoritative recovery.
 
-## Persistence, drafts, recovery, and tab conflicts
+## Ephemeral mode and optional durable persistence
+
+Without `withChatPersistence`, interrupts are request-scoped and ephemeral.
+This preserves the zero-configuration approval flow, but the submitted message
+history is client-provided input. TanStack AI validates it against the current
+tool definitions and response schemas; it cannot prove that the client omitted
+or rewrote earlier history.
+
+Ephemeral mode does not provide authoritative reload recovery, exactly-once
+execution, replay protection, restart recovery, or cross-tab and cross-instance
+coordination. Use it when those guarantees are not required. Add server
+persistence when approvals protect operations that need durable audit and
+concurrency guarantees.
 
 Server state and browser drafts have different authority:
 
@@ -394,6 +401,12 @@ Server state and browser drafts have different authority:
 - A second tab with a stale generation loses the compare-and-swap. It replaces
   local state from recovery or joins the already-committed continuation; it
   never starts a second tool execution.
+
+For example, add `withChatPersistence(persistence)` to the server route's
+`middleware` array after configuring a supported store. `migrate: true` is for
+local SQLite development; generate, review, and deploy your backend's native
+migration for production. See
+[Persistence migrations](../persistence/migrations).
 
 Recovery routes are opt-in and explicit. TanStack AI never infers a recovery
 or continuation URL from the chat URL. Configure the connection with the

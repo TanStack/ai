@@ -23,7 +23,11 @@ import type {
   InterruptPersistenceGateway,
   StreamChunk,
 } from '@tanstack/ai'
-import type { Interrupt, InterruptBinding } from '@tanstack/ai/client'
+import type {
+  Interrupt,
+  InterruptBinding,
+  ModelMessage,
+} from '@tanstack/ai/client'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { InterruptManagerSubmission } from '../src/interrupt-manager'
 import type { ChatInterrupt } from '../src/types'
@@ -277,7 +281,7 @@ describe('InterruptManager hydration', () => {
       runId: 'core-run',
       threadId: 'core-thread',
       middleware: [persistence],
-    }) as AsyncIterable<StreamChunk>) {
+    })) {
       emitted.push(chunk)
     }
     const terminal = emitted.find(
@@ -301,9 +305,7 @@ describe('InterruptManager hydration', () => {
     ) {
       throw new Error('Expected a public interrupt binding.')
     }
-    const binding: Record<string, unknown> = Object.fromEntries(
-      Object.entries(rawBinding),
-    )
+    const binding = Object.fromEntries(Object.entries(rawBinding))
     const expectedOutputSchemaHash = hashSchemaInput(
       lookupDefinition.outputSchema,
     )
@@ -786,7 +788,7 @@ describe('ChatClient native interrupts', () => {
 
   it('owns one immutable interrupt state and resumes with a fresh child run', async () => {
     const contexts: Array<RunAgentInputContext | undefined> = []
-    const sentMessages: Array<Array<UIMessage> | Array<unknown>> = []
+    const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []
     const binding: InterruptBinding = {
       kind: 'generic',
       interruptId: 'generic-1',
@@ -856,7 +858,8 @@ describe('ChatClient native interrupts', () => {
       ],
     })
     expect(contexts[1]?.runId).not.toBe(contexts[0]?.runId)
-    expect(sentMessages[1]).toEqual([])
+    expect(sentMessages[1]).not.toEqual([])
+    expect(sentMessages[1]).toEqual(sentMessages[0])
   })
 
   it('preserves the exact interrupt batch and joins a replay after a child transport failure', async () => {
@@ -933,12 +936,14 @@ describe('ChatClient native interrupts', () => {
     await vi.waitFor(() => expect(joined).toEqual(['winner-run']))
   })
 
-  it('exposes an atomic all-item resolveInterrupts callback transaction', async () => {
+  it('resumes a hydrated ephemeral batch with full history in a fresh child run', async () => {
     const contexts: Array<RunAgentInputContext | undefined> = []
+    const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []
     let calls = 0
     const connection: ConnectConnectionAdapter = {
-      async *connect(_messages, _data, _signal, context) {
+      async *connect(messages, _data, _signal, context) {
         contexts.push(context)
+        sentMessages.push(messages)
         calls++
         const runId = context?.runId ?? `run-${calls}`
         if (calls === 1) {
@@ -990,10 +995,17 @@ describe('ChatClient native interrupts', () => {
 
     await vi.waitFor(() => expect(contexts).toHaveLength(2))
     expect(visited).toEqual(['first', 'second'])
-    expect(contexts[1]?.resume).toEqual([
-      { interruptId: 'first', status: 'cancelled' },
-      { interruptId: 'second', status: 'cancelled' },
-    ])
+    expect(contexts[1]).toMatchObject({
+      threadId: 'thread-1',
+      parentRunId: contexts[0]?.runId,
+      resume: [
+        { interruptId: 'first', status: 'cancelled' },
+        { interruptId: 'second', status: 'cancelled' },
+      ],
+    })
+    expect(contexts[1]?.runId).not.toBe(contexts[0]?.runId)
+    expect(sentMessages[1]).not.toEqual([])
+    expect(sentMessages[1]).toEqual(sentMessages[0])
   })
 
   it('writes a raw V2 snapshot with authoritative recovery state', async () => {
