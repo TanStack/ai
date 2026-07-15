@@ -57,8 +57,11 @@ Every adapter handles structured output through its provider's native API:
 | Google Gemini | `responseSchema` |
 | Ollama | JSON mode with schema |
 | OpenRouter / Grok / Groq | `response_format` with `json_schema` |
+| Claude Code / Codex / OpenCode (CLI harnesses) | Native CLI schema flag, harvested from the single harness run |
 
 The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
+
+The CLI harness adapters constrain their final answer to the schema **within the same harness run** (Claude Code via `--json-schema`, Codex via `--output-schema`, OpenCode via its `json_schema` output format) — no extra round-trip. Two caveats: the Codex harness cannot combine `tools` with `outputSchema` (it silently drops the schema when tools/MCP are active, so the adapter throws), and the Grok Build and ACP-based harnesses expose no schema mechanism at all, so they reject `outputSchema`. See each [adapter page](../adapters/codex.md) for details.
 
 ### Anthropic schema complexity limits
 

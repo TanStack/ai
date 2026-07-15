@@ -504,6 +504,22 @@ For schema-aware middleware (e.g., transforming the JSON Schema before the
 provider call, stripping system prompts), use the dedicated
 `onStructuredOutputConfig` hook. See [middleware skill](../middleware/SKILL.md).
 
+## CLI harness adapters
+
+The CLI harness adapters support `chat({ outputSchema })` natively, constrained
+within the single harness run (no separate finalization call):
+
+- `codexText` — via `codex exec --output-schema`. **Cannot** be combined with
+  `tools`: Codex silently drops the schema when MCP/tools are active
+  (openai/codex#15451), so the adapter throws if you pass both.
+- `claudeCodeText` — via `claude -p --json-schema`; result harvested from
+  Claude Code's `structured_output`. Works alongside the harness's own tools.
+- `opencodeText` — via OpenCode's `json_schema` output format; result harvested
+  from the message's `structured` field. Requires `@opencode-ai/sdk` v1.17+.
+
+The Grok Build and ACP-based harnesses expose no schema mechanism, so they
+reject `outputSchema` — use a model adapter for structured extraction there.
+
 ## Cross-References
 
 - See also: **ai-core/chat-experience/SKILL.md** — Base `useChat` surface; the structured-output additions documented here layer on top.

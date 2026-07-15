@@ -170,7 +170,25 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses the harness's native JSON-schema output format in a one-shot run (single turn, no tools). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-anthropic`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` to `chat()` and the harness constrains its final answer to your schema in the **same** run — the adapter forwards the JSON Schema to `claude -p --json-schema`, and the schema-conforming result (returned in Claude Code's `structured_output`) is harvested by the engine. This works alongside the harness's own tools.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { claudeCodeText } from "@tanstack/ai-claude-code";
+import { z } from "zod";
+
+const result = await chat({
+  adapter: claudeCodeText("claude-sonnet-4-6"),
+  messages: [{ role: "user", content: "Audit deps and list the outdated ones." }],
+  outputSchema: z.object({
+    outdated: z.array(z.object({ name: z.string(), latest: z.string() })),
+  }),
+});
+
+result.outdated; // { name: string; latest: string }[] — typed and validated
+```
+
+For plain structured extraction that isn't a coding task, a provider adapter (e.g. `@tanstack/ai-anthropic`) is faster and doesn't spawn a subprocess.
 
 ## Limitations
 

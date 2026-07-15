@@ -32,6 +32,12 @@ export interface OpencodeAssistantMessage {
   error?: OpencodeMessageError
   tokens?: OpencodeTokens
   cost?: number
+  /**
+   * Schema-constrained result when the turn was prompted with a `json_schema`
+   * output format (`chat({ outputSchema })`). Mirrors the SDK's
+   * `AssistantMessage.structured`.
+   */
+  structured?: unknown
 }
 
 export type OpencodeToolState =

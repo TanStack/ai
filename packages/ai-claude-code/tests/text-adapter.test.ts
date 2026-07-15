@@ -41,6 +41,21 @@ const FAKE_CLAUDE = [
   `})`,
 ].join('\n')
 
+// Structured-output stand-in: records argv (so a test can assert --json-schema)
+// and emits prose PLUS a result carrying `structured_output`, as `claude -p
+// --json-schema --output-format stream-json` would.
+const FAKE_CLAUDE_STRUCTURED = [
+  `import { writeFileSync } from 'node:fs'`,
+  `writeFileSync('claude-argv.txt', process.argv.join(' '))`,
+  `process.stdin.on('data', () => {})`,
+  `process.stdin.on('end', () => {`,
+  `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+  `  w({ type: 'system', subtype: 'init', session_id: 'sess-abc', model: 'haiku', tools: [] })`,
+  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'Let me think...' }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'result', subtype: 'success', result: 'ok', structured_output: { answer: 'pong' }, usage: { input_tokens: 1, output_tokens: 1 } })`,
+  `})`,
+].join('\n')
+
 const noopLogger = {
   request: () => {},
   provider: () => {},
@@ -113,6 +128,45 @@ describe('claude-code in-sandbox adapter', () => {
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
+    await sbx.destroy()
+  })
+
+  it('passes --json-schema and harvests structured_output as the answer', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', FAKE_CLAUDE_STRUCTURED)
+
+    const adapter = claudeCodeText('haiku', {
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
+    })
+    const schema = {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+      additionalProperties: false,
+    }
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: schema,
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/claude-argv.txt')
+    expect(argv).toContain('--json-schema')
+
+    // Prose ("Let me think...") is suppressed; only the structured JSON is
+    // harvestable text.
+    const text = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c as { delta?: string }).delta ?? '')
+      .join('')
+    expect(text).toBe('{"answer":"pong"}')
+    expect(JSON.parse(text)).toEqual({ answer: 'pong' })
     await sbx.destroy()
   })
 

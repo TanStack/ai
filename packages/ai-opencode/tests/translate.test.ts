@@ -69,6 +69,29 @@ function textPart(
 }
 
 describe('translateOpencodeStream', () => {
+  it('structured mode suppresses prose and emits message.structured as terminal text', async () => {
+    const chunks = await collect(
+      [
+        session,
+        // Prose streamed during the turn — must be dropped.
+        textPart('part-1', 'Let me work on that...', 'Let me work on that...'),
+        done({ structured: { answer: 'pong' } }),
+      ],
+      makeCtx({ structuredOutput: true }),
+    )
+
+    const textContents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+    expect(textContents).toHaveLength(1)
+    expect(textContents[0]).toMatchObject({ content: '{"answer":"pong"}' })
+    expect(
+      JSON.parse((textContents[0] as { content: string }).content),
+    ).toEqual({ answer: 'pong' })
+    const endIdx = chunks.findIndex((c) => c.type === 'TEXT_MESSAGE_END')
+    const finishedIdx = chunks.findIndex((c) => c.type === 'RUN_FINISHED')
+    expect(endIdx).toBeGreaterThanOrEqual(0)
+    expect(endIdx).toBeLessThan(finishedIdx)
+  })
+
   it('translates a simple text turn', async () => {
     const chunks = await collect([
       session,

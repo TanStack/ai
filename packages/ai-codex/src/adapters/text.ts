@@ -125,11 +125,20 @@ export class CodexTextAdapter<
     resume: string | undefined,
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
+    outputSchemaFile: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
     const args: Array<string> = ['exec', '--experimental-json']
+
+    // Structured output: constrain the final message to the JSON Schema. Codex
+    // reads the schema from a file path (which must be relative to the process
+    // cwd — the handle already runs codex in the real workdir; an absolute
+    // VIRTUAL `/workspace/...` path wouldn't exist on the real filesystem).
+    if (outputSchemaFile !== undefined) {
+      args.push('--output-schema', q(outputSchemaFile))
+    }
 
     // Precedence: per-call modelOptions > adapter config > sandbox policy > default.
     const sandboxMode =
@@ -215,6 +224,23 @@ export class CodexTextAdapter<
       runId,
     })
     try {
+      // Codex silently drops `--output-schema` (and `response_format`) whenever
+      // MCP servers / tools are active — the run falls back to unconstrained
+      // text (openai/codex #15451). This harness only spins up an MCP bridge
+      // when chat() passes tools, so that is the exact trigger. Fail fast rather
+      // than silently returning text that won't parse against the schema.
+      if (
+        options.outputSchema !== undefined &&
+        options.tools !== undefined &&
+        options.tools.length > 0
+      ) {
+        throw new Error(
+          'The Codex harness cannot combine tools with outputSchema: Codex ignores ' +
+            'the output schema whenever tools/MCP servers are active (openai/codex #15451), ' +
+            'so the result would not conform. Remove the tools or the outputSchema.',
+        )
+      }
+
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
@@ -254,6 +280,19 @@ export class CodexTextAdapter<
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
 
+      // Write the JSON Schema to a file codex reads via `--output-schema`. Use a
+      // bare filename (relative to the process cwd) for the same reason as the
+      // prompt file — the virtual `/workspace` path may not exist on the real fs.
+      let outputSchemaFile: string | undefined
+      if (options.outputSchema !== undefined) {
+        outputSchemaFile = `.tanstack-output-schema-${runId}.json`
+        await sandbox.fs.write(
+          `${cwd}/${outputSchemaFile}`,
+          JSON.stringify(options.outputSchema),
+        )
+        tempFiles.push(`${cwd}/${outputSchemaFile}`)
+      }
+
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
@@ -262,6 +301,7 @@ export class CodexTextAdapter<
         resume,
         bridge,
         mapPolicyToCodexFlags(policy),
+        outputSchemaFile,
       )
 
       logger.request(
@@ -311,6 +351,9 @@ export class CodexTextAdapter<
           ...(options.parentRunId !== undefined && {
             parentRunId: options.parentRunId,
           }),
+          ...(options.outputSchema !== undefined && {
+            structuredOutput: true,
+          }),
           genId: () => this.generateId(),
           onThreadEvent: (event) =>
             logger.provider(`provider=codex type=${event.type}`, {
@@ -353,13 +396,29 @@ export class CodexTextAdapter<
     }
   }
 
+  /**
+   * Codex constrains its final answer to a JSON Schema via `codex exec
+   * --output-schema` in the single harness run, so `outputSchema` is wired
+   * straight into `chatStream` and the engine harvests the schema-constrained
+   * JSON from the run's final message — no separate finalization round-trip.
+   * (Combining with tools is rejected in `chatStream`; see #15451.)
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  /**
+   * Unreachable via `chat()` — `supportsCombinedToolsAndSchema()` routes every
+   * structured-output request through `chatStream`. Kept as a safety net for
+   * any direct caller of the non-combined path.
+   */
   structuredOutput(
     _options: StructuredOutputOptions<CodexTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Codex adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'Codex structured output runs through chatStream (combined tools+schema mode); ' +
+          'structuredOutput() should not be called directly.',
       ),
     )
   }

@@ -170,6 +170,14 @@ export class ClaudeCodeTextAdapter<
     if (config.streamPartials !== false) args.push('--include-partial-messages')
     if (resume !== undefined) args.push('--resume', q(resume))
 
+    // Structured output: constrain the final answer to the JSON Schema. Claude
+    // Code takes the schema inline; the schema-conformant result comes back in
+    // the final `result` message's `structured_output` field (which the
+    // stream-json result event carries), harvested by the engine.
+    if (options.outputSchema !== undefined) {
+      args.push('--json-schema', q(JSON.stringify(options.outputSchema)))
+    }
+
     // Precedence: per-call modelOptions > adapter config > policy > sandbox default.
     const permissionMode =
       modelOptions?.permissionMode ??
@@ -437,6 +445,9 @@ export class ClaudeCodeTextAdapter<
           ...(options.parentRunId !== undefined && {
             parentRunId: options.parentRunId,
           }),
+          ...(options.outputSchema !== undefined && {
+            structuredOutput: true,
+          }),
           genId: () => this.generateId(),
           onSdkMessage: (message) =>
             logger.provider(`provider=claude-code type=${message.type}`, {
@@ -506,13 +517,29 @@ export class ClaudeCodeTextAdapter<
     }
   }
 
+  /**
+   * Claude Code constrains its final answer to a JSON Schema via `claude -p
+   * --json-schema` in the single harness run; the schema-conformant JSON comes
+   * back in the result message's `structured_output` field. `outputSchema` is
+   * wired straight into `chatStream` and the engine harvests it — no separate
+   * finalization round-trip.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  /**
+   * Unreachable via `chat()` — `supportsCombinedToolsAndSchema()` routes every
+   * structured-output request through `chatStream`. Kept as a safety net for
+   * any direct caller of the non-combined path.
+   */
   structuredOutput(
     _options: StructuredOutputOptions<ClaudeCodeTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Claude Code adapter. ' +
-          'Use a model adapter (e.g. anthropic) for structured output, or omit outputSchema.',
+        'Claude Code structured output runs through chatStream (combined tools+schema mode); ' +
+          'structuredOutput() should not be called directly.',
       ),
     )
   }

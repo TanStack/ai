@@ -13,6 +13,7 @@
  * (A local `claude login` works in place of ANTHROPIC_API_KEY.)
  */
 import { expect, test } from '@playwright/test'
+import { z } from 'zod'
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import type { StreamChunk } from '@tanstack/ai'
@@ -68,5 +69,32 @@ test.describe('claude-code harness (gated live smoke)', () => {
       .map((chunk) => (chunk as { delta?: string }).delta ?? '')
       .join('')
     expect(text.toLowerCase()).toContain('pong')
+  })
+
+  test('produces schema-constrained structured output', async () => {
+    test.setTimeout(180_000)
+
+    const result = await chat({
+      adapter: claudeCodeText('haiku', {
+        maxTurns: 2,
+        disallowedTools: ['Bash', 'Write', 'Edit'],
+      }),
+      messages: [
+        {
+          role: 'user',
+          content:
+            'Return the capital of France and its population (approximate).',
+        },
+      ],
+      outputSchema: z.object({
+        capital: z.string(),
+        population: z.number(),
+      }),
+    })
+
+    // `chat({ outputSchema })` (non-stream) resolves to the validated object
+    // directly (Promise<T>) — no cast, no `.object` wrapper.
+    expect(result.capital.toLowerCase()).toContain('paris')
+    expect(typeof result.population).toBe('number')
   })
 })

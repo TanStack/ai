@@ -18,9 +18,14 @@ export interface OpencodeSessionHandle {
    * Run one prompt turn. Resolves with the final assistant message (finish
    * reason, token usage, error) and its concatenated text once the harness
    * goes idle. Streaming deltas arrive via `onEvent` while this is pending.
+   *
+   * Pass `outputSchema` (a JSON Schema) to constrain the answer via OpenCode's
+   * `json_schema` output format; the schema-conformant result then arrives on
+   * `message.structured`.
    */
   prompt: (
     text: string,
+    opts?: { outputSchema?: unknown },
   ) => Promise<{ message: OpencodeAssistantMessage; text: string }>
   /** Ask the harness to abort the in-flight prompt turn. */
   abort: () => Promise<void>
@@ -222,13 +227,19 @@ export async function startOpencodeSession(
     return {
       sessionId: resolvedSessionId,
       resumed,
-      prompt: async (text: string) => {
+      prompt: async (text: string, opts?: { outputSchema?: unknown }) => {
         const result = await client.session.prompt({
           path: { id: resolvedSessionId },
           query: dirQuery,
           body: {
             model: { providerID: options.providerID, modelID: options.modelID },
             parts: [{ type: 'text', text }],
+            ...(opts?.outputSchema !== undefined && {
+              format: {
+                type: 'json_schema',
+                schema: opts.outputSchema as Record<string, unknown>,
+              },
+            }),
           },
           throwOnError: true,
         })
