@@ -116,7 +116,7 @@ describe('createQuickJSIsolateDriver', () => {
       expect(reuse).toMatchObject({ success: true, value: 2 })
     })
 
-    it('preserves one active host call for Promise.all', async () => {
+    it('supports concurrent host calls with Promise.all', async () => {
       let activeCalls = 0
       let maximumActiveCalls = 0
       const get = makeBinding('get', async () => {
@@ -135,7 +135,7 @@ describe('createQuickJSIsolateDriver', () => {
       `)
 
       expect(result.success).toBe(true)
-      expect(maximumActiveCalls).toBe(1)
+      expect(maximumActiveCalls).toBe(3)
     })
 
     it('surfaces tool execution errors', async () => {
@@ -174,6 +174,23 @@ describe('createQuickJSIsolateDriver', () => {
 
       expect(result.success).toBe(false)
       expect(result.error?.name).toBeDefined()
+    })
+
+    it('returns a timeout when a host tool settles after the deadline', async () => {
+      const delayed = makeBinding('delayed', async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 100))
+        return 'late'
+      })
+      const context = await createQuickJSIsolateDriver({
+        timeout: 20,
+      }).createContext({ bindings: { delayed } })
+
+      const result = await context.execute('return await delayed({})')
+      const reuse = await context.execute('return 1 + 1')
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('TimeoutError')
+      expect(reuse.error?.name).toBe('DisposedError')
     })
   })
 

@@ -53,26 +53,32 @@ async function invokeBinding(
 
 function injectBinding(
   vm: QuickJSContext,
-  enqueue: (work: () => Promise<string>) => Promise<string>,
+  context: QuickJSIsolateContext,
   name: string,
   binding: ToolBinding,
 ): void {
   const toolFn = vm.newFunction(name, (argsHandle) => {
     const argsJson = vm.getString(argsHandle)
     const deferred = vm.newPromise()
+    const completeHostCall = context.beginHostCall()
 
-    void enqueue(() => invokeBinding(binding, argsJson)).then((payloadJson) => {
-      if (!vm.alive || !deferred.alive) return
+    void invokeBinding(binding, argsJson).then((payloadJson) => {
+      if (!vm.alive || !deferred.alive) {
+        completeHostCall()
+        return
+      }
 
       const payloadHandle = vm.newString(payloadJson)
       deferred.resolve(payloadHandle)
       payloadHandle.dispose()
-    })
 
-    void deferred.settled.then(() => {
-      if (vm.runtime.alive) {
-        vm.runtime.executePendingJobs()
-      }
+      void deferred.settled
+        .then(() => {
+          if (vm.runtime.alive) {
+            context.runPendingJobs()
+          }
+        })
+        .finally(completeHostCall)
     })
 
     return deferred.handle
@@ -149,15 +155,6 @@ export function createQuickJSIsolateDriver(
 
       const QuickJS = await getQuickJS()
       const vm = QuickJS.newContext()
-      let toolQueue: Promise<void> = Promise.resolve()
-      const enqueue = (work: () => Promise<string>): Promise<string> => {
-        const result = toolQueue.then(work)
-        toolQueue = result.then(
-          () => undefined,
-          () => undefined,
-        )
-        return result
-      }
 
       // Enforce heap and stack limits so OOM/stack overflow surface as JS errors
       // instead of growing WASM memory until the host process OOMs.
@@ -200,13 +197,15 @@ export function createQuickJSIsolateDriver(
       infoFn.dispose()
       consoleObj.dispose()
 
+      const context = new QuickJSIsolateContext(vm, logs, timeout)
+
       // Return native QuickJS promises from synchronous host functions so host
       // work does not suspend and resume the WASM stack through Asyncify.
       for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
-        injectBinding(vm, enqueue, name, binding)
+        injectBinding(vm, context, name, binding)
       }
 
-      return new QuickJSIsolateContext(vm, logs, timeout)
+      return context
     },
   }
 }

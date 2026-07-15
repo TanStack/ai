@@ -1,12 +1,65 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
 import { isFatalQuickJSLimitError, normalizeError } from './error-normalizer'
-import type { QuickJSContext } from 'quickjs-emscripten'
+import type {
+  QuickJSContext,
+  QuickJSHandle,
+  VmCallResult,
+} from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
 /**
  * Preserves the driver's existing execution ordering across contexts.
  */
 let globalExecQueue: Promise<void> = Promise.resolve()
+
+function awaitWithDeadline(
+  promise: Promise<VmCallResult<QuickJSHandle>>,
+  pendingJobFailure: Promise<never>,
+  deadline: number,
+): Promise<VmCallResult<QuickJSHandle>> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(
+      () => {
+        settled = true
+        const error = new Error('Code execution timed out')
+        error.name = 'TimeoutError'
+        reject(error)
+      },
+      Math.max(0, deadline - Date.now()),
+    )
+
+    promise.then(
+      (result) => {
+        if (settled) {
+          try {
+            if (result.error) result.error.dispose()
+            else result.value.dispose()
+          } catch {
+            // The context may have been disposed after a timeout.
+          }
+          return
+        }
+        settled = true
+        clearTimeout(timer)
+        resolve(result)
+      },
+      (error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+
+    void pendingJobFailure.catch((error: unknown) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      reject(error)
+    })
+  })
+}
 
 /**
  * IsolateContext implementation using QuickJS WASM
@@ -15,6 +68,9 @@ export class QuickJSIsolateContext implements IsolateContext {
   private readonly vm: QuickJSContext
   private readonly logs: Array<string>
   private readonly timeout: number
+  private rejectPendingJobFailure?: (error: unknown) => void
+  private pendingHostCalls = 0
+  private disposeRequested = false
   private disposed = false
   private executing = false
 
@@ -22,6 +78,49 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.vm = vm
     this.logs = logs
     this.timeout = timeout
+  }
+
+  runPendingJobs(): void {
+    try {
+      const result = this.vm.runtime.executePendingJobs()
+      if (!result.error) {
+        result.dispose()
+        return
+      }
+
+      let error: unknown
+      try {
+        error = result.error.context.dump(result.error)
+      } finally {
+        result.dispose()
+      }
+      this.rejectPendingJobFailure?.(error)
+    } catch (error) {
+      this.rejectPendingJobFailure?.(error)
+    }
+  }
+
+  beginHostCall(): () => void {
+    this.pendingHostCalls += 1
+    let completed = false
+
+    return () => {
+      if (completed) return
+      completed = true
+      this.pendingHostCalls -= 1
+      if (this.disposeRequested && this.pendingHostCalls === 0) {
+        this.vm.dispose()
+      }
+    }
+  }
+
+  private requestVmDispose(): void {
+    if (this.disposeRequested) return
+    this.disposeRequested = true
+    this.disposed = true
+    if (this.pendingHostCalls === 0) {
+      this.vm.dispose()
+    }
   }
 
   async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
@@ -61,22 +160,27 @@ export class QuickJSIsolateContext implements IsolateContext {
 
     this.executing = true
     this.logs.length = 0
+    const pendingJobFailure = new Promise<never>((_, reject) => {
+      this.rejectPendingJobFailure = reject
+    })
 
-    const releaseVmAfterFatalLimit = () => {
+    const releaseVmAfterTerminalError = () => {
       if (this.disposed) return
       try {
         this.vm.runtime.setInterruptHandler(() => false)
       } catch {
         // ignore if runtime is already torn down
       }
-      this.disposed = true
-      this.vm.dispose()
+      this.requestVmDispose()
     }
 
     const fail = (error: unknown) => {
       const normalized = normalizeError(error)
-      if (isFatalQuickJSLimitError(normalized)) {
-        releaseVmAfterFatalLimit()
+      if (
+        normalized.name === 'TimeoutError' ||
+        isFatalQuickJSLimitError(normalized)
+      ) {
+        releaseVmAfterTerminalError()
       }
       return {
         success: false as const,
@@ -103,8 +207,12 @@ export class QuickJSIsolateContext implements IsolateContext {
           // wrapCode returns an async IIFE, so evalCode yields a QuickJS promise.
           const nativePromise = this.vm.resolvePromise(promiseHandle)
           promiseHandle.dispose()
-          this.vm.runtime.executePendingJobs()
-          const resolvedResult = await nativePromise
+          this.runPendingJobs()
+          const resolvedResult = await awaitWithDeadline(
+            nativePromise,
+            pendingJobFailure,
+            deadline,
+          )
 
           const valueHandle = this.vm.unwrapResult(resolvedResult)
           const dumpedResult = this.vm.dump(valueHandle)
@@ -129,7 +237,7 @@ export class QuickJSIsolateContext implements IsolateContext {
           return fail(unwrapError)
         }
       } finally {
-        // fail() may set disposed when releasing the VM after memory/stack limit errors
+        // fail() may dispose the VM after a timeout or fatal resource limit.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- disposed set in fail()
         if (!this.disposed) {
           this.vm.runtime.setInterruptHandler(() => false)
@@ -138,6 +246,7 @@ export class QuickJSIsolateContext implements IsolateContext {
     } catch (error) {
       return fail(error)
     } finally {
+      this.rejectPendingJobFailure = undefined
       this.executing = false
       resolve()
     }
@@ -152,7 +261,6 @@ export class QuickJSIsolateContext implements IsolateContext {
       await globalExecQueue
     }
 
-    this.disposed = true
-    this.vm.dispose()
+    this.requestVmDispose()
   }
 }
