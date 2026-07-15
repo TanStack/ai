@@ -113,6 +113,72 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.value).toBe('AB')
     })
 
+    it('supports sequential awaits of the same asyncified host function', async () => {
+      // Regression test for https://github.com/justjake/quickjs-emscripten/issues/258
+      const calls: Array<string> = []
+      const get = makeBinding('get', async (args) => {
+        if (
+          typeof args !== 'object' ||
+          args === null ||
+          !('path' in args) ||
+          typeof args.path !== 'string'
+        ) {
+          throw new Error('Expected a path argument')
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        calls.push(args.path)
+        return { path: args.path }
+      })
+
+      const driver = createQuickJSIsolateDriver()
+      const context = await driver.createContext({ bindings: { get } })
+
+      try {
+        const result = await context.execute(`
+          const a = await get({ path: "/a" });
+          const b = await get({ path: "/b" });
+          return [a, b];
+        `)
+
+        expect(result.success).toBe(true)
+        expect(result.value).toEqual([{ path: '/a' }, { path: '/b' }])
+        expect(calls).toEqual(['/a', '/b'])
+      } finally {
+        await context.dispose()
+      }
+    })
+
+    it('supports concurrent tool calls via Promise.all', async () => {
+      const get = makeBinding('get', async (args) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        return args
+      })
+
+      const driver = createQuickJSIsolateDriver()
+      const context = await driver.createContext({ bindings: { get } })
+
+      try {
+        const result = await context.execute(`
+          const [a, b, c] = await Promise.all([
+            get({ path: "/a" }),
+            get({ path: "/b" }),
+            get({ path: "/c" }),
+          ]);
+          return [a, b, c];
+        `)
+
+        expect(result.success).toBe(true)
+        expect(result.value).toEqual([
+          { path: '/a' },
+          { path: '/b' },
+          { path: '/c' },
+        ])
+      } finally {
+        await context.dispose()
+      }
+    })
+
     it('surfaces tool execution errors', async () => {
       const failTool = makeBinding('failTool', async () => {
         throw new Error('Tool failed')

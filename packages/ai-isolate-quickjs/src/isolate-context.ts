@@ -1,29 +1,93 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
 import { isFatalQuickJSLimitError, normalizeError } from './error-normalizer'
-import type { QuickJSAsyncContext } from 'quickjs-emscripten'
+import type {
+  QuickJSContext,
+  QuickJSHandle,
+  VmCallResult,
+} from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
 /**
- * Serializes all QuickJS evalCodeAsync calls across contexts.
- * Required because newAsyncContext() reuses a singleton WASM module
- * whose asyncify stack can only handle one suspension at a time.
+ * Interrupt deadline shared with the tool-binding job pumps created in
+ * the driver. `deadline === 0` means no execution is active, so any guest
+ * job that runs outside execute() is interrupted immediately.
  */
-let globalExecQueue: Promise<void> = Promise.resolve()
+export interface ExecState {
+  deadline: number
+}
+
+/**
+ * Await the guest program's promise, but give up at `deadline`. Host tool
+ * calls are bridged as QuickJS promises, so a guest program that is stuck
+ * waiting (e.g. its continuation was interrupted) would otherwise never
+ * settle. If the guest settles after the deadline, its result handle is
+ * disposed to avoid leaking it into the context's lifetime.
+ */
+function awaitWithDeadline(
+  promise: Promise<VmCallResult<QuickJSHandle>>,
+  deadline: number,
+): Promise<VmCallResult<QuickJSHandle>> {
+  return new Promise((resolve, reject) => {
+    let timedOut = false
+    const timer = setTimeout(
+      () => {
+        timedOut = true
+        const timeoutError = new Error('Code execution timed out')
+        timeoutError.name = 'TimeoutError'
+        reject(timeoutError)
+      },
+      Math.max(0, deadline - Date.now()),
+    )
+
+    promise.then(
+      (result) => {
+        if (timedOut) {
+          try {
+            if ('error' in result && result.error) {
+              result.error.dispose()
+            } else {
+              result.value.dispose()
+            }
+          } catch {
+            // context may already be disposed
+          }
+          return
+        }
+        clearTimeout(timer)
+        resolve(result)
+      },
+      (error) => {
+        if (timedOut) return
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
 
 /**
  * IsolateContext implementation using QuickJS WASM
  */
 export class QuickJSIsolateContext implements IsolateContext {
-  private readonly vm: QuickJSAsyncContext
+  private readonly vm: QuickJSContext
   private readonly logs: Array<string>
   private readonly timeout: number
+  private readonly execState: ExecState
+  /** Serializes execute() calls so evaluations on this VM never interleave. */
+  private execQueue: Promise<void> = Promise.resolve()
   private disposed = false
   private executing = false
 
-  constructor(vm: QuickJSAsyncContext, logs: Array<string>, timeout: number) {
+  constructor(
+    vm: QuickJSContext,
+    logs: Array<string>,
+    timeout: number,
+    execState: ExecState,
+  ) {
     this.vm = vm
     this.logs = logs
     this.timeout = timeout
+    this.execState = execState
   }
 
   async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
@@ -38,14 +102,14 @@ export class QuickJSIsolateContext implements IsolateContext {
       }
     }
 
-    // Serialize through the global queue to prevent concurrent
-    // WASM asyncify suspensions across contexts.
+    // Serialize through the queue so concurrent execute() calls on this
+    // context never interleave their pending jobs.
     let resolve!: () => void
     const myTurn = new Promise<void>((r) => {
       resolve = r
     })
-    const waitForPrev = globalExecQueue
-    globalExecQueue = myTurn
+    const waitForPrev = this.execQueue
+    this.execQueue = myTurn
 
     await waitForPrev
 
@@ -92,24 +156,25 @@ export class QuickJSIsolateContext implements IsolateContext {
       const wrappedCode = wrapCode(code)
 
       const deadline = Date.now() + this.timeout
-      this.vm.runtime.setInterruptHandler(() => {
-        return Date.now() > deadline
-      })
+      this.execState.deadline = deadline
 
       try {
-        const result = await this.vm.evalCodeAsync(wrappedCode)
+        const result = this.vm.evalCode(wrappedCode)
 
         let parsedResult: T
         try {
           const promiseHandle = this.vm.unwrapResult(result)
 
-          // evalCodeAsync returns a Promise handle (our wrapper is an async IIFE).
-          // Use resolvePromise + executePendingJobs to properly await the
-          // QuickJS promise without re-entering the WASM asyncify state.
+          // evalCode returns a Promise handle (our wrapper is an async IIFE).
+          // Await it via resolvePromise; guest continuations run when the
+          // tool bindings' promise-settled pumps call executePendingJobs.
           const nativePromise = this.vm.resolvePromise(promiseHandle)
           promiseHandle.dispose()
           this.vm.runtime.executePendingJobs()
-          const resolvedResult = await nativePromise
+          const resolvedResult = await awaitWithDeadline(
+            nativePromise,
+            deadline,
+          )
 
           const valueHandle = this.vm.unwrapResult(resolvedResult)
           const dumpedResult = this.vm.dump(valueHandle)
@@ -137,7 +202,7 @@ export class QuickJSIsolateContext implements IsolateContext {
         // fail() may set disposed when releasing the VM after memory/stack limit errors
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- disposed set in fail()
         if (!this.disposed) {
-          this.vm.runtime.setInterruptHandler(() => false)
+          this.execState.deadline = 0
         }
       }
     } catch (error) {
@@ -151,11 +216,11 @@ export class QuickJSIsolateContext implements IsolateContext {
   async dispose(): Promise<void> {
     if (this.disposed) return
 
-    // If an execution is in flight, wait for the global queue to drain
-    // before disposing the VM. Otherwise the asyncified callback would
+    // If an execution is in flight, wait for the queue to drain before
+    // disposing the VM. Otherwise a pending tool-binding callback would
     // try to access a freed context.
     if (this.executing) {
-      await globalExecQueue
+      await this.execQueue
     }
 
     this.disposed = true
