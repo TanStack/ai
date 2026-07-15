@@ -63,7 +63,6 @@ export const blogTxnDef = clientTransaction<typeof blogTransaction>({
   drafting: 'chat',
   heroImage: 'one-shot',
   narration: 'one-shot',
-  blogPost: 'one-shot',
 })
 ```
 
