@@ -7,7 +7,13 @@
  * provider-neutral Prisma `String` fields, so they are serialized with
  * `JSON.stringify`/`JSON.parse` here; blob bytes use Prisma's `Bytes`.
  */
-import type { PrismaClient } from '@prisma/client'
+import type {
+  ArtifactRow,
+  BlobRow,
+  InterruptRow,
+  RunRow,
+  TanstackAiDelegates,
+} from './model-contract'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   ArtifactRecord,
@@ -101,32 +107,24 @@ async function bytesFromBlobBody(
   throw new TypeError('Unsupported blob body.')
 }
 
-export function createMessageStore(prisma: PrismaClient): MessageStore {
+export function createMessageStore({
+  message,
+}: TanstackAiDelegates): MessageStore {
   return {
     async loadThread(threadId) {
-      const row = await prisma.message.findUnique({ where: { threadId } })
+      const row = await message.findUnique({ where: { threadId } })
       if (!row) return []
       return JSON.parse(row.messagesJson) as Array<ModelMessage>
     },
     async saveThread(threadId, msgs: Array<ModelMessage>) {
       const messagesJson = JSON.stringify(msgs)
-      await prisma.message.upsert({
+      await message.upsert({
         where: { threadId },
         create: { threadId, messagesJson },
         update: { messagesJson },
       })
     },
   }
-}
-
-interface RunRow {
-  runId: string
-  threadId: string
-  status: string
-  startedAt: bigint
-  finishedAt: bigint | null
-  error: string | null
-  usageJson: string | null
 }
 
 function mapRun(row: RunRow): RunRecord {
@@ -143,7 +141,7 @@ function mapRun(row: RunRow): RunRecord {
   }
 }
 
-export function createRunStore(prisma: PrismaClient): RunStore {
+export function createRunStore({ run }: TanstackAiDelegates): RunStore {
   const store: RunStore = {
     async createOrResume(input) {
       const existing = await store.get(input.runId)
@@ -156,7 +154,7 @@ export function createRunStore(prisma: PrismaClient): RunStore {
       }
       // Upsert with an empty update = insert-if-absent (never overwrites an
       // existing run), matching the reference createOrResume semantics.
-      await prisma.run.upsert({
+      await run.upsert({
         where: { runId: record.runId },
         create: {
           runId: record.runId,
@@ -183,25 +181,14 @@ export function createRunStore(prisma: PrismaClient): RunStore {
         data.usageJson = JSON.stringify(patch.usage)
       if (Object.keys(data).length === 0) return
       // updateMany no-ops (does not throw) when the run does not exist.
-      await prisma.run.updateMany({ where: { runId }, data })
+      await run.updateMany({ where: { runId }, data })
     },
     async get(runId) {
-      const row = await prisma.run.findUnique({ where: { runId } })
+      const row = await run.findUnique({ where: { runId } })
       return row ? mapRun(row) : null
     },
   }
   return store
-}
-
-interface InterruptRow {
-  interruptId: string
-  runId: string
-  threadId: string
-  status: string
-  requestedAt: bigint
-  resolvedAt: bigint | null
-  payloadJson: string
-  responseJson: string | null
 }
 
 function mapInterrupt(row: InterruptRow): InterruptRecord {
@@ -219,10 +206,12 @@ function mapInterrupt(row: InterruptRow): InterruptRecord {
   }
 }
 
-export function createInterruptStore(prisma: PrismaClient): InterruptStore {
+export function createInterruptStore({
+  interrupt,
+}: TanstackAiDelegates): InterruptStore {
   return {
     async create(record) {
-      await prisma.interrupt.upsert({
+      await interrupt.upsert({
         where: { interruptId: record.interruptId },
         create: {
           interruptId: record.interruptId,
@@ -238,7 +227,7 @@ export function createInterruptStore(prisma: PrismaClient): InterruptStore {
       })
     },
     async resolve(interruptId, response) {
-      await prisma.interrupt.updateMany({
+      await interrupt.updateMany({
         where: { interruptId },
         data: {
           status: 'resolved',
@@ -248,38 +237,38 @@ export function createInterruptStore(prisma: PrismaClient): InterruptStore {
       })
     },
     async cancel(interruptId) {
-      await prisma.interrupt.updateMany({
+      await interrupt.updateMany({
         where: { interruptId },
         data: { status: 'cancelled', resolvedAt: BigInt(Date.now()) },
       })
     },
     async get(interruptId) {
-      const row = await prisma.interrupt.findUnique({ where: { interruptId } })
+      const row = await interrupt.findUnique({ where: { interruptId } })
       return row ? mapInterrupt(row) : null
     },
     async list(threadId) {
-      const rows = await prisma.interrupt.findMany({
+      const rows = await interrupt.findMany({
         where: { threadId },
         orderBy: { requestedAt: 'asc' },
       })
       return rows.map(mapInterrupt)
     },
     async listPending(threadId) {
-      const rows = await prisma.interrupt.findMany({
+      const rows = await interrupt.findMany({
         where: { threadId, status: 'pending' },
         orderBy: { requestedAt: 'asc' },
       })
       return rows.map(mapInterrupt)
     },
     async listByRun(runId) {
-      const rows = await prisma.interrupt.findMany({
+      const rows = await interrupt.findMany({
         where: { runId },
         orderBy: { requestedAt: 'asc' },
       })
       return rows.map(mapInterrupt)
     },
     async listPendingByRun(runId) {
-      const rows = await prisma.interrupt.findMany({
+      const rows = await interrupt.findMany({
         where: { runId, status: 'pending' },
         orderBy: { requestedAt: 'asc' },
       })
@@ -288,37 +277,28 @@ export function createInterruptStore(prisma: PrismaClient): InterruptStore {
   }
 }
 
-export function createMetadataStore(prisma: PrismaClient): MetadataStore {
+export function createMetadataStore({
+  metadata,
+}: TanstackAiDelegates): MetadataStore {
   return {
     async get(scope, key) {
-      const row = await prisma.metadata.findUnique({
+      const row = await metadata.findUnique({
         where: { scope_key: { scope, key } },
       })
       return row ? (JSON.parse(row.valueJson) as unknown) : null
     },
     async set(scope, key, value) {
       const valueJson = JSON.stringify(value)
-      await prisma.metadata.upsert({
+      await metadata.upsert({
         where: { scope_key: { scope, key } },
         create: { scope, key, valueJson },
         update: { valueJson },
       })
     },
     async delete(scope, key) {
-      await prisma.metadata.deleteMany({ where: { scope, key } })
+      await metadata.deleteMany({ where: { scope, key } })
     },
   }
-}
-
-interface ArtifactRow {
-  artifactId: string
-  runId: string
-  threadId: string
-  name: string
-  mimeType: string
-  size: bigint
-  externalUrl: string | null
-  createdAt: bigint
 }
 
 function mapArtifact(row: ArtifactRow): ArtifactRecord {
@@ -334,7 +314,9 @@ function mapArtifact(row: ArtifactRow): ArtifactRecord {
   }
 }
 
-export function createArtifactStore(prisma: PrismaClient): ArtifactStore {
+export function createArtifactStore({
+  artifact,
+}: TanstackAiDelegates): ArtifactStore {
   return {
     async save(record) {
       const data = {
@@ -346,41 +328,30 @@ export function createArtifactStore(prisma: PrismaClient): ArtifactStore {
         externalUrl: record.externalUrl ?? null,
         createdAt: BigInt(record.createdAt),
       }
-      await prisma.artifact.upsert({
+      await artifact.upsert({
         where: { artifactId: record.artifactId },
         create: { artifactId: record.artifactId, ...data },
         update: data,
       })
     },
     async get(artifactId) {
-      const row = await prisma.artifact.findUnique({ where: { artifactId } })
+      const row = await artifact.findUnique({ where: { artifactId } })
       return row ? mapArtifact(row) : null
     },
     async list(runId) {
-      const rows = await prisma.artifact.findMany({
+      const rows = await artifact.findMany({
         where: { runId },
         orderBy: [{ createdAt: 'asc' }, { artifactId: 'asc' }],
       })
       return rows.map(mapArtifact)
     },
     async delete(artifactId) {
-      await prisma.artifact.deleteMany({ where: { artifactId } })
+      await artifact.deleteMany({ where: { artifactId } })
     },
     async deleteForRun(runId) {
-      await prisma.artifact.deleteMany({ where: { runId } })
+      await artifact.deleteMany({ where: { runId } })
     },
   }
-}
-
-interface BlobRow {
-  key: string
-  contentType: string | null
-  size: bigint | null
-  etag: string | null
-  customMetadataJson: string | null
-  createdAt: bigint | null
-  updatedAt: bigint | null
-  body: Uint8Array | null
 }
 
 function blobRecordSnapshot(row: BlobRow): BlobRecord {
@@ -419,9 +390,9 @@ function blobObject(row: BlobRow): BlobObject {
   }
 }
 
-export function createBlobStore(prisma: PrismaClient): BlobStore {
+export function createBlobStore({ blob }: TanstackAiDelegates): BlobStore {
   const readRow = (key: string): Promise<BlobRow | null> =>
-    prisma.blob.findUnique({ where: { key } })
+    blob.findUnique({ where: { key } })
   return {
     async put(key, body, options) {
       const bytes = await bytesFromBlobBody(body)
@@ -446,12 +417,16 @@ export function createBlobStore(prisma: PrismaClient): BlobStore {
         updatedAt: BigInt(now),
         body: bytes,
       }
-      const stored = await prisma.blob.upsert({
+      await blob.upsert({
         where: { key },
         create: { key, ...record },
         update: record,
       })
-      return blobRecordSnapshot(stored)
+      // Re-read like the Drizzle sibling: the structural delegate contract
+      // types upsert's result as unknown so user-generated clients (with
+      // renamed models / extra fields) stay assignable.
+      const stored = await readRow(key)
+      return blobRecordSnapshot(stored ?? { key, ...record })
     },
     async get(key) {
       const row = await readRow(key)
@@ -462,7 +437,7 @@ export function createBlobStore(prisma: PrismaClient): BlobStore {
       return row ? blobRecordSnapshot(row) : null
     },
     async delete(key) {
-      await prisma.blob.deleteMany({ where: { key } })
+      await blob.deleteMany({ where: { key } })
     },
     async list(options?: BlobListOptions): Promise<BlobListPage> {
       const limit = options?.limit
@@ -476,7 +451,7 @@ export function createBlobStore(prisma: PrismaClient): BlobStore {
       // key < upperBound` — which contains no LIKE metacharacters and relies on
       // binary/byte ordering, giving literal, case-sensitive matching.
       const upperBound = prefixUpperBound(prefix)
-      const rows = await prisma.blob.findMany({
+      const rows = await blob.findMany({
         where: {
           key: {
             gte: prefix,

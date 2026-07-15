@@ -103,3 +103,46 @@ The fragment maps six persisted store contracts to `Message`, `Run`, `Interrupt`
 `Metadata`, `Artifact`, and `Blob` models. Artifact rows contain metadata;
 binary bodies live on `Blob.body`. IDs and timestamps use portable Prisma
 types so the application can generate migrations for its chosen provider.
+
+## Rename the models
+
+The fragment is yours once copied, and its model names are generic — an
+application often already has a `Message` or `Run` model. Rename the TanStack
+AI models freely and map each store to the renamed client delegate:
+
+```prisma
+/// Renamed from `Message` to avoid a collision.
+model ChatMessage {
+  threadId     String @id @map("thread_id")
+  messagesJson String @map("messages_json")
+
+  @@map("messages")
+}
+```
+
+```ts
+import { PrismaClient } from '@prisma/client'
+import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
+
+const prisma = new PrismaClient()
+
+export const persistence = prismaPersistence(prisma, {
+  models: { messages: 'chatMessage' },
+})
+```
+
+Map values are the camelCase client accessor names (`prisma.chatMessage`), not
+the PascalCase model names. Unmapped stores keep their default names
+(`message`, `run`, `interrupt`, `metadata`, `artifact`, `blob`), and
+`prismaPersistence` throws a `PrismaModelError` naming every store whose
+delegate cannot be found.
+
+What stays fixed is the client-level field surface: keep the fragment's field
+names and types, and the default composite unique alias `scope_key` on the
+metadata model. Everything else is yours:
+
+- **Database names** — table and column names are already governed by
+  `@@map` / `@map` in your copy; change them without touching the runtime.
+- **Extra app-owned fields** — for example a `userId` on the messages model to
+  scope threads to users. Keep added fields optional or defaulted so the
+  store creates succeed; the TanStack AI stores never read or write them.
