@@ -1,6 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
+import {
+  InMemoryTaskMessageQueue,
+  InMemoryTaskStore,
+} from '@modelcontextprotocol/sdk/experimental/tasks'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 
 /**
@@ -13,21 +18,31 @@ import { z } from 'zod'
  * 'http', url } })`, discovers its tools, and runs them inside a real `chat()`
  * agent loop (with the LLM mocked by aimock).
  *
- * Stateless mode (no `sessionIdGenerator`): a fresh `McpServer` + transport is
- * created per request. This avoids any cross-request session bookkeeping —
- * appropriate for a serverless-style route and for deterministic tests. The
- * transport is closed once the response has been produced.
+ * Stateless mode (no `sessionIdGenerator`) creates a fresh `McpServer` and
+ * transport per request. The module-scoped task store persists task state
+ * across the follow-up polling requests made by `callToolStream`; no session
+ * bookkeeping is needed.
  *
- * The single tool `get_guitar_price` is fully deterministic: given `{ id }` it
- * returns both a structured payload and a text block carrying `{ id, price:
- * 1999 }`, so the spec can assert the price `1999` reaches the streamed
- * transcript after the tool executes.
+ * `get_guitar_price` provides an ordinary deterministic tool. The
+ * task-required `appraise_guitar_collection` tool returns a distinctive total
+ * through the real task create/status/result flow.
  */
+const taskStore = new InMemoryTaskStore()
+const taskMessageQueue = new InMemoryTaskMessageQueue()
+
 function createMockMcpServer(): McpServer {
-  const server = new McpServer({
-    name: 'guitar-store-mcp-mock',
-    version: '0.0.1',
-  })
+  const server = new McpServer(
+    {
+      name: 'guitar-store-mcp-mock',
+      version: '0.0.1',
+    },
+    {
+      capabilities: { tasks: { requests: { tools: { call: {} } } } },
+      taskStore,
+      taskMessageQueue,
+      defaultTaskPollInterval: 1,
+    },
+  )
 
   server.registerTool(
     'get_guitar_price',
@@ -45,22 +60,37 @@ function createMockMcpServer(): McpServer {
     },
   )
 
-  // A task-required tool (experimental MCP tasks). Plain `callTool` would be
-  // rejected with -32600, so @tanstack/ai-mcp must EXCLUDE it from tools()
-  // discovery — the spec asserts it never reaches the tool list.
-  const taskTool = server.registerTool(
+  server.experimental.tasks.registerToolTask(
     'appraise_guitar_collection',
     {
       description: 'Long-running appraisal that requires task-based execution',
       inputSchema: { ids: z.array(z.string()) },
+      execution: { taskSupport: 'required' },
     },
-    () => ({
-      content: [{ type: 'text' as const, text: 'unreachable via callTool' }],
-    }),
+    {
+      async createTask({ ids }, { taskStore: store, taskRequestedTtl }) {
+        const task = await store.createTask({
+          ttl: taskRequestedTtl,
+          pollInterval: 1,
+        })
+        await store.storeTaskResult(task.taskId, 'completed', {
+          content: [
+            {
+              type: 'text',
+              text: `Appraised ${ids.join(', ')} at 4200 total`,
+            },
+          ],
+        })
+        return { task }
+      },
+      async getTask(_args, { taskId, taskStore: store }) {
+        return store.getTask(taskId)
+      },
+      async getTaskResult(_args, { taskId, taskStore: store }) {
+        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
+      },
+    },
   )
-  // registerTool's config doesn't accept `execution` directly in SDK 1.29;
-  // RegisteredTool exposes it as a mutable property consumed at list time.
-  taskTool.execution = { taskSupport: 'required' }
 
   // A static resource + prompt so the resource/prompt read+convert path can be
   // exercised end-to-end (see api.mcp-status-test). The catalog text carries a

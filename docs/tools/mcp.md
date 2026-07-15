@@ -235,16 +235,18 @@ const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
 
-> **Task-based tools are excluded.** Tools that declare
-> `execution.taskSupport: 'required'` (the experimental MCP tasks feature)
-> can only run through the SDK's `tasks/callToolStream` flow, which
-> `@tanstack/ai-mcp` does not support yet — plain `callTool` is rejected by
-> the server with `-32600`. Discovery skips them so the model is never
-> offered a tool that cannot succeed.
+> **Task-based tools are supported.** Tools that declare
+> `execution.taskSupport: 'required'` automatically run through the MCP SDK's
+> experimental `tasks/callToolStream` flow. TanStack AI waits through task
+> status updates and returns the terminal result to the model. Tools declaring
+> `taskSupport: 'optional'` continue to use ordinary `callTool` execution.
+>
+> If the chat run aborts, TanStack AI stops waiting for the task, but it does
+> not cancel a remote task the server has already created.
 
 ### Mode 2 — Explicit definitions (`client.tools([...defs])`)
 
-Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server, and `MCPTaskRequiredToolError` if the named tool requires task-based execution (see the Mode 1 note).
+Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server. Task-required tools use the same automatic task execution described in Mode 1.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -484,6 +486,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A `toolDefinition` passed to `tools([...defs])` names a tool that requires task-based execution (`execution.taskSupport: 'required'`) — such tools are also excluded from `tools()` auto-discovery |
+| `MCPTaskRequiredToolError` | Deprecated compatibility export. Task-required tools are now supported and this error is no longer thrown by `tools()` |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

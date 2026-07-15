@@ -1,6 +1,11 @@
 // packages/ai-mcp/tests/helpers/in-memory-server.ts
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import {
+  InMemoryTaskMessageQueue,
+  InMemoryTaskStore,
+} from '@modelcontextprotocol/sdk/experimental/tasks'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 
 /** Build a connected (server, clientTransport) pair over in-memory transports. */
@@ -42,9 +47,18 @@ export async function makeServerWithFailingTool() {
   return { server, clientTransport }
 }
 
-/** Build a connected (server, clientTransport) pair with one normal tool and one task-required tool. */
+/** Build a connected pair with one normal tool and one real task-required tool. */
 export async function makeServerWithTaskRequiredTool() {
-  const server = new McpServer({ name: 'tasky', version: '1.0.0' })
+  const taskStore = new InMemoryTaskStore()
+  const server = new McpServer(
+    { name: 'tasky', version: '1.0.0' },
+    {
+      capabilities: { tasks: { requests: { tools: { call: {} } } } },
+      taskStore,
+      taskMessageQueue: new InMemoryTaskMessageQueue(),
+      defaultTaskPollInterval: 1,
+    },
+  )
   server.registerTool(
     'get_weather',
     {
@@ -55,19 +69,34 @@ export async function makeServerWithTaskRequiredTool() {
       content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
     }),
   )
-  const registered = server.registerTool(
+  server.experimental.tasks.registerToolTask(
     'research_task',
     {
       description: 'A long-running tool that requires task-based execution',
       inputSchema: { query: z.string() },
+      execution: { taskSupport: 'required' },
     },
-    async () => ({
-      content: [{ type: 'text' as const, text: 'unreachable via callTool' }],
-    }),
+    {
+      async createTask({ query }, { taskStore: store, taskRequestedTtl }) {
+        const task = await store.createTask({
+          ttl: taskRequestedTtl,
+          pollInterval: 1,
+        })
+        await store.storeTaskResult(task.taskId, 'completed', {
+          content: [
+            { type: 'text' as const, text: `Research complete: ${query}` },
+          ],
+        })
+        return { task }
+      },
+      async getTask(_args, { taskId, taskStore: store }) {
+        return store.getTask(taskId)
+      },
+      async getTaskResult(_args, { taskId, taskStore: store }) {
+        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
+      },
+    },
   )
-  // registerTool's config doesn't accept `execution` directly in SDK 1.29;
-  // RegisteredTool exposes it as a mutable property consumed at list time.
-  registered.execution = { taskSupport: 'required' }
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)

@@ -2,10 +2,14 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
-  MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
-import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
+import {
+  callMcpTool,
+  makeMcpExecute,
+  requiresTaskExecution,
+  toServerTools,
+} from './tools'
 import { isTransportInstance, resolveTransport } from './transport'
 import type { TransportConfig } from './transport'
 import type {
@@ -20,6 +24,7 @@ import type {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
   GetPromptResult,
+  Tool as McpToolDef,
   Prompt,
   ReadResourceResult,
   Resource,
@@ -57,6 +62,10 @@ export interface MCPClient<
     name: string,
     args?: Record<string, string>,
   ) => Promise<GetPromptResult>
+  /**
+   * Call a tool directly and return its raw MCP result. Tools declaring
+   * `execution.taskSupport: 'required'` automatically use task execution.
+   */
   callTool: (
     name: string,
     args?: Record<string, unknown>,
@@ -87,6 +96,7 @@ class MCPClientImpl<
   capabilities: TServer['capabilities'] = {}
   readonly #client: Client
   #closed = false
+  #toolDefinitions?: Map<string, McpToolDef>
   private readonly prefix?: string
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
@@ -119,6 +129,12 @@ class MCPClientImpl<
     }
   }
 
+  async #listTools(): Promise<Array<McpToolDef>> {
+    const defs = (await this.#client.listTools()).tools
+    this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
+    return defs
+  }
+
   async tools(
     defsOrOptions?: ReadonlyArray<AnyToolDefinition> | ToolsOptions,
     maybeOptions: ToolsOptions = {},
@@ -135,17 +151,18 @@ class MCPClientImpl<
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
       const available = new Map(
-        (await this.#client.listTools()).tools.map((t) => [t.name, t]),
+        (await this.#listTools()).map((tool) => [tool.name, tool]),
       )
       tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
         const serverTool = available.get(def.name)
         if (!serverTool) throw new MCPToolNotFoundError(def.name)
-        // Explicitly binding a task-required tool is an error (it would fail
-        // on every callTool with -32600) — unlike discovery, which skips them.
-        if (requiresTaskExecution(serverTool))
-          throw new MCPTaskRequiredToolError(def.name)
         const tool = def.server(
-          makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
+          makeMcpExecute(
+            this.#client,
+            def.name,
+            Boolean(def.outputSchema),
+            requiresTaskExecution(serverTool),
+          ),
         ) as ServerTool
         if (this.prefix) tool.name = `${this.prefix}_${def.name}`
         if (options.lazy) tool.lazy = true
@@ -165,7 +182,7 @@ class MCPClientImpl<
       })
     } else {
       // Auto-discovery path.
-      const defs = (await this.#client.listTools()).tools
+      const defs = await this.#listTools()
       tools = toServerTools(this.#client, defs, {
         prefix: this.prefix,
         lazy: options.lazy,
@@ -214,7 +231,10 @@ class MCPClientImpl<
     args?: Record<string, unknown>,
   ): Promise<Awaited<ReturnType<Client['callTool']>>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.callTool({ name, arguments: args ?? {} })
+    if (!this.#toolDefinitions?.has(name)) await this.#listTools()
+    const definition = this.#toolDefinitions?.get(name)
+    const taskRequired = definition ? requiresTaskExecution(definition) : false
+    return callMcpTool(this.#client, name, args ?? {}, taskRequired)
   }
 
   async close(): Promise<void> {

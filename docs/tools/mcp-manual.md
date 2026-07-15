@@ -2,7 +2,7 @@
 title: "Manual MCP: typed tools, resources & prompts"
 id: mcp-manual
 order: 10
-description: "Spread fully-typed MCP tools into chat(), inject MCP resources and prompts as content and messages, and cancel in-flight MCP tool calls."
+description: "Spread fully-typed MCP tools into chat(), inject MCP resources and prompts as content and messages, and stop in-flight MCP tool calls when a run aborts."
 keywords:
   - tanstack ai
   - mcp
@@ -185,7 +185,9 @@ export const Route = createFileRoute('/api/chat')({
 
 ## Cancellation
 
-When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), in-flight MCP `callTool` requests are cancelled automatically. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
+When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), TanStack AI stops waiting for in-flight MCP tool calls. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
+
+For an ordinary `callTool` request, this aborts the request. For a task-required tool, it stops the local task stream but does not cancel a remote task the MCP server has already created.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -206,7 +208,7 @@ const stream = chat({
   abortController: controller,
 })
 
-// Cancel the run and all in-flight MCP tool calls:
+// Cancel the run and stop waiting for in-flight MCP tool calls:
 controller.abort()
 ```
 

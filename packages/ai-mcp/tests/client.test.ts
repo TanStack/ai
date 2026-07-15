@@ -13,6 +13,10 @@ import {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClient', () => {
+  it('retains the deprecated MCPTaskRequiredToolError export', () => {
+    expect(new MCPTaskRequiredToolError('legacy')).toBeInstanceOf(Error)
+  })
+
   it('connects and returns discovered tools', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
@@ -113,15 +117,21 @@ describe('createMCPClient', () => {
     })
   })
 
-  it('excludes task-required tools from auto-discovery', async () => {
+  it('discovers and executes task-required tools', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const names = (await client.tools()).map((t) => t.name)
-    expect(names).toContain('get_weather')
-    expect(names).not.toContain('research_task')
+    const tools = await client.tools()
+    expect(tools.map((t) => t.name)).toEqual(['get_weather', 'research_task'])
+    const research = tools.find((tool) => tool.name === 'research_task')!
+    await expect(
+      research.execute!(
+        { query: 'MCP tasks' },
+        { toolCallId: 't', emitCustomEvent: () => {} },
+      ),
+    ).resolves.toBe('Research complete: MCP tasks')
   })
 
-  it('throws MCPTaskRequiredToolError when binding a task-required tool', async () => {
+  it('binds and executes a task-required tool definition', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
     const { toolDefinition } = await import('@tanstack/ai')
@@ -131,9 +141,13 @@ describe('createMCPClient', () => {
       description: 'A long-running tool that requires task-based execution',
       inputSchema: z.object({ query: z.string() }),
     })
-    await expect(client.tools([researchTask])).rejects.toThrow(
-      MCPTaskRequiredToolError,
-    )
+    const [tool] = await client.tools([researchTask])
+    await expect(
+      tool!.execute!(
+        { query: 'typed tasks' },
+        { toolCallId: 't', emitCustomEvent: () => {} },
+      ),
+    ).resolves.toBe('Research complete: typed tasks')
   })
 
   it('wraps connection failures in MCPConnectionError preserving the cause', async () => {
@@ -163,6 +177,17 @@ describe('createMCPClient', () => {
             c.type === 'text' && c.text?.includes('Tokyo'),
         ),
     ).toBe(true)
+  })
+
+  it('callTool executes task-required tools and returns the raw result', async () => {
+    const { clientTransport } = await makeServerWithTaskRequiredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const result = await client.callTool('research_task', {
+      query: 'direct tasks',
+    })
+    expect(result.content).toEqual([
+      { type: 'text', text: 'Research complete: direct tasks' },
+    ])
   })
 
   it('callTool throws MCPConnectionError when client is closed', async () => {

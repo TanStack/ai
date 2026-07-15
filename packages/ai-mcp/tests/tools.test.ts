@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
+  callMcpTool,
   makeMcpExecute,
   mcpContentToTanstack,
   toServerTools,
@@ -25,6 +26,7 @@ function mcpToolDef(def: {
   name: string
   description?: string
   inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  execution?: { taskSupport?: 'optional' | 'required' | 'forbidden' }
   _meta?: { ui?: { resourceUri?: string } }
 }): McpToolDef {
   return {
@@ -123,6 +125,84 @@ describe('mcpContentToTanstack', () => {
   })
 })
 
+describe('callMcpTool', () => {
+  it('drains task status updates and returns the terminal result', async () => {
+    const controller = new AbortController()
+    const callToolStream = vi.fn(() =>
+      (async function* () {
+        yield {
+          type: 'taskStatus' as const,
+          task: {
+            taskId: 'task-1',
+            status: 'working' as const,
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            ttl: 60_000,
+          },
+        }
+        yield {
+          type: 'result' as const,
+          result: { content: [{ type: 'text' as const, text: 'done' }] },
+        }
+      })(),
+    )
+    const client = {
+      experimental: { tasks: { callToolStream } },
+    } as unknown as Client
+
+    await expect(
+      callMcpTool(client, 'research', { query: 'x' }, true, controller.signal),
+    ).resolves.toEqual({ content: [{ type: 'text', text: 'done' }] })
+    expect(callToolStream).toHaveBeenCalledWith(
+      { name: 'research', arguments: { query: 'x' } },
+      expect.anything(),
+      { signal: controller.signal },
+    )
+  })
+
+  it('throws a terminal task-stream error', async () => {
+    const error = new Error('task failed')
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield { type: 'error' as const, error }
+            })(),
+        },
+      },
+    } as unknown as Client
+
+    await expect(callMcpTool(client, 'research', {}, true)).rejects.toBe(error)
+  })
+
+  it('throws if a task stream ends without a terminal message', async () => {
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskStatus' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+            })(),
+        },
+      },
+    } as unknown as Client
+
+    await expect(callMcpTool(client, 'research', {}, true)).rejects.toThrow(
+      /ended without a result or error/,
+    )
+  })
+})
+
 describe('makeMcpExecute', () => {
   it('throws an error naming the tool when the MCP tool returns isError', async () => {
     const { clientTransport } = await makeServerWithFailingTool()
@@ -163,7 +243,7 @@ describe('makeMcpExecute', () => {
     )
     expect(callTool).toHaveBeenCalledWith(
       { name: 'x', arguments: {} },
-      undefined,
+      expect.anything(),
       { signal: controller.signal },
     )
   })
@@ -275,6 +355,25 @@ describe('toServerTools', () => {
     )
     expect(JSON.stringify(result)).toContain('Sunny in Brooklyn')
     await client.close()
+  })
+
+  it('keeps task-optional tools on ordinary callTool execution', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'plain' }] })
+    const tools = toServerTools(
+      fakeMcpClient(callTool),
+      [
+        mcpToolDef({
+          name: 'optional_task',
+          execution: { taskSupport: 'optional' },
+        }),
+      ],
+      {},
+    )
+
+    await expect(tools[0]!.execute!({})).resolves.toBe('plain')
+    expect(callTool).toHaveBeenCalledOnce()
   })
 
   it('applies a prefix', async () => {
