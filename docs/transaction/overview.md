@@ -21,7 +21,7 @@ Verb names are *your* domain language, not a fixed set of library nouns. A blog 
 
 `defineTransaction()` lives on the `/transaction` subpath of `@tanstack/ai`, and `useTransaction()` on the `/transaction` subpath of `@tanstack/ai-react` (Solid and Vue follow the same pattern; Svelte exports `createTransaction` from `@tanstack/ai-svelte/transaction`) — not the package root.
 
-```ts
+```ts group=overview-1
 // lib/blog-studio.ts — define once; the API route only calls `.handler`
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { chatVerb, clientTransaction, defineTransaction, verb } from '@tanstack/ai/transaction'
@@ -66,17 +66,18 @@ export const blogTxnDef = clientTransaction<typeof blogTransaction>({
 })
 ```
 
-```ts
+```ts group=overview-1
 // routes/api.blog-studio.ts — thin server route
 export const POST = (request: Request) => blogTransaction.handler(request)
 ```
 
 That one route now serves conversational drafting, image generation, and narration. On the client, one hook drives all three:
 
-```tsx
+```tsx group=overview-client
 // routes/blog-studio.tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
+import type { UIMessage } from '@tanstack/ai-react'
 import { blogTxnDef } from '../lib/blog-studio'
 
 function BlogStudio() {
@@ -87,7 +88,7 @@ function BlogStudio() {
   return (
     <div>
       <button onClick={() => txn.drafting.sendMessage('Hello!')}>Send</button>
-      {txn.drafting.messages.map((message) => (
+      {txn.drafting.messages.map((message: UIMessage) => (
         <p key={message.id}>
           {message.parts.find((part) => part.type === 'text')?.content}
         </p>
@@ -120,7 +121,7 @@ Both `txn.<oneShot>.run(input)` and `txn.<chatVerb>.sendMessage(...)` **resolve 
 
 You can declare **several verbs of the same kind** — including several chat verbs. Each gets its own conversation state, system prompt, and even model:
 
-```ts
+```ts group=overview-2
 // api/support.ts
 import { chat } from '@tanstack/ai'
 import { chatVerb, defineTransaction } from '@tanstack/ai/transaction'
@@ -162,7 +163,9 @@ On the client, `txn.primaryChat` and `txn.summaryChat` are two fully independent
 
 The recommended pattern is to **`defineTransaction` once in a shared module** and export a **`blogTxnDef`** client stub beside it via `clientTransaction<typeof blogTransaction>({ kinds })`. The page imports `blogTxnDef`; the API route imports `blogTransaction` and calls `.handler`. The kinds map is checked exhaustively against the server definition, so drift fails at compile time.
 
-```ts
+```ts group=overview-sharing
+import { clientTransaction, defineTransaction } from '@tanstack/ai/transaction'
+
 // lib/blog-studio.ts
 export const blogTransaction = defineTransaction({ /* … */ })
 

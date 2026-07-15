@@ -25,7 +25,7 @@ One click turns a topic into a finished post: draft the article as a typed objec
 
 ### Server: a `blogPost` verb that composes its siblings
 
-```ts
+```ts group=transactions
 // lib/blog-studio.ts
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
@@ -116,7 +116,7 @@ export const blogTransaction = defineTransaction({
 })
 ```
 
-```ts
+```ts group=transactions
 // routes/api.blog-studio.ts
 export const POST = (request: Request) => blogTransaction.handler(request)
 ```
@@ -128,10 +128,11 @@ export const POST = (request: Request) => blogTransaction.handler(request)
 
 ### Client: one call, live progress, typed result
 
-```tsx
+```tsx group=transactions
 // routes/blog-studio.tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
+import type { TransactionSubRun } from '@tanstack/ai-client/transaction'
 import { blogTxnDef } from '../lib/blog-studio'
 
 function BlogStudio() {
@@ -141,9 +142,15 @@ function BlogStudio() {
 
   const { blogPost } = txn
   // One entry per `ctx.call` the server made, keyed by verb name.
-  const draftingRun = blogPost.subRuns.find((run) => run.verb === 'drafting')
-  const heroRun = blogPost.subRuns.find((run) => run.verb === 'heroImage')
-  const narrationRun = blogPost.subRuns.find((run) => run.verb === 'narration')
+  const draftingRun = blogPost.subRuns.find(
+    (run: TransactionSubRun) => run.verb === 'drafting',
+  )
+  const heroRun = blogPost.subRuns.find(
+    (run: TransactionSubRun) => run.verb === 'heroImage',
+  )
+  const narrationRun = blogPost.subRuns.find(
+    (run: TransactionSubRun) => run.verb === 'narration',
+  )
 
   return (
     <div>

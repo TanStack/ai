@@ -250,7 +250,7 @@ export function clientTransaction<TDef extends TransactionDefinition<any>>(
   kinds: ClientTransactionKinds<TDef>,
 ): TDef {
   const verbs = Object.keys(kinds) as Array<keyof TDef['~verbs'] & string>
-  return {
+  const stub = {
     verbs,
     verbKinds: kinds,
     handler: async () => {
@@ -259,7 +259,11 @@ export function clientTransaction<TDef extends TransactionDefinition<any>>(
       )
     },
     '~verbs': {} as TDef['~verbs'],
-  } as unknown as TDef
+  }
+  // Type-only stub: runtime value carries verb names/kinds; `~verbs` phantom
+  // comes from the generic `TDef` supplied by the caller.
+  // eslint-disable-next-line no-restricted-syntax -- phantom-only cast, see comment above
+  return stub as unknown as TDef
 }
 
 /**
