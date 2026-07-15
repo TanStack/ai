@@ -144,7 +144,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
-  assistant: {
+  transaction: {
     tools: [],
     modelOptions: {},
   },

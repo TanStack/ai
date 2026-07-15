@@ -254,7 +254,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   'stateful-interactions': new Set(['gemini']),
-  assistant: new Set(['openai']),
+  transaction: new Set(['openai']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

@@ -2032,6 +2032,9 @@ importers:
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/ai-react-ui:
     dependencies:
@@ -2216,6 +2219,9 @@ importers:
       vitest:
         specifier: ^4.0.14
         version: 4.0.15(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.15))(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/ai-solid-ui:
     dependencies:
@@ -2290,6 +2296,9 @@ importers:
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/ai-utils:
     devDependencies:
@@ -2339,6 +2348,9 @@ importers:
       vue:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/ai-vue-ui:
     dependencies:

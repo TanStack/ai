@@ -25,9 +25,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./assistant": {
-      "types": "./dist/assistant.d.ts",
-      "import": "./dist/assistant.js"
+    "./transaction": {
+      "types": "./dist/transaction.d.ts",
+      "import": "./dist/transaction.js"
     }
   },
   "files": [
@@ -73,6 +73,7 @@
     "tsdown": "^0.17.0-beta.6",
     "typescript": "5.9.3",
     "vitest": "^4.0.14",
-    "vue": "^3.5.25"
+    "vue": "^3.5.25",
+    "zod": "^4.2.0"
   }
 }

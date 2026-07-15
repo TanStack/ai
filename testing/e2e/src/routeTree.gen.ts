@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TransactionRouteImport } from './routes/transaction'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
@@ -19,12 +20,12 @@ import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
-import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
+import { Route as ApiTransactionRouteImport } from './routes/api.transaction'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
@@ -48,7 +49,6 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
-import { Route as ApiAssistantRouteImport } from './routes/api.assistant'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
@@ -60,6 +60,11 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
+const TransactionRoute = TransactionRouteImport.update({
+  id: '/transaction',
+  path: '/transaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
@@ -110,11 +115,6 @@ const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
   path: '/chat-client-default-bridge',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AssistantRoute = AssistantRouteImport.update({
-  id: '/assistant',
-  path: '/assistant',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -138,6 +138,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
 const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
   id: '/api/transcription',
   path: '/api/transcription',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTransactionRoute = ApiTransactionRouteImport.update({
+  id: '/api/transaction',
+  path: '/api/transaction',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
@@ -259,11 +264,6 @@ const ApiAudioRoute = ApiAudioRouteImport.update({
   path: '/api/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAssistantRoute = ApiAssistantRouteImport.update({
-  id: '/api/assistant',
-  path: '/api/assistant',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   id: '/api/arktype-tool-wire',
   path: '/api/arktype-tool-wire',
@@ -318,7 +318,6 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/assistant': typeof AssistantRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -329,12 +328,12 @@ export interface FileRoutesByFullPath {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
+  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
-  '/api/assistant': typeof ApiAssistantRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -358,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
+  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -370,7 +370,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/assistant': typeof AssistantRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -381,12 +380,12 @@ export interface FileRoutesByTo {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
+  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
-  '/api/assistant': typeof ApiAssistantRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -410,6 +409,7 @@ export interface FileRoutesByTo {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
+  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -423,7 +423,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/assistant': typeof AssistantRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -434,12 +433,12 @@ export interface FileRoutesById {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
+  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
-  '/api/assistant': typeof ApiAssistantRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -463,6 +462,7 @@ export interface FileRoutesById {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
+  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -477,7 +477,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/assistant'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -488,12 +487,12 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
+    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
-    | '/api/assistant'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -517,6 +516,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
+    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -529,7 +529,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/assistant'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -540,12 +539,12 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
+    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
-    | '/api/assistant'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -569,6 +568,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
+    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -581,7 +581,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/assistant'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -592,12 +591,12 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
+    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
-    | '/api/assistant'
     | '/api/audio'
     | '/api/chat'
     | '/api/image'
@@ -621,6 +620,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
+    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -634,7 +634,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AssistantRoute: typeof AssistantRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
@@ -645,12 +644,12 @@ export interface RootRouteChildren {
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  TransactionRoute: typeof TransactionRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
-  ApiAssistantRoute: typeof ApiAssistantRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -674,6 +673,7 @@ export interface RootRouteChildren {
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
+  ApiTransactionRoute: typeof ApiTransactionRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
@@ -682,6 +682,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transaction': {
+      id: '/transaction'
+      path: '/transaction'
+      fullPath: '/transaction'
+      preLoaderRoute: typeof TransactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools-test': {
       id: '/tools-test'
       path: '/tools-test'
@@ -752,13 +759,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatClientDefaultBridgeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/assistant': {
-      id: '/assistant'
-      path: '/assistant'
-      fullPath: '/assistant'
-      preLoaderRoute: typeof AssistantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -792,6 +792,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcription'
       fullPath: '/api/transcription'
       preLoaderRoute: typeof ApiTranscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transaction': {
+      id: '/api/transaction'
+      path: '/api/transaction'
+      fullPath: '/api/transaction'
+      preLoaderRoute: typeof ApiTransactionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tools-test': {
@@ -955,13 +962,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/assistant': {
-      id: '/api/assistant'
-      path: '/api/assistant'
-      fullPath: '/api/assistant'
-      preLoaderRoute: typeof ApiAssistantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/arktype-tool-wire': {
       id: '/api/arktype-tool-wire'
       path: '/api/arktype-tool-wire'
@@ -1095,7 +1095,6 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AssistantRoute: AssistantRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
@@ -1106,12 +1105,12 @@ const rootRouteChildren: RootRouteChildren = {
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
+  TransactionRoute: TransactionRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
-  ApiAssistantRoute: ApiAssistantRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
@@ -1135,6 +1134,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
+  ApiTransactionRoute: ApiTransactionRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,
