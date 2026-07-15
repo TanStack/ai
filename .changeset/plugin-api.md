@@ -7,4 +7,4 @@
 '@tanstack/ai-svelte': minor
 ---
 
-Add definePlugin (server) and usePlugin/createPlugin (client): declare app-defined plugins — chatPlugin for conversational surfaces, generationPlugin for one-shot work with schema-validated inputs, plus media factories (imagePlugin, videoPlugin, etc.) — behind one endpoint and drive them from one fully typed client hook. Composition via `ctx.call` and sub-runs, along with `clientTransaction`, has been removed in this rename; server-side composition is coming via a future workflowPlugin.
+Add definePlugin (server) and usePlugin/createPlugin (client): declare app-defined plugins — chatPlugin for conversational surfaces, generationPlugin for one-shot work with schema-validated inputs, plus media factories (imagePlugin, videoPlugin, etc.) — behind one endpoint and drive them from one fully typed client hook. Server-side composition is coming via a future workflowPlugin.

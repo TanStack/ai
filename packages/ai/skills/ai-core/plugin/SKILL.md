@@ -301,11 +301,11 @@ writing a Zod schema.
 
 ```typescript
 import { transcriptionPlugin } from '@tanstack/ai/plugin'
-import { transcribeAudio } from '@tanstack/ai'
+import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 const transcript = transcriptionPlugin((req) =>
-  transcribeAudio({
+  generateTranscription({
     adapter: openaiTranscription('whisper-1'),
     audio: req.input.audio,
     language: req.input.language,
