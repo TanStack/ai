@@ -18,9 +18,11 @@ import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
+import { Route as InterruptsRouteImport } from './routes/interrupts'
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
+import { Route as DurableInterruptsRouteImport } from './routes/durable-interrupts'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -47,8 +49,10 @@ import { Route as ApiMcpAppsWeatherServerRouteImport } from './routes/api.mcp-ap
 import { Route as ApiMcpAppsShopServerRouteImport } from './routes/api.mcp-apps-shop-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiInterruptsRouteImport } from './routes/api.interrupts'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
+import { Route as ApiDurableInterruptsRouteImport } from './routes/api.durable-interrupts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -102,6 +106,11 @@ const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
   path: '/issue-176-tool-result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InterruptsRoute = InterruptsRouteImport.update({
+  id: '/interrupts',
+  path: '/interrupts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ImageToolReproRoute = ImageToolReproRouteImport.update({
   id: '/image-tool-repro',
   path: '/image-tool-repro',
@@ -115,6 +124,11 @@ const ImageGenRoute = ImageGenRouteImport.update({
 const GenerationHooksRoute = GenerationHooksRouteImport.update({
   id: '/generation-hooks',
   path: '/generation-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DurableInterruptsRoute = DurableInterruptsRouteImport.update({
+  id: '/durable-interrupts',
+  path: '/durable-interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
@@ -250,6 +264,11 @@ const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
   path: '/api/mcp-apps-call',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInterruptsRoute = ApiInterruptsRouteImport.update({
+  id: '/api/interrupts',
+  path: '/api/interrupts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
   id: '/api/image-tool-repro',
   path: '/api/image-tool-repro',
@@ -258,6 +277,11 @@ const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
   id: '/api/image-gen',
   path: '/api/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDurableInterruptsRoute = ApiDurableInterruptsRouteImport.update({
+  id: '/api/durable-interrupts',
+  path: '/api/durable-interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
@@ -299,9 +323,11 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
@@ -312,8 +338,10 @@ export interface FileRoutesByFullPath {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -348,9 +376,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
@@ -361,8 +391,10 @@ export interface FileRoutesByTo {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -398,9 +430,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
@@ -411,8 +445,10 @@ export interface FileRoutesById {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -449,9 +485,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/capability-demo'
+    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
@@ -462,8 +500,10 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
+    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -498,9 +538,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/capability-demo'
+    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
@@ -511,8 +553,10 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
+    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -547,9 +591,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/capability-demo'
+    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
@@ -560,8 +606,10 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
+    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -597,9 +645,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
+  DurableInterruptsRoute: typeof DurableInterruptsRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
+  InterruptsRoute: typeof InterruptsRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
@@ -610,8 +660,10 @@ export interface RootRouteChildren {
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
+  ApiDurableInterruptsRoute: typeof ApiDurableInterruptsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
+  ApiInterruptsRoute: typeof ApiInterruptsRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsShopServerRoute: typeof ApiMcpAppsShopServerRoute
@@ -709,6 +761,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Issue176ToolResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/interrupts': {
+      id: '/interrupts'
+      path: '/interrupts'
+      fullPath: '/interrupts'
+      preLoaderRoute: typeof InterruptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/image-tool-repro': {
       id: '/image-tool-repro'
       path: '/image-tool-repro'
@@ -728,6 +787,13 @@ declare module '@tanstack/react-router' {
       path: '/generation-hooks'
       fullPath: '/generation-hooks'
       preLoaderRoute: typeof GenerationHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/durable-interrupts': {
+      id: '/durable-interrupts'
+      path: '/durable-interrupts'
+      fullPath: '/durable-interrupts'
+      preLoaderRoute: typeof DurableInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/capability-demo': {
@@ -912,6 +978,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsCallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/interrupts': {
+      id: '/api/interrupts'
+      path: '/api/interrupts'
+      fullPath: '/api/interrupts'
+      preLoaderRoute: typeof ApiInterruptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image-tool-repro': {
       id: '/api/image-tool-repro'
       path: '/api/image-tool-repro'
@@ -924,6 +997,13 @@ declare module '@tanstack/react-router' {
       path: '/api/image-gen'
       fullPath: '/api/image-gen'
       preLoaderRoute: typeof ApiImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/durable-interrupts': {
+      id: '/api/durable-interrupts'
+      path: '/api/durable-interrupts'
+      fullPath: '/api/durable-interrupts'
+      preLoaderRoute: typeof ApiDurableInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/capability-demo': {
@@ -981,9 +1061,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
+  DurableInterruptsRoute: DurableInterruptsRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
+  InterruptsRoute: InterruptsRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
@@ -994,8 +1076,10 @@ const rootRouteChildren: RootRouteChildren = {
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
+  ApiDurableInterruptsRoute: ApiDurableInterruptsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
+  ApiInterruptsRoute: ApiInterruptsRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsShopServerRoute: ApiMcpAppsShopServerRoute,

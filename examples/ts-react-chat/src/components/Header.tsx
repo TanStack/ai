@@ -12,11 +12,12 @@ import {
   Guitar,
   Home,
   Image,
-  Menu,
   LayoutGrid,
-  Mic,
+  Menu,
   MessageSquare,
+  Mic,
   Music,
+  PawPrint,
   Plug,
   Server,
   Sparkles,
@@ -244,6 +245,32 @@ export default function Header() {
           >
             <MessageSquare size={20} />
             <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/interrupts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 transition-colors mb-1',
+            }}
+          >
+            <PawPrint size={20} />
+            <span className="font-medium">Interrupt Lab</span>
+          </Link>
+
+          <Link
+            to="/durable-interrupts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Durable Interrupt Lab</span>
           </Link>
 
           <Link
