@@ -74,7 +74,10 @@ const drafting = chatVerb((req) =>
 const heroImage = verb({
   input: z.object({ prompt: z.string() }), // validated at runtime, 400 + issues on mismatch
   execute: ({ input }) =>
-    generateImage({ adapter: openaiImage('gpt-image-2'), prompt: input.prompt }),
+    generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: input.prompt,
+    }),
 })
 
 // A transaction: composes the siblings above server-side via ctx.call.
@@ -327,7 +330,9 @@ route.
 export const POST = async (request: Request) => {
   const body = await request.json()
   if (body.forwardedProps.verb === 'drafting') {
-    return toServerSentEventsResponse(chat({ adapter, messages: body.messages }))
+    return toServerSentEventsResponse(
+      chat({ adapter, messages: body.messages }),
+    )
   }
   // ...manual branching for every verb
 }
@@ -376,7 +381,7 @@ await txn.heroImage.run({ prompt: draft.title })
 await txn.blogPost.run({ topic })
 ```
 
-Client-side chaining is right when the *user* drives each step (regenerate
+Client-side chaining is right when the _user_ drives each step (regenerate
 buttons, editable intermediate state). Server-side `ctx.call` is right when
 one gesture should produce the finished artifact or fail as a unit.
 

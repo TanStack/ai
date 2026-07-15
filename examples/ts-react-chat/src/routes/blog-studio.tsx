@@ -164,9 +164,9 @@ function BlogStudio() {
           Turn a topic into a finished post
         </h1>
         <p className="mb-5 text-stone-500">
-          One transaction writes the article, then illustrates it and records
-          a voice-over in parallel — composed on the server from a single
-          request, with every step streamed back live.
+          One transaction writes the article, then illustrates it and records a
+          voice-over in parallel — composed on the server from a single request,
+          with every step streamed back live.
         </p>
 
         <form onSubmit={run}>

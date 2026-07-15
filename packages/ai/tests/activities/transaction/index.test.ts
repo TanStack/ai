@@ -152,9 +152,7 @@ describe('one-shot verbs', () => {
         execute,
       }),
     })
-    const res = await txn.handler(
-      req(runAgentBody('banner', { prompt: 42 })),
-    )
+    const res = await txn.handler(req(runAgentBody('banner', { prompt: 42 })))
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('Invalid verb input')
@@ -272,14 +270,26 @@ describe('transactions (ctx.call)', () => {
   it('collects text and structured output from a chat verb sub-run', async () => {
     const drafting = chatVerb(async function* (r: any) {
       yield { type: 'RUN_STARTED', threadId: r.threadId, runId: r.runId } as any
-      yield { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hel' } as any
-      yield { type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'lo' } as any
+      yield {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        delta: 'Hel',
+      } as any
+      yield {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        delta: 'lo',
+      } as any
       yield {
         type: 'CUSTOM',
         name: 'structured-output.complete',
         value: { object: { title: 'Foxes' }, raw: '{"title":"Foxes"}' },
       } as any
-      yield { type: 'RUN_FINISHED', threadId: r.threadId, runId: r.runId } as any
+      yield {
+        type: 'RUN_FINISHED',
+        threadId: r.threadId,
+        runId: r.runId,
+      } as any
     } as any)
     const txn = defineTransaction({
       drafting,

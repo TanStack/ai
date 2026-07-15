@@ -94,7 +94,9 @@ export type VerbOptionsMap<TDef extends TransactionDefinition<any>> = {
  */
 export interface TransactionClientCallbacks {
   /** Reactive state callbacks for each chat verb's `ChatClient`. */
-  chat?: (verb: string) => Pick<
+  chat?: (
+    verb: string,
+  ) => Pick<
     ChatClientOptions,
     | 'onMessagesChange'
     | 'onLoadingChange'

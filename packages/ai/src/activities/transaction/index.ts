@@ -164,7 +164,8 @@ export function defineTransaction<const T extends TransactionConfig>(
     // members (`toString`, `constructor`, ...) that a bare `in` check would
     // otherwise treat as callable verbs.
     const declared =
-      typeof verbName === 'string' && (verbs as Array<string>).includes(verbName)
+      typeof verbName === 'string' &&
+      (verbs as Array<string>).includes(verbName)
     // `Reflect.get` returns `any`; this is a single narrowing cast.
     const target =
       declared && typeof verbName === 'string'

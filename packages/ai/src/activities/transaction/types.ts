@@ -134,10 +134,7 @@ export interface OneShotVerb<TInput = unknown, TResult = unknown> {
 }
 
 /** The options accepted by {@link verb}. */
-export interface VerbOptions<
-  TSchema extends SchemaInput | undefined,
-  TResult,
-> {
+export interface VerbOptions<TSchema extends SchemaInput | undefined, TResult> {
   /**
    * Standard Schema (Zod, ArkType, Valibot, ...) describing the input.
    * Validated at runtime before `execute`; drives the client-side input type.

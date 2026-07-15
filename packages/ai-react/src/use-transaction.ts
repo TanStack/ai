@@ -73,7 +73,10 @@ export function useTransaction<
   TDef extends TransactionDefinition<any>,
   // Capture the options object so per-verb `onResult` transforms flow into
   // each one-shot verb's `result` type.
-  TOptions extends Omit<TransactionClientOptions<TDef>, 'transaction' | 'callbacks'>,
+  TOptions extends Omit<
+    TransactionClientOptions<TDef>,
+    'transaction' | 'callbacks'
+  >,
 >(transaction: TDef, options: TOptions): TransactionSystem<TDef, TOptions> {
   const hookId = useId()
   const clientId = options.id ?? hookId
@@ -119,8 +122,10 @@ export function useTransaction<
       id: clientId,
       callbacks: {
         chat: (verb) => ({
-          onMessagesChange: (m) => setChatSlice(instance, verb, { messages: m }),
-          onLoadingChange: (v) => setChatSlice(instance, verb, { isLoading: v }),
+          onMessagesChange: (m) =>
+            setChatSlice(instance, verb, { messages: m }),
+          onLoadingChange: (v) =>
+            setChatSlice(instance, verb, { isLoading: v }),
           onErrorChange: (v) => setChatSlice(instance, verb, { error: v }),
           onStatusChange: (v) => setChatSlice(instance, verb, { status: v }),
           onSubscriptionChange: (v) =>

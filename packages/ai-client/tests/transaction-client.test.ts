@@ -212,7 +212,12 @@ describe('TransactionClient', () => {
     onChunk({
       type: 'CUSTOM',
       name: 'transaction:sub-run:started',
-      value: { runId: 'r1-sub-0', parentRunId: 'r1', verb: 'drafting', index: 0 },
+      value: {
+        runId: 'r1-sub-0',
+        parentRunId: 'r1',
+        verb: 'drafting',
+        index: 0,
+      },
     })
 
     // The structured output streams as partial JSON via TEXT_MESSAGE_CONTENT.
@@ -255,7 +260,12 @@ describe('TransactionClient', () => {
     onChunk({
       type: 'CUSTOM',
       name: 'transaction:sub-run:started',
-      value: { runId: 'r1-sub-0', parentRunId: 'r1', verb: 'support', index: 0 },
+      value: {
+        runId: 'r1-sub-0',
+        parentRunId: 'r1',
+        verb: 'support',
+        index: 0,
+      },
     })
     onChunk({
       type: 'CUSTOM',
@@ -264,7 +274,10 @@ describe('TransactionClient', () => {
         runId: 'r1-sub-0',
         verb: 'support',
         index: 0,
-        chunk: { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hello, how can I help?' },
+        chunk: {
+          type: 'TEXT_MESSAGE_CONTENT',
+          delta: 'Hello, how can I help?',
+        },
       },
     })
 

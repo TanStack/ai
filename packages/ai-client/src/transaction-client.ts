@@ -47,10 +47,7 @@ export class TransactionClient<
   TDef extends TransactionDefinition<any> = TransactionDefinition<any>,
 > {
   private readonly chats = new Map<string, ChatClient<any>>()
-  private readonly oneShots = new Map<
-    string,
-    GenerationClient<any, any, any>
-  >()
+  private readonly oneShots = new Map<string, GenerationClient<any, any, any>>()
   private readonly subRuns = new Map<string, Array<TransactionSubRun>>()
   /** Per-sub-run streamed-text-chunk counter, for batching reactive notifies. */
   private readonly subRunChunkCounts = new Map<string, number>()
