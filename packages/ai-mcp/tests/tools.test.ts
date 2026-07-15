@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import {
   callMcpTool,
   makeMcpExecute,
@@ -155,7 +156,7 @@ describe('callMcpTool', () => {
     ).resolves.toEqual({ content: [{ type: 'text', text: 'done' }] })
     expect(callToolStream).toHaveBeenCalledWith(
       { name: 'research', arguments: { query: 'x' } },
-      expect.anything(),
+      CallToolResultSchema,
       { signal: controller.signal },
     )
   })
@@ -243,7 +244,7 @@ describe('makeMcpExecute', () => {
     )
     expect(callTool).toHaveBeenCalledWith(
       { name: 'x', arguments: {} },
-      expect.anything(),
+      CallToolResultSchema,
       { signal: controller.signal },
     )
   })
