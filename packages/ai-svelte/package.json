@@ -34,8 +34,8 @@
   ],
   "scripts": {
     "clean": "rm -rf ./dist",
-    "lint:fix": "eslint ./src --fix",
-    "test:eslint": "eslint ./src",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "svelte-check",
@@ -73,6 +73,6 @@
     "svelte": "^5.20.0",
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^8.1.4"
   }
 }
