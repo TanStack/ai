@@ -12,7 +12,9 @@ import {
   type InterruptConformanceHarness,
 } from '@tanstack/ai-persistence/testkit'
 import { prismaPersistence } from '../src/index'
+import { resolveDelegates } from '../src/model-contract'
 import { createInterruptStore } from '../src/stores'
+import type { RunInterruptTransaction } from '../src/stores'
 import type { InterruptStore } from '@tanstack/ai-persistence'
 
 const clients: Array<PrismaClient> = []
@@ -130,6 +132,18 @@ async function makeSharedTestClients(): Promise<{
   return { clients: [first, second], dbPath }
 }
 
+function createTestInterruptStore(
+  prisma: PrismaClient,
+  clock: () => number,
+): InterruptStore {
+  const delegates = resolveDelegates(prisma)
+  const runTransaction: RunInterruptTransaction = (operation) =>
+    prisma.$transaction((transaction) =>
+      operation(resolveDelegates(transaction)),
+    )
+  return createInterruptStore(delegates, runTransaction, clock)
+}
+
 function withTransitionFailure(dbPath: string, interruptId: string): void {
   const database = new DatabaseSync(dbPath)
   try {
@@ -162,8 +176,8 @@ runPersistenceConformance('prisma', async () =>
 runInterruptStoreConformance(async (): Promise<InterruptConformanceHarness> => {
   let now = Date.parse('2026-07-13T10:00:00.000Z')
   const shared = await makeSharedTestClients()
-  const first = createInterruptStore(shared.clients[0], () => now)
-  const second = createInterruptStore(shared.clients[1], () => now)
+  const first = createTestInterruptStore(shared.clients[0], () => now)
+  const second = createTestInterruptStore(shared.clients[1], () => now)
   let commitCount = 0
   const store: InterruptStore = {
     create: (record) => first.create(record),
@@ -223,7 +237,7 @@ runInterruptStoreConformance(async (): Promise<InterruptConformanceHarness> => {
         datasources: { db: { url: `file:${shared.dbPath}` } },
       })
       clients.push(reopened)
-      return createInterruptStore(reopened, () => now)
+      return createTestInterruptStore(reopened, () => now)
     },
   }
 })
@@ -257,7 +271,7 @@ describe('Prisma interrupt persistence hardening', () => {
       database.close()
     }
 
-    const store = createInterruptStore(shared.clients[0], () => 2)
+    const store = createTestInterruptStore(shared.clients[0], () => 2)
     await expect(
       store.getInterruptRecoveryState({
         threadId: 'legacy-thread',
@@ -288,7 +302,7 @@ describe('Prisma interrupt persistence hardening', () => {
 
   it('rejects persisted rows whose payload ID does not match the row ID', async () => {
     const shared = await makeSharedTestClients()
-    const store = createInterruptStore(shared.clients[0], () => 1)
+    const store = createTestInterruptStore(shared.clients[0], () => 1)
     await store.create({
       interruptId: 'row-id',
       runId: 'row-run',
@@ -302,7 +316,7 @@ describe('Prisma interrupt persistence hardening', () => {
 
   it('requires replay correlation to match the stored winner exactly', async () => {
     const shared = await makeSharedTestClients()
-    const store = createInterruptStore(shared.clients[0], () => 1)
+    const store = createTestInterruptStore(shared.clients[0], () => 1)
     const opened = await store.openInterruptBatch({
       threadId: 'replay-thread',
       interruptedRunId: 'replay-run',
@@ -342,7 +356,7 @@ describe('Prisma interrupt persistence hardening', () => {
 
   it('rejects a stored batch whose generation diverges from its rows', async () => {
     const shared = await makeSharedTestClients()
-    const store = createInterruptStore(shared.clients[0], () => 1)
+    const store = createTestInterruptStore(shared.clients[0], () => 1)
     const opened = await store.openInterruptBatch({
       threadId: 'corrupt-thread',
       interruptedRunId: 'corrupt-run',

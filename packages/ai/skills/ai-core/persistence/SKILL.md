@@ -163,6 +163,15 @@ example a nullable `userId` on `messages` for thread ownership) are supported;
 the `TanstackAiSchema` type pins the required column data shapes and
 construction validates tables/columns exist (`DrizzleSchemaError`).
 
+The Prisma models in the fragment are renameable the same way (an app often
+already has a `Message` or `Run` model): rename them in your copy and map each
+store to the renamed client delegate via
+`prismaPersistence(prisma, { models: { messages: 'chatMessage' } })` — values
+are camelCase client accessor names. Keep the fragment's field names/types and
+the metadata `scope_key` composite alias; DB names are governed by
+`@@map`/`@map`, and extra app-owned optional fields are ignored by the stores.
+Unresolvable delegates throw `PrismaModelError` at construction.
+
 ## Sandboxes
 
 Place `withChatPersistence(...)` before `withSandbox(...)` to make sandbox

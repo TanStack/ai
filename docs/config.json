@@ -471,7 +471,7 @@
           "label": "Prisma",
           "to": "persistence/prisma",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-15"
         },
         {
           "label": "Drizzle",
