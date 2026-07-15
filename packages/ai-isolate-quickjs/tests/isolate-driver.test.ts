@@ -96,21 +96,46 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.value).toBe(5)
     })
 
-    it('supports multiple tools in one execution', async () => {
+    it('supports multiple sequential tool awaits and context reuse', async () => {
       const getA = makeBinding('getA', async () => 'A')
       const getB = makeBinding('getB', async () => 'B')
+      const getC = makeBinding('getC', async () => 'C')
 
       const driver = createQuickJSIsolateDriver()
       const context = await driver.createContext({
-        bindings: { getA, getB },
+        bindings: { getA, getB, getC },
       })
 
       const result = await context.execute(`
-        return (await getA({})) + (await getB({}));
+        return (await getA({})) + (await getB({})) + (await getC({}));
+      `)
+      const reuse = await context.execute('return 1 + 1')
+
+      expect(result.success).toBe(true)
+      expect(result.value).toBe('ABC')
+      expect(reuse).toMatchObject({ success: true, value: 2 })
+    })
+
+    it('preserves one active host call for Promise.all', async () => {
+      let activeCalls = 0
+      let maximumActiveCalls = 0
+      const get = makeBinding('get', async () => {
+        activeCalls += 1
+        maximumActiveCalls = Math.max(maximumActiveCalls, activeCalls)
+        await new Promise<void>((resolve) => setTimeout(resolve, 5))
+        activeCalls -= 1
+        return activeCalls
+      })
+
+      const context = await createQuickJSIsolateDriver().createContext({
+        bindings: { get },
+      })
+      const result = await context.execute(`
+        return Promise.all([get({}), get({}), get({})]);
       `)
 
       expect(result.success).toBe(true)
-      expect(result.value).toBe('AB')
+      expect(maximumActiveCalls).toBe(1)
     })
 
     it('surfaces tool execution errors', async () => {

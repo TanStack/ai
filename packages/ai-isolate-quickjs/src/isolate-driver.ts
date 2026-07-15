@@ -1,10 +1,12 @@
-import { newAsyncContext } from 'quickjs-emscripten'
+import { getQuickJS } from 'quickjs-emscripten'
 import { QuickJSIsolateContext } from './isolate-context'
 import type {
   IsolateConfig,
   IsolateContext,
   IsolateDriver,
+  ToolBinding,
 } from '@tanstack/ai-code-mode'
+import type { QuickJSContext } from 'quickjs-emscripten'
 
 /** Default memory limit in MB (matches Node isolate driver default). */
 const DEFAULT_MEMORY_LIMIT_MB = 128
@@ -32,6 +34,69 @@ export interface QuickJSIsolateDriverConfig {
    * Applied via QuickJS `runtime.setMaxStackSize`.
    */
   maxStackSize?: number
+}
+
+async function invokeBinding(
+  binding: ToolBinding,
+  argsJson: string,
+): Promise<string> {
+  try {
+    const value = await binding.execute(JSON.parse(argsJson))
+    return JSON.stringify({ success: true, value })
+  } catch (error) {
+    return JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+function injectBinding(
+  vm: QuickJSContext,
+  enqueue: (work: () => Promise<string>) => Promise<string>,
+  name: string,
+  binding: ToolBinding,
+): void {
+  const toolFn = vm.newFunction(name, (argsHandle) => {
+    const argsJson = vm.getString(argsHandle)
+    const deferred = vm.newPromise()
+
+    void enqueue(() => invokeBinding(binding, argsJson)).then((payloadJson) => {
+      if (!vm.alive || !deferred.alive) return
+
+      const payloadHandle = vm.newString(payloadJson)
+      deferred.resolve(payloadHandle)
+      payloadHandle.dispose()
+    })
+
+    void deferred.settled.then(() => {
+      if (vm.runtime.alive) {
+        vm.runtime.executePendingJobs()
+      }
+    })
+
+    return deferred.handle
+  })
+
+  vm.setProp(vm.global, `__${name}_impl`, toolFn)
+  toolFn.dispose()
+
+  const wrapperResult = vm.evalCode(`
+    async function ${name}(input) {
+      const resultJson = await __${name}_impl(JSON.stringify(input));
+      const result = JSON.parse(resultJson);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.value;
+    }
+  `)
+  if (wrapperResult.error) {
+    const errorStr = vm.dump(wrapperResult.error)
+    wrapperResult.error.dispose()
+    throw new Error(`Failed to create wrapper for ${name}: ${errorStr}`)
+  }
+  wrapperResult.value.dispose()
 }
 
 /**
@@ -82,8 +147,17 @@ export function createQuickJSIsolateDriver(
       const memoryLimitMb = isolateConfig.memoryLimit ?? defaultMemoryLimit
       const maxStackSizeBytes = defaultMaxStackSize
 
-      // Create async QuickJS context (supports async host functions)
-      const vm = await newAsyncContext()
+      const QuickJS = await getQuickJS()
+      const vm = QuickJS.newContext()
+      let toolQueue: Promise<void> = Promise.resolve()
+      const enqueue = (work: () => Promise<string>): Promise<string> => {
+        const result = toolQueue.then(work)
+        toolQueue = result.then(
+          () => undefined,
+          () => undefined,
+        )
+        return result
+      }
 
       // Enforce heap and stack limits so OOM/stack overflow surface as JS errors
       // instead of growing WASM memory until the host process OOMs.
@@ -126,57 +200,10 @@ export function createQuickJSIsolateDriver(
       infoFn.dispose()
       consoleObj.dispose()
 
-      // Inject each tool binding as an async function
+      // Return native QuickJS promises from synchronous host functions so host
+      // work does not suspend and resume the WASM stack through Asyncify.
       for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
-        // Create async function that calls back to host
-        // newAsyncifiedFunction receives QuickJS handles as arguments
-        const toolFn = vm.newAsyncifiedFunction(name, async (argsHandle) => {
-          try {
-            // Get the input argument - argsHandle is a QuickJS handle
-            const argsJson = vm.getString(argsHandle)
-            const args = JSON.parse(argsJson)
-
-            // Execute the tool on the host
-            const result = await binding.execute(args)
-
-            // Return result as JSON string handle
-            const returnHandle = vm.newString(
-              JSON.stringify({ success: true, value: result }),
-            )
-            return returnHandle
-          } catch (error) {
-            const errorMessage =
-              error instanceof Error ? error.message : String(error)
-            const returnHandle = vm.newString(
-              JSON.stringify({ success: false, error: errorMessage }),
-            )
-            return returnHandle
-          }
-        })
-
-        // Set on global - the VM keeps its own reference
-        vm.setProp(vm.global, `__${name}_impl`, toolFn)
-        toolFn.dispose()
-
-        // Create wrapper that parses input and output
-        // Function names match the binding keys (e.g., external_fetchWeather)
-        const wrapperCode = `
-          async function ${name}(input) {
-            const resultJson = await __${name}_impl(JSON.stringify(input));
-            const result = JSON.parse(resultJson);
-            if (!result.success) {
-              throw new Error(result.error);
-            }
-            return result.value;
-          }
-        `
-        const wrapperResult = vm.evalCode(wrapperCode)
-        if (wrapperResult.error) {
-          const errorStr = vm.dump(wrapperResult.error)
-          wrapperResult.error.dispose()
-          throw new Error(`Failed to create wrapper for ${name}: ${errorStr}`)
-        }
-        wrapperResult.value.dispose()
+        injectBinding(vm, enqueue, name, binding)
       }
 
       return new QuickJSIsolateContext(vm, logs, timeout)

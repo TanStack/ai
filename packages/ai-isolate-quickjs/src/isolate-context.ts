@@ -1,12 +1,10 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
 import { isFatalQuickJSLimitError, normalizeError } from './error-normalizer'
-import type { QuickJSAsyncContext } from 'quickjs-emscripten'
+import type { QuickJSContext } from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
 /**
- * Serializes all QuickJS evalCodeAsync calls across contexts.
- * Required because newAsyncContext() reuses a singleton WASM module
- * whose asyncify stack can only handle one suspension at a time.
+ * Preserves the driver's existing execution ordering across contexts.
  */
 let globalExecQueue: Promise<void> = Promise.resolve()
 
@@ -14,13 +12,13 @@ let globalExecQueue: Promise<void> = Promise.resolve()
  * IsolateContext implementation using QuickJS WASM
  */
 export class QuickJSIsolateContext implements IsolateContext {
-  private readonly vm: QuickJSAsyncContext
+  private readonly vm: QuickJSContext
   private readonly logs: Array<string>
   private readonly timeout: number
   private disposed = false
   private executing = false
 
-  constructor(vm: QuickJSAsyncContext, logs: Array<string>, timeout: number) {
+  constructor(vm: QuickJSContext, logs: Array<string>, timeout: number) {
     this.vm = vm
     this.logs = logs
     this.timeout = timeout
@@ -38,8 +36,7 @@ export class QuickJSIsolateContext implements IsolateContext {
       }
     }
 
-    // Serialize through the global queue to prevent concurrent
-    // WASM asyncify suspensions across contexts.
+    // Preserve the driver's existing cross-context execution ordering.
     let resolve!: () => void
     const myTurn = new Promise<void>((r) => {
       resolve = r
@@ -97,15 +94,13 @@ export class QuickJSIsolateContext implements IsolateContext {
       })
 
       try {
-        const result = await this.vm.evalCodeAsync(wrappedCode)
+        const result = this.vm.evalCode(wrappedCode)
 
         let parsedResult: T
         try {
           const promiseHandle = this.vm.unwrapResult(result)
 
-          // evalCodeAsync returns a Promise handle (our wrapper is an async IIFE).
-          // Use resolvePromise + executePendingJobs to properly await the
-          // QuickJS promise without re-entering the WASM asyncify state.
+          // wrapCode returns an async IIFE, so evalCode yields a QuickJS promise.
           const nativePromise = this.vm.resolvePromise(promiseHandle)
           promiseHandle.dispose()
           this.vm.runtime.executePendingJobs()
@@ -151,9 +146,8 @@ export class QuickJSIsolateContext implements IsolateContext {
   async dispose(): Promise<void> {
     if (this.disposed) return
 
-    // If an execution is in flight, wait for the global queue to drain
-    // before disposing the VM. Otherwise the asyncified callback would
-    // try to access a freed context.
+    // If an execution is in flight, wait for the global queue to drain so
+    // pending host callbacks cannot access a disposed context.
     if (this.executing) {
       await globalExecQueue
     }
