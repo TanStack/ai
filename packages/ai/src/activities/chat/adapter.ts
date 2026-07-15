@@ -44,6 +44,10 @@ export interface StructuredOutputResult<T = unknown> {
   rawText: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Provider generation identifier, when reported by the adapter. */
+  generationId?: string
+  /** Provider that served the generation, when reported by the adapter. */
+  provider?: string
 }
 
 /**

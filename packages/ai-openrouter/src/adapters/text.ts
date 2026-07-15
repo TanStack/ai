@@ -13,6 +13,7 @@ import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
+import { extractServedProvider } from './metadata'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
@@ -276,6 +277,7 @@ export class OpenRouterTextAdapter<
       // discriminate "field present but null" from "field absent" rely on
       // this).
       const transformed = this.transformStructuredOutput(parsed)
+      const provider = extractServedProvider(response)
 
       // Forward provider usage (tokens + OpenRouter cost) so middleware
       // onFinish/onUsage and fallbackStructuredOutputStream see real cost.
@@ -287,6 +289,8 @@ export class OpenRouterTextAdapter<
         ...(baseUsage && {
           usage: { ...baseUsage, ...extractUsageCost(response.usage) },
         }),
+        generationId: response.id,
+        ...(provider && { provider }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -339,6 +343,8 @@ export class OpenRouterTextAdapter<
     let stepId: string | undefined
     let lastModel: string | undefined
     let lastUsage: ChatStreamChunk['usage'] | undefined
+    let lastId: string | undefined
+    let lastProvider: string | undefined
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -416,6 +422,9 @@ export class OpenRouterTextAdapter<
 
         if (chunk.model) lastModel = chunk.model
         if (chunk.usage) lastUsage = chunk.usage
+        if (chunk.id) lastId = chunk.id
+        const provider = extractServedProvider(chunk)
+        if (provider) lastProvider = provider
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -569,6 +578,8 @@ export class OpenRouterTextAdapter<
         ...(finalUsage && {
           usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
+        ...(lastId && { generationId: lastId }),
+        ...(lastProvider && { provider: lastProvider }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -700,6 +711,8 @@ export class OpenRouterTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatStreamChunk['usage'] | undefined
+    let lastId: string | undefined
+    let lastProvider: string | undefined
     let pendingFinishReason: ChatStreamChoice['finishReason'] | undefined
 
     // Track tool calls being streamed (arguments come in chunks).
@@ -761,6 +774,13 @@ export class OpenRouterTextAdapter<
         }
         if (chunk.model) {
           lastModel = chunk.model
+        }
+        if (chunk.id) {
+          lastId = chunk.id
+        }
+        const provider = extractServedProvider(chunk)
+        if (provider) {
+          lastProvider = provider
         }
 
         // Emit RUN_STARTED on the first chunk of any kind so callers see a
@@ -1132,6 +1152,8 @@ export class OpenRouterTextAdapter<
           ...(finalUsage && {
             usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
+          ...(lastId && { generationId: lastId }),
+          ...(lastProvider && { provider: lastProvider }),
           finishReason,
         }
       }
