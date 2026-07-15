@@ -29,9 +29,9 @@
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
     },
-    "./transaction": {
-      "types": "./dist/esm/transaction.d.ts",
-      "import": "./dist/esm/transaction.js"
+    "./plugin": {
+      "types": "./dist/esm/plugin.d.ts",
+      "import": "./dist/esm/plugin.js"
     }
   },
   "files": [
