@@ -242,7 +242,7 @@ Tools passed to `chat({ tools: [...] })` inside a chat plugin's callback
 automatically type that plugin's `messages` tool-call/result parts — with
 **no** client-side re-declaration needed for typing. Per-plugin client
 options sit as flat top-level keys on the options object (alongside
-`connection`/`id`/`threadId`), *not* nested under a `plugins`/`verbs` map —
+`connection`/`id`/`threadId`), _not_ nested under a `plugins`/`verbs` map —
 this is what lets `usePlugin` avoid a second generic:
 
 ```typescript
@@ -290,14 +290,14 @@ input contract and result type pre-bound to the corresponding media
 activity, so `plugin.<name>.run(input)` is fully typed end to end without you
 writing a Zod schema.
 
-| Factory                 | `req.input` shape (all fields on the object)                                            | Result type              |
-| ------------------------ | ---------------------------------------------------------------------------------------- | ------------------------- |
-| `imagePlugin`            | `{ prompt, numberOfImages?, size?, modelOptions? }`                                       | `ImageGenerationResult`   |
-| `videoPlugin`            | `{ prompt, size?, duration?, modelOptions? }`                                             | `VideoJobResult`          |
-| `audioPlugin`            | `{ prompt, duration?, modelOptions? }`                                                    | `AudioGenerationResult`   |
-| `speechPlugin`           | `{ text, voice?, format?, speed?, modelOptions? }`                                        | `TTSResult`               |
-| `transcriptionPlugin`    | `{ audio, language?, prompt?, responseFormat?, modelOptions? }` (`audio` = base64 string) | `TranscriptionResult`     |
-| `summarizePlugin`        | `{ text, maxLength?, style?, focus?, modelOptions? }`                                     | `SummarizationResult`     |
+| Factory               | `req.input` shape (all fields on the object)                                              | Result type             |
+| --------------------- | ----------------------------------------------------------------------------------------- | ----------------------- |
+| `imagePlugin`         | `{ prompt, numberOfImages?, size?, modelOptions? }`                                       | `ImageGenerationResult` |
+| `videoPlugin`         | `{ prompt, size?, duration?, modelOptions? }`                                             | `VideoJobResult`        |
+| `audioPlugin`         | `{ prompt, duration?, modelOptions? }`                                                    | `AudioGenerationResult` |
+| `speechPlugin`        | `{ text, voice?, format?, speed?, modelOptions? }`                                        | `TTSResult`             |
+| `transcriptionPlugin` | `{ audio, language?, prompt?, responseFormat?, modelOptions? }` (`audio` = base64 string) | `TranscriptionResult`   |
+| `summarizePlugin`     | `{ text, maxLength?, style?, focus?, modelOptions? }`                                     | `SummarizationResult`   |
 
 ```typescript
 import { transcriptionPlugin } from '@tanstack/ai/plugin'

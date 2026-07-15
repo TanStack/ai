@@ -308,14 +308,12 @@ export function usePlugin<
         // PluginSystem type hides them when the chat plugin's outputSchema
         // is absent, matching useChat's behavior.
         get partial() {
-          return computeStructuredParts(
-            chatState()[pluginName]?.messages ?? [],
-          ).partial
+          return computeStructuredParts(chatState()[pluginName]?.messages ?? [])
+            .partial
         },
         get final() {
-          return computeStructuredParts(
-            chatState()[pluginName]?.messages ?? [],
-          ).final
+          return computeStructuredParts(chatState()[pluginName]?.messages ?? [])
+            .final
         },
         sendMessage: async (content: string | MultimodalContent) => {
           const chatClient = requireChatClient(pluginName)

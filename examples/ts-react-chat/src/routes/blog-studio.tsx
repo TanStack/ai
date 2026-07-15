@@ -75,7 +75,8 @@ function BlogStudio() {
   const audioSrc = audioSrcOf(narration.result)
 
   // Any leg of the pipeline in flight.
-  const isRunning = drafting.isLoading || heroImage.isLoading || narration.isLoading
+  const isRunning =
+    drafting.isLoading || heroImage.isLoading || narration.isLoading
 
   // Prefer the finished post; fall back to the live streaming draft.
   const shownTitle = post?.title ?? partial.title

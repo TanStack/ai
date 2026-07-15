@@ -56,7 +56,11 @@ function mediaSchema<T>(
         const record = value as Record<string, unknown>
         for (const key of required) {
           if (record[key] === undefined) {
-            return { issues: [{ message: `Missing required field: ${key}`, path: [key] }] }
+            return {
+              issues: [
+                { message: `Missing required field: ${key}`, path: [key] },
+              ],
+            }
           }
         }
         return { value: value as T }

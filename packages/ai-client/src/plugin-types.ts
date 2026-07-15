@@ -50,7 +50,8 @@ export interface GenerationPluginClientOptions<TResult> {
 
 /** Maps each declared plugin name to its per-plugin client options shape. */
 export type PluginOptionsMap<TDef extends PluginDefinition<any>> = {
-  [K in keyof TDef['~plugins'] & string]?: TDef['~plugins'][K] extends ChatPlugin<any>
+  [K in keyof TDef['~plugins'] &
+    string]?: TDef['~plugins'][K] extends ChatPlugin<any>
     ? ChatPluginOptions
     : TDef['~plugins'][K] extends GenerationPlugin<any, infer TRes>
       ? GenerationPluginClientOptions<TRes>
@@ -79,7 +80,9 @@ export interface PluginClientCallbacks {
     | 'onSessionGeneratingChange'
   >
   /** Reactive state callbacks for each generation plugin's `GenerationClient`. */
-  oneShot?: (plugin: string) => Pick<
+  oneShot?: (
+    plugin: string,
+  ) => Pick<
     GenerationClientOptions<any, any, any>,
     'onResultChange' | 'onLoadingChange' | 'onErrorChange' | 'onStatusChange'
   >
