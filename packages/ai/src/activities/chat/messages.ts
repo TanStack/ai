@@ -444,12 +444,21 @@ export function modelMessageToUIMessage(
   // Handle tool calls
   if (modelMessage.toolCalls && modelMessage.toolCalls.length > 0) {
     for (const toolCall of modelMessage.toolCalls) {
+      // Model-message arguments are complete, so surface the parsed input.
+      // A malformed arguments string just leaves `input` undefined.
+      let input: unknown
+      try {
+        input = JSON.parse(toolCall.function.arguments)
+      } catch {
+        input = undefined
+      }
       parts.push({
         type: 'tool-call',
         id: toolCall.id,
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(input !== undefined && { input }),
         ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
       })
     }

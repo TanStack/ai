@@ -16,6 +16,7 @@ import { createChatClientOptions } from '../src/types'
 import type {
   ChatClientOptions,
   InferChatMessages,
+  ToolCallPart,
   UIMessage,
 } from '../src/types'
 
@@ -229,5 +230,80 @@ describe('InferChatMessages — untyped fallback', () => {
         }
       }
     }
+  })
+})
+
+// ===========================
+// Approval gating: `approval` present only for needsApproval tools
+// ===========================
+
+const approvalTool = toolDefinition({
+  name: 'deleteAccount',
+  description: 'Delete the account (needs approval)',
+  inputSchema: z.object({ accountId: z.string() }),
+  outputSchema: z.object({ deleted: z.boolean() }),
+  needsApproval: true,
+}).client(() => ({ deleted: true }))
+
+describe('InferChatMessages — approval gating', () => {
+  it('exposes `approval` only on tools declared with `needsApproval: true`', () => {
+    const options = createChatClientOptions({
+      connection: stubConnection,
+      tools: [guitarTool, approvalTool] as const,
+    })
+
+    type Messages = InferChatMessages<typeof options>
+    const messages = [] as Messages
+    const message = messages[0]
+
+    if (message?.role === 'assistant') {
+      for (const part of message.parts) {
+        if (part.type === 'tool-call') {
+          if (part.name === 'deleteAccount') {
+            // Approval tool → `approval` metadata is accessible + typed.
+            expectTypeOf(part.approval).toMatchTypeOf<
+              | { id: string; needsApproval: boolean; approved?: boolean }
+              | undefined
+            >()
+          }
+          if (part.name === 'getGuitar') {
+            // Non-approval tool → the `approval` field does not exist on the
+            // part. This @ts-expect-error is the bidirectional guard: if the
+            // gate regressed and `approval` reappeared, this directive would
+            // become unused and fail the type-check.
+            // @ts-expect-error - `approval` is gated behind `needsApproval: true`
+            void part.approval
+          }
+        }
+      }
+    }
+  })
+
+  // Escape hatch 1: a GENERIC approval handler over a typed, mixed tool union.
+  // Blindly reading `part.approval` off the union is a compile error, but an
+  // `'approval' in part` guard narrows to the approval-bearing members.
+  it('supports a generic handler via `in` narrowing on the typed union', () => {
+    const options = createChatClientOptions({
+      connection: stubConnection,
+      tools: [guitarTool, approvalTool] as const,
+    })
+    const messages = [] as InferChatMessages<typeof options>
+    const message = messages[0]
+
+    if (message?.role === 'assistant') {
+      for (const part of message.parts) {
+        if (part.type === 'tool-call' && 'approval' in part && part.approval) {
+          expectTypeOf(part.approval.id).toEqualTypeOf<string>()
+        }
+      }
+    }
+  })
+
+  // Escape hatch 2: type the reusable handler against the base `ToolCallPart`
+  // (default/untyped), which always carries `approval?` — so a shared approval
+  // component works across every tool regardless of the caller's tool union.
+  it('supports a generic handler typed against the base ToolCallPart', () => {
+    const handleApproval = (part: ToolCallPart) => part.approval?.id
+    expectTypeOf(handleApproval).returns.toEqualTypeOf<string | undefined>()
   })
 })

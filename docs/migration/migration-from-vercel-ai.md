@@ -612,7 +612,6 @@ const { messages, addToolOutput } = useChat({
 
 ```typescript
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { toast } from './toast'
@@ -631,12 +630,13 @@ const showNotification = showNotificationDef.client(({ message }) => {
   return { success: true }
 })
 
-// Use in component — `clientTools()` wires each client tool's `.client(...)`
-// handler to run automatically when the server-side agent calls it; you don't
-// need an onToolCall handler or an addToolOutput/addToolResult call.
+// Use in component — passing the client tools in the `tools` array wires each
+// tool's `.client(...)` handler to run automatically when the server-side
+// agent calls it; you don't need an onToolCall handler or an
+// addToolOutput/addToolResult call.
 const { messages } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  tools: clientTools(showNotification),
+  tools: [showNotification],
 })
 ```
 
@@ -710,7 +710,7 @@ const { messages, addToolApprovalResponse } = useChat({
 })}
 ```
 
-> `part.input` is the **parsed** tool input (typed when your tools are typed via `clientTools()` + `InferChatMessages`). The raw streaming JSON is available as `part.arguments` if you need to show progress before input parsing completes.
+> `part.input` is the **parsed** tool input (typed when you pass a typed `tools` array). The raw streaming JSON is available as `part.arguments` if you need to show progress before input parsing completes.
 
 ## Structured Output
 
@@ -1342,11 +1342,11 @@ TanStack AI provides enhanced type safety that Vercel AI SDK doesn't offer:
 ### Typed Message Parts
 
 ```typescript
-import { createChatClientOptions, clientTools, type InferChatMessages } from '@tanstack/ai-client'
+import { createChatClientOptions, type InferChatMessages } from '@tanstack/ai-client'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { updateUI, saveData } from './tools'
 
-const tools = clientTools(updateUI, saveData)
+const tools = [updateUI, saveData]
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),

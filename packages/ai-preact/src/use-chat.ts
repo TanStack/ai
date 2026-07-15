@@ -23,7 +23,7 @@ import type {
 } from './types'
 
 export function useChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
 >(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()

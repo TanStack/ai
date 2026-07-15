@@ -73,7 +73,8 @@
         {
           "label": "Tools",
           "to": "tools/tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Provider Tools",
@@ -89,7 +90,8 @@
         {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Server Tools",
@@ -99,12 +101,14 @@
         {
           "label": "Client Tools",
           "to": "tools/client-tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -213,7 +217,8 @@
         {
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-07-08"
         }
       ]
     },
@@ -396,7 +401,7 @@
           "label": "Observability",
           "to": "sandbox/observability",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Cloudflare (Edge)",
@@ -411,7 +416,8 @@
         {
           "label": "Runtime Context",
           "to": "advanced/runtime-context",
-          "addedAt": "2026-06-01"
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Debug Logging",
@@ -468,7 +474,8 @@
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
-          "addedAt": "2026-05-16"
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Sampling → modelOptions",
@@ -488,37 +495,44 @@
         {
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
-          "addedAt": "2026-06-15"
+          "addedAt": "2026-06-15",
+          "updatedAt": "2026-07-08"
         }
       ]
     },

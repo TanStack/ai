@@ -9,10 +9,10 @@ import { COMMAND_R_7b_MODELS } from './meta/model-meta-command-r7b'
 import { DEEPSEEK_CODER_V2_MODELS } from './meta/model-meta-deepseek-coder-v2'
 import { DEEPSEEK_OCR_MODELS } from './meta/model-meta-deepseek-ocr'
 import { DEEPSEEK_R1_MODELS } from './meta/model-meta-deepseek-r1'
-import { DEEPSEEK_V3_1_MODELS } from './meta/model-meta-deepseek-v3.1'
+import { DEEPSEEK_V3_1_MODELS } from './meta/model-meta-deepseek-v3.1.js'
 import { DEVSTRAL_MODELS } from './meta/model-meta-devstral'
 import { DOLPHIN3_MODELS } from './meta/model-meta-dolphin3'
-import { EXAONE3_5MODELS } from './meta/model-meta-exaone3.5'
+import { EXAONE3_5MODELS } from './meta/model-meta-exaone3.5.js'
 import { FALCON2_MODELS } from './meta/model-meta-falcon2'
 import { FALCON3_MODELS } from './meta/model-meta-falcon3'
 import { FIREFUNCTION_V2_MODELS } from './meta/model-meta-firefunction-v2'
@@ -23,17 +23,17 @@ import { GPT_OSS_MODELS } from './meta/model-meta-gpt-oss'
 import { GRANITE3_DENSE_MODELS } from './meta/model-meta-granite3-dense'
 import { GRANITE3_GUARDIAN_MODELS } from './meta/model-meta-granite3-guardian'
 import { GRANITE3_MOE_MODELS } from './meta/model-meta-granite3-moe'
-import { GRANITE3_1_DENSE_MODELS } from './meta/model-meta-granite3.1-dense'
-import { GRANITE3_1_MOE_MODELS } from './meta/model-meta-granite3.1-moe'
+import { GRANITE3_1_DENSE_MODELS } from './meta/model-meta-granite3.1-dense.js'
+import { GRANITE3_1_MOE_MODELS } from './meta/model-meta-granite3.1-moe.js'
 import { LLAMA_GUARD3_MODELS } from './meta/model-meta-llama-guard3'
 import { LLAMA2_MODELS } from './meta/model-meta-llama2'
 import { LLAMA3_MODELS } from './meta/model-meta-llama3'
 import { LLAMA3_CHATQA_MODELS } from './meta/model-meta-llama3-chatqa'
 import { LLAMA3_GRADIENT_MODELS } from './meta/model-meta-llama3-gradient'
-import { LLAMA3_1_MODELS } from './meta/model-meta-llama3.1'
-import { LLAMA3_2_MODELS } from './meta/model-meta-llama3.2'
-import { LLAMA3_2_VISION_MODELS } from './meta/model-meta-llama3.2-vision'
-import { LLAMA3_3_MODELS } from './meta/model-meta-llama3.3'
+import { LLAMA3_1_MODELS } from './meta/model-meta-llama3.1.js'
+import { LLAMA3_2_MODELS } from './meta/model-meta-llama3.2.js'
+import { LLAMA3_2_VISION_MODELS } from './meta/model-meta-llama3.2-vision.js'
+import { LLAMA3_3_MODELS } from './meta/model-meta-llama3.3.js'
 import { LLAMA4_MODELS } from './meta/model-meta-llama4'
 import { LLAVA_MODELS } from './meta/model-meta-llava'
 import { LLAVA_LLAMA3_MODELS } from './meta/model-meta-llava-llama3'
@@ -54,8 +54,8 @@ import { PHI3_MODELS } from './meta/model-meta-phi3'
 import { PHI4_MODELS } from './meta/model-meta-phi4'
 import { QWEN_MODELS } from './meta/model-meta-qwen'
 import { QWEN2_MODELS } from './meta/model-meta-qwen2'
-import { QWEN2_5_MODELS } from './meta/model-meta-qwen2.5'
-import { QWEN2_5_CODER_MODELS } from './meta/model-meta-qwen2.5-coder'
+import { QWEN2_5_MODELS } from './meta/model-meta-qwen2.5.js'
+import { QWEN2_5_CODER_MODELS } from './meta/model-meta-qwen2.5-coder.js'
 import { QWEN3_MODELS } from './meta/model-meta-qwen3'
 import { QWQ_MODELS } from './meta/model-meta-qwq'
 import { SAILOR2_MODELS } from './meta/model-meta-sailor2'
@@ -109,7 +109,7 @@ import type {
 import type {
   Deepseekv3_1ChatModelProviderOptionsByName,
   Deepseekv3_1ModelInputModalitiesByName,
-} from './meta/model-meta-deepseek-v3.1'
+} from './meta/model-meta-deepseek-v3.1.js'
 import type {
   DevstralChatModelProviderOptionsByName,
   DevstralModelInputModalitiesByName,
@@ -121,7 +121,7 @@ import type {
 import type {
   Exaone3_5ChatModelProviderOptionsByName,
   Exaone3_5ModelInputModalitiesByName,
-} from './meta/model-meta-exaone3.5'
+} from './meta/model-meta-exaone3.5.js'
 import type {
   Falcon2ChatModelProviderOptionsByName,
   Falcon2ModelInputModalitiesByName,
@@ -165,11 +165,11 @@ import type {
 import type {
   Granite3_1DenseChatModelProviderOptionsByName,
   Granite3_1DenseModelInputModalitiesByName,
-} from './meta/model-meta-granite3.1-dense'
+} from './meta/model-meta-granite3.1-dense.js'
 import type {
   Granite3_1MoeChatModelProviderOptionsByName,
   Granite3_1MoeModelInputModalitiesByName,
-} from './meta/model-meta-granite3.1-moe'
+} from './meta/model-meta-granite3.1-moe.js'
 import type {
   LlamaGuard3ChatModelProviderOptionsByName,
   LlamaGuard3ModelInputModalitiesByName,
@@ -193,19 +193,19 @@ import type {
 import type {
   Llama3_1ChatModelProviderOptionsByName,
   Llama3_1ModelInputModalitiesByName,
-} from './meta/model-meta-llama3.1'
+} from './meta/model-meta-llama3.1.js'
 import type {
   Llama3_2ChatModelProviderOptionsByName,
   Llama3_2ModelInputModalitiesByName,
-} from './meta/model-meta-llama3.2'
+} from './meta/model-meta-llama3.2.js'
 import type {
   Llama3_2VisionChatModelProviderOptionsByName,
   Llama3_2VisionModelInputModalitiesByName,
-} from './meta/model-meta-llama3.2-vision'
+} from './meta/model-meta-llama3.2-vision.js'
 import type {
   Llama3_3ChatModelProviderOptionsByName,
   Llama3_3ModelInputModalitiesByName,
-} from './meta/model-meta-llama3.3'
+} from './meta/model-meta-llama3.3.js'
 import type {
   Llama4ChatModelProviderOptionsByName,
   Llama4ModelInputModalitiesByName,
@@ -289,11 +289,11 @@ import type {
 import type {
   Qwen2_5ChatModelProviderOptionsByName,
   Qwen2_5ModelInputModalitiesByName,
-} from './meta/model-meta-qwen2.5'
+} from './meta/model-meta-qwen2.5.js'
 import type {
   Qwen2_5CoderChatModelProviderOptionsByName,
   Qwen2_5CoderModelInputModalitiesByName,
-} from './meta/model-meta-qwen2.5-coder'
+} from './meta/model-meta-qwen2.5-coder.js'
 import type {
   Qwen3ChatModelProviderOptionsByName,
   Qwen3ModelInputModalitiesByName,
