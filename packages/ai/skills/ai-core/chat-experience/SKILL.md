@@ -620,7 +620,7 @@ If not handled, the UI appears to hang with no feedback.
 - See also: **ai-core/tool-calling/SKILL.md** -- Most chats include tools
 - See also: **ai-core/adapter-configuration/SKILL.md** -- Adapter choice affects available features
 - See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events
-- See also: **ai-core/assistant/SKILL.md** -- To compose chat with other
-  capabilities (image/audio/speech/video/transcription/summarize) behind a
-  single `defineAssistant` handler + `useAssistant` hook instead of wiring up
-  `chat()` and `useChat` alone
+- See also: **ai-core/transaction/SKILL.md** -- To compose chat with other
+  app-defined verbs (image generation, narration, server-composed pipelines)
+  behind a single `defineTransaction` handler + `useTransaction` hook instead
+  of wiring up `chat()` and `useChat` alone

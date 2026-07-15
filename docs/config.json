@@ -309,25 +309,22 @@
       ]
     },
     {
-      "label": "Assistant",
+      "label": "Transaction",
       "children": [
         {
           "label": "Overview",
-          "to": "assistant/overview",
-          "addedAt": "2026-07-13",
-          "updatedAt": "2026-07-14"
+          "to": "transaction/overview",
+          "addedAt": "2026-07-14"
+        },
+        {
+          "label": "Transactions",
+          "to": "transaction/transactions",
+          "addedAt": "2026-07-14"
         },
         {
           "label": "Scenarios",
-          "to": "assistant/scenarios",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-14"
-        },
-        {
-          "label": "Multiple Assistants",
-          "to": "assistant/multiple-assistants",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-14"
+          "to": "transaction/scenarios",
+          "addedAt": "2026-07-14"
         }
       ]
     },

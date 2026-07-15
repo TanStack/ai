@@ -29,9 +29,9 @@
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
     },
-    "./assistant": {
-      "types": "./dist/esm/assistant.d.ts",
-      "import": "./dist/esm/assistant.js"
+    "./transaction": {
+      "types": "./dist/esm/transaction.d.ts",
+      "import": "./dist/esm/transaction.js"
     }
   },
   "files": [
@@ -85,6 +85,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
     "react": "^19.2.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
   }
 }

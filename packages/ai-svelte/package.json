@@ -27,10 +27,10 @@
       "svelte": "./dist/index.js",
       "import": "./dist/index.js"
     },
-    "./assistant": {
-      "types": "./dist/assistant.d.ts",
-      "svelte": "./dist/assistant.js",
-      "import": "./dist/assistant.js"
+    "./transaction": {
+      "types": "./dist/transaction.d.ts",
+      "svelte": "./dist/transaction.js",
+      "import": "./dist/transaction.js"
     }
   },
   "files": [
@@ -78,6 +78,7 @@
     "svelte": "^5.20.0",
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
   }
 }

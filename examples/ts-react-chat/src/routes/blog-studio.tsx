@@ -1,10 +1,11 @@
 import type { FormEvent, ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
-import { defineAssistant } from '@tanstack/ai/assistant'
+import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { useAssistant } from '@tanstack/ai-react/assistant'
+import { useTransaction } from '@tanstack/ai-react/transaction'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -15,35 +16,71 @@ import {
   Newspaper,
   PenLine,
   Sparkles,
+  Square,
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { BlogPostSchema } from './api.blog-studio'
+import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
+import { BlogPostSchema, forNarration, heroPromptFor } from './api.blog-studio'
 
-// Client-side assistant definition. `defineAssistant` is INERT in the browser
-// — these callbacks never run; `useAssistant` only reads the declared
-// capability names and their return types off this value to build the fully
-// typed client. Every request is sent to the `/api/blog-studio` route, which
-// owns the real callbacks. Mirroring the three capabilities (and the chat
-// `outputSchema`) here keeps the client types in sync with the server.
+// Client-side transaction definition. `defineTransaction` is INERT in the
+// browser — these callbacks never run; `useTransaction` only reads the
+// declared verb names/kinds and their input/result types off this value to
+// build the fully typed client. Every request is sent to the
+// `/api/blog-studio` route, which owns the real callbacks. Mirroring the four
+// verbs (and the drafting `outputSchema`) here keeps the client types in sync
+// with the server.
 //
 // Single-provider openai adapters are used directly (not the multi-provider
 // factories) so the browser bundle doesn't pull in every provider SDK.
-const blogAssistant = defineAssistant({
-  chat: (req) =>
-    chat({
-      adapter: openaiText('gpt-5.5'),
-      messages: req.messages,
-      outputSchema: BlogPostSchema,
-      stream: true,
-    }),
-  image: (req) =>
+const drafting = chatVerb((req) =>
+  chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: req.messages,
+    outputSchema: BlogPostSchema,
+    stream: true,
+  }),
+)
+
+const heroImage = verb({
+  input: z.object({ prompt: z.string() }),
+  execute: ({ input }) =>
     generateImage({
       adapter: openaiImage('gpt-image-2'),
-      prompt: typeof req.prompt === 'string' ? req.prompt : '',
+      prompt: input.prompt,
     }),
-  speech: (req) =>
-    generateSpeech({ adapter: openaiSpeech('tts-1'), text: req.text }),
+})
+
+const narration = verb({
+  input: z.object({ text: z.string() }),
+  execute: ({ input }) =>
+    generateSpeech({ adapter: openaiSpeech('tts-1'), text: input.text }),
+})
+
+const blogTransaction = defineTransaction({
+  drafting,
+  heroImage,
+  narration,
+  // Mirrors the server's composition so `txn.blogPost.result` is typed as
+  // `{ post, hero, audio }` — the body never executes in the browser.
+  blogPost: verb({
+    input: z.object({ topic: z.string() }),
+    execute: async ({ input }, ctx) => {
+      const draft = await ctx.call(drafting, [
+        { role: 'user', content: `Write a blog post about: ${input.topic}` },
+      ])
+      const parsed = BlogPostSchema.safeParse(draft.structured)
+      if (!parsed.success) {
+        throw new Error('Drafting did not produce a valid blog post')
+      }
+      const post = parsed.data
+      const [hero, audio] = await Promise.all([
+        ctx.call(heroImage, { prompt: heroPromptFor(post) }),
+        ctx.call(narration, { text: forNarration(post.body) }),
+      ])
+      return { post, hero, audio }
+    },
+  }),
 })
 
 export const Route = createFileRoute('/blog-studio')({
@@ -52,11 +89,12 @@ export const Route = createFileRoute('/blog-studio')({
 
 type StepState = 'pending' | 'active' | 'done' | 'failed'
 
-// The one-shot generation status maps directly onto a step state.
-function statusToStep(
-  status: 'idle' | 'generating' | 'success' | 'error',
+// Map a live sub-run's status onto a step state. `undefined` means the
+// server hasn't started that sub-run yet.
+function subRunToStep(
+  status: 'running' | 'success' | 'error' | undefined,
 ): StepState {
-  return status === 'generating'
+  return status === 'running'
     ? 'active'
     : status === 'success'
       ? 'done'
@@ -65,100 +103,84 @@ function statusToStep(
         : 'pending'
 }
 
-// Prepare the post body for narration: strip Markdown so TTS doesn't read the
-// syntax aloud, and cap the length at a sentence boundary (OpenAI TTS rejects
-// input over 4096 characters, and long posts easily exceed it).
-function forNarration(markdown: string, max = 4000): string {
-  const plain = markdown
-    .replace(/^#{1,6}\s+/gm, '') // headings
-    .replace(/^\s*[-*+]\s+/gm, '') // list bullets
-    .replace(/^\s*>\s?/gm, '') // blockquotes
-    .replace(/\*\*(.*?)\*\*/g, '$1') // bold
-    .replace(/\*(.*?)\*/g, '$1') // italic
-    .replace(/`([^`]+)`/g, '$1') // inline code
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links → link text
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  if (plain.length <= max) return plain
-  const clipped = plain.slice(0, max)
-  const boundary = Math.max(
-    clipped.lastIndexOf('. '),
-    clipped.lastIndexOf('\n'),
+// The image result carries either a URL or base64 data, provider-dependent.
+function imageUrlOf(result: ImageGenerationResult | null): string | null {
+  const image = result?.images[0]
+  if (!image) return null
+  return (
+    image.url ??
+    (image.b64Json ? `data:image/png;base64,${image.b64Json}` : null)
   )
-  return (boundary > max / 2 ? clipped.slice(0, boundary + 1) : clipped).trim()
+}
+
+// The TTS result is base64 audio + a content type → a ready-to-play data URL.
+function audioSrcOf(result: TTSResult | null): string | null {
+  if (!result) return null
+  return `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`
 }
 
 function BlogStudio() {
-  const assistant = useAssistant(blogAssistant, {
+  const txn = useTransaction(blogTransaction, {
     connection: fetchServerSentEvents('/api/blog-studio'),
-    // Transform the raw TTS result into a ready-to-play data URL at the hook.
-    // `result` is typed as the raw `TTSResult`; `assistant.speech.result`
-    // becomes `{ src: string } | null` — no component state, no cleanup.
-    speech: {
-      onResult: (result) => ({
-        src: `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`,
-      }),
-    },
   })
 
-  // Everything below is derived from the assistant's reactive state — no
-  // useState / useEffect. The chat carries loading/partial/final; each one-shot
-  // carries result/status/error.
-  const { chat: post, image, speech } = assistant
-  const draft = post.partial
-  const finished = post.final
-  const title = finished?.title ?? draft.title
-  const subtitle = finished?.subtitle ?? draft.subtitle
-  const body = finished?.body ?? draft.body ?? ''
+  // Everything below is derived from the transaction's reactive state — no
+  // useState / useEffect. `blogPost` is the one-click transaction; `heroImage`
+  // and `narration` are the same verbs, driven directly by the user for
+  // regeneration.
+  const { blogPost } = txn
+  const heroRerun = txn.heroImage
+  const narrationRerun = txn.narration
 
-  const heroImage = image.result?.images[0]
-  const imageUrl =
-    heroImage?.url ??
-    (heroImage?.b64Json ? `data:image/png;base64,${heroImage.b64Json}` : null)
-  // `speech.result` is the `onResult` transform's output — `{ src } | null`.
-  const audioSrc = speech.result?.src ?? null
+  const post = blogPost.result?.post ?? null
+  // Prefer an individually regenerated hero / narration over the one the
+  // transaction produced.
+  const imageUrl = imageUrlOf(heroRerun.result ?? blogPost.result?.hero ?? null)
+  const audioSrc = audioSrcOf(
+    narrationRerun.result ?? blogPost.result?.audio ?? null,
+  )
 
-  const isRunning = post.isLoading || image.isLoading || speech.isLoading
-  const hasRun = post.messages.length > 0 || isRunning
-  const writingStep: StepState = post.error
-    ? 'failed'
-    : post.isLoading
-      ? 'active'
-      : hasRun
-        ? 'done'
-        : 'pending'
-  const showArticle = Boolean(finished) || Boolean(title) || Boolean(body)
+  // Live sub-run state, demultiplexed from the single SSE response: one entry
+  // per `ctx.call` the server made, keyed by verb name.
+  const subRuns = blogPost.subRuns
+  const draftingRun = subRuns.find((run) => run.verb === 'drafting')
+  const heroRun = subRuns.find((run) => run.verb === 'heroImage')
+  const narrationRun = subRuns.find((run) => run.verb === 'narration')
 
-  async function run(e: FormEvent<HTMLFormElement>) {
+  const isRunning = blogPost.isLoading
+  const hasRun = blogPost.status !== 'idle'
+
+  // While drafting streams, its `text` is partial JSON (the structured
+  // output in flight) — don't render it; show progress by length instead.
+  const draftedChars = draftingRun?.text.length ?? 0
+  const writingStep = subRunToStep(draftingRun?.status)
+
+  const heroBusy = heroRerun.isLoading || heroRun?.status === 'running'
+  const heroFailed = heroRerun.status === 'error' || heroRun?.status === 'error'
+  const narrationBusy =
+    narrationRerun.isLoading || narrationRun?.status === 'running'
+  const narrationFailed =
+    narrationRerun.status === 'error' || narrationRun?.status === 'error'
+
+  function run(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const topic = String(
       new FormData(e.currentTarget).get('topic') ?? '',
     ).trim()
     if (!topic || isRunning) return
 
-    // Reset the surfaces so a re-run starts clean (clears prior draft/results).
-    post.clear()
-    image.reset()
-    speech.reset()
+    // Reset the surfaces so a re-run starts clean: the previous post, and any
+    // individually regenerated hero/narration that would shadow the new
+    // transaction's results.
+    blogPost.reset()
+    heroRerun.reset()
+    narrationRerun.reset()
 
-    // 1. Draft the post. `sendMessage` resolves to the schema-validated result;
-    //    re-validate before chaining so a failed run doesn't proceed with a
-    //    half-finished draft.
-    const parsed = BlogPostSchema.safeParse(
-      await post.sendMessage(`Write a blog post about: ${topic}`),
-    )
-    if (!parsed.success) return
-    const draftedPost = parsed.data
-
-    // 2. Illustrate and narrate in parallel — fire and forget; the surfaces'
-    //    reactive result/status/error drive the UI. `generate()` never rejects.
-    void image.generate({
-      prompt:
-        `A striking editorial hero image for a blog post titled ` +
-        `"${draftedPost.title}". ${draftedPost.subtitle}. Modern, clean, ` +
-        `cinematic, high quality, no text.`,
-    })
-    void speech.generate({ text: forNarration(draftedPost.body) })
+    // ONE call. The server composes drafting → (illustrate ∥ narrate) and
+    // streams every sub-run live into `blogPost.subRuns`; the final
+    // `{ post, hero, audio }` lands in `blogPost.result`. Fire and forget —
+    // the reactive surfaces drive the UI.
+    void blogPost.run({ topic })
   }
 
   return (
@@ -175,9 +197,9 @@ function BlogStudio() {
           Turn a topic into a finished post
         </h1>
         <p className="mb-5 text-stone-500">
-          One assistant writes the article, then illustrates it and records a
-          voice-over in parallel — chained from a single prompt over one
-          endpoint.
+          One transaction writes the article, then illustrates it and records
+          a voice-over in parallel — composed on the server from a single
+          request, with every step streamed back live.
         </p>
 
         <form onSubmit={run}>
@@ -195,18 +217,30 @@ function BlogStudio() {
             disabled={isRunning}
             className="mb-3 w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-60"
           />
-          <button
-            type="submit"
-            disabled={isRunning}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isRunning ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Wand2 size={18} />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={isRunning}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isRunning ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Wand2 size={18} />
+              )}
+              {isRunning ? 'Working…' : 'Write the post'}
+            </button>
+            {isRunning && (
+              <button
+                type="button"
+                onClick={() => blogPost.stop()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-3 font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50"
+              >
+                <Square size={16} />
+                Stop
+              </button>
             )}
-            {isRunning ? 'Working…' : 'Write the post'}
-          </button>
+          </div>
         </form>
 
         {hasRun && (
@@ -215,47 +249,92 @@ function BlogStudio() {
               label="Writing the post"
               icon={<PenLine size={16} />}
               state={writingStep}
+              detail={
+                writingStep === 'active' && draftedChars > 0
+                  ? `${draftedChars} chars drafted`
+                  : undefined
+              }
             />
             <StepRow
               label="Illustrating"
               icon={<ImageIcon size={16} />}
-              state={statusToStep(image.status)}
+              state={subRunToStep(heroRun?.status)}
             />
             <StepRow
               label="Recording voice-over"
               icon={<Volume2 size={16} />}
-              state={statusToStep(speech.status)}
+              state={subRunToStep(narrationRun?.status)}
             />
           </div>
         )}
 
-        {post.error && (
+        {post && (
+          <div className="mt-5 flex flex-col gap-2 border-t border-stone-200 pt-5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              Touch up
+            </span>
+            {/* The same verbs the transaction composed, driven directly by
+                the user — inputs derived from the current post. */}
+            <button
+              type="button"
+              disabled={isRunning || heroRerun.isLoading}
+              onClick={() =>
+                void heroRerun.run({ prompt: heroPromptFor(post) })
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {heroRerun.isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ImageIcon size={16} />
+              )}
+              Regenerate hero image
+            </button>
+            <button
+              type="button"
+              disabled={isRunning || narrationRerun.isLoading}
+              onClick={() =>
+                void narrationRerun.run({ text: forNarration(post.body) })
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {narrationRerun.isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Volume2 size={16} />
+              )}
+              Re-narrate
+            </button>
+          </div>
+        )}
+
+        {blogPost.error && (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {post.error.message}
+            {blogPost.error.message}
           </div>
         )}
       </aside>
 
       {/* Right: the post */}
       <main className="flex-1 overflow-y-auto p-6">
-        {showArticle ? (
+        {post ? (
           <article className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-200/60">
             {/* Hero image */}
             <div className="relative aspect-[3/2] w-full bg-stone-100">
-              {imageUrl ? (
+              {imageUrl && !heroBusy ? (
                 <img
                   src={imageUrl}
-                  alt={title ?? ''}
+                  alt={post.title}
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
-                  {image.status === 'generating' ? (
+                  {heroBusy ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <Loader2 size={28} className="animate-spin" />
                       <span className="text-sm">Illustrating…</span>
                     </div>
-                  ) : image.status === 'error' ? (
+                  ) : heroFailed ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <AlertTriangle size={28} className="text-amber-500" />
                       <span className="text-sm">
@@ -271,11 +350,9 @@ function BlogStudio() {
 
             <div className="px-8 py-8">
               <h1 className="mb-3 text-4xl font-extrabold leading-tight tracking-tight text-stone-900">
-                {title ?? 'Untitled'}
+                {post.title}
               </h1>
-              {subtitle && (
-                <p className="mb-6 text-xl text-stone-500">{subtitle}</p>
-              )}
+              <p className="mb-6 text-xl text-stone-500">{post.subtitle}</p>
 
               {/* Byline + voice-over */}
               <div className="mb-6 flex items-center gap-3 border-y border-stone-100 py-3 text-sm text-stone-500">
@@ -283,17 +360,17 @@ function BlogStudio() {
                   <Sparkles size={16} />
                 </div>
                 <span>Written &amp; narrated by TanStack AI</span>
-                {audioSrc ? (
-                  <div className="ml-auto flex items-center gap-2">
-                    <Volume2 size={16} className="text-amber-700" />
-                    <audio src={audioSrc} controls className="h-8" />
-                  </div>
-                ) : speech.status === 'generating' ? (
+                {narrationBusy ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <Loader2 size={14} className="animate-spin" /> Recording
                     voice-over…
                   </span>
-                ) : speech.status === 'error' ? (
+                ) : audioSrc ? (
+                  <div className="ml-auto flex items-center gap-2">
+                    <Volume2 size={16} className="text-amber-700" />
+                    <audio src={audioSrc} controls className="h-8" />
+                  </div>
+                ) : narrationFailed ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <AlertTriangle size={14} className="text-amber-500" />
                     Voice-over unavailable
@@ -304,11 +381,22 @@ function BlogStudio() {
               {/* Body */}
               <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-amber-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-amber-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {body}
+                  {post.body}
                 </ReactMarkdown>
               </div>
             </div>
           </article>
+        ) : isRunning ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center text-stone-400">
+              <Loader2 size={40} className="animate-spin text-amber-500" />
+              <p className="max-w-xs text-sm">
+                {draftedChars > 0
+                  ? `Drafting the article… ${draftedChars} characters so far.`
+                  : 'Starting the transaction…'}
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
@@ -329,10 +417,12 @@ function StepRow({
   label,
   icon,
   state,
+  detail,
 }: {
   label: string
   icon: ReactNode
   state: StepState
+  detail?: string
 }) {
   const cls =
     state === 'active'
@@ -354,6 +444,11 @@ function StepRow({
         icon
       )}
       {label}
+      {detail && (
+        <span className="ml-auto text-xs tabular-nums text-stone-400">
+          {detail}
+        </span>
+      )}
     </span>
   )
 }

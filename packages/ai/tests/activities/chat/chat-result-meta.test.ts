@@ -9,7 +9,7 @@
  *
  * The phantom is optional (`'~chatMeta'?:`), so it must not change
  * assignability of `chat()`'s return to its pre-existing consumers (see
- * `chat-result-types.test.ts` and `activities/assistant/index.test.ts` for
+ * `chat-result-types.test.ts` and `activities/transaction/index.test.ts` for
  * the pinned pre-phantom shapes).
  */
 import { describe, expectTypeOf, it } from 'vitest'
