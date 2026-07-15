@@ -60,17 +60,12 @@ export type SdkRawStreamEvent =
   | {
       type: 'content_block_start'
       index: number
-      content_block: { type: string; id?: string; name?: string }
+      content_block: { type: string; [key: string]: unknown }
     }
   | {
       type: 'content_block_delta'
       index: number
-      delta: {
-        type: string
-        text?: string
-        thinking?: string
-        partial_json?: string
-      }
+      delta: { type: string; [key: string]: unknown }
     }
   | { type: 'content_block_stop'; index: number }
   | { type: 'message_delta' }

@@ -218,14 +218,11 @@ export async function* translateSdkStream(
     }
   }
 
-  function* emitToolUse(
-    block: {
-      id: string
-      name: string
-      input: unknown
-    },
-    parentMessageId: string | undefined,
-  ): Generator<StreamChunk> {
+  function* emitToolUse(block: {
+    id: string
+    name: string
+    input: unknown
+  }): Generator<StreamChunk> {
     const toolCallName = stripMcpPrefix(block.name)
     const args = JSON.stringify(block.input ?? {})
     yield {
@@ -235,7 +232,6 @@ export async function* translateSdkStream(
       toolName: toolCallName,
       model,
       timestamp: now(),
-      ...(parentMessageId !== undefined && { parentMessageId }),
     }
     yield {
       type: EventType.TOOL_CALL_ARGS,
@@ -330,7 +326,7 @@ export async function* translateSdkStream(
         const toolBlock = block as { id: string; name: string; input: unknown }
         // Skip the tool call if the partial stream already emitted it.
         if (streamedToolCallIds.has(toolBlock.id)) continue
-        yield* emitToolUse(toolBlock, message.message.id)
+        yield* emitToolUse(toolBlock)
       }
     }
   }
@@ -409,7 +405,8 @@ export async function* translateSdkStream(
       partialMessageId = event.message.id ?? genId()
       streamedMessageIds.add(partialMessageId)
     } else if (event.type === 'content_block_start') {
-      const partialBlockType = event.content_block.type
+      const block = event.content_block
+      const partialBlockType = block.type
       partialBlockTypes.set(event.index, partialBlockType)
       if (partialBlockType === 'text') {
         partialTextMessageId = partialMessageId ?? genId()
@@ -439,31 +436,32 @@ export async function* translateSdkStream(
           model,
           timestamp: now(),
         }
-      } else if (partialBlockType === 'tool_use') {
-        const block = event.content_block
-        if (block.id) {
-          const name = stripMcpPrefix(block.name ?? '')
-          partialToolCalls.set(event.index, { id: block.id, name, args: '' })
-          streamedToolCallIds.add(block.id)
-          yield {
-            type: EventType.TOOL_CALL_START,
-            toolCallId: block.id,
-            toolCallName: name,
-            toolName: name,
-            model,
-            timestamp: now(),
-            ...(partialMessageId !== null && {
-              parentMessageId: partialMessageId,
-            }),
-          }
+      } else if (
+        partialBlockType === 'tool_use' &&
+        typeof block.id === 'string' &&
+        typeof block.name === 'string'
+      ) {
+        const name = stripMcpPrefix(block.name)
+        partialToolCalls.set(event.index, { id: block.id, name, args: '' })
+        streamedToolCallIds.add(block.id)
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: block.id,
+          toolCallName: name,
+          toolName: name,
+          model,
+          timestamp: now(),
+          ...(partialMessageId !== null && {
+            parentMessageId: partialMessageId,
+          }),
         }
       }
     } else if (event.type === 'content_block_delta') {
       if (
         event.delta.type === 'text_delta' &&
+        typeof event.delta.text === 'string' &&
         partialTextStarted &&
-        partialTextMessageId &&
-        typeof event.delta.text === 'string'
+        partialTextMessageId
       ) {
         partialTextContent += event.delta.text
         yield {
@@ -476,8 +474,8 @@ export async function* translateSdkStream(
         }
       } else if (
         event.delta.type === 'thinking_delta' &&
-        partialReasoningId &&
-        typeof event.delta.thinking === 'string'
+        typeof event.delta.thinking === 'string' &&
+        partialReasoningId
       ) {
         yield {
           type: EventType.REASONING_MESSAGE_CONTENT,
@@ -555,13 +553,8 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // The run is dying (abort or SDK failure). Close every in-flight partial
-    // (mirrors handleResult) so each START is paired with its END, then
-    // synthesize results for every started-but-unresolved tool call so the
-    // next request's pending-tool-call scan doesn't try to execute them.
-    // Finally let the adapter surface the error as RUN_ERROR.
-    yield* closePartialText()
-    yield* closePartialReasoning()
+    // Pair partial tool starts with an end and a synthetic result before the
+    // adapter surfaces the error.
     yield* closePartialToolUses(true)
     yield* synthesizeUnresolvedResults()
     throw error

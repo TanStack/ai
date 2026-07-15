@@ -337,7 +337,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-07-15"
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Quick Start",
@@ -592,7 +592,7 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-07-15"
         },
         {
           "label": "Codex",

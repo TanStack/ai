@@ -2524,6 +2524,12 @@ importers:
       '@tanstack/ai-react-ui':
         specifier: workspace:*
         version: link:../../packages/ai-react-ui
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-local-process
       '@tanstack/devtools-event-bus':
         specifier: ^0.4.1
         version: 0.4.1
