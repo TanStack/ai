@@ -587,11 +587,29 @@ function openRouterCostMount(): Mountable {
       await drainBody(req)
 
       const base = {
-        id: 'chatcmpl-cost-e2e',
+        id: 'gen-openrouter-cost-e2e',
         object: 'chat.completion.chunk',
         // The @openrouter/sdk chunk schema requires a numeric `created`.
         created: 1700000000,
         model: 'openai/gpt-4o',
+        openrouter_metadata: {
+          attempt: 1,
+          endpoints: {
+            available: [
+              {
+                model: 'openai/gpt-4o',
+                provider: 'DeepInfra',
+                selected: true,
+              },
+            ],
+            total: 1,
+          },
+          is_byok: false,
+          region: null,
+          requested: 'openai/gpt-4o',
+          strategy: 'direct',
+          summary: 'DeepInfra',
+        },
       }
       const chunks: Array<Record<string, unknown>> = [
         {

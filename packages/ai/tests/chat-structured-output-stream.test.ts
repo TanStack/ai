@@ -42,9 +42,13 @@ const validPerson: Person = {
  */
 function makeAdapter(opts: {
   structuredOutputStream?: (o: unknown) => AsyncIterable<StreamChunk>
-  structuredOutput?: (
-    o: unknown,
-  ) => Promise<{ data: unknown; rawText: string; usage?: TokenUsage }>
+  structuredOutput?: (o: unknown) => Promise<{
+    data: unknown
+    rawText: string
+    usage?: TokenUsage
+    generationId?: string
+    provider?: string
+  }>
 }): AnyTextAdapter {
   return {
     kind: 'text' as const,
@@ -414,6 +418,36 @@ describe('chat({ outputSchema, stream: true })', () => {
         | undefined
       expect(finished).toBeDefined()
       expect(finished!.usage).toEqual(usage)
+    })
+
+    it('forwards adapter-reported generation metadata onto RUN_FINISHED', async () => {
+      const adapter = makeAdapter({
+        structuredOutput: async () => ({
+          data: validPerson,
+          rawText: JSON.stringify(validPerson),
+          generationId: 'gen-structured-output',
+          provider: 'DeepInfra',
+        }),
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED) as
+        | RunFinishedEvent
+        | undefined
+
+      expect(finished).toMatchObject({
+        generationId: 'gen-structured-output',
+        provider: 'DeepInfra',
+      })
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {

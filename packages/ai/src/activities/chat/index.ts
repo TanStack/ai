@@ -3069,6 +3069,8 @@ async function* fallbackStructuredOutputStream(
     // conditional spread avoids emitting `usage: undefined` for adapters that
     // don't report it. See #758.
     ...(result.usage ? { usage: result.usage } : {}),
+    ...(result.generationId ? { generationId: result.generationId } : {}),
+    ...(result.provider ? { provider: result.provider } : {}),
   }
 }
 

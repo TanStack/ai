@@ -1438,6 +1438,19 @@ describe('OpenRouter structured output', () => {
 
   it('parses JSON response content correctly', async () => {
     const nonStreamResponse = {
+      id: 'gen-structured-chat',
+      openrouterMetadata: {
+        endpoints: {
+          available: [
+            {
+              model: 'openai/gpt-4o-mini',
+              provider: 'DeepInfra',
+              selected: true,
+            },
+          ],
+          total: 1,
+        },
+      },
       choices: [
         {
           message: {
@@ -1460,6 +1473,8 @@ describe('OpenRouter structured output', () => {
     })
 
     expect(result.data).toEqual({ items: [1, 2, 3], total: 3 })
+    expect(result.generationId).toBe('gen-structured-chat')
+    expect(result.provider).toBe('DeepInfra')
   })
 
   it('throws on malformed JSON response', async () => {
@@ -2585,27 +2600,34 @@ describe('OpenRouter cost tracking', () => {
   // defers RUN_FINISHED until the stream drains so this chunk is captured.
   const baseStream = (
     usage: Record<string, unknown>,
+    metadata: Record<string, unknown> = {},
   ): Array<Record<string, unknown>> => [
     {
       id: 'chatcmpl-cost',
       model: 'openai/gpt-4o-mini',
       choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      ...metadata,
     },
     {
       id: 'chatcmpl-cost',
       model: 'openai/gpt-4o-mini',
       choices: [{ delta: {}, finishReason: 'stop' }],
+      ...metadata,
     },
     {
       id: 'chatcmpl-cost',
       model: 'openai/gpt-4o-mini',
       choices: [],
       usage,
+      ...metadata,
     },
   ]
 
-  const runFinished = async (usage: Record<string, unknown>) => {
-    setupMockSdkClient(baseStream(usage))
+  const runFinished = async (
+    usage: Record<string, unknown>,
+    metadata?: Record<string, unknown>,
+  ) => {
+    setupMockSdkClient(baseStream(usage, metadata))
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
@@ -2643,6 +2665,33 @@ describe('OpenRouter cost tracking', () => {
           upstreamOutputCost: 0.0026,
         },
       },
+    })
+  })
+
+  it('forwards generation id and selected provider', async () => {
+    const runFinishedChunk = await runFinished(
+      { promptTokens: 5, completionTokens: 2, totalTokens: 7 },
+      {
+        id: 'gen-chat-stream',
+        openrouterMetadata: {
+          endpoints: {
+            available: [
+              {
+                model: 'openai/gpt-4o-mini',
+                provider: 'DeepInfra',
+                selected: true,
+              },
+            ],
+            total: 1,
+          },
+        },
+      },
+    )
+
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      generationId: 'gen-chat-stream',
+      provider: 'DeepInfra',
     })
   })
 
