@@ -55,7 +55,12 @@ isomorphic module shared with the client.
 ```typescript
 // src/lib/blog-studio.ts — shared module: server definition + client stub
 import { chat, generateImage } from '@tanstack/ai'
-import { chatVerb, clientTransaction, defineTransaction, verb } from '@tanstack/ai/transaction'
+import {
+  chatVerb,
+  clientTransaction,
+  defineTransaction,
+  verb,
+} from '@tanstack/ai/transaction'
 import { openaiText, openaiImage } from '@tanstack/ai-openai/adapters'
 import { z } from 'zod'
 import { BlogPostSchema } from './schemas'
@@ -301,7 +306,9 @@ the type level. Define the transaction in a shared lib module, export
 
 ```tsx
 // lib/blog-studio.ts
-export const blogTransaction = defineTransaction({ /* … */ })
+export const blogTransaction = defineTransaction({
+  /* … */
+})
 
 export const blogTxnDef = clientTransaction<typeof blogTransaction>({
   drafting: 'chat',
