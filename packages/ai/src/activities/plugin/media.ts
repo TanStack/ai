@@ -6,7 +6,14 @@
 // output end to end. The input schemas mirror the client-facing fields of the
 // corresponding `generate*` / `summarize` activity options (the adapter,
 // stream, debug, and middleware knobs are server concerns and are omitted).
-import { z } from 'zod'
+//
+// The input schemas are hand-rolled Standard Schemas rather than zod: this
+// package is schema-library-agnostic (it validates via `@standard-schema/spec`
+// and never ships a concrete schema library), so importing zod here would drag
+// zod into the bundle and make it a hard runtime dependency. Callers who want
+// richer input validation can bypass these factories and pass their own
+// zod/valibot/arktype schema straight to `generationPlugin({ input, execute })`.
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { generationPlugin } from './index.js'
 import type { GenerationPlugin, GenerationPluginRequest } from './types.js'
 import type {
@@ -25,17 +32,50 @@ import type {
  */
 export type MaybeStream<T> = Promise<T> | AsyncIterable<StreamChunk>
 
+/**
+ * Build a zero-dependency Standard Schema for a media input `T`. Validation is
+ * intentionally lightweight — it confirms the value is an object and that the
+ * `required` keys are present, then types it as `T`. The typed client
+ * (`plugin.<name>.run(input)`) is the primary guardrail; deeper validation is
+ * a caller's choice via a custom `generationPlugin` schema.
+ *
+ * `StandardSchemaV1<T, T>` (input === output) is what makes `InferSchemaType`
+ * resolve `req.input` to `T`.
+ */
+function mediaSchema<T>(
+  required: ReadonlyArray<keyof T & string>,
+): StandardSchemaV1<T, T> {
+  return {
+    '~standard': {
+      version: 1,
+      vendor: 'tanstack-ai',
+      validate: (value) => {
+        if (typeof value !== 'object' || value === null) {
+          return { issues: [{ message: 'Expected an object' }] }
+        }
+        const record = value as Record<string, unknown>
+        for (const key of required) {
+          if (record[key] === undefined) {
+            return { issues: [{ message: `Missing required field: ${key}`, path: [key] }] }
+          }
+        }
+        return { value: value as T }
+      },
+    },
+  }
+}
+
 // ===========================
 // Image
 // ===========================
 
-const imageInput = z.object({
-  prompt: z.string(),
-  numberOfImages: z.number().optional(),
-  size: z.string().optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type ImagePluginInput = z.infer<typeof imageInput>
+export interface ImagePluginInput {
+  prompt: string
+  numberOfImages?: number
+  size?: string
+  modelOptions?: Record<string, unknown>
+}
+const imageInput = mediaSchema<ImagePluginInput>(['prompt'])
 
 /**
  * A one-shot plugin that generates images. Pre-binds `req.input` to the image
@@ -54,13 +94,13 @@ export function imagePlugin(
 // Video
 // ===========================
 
-const videoInput = z.object({
-  prompt: z.string(),
-  size: z.string().optional(),
-  duration: z.number().optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type VideoPluginInput = z.infer<typeof videoInput>
+export interface VideoPluginInput {
+  prompt: string
+  size?: string
+  duration?: number
+  modelOptions?: Record<string, unknown>
+}
+const videoInput = mediaSchema<VideoPluginInput>(['prompt'])
 
 /**
  * A one-shot plugin that generates video. Pre-binds `req.input` to the video
@@ -79,12 +119,12 @@ export function videoPlugin(
 // Audio
 // ===========================
 
-const audioInput = z.object({
-  prompt: z.string(),
-  duration: z.number().optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type AudioPluginInput = z.infer<typeof audioInput>
+export interface AudioPluginInput {
+  prompt: string
+  duration?: number
+  modelOptions?: Record<string, unknown>
+}
+const audioInput = mediaSchema<AudioPluginInput>(['prompt'])
 
 /**
  * A one-shot plugin that generates audio (music, sound effects, ...).
@@ -103,14 +143,14 @@ export function audioPlugin(
 // Speech (TTS)
 // ===========================
 
-const speechInput = z.object({
-  text: z.string(),
-  voice: z.string().optional(),
-  format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
-  speed: z.number().optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type SpeechPluginInput = z.infer<typeof speechInput>
+export interface SpeechPluginInput {
+  text: string
+  voice?: string
+  format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
+  speed?: number
+  modelOptions?: Record<string, unknown>
+}
+const speechInput = mediaSchema<SpeechPluginInput>(['text'])
 
 /**
  * A one-shot plugin that generates speech from text. Pre-binds `req.input` to
@@ -129,19 +169,17 @@ export function speechPlugin(
 // Transcription
 // ===========================
 
-const transcriptionInput = z.object({
+export interface TranscriptionPluginInput {
   // Audio input travels over the wire as a base64 string (the activity's
   // File/Blob/ArrayBuffer forms aren't JSON-serializable through the plugin
   // request envelope).
-  audio: z.string(),
-  language: z.string().optional(),
-  prompt: z.string().optional(),
-  responseFormat: z
-    .enum(['json', 'text', 'srt', 'verbose_json', 'vtt'])
-    .optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type TranscriptionPluginInput = z.infer<typeof transcriptionInput>
+  audio: string
+  language?: string
+  prompt?: string
+  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  modelOptions?: Record<string, unknown>
+}
+const transcriptionInput = mediaSchema<TranscriptionPluginInput>(['audio'])
 
 /**
  * A one-shot plugin that transcribes audio to text. Pre-binds `req.input` to
@@ -160,14 +198,14 @@ export function transcriptionPlugin(
 // Summarize
 // ===========================
 
-const summarizeInput = z.object({
-  text: z.string(),
-  maxLength: z.number().optional(),
-  style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
-  focus: z.array(z.string()).optional(),
-  modelOptions: z.record(z.string(), z.unknown()).optional(),
-})
-export type SummarizePluginInput = z.infer<typeof summarizeInput>
+export interface SummarizePluginInput {
+  text: string
+  maxLength?: number
+  style?: 'bullet-points' | 'paragraph' | 'concise'
+  focus?: Array<string>
+  modelOptions?: Record<string, unknown>
+}
+const summarizeInput = mediaSchema<SummarizePluginInput>(['text'])
 
 /**
  * A one-shot plugin that summarizes text. Pre-binds `req.input` to the
