@@ -18,14 +18,14 @@ export class DuplicateToolNameError extends Error {
   }
 }
 
+/**
+ * @deprecated Task-required tools are supported. This export remains for
+ * backward compatibility and is no longer thrown by `MCPClient.tools()`.
+ */
 export class MCPTaskRequiredToolError extends Error {
   constructor(public readonly toolName: string) {
     super(
-      `MCP tool "${toolName}" declares \`execution.taskSupport: 'required'\` — it can ` +
-        `only be invoked via the MCP SDK's experimental task-based execution ` +
-        `(client.experimental.tasks.callToolStream()), which @tanstack/ai-mcp does not ` +
-        `support yet. Task-required tools are excluded from tools() auto-discovery; ` +
-        `binding one explicitly via tools([toolDefinition(...)]) is an error.`,
+      `MCP tool "${toolName}" requires the MCP SDK's experimental task-based execution`,
     )
     this.name = 'MCPTaskRequiredToolError'
   }
