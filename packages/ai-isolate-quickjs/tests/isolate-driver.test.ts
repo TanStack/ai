@@ -214,7 +214,27 @@ describe('createQuickJSIsolateDriver', () => {
       `)
 
       expect(result.success).toBe(false)
-      expect(result.error?.name).toBeDefined()
+      expect(result.error?.name).toBe('TimeoutError')
+    })
+
+    it('disposes the context after a timeout so stale jobs cannot leak into later executions', async () => {
+      const never = makeBinding('never', () => new Promise(() => {}))
+
+      const driver = createQuickJSIsolateDriver({ timeout: 100 })
+      const context = await driver.createContext({ bindings: { never } })
+
+      const first = await context.execute(`
+        await never({});
+        return 1;
+      `)
+      expect(first.success).toBe(false)
+      expect(first.error?.name).toBe('TimeoutError')
+
+      const second = await context.execute('return 42')
+      expect(second.success).toBe(false)
+      expect(second.error?.name).toBe('DisposedError')
+
+      await expect(context.dispose()).resolves.toBeUndefined()
     })
   })
 

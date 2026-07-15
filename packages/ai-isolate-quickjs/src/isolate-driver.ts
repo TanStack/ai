@@ -1,5 +1,6 @@
 import { getQuickJS } from 'quickjs-emscripten'
 import { QuickJSIsolateContext } from './isolate-context'
+import type { ExecState } from './isolate-context'
 import type { QuickJSContext } from 'quickjs-emscripten'
 import type {
   IsolateConfig,
@@ -67,25 +68,46 @@ function injectBinding(
   vm: QuickJSContext,
   name: string,
   binding: ToolBinding,
+  logs: Array<string>,
+  execState: ExecState,
 ): void {
   const toolFn = vm.newFunction(name, (argsHandle) => {
     const argsJson = vm.getString(argsHandle)
     const promise = vm.newPromise()
 
-    void invokeBinding(binding, argsJson).then((payloadJson) => {
-      // The context may have been disposed while the tool was in flight.
+    // A timed-out execution cancels every outstanding tool call by settling
+    // its deferred with a timeout envelope, so the guest program itself can
+    // settle and the VM can be disposed (freeing a runtime that still holds
+    // an unsettled program promise aborts the shared WASM module).
+    const resolveWithPayload = (payloadJson: string) => {
+      execState.pendingCancels.delete(cancel)
       if (!vm.alive || !promise.alive) return
       const payloadHandle = vm.newString(payloadJson)
       promise.resolve(payloadHandle)
       payloadHandle.dispose()
-    })
+    }
+    const cancel = () =>
+      resolveWithPayload(
+        JSON.stringify({ success: false, error: 'Execution timed out' }),
+      )
+    execState.pendingCancels.add(cancel)
 
-    // Resume guest code waiting on the promise. Outside an active execute()
-    // the interrupt deadline is 0, so jobs from an abandoned (timed-out)
-    // execution are interrupted instead of running unbounded.
+    void invokeBinding(binding, argsJson).then(resolveWithPayload)
+
+    // Resume guest code waiting on the promise. Defense in depth: outside an
+    // active execute() the interrupt deadline is 0, so a stray job from an
+    // abandoned execution is interrupted instead of running unbounded.
     void promise.settled.then(() => {
-      if (vm.runtime.alive) {
-        vm.runtime.executePendingJobs()
+      if (!vm.runtime.alive) return
+      const jobs = vm.runtime.executePendingJobs()
+      if (jobs.error) {
+        // Errors thrown inside guest async code reject the observed program
+        // promise instead of surfacing here; anything that does land here
+        // would otherwise be silently swallowed and leak its handle.
+        logs.push(
+          `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
+        )
+        jobs.error.dispose()
       }
     })
 
@@ -212,15 +234,20 @@ export function createQuickJSIsolateDriver(
       infoFn.dispose()
       consoleObj.dispose()
 
-      // Inject each tool binding as an async function
-      for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
-        injectBinding(vm, name, binding)
+      // Shared between execute() and the tool bindings: the interrupt
+      // deadline (0 means "no execution active" — any guest job that tries
+      // to run outside execute() is interrupted immediately) and the cancel
+      // callbacks for tool calls still awaiting their host promise.
+      const execState: ExecState = {
+        deadline: 0,
+        pendingCancels: new Set<() => void>(),
       }
 
-      // Deadline shared between execute() and the pending-job pumps in the
-      // tool bindings. 0 means "no execution active": any guest job that
-      // tries to run outside execute() is interrupted immediately.
-      const execState = { deadline: 0 }
+      // Inject each tool binding as an async function
+      for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
+        injectBinding(vm, name, binding, logs, execState)
+      }
+
       vm.runtime.setInterruptHandler(() => Date.now() > execState.deadline)
 
       return new QuickJSIsolateContext(vm, logs, timeout, execState)

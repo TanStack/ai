@@ -1,5 +1,9 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
-import { isFatalQuickJSLimitError, normalizeError } from './error-normalizer'
+import {
+  TIMEOUT_ERROR,
+  isFatalQuickJSLimitError,
+  normalizeError,
+} from './error-normalizer'
 import type {
   QuickJSContext,
   QuickJSHandle,
@@ -8,20 +12,30 @@ import type {
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
 /**
- * Interrupt deadline shared with the tool-binding job pumps created in
- * the driver. `deadline === 0` means no execution is active, so any guest
- * job that runs outside execute() is interrupted immediately.
+ * Execution state shared with the tool bindings created in the driver.
+ * `deadline === 0` means no execution is active, so any guest job that runs
+ * outside execute() is interrupted immediately. `pendingCancels` holds one
+ * cancel callback per tool call still awaiting its host promise; a timed-out
+ * execution invokes them to settle the guest program so the VM can be
+ * disposed safely.
  */
 export interface ExecState {
   deadline: number
+  pendingCancels: Set<() => void>
 }
+
+/** Grace window for cancellation continuations after a timeout. */
+const CANCEL_GRACE_MS = 100
 
 /**
  * Await the guest program's promise, but give up at `deadline`. Host tool
  * calls are bridged as QuickJS promises, so a guest program that is stuck
  * waiting (e.g. its continuation was interrupted) would otherwise never
- * settle. If the guest settles after the deadline, its result handle is
- * disposed to avoid leaking it into the context's lifetime.
+ * settle. A timeout is terminal for the context (see `fail()` in execute):
+ * the timed-out program's interrupted jobs stay queued in the VM and must
+ * never run inside a later execution. If the guest settles after the
+ * deadline, its result handle is disposed to avoid leaking it into the
+ * context's lifetime.
  */
 function awaitWithDeadline(
   promise: Promise<VmCallResult<QuickJSHandle>>,
@@ -33,7 +47,7 @@ function awaitWithDeadline(
       () => {
         timedOut = true
         const timeoutError = new Error('Code execution timed out')
-        timeoutError.name = 'TimeoutError'
+        timeoutError.name = TIMEOUT_ERROR
         reject(timeoutError)
       },
       Math.max(0, deadline - Date.now()),
@@ -129,7 +143,11 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.executing = true
     this.logs.length = 0
 
-    const releaseVmAfterFatalLimit = () => {
+    // True until a program promise is in flight; sync failure paths (parse
+    // errors, interrupted straight-line code) leave no unsettled guest state.
+    let guestSettled = true
+
+    const releaseVmAfterFatalError = () => {
       if (this.disposed) return
       try {
         this.vm.runtime.setInterruptHandler(() => false)
@@ -140,10 +158,37 @@ export class QuickJSIsolateContext implements IsolateContext {
       this.vm.dispose()
     }
 
-    const fail = (error: unknown) => {
+    // A timed-out program's interrupted jobs stay queued in the VM, where
+    // they would run inside the next execution's deadline — so a timeout is
+    // terminal for the context. Disposal needs care: freeing a runtime that
+    // still holds an unsettled program promise aborts the shared WASM
+    // module. Cancel every outstanding tool call (settling the guest
+    // program), then dispose once the guest has settled; if it cannot
+    // settle (e.g. an interrupted infinite loop), leak the VM instead.
+    const releaseAfterTimeout = async () => {
+      if (this.disposed) return
+      this.disposed = true
+      this.execState.deadline = Date.now() + CANCEL_GRACE_MS
+      for (const cancel of [...this.execState.pendingCancels]) {
+        cancel()
+      }
+      this.execState.pendingCancels.clear()
+      // Cancellation continuations run as microtasks; one macrotask tick
+      // lets the guest program settle and its result handles be reclaimed.
+      await new Promise((r) => setTimeout(r, 0))
+      this.execState.deadline = 0
+      if (guestSettled) {
+        this.vm.dispose()
+      }
+    }
+
+    const fail = async (error: unknown) => {
       const normalized = normalizeError(error)
-      if (isFatalQuickJSLimitError(normalized)) {
-        releaseVmAfterFatalLimit()
+      if (normalized.name === TIMEOUT_ERROR) {
+        await releaseAfterTimeout()
+      } else if (isFatalQuickJSLimitError(normalized)) {
+        // Memory/stack limits leave the heap in an unknown state.
+        releaseVmAfterFatalError()
       }
       return {
         success: false as const,
@@ -170,7 +215,21 @@ export class QuickJSIsolateContext implements IsolateContext {
           // tool bindings' promise-settled pumps call executePendingJobs.
           const nativePromise = this.vm.resolvePromise(promiseHandle)
           promiseHandle.dispose()
-          this.vm.runtime.executePendingJobs()
+          guestSettled = false
+          void nativePromise.then(
+            () => {
+              guestSettled = true
+            },
+            () => {
+              guestSettled = true
+            },
+          )
+          const jobs = this.vm.runtime.executePendingJobs()
+          if (jobs.error) {
+            const dumped: unknown = this.vm.dump(jobs.error)
+            jobs.error.dispose()
+            return await fail(dumped)
+          }
           const resolvedResult = await awaitWithDeadline(
             nativePromise,
             deadline,
@@ -196,17 +255,18 @@ export class QuickJSIsolateContext implements IsolateContext {
             logs: [...this.logs],
           }
         } catch (unwrapError) {
-          return fail(unwrapError)
+          return await fail(unwrapError)
         }
       } finally {
-        // fail() may set disposed when releasing the VM after memory/stack limit errors
+        // fail() may set disposed when releasing the VM after memory/stack
+        // limit errors or timeouts
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- disposed set in fail()
         if (!this.disposed) {
           this.execState.deadline = 0
         }
       }
     } catch (error) {
-      return fail(error)
+      return await fail(error)
     } finally {
       this.executing = false
       resolve()
