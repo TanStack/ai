@@ -25,9 +25,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./transaction": {
-      "types": "./dist/transaction.d.ts",
-      "import": "./dist/transaction.js"
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js"
     }
   },
   "files": [
