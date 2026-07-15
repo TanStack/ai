@@ -876,8 +876,9 @@ and piping into a custom logger.
   returns unexpected output or fails mid-stream, toggle `debug: true` on
   any `generate*()` call to see request metadata, raw provider chunks, and
   errors. Covers per-category toggling and piping into pino/winston.
-- See also: **ai-core/transaction/SKILL.md** -- To combine multiple media
+- See also: **ai-core/plugin/SKILL.md** -- To combine multiple media
   activities (image/audio/speech/video/transcription) with chat as app-named
-  verbs behind one `defineTransaction` handler + `useTransaction` hook —
-  including server-composed transactions via `ctx.call` — instead of wiring
-  up each `generate*()` activity and its own hook separately.
+  plugins behind one `definePlugin` handler + `usePlugin` hook — using the
+  ready-made `imagePlugin`/`videoPlugin`/`audioPlugin`/`speechPlugin`/
+  `transcriptionPlugin`/`summarizePlugin` factories — instead of wiring up
+  each `generate*()` activity and its own hook separately.
