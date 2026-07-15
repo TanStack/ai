@@ -178,7 +178,7 @@ import { claudeCodeText } from "@tanstack/ai-claude-code";
 import { z } from "zod";
 
 const result = await chat({
-  adapter: claudeCodeText("claude-sonnet-4-6"),
+  adapter: claudeCodeText("claude-opus-4-8"),
   messages: [{ role: "user", content: "Audit deps and list the outdated ones." }],
   outputSchema: z.object({
     outdated: z.array(z.object({ name: z.string(), latest: z.string() })),
