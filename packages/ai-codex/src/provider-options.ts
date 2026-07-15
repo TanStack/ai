@@ -1,3 +1,9 @@
+import type {
+  ApprovalMode,
+  ModelReasoningEffort,
+  SandboxMode,
+} from '@openai/codex-sdk'
+
 /**
  * Per-call provider options for the Codex adapter, passed via `modelOptions`
  * on `chat()`.
@@ -11,11 +17,11 @@ export interface CodexTextProviderOptions {
    */
   sessionId?: string
   /** Per-call override of the configured sandbox mode. */
-  sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
+  sandboxMode?: SandboxMode
   /** Per-call override of the configured approval policy. */
-  approvalPolicy?: 'never' | 'on-failure' | 'on-request' | 'untrusted'
+  approvalPolicy?: ApprovalMode
   /** Per-call override of the model reasoning effort. */
-  modelReasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  modelReasoningEffort?: ModelReasoningEffort
   /** Per-call override of the harness working directory. */
   workingDirectory?: string
   /** Per-call override of the git-repo safety check (defaults to skipping). */

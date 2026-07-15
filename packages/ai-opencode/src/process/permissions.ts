@@ -1,5 +1,3 @@
-import { approvalId } from '@tanstack/ai-sandbox'
-
 /**
  * Permission modes for the OpenCode adapter, mirroring the Claude Code and
  * Gemini CLI adapters' semantics:
@@ -82,38 +80,4 @@ export function resolvePermission(
     return 'once'
   }
   return 'reject'
-}
-
-/**
- * Interactive variant: when the mode/bridge policy would reject, consult the
- * client's approval decisions. Returns the OpenCode response plus, when the
- * action still needs a client decision, the `approvalId`/`title` the adapter
- * should surface via an `approval-requested` event.
- */
-export function resolveInteractivePermission(
-  request: OpencodePermissionRequest,
-  mode: OpencodePermissionMode,
-  bridgedToolNames: ReadonlySet<string> | undefined,
-  approvals: ReadonlyMap<string, boolean> | undefined,
-): {
-  response: OpencodePermissionResponse
-  approvalId?: string
-  title?: string
-} {
-  if (matchBridgedToolName(request, bridgedToolNames))
-    return { response: 'once' }
-  if (mode === 'bypassPermissions') return { response: 'once' }
-  if (mode === 'acceptEdits' && EDIT_TYPES.has(request.type)) {
-    return { response: 'once' }
-  }
-
-  const id = approvalId({
-    provider: 'opencode',
-    kind: 'tool',
-    target: request.type || request.title,
-  })
-  const granted = approvals?.get(id)
-  if (granted === true) return { response: 'once' }
-  if (granted === false) return { response: 'reject' }
-  return { response: 'reject', approvalId: id, title: request.title }
 }

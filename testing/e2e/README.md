@@ -8,6 +8,8 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
+> **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
+
 ## What's tested
 
 ### Provider-coverage tests

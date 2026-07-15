@@ -1,8 +1,5 @@
 export { ClaudeCodeTextAdapter, claudeCodeText } from './adapters/text'
-export type {
-  ClaudeCodeTextConfig,
-  ClaudeCodePermissionMode,
-} from './adapters/text'
+export type { ClaudeCodeTextConfig } from './adapters/text'
 export type { ClaudeCodeTextProviderOptions } from './provider-options'
 export { CLAUDE_CODE_MODELS } from './model-meta'
 export type { ClaudeCodeModel, KnownClaudeCodeModel } from './model-meta'
@@ -19,3 +16,4 @@ export type {
 export type { AgentSdkMessage } from './stream/sdk-types'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'
+export { createToolBridge } from './tools/bridge'

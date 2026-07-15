@@ -24,7 +24,7 @@ The Claude Code adapter runs [Claude Code](https://docs.anthropic.com/en/docs/cl
 npm install @tanstack/ai-claude-code
 ```
 
-A runnable demo lives at [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — switch the harness (Claude Code, Codex, OpenCode, Grok Build) and sandbox provider per run, with session resume, the harness tool timeline, permission modes, and tool bridging, wired into a TanStack Start app.
+A runnable demo lives at [`examples/ts-react-coding-agent`](https://github.com/TanStack/ai/tree/main/examples/ts-react-coding-agent) — session resume, the harness tool timeline, permission modes, and tool bridging, wired into a React app.
 
 ## Authentication
 

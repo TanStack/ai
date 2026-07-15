@@ -1,9 +1,5 @@
 export { CodexTextAdapter, codexText } from './adapters/text'
-export type {
-  CodexTextConfig,
-  CodexSandboxMode,
-  CodexApprovalMode,
-} from './adapters/text'
+export type { CodexTextConfig } from './adapters/text'
 export type { CodexTextProviderOptions } from './provider-options'
 export { CODEX_MODELS } from './model-meta'
 export type { CodexModel, KnownCodexModel } from './model-meta'
@@ -21,3 +17,5 @@ export type {
 } from './stream/sdk-types'
 export { buildPrompt } from './messages/prompt'
 export type { BuiltPrompt } from './messages/prompt'
+export { startToolBridge } from './tools/bridge'
+export type { ToolBridgeHandle } from './tools/bridge'

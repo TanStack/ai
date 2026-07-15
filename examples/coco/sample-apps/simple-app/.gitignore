@@ -1,0 +1,18 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
+
+# Auto-generated; ignored so `sample:reset` (git clean) leaves them in
+# place, avoiding a full reinstall / route-tree regenerate on every reset.
+pnpm-lock.yaml
+src/routeTree.gen.ts

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-codex",
-  "version": "0.2.1",
+  "version": "0.1.0",
   "description": "Codex harness adapter for TanStack AI — run OpenAI Codex as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
@@ -45,14 +45,15 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openai/codex-sdk": "^0.139.0"
+  },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-sandbox": "workspace:^"
+    "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-sandbox": "workspace:*",
-    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }

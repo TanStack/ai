@@ -111,6 +111,46 @@ importers:
         specifier: ^4.0.14
         version: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.0.14)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.15))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
+  examples/coco:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-claude-code':
+        specifier: workspace:*
+        version: link:../../packages/ai-claude-code
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../packages/ai-client
+      '@tanstack/ai-codex':
+        specifier: workspace:*
+        version: link:../../packages/ai-codex
+      '@tanstack/ai-gemini-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-gemini-cli
+      '@tanstack/ai-opencode':
+        specifier: workspace:*
+        version: link:../../packages/ai-opencode
+      http-proxy:
+        specifier: ^1.18.1
+        version: 1.18.1
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+    devDependencies:
+      '@types/http-proxy':
+        specifier: ^1.17.17
+        version: 1.17.17
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.3
+        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   examples/sandbox-cloudflare:
     dependencies:
       '@cloudflare/sandbox':
@@ -798,6 +838,79 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
 
+  examples/ts-react-coding-agent:
+    dependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.1.18
+        version: 4.1.18(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-claude-code':
+        specifier: workspace:*
+        version: link:../../packages/ai-claude-code
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../packages/ai-client
+      '@tanstack/ai-codex':
+        specifier: workspace:*
+        version: link:../../packages/ai-codex
+      '@tanstack/ai-gemini-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-gemini-cli
+      '@tanstack/ai-opencode':
+        specifier: workspace:*
+        version: link:../../packages/ai-opencode
+      '@tanstack/ai-react':
+        specifier: workspace:*
+        version: link:../../packages/ai-react
+      '@tanstack/nitro-v2-vite-plugin':
+        specifier: ^1.154.7
+        version: 1.154.7(aws4fetch@1.0.20)(rolldown@1.1.3)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-router':
+        specifier: ^1.158.4
+        version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-start':
+        specifier: ^1.159.0
+        version: 1.159.5(crossws@0.4.6(srvx@0.11.17))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/router-plugin':
+        specifier: ^1.158.4
+        version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.2.3
+        version: 19.2.3(react@19.2.3)
+      tailwindcss:
+        specifier: ^4.1.18
+        version: 4.1.18
+      vite-tsconfig-paths:
+        specifier: ^5.1.4
+        version: 5.1.4(typescript@5.9.3)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.3
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.1.2(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.3
+        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   examples/ts-react-media:
     dependencies:
       '@tailwindcss/vite':
@@ -1471,16 +1584,17 @@ importers:
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/ai-claude-code:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.176
+        version: 0.3.209(@anthropic-ai/sdk@0.97.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../ai-sandbox
-      '@tanstack/ai-sandbox-local-process':
-        specifier: workspace:*
-        version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -1604,16 +1718,17 @@ importers:
         version: 4.21.0
 
   packages/ai-codex:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.3.6)
+      '@openai/codex-sdk':
+        specifier: ^0.139.0
+        version: 0.139.0
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../ai-sandbox
-      '@tanstack/ai-sandbox-local-process':
-        specifier: workspace:*
-        version: link:../ai-sandbox-local-process
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -1730,6 +1845,22 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.3.6
+
+  packages/ai-gemini-cli:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.25.0
+        version: 0.25.1(zod@4.3.6)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.3.6)
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
 
   packages/ai-grok:
     dependencies:
@@ -1935,6 +2066,9 @@ importers:
 
   packages/ai-opencode:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.3.6)
       '@opencode-ai/sdk':
         specifier: ^1.17.4
         version: 1.17.7
@@ -1942,9 +2076,6 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
-      '@tanstack/ai-sandbox':
-        specifier: workspace:*
-        version: link:../ai-sandbox
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -2899,6 +3030,58 @@ packages:
     peerDependenciesMeta:
       '@angular/animations':
         optional: true
+
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.209':
+    resolution: {integrity: sha512-08qu5ZImKxAsfyxQdXw2fHpIvTS39kAN/T6iWdRPY/1yicnqAxIl8R9PQ63TJaDnWTo7wWu6O26GKbEX9d7xDw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.209':
+    resolution: {integrity: sha512-p3egSQ75amhjOO0P21pNfs94SueEAbOc0s7IFrGy8CZKXcFMIrOzUXKoi2iTWtR8P9v4ayibf38AJRa2Rz7KPA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.209':
+    resolution: {integrity: sha512-jtoia0l10xgrsBWjA12n6Q0WxOyr/8qf1eUMOGSO7zdNau/7wABYBXS+VGF8utBEsF4NJjfCEEj2yhEB8uHjLA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.209':
+    resolution: {integrity: sha512-eTgga/TuganOj9VAWUrjtt6BSqapeJau4ioCrQRw0RbDN/d/oLih/hdKzPeCn3yBw4Wdwwlip2z1cHKPNEggtQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.209':
+    resolution: {integrity: sha512-GjxSlqk6yYCxb9BApVZvJ/Aq3OoI5mDRhpBpsZM23idNHg5/019sBBx4IGmkBjmfxTX5zzvu+m0fU18vl3W2Mg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.209':
+    resolution: {integrity: sha512-XGhc23qmqk1yUwG633iZUxPM91iJjrX/a+DVy+Pz5X5J64aXFAsR9R+kNkJ1X5FDcm+MSYywUtQm9AmAZaiG2Q==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.209':
+    resolution: {integrity: sha512-LIMVnToVRmcTeN/dDAdFP/U60/aM0/qbKOWza+0BabhrGwF/3nPIIoGrMrkLsKPzOsfNWrl+kepexP1zWb1x5w==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.209':
+    resolution: {integrity: sha512-tY5/+lmhqm7JQhvxLVTkhe2/UAw46gu8RnFrTwhoM0gEXDTmQhNlTM+m4F9LGeSfgKb2TElHpcQ237XNG1Ok6Q==}
+    cpu: [x64]
+    os: [win32]
+
+  '@anthropic-ai/claude-agent-sdk@0.3.209':
+    resolution: {integrity: sha512-HdxLmpnIOd4CSYxdlD/4ShKFvHAuWefP1MTf/B+Mj0Oq8Tb9qzmhLuHCZMd5Pf21Knrt7jke/t4coYAtokFcuw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@anthropic-ai/sdk': '>=0.93.0'
+      '@modelcontextprotocol/sdk': ^1.29.0
+      zod: ^4.0.0
 
   '@anthropic-ai/sdk@0.97.1':
     resolution: {integrity: sha512-wOf7AUeJPitcVpvKO4UMu63mWH5SaVipkGd7OOQJt/G6VYGlV8D2Gp9dLxOrttDJh/9gqPqdaBwDGcBevumeAg==}
@@ -5705,6 +5888,51 @@ packages:
   '@oozcitak/util@8.3.8':
     resolution: {integrity: sha512-T8TbSnGsxo6TDBJx/Sgv/BlVJL3tshxZP7Aq5R1mSnM5OcHY2dQaxLMu2+E8u3gN0MLOzdjurqN4ZRVuzQycOQ==}
     engines: {node: '>=8.0'}
+
+  '@openai/codex-sdk@0.139.0':
+    resolution: {integrity: sha512-r4lDckaVx4mVZy1v/7ykEhkeWjVfM/4oGJfhG0AP4+zN3Sa+jcf5hdY4EHfJasofBcp0tIF/7JCKHpv534R+tw==}
+    engines: {node: '>=18'}
+
+  '@openai/codex@0.139.0':
+    resolution: {integrity: sha512-wr2fRE+fzW0CjEbfFsLh1ftarVEcw0CMLWS7QyA0nyOz5qacQPVq3cq2+/U7oEbwm1TOqoi0Fm1nxniB5FkpmA==}
+    engines: {node: '>=16'}
+    hasBin: true
+
+  '@openai/codex@0.139.0-darwin-arm64':
+    resolution: {integrity: sha512-o+0ZKWwgDFMMLO7rwinzO0PQsgK+Vme1pMN2GeAxsX29ZgGZcyPICfpJbeGSUO1mb2a36Skjx6nfdRnxMY0r7w==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@openai/codex@0.139.0-darwin-x64':
+    resolution: {integrity: sha512-9gkBWzu6DB2rqU4DbpxD3DE5bofGpsK46Lp0h0I+bKWc2IIcxvSi8K2utKmBLoJCbKrn4JQu7dFNGRqEfENung==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@openai/codex@0.139.0-linux-arm64':
+    resolution: {integrity: sha512-tBQE5lZciRHeWZGuURgjP9S717MvTIpQMc593+DNxY2LQxozkngOkzFSQd1+/UmQKGrCqdFLu5irIwPXpSZyEw==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@openai/codex@0.139.0-linux-x64':
+    resolution: {integrity: sha512-14UgzDS+X4crkvdt6S02A/ZZOrS8ZyWiuTRpguCtnhNamb7unSuDxy86BWgpAl3sqiTaN2CP8VLyp2ohQ8Nbzw==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [linux]
+
+  '@openai/codex@0.139.0-win32-arm64':
+    resolution: {integrity: sha512-nlwRjsYotH1Rtqu/Q0VwQbIeO2UX1mkHK84Ov9qn/hl29QqqoBtno0tRyqIPbkXFIVQuWiAYXlV3ugLwH5fTrQ==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@openai/codex@0.139.0-win32-x64':
+    resolution: {integrity: sha512-lQrVLNz+90wdvWVNFDvCkHQRiAK9ZllmkTka3c8eqSDqdJk35Gpgppfv9Xtw5M2ZBtTq0sBdWBiCMyzGDBSpmQ==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [win32]
 
   '@opencode-ai/sdk@1.17.7':
     resolution: {integrity: sha512-7q7StGM+N0OwUgRsmDc8Gyz3hMIH1XGig+qZ4lzWUpmSgFEjLx8U7R14GXY7KiMJVdbVf6FeaYloRz2Rcsma4A==}
@@ -8892,6 +9120,9 @@ packages:
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
 
+  '@types/http-proxy@1.17.17':
+    resolution: {integrity: sha512-ED6LB+Z1AVylNTu7hdzuBqOgMnvG/ld6wGCG8wFnAzKX5uyW2K3WD52v0gnLCTK/VLpXtKckgWuyScYK6cSPaw==}
+
   '@types/istanbul-lib-coverage@2.0.6':
     resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
 
@@ -11214,15 +11445,6 @@ packages:
   flow-parser@0.313.0:
     resolution: {integrity: sha512-JQaYSzcm2oEG4bCMMYxMBmJ3Uc4zQUQHwsB7Xvjy9+RmVLedUy3bnnDAwV2wZSyxk00vIKlNy+/FxFsoNYSDWQ==}
     engines: {node: '>=0.4.0'}
-
-  follow-redirects@1.15.11:
-    resolution: {integrity: sha512-deG2P0JfjrTxl50XGCDyfI97ZGVCxIpfKYmfyrQ54n5FO/0gfIES8C/Psl6kWVDolizcaaxZJnTS0QSMxvnsBQ==}
-    engines: {node: '>=4.0'}
-    peerDependencies:
-      debug: '*'
-    peerDependenciesMeta:
-      debug:
-        optional: true
 
   follow-redirects@1.16.0:
     resolution: {integrity: sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==}
@@ -16223,12 +16445,58 @@ snapshots:
       '@angular/core': 21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)(zone.js@0.15.1)
       tslib: 2.8.1
 
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.209':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk@0.3.209(@anthropic-ai/sdk@0.97.1(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.97.1(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      zod: 4.3.6
+    optionalDependencies:
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.209
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.209
+
   '@anthropic-ai/sdk@0.97.1(zod@4.2.1)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
     optionalDependencies:
       zod: 4.2.1
+
+  '@anthropic-ai/sdk@0.97.1(zod@4.3.6)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
+    optionalDependencies:
+      zod: 4.3.6
 
   '@apidevtools/json-schema-ref-parser@11.9.3':
     dependencies:
@@ -19431,6 +19699,37 @@ snapshots:
   '@oozcitak/util@10.0.0': {}
 
   '@oozcitak/util@8.3.8': {}
+
+  '@openai/codex-sdk@0.139.0':
+    dependencies:
+      '@openai/codex': 0.139.0
+
+  '@openai/codex@0.139.0':
+    optionalDependencies:
+      '@openai/codex-darwin-arm64': '@openai/codex@0.139.0-darwin-arm64'
+      '@openai/codex-darwin-x64': '@openai/codex@0.139.0-darwin-x64'
+      '@openai/codex-linux-arm64': '@openai/codex@0.139.0-linux-arm64'
+      '@openai/codex-linux-x64': '@openai/codex@0.139.0-linux-x64'
+      '@openai/codex-win32-arm64': '@openai/codex@0.139.0-win32-arm64'
+      '@openai/codex-win32-x64': '@openai/codex@0.139.0-win32-x64'
+
+  '@openai/codex@0.139.0-darwin-arm64':
+    optional: true
+
+  '@openai/codex@0.139.0-darwin-x64':
+    optional: true
+
+  '@openai/codex@0.139.0-linux-arm64':
+    optional: true
+
+  '@openai/codex@0.139.0-linux-x64':
+    optional: true
+
+  '@openai/codex@0.139.0-win32-arm64':
+    optional: true
+
+  '@openai/codex@0.139.0-win32-x64':
+    optional: true
 
   '@opencode-ai/sdk@1.17.7':
     dependencies:
@@ -23164,6 +23463,10 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
+  '@types/http-proxy@1.17.17':
+    dependencies:
+      '@types/node': 24.10.3
+
   '@types/istanbul-lib-coverage@2.0.6': {}
 
   '@types/istanbul-lib-report@3.0.3':
@@ -24077,7 +24380,7 @@ snapshots:
 
   axios@1.13.2:
     dependencies:
-      follow-redirects: 1.15.11
+      follow-redirects: 1.16.0
       form-data: 4.0.5
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -25957,8 +26260,6 @@ snapshots:
 
   flow-parser@0.313.0: {}
 
-  follow-redirects@1.15.11: {}
-
   follow-redirects@1.16.0: {}
 
   fontfaceobserver@2.3.0: {}
@@ -26465,7 +26766,7 @@ snapshots:
   http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.15.11
+      follow-redirects: 1.16.0
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
