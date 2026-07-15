@@ -17,3 +17,20 @@ export type {
   PluginDefinition,
   PluginKind,
 } from './activities/plugin/index'
+export {
+  audioPlugin,
+  imagePlugin,
+  speechPlugin,
+  summarizePlugin,
+  transcriptionPlugin,
+  videoPlugin,
+} from './activities/plugin/media'
+export type {
+  AudioPluginInput,
+  ImagePluginInput,
+  MaybeStream,
+  SpeechPluginInput,
+  SummarizePluginInput,
+  TranscriptionPluginInput,
+  VideoPluginInput,
+} from './activities/plugin/media'
