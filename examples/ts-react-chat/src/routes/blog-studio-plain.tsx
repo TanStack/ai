@@ -4,30 +4,37 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   AlertTriangle,
+  Check,
   Image as ImageIcon,
   Loader2,
   Newspaper,
+  PenLine,
   Sparkles,
   Square,
   Volume2,
   Wand2,
 } from 'lucide-react'
+import { EventType } from '@tanstack/ai'
 import {
   forNarration,
   heroPromptFor,
   type BlogPost,
 } from '../lib/blog-studio'
 import {
-  createBlogPostFn,
+  BLOG_STUDIO_PLAIN_EVENTS,
+  createBlogPostStreamFn,
   regenerateBlogHeroFn,
   regenerateBlogNarrationFn,
+  type BlogStudioStep,
 } from '../lib/blog-studio-plain-server-fns'
 import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 export const Route = createFileRoute('/blog-studio-plain')({
   component: BlogStudioPlain,
 })
+
+type StepState = 'pending' | 'active' | 'done' | 'failed'
 
 function imageUrlOf(result: ImageGenerationResult | null): string | null {
   const image = result?.images[0]
@@ -43,24 +50,91 @@ function audioSrcOf(result: TTSResult | null): string | null {
   return `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isBlogPost(value: unknown): value is BlogPost {
+  return (
+    isRecord(value) &&
+    typeof value.title === 'string' &&
+    typeof value.subtitle === 'string' &&
+    typeof value.body === 'string'
+  )
+}
+
+function isImageResult(value: unknown): value is ImageGenerationResult {
+  return isRecord(value) && Array.isArray(value.images)
+}
+
+function isTtsResult(value: unknown): value is TTSResult {
+  return isRecord(value) && typeof value.audio === 'string'
+}
+
+/** Read `data: {…}\\n\\n` SSE from a Response (same format as toServerSentEventsResponse). */
+async function* readSseJson(
+  response: Response,
+  signal: AbortSignal,
+): AsyncGenerator<unknown> {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+  const body = response.body
+  if (!body) throw new Error('Response has no body')
+
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
+        const data = trimmed.slice(5).trim()
+        if (!data || data === '[DONE]') continue
+        try {
+          yield JSON.parse(data) as unknown
+        } catch {
+          // skip malformed
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 function BlogStudioPlain() {
   const abortRef = useRef<AbortController | null>(null)
 
   const [topic, setTopic] = useState('')
+  const [hasRun, setHasRun] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [writingStep, setWritingStep] = useState<StepState>('pending')
+  const [heroStep, setHeroStep] = useState<StepState>('pending')
+  const [narrationStep, setNarrationStep] = useState<StepState>('pending')
 
   const [post, setPost] = useState<BlogPost | null>(null)
   const [hero, setHero] = useState<ImageGenerationResult | null>(null)
   const [audio, setAudio] = useState<TTSResult | null>(null)
+  const [draftChars, setDraftChars] = useState(0)
 
   const [heroBusy, setHeroBusy] = useState(false)
   const [narrationBusy, setNarrationBusy] = useState(false)
-  const [heroFailed, setHeroFailed] = useState(false)
-  const [narrationFailed, setNarrationFailed] = useState(false)
 
   const imageUrl = imageUrlOf(hero)
   const audioSrc = audioSrcOf(audio)
+  const showArticle = Boolean(post)
 
   function stop() {
     abortRef.current?.abort()
@@ -70,35 +144,121 @@ function BlogStudioPlain() {
     setNarrationBusy(false)
   }
 
+  function resetPipeline() {
+    setError(null)
+    setPost(null)
+    setHero(null)
+    setAudio(null)
+    setDraftChars(0)
+    setWritingStep('pending')
+    setHeroStep('pending')
+    setNarrationStep('pending')
+  }
+
+  function applyStepEvent(value: unknown) {
+    if (!isRecord(value) || typeof value.step !== 'string') return
+    const step = value.step as BlogStudioStep
+    const status = value.status
+    const setStep =
+      step === 'drafting'
+        ? setWritingStep
+        : step === 'heroImage'
+          ? setHeroStep
+          : step === 'narration'
+            ? setNarrationStep
+            : null
+    if (!setStep) return
+
+    if (status === 'started') {
+      setStep('active')
+      return
+    }
+    if (status === 'error') {
+      setStep('failed')
+      if (typeof value.error === 'string') setError(value.error)
+      return
+    }
+    if (status === 'done') {
+      setStep('done')
+      if (step === 'drafting' && isBlogPost(value.result)) {
+        setPost(value.result)
+      } else if (step === 'heroImage' && isImageResult(value.result)) {
+        setHero(value.result)
+      } else if (step === 'narration' && isTtsResult(value.result)) {
+        setAudio(value.result)
+      }
+    }
+  }
+
   async function run(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const nextTopic = topic.trim()
     if (!nextTopic || isRunning) return
 
     stop()
-    setError(null)
-    setPost(null)
-    setHero(null)
-    setAudio(null)
-    setHeroFailed(false)
-    setNarrationFailed(false)
+    resetPipeline()
+    setHasRun(true)
     setIsRunning(true)
 
     const abort = new AbortController()
     abortRef.current = abort
 
     try {
-      const result = await createBlogPostFn({
+      // Server function returns an SSE Response. One request: server chains
+      // draft → (hero ∥ narration) and streams pipeline:step / pipeline:result
+      // plus live structured-output deltas while drafting.
+      const response = await createBlogPostStreamFn({
         data: { topic: nextTopic },
         signal: abort.signal,
       })
-      if (abort.signal.aborted) return
-      setPost(result.post)
-      setHero(result.hero)
-      setAudio(result.audio)
+
+      if (!(response instanceof Response)) {
+        throw new Error('Expected an SSE Response from createBlogPostStreamFn')
+      }
+
+      for await (const chunk of readSseJson(response, abort.signal)) {
+        if (!isRecord(chunk) || typeof chunk.type !== 'string') continue
+
+        if (chunk.type === EventType.RUN_ERROR) {
+          const message =
+            typeof chunk.message === 'string'
+              ? chunk.message
+              : 'Pipeline failed'
+          if (message !== 'Aborted') setError(message)
+          setWritingStep((s) => (s === 'done' ? s : 'failed'))
+          setHeroStep((s) => (s === 'active' ? 'failed' : s))
+          setNarrationStep((s) => (s === 'active' ? 'failed' : s))
+          break
+        }
+
+        // Live draft JSON length while structured output streams.
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          const delta = chunk.delta
+          if (typeof delta === 'string') {
+            setDraftChars((n) => n + delta.length)
+          }
+        }
+
+        if (chunk.type === EventType.CUSTOM) {
+          if (chunk.name === BLOG_STUDIO_PLAIN_EVENTS.STEP) {
+            applyStepEvent(chunk.value)
+          } else if (
+            chunk.name === BLOG_STUDIO_PLAIN_EVENTS.RESULT &&
+            isRecord(chunk.value)
+          ) {
+            if (isBlogPost(chunk.value.post)) setPost(chunk.value.post)
+            if (isImageResult(chunk.value.hero)) setHero(chunk.value.hero)
+            if (isTtsResult(chunk.value.audio)) setAudio(chunk.value.audio)
+            setWritingStep('done')
+            setHeroStep((s) => (s === 'failed' ? s : 'done'))
+            setNarrationStep((s) => (s === 'failed' ? s : 'done'))
+          }
+        }
+      }
     } catch (err) {
       if (abort.signal.aborted) return
       setError(err instanceof Error ? err.message : 'Pipeline failed')
+      setWritingStep((s) => (s === 'done' ? s : 'failed'))
     } finally {
       if (abortRef.current === abort) {
         abortRef.current = null
@@ -110,15 +270,16 @@ function BlogStudioPlain() {
   async function regenerateHero() {
     if (!post || isRunning || heroBusy) return
     setHeroBusy(true)
-    setHeroFailed(false)
+    setHeroStep('active')
     setError(null)
     try {
       const result = await regenerateBlogHeroFn({
         data: { prompt: heroPromptFor(post) },
       })
       setHero(result)
+      setHeroStep('done')
     } catch (err) {
-      setHeroFailed(true)
+      setHeroStep('failed')
       setError(err instanceof Error ? err.message : 'Hero regenerate failed')
     } finally {
       setHeroBusy(false)
@@ -128,15 +289,16 @@ function BlogStudioPlain() {
   async function regenerateNarration() {
     if (!post || isRunning || narrationBusy) return
     setNarrationBusy(true)
-    setNarrationFailed(false)
+    setNarrationStep('active')
     setError(null)
     try {
       const result = await regenerateBlogNarrationFn({
         data: { text: forNarration(post.body) },
       })
       setAudio(result)
+      setNarrationStep('done')
     } catch (err) {
-      setNarrationFailed(true)
+      setNarrationStep('failed')
       setError(
         err instanceof Error ? err.message : 'Narration regenerate failed',
       )
@@ -155,21 +317,23 @@ function BlogStudioPlain() {
           </span>
         </div>
         <h1 className="mb-1 text-2xl font-bold text-stone-900">
-          Server-composed, no transactions
+          Server-composed, streaming
         </h1>
         <p className="mb-3 text-stone-500">
           One{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
             createServerFn
           </code>{' '}
-          runs draft → (hero ∥ narration) on the server and returns the finished
-          artifact. No{' '}
+          chains draft → (hero ∥ narration) on the server and streams step
+          progress over SSE (
           <code className="rounded bg-stone-100 px-1 text-xs">
-            defineTransaction
+            pipeline:step
           </code>
-          , no custom event protocol — just activities and{' '}
-          <code className="rounded bg-stone-100 px-1 text-xs">Promise.all</code>
-          .
+          , live draft deltas, then{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">
+            pipeline:result
+          </code>
+          ). No transaction layer.
         </p>
         <p className="mb-5 text-xs text-stone-400">
           Compare with the{' '}
@@ -179,7 +343,7 @@ function BlogStudioPlain() {
           >
             transaction version
           </Link>
-          : live sub-runs and a typed multi-verb client.
+          : verb registry, typed client, demuxed sub-runs.
         </p>
 
         <form onSubmit={(e) => void run(e)}>
@@ -224,6 +388,31 @@ function BlogStudioPlain() {
           </div>
         </form>
 
+        {hasRun && (
+          <div className="mt-5 flex flex-col gap-2 text-sm">
+            <StepRow
+              label="Writing the post"
+              icon={<PenLine size={16} />}
+              state={writingStep}
+              detail={
+                writingStep === 'active' && draftChars > 0
+                  ? `${draftChars} chars drafted`
+                  : undefined
+              }
+            />
+            <StepRow
+              label="Illustrating"
+              icon={<ImageIcon size={16} />}
+              state={heroStep}
+            />
+            <StepRow
+              label="Recording voice-over"
+              icon={<Volume2 size={16} />}
+              state={narrationStep}
+            />
+          </div>
+        )}
+
         {post && (
           <div className="mt-5 flex flex-col gap-2 border-t border-stone-200 pt-5">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-400">
@@ -266,10 +455,10 @@ function BlogStudioPlain() {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-6">
-        {post ? (
+        {showArticle && post ? (
           <article className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-200/60">
             <div className="relative aspect-[3/2] w-full bg-stone-100">
-              {imageUrl && !heroBusy ? (
+              {imageUrl && !heroBusy && heroStep !== 'active' ? (
                 <img
                   src={imageUrl}
                   alt={post.title}
@@ -277,12 +466,12 @@ function BlogStudioPlain() {
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
-                  {heroBusy ? (
+                  {heroBusy || heroStep === 'active' ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <Loader2 size={28} className="animate-spin" />
                       <span className="text-sm">Illustrating…</span>
                     </div>
-                  ) : heroFailed ? (
+                  ) : heroStep === 'failed' ? (
                     <div className="flex flex-col items-center gap-2 text-stone-400">
                       <AlertTriangle size={28} className="text-amber-500" />
                       <span className="text-sm">
@@ -309,7 +498,7 @@ function BlogStudioPlain() {
                   <Sparkles size={16} />
                 </div>
                 <span>Written &amp; narrated by TanStack AI</span>
-                {narrationBusy ? (
+                {narrationBusy || narrationStep === 'active' ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <Loader2 size={14} className="animate-spin" /> Recording
                     voice-over…
@@ -319,7 +508,7 @@ function BlogStudioPlain() {
                     <Volume2 size={16} className="text-sky-700" />
                     <audio src={audioSrc} controls className="h-8" />
                   </div>
-                ) : narrationFailed ? (
+                ) : narrationStep === 'failed' ? (
                   <span className="ml-auto flex items-center gap-2 text-stone-400">
                     <AlertTriangle size={14} className="text-amber-500" />
                     Voice-over unavailable
@@ -339,7 +528,11 @@ function BlogStudioPlain() {
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
               <Loader2 size={40} className="animate-spin text-sky-500" />
               <p className="max-w-xs text-sm">
-                Writing, illustrating, and recording… this can take a minute.
+                {writingStep === 'active'
+                  ? draftChars > 0
+                    ? `Drafting… ${draftChars} characters so far.`
+                    : 'Drafting the article…'
+                  : 'Illustrating and recording voice-over…'}
               </p>
             </div>
           </div>
@@ -348,13 +541,53 @@ function BlogStudioPlain() {
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
               <Newspaper size={48} className="text-stone-300" />
               <p className="max-w-xs text-sm">
-                Your finished post — hero image, article, and voice-over — will
-                appear here when the server function returns.
+                Your finished post streams in step-by-step from a single server
+                function.
               </p>
             </div>
           </div>
         )}
       </main>
     </div>
+  )
+}
+
+function StepRow({
+  label,
+  icon,
+  state,
+  detail,
+}: {
+  label: string
+  icon: ReactNode
+  state: StepState
+  detail?: string
+}) {
+  const cls =
+    state === 'active'
+      ? 'text-sky-700 font-medium'
+      : state === 'done'
+        ? 'text-stone-500'
+        : state === 'failed'
+          ? 'text-amber-600'
+          : 'text-stone-300'
+  return (
+    <span className={`flex items-center gap-2 ${cls}`}>
+      {state === 'active' ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : state === 'done' ? (
+        <Check size={16} />
+      ) : state === 'failed' ? (
+        <AlertTriangle size={16} />
+      ) : (
+        icon
+      )}
+      {label}
+      {detail && (
+        <span className="ml-auto text-xs tabular-nums text-stone-400">
+          {detail}
+        </span>
+      )}
+    </span>
   )
 }
