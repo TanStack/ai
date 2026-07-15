@@ -235,9 +235,9 @@ export function defineTransaction<const T extends TransactionConfig>(
  *
  * @example
  * ```ts
- * import type { blogTransaction } from './api.blog-studio'
  * import { clientTransaction } from '@tanstack/ai/transaction'
  *
+ * // `blogTransaction` is your server-side defineTransaction() export.
  * const txnDef = clientTransaction<typeof blogTransaction>({
  *   drafting: 'chat',
  *   heroImage: 'one-shot',
