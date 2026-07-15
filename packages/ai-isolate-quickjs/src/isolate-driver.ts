@@ -60,7 +60,12 @@ function injectBinding(
   const toolFn = vm.newFunction(name, (argsHandle) => {
     const argsJson = vm.getString(argsHandle)
     const deferred = vm.newPromise()
-    const completeHostCall = context.beginHostCall()
+    let completeHostCall = () => {}
+    const cancelHostCall = () => {
+      if (deferred.alive) deferred.dispose()
+      completeHostCall()
+    }
+    completeHostCall = context.beginHostCall(cancelHostCall)
 
     void invokeBinding(binding, argsJson).then((payloadJson) => {
       if (!vm.alive || !deferred.alive) {

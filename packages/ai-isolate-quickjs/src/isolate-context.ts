@@ -69,7 +69,7 @@ export class QuickJSIsolateContext implements IsolateContext {
   private readonly logs: Array<string>
   private readonly timeout: number
   private rejectPendingJobFailure?: (error: unknown) => void
-  private pendingHostCalls = 0
+  private readonly pendingHostCalls = new Set<() => void>()
   private disposeRequested = false
   private disposed = false
   private executing = false
@@ -100,15 +100,15 @@ export class QuickJSIsolateContext implements IsolateContext {
     }
   }
 
-  beginHostCall(): () => void {
-    this.pendingHostCalls += 1
+  beginHostCall(cancel: () => void): () => void {
+    this.pendingHostCalls.add(cancel)
     let completed = false
 
     return () => {
       if (completed) return
       completed = true
-      this.pendingHostCalls -= 1
-      if (this.disposeRequested && this.pendingHostCalls === 0) {
+      this.pendingHostCalls.delete(cancel)
+      if (this.disposeRequested && this.pendingHostCalls.size === 0) {
         this.vm.dispose()
       }
     }
@@ -118,7 +118,10 @@ export class QuickJSIsolateContext implements IsolateContext {
     if (this.disposeRequested) return
     this.disposeRequested = true
     this.disposed = true
-    if (this.pendingHostCalls === 0) {
+    for (const cancel of [...this.pendingHostCalls]) {
+      cancel()
+    }
+    if (this.pendingHostCalls.size === 0 && this.vm.alive) {
       this.vm.dispose()
     }
   }

@@ -192,6 +192,24 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.error?.name).toBe('TimeoutError')
       expect(reuse.error?.name).toBe('DisposedError')
     })
+
+    it('disposes the VM when a timed-out host tool never settles', async () => {
+      const hanging = makeBinding('hanging', () => new Promise(() => {}))
+      const context = await createQuickJSIsolateDriver({
+        timeout: 20,
+      }).createContext({ bindings: { hanging } })
+
+      const result = await context.execute('return await hanging({})')
+      const vm = (
+        context as unknown as {
+          vm: { alive: boolean }
+        }
+      ).vm
+
+      expect(result.error?.name).toBe('TimeoutError')
+      expect(vm.alive).toBe(false)
+      await expect(context.dispose()).resolves.toBeUndefined()
+    })
   })
 
   describe('execute - error handling', () => {
