@@ -29,6 +29,7 @@ import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
@@ -53,9 +54,33 @@ interface SandboxRunState {
    * watcher callback, awaited before teardown so a pending diff isn't
    * dropped when the run finishes/aborts/errors mid-computation. */
   pendingDiffs: Array<Promise<void>>
+  /** Logger captured at setup, so terminal hooks can log watcher teardown. */
+  logger?: InternalLogger
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
+
+/**
+ * Stop the watcher and drain any in-flight `diff()` promises before teardown,
+ * so the final file's diff isn't dropped when a run finishes/aborts/errors
+ * mid-computation. The `pendingDiffs` await is the load-bearing line — without
+ * it a deferred diff resolves after the run is gone and its chunk is lost.
+ */
+async function drainWatcher(
+  state: SandboxRunState,
+  phase: 'finish' | 'abort' | 'error',
+): Promise<void> {
+  // Guard `stop()`: a rejecting watcher teardown must NOT propagate out of
+  // here, or the caller skips the `definition.destroy(...)` that follows —
+  // leaking the sandbox on exactly the abort path that must ALWAYS tear down.
+  try {
+    await state.watcher?.stop()
+  } catch (error) {
+    state.logger?.warn('sandbox watcher stop failed', { phase, error })
+  }
+  await Promise.allSettled(state.pendingDiffs)
+  if (state.watcher) state.logger?.sandbox('sandbox watcher stopped', { phase })
+}
 
 /** Defensively pull tenant scoping out of the runtime context, if present. */
 function tenantFrom(
@@ -83,11 +108,14 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
 /**
  * Dispatch a sandbox file event to the per-type hooks declared on the
  * definition. Errors in individual hooks are swallowed so one bad hook
- * cannot break the run.
+ * cannot break the run — but are logged under the `errors` category first, so
+ * a throwing hook is observable (matching the run-scoped path in the engine
+ * and the behavior the observability docs promise).
  */
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
   event: SandboxFileHookEvent,
+  logger?: InternalLogger,
 ): Promise<void> {
   if (!hooks) return
   const typed = (
@@ -101,8 +129,14 @@ async function dispatchDefinitionHooks(
     if (!fn) continue
     try {
       await fn(event)
-    } catch {
-      // swallowed — one bad hook must not break the run
+    } catch (error) {
+      // swallowed — one bad hook must not break the run — but logged so the
+      // failure isn't invisible.
+      logger?.errors('sandbox file hook failed', {
+        path: event.path,
+        type: event.type,
+        error,
+      })
     }
   }
 }
@@ -128,15 +162,43 @@ export function withSandbox(
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
+      // Pull the runtime (and its logger) up front so `baseSha` capture and
+      // hook dispatch below can log through the same `sandbox`/`errors`
+      // categories the engine uses.
+      const runtime = getSandboxRuntime(ctx, { optional: true })
+      const logger = runtime?.logger
+
       const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
       let baseSha = ''
       try {
         const shaRes = await handle.process.exec('git rev-parse HEAD', {
           cwd: watchRoot,
         })
-        if (shaRes.exitCode === 0) baseSha = shaRes.stdout.trim()
-      } catch {
-        // non-git workspace / exec rejects → baseSha stays '' (accessors fall back)
+        if (shaRes.exitCode === 0) {
+          baseSha = shaRes.stdout.trim()
+          logger?.sandbox('sandbox git baseline captured', {
+            root: watchRoot,
+            baseSha,
+          })
+        } else {
+          // Non-zero exit: either not a git repository (non-git workspace) or a
+          // repo with no commits (no HEAD). Expected, but it silently degrades
+          // every subsequent diff to a full-file add-patch, so surface it
+          // under `sandbox` (with stderr) rather than leaving nothing to grep.
+          logger?.sandbox('sandbox git baseline unavailable (non-zero exit)', {
+            root: watchRoot,
+            exitCode: shaRes.exitCode,
+            stderr: shaRes.stderr,
+          })
+        }
+      } catch (error) {
+        // exec rejected (git not on PATH, exec seam broken) → baseSha stays ''
+        // and accessors fall back, but this is a real anomaly, not a plain
+        // non-git workspace, so warn.
+        logger?.warn('sandbox git baseline capture failed', {
+          root: watchRoot,
+          error,
+        })
       }
 
       const workspace = definition.workspace
@@ -170,7 +232,6 @@ export function withSandbox(
       const pendingDiffs: Array<Promise<void>> = []
       let watcher: SandboxWatchHandle | undefined
       if (fe.enabled) {
-        const runtime = getSandboxRuntime(ctx, { optional: true })
         watcher = await watchWorkspace(handle, {
           onEvent: (event: SandboxFileEvent) => {
             const enriched = buildFileHookEvent(
@@ -178,8 +239,9 @@ export function withSandbox(
               watchRoot,
               baseSha,
               event,
+              logger,
             )
-            void dispatchDefinitionHooks(hooks, enriched)
+            void dispatchDefinitionHooks(hooks, enriched, logger)
             runtime?.emit(enriched)
             if (fe.diff) {
               pendingDiffs.push(
@@ -188,11 +250,27 @@ export function withSandbox(
                   .then((diff) => {
                     runtime?.emitFileDiff({ path: event.path, diff })
                   })
-                  .catch(() => undefined),
+                  .catch((error: unknown) => {
+                    logger?.warn('sandbox file diff emit failed', {
+                      path: event.path,
+                      error,
+                    })
+                  }),
               )
             }
           },
+          // Watch the SAME root the enrichment layer relativizes against
+          // (`buildFileHookEvent(handle, watchRoot, …)` and the `baseSha`
+          // capture). Without this the watcher defaults to `/workspace` while
+          // enrichment uses `watchRoot`, so a custom `workspace.root` makes the
+          // two look at different directories and git pathspecs break.
+          root: watchRoot,
           ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          ...(logger !== undefined ? { logger } : {}),
+        })
+        logger?.sandbox('sandbox watcher started', {
+          root: watchRoot,
+          diff: fe.diff,
         })
       }
 
@@ -201,6 +279,7 @@ export function withSandbox(
         ensureCtx,
         pendingDiffs,
         ...(watcher ? { watcher } : {}),
+        ...(logger !== undefined ? { logger } : {}),
       })
     },
 
@@ -209,8 +288,7 @@ export function withSandbox(
       if (!state) return
       const { handle, ensureCtx } = state
 
-      await state.watcher?.stop()
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'finish')
 
       const lifecycle = definition.lifecycle
 
@@ -244,8 +322,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'abort')
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
@@ -261,8 +338,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
-      await Promise.allSettled(state.pendingDiffs)
+      await drainWatcher(state, 'error')
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave

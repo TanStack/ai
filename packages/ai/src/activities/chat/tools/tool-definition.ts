@@ -26,6 +26,10 @@ export interface ClientTool<
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
   TContext = unknown,
+  // Captured as a literal (`true` / `false`) so downstream types — notably
+  // the tool-call part's `approval` field — can be gated on it. Defaults to
+  // `false` when the tool config omits `needsApproval`.
+  TNeedsApproval extends boolean = false,
 > {
   __toolSide: 'client'
   name: TName
@@ -37,7 +41,7 @@ export interface ClientTool<
   // because `undefined` doesn't extend the schema constraint.
   inputSchema?: TInput
   outputSchema?: TOutput
-  needsApproval?: boolean
+  needsApproval?: TNeedsApproval
   lazy?: boolean
   metadata?: Record<string, unknown>
   execute?: ToolExecuteFunction<TInput, TOutput, TContext>
@@ -51,18 +55,22 @@ export interface ToolDefinitionInstance<
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
   TContext = unknown,
+  TNeedsApproval extends boolean = false,
 > extends Tool<TInput, TOutput, TName, TContext> {
   __toolSide: 'definition'
+  // Narrow the base `needsApproval?: boolean` to the captured literal so it
+  // survives into `ToolCallPartForTool`'s approval gate.
+  needsApproval?: TNeedsApproval
 }
 
 /**
  * Union type for any kind of client-side tool (client tool or definition)
  */
 export type AnyClientTool =
-  | (Omit<ClientTool<any, any, string, any>, 'execute'> & {
+  | (Omit<ClientTool<any, any, string, any, boolean>, 'execute'> & {
       execute?: ((args: any, context?: any) => any) | undefined
     })
-  | (Omit<ToolDefinitionInstance<any, any, string, any>, 'execute'> & {
+  | (Omit<ToolDefinitionInstance<any, any, string, any, boolean>, 'execute'> & {
       execute?: ((args: any, context?: any) => any) | undefined
     })
 
@@ -100,12 +108,13 @@ export interface ToolDefinitionConfig<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
+  TNeedsApproval extends boolean = false,
 > {
   name: TName
   description: string
   inputSchema?: TInput
   outputSchema?: TOutput
-  needsApproval?: boolean
+  needsApproval?: TNeedsApproval
   lazy?: boolean
   metadata?: Record<string, unknown>
 }
@@ -117,7 +126,14 @@ export interface ToolDefinition<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
-> extends ToolDefinitionInstance<TInput, TOutput, TName> {
+  TNeedsApproval extends boolean = false,
+> extends ToolDefinitionInstance<
+  TInput,
+  TOutput,
+  TName,
+  unknown,
+  TNeedsApproval
+> {
   /**
    * Create a server-side tool with execute function
    */
@@ -126,11 +142,13 @@ export interface ToolDefinition<
   ) => ServerTool<TInput, TOutput, TName, TContext>
 
   /**
-   * Create a client-side tool with optional execute function
+   * Create a client-side tool with optional execute function.
+   * Carries the definition's `needsApproval` literal through to the client
+   * tool so the tool-call part's `approval` field stays gated on it.
    */
   client: <TContext = unknown>(
     execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
-  ) => ClientTool<TInput, TOutput, TName, TContext>
+  ) => ClientTool<TInput, TOutput, TName, TContext, TNeedsApproval>
 }
 
 /**
@@ -192,10 +210,14 @@ export function toolDefinition<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
+  // `const` forces the literal (`true` / `false`) to be captured from the
+  // config's optional `needsApproval` — without it TS widens to `boolean`,
+  // which collapses the approval gate in `ToolCallPartForTool`.
+  const TNeedsApproval extends boolean = false,
 >(
-  config: ToolDefinitionConfig<TInput, TOutput, TName>,
-): ToolDefinition<TInput, TOutput, TName> {
-  const definition: ToolDefinition<TInput, TOutput, TName> = {
+  config: ToolDefinitionConfig<TInput, TOutput, TName, TNeedsApproval>,
+): ToolDefinition<TInput, TOutput, TName, TNeedsApproval> {
+  const definition: ToolDefinition<TInput, TOutput, TName, TNeedsApproval> = {
     __toolSide: 'definition',
     ...config,
     server<TContext = unknown>(
@@ -210,7 +232,7 @@ export function toolDefinition<
 
     client<TContext = unknown>(
       execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
-    ): ClientTool<TInput, TOutput, TName, TContext> {
+    ): ClientTool<TInput, TOutput, TName, TContext, TNeedsApproval> {
       return {
         __toolSide: 'client',
         ...config,

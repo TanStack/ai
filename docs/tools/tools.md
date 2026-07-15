@@ -234,7 +234,6 @@ export async function POST(request: Request) {
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
@@ -268,7 +267,7 @@ const saveToStorage = saveToStorageDef.client((input) => {
 });
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToStorage);
+const tools = [updateUI, saveToStorage];
 
 const textOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

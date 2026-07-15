@@ -78,6 +78,13 @@
     "test:sherif": {
       "cache": true,
       "inputs": ["{workspaceRoot}/**/package.json"]
+    },
+    "test:dts": {
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/scripts/scan-dangling-dts.mjs",
+        "{workspaceRoot}/packages/*/dist/**/*.d.ts"
+      ]
     }
   }
 }

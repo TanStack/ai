@@ -244,6 +244,59 @@ describe('message-updaters', () => {
       })
     })
 
+    it('should preserve existing input when updating a tool call without input in payload', () => {
+      const parsedInput = { path: '/tmp/file' }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'deleteFile',
+            arguments: '{"path":"/tmp/file"}',
+            state: 'input-complete',
+            input: parsedInput,
+          },
+        ]),
+      ]
+
+      const result = updateToolCallPart(messages, 'msg-1', {
+        id: 'call-1',
+        name: 'deleteFile',
+        arguments: '{"path":"/tmp/file"}',
+        state: 'approval-requested',
+      })
+
+      const part = result[0]?.parts[0] as ToolCallPart | undefined
+      expect(part?.input).toEqual(parsedInput)
+    })
+
+    it('should preserve existing input through approval request updates', () => {
+      const parsedInput = { path: '/tmp/file' }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'deleteFile',
+            arguments: '{"path":"/tmp/file"}',
+            state: 'input-complete',
+            input: parsedInput,
+          },
+        ]),
+      ]
+
+      const result = updateToolCallApproval(
+        messages,
+        'msg-1',
+        'call-1',
+        'approval-123',
+      )
+
+      const part = result[0]?.parts[0] as ToolCallPart | undefined
+      expect(part?.input).toEqual(parsedInput)
+      expect(part?.state).toBe('approval-requested')
+    })
+
     it('should preserve existing output when updating a tool call', () => {
       const toolOutput = { temperature: 20, conditions: 'sunny' }
       const messages = [
