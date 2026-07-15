@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeStructuredParts } from '../src/transaction-structured.js'
+import { computeStructuredParts } from '../src/plugin-structured.js'
 import type { UIMessage } from '../src/types.js'
 
 function userMessage(id: string): UIMessage {

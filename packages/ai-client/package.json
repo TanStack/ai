@@ -43,9 +43,9 @@
       "types": "./dist/esm/devtools.d.ts",
       "import": "./dist/esm/devtools.js"
     },
-    "./transaction": {
-      "types": "./dist/esm/transaction.d.ts",
-      "import": "./dist/esm/transaction.js"
+    "./plugin": {
+      "types": "./dist/esm/plugin.d.ts",
+      "import": "./dist/esm/plugin.js"
     }
   },
   "files": [

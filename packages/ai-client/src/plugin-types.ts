@@ -1,10 +1,10 @@
-// packages/ai-client/src/transaction-types.ts
+// packages/ai-client/src/plugin-types.ts
 import type { InferChatSchema, InferChatTools } from '@tanstack/ai'
 import type {
-  ChatVerb,
-  OneShotVerb,
-  TransactionDefinition,
-} from '@tanstack/ai/transaction'
+  ChatPlugin,
+  GenerationPlugin,
+  PluginDefinition,
+} from '@tanstack/ai/plugin'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -25,63 +25,35 @@ import type {
   InferGenerationOutput,
 } from './generation-types.js'
 
-/**
- * Live state of one sub-run inside a transaction run — a sibling verb the
- * server-side `execute` invoked via `ctx.call`. Demultiplexed from the
- * single SSE response by `TransactionClient`.
- */
-export interface TransactionSubRun {
-  runId: string
-  /** The sub-verb's name in the transaction definition. */
-  verb: string
-  /** 0-based order in which the server started this sub-run. */
-  index: number
-  status: 'running' | 'success' | 'error'
-  /** The sub-run's result, once it completes. */
-  result: unknown
-  /** Accumulated streamed text, for chat-verb sub-runs. */
-  text: string
-  /**
-   * Live, progressively-parsed structured output for a chat-verb sub-run
-   * whose callback declared an `outputSchema` — the partial object built from
-   * the streamed JSON as it arrives, snapped to the fully-validated object on
-   * completion. `undefined` for plain-text chat verbs and one-shot verbs
-   * (whose streamed `text`, if any, is prose, not JSON). Typed `unknown`;
-   * narrow it before use.
-   */
-  partial?: unknown
-  error?: string
-}
-
-/** Per-chat-verb client options. */
-export interface ChatVerbOptions {
-  /** Client-executed tools for this chat verb. */
+/** Per-chat-plugin client options. */
+export interface ChatPluginOptions {
+  /** Client-executed tools for this chat plugin. */
   tools?: ReadonlyArray<AnyClientTool>
-  /** Extra fields merged into this verb's request body. */
+  /** Extra fields merged into this plugin's request body. */
   forwardedProps?: Record<string, any>
 }
 
 /**
- * Per-one-shot-verb client options: an optional `onResult` transform (its
- * return type becomes the verb surface's `result` type) plus extra
+ * Per-generation-plugin client options: an optional `onResult` transform (its
+ * return type becomes the plugin surface's `result` type) plus extra
  * `forwardedProps` merged into the request body.
  */
-export interface OneShotVerbOptions<TResult> {
+export interface GenerationPluginClientOptions<TResult> {
   /**
    * Transform the raw backend result before it is stored on the surface.
    * Return `undefined`/`null`/`void` to keep the raw result.
    */
   onResult?: (result: TResult) => unknown
-  /** Extra fields merged into this verb's request body. */
+  /** Extra fields merged into this plugin's request body. */
   forwardedProps?: Record<string, any>
 }
 
-/** Maps each declared verb name to its per-verb client options shape. */
-export type VerbOptionsMap<TDef extends TransactionDefinition<any>> = {
-  [K in keyof TDef['~verbs'] & string]?: TDef['~verbs'][K] extends ChatVerb<any>
-    ? ChatVerbOptions
-    : TDef['~verbs'][K] extends OneShotVerb<any, infer TRes>
-      ? OneShotVerbOptions<TRes>
+/** Maps each declared plugin name to its per-plugin client options shape. */
+export type PluginOptionsMap<TDef extends PluginDefinition<any>> = {
+  [K in keyof TDef['~plugins'] & string]?: TDef['~plugins'][K] extends ChatPlugin<any>
+    ? ChatPluginOptions
+    : TDef['~plugins'][K] extends GenerationPlugin<any, infer TRes>
+      ? GenerationPluginClientOptions<TRes>
       : never
 }
 
@@ -89,13 +61,13 @@ export type VerbOptionsMap<TDef extends TransactionDefinition<any>> = {
  * Reactive state callbacks forwarded into the underlying sub-clients'
  * constructors. Set by the framework hooks (not users) to wire up reactive
  * state. `ChatClient` and `GenerationClient` only accept these via their
- * constructors, so `TransactionClient` threads them through at construction
+ * constructors, so `PluginClient` threads them through at construction
  * time.
  */
-export interface TransactionClientCallbacks {
-  /** Reactive state callbacks for each chat verb's `ChatClient`. */
+export interface PluginClientCallbacks {
+  /** Reactive state callbacks for each chat plugin's `ChatClient`. */
   chat?: (
-    verb: string,
+    plugin: string,
   ) => Pick<
     ChatClientOptions,
     | 'onMessagesChange'
@@ -106,32 +78,27 @@ export interface TransactionClientCallbacks {
     | 'onConnectionStatusChange'
     | 'onSessionGeneratingChange'
   >
-  /** Reactive state callbacks for each one-shot verb's `GenerationClient`. */
-  oneShot?: (verb: string) => Pick<
+  /** Reactive state callbacks for each generation plugin's `GenerationClient`. */
+  oneShot?: (plugin: string) => Pick<
     GenerationClientOptions<any, any, any>,
     'onResultChange' | 'onLoadingChange' | 'onErrorChange' | 'onStatusChange'
-  > & {
-    /** Invoked whenever the verb's live sub-run state changes. */
-    onSubRunsChange?: (subRuns: Array<TransactionSubRun>) => void
-  }
+  >
 }
 
-/** Options for TransactionClient (framework-agnostic core). */
-export interface TransactionClientOptions<
-  TDef extends TransactionDefinition<any>,
-> {
-  transaction: TDef
+/** Options for PluginClient (framework-agnostic core). */
+export interface PluginClientOptions<TDef extends PluginDefinition<any>> {
+  plugin: TDef
   connection: ConnectConnectionAdapter
   id?: string
   threadId?: string
   /**
-   * Per-verb options, keyed by the verb names declared on the definition.
-   * Nested (rather than spread at the top level) so verb names can never
+   * Per-plugin options, keyed by the plugin names declared on the definition.
+   * Nested (rather than spread at the top level) so plugin names can never
    * collide with `connection`/`id`/`threadId`/`callbacks`.
    */
-  verbs?: VerbOptionsMap<TDef>
+  plugins?: PluginOptionsMap<TDef>
   /** Set by framework hooks (not users) to wire up reactive state. */
-  callbacks?: TransactionClientCallbacks
+  callbacks?: PluginClientCallbacks
 }
 
 /**
@@ -181,27 +148,29 @@ type ToClientTools<TTools> = TTools extends readonly [
   ? [ToClientToolShape<THead>, ...ToClientTools<TRest>]
   : []
 
-/** The return type of a chat verb's captured callback. */
-type ChatVerbReturn<TVerb> =
-  TVerb extends ChatVerb<infer TCallback>
+/** The return type of a chat plugin's captured callback. */
+type ChatPluginReturn<TPlugin> =
+  TPlugin extends ChatPlugin<infer TCallback>
     ? TCallback extends (...args: Array<any>) => infer TRet
       ? TRet
       : never
     : never
 
 /**
- * Client-tool-shaped tuple recovered from a chat verb's captured tools.
+ * Client-tool-shaped tuple recovered from a chat plugin's captured tools.
  * Drives the `messages` tool-call/result part typing on that chat surface.
  */
-export type ChatToolsOfVerb<TVerb> = ToClientTools<
-  NonNullable<InferChatTools<ChatVerbReturn<TVerb>>>
+export type ChatToolsOfPlugin<TPlugin> = ToClientTools<
+  NonNullable<InferChatTools<ChatPluginReturn<TPlugin>>>
 >
 
-/** Structured-output schema recovered from a chat verb (or `undefined`). */
-export type ChatSchemaOfVerb<TVerb> = InferChatSchema<ChatVerbReturn<TVerb>>
+/** Structured-output schema recovered from a chat plugin (or `undefined`). */
+export type ChatSchemaOfPlugin<TPlugin> = InferChatSchema<
+  ChatPluginReturn<TPlugin>
+>
 
-/** The base chat verb surface — mirrors the frameworks' useChat return. */
-export interface TransactionChatSurfaceBase<
+/** The base chat plugin surface — mirrors the frameworks' useChat return. */
+export interface PluginChatSurfaceBase<
   TTools extends ReadonlyArray<AnyClientTool> = [],
 > {
   /** Current messages in the conversation. */
@@ -283,15 +252,15 @@ export interface TransactionChatSurfaceBase<
 }
 
 /**
- * The chat verb surface. Extends {@link TransactionChatSurfaceBase} and,
+ * The chat plugin surface. Extends {@link PluginChatSurfaceBase} and,
  * when the callback declared an `outputSchema` (`TSchema extends
  * SchemaInput`), adds the typed structured-output fields `partial` / `final`
  * — mirroring the framework `useChat` hooks' conditional return.
  */
-export type TransactionChatSurface<
+export type PluginChatSurface<
   TTools extends ReadonlyArray<AnyClientTool> = [],
   TSchema = undefined,
-> = TransactionChatSurfaceBase<TTools> & {
+> = PluginChatSurfaceBase<TTools> & {
   /**
    * Send a message and get a response. Can be a simple string or multimodal
    * content with images, audio, etc.
@@ -322,9 +291,9 @@ export type TransactionChatSurface<
       }
     : Record<never, never>)
 
-/** The one-shot verb surface — a typed run/result pair plus live sub-runs. */
-export interface TransactionVerbSurface<TInput, TResult> {
-  /** Invoke the verb. Resolves with its (transformed) result, or null. */
+/** The generation plugin surface — a typed run/result pair. */
+export interface PluginGenerationSurface<TInput, TResult> {
+  /** Invoke the plugin. Resolves with its (transformed) result, or null. */
   run: (input: TInput) => Promise<TResult | null>
   result: TResult | null
   isLoading: boolean
@@ -332,52 +301,48 @@ export interface TransactionVerbSurface<TInput, TResult> {
   status: GenerationClientState
   stop: () => void
   reset: () => void
-  /**
-   * Live state of the sub-runs the server-side `execute` spawned via
-   * `ctx.call` during the current/last run, in start order. Empty for verbs
-   * that don't compose siblings.
-   */
-  subRuns: Array<TransactionSubRun>
 }
 
 /**
- * The stored `result` type for a one-shot verb `K`: the `onResult`
+ * The stored `result` type for a generation plugin `K`: the `onResult`
  * transform's return type when the options declare one, otherwise the raw
- * result type captured from the verb's `execute`.
+ * result type captured from the plugin's `execute`.
  */
-export type VerbResultType<
+export type PluginResultType<
   TOptions,
-  TVerbName extends string,
+  TPluginName extends string,
   TResult,
-> = TOptions extends { verbs?: infer TVerbOptions }
-  ? TVerbName extends keyof TVerbOptions
-    ? NonNullable<TVerbOptions[TVerbName]> extends { onResult?: infer TFn }
+> = TOptions extends { plugins?: infer TPluginOptions }
+  ? TPluginName extends keyof TPluginOptions
+    ? NonNullable<TPluginOptions[TPluginName]> extends { onResult?: infer TFn }
       ? InferGenerationOutput<TResult, TFn>
       : TResult
     : TResult
   : TResult
 
 /**
- * The full typed system returned by useTransaction: one surface per declared
- * verb. Chat verbs get the conversational surface (tools and structured
- * output inferred from their callback); one-shot verbs get a typed
+ * The full typed system returned by usePlugin: one surface per declared
+ * plugin. Chat plugins get the conversational surface (tools and structured
+ * output inferred from their callback); generation plugins get a typed
  * `run`/`result` surface (input from their schema, result from `execute`,
  * transformed by the options' `onResult` when declared).
  */
-export type TransactionSystem<
-  TDef extends TransactionDefinition<any>,
+export type PluginSystem<
+  TDef extends PluginDefinition<any>,
   /**
-   * The user's options object. Its per-verb `onResult` transforms drive each
-   * one-shot verb's `result` type. Defaults to `unknown` (no transforms).
+   * The user's options object. Its per-plugin `onResult` transforms drive
+   * each generation plugin's `result` type. Defaults to `unknown` (no
+   * transforms).
    */
   TOptions = unknown,
 > = {
-  [K in keyof TDef['~verbs'] & string]: TDef['~verbs'][K] extends ChatVerb<any>
-    ? TransactionChatSurface<
-        ChatToolsOfVerb<TDef['~verbs'][K]>,
-        ChatSchemaOfVerb<TDef['~verbs'][K]>
+  [K in keyof TDef['~plugins'] &
+    string]: TDef['~plugins'][K] extends ChatPlugin<any>
+    ? PluginChatSurface<
+        ChatToolsOfPlugin<TDef['~plugins'][K]>,
+        ChatSchemaOfPlugin<TDef['~plugins'][K]>
       >
-    : TDef['~verbs'][K] extends OneShotVerb<infer TInput, infer TResult>
-      ? TransactionVerbSurface<TInput, VerbResultType<TOptions, K, TResult>>
+    : TDef['~plugins'][K] extends GenerationPlugin<infer TInput, infer TResult>
+      ? PluginGenerationSurface<TInput, PluginResultType<TOptions, K, TResult>>
       : never
 }

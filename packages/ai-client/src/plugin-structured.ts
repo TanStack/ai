@@ -3,7 +3,7 @@ import type { UIMessage } from './types.js'
 /**
  * Computes the "active" structured-output `partial`/`final` values from a
  * `UIMessage` history — the framework-agnostic core of `useChat`'s
- * `partial`/`final` fields, shared by the transaction hooks.
+ * `partial`/`final` fields, shared by the plugin hooks.
  *
  * The "active" structured-output part is the one on the assistant message
  * that follows the latest user message. No such message exists between

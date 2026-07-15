@@ -40,7 +40,7 @@ export default mergeConfig(
     // implementations; declare it as its own entry so the build emits
     // it independently and the main entry can stay free of the bridge
     // classes (they're imported only via `import type` from clients).
-    entry: ['./src/index.ts', './src/devtools.ts', './src/transaction.ts'],
+    entry: ['./src/index.ts', './src/devtools.ts', './src/plugin.ts'],
     srcDir: './src',
     cjs: false,
   }),
