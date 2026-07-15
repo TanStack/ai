@@ -11,6 +11,7 @@ import type {
   AnyVerb,
   ChatVerb,
   ChatVerbReturn,
+  ClientTransactionKinds,
   CollectedChatResult,
   OneShotVerb,
   TransactionChatRequest,
@@ -224,6 +225,40 @@ export function defineTransaction<const T extends TransactionConfig>(
   }
 
   return { verbs, verbKinds, handler, '~verbs': config }
+}
+
+/**
+ * Build a type-only client stub for a server-side {@link defineTransaction}
+ * definition. The browser only needs verb names and kinds at runtime; input,
+ * result, tool, and schema types flow from `TDef` via `import type`.
+ *
+ * @example
+ * ```ts
+ * import type { blogTransaction } from './api.blog-studio'
+ * import { clientTransaction } from '@tanstack/ai/transaction'
+ *
+ * const txnDef = clientTransaction<typeof blogTransaction>({
+ *   drafting: 'chat',
+ *   heroImage: 'one-shot',
+ *   narration: 'one-shot',
+ *   blogPost: 'one-shot',
+ * })
+ * ```
+ */
+export function clientTransaction<TDef extends TransactionDefinition<any>>(
+  kinds: ClientTransactionKinds<TDef>,
+): TDef {
+  const verbs = Object.keys(kinds) as Array<keyof TDef['~verbs'] & string>
+  return {
+    verbs,
+    verbKinds: kinds,
+    handler: async () => {
+      throw new Error(
+        'clientTransaction definitions are type-only stubs and must not handle requests in the browser. Route requests to the server transaction handler.',
+      )
+    },
+    '~verbs': {} as TDef['~verbs'],
+  } as unknown as TDef
 }
 
 /**

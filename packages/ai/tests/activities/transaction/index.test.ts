@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
 import {
   TRANSACTION_EVENTS,
   chatVerb,
+  clientTransaction,
   defineTransaction,
   verb,
 } from '../../../src/activities/transaction/index.js'
@@ -305,4 +306,93 @@ describe('transactions (ctx.call)', () => {
       structured: { title: 'Foxes' },
     })
   })
+})
+
+describe('clientTransaction', () => {
+  const serverTxn = defineTransaction({
+    primaryChat: chatVerb(async function* () {} as any),
+    banner: verb({
+      input: z.object({ prompt: z.string() }),
+      execute: async ({ input }) => ({ prompt: input.prompt, url: 'x' }),
+    }),
+    bannerPair: verb({
+      input: z.object({ topic: z.string() }),
+      execute: async ({ input }, ctx) => {
+        const hero = await ctx.call(
+          verb({
+            input: z.object({ prompt: z.string() }),
+            execute: async () => ({ url: 'hero' }),
+          }),
+          { prompt: input.topic },
+        )
+        return { hero }
+      },
+    }),
+  })
+
+  it('builds verbs and verbKinds from the kinds map', () => {
+    const clientTxn = clientTransaction<typeof serverTxn>({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+    })
+    expect(clientTxn.verbs.slice().sort()).toEqual([
+      'banner',
+      'bannerPair',
+      'primaryChat',
+    ])
+    expect(clientTxn.verbKinds).toEqual({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+    })
+  })
+
+  it('handler throws — client stubs must not handle requests', async () => {
+    const clientTxn = clientTransaction<typeof serverTxn>({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+    })
+    await expect(clientTxn.handler(new Request('http://x'))).rejects.toThrow(
+      /type-only stubs/,
+    )
+  })
+
+  it('is exported from the transaction subpath entry', async () => {
+    const mod = await import('../../../src/transaction.js')
+    expect(typeof mod.clientTransaction).toBe('function')
+  })
+
+  it('is assignable to the server definition type', () => {
+    const clientTxn = clientTransaction<typeof serverTxn>({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+    })
+    expectTypeOf(clientTxn).toMatchTypeOf<typeof serverTxn>()
+  })
+
+  // Compile-only: missing or wrong kinds must fail type-check.
+  void (() =>
+    // @ts-expect-error — bannerPair is required
+    clientTransaction<typeof serverTxn>({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+    }))
+  void (() =>
+    clientTransaction<typeof serverTxn>({
+      primaryChat: 'chat',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+      // @ts-expect-error — extra verbs are rejected
+      extra: 'one-shot',
+    }))
+  void (() =>
+    clientTransaction<typeof serverTxn>({
+      // @ts-expect-error — wrong kind for primaryChat
+      primaryChat: 'one-shot',
+      banner: 'one-shot',
+      bannerPair: 'one-shot',
+    }))
 })

@@ -1,10 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, generateImage, generateSpeech } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -19,69 +15,9 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { BlogPostSchema, forNarration, heroPromptFor } from './api.blog-studio'
+import { blogTxnDef, forNarration, heroPromptFor } from '../lib/blog-studio'
 import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
 import type { FormEvent, ReactNode } from 'react'
-
-// Client-side transaction definition. `defineTransaction` is INERT in the
-// browser — these callbacks never run; `useTransaction` only reads the
-// declared verb names/kinds and their input/result types off this value to
-// build the fully typed client. Every request is sent to the
-// `/api/blog-studio` route, which owns the real callbacks. Mirroring the four
-// verbs (and the drafting `outputSchema`) here keeps the client types in sync
-// with the server.
-//
-// Single-provider openai adapters are used directly (not the multi-provider
-// factories) so the browser bundle doesn't pull in every provider SDK.
-const drafting = chatVerb((req) =>
-  chat({
-    adapter: openaiText('gpt-5.5'),
-    messages: req.messages,
-    outputSchema: BlogPostSchema,
-    stream: true,
-  }),
-)
-
-const heroImage = verb({
-  input: z.object({ prompt: z.string() }),
-  execute: ({ input }) =>
-    generateImage({
-      adapter: openaiImage('gpt-image-2'),
-      prompt: input.prompt,
-    }),
-})
-
-const narration = verb({
-  input: z.object({ text: z.string() }),
-  execute: ({ input }) =>
-    generateSpeech({ adapter: openaiSpeech('tts-1'), text: input.text }),
-})
-
-const blogTransaction = defineTransaction({
-  drafting,
-  heroImage,
-  narration,
-  // Mirrors the server's composition so `txn.blogPost.result` is typed as
-  // `{ post, hero, audio }` — the body never executes in the browser.
-  blogPost: verb({
-    input: z.object({ topic: z.string() }),
-    execute: async ({ input }, ctx) => {
-      const draft = await ctx.call(drafting, [
-        { role: 'user', content: `Write a blog post about: ${input.topic}` },
-      ])
-      const parsed = BlogPostSchema.safeParse(draft.structured)
-      if (!parsed.success) {
-        throw new Error('Drafting did not produce a valid blog post')
-      }
-      const post = parsed.data
-      const [hero, audio] = await Promise.all([
-        ctx.call(heroImage, { prompt: heroPromptFor(post) }),
-        ctx.call(narration, { text: forNarration(post.body) }),
-      ])
-      return { post, hero, audio }
-    },
-  }),
-})
 
 export const Route = createFileRoute('/blog-studio')({
   component: BlogStudio,
@@ -142,7 +78,7 @@ function asBlogPostDraft(partial: unknown): {
 }
 
 function BlogStudio() {
-  const txn = useTransaction(blogTransaction, {
+  const txn = useTransaction(blogTxnDef, {
     connection: fetchServerSentEvents('/api/blog-studio'),
   })
 

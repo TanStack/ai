@@ -169,6 +169,15 @@ export interface TransactionDefinition<
   readonly '~verbs': T
 }
 
+/**
+ * Verb-name → kind map required by {@link clientTransaction}. Every declared
+ * verb must appear exactly once with its correct kind so client/server drift
+ * fails at compile time.
+ */
+export type ClientTransactionKinds<TDef extends TransactionDefinition<any>> = {
+  [K in keyof TDef['~verbs'] & string]: TDef['~verbs'][K]['kind']
+}
+
 /** Payloads of the CUSTOM events a transaction run emits for its sub-runs. */
 export interface SubRunStartedPayload {
   runId: string

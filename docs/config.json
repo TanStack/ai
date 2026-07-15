@@ -314,12 +314,14 @@
         {
           "label": "Overview",
           "to": "transaction/overview",
-          "addedAt": "2026-07-14"
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Transactions",
           "to": "transaction/transactions",
-          "addedAt": "2026-07-14"
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "Scenarios",

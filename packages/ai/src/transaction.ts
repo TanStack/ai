@@ -1,5 +1,6 @@
 export {
   chatVerb,
+  clientTransaction,
   defineTransaction,
   verb,
   TRANSACTION_EVENTS,
@@ -8,6 +9,7 @@ export type {
   AnyVerb,
   ChatVerb,
   ChatVerbCallback,
+  ClientTransactionKinds,
   CollectedChatResult,
   OneShotVerb,
   SubRunChunkPayload,

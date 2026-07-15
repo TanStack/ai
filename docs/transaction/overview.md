@@ -7,6 +7,7 @@ keywords:
   - tanstack ai
   - transaction
   - defineTransaction
+  - clientTransaction
   - useTransaction
   - verbs
   - chat
@@ -67,35 +68,20 @@ That one route now serves conversational drafting, image generation, and narrati
 // components/BlogStudio.tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { chat, generateImage, generateSpeech } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
-import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
+import { clientTransaction } from '@tanstack/ai/transaction'
+import type { blogTransaction } from './api/blog-studio'
 
-// The same definition your server route exports — share it from one module in
-// a real app; repeated here so this snippet type-checks on its own. See
-// "Sharing the definition with the client" below.
-const blogTransaction = defineTransaction({
-  drafting: chatVerb((req) =>
-    chat({ adapter: openaiText('gpt-5.5'), messages: req.messages }),
-  ),
-  heroImage: verb({
-    input: z.object({ prompt: z.string() }),
-    execute: ({ input }) =>
-      generateImage({
-        adapter: openaiImage('gpt-image-2'),
-        prompt: input.prompt,
-      }),
-  }),
-  narration: verb({
-    input: z.object({ text: z.string() }),
-    execute: ({ input }) =>
-      generateSpeech({ adapter: openaiSpeech('tts-1'), text: input.text }),
-  }),
+// Type-only binding to the server definition — no provider imports in the
+// browser bundle. See "Sharing the definition with the client" below.
+const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
 })
 
 function BlogStudio() {
-  const txn = useTransaction(blogTransaction, {
+  const txn = useTransaction(blogTxnDef, {
     connection: fetchServerSentEvents('/api/blog-studio'),
   })
 
@@ -173,7 +159,23 @@ On the client, `txn.primaryChat` and `txn.summaryChat` are two fully independent
 
 ## Sharing the definition with the client
 
-`useTransaction` needs the definition's **type** to build the typed client — verb names and kinds at runtime, input/result/tool/schema types at compile time. Because the definition is inert, the cleanest way is often a shared isomorphic module. When your server route builds the definition inside the handler (for example, to keep provider SDKs out of the browser bundle), mirror the definition client-side instead: declare the same verb names, kinds, input schemas, and `outputSchema`s, and let the mirrored `execute`/callback bodies carry the result types — they **never run in the browser**. The [`blog-studio` example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/routes/blog-studio.tsx) shows this pattern end to end, sharing the Zod schema and prompt helpers from the API route module so the two sides can't drift.
+`useTransaction` needs the definition's **type** to build the typed client — verb names and kinds at runtime, input/result/tool/schema types at compile time.
+
+The recommended pattern is **`clientTransaction<typeof serverDef>({ kinds })`**: define the transaction once on the server (export it, or export a `ReturnType<typeof createTransaction>` type when the definition is built per-request), then bind it on the client with a verb-name → kind map. The generic is supplied via `import type` — erased from the bundle, so provider SDKs never ship to the browser. The kinds map is checked exhaustively against the server definition, so drift fails at compile time.
+
+```tsx
+import type { blogTransaction } from './api/blog-studio'
+import { clientTransaction } from '@tanstack/ai/transaction'
+
+const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
+})
+```
+
+When the definition truly has no provider imports — a shared isomorphic module works fine — you can also export one `defineTransaction(...)` value and pass it to both `handler` and `useTransaction` directly. The [`blog-studio` example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/routes/blog-studio.tsx) uses `clientTransaction` end to end.
 
 ## When should you reach for a transaction endpoint?
 

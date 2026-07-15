@@ -284,16 +284,30 @@ final (or `null`) instead of the messages array. Omit `outputSchema` and
 neither field is present on the type — same conditional shape as
 `useChat({ outputSchema })`.
 
-### 5. Client needs the definition's TYPE — mirror it when the server builds it per-request
+### 5. Client needs the definition's TYPE — use `clientTransaction`
 
 `useTransaction` reads verb names/kinds at runtime and everything else at
-the type level. If the route constructs the definition inside the handler
-(to keep provider SDKs out of the client bundle), export an **inert mirror**
-from a client-safe module: same verb names, kinds, input schemas, and
-`outputSchema`s; the mirrored `execute`/callback bodies never run in the
-browser — they only carry result types. Share the Zod schemas and prompt
-helpers from one module so the two sides can't drift (see the
-`examples/ts-react-chat` blog-studio routes for the full pattern).
+the type level. Define the transaction on the server, export it (or export
+a `ReturnType<typeof createTransaction>` type when the definition is built
+per-request), then bind it on the client with `clientTransaction`:
+
+```tsx
+import type { blogTransaction } from './api/blog-studio'
+import { clientTransaction } from '@tanstack/ai/transaction'
+
+const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
+})
+```
+
+The generic is supplied via `import type` — erased from the bundle — so
+provider SDKs never ship to the browser. The kinds map is checked
+exhaustively against the server definition. When the definition truly has
+no provider imports, a shared isomorphic `defineTransaction` module also
+works (see `examples/ts-react-chat` blog-studio routes).
 
 ### 6. Only declared verbs are constructed; one shared connection
 

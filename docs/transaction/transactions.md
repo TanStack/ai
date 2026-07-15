@@ -9,6 +9,7 @@ keywords:
   - ctx.call
   - sub-runs
   - defineTransaction
+  - clientTransaction
   - useTransaction
   - abort
   - cancellation
@@ -126,62 +127,20 @@ export const POST = (request: Request) => blogTransaction.handler(request)
 
 ```tsx
 // components/BlogStudio.tsx
-import { chat, generateImage, generateSpeech } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
+import { clientTransaction } from '@tanstack/ai/transaction'
+import type { blogTransaction } from './api/blog-studio'
 
-// The same definition the server route above exports — share it from one
-// module in a real app; mirrored here so this snippet type-checks on its
-// own. It is inert in the browser: no callback ever runs client-side.
-const BlogPostSchema = z.object({
-  title: z.string(),
-  subtitle: z.string(),
-  body: z.string(),
-})
-const drafting = chatVerb((req) =>
-  chat({
-    adapter: openaiText('gpt-5.5'),
-    messages: req.messages,
-    outputSchema: BlogPostSchema,
-    stream: true,
-  }),
-)
-const heroImage = verb({
-  input: z.object({ prompt: z.string() }),
-  execute: ({ input }) =>
-    generateImage({ adapter: openaiImage('gpt-image-2'), prompt: input.prompt }),
-})
-const narration = verb({
-  input: z.object({ text: z.string() }),
-  execute: ({ input }) =>
-    generateSpeech({ adapter: openaiSpeech('tts-1'), text: input.text }),
-})
-const blogPostVerb = verb({
-  input: z.object({ topic: z.string() }),
-  execute: async ({ input }, ctx) => {
-    const draft = await ctx.call(drafting, [
-      { role: 'user', content: `Write a blog post about: ${input.topic}` },
-    ])
-    const post = BlogPostSchema.parse(draft.structured)
-    const [hero, audio] = await Promise.all([
-      ctx.call(heroImage, { prompt: post.title }),
-      ctx.call(narration, { text: post.body }),
-    ])
-    return { post, hero, audio }
-  },
-})
-const blogTransaction = defineTransaction({
-  drafting,
-  heroImage,
-  narration,
-  blogPost: blogPostVerb,
+const blogTxnDef = clientTransaction<typeof blogTransaction>({
+  drafting: 'chat',
+  heroImage: 'one-shot',
+  narration: 'one-shot',
+  blogPost: 'one-shot',
 })
 
 function BlogStudio() {
-  const txn = useTransaction(blogTransaction, {
+  const txn = useTransaction(blogTxnDef, {
     connection: fetchServerSentEvents('/api/blog-studio'),
   })
 

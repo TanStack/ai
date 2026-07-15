@@ -1,11 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations } from '@tanstack/ai'
-import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
+import { clientTransaction } from '@tanstack/ai/transaction'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
-import { openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
 import { ChatUI } from '@/components/ChatUI'
+import type { E2eTransaction } from './api.transaction'
 import type { Provider } from '@/lib/types'
 
 export interface TransactionRouteSearch {
@@ -42,42 +40,12 @@ export const Route = createFileRoute('/transaction')({
   validateSearch: parseTransactionRouteSearch,
 })
 
-// Client-side transaction definition. `defineTransaction` is inert — none of
-// these callbacks ever run in the browser. `useTransaction` only reads the
-// declared verb names (and their kinds/types) off this value to build the
-// typed client system; the actual requests are always sent to the server
-// route `/api/transaction`, which defines its own (real) verbs. Mirroring
-// the server route's three verbs (primaryChat + banner + bannerPair) here
-// just keeps the client types in sync with what the server actually runs.
-//
-// Uses the single-provider openai adapter directly (not the multi-provider
-// `@/lib/providers` factory) so the browser bundle doesn't pull in every
-// provider SDK (e.g. ollama's `node:fs`) — the callbacks are inert on the
-// client, so only their input/result TYPES matter.
-const banner = verb({
-  input: z.object({ prompt: z.string() }),
-  execute: async ({ input }) => ({ prompt: input.prompt, text: '' }),
-})
-
-const transaction = defineTransaction({
-  primaryChat: chatVerb((req) =>
-    chat({
-      adapter: openaiText('gpt-5.5'),
-      messages: req.messages,
-      agentLoopStrategy: maxIterations(5),
-      threadId: req.threadId,
-      runId: req.runId,
-    }),
-  ),
-  banner,
-  bannerPair: verb({
-    input: z.object({ topic: z.string() }),
-    execute: async ({ input }, ctx) => {
-      const hero = await ctx.call(banner, { prompt: `hero ${input.topic}` })
-      const thumb = await ctx.call(banner, { prompt: `thumb ${input.topic}` })
-      return { hero, thumb }
-    },
-  }),
+// Type-only binding to the server definition — no inert verb mirrors or
+// provider imports in the browser bundle.
+const e2eTxnDef = clientTransaction<E2eTransaction>({
+  primaryChat: 'chat',
+  banner: 'one-shot',
+  bannerPair: 'one-shot',
 })
 
 function TransactionRoute() {
@@ -88,7 +56,7 @@ function TransactionRoute() {
   // the one-shot verbs' zod schemas simply strip the extra fields.
   const routing = { provider, testId, aimockPort }
 
-  const txn = useTransaction(transaction, {
+  const txn = useTransaction(e2eTxnDef, {
     connection: fetchServerSentEvents('/api/transaction'),
     verbs: {
       primaryChat: { forwardedProps: routing },
