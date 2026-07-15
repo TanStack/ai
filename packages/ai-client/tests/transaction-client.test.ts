@@ -190,6 +190,88 @@ describe('TransactionClient', () => {
       error: 'nope',
     })
   })
+
+  it('parses a structured chat sub-run into a live `partial`', () => {
+    const txn = defineTransaction({
+      blogPost: verb({ execute: async () => ({}) }),
+    })
+    const client = new TransactionClient({
+      transaction: txn,
+      connection: fetchServerSentEvents('/api/transaction'),
+    })
+    const onChunk = (chunk: any) =>
+      (client as any).handleSubRunChunk('blogPost', chunk, undefined)
+    const chunkEvent = (inner: any) =>
+      onChunk({
+        type: 'CUSTOM',
+        name: 'transaction:sub-run:chunk',
+        value: { runId: 'r1-sub-0', verb: 'drafting', index: 0, chunk: inner },
+      })
+
+    onChunk({ type: 'RUN_STARTED', runId: 'r1', threadId: 't1' })
+    onChunk({
+      type: 'CUSTOM',
+      name: 'transaction:sub-run:started',
+      value: { runId: 'r1-sub-0', parentRunId: 'r1', verb: 'drafting', index: 0 },
+    })
+
+    // The structured output streams as partial JSON via TEXT_MESSAGE_CONTENT.
+    chunkEvent({ type: 'TEXT_MESSAGE_CONTENT', delta: '{"title":"Sour' })
+    expect(client.getSubRuns('blogPost')[0]?.partial).toEqual({ title: 'Sour' })
+
+    chunkEvent({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'dough","body":"Once upon',
+    })
+    expect(client.getSubRuns('blogPost')[0]?.partial).toEqual({
+      title: 'Sourdough',
+      body: 'Once upon',
+    })
+
+    // The terminal event snaps `partial` to the fully-validated object.
+    chunkEvent({
+      type: 'CUSTOM',
+      name: 'structured-output.complete',
+      value: { object: { title: 'Sourdough', body: 'Once upon a loaf.' } },
+    })
+    expect(client.getSubRuns('blogPost')[0]?.partial).toEqual({
+      title: 'Sourdough',
+      body: 'Once upon a loaf.',
+    })
+  })
+
+  it('leaves `partial` unset for a plain-text (prose) chat sub-run', () => {
+    const txn = defineTransaction({
+      blogPost: verb({ execute: async () => ({}) }),
+    })
+    const client = new TransactionClient({
+      transaction: txn,
+      connection: fetchServerSentEvents('/api/transaction'),
+    })
+    const onChunk = (chunk: any) =>
+      (client as any).handleSubRunChunk('blogPost', chunk, undefined)
+
+    onChunk({ type: 'RUN_STARTED', runId: 'r1', threadId: 't1' })
+    onChunk({
+      type: 'CUSTOM',
+      name: 'transaction:sub-run:started',
+      value: { runId: 'r1-sub-0', parentRunId: 'r1', verb: 'support', index: 0 },
+    })
+    onChunk({
+      type: 'CUSTOM',
+      name: 'transaction:sub-run:chunk',
+      value: {
+        runId: 'r1-sub-0',
+        verb: 'support',
+        index: 0,
+        chunk: { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hello, how can I help?' },
+      },
+    })
+
+    const sub = client.getSubRuns('blogPost')[0]
+    expect(sub?.text).toBe('Hello, how can I help?')
+    expect(sub?.partial).toBeUndefined()
+  })
 })
 
 describe('TransactionSystem typing', () => {

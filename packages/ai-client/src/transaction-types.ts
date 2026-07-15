@@ -41,6 +41,15 @@ export interface TransactionSubRun {
   result: unknown
   /** Accumulated streamed text, for chat-verb sub-runs. */
   text: string
+  /**
+   * Live, progressively-parsed structured output for a chat-verb sub-run
+   * whose callback declared an `outputSchema` — the partial object built from
+   * the streamed JSON as it arrives, snapped to the fully-validated object on
+   * completion. `undefined` for plain-text chat verbs and one-shot verbs
+   * (whose streamed `text`, if any, is prose, not JSON). Typed `unknown`;
+   * narrow it before use.
+   */
+  partial?: unknown
   error?: string
 }
 

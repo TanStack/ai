@@ -1,3 +1,4 @@
+import { parsePartialJSON } from '@tanstack/ai'
 import { ChatClient } from './chat-client.js'
 import { GenerationClient } from './generation-client.js'
 import type { StreamChunk } from '@tanstack/ai'
@@ -16,6 +17,17 @@ const SUB_RUN_EVENTS = {
   RESULT: 'transaction:sub-run:result',
   ERROR: 'transaction:sub-run:error',
 } as const
+
+/**
+ * Coalesce reactive `notify`s for streamed text deltas to one per this many
+ * chunks, so consumers rendering the live `partial`/`text` (e.g. Markdown)
+ * re-render at a bounded rate rather than once per token. The internal
+ * sub-run state is still updated on every chunk; only the reactive
+ * notification is batched. Status transitions and completion always flush
+ * immediately. Mirrors the core StreamProcessor's structured-output batch
+ * size so the transaction path streams as smoothly as the chat path.
+ */
+const SUB_RUN_TEXT_NOTIFY_BATCH = 12
 
 /**
  * Composes one `ChatClient` per chat verb and one `GenerationClient` per
@@ -40,6 +52,8 @@ export class TransactionClient<
     GenerationClient<any, any, any>
   >()
   private readonly subRuns = new Map<string, Array<TransactionSubRun>>()
+  /** Per-sub-run streamed-text-chunk counter, for batching reactive notifies. */
+  private readonly subRunChunkCounts = new Map<string, number>()
   readonly verbs: ReadonlyArray<string>
 
   constructor(options: TransactionClientOptions<TDef>) {
@@ -125,6 +139,7 @@ export class TransactionClient<
     const type = (chunk as { type?: string }).type
     if (type === 'RUN_STARTED') {
       this.subRuns.set(verbName, [])
+      this.subRunChunkCounts.clear()
       notify?.([])
       return
     }
@@ -137,7 +152,12 @@ export class TransactionClient<
         index?: number
         result?: unknown
         message?: string
-        chunk?: { type?: string; delta?: unknown }
+        chunk?: {
+          type?: string
+          delta?: unknown
+          name?: string
+          value?: { object?: unknown }
+        }
       }
     }
     if (!name || !name.startsWith('transaction:sub-run:') || !value) return
@@ -146,6 +166,12 @@ export class TransactionClient<
     const next = current.slice()
     const at = next.findIndex((s) => s.runId === value.runId)
     const existing = at === -1 ? undefined : next[at]
+
+    // Streamed text deltas fire per token; coalesce their reactive notifies so
+    // consumers re-render at a bounded rate. Every other event (status change,
+    // completion) flushes immediately. Internal state updates on every chunk
+    // regardless, so `getSubRuns()` is always current.
+    let shouldNotify = true
 
     if (name === SUB_RUN_EVENTS.STARTED) {
       next.push({
@@ -164,7 +190,33 @@ export class TransactionClient<
         inner?.type === 'TEXT_MESSAGE_CONTENT' &&
         typeof inner.delta === 'string'
       ) {
-        next[at] = { ...existing, text: existing.text + inner.delta }
+        // Accumulate the streamed text. For a structured-output chat verb
+        // these deltas are the output's JSON; attempt a partial parse so a
+        // live object streams into `partial`. Plain prose yields `undefined`
+        // (parsePartialJSON only produces object-shaped values), so `partial`
+        // stays unset for non-structured verbs.
+        const text = existing.text + inner.delta
+        const parsed = parsePartialJSON(text)
+        next[at] = {
+          ...existing,
+          text,
+          ...(parsed != null && typeof parsed === 'object'
+            ? { partial: parsed }
+            : {}),
+        }
+        // Notify only on batch boundaries; the internal map is still updated.
+        const runId = value.runId ?? ''
+        const count = (this.subRunChunkCounts.get(runId) ?? 0) + 1
+        this.subRunChunkCounts.set(runId, count)
+        shouldNotify = count % SUB_RUN_TEXT_NOTIFY_BATCH === 0
+      } else if (
+        inner?.type === 'CUSTOM' &&
+        inner.name === 'structured-output.complete'
+      ) {
+        // Snap `partial` to the fully-parsed, schema-validated object.
+        const object = inner.value?.object
+        next[at] =
+          object !== undefined ? { ...existing, partial: object } : existing
       } else {
         return
       }
@@ -181,7 +233,7 @@ export class TransactionClient<
     }
 
     this.subRuns.set(verbName, next)
-    notify?.(next)
+    if (shouldNotify) notify?.(next)
   }
 
   /** Tears down every chat and one-shot sub-client. */

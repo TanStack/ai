@@ -1,4 +1,3 @@
-import type { FormEvent, ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { chatVerb, defineTransaction, verb } from '@tanstack/ai/transaction'
@@ -20,8 +19,9 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
 import { BlogPostSchema, forNarration, heroPromptFor } from './api.blog-studio'
+import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
+import type { FormEvent, ReactNode } from 'react'
 
 // Client-side transaction definition. `defineTransaction` is INERT in the
 // browser — these callbacks never run; `useTransaction` only reads the
@@ -119,6 +119,28 @@ function audioSrcOf(result: TTSResult | null): string | null {
   return `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+// The drafting sub-run's live `partial` is typed `unknown` (progressively
+// parsed structured output). Narrow it to the blog-post fields without an
+// `as` cast — each field may be absent or half-written while streaming.
+function asBlogPostDraft(partial: unknown): {
+  title?: string
+  subtitle?: string
+  body?: string
+} {
+  if (!isRecord(partial)) return {}
+  const str = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value : undefined
+  return {
+    title: str(partial.title),
+    subtitle: str(partial.subtitle),
+    body: str(partial.body),
+  }
+}
+
 function BlogStudio() {
   const txn = useTransaction(blogTransaction, {
     connection: fetchServerSentEvents('/api/blog-studio'),
@@ -150,10 +172,19 @@ function BlogStudio() {
   const isRunning = blogPost.isLoading
   const hasRun = blogPost.status !== 'idle'
 
-  // While drafting streams, its `text` is partial JSON (the structured
-  // output in flight) — don't render it; show progress by length instead.
-  const draftedChars = draftingRun?.text.length ?? 0
+  // While the `drafting` chat sub-run streams, the demux progressively parses
+  // its structured output into `partial` — a live `{ title?, subtitle?, body? }`
+  // that fills in as the JSON arrives. Render it directly for a streaming
+  // preview before the transaction finishes and `blogPost.result` lands.
+  const liveDraft = asBlogPostDraft(draftingRun?.partial)
+  const draftedChars = liveDraft.body?.length ?? 0
   const writingStep = subRunToStep(draftingRun?.status)
+
+  // Prefer the finished post; fall back to the live streaming draft.
+  const shownTitle = post?.title ?? liveDraft.title
+  const shownSubtitle = post?.subtitle ?? liveDraft.subtitle
+  const shownBody = post?.body ?? liveDraft.body
+  const showArticle = Boolean(shownTitle || shownBody)
 
   const heroBusy = heroRerun.isLoading || heroRun?.status === 'running'
   const heroFailed = heroRerun.status === 'error' || heroRun?.status === 'error'
@@ -315,16 +346,18 @@ function BlogStudio() {
         )}
       </aside>
 
-      {/* Right: the post */}
+      {/* Right: the post. Appears as soon as the drafting sub-run streams a
+          title/body — the body fills in live — then the hero image and
+          voice-over slot in as their sub-runs finish. */}
       <main className="flex-1 overflow-y-auto p-6">
-        {post ? (
+        {showArticle ? (
           <article className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-200/60">
             {/* Hero image */}
             <div className="relative aspect-[3/2] w-full bg-stone-100">
               {imageUrl && !heroBusy ? (
                 <img
                   src={imageUrl}
-                  alt={post.title}
+                  alt={shownTitle ?? 'Hero image'}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -349,10 +382,16 @@ function BlogStudio() {
             </div>
 
             <div className="px-8 py-8">
-              <h1 className="mb-3 text-4xl font-extrabold leading-tight tracking-tight text-stone-900">
-                {post.title}
-              </h1>
-              <p className="mb-6 text-xl text-stone-500">{post.subtitle}</p>
+              {shownTitle ? (
+                <h1 className="mb-3 text-4xl font-extrabold leading-tight tracking-tight text-stone-900">
+                  {shownTitle}
+                </h1>
+              ) : (
+                <div className="mb-3 h-10 w-2/3 animate-pulse rounded bg-stone-100" />
+              )}
+              {shownSubtitle && (
+                <p className="mb-6 text-xl text-stone-500">{shownSubtitle}</p>
+              )}
 
               {/* Byline + voice-over */}
               <div className="mb-6 flex items-center gap-3 border-y border-stone-100 py-3 text-sm text-stone-500">
@@ -378,11 +417,17 @@ function BlogStudio() {
                 ) : null}
               </div>
 
-              {/* Body */}
+              {/* Body — rendered as Markdown live while the draft streams in.
+                  The client batches the streamed structured-output updates
+                  (see TransactionClient), so this re-parses at a bounded rate
+                  rather than once per token. */}
               <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-amber-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-amber-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {post.body}
+                  {shownBody ?? ''}
                 </ReactMarkdown>
+                {writingStep === 'active' && (
+                  <span className="ml-0.5 inline-block h-5 w-2 animate-pulse bg-amber-400 align-text-bottom" />
+                )}
               </div>
             </div>
           </article>
