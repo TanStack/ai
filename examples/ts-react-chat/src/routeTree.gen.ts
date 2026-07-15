@@ -21,6 +21,7 @@ import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
+import { Route as BlogStudioPlainRouteImport } from './routes/blog-studio-plain'
 import { Route as BlogStudioRouteImport } from './routes/blog-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -115,6 +116,11 @@ const GenerationHooksRoute = GenerationHooksRouteImport.update({
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
   id: '/capability-demo',
   path: '/capability-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogStudioPlainRoute = BlogStudioPlainRouteImport.update({
+  id: '/blog-studio-plain',
+  path: '/blog-studio-plain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogStudioRoute = BlogStudioRouteImport.update({
@@ -299,6 +305,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-plain': typeof BlogStudioPlainRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-plain': typeof BlogStudioPlainRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -398,6 +406,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-plain': typeof BlogStudioPlainRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/blog-studio'
+    | '/blog-studio-plain'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/blog-studio'
+    | '/blog-studio-plain'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/blog-studio'
+    | '/blog-studio-plain'
     | '/capability-demo'
     | '/generation-hooks'
     | '/image-gen'
@@ -597,6 +609,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BlogStudioRoute: typeof BlogStudioRoute
+  BlogStudioPlainRoute: typeof BlogStudioPlainRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
@@ -728,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: '/capability-demo'
       fullPath: '/capability-demo'
       preLoaderRoute: typeof CapabilityDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog-studio-plain': {
+      id: '/blog-studio-plain'
+      path: '/blog-studio-plain'
+      fullPath: '/blog-studio-plain'
+      preLoaderRoute: typeof BlogStudioPlainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog-studio': {
@@ -981,6 +1001,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BlogStudioRoute: BlogStudioRoute,
+  BlogStudioPlainRoute: BlogStudioPlainRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
@@ -1030,12 +1051,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

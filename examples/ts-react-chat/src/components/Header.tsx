@@ -221,6 +221,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/blog-studio-plain"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio (plain)</span>
+          </Link>
+
+          <Link
             to="/example/guitars"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"

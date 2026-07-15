@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { useTransaction } from '@tanstack/ai-react/transaction'
 import ReactMarkdown from 'react-markdown'
@@ -167,6 +167,16 @@ function BlogStudio() {
           One transaction writes the article, then illustrates it and records a
           voice-over in parallel — composed on the server from a single request,
           with every step streamed back live.
+        </p>
+        <p className="mb-5 text-xs text-stone-400">
+          Prefer plain fetch + JSON? See the{' '}
+          <Link
+            to="/blog-studio-plain"
+            className="font-medium text-amber-700 underline underline-offset-2"
+          >
+            non-transaction version
+          </Link>
+          .
         </p>
 
         <form onSubmit={run}>
