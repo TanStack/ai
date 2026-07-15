@@ -60,6 +60,9 @@ console.log(result.audio.contentType) // e.g. "audio/wav"
 #### Music with Explicit Lyrics (DiffRhythm)
 
 ```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
 const result = await generateAudio({
   adapter: falAudio('fal-ai/diffrhythm'),
   prompt: 'An upbeat electronic track with synths',
@@ -72,6 +75,9 @@ const result = await generateAudio({
 #### Sound Effects
 
 ```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
 const result = await generateAudio({
   adapter: falAudio('fal-ai/elevenlabs/sound-effects/v2'),
   prompt: 'Thunderclap followed by heavy rain',
@@ -84,6 +90,9 @@ const result = await generateAudio({
 Earlier MiniMax variants use a `lyrics_prompt` field for lyric guidance.
 
 ```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
 const result = await generateAudio({
   adapter: falAudio('fal-ai/minimax-music/v2'),
   prompt: 'A dreamy pop ballad in the style of the 80s',
@@ -108,6 +117,8 @@ If a request doesn't return the audio you expected — a model silently truncate
 ## Result Shape
 
 ```typescript
+import type { TokenUsage } from '@tanstack/ai'
+
 interface AudioGenerationResult {
   id: string
   model: string
@@ -129,6 +140,14 @@ interface AudioGenerationResult {
 Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
 
 ```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+const result = await generateAudio({
+  adapter: falAudio('fal-ai/diffrhythm'),
+  prompt: 'An upbeat electronic track',
+})
+
 const bytes = new Uint8Array(
   await (await fetch(result.audio.url!)).arrayBuffer()
 )

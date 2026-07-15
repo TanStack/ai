@@ -1,4 +1,5 @@
 import { normalizeToolResult } from '../../utilities/tool-result'
+import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
   MessagePart,
@@ -321,6 +322,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         }
         break
 
+      case 'ui-resource':
+        // MCP Apps widget — rendered client-side only. It must never enter
+        // model input, so it is intentionally dropped from the model message.
+        break
+
       default:
         break
     }
@@ -438,12 +444,21 @@ export function modelMessageToUIMessage(
   // Handle tool calls
   if (modelMessage.toolCalls && modelMessage.toolCalls.length > 0) {
     for (const toolCall of modelMessage.toolCalls) {
+      // Model-message arguments are complete, so surface the parsed input.
+      // A malformed arguments string just leaves `input` undefined.
+      let input: unknown
+      try {
+        input = JSON.parse(toolCall.function.arguments)
+      } catch {
+        input = undefined
+      }
       parts.push({
         type: 'tool-call',
         id: toolCall.id,
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(input !== undefined && { input }),
         ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
       })
     }
@@ -454,6 +469,108 @@ export function modelMessageToUIMessage(
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
   }
+}
+
+/**
+ * Normalize a single AG-UI `MESSAGES_SNAPSHOT` message into a `UIMessage`.
+ *
+ * AG-UI snapshot messages use the wire shape `{ id, role, content }` and have
+ * no `parts` array. Casting them directly to `UIMessage` is unsafe: any code
+ * that later reads `message.parts` (e.g. the devtools `onToolCallStateChange`
+ * handler) crashes with "Cannot read properties of undefined (reading 'find')".
+ *
+ * Each role is mapped to the canonical `UIMessage` shape, reusing
+ * `modelMessageToUIMessage` for the roles that share `ModelMessage`'s structure.
+ * The original AG-UI `id` is preserved so later `TEXT_MESSAGE_CONTENT` /
+ * `TOOL_CALL_*` events still route by `messageId` (falling back to a generated
+ * id only when the snapshot omits one). Messages that already carry `parts`
+ * (e.g. a TanStack server echoing `UIMessage`s back over the wire) pass through
+ * unchanged apart from ensuring an id.
+ */
+export function aguiSnapshotMessageToUIMessage(
+  message: AGUIMessage | UIMessage,
+): UIMessage {
+  if ('parts' in message) {
+    return { ...message, id: message.id || generateMessageId() }
+  }
+
+  const id = message.id || generateMessageId()
+
+  switch (message.role) {
+    case 'user':
+      return {
+        id,
+        role: 'user',
+        parts: aguiUserContentToParts(message.content),
+      }
+    case 'assistant':
+      return modelMessageToUIMessage(
+        {
+          role: 'assistant',
+          content: message.content ?? null,
+          ...(message.toolCalls && { toolCalls: message.toolCalls }),
+        },
+        id,
+      )
+    case 'tool':
+      return modelMessageToUIMessage(
+        {
+          role: 'tool',
+          content: message.content,
+          toolCallId: message.toolCallId,
+        },
+        id,
+      )
+    case 'system':
+    case 'developer':
+      // `ModelMessage` has no system/developer role; build the part directly.
+      return {
+        id,
+        role: 'system',
+        parts: message.content
+          ? [{ type: 'text', content: message.content }]
+          : [],
+      }
+    case 'reasoning':
+      return {
+        id,
+        role: 'assistant',
+        parts: message.content
+          ? [{ type: 'thinking', content: message.content }]
+          : [],
+      }
+    case 'activity':
+    default:
+      // `activity` (and any future role) has no text/parts equivalent today.
+      return { id, role: 'assistant', parts: [] }
+  }
+}
+
+/**
+ * Convert AG-UI user message content into `UIMessage` parts.
+ *
+ * AG-UI user content is either a plain string or a multimodal array whose text
+ * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
+ * Text entries are rewritten to the TanStack shape; image/audio/video/document
+ * entries already match `ContentPart` and pass through. `binary` entries have no
+ * TanStack equivalent and are dropped.
+ */
+function aguiUserContentToParts(
+  content: Extract<AGUIMessage, { role: 'user' }>['content'],
+): Array<MessagePart> {
+  if (typeof content === 'string') {
+    return content ? [{ type: 'text', content }] : []
+  }
+
+  const parts: Array<MessagePart> = []
+  for (const part of content) {
+    if (part.type === 'text') {
+      parts.push({ type: 'text', content: part.text })
+    } else if (part.type !== 'binary') {
+      parts.push(part)
+    }
+  }
+  return parts
 }
 
 /**

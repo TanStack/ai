@@ -30,6 +30,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOverrides: {
       openai: 'o3',
       anthropic: 'claude-sonnet-4-5',
+      mistral: 'magistral-medium-latest',
     },
   },
   'multi-turn': {
@@ -123,11 +124,19 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'transcription-diarization': {
+    tools: [],
+    modelOptions: {},
+  },
   'video-gen': {
     tools: [],
     modelOptions: {},
   },
   'image-to-video': {
+    tools: [],
+    modelOptions: {},
+  },
+  'interactions-video': {
     tools: [],
     modelOptions: {},
   },

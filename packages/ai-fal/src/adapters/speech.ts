@@ -2,15 +2,14 @@ import { fal } from '@fal-ai/client'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
-  buildFalUsage,
   configureFalClient,
   extractUrlExtension,
-  takeBillableUnits,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
+import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils'
+import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**

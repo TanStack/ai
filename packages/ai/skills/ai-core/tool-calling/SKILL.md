@@ -75,7 +75,7 @@ import { updateCartUIDef } from '@/tools/definitions'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, updateCartUIDef], // server tool + client definition
   })
@@ -158,7 +158,7 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 
 // In your route handler:
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [getUserData],
 })
@@ -188,7 +188,7 @@ Server -- pass definition only (no execute function):
 
 ```typescript
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   tools: [showNotificationDef],
 })
@@ -289,7 +289,10 @@ function ChatPage() {
               return (
                 <div key={part.id}>
                   <p>Approve "{part.name}"?</p>
-                  <pre>{part.arguments}</pre>
+                  {/* `part.input` is the parsed, typed object (populated once
+                      the arguments are complete, as they are at approval
+                      time); `part.arguments` remains the raw JSON string. */}
+                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
                   <button
                     onClick={() =>
                       addToolApprovalResponse({
@@ -321,6 +324,15 @@ function ChatPage() {
   );
 }
 ```
+
+> **Type-safe approval:** With typed `tools`, `part.approval` exists **only**
+> on parts for tools defined with `needsApproval: true`. Tools without approval
+> have no `approval` field (reading it is a compile error). For a
+> tool-agnostic handler over a typed union, narrow with `'approval' in part`
+> (`if (part.type === 'tool-call' && 'approval' in part && part.approval)`),
+> or type a shared component against the base `ToolCallPart`. An untyped
+> `useChat()` keeps `approval` on every tool-call part, which is why the
+> snippet above (no `tools` generic) reads it directly.
 
 ### Pattern 4: Lazy Tool Discovery
 
@@ -360,7 +372,7 @@ const compareProducts = compareProductsDef.server(async ({ productIds }) => {
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, compareProducts],
     agentLoopStrategy: maxIterations(20),
@@ -375,10 +387,42 @@ gets the full schema, then calls `compareProducts` directly.
 Once discovered, a tool stays available for the conversation.
 When all lazy tools are discovered, the discovery tool is removed automatically.
 
+### Tuning the lazy catalog with `lazyToolsConfig`
+
+By default the discovery-tool catalog lists only bare names (`'none'`). Pass
+`lazyToolsConfig` to `chat()` to include more context:
+
+```typescript
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  tools: [getProducts, compareProducts],
+  agentLoopStrategy: maxIterations(20),
+  lazyToolsConfig: { includeDescription: 'first-sentence' },
+})
+```
+
+`includeDescription` values:
+
+| Value              | Catalog entry                                                                            | When to use                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `'none'` (default) | `compareProducts`                                                                        | Smallest prompt; model discovers by name                                           |
+| `'first-sentence'` | `compareProducts — Compare two or more products side by side.`                           | Helps the model decide whether to discover without extra tokens                    |
+| `'full'`           | `compareProducts — Compare two or more products side by side. Accepts productIds array.` | Use when descriptions are short or the model needs full context to route correctly |
+
+The post-discovery payload always returns the full description and schema regardless of this setting.
+
 ## MCP Tools
 
 `@tanstack/ai-mcp` lets a server-side `chat()` call discover and invoke tools
 hosted on any MCP server (Streamable HTTP, SSE, or stdio).
+
+**MCP tools and UI resources:** When an MCP tool result carries a `ui://`
+resource URI (via `_meta.ui.resourceUri`), TanStack AI surfaces it as a
+`UIResourcePart` on the assistant `UIMessage` in the client message list.
+`UIResourcePart` is a presentational-only part — it never enters model input.
+See the `@tanstack/ai-mcp` skill for the full MCP Apps API
+(`createMcpAppCallHandler`, `createMcpAppBridge`, `MCPAppResource`).
 
 ### Basic usage — auto-discovery
 

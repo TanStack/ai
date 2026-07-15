@@ -2,7 +2,9 @@ import { createMCPClient } from './client'
 import { DuplicateToolNameError, MCPConnectionError } from './errors'
 import type { MCPClient } from './client'
 import type { MCPClientOptions, ServerDescriptor, ToolsOptions } from './types'
+import type { TransportConfig } from './transport'
 import type { ServerTool } from '@tanstack/ai'
+import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
 export type MCPClientsConfig = Record<string, MCPClientOptions>
 
@@ -19,6 +21,29 @@ export interface MCPClients<
    * `options` (including `lazy`) is forwarded to every client's `tools()`.
    */
   tools: (options?: ToolsOptions) => Promise<Array<ServerTool>>
+  /**
+   * Reads an MCP resource by URI, routing to the owning client. A `ui://`
+   * resource read must hit the server that owns it; since the pool does not
+   * track ownership, each underlying client is tried in turn and the first
+   * success is returned. If every client fails, the last error is thrown.
+   *
+   * Required so a pool source emits `ui-resource` events for MCP Apps widgets
+   * (the chat manager binds `readResource` only when the source exposes it).
+   */
+  readResource: (uri: string) => Promise<ReadResourceResult>
+  /**
+   * The connection descriptors for every server in the pool, keyed by config
+   * key (the serverId / default prefix). Used by `createMcpAppCallHandler` to
+   * reconnect per-call (serverless-safe) without a separate transport-config
+   * map. Each value mirrors the owning client's `getInfo()`.
+   */
+  getServers: () => Record<
+    string,
+    {
+      transport: TransportConfig | undefined
+      prefix: string | undefined
+    }
+  >
   /** Close every client. */
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -62,8 +87,14 @@ export async function createMCPClients<
   if (failed.length > 0) {
     // Cleanup already-connected clients — no leaks.
     await Promise.allSettled(ok.map((r) => r.value[1].close()))
+    // Attach the first rejection's reason as the cause so the underlying
+    // connect error isn't lost (mirrors the tools() path).
+    const firstRejection = settled.find(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    )
     throw new MCPConnectionError(
       `Failed to connect MCP server(s): ${failed.join(', ')}`,
+      firstRejection?.reason,
     )
   }
 
@@ -110,6 +141,55 @@ export async function createMCPClients<
         seen.add(t.name)
       }
       return all
+    },
+    getServers(): Record<
+      string,
+      {
+        transport: TransportConfig | undefined
+        prefix: string | undefined
+      }
+    > {
+      // Keyed by config key (serverId / default prefix). Read each underlying
+      // client's original descriptor via getInfo().
+      return Object.fromEntries(
+        Object.entries(clients).map(([key, c]) => [key, c.getInfo()]),
+      )
+    },
+    async readResource(uri: string): Promise<ReadResourceResult> {
+      // Ownership isn't tracked, so try each client. A non-owning server may
+      // resolve an unrelated URI, so only accept a result whose `contents`
+      // actually include the requested `uri`; otherwise keep trying. A ui://
+      // read must reach the server that owns it.
+      const errors: Array<unknown> = []
+      const all = Object.values(clients)
+      for (const c of all) {
+        try {
+          const result = await (c as MCPClient<ServerDescriptor>).readResource(
+            uri,
+          )
+          if (result.contents.some((entry) => entry.uri === uri)) {
+            return result
+          }
+        } catch (err) {
+          errors.push(err)
+        }
+      }
+      // Distinguish the two failure modes and never leave `cause` undefined:
+      // - at least one client threw → attach EVERY thrown error as an
+      //   AggregateError cause. Keeping all of them matters in a multi-server
+      //   pool: if the owning server fails first and an unrelated server fails
+      //   after, a "last error wins" cause would bury the error you actually need.
+      // - every client responded but none owned the uri → there is no thrown
+      //   error to attach, so explain that the uri was not found on any server.
+      if (errors.length > 0) {
+        throw new Error(
+          `Failed to read MCP resource "${uri}": no client could resolve it (${errors.length} error(s) attached)`,
+          { cause: new AggregateError(errors) },
+        )
+      }
+      throw new Error(
+        `Failed to read MCP resource "${uri}": no configured MCP server owns this uri`,
+      )
     },
     async close(): Promise<void> {
       await Promise.all(

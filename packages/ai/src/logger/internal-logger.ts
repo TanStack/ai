@@ -31,6 +31,7 @@ const CATEGORY_EMOJI: Record<keyof ResolvedCategories, string> = {
   agentLoop: '🔁',
   config: '⚙️',
   errors: '❌',
+  sandbox: '📦',
 }
 
 export class InternalLogger {
@@ -80,6 +81,11 @@ export class InternalLogger {
   /** Log before/after a tool-call execution. Chat-only. */
   tools(message: string, meta?: Record<string, unknown>): void {
     this.emit('debug', 'tools', message, meta)
+  }
+
+  /** Log sandbox internals (watcher, file events, hook dispatch). Chat-only. */
+  sandbox(message: string, meta?: Record<string, unknown>): void {
+    this.emit('debug', 'sandbox', message, meta)
   }
 
   /** Log an agent-loop iteration marker or phase transition. Chat-only. */

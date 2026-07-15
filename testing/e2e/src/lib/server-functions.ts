@@ -7,7 +7,7 @@ import {
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
-import type { MediaPrompt } from '@tanstack/ai'
+import type { MediaPrompt, TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import {
   createAudioAdapter,
@@ -82,7 +82,10 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
     (data: {
       audio: string
       language?: string
+      responseFormat?: TranscriptionResponseFormat
+      modelOptions?: Record<string, any>
       provider: Provider
+      feature?: Feature
       aimockPort?: number
       testId?: string
     }) => {
@@ -97,11 +100,17 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      {
+        responseFormat: data.responseFormat,
+        modelOptions: data.modelOptions,
+      },
     )
     return generateTranscription({
       adapter,
       audio: data.audio,
       language: data.language,
+      responseFormat: data.responseFormat,
+      modelOptions: data.modelOptions,
     })
   })
 
@@ -142,6 +151,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       provider: Provider
       aimockPort?: number
       testId?: string
+      feature?: Feature
     }) => {
       const isEmpty =
         typeof data.prompt === 'string'
@@ -158,6 +168,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      data.feature,
     )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({

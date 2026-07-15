@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createMCPClients } from '../src/pool'
-import { makeServerWithWeatherTool } from './helpers/in-memory-server'
+import {
+  makeServerWithMismatchedResource,
+  makeServerWithResource,
+  makeServerWithWeatherTool,
+} from './helpers/in-memory-server'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClients', () => {
   it('connects to many servers and flattens auto-prefixed tools', async () => {
@@ -52,6 +57,94 @@ describe('createMCPClients', () => {
     await pool.close()
   })
 
+  it('readResource routes to the owning client and returns its result', async () => {
+    // alpha has no resources; res owns file:///hello.txt. The pool tries each
+    // client and returns the first success, so it must reach `res`.
+    const alpha = await makeServerWithWeatherTool()
+    const res = await makeServerWithResource()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+      res: { transport: res.clientTransport },
+    })
+    const read = await pool.readResource('file:///hello.txt')
+    expect(read.contents[0]).toMatchObject({
+      uri: 'file:///hello.txt',
+      text: 'hello from resource',
+    })
+  })
+
+  it('readResource skips a client that resolves but returns a non-matching uri', async () => {
+    // `mismatch` resolves the read without error but stamps a DIFFERENT uri on
+    // its contents; the pool must skip it and reach the owning `res` server.
+    const mismatch = await makeServerWithMismatchedResource()
+    const res = await makeServerWithResource()
+    await using pool = await createMCPClients({
+      // mismatch first so it's tried before the owning server
+      mismatch: { transport: mismatch.clientTransport },
+      res: { transport: res.clientTransport },
+    })
+    const read = await pool.readResource('file:///hello.txt')
+    expect(read.contents[0]).toMatchObject({
+      uri: 'file:///hello.txt',
+      text: 'hello from resource',
+    })
+  })
+
+  it('readResource throws when no client can resolve the uri', async () => {
+    const alpha = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+    })
+    await expect(pool.readResource('file:///missing.txt')).rejects.toThrow()
+  })
+
+  it('readResource: when a client throws, surfaces the last error as cause', async () => {
+    // alpha has no resources → its readResource throws. With no owning server,
+    // the thrown error must be attached as `cause` (not left undefined).
+    const alpha = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: alpha.clientTransport },
+    })
+    const err: unknown = await pool
+      .readResource('file:///missing.txt')
+      .catch((e: unknown) => e)
+    if (!(err instanceof Error)) throw new Error('expected an Error')
+    expect(err.cause).toBeInstanceOf(Error)
+  })
+
+  it('readResource: when all clients resolve but none owns the uri, throws without a cause', async () => {
+    // `mismatch` resolves the read WITHOUT throwing but stamps a different uri,
+    // so no client owns `file:///hello.txt`. No error was thrown, so there is
+    // no `cause` to attach — the message must explain the uri is unowned.
+    const mismatch = await makeServerWithMismatchedResource()
+    await using pool = await createMCPClients({
+      mismatch: { transport: mismatch.clientTransport },
+    })
+    const err: unknown = await pool
+      .readResource('file:///hello.txt')
+      .catch((e: unknown) => e)
+    if (!(err instanceof Error)) throw new Error('expected an Error')
+    expect(err.message).toMatch(/no configured MCP server owns/)
+    expect(err.cause).toBeUndefined()
+  })
+
+  it('getServers() returns each server descriptor keyed by config key', async () => {
+    const a = await makeServerWithWeatherTool()
+    const b = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: a.clientTransport },
+      beta: { transport: b.clientTransport, prefix: 'wx' },
+    })
+    // transport is undefined here because these clients are built from
+    // in-memory Transport instances (single-use, not reconnectable); only
+    // serializable configs are retained. The keying (config key) and prefix
+    // resolution (default = config key vs explicit) are what this asserts.
+    expect(pool.getServers()).toEqual({
+      alpha: { transport: undefined, prefix: 'alpha' },
+      beta: { transport: undefined, prefix: 'wx' },
+    })
+  })
+
   it('closes already-connected clients and throws if one server fails', async () => {
     const a = await makeServerWithWeatherTool()
     // Wrap alpha's transport close so we can assert cleanup actually ran.
@@ -61,7 +154,7 @@ describe('createMCPClients', () => {
       alphaClosed = true
       await originalClose()
     }
-    const broken = {
+    const broken: Transport = {
       start: async () => {
         throw new Error('nope')
       },
@@ -71,7 +164,7 @@ describe('createMCPClients', () => {
     await expect(
       createMCPClients({
         alpha: { transport: a.clientTransport },
-        beta: { transport: broken as any },
+        beta: { transport: broken },
       }),
     ).rejects.toThrow(/beta/)
     expect(alphaClosed).toBe(true)

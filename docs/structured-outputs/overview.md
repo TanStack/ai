@@ -120,12 +120,16 @@ exactly once at the end of the entire run.
 ```ts
 import { chat } from "@tanstack/ai";
 import type { ChatMiddleware } from "@tanstack/ai";
+import { span } from "./span";
 
 const tracing: ChatMiddleware = {
   name: "tracing",
   onChunk(ctx, chunk) {
     // Fires for chunks from the agent loop AND the final structured-output call
-    span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    // chunk.type narrows inside a conditional — use a discriminant check first:
+    if ("type" in chunk) {
+      span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+    }
   },
 };
 ```
@@ -136,6 +140,7 @@ Use the `onStructuredOutputConfig` hook when you need to mutate the schema:
 
 ```ts
 import type { ChatMiddleware } from "@tanstack/ai";
+import { sharedDefs } from "./schema-defs";
 
 const injectDefs: ChatMiddleware = {
   name: "inject-defs",

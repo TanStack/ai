@@ -3,10 +3,10 @@ name: ai-core/media-generation
 description: >
   Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateAudio() with geminiAudio/falAudio, generateVideo() with
-  openaiVideo/geminiVideo (async polling, per-model typed durations),
-  generateSpeech() with openaiSpeech, generateTranscription() with
-  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  generateAudio() with geminiAudio/falAudio, generateVideo() with async
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo, per-model typed
+  durations), generateSpeech() with openaiSpeech, generateTranscription()
+  with openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
@@ -151,7 +151,7 @@ function ImageGenerator() {
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
 gpt-image-1-mini, gpt-image-2) and `geminiImage` (gemini-3.1-flash-image-preview,
-imagen-4.0-generate-001, etc.).
+gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.).
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -261,6 +261,17 @@ await generateVideo({
 })
 ```
 
+**URL inputs that require an upload throw by default.** Most adapters pass a
+`type: 'url'` source straight through to the provider. Three paths can't —
+OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —
+because the provider only accepts uploaded bytes (Veo also takes a `gs://`
+reference). For those, an HTTP(S) URL would have to be downloaded and buffered
+in memory, which can OOM constrained runtimes, so they **throw** on an HTTP(S)
+URL image input by default. Pass a `data:` URI (or `gs://` for Veo), or opt in
+with `allowUrlFetch: true` on the adapter config
+(`createOpenaiImage(model, apiKey, { allowUrlFetch: true })`, and likewise on
+`createOpenaiVideo` / `createGeminiVideo`). `data:` URIs never need the flag.
+
 **Role hints** (`metadata.role`):
 
 | Role            | Maps to                                                                                               |
@@ -357,7 +368,20 @@ const { generate, result, isLoading } = useGenerateSpeech({
 ### 4. Audio Transcription
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe).
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize).
+
+> **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
+>
+> ```typescript
+> const { isRecording, start, stop } = useAudioRecorder()
+> const { generate } = useTranscription({
+>   connection: fetchServerSentEvents('/api/transcribe'),
+> })
+> // ...
+> const recording = await stop()
+> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> ```
 
 ```typescript
 import { generateTranscription } from '@tanstack/ai'
@@ -369,15 +393,20 @@ const result = await generateTranscription({
   language: 'en',
   responseFormat: 'verbose_json',
   modelOptions: {
-    include: ['segment', 'word'],
+    timestamp_granularities: ['word', 'segment'],
   },
 })
 
 // result.text       -- full transcribed text
 // result.language   -- detected/specified language
 // result.duration   -- audio duration in seconds
-// result.segments   -- timestamped segments with optional word-level timestamps
+// result.segments   -- timestamped segments (word-level timestamps are in result.words)
 ```
+
+For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
+When no response format is given it defaults the request to `response_format: 'diarized_json'`
+and `chunking_strategy: 'auto'` (a top-level `responseFormat` of `'json'`/`'text'` opts out of
+speaker segments); do not pass `prompt`, `include`, or `timestamp_granularities` with this model.
 
 Client hook:
 
@@ -430,8 +459,8 @@ return toServerSentEventsResponse(stream)
 ```
 
 Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
-`duration` option is typed per model (e.g. `4 | 6 | 8` for Veo 3.x,
-`5 | 6 | 8` for Veo 2); use `adapter.snapDuration(seconds)` to coerce raw
+`duration` option is typed per model (`4 | 6 | 8` for the Veo 3.1 models);
+use `adapter.snapDuration(seconds)` to coerce raw
 seconds and `adapter.availableDurations()` to enumerate the valid set.
 Image prompt parts route by `metadata.role`: first un-roled /
 `'start_frame'` image → input image, `'end_frame'` → `lastFrame`,
@@ -453,6 +482,42 @@ const { jobId } = await generateVideo({
 // Note: Veo result URLs require the Google API key to download
 // (x-goog-api-key header or ?key= query parameter).
 ```
+
+Gemini Omni Flash (`geminiVideo('gemini-omni-flash-preview')`) is served by
+the Interactions API instead of Veo's operations flow — same adapter, routed
+by model. Clips are 720p; `duration` is any number of seconds in the 3–10
+range (fractional ok, default 10 — availableDurations() reports the range),
+`size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
+**inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
+Image/video prompt parts are sent as interaction content blocks, grouped
+as images, then videos, then text (no
+`metadata.role` routing); `data` sources go inline, `url` sources pass
+through as-is (never downloaded — use Gemini Files API URIs for remote
+media). For conversational editing, pass a prior generation's `jobId` as
+`modelOptions.previous_interaction_id` with a prompt describing the change:
+
+```typescript
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const omni = geminiVideo('gemini-omni-flash-preview')
+const first = await generateVideo({
+  adapter: omni,
+  prompt: 'A violinist outdoors',
+})
+// …poll first.jobId to completion, then edit it:
+const edited = await generateVideo({
+  adapter: omni,
+  prompt: 'Make the violin invisible',
+  modelOptions: { previous_interaction_id: first.jobId },
+})
+```
+
+Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
+durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
+(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
+image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
+aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
+`usage.unitsBilled` seconds and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
 
 Client hook with job tracking:
 

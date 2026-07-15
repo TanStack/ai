@@ -13,6 +13,9 @@ export type {
   FinishInfo,
   AbortInfo,
   ErrorInfo,
+  SandboxFileEvent,
+  SandboxFileHookEvent,
+  ChatSandboxHooks,
 } from './types'
 
 export { MiddlewareRunner } from './compose'

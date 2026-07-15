@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-cloudflare",
-  "version": "0.2.27",
+  "version": "0.2.36",
   "description": "Cloudflare Workers sandbox driver for TanStack AI Code Mode TypeScript execution at the edge.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -69,8 +69,8 @@
     "@tanstack/ai-code-mode": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
+    "@cloudflare/workers-types": "^4.20260317.1",
     "@vitest/coverage-v8": "4.0.14",
-    "wrangler": "^4.88.0"
+    "wrangler": "^4.103.0"
   }
 }

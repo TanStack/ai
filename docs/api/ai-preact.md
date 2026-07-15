@@ -27,12 +27,21 @@ Main hook for managing chat state in Preact with full type safety.
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { useState } from "preact/hooks";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
 
 function ChatComponent() {
+  const [, setNotification] = useState<string | null>(null);
   // Create client tool implementations
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
@@ -40,7 +49,7 @@ function ChatComponent() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI);
+  const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
     connection: fetchServerSentEvents("/api/chat"),
@@ -80,6 +89,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-preact";
+import type { ModelMessage } from "@tanstack/ai/client";
+
 interface UseChatReturn {
   messages: UIMessage[];
   sendMessage: (content: string) => Promise<void>;
@@ -130,7 +142,7 @@ export function Chat() {
     connection: fetchServerSentEvents("/api/chat"),
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: Event) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
       sendMessage(input);
@@ -233,15 +245,27 @@ export function ChatWithApproval() {
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "preact/hooks";
 
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
+
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
   const updateUI = updateUIDef.client((input) => {
@@ -256,7 +280,7 @@ export function ChatWithClientTools() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToStorage);
+  const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -271,6 +295,7 @@ export function ChatWithClientTools() {
             // ✅ part.input and part.output are fully typed!
             return <div>Tool executed: {part.name}</div>;
           }
+          return null;
         })
       )}
     </div>
@@ -284,13 +309,14 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-preact";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

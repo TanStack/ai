@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-solid-ui",
-  "version": "0.7.9",
+  "version": "0.7.12",
   "description": "Headless Solid components for building TanStack AI chat interfaces with streamed message parts.",
   "author": "Tanner Linsley",
   "license": "MIT",

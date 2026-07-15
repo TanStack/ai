@@ -2,13 +2,17 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora or Google Veo using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
   - sora
   - veo
+  - omni flash
+  - interactions api
   - gemini
+  - grok imagine
+  - fal
   - generateVideo
   - jobs api
   - experimental
@@ -38,7 +42,9 @@ TanStack AI provides experimental support for video generation through dedicated
 
 Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
-- **Google Gemini**: Veo 3.1, Veo 3, and Veo 2 models (via the long-running operations API)
+- **Google Gemini**: Veo 3.1 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
+- **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 
 ## Basic Usage
 
@@ -60,7 +66,13 @@ console.log('Job started:', jobId)
 ### Polling for Status
 
 ```typescript
-import { getVideoJobStatus } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: 'A golden retriever puppy playing in a field of sunflowers',
+})
 
 // Check the status of the job
 const status = await getVideoJobStatus({
@@ -80,6 +92,8 @@ if (status.status === 'failed') {
 
 ```typescript
 import { getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+import { jobId } from './job'
 
 // Only call this after status is 'completed'
 const result = await getVideoJobStatus({
@@ -154,7 +168,7 @@ TanStack AI's `generateVideo` function supports a `stream: true` flag that handl
 
 **Server** — The server handles the entire polling lifecycle and streams events to the client:
 
-```typescript
+```typescript ignore
 // routes/api/generate/video.ts
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
@@ -244,7 +258,7 @@ function VideoGenerator() {
 
 For cases where the server handles the full polling loop and returns a completed result:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
@@ -298,7 +312,7 @@ function VideoGenerator() {
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically. This gives you both type safety and real-time `jobId`/`videoStatus` updates:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
@@ -379,6 +393,7 @@ generation, pass the `prompt` as an array of content parts:
 ```typescript
 import { generateVideo } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
+import { base64Image } from './assets'
 
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
@@ -426,7 +441,9 @@ adapter uses to route the input to the provider-specific field:
 | `'character'`   | Same as `'reference'` — character consistency images                    |
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
 import { falVideo } from '@tanstack/ai-fal'
+import { firstFrameUrl, lastFrameUrl } from './assets'
 
 await generateVideo({
   adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
@@ -479,6 +496,9 @@ The API uses the `seconds` parameter. Allowed values:
 Based on the [OpenAI Sora API](https://platform.openai.com/docs/api-reference/videos/create):
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A beautiful sunset over the ocean',
@@ -496,14 +516,12 @@ const { jobId } = await generateVideo({
 Veo runs on Google's long-running operations API. The adapter starts the
 operation, and `getVideoJobStatus` polls it until the video is ready:
 
-```typescript
+```typescript ignore
 import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('veo-3.1-generate-preview')
-
 const { jobId } = await generateVideo({
-  adapter,
+  adapter: geminiVideo('veo-3.1-generate-preview'),
   prompt: 'A close-up of a luthier carving a guitar neck',
   size: '16:9', // aspect ratio: '16:9' or '9:16'
   duration: 8, // typed per model — see below
@@ -524,15 +542,16 @@ the `duration` option:
 |-------|------------------------------|
 | `veo-3.1-generate-preview` | `4`, `6`, `8` |
 | `veo-3.1-fast-generate-preview` | `4`, `6`, `8` |
-| `veo-3.0-generate-001` | `4`, `6`, `8` |
-| `veo-3.0-fast-generate-001` | `4`, `6`, `8` |
-| `veo-2.0-generate-001` | `5`, `6`, `8` |
+| `veo-3.1-lite-generate-preview` | `4`, `6`, `8` |
 
 If you have raw seconds (for example from a UI slider), coerce them with
 `snapDuration`, or inspect the full set with `availableDurations`:
 
-```typescript
-const adapter = geminiVideo('veo-3.0-generate-001')
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('veo-3.1-lite-generate-preview')
 
 adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
 adapter.snapDuration(7) // 6 — closest valid duration
@@ -551,6 +570,143 @@ Adapters that haven't declared a per-model duration map keep the plain
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
 > `x-goog-api-key` header or `key` query parameter).
+
+### Gemini Omni Flash (Interactions API) Model Options
+
+Gemini Omni Flash (`gemini-omni-flash-preview`) is Google's multimodal
+video-generation model with conversational editing. It only serves the
+[Interactions API](https://ai.google.dev/gemini-api/docs/omni) — the same
+`geminiVideo()` adapter routes it automatically: `generateVideo` creates a
+background interaction, `getVideoJobStatus` polls it by id, and the
+finished clip comes back **inline as a `data:video/mp4;base64,…` URL**
+(when Google delivers by reference instead, the Files API URI passes
+through and needs your API key to download, like Veo).
+
+Clips are 720p at 24 FPS, and `duration` accepts any value in the **3–10
+second** range (fractional seconds included), defaulting to 10 seconds when
+omitted. `availableDurations()` reports
+`{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`; out-of-range
+`duration` values are rejected at job creation, and `snapDuration(n)` snaps
+raw seconds into the range (clamping to its bounds and rounding to whole
+seconds). The `size` option maps onto the interaction's output aspect
+ratio:
+
+```typescript ignore
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('gemini-omni-flash-preview')
+
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A woman playing violin outdoors at golden hour',
+  size: '9:16', // aspect ratio: '16:9' (default) or '9:16'
+  duration: 6, // 3-10 seconds; omit for the 10s default
+})
+
+const status = await getVideoJobStatus({ adapter, jobId })
+// status.url → 'data:video/mp4;base64,…' once completed
+```
+
+Image and video prompt parts are sent to the interaction as content blocks
+— grouped as images, then videos, then the text prompt (Omni doesn't use
+Veo's `metadata.role` routing) — so you can condition the generation on
+stills or short reference clips. `data` sources
+are sent inline as base64; `url` sources pass through as-is — the adapter
+never downloads them, so use Gemini Files API URIs (upload large media via
+the Files API first).
+
+#### Conversational video editing
+
+Omni's headline capability is iterative refinement: pass the interaction id
+of a prior generation (its `jobId`) as
+`modelOptions.previous_interaction_id` and describe the change — the model
+edits the video while preserving everything you didn't mention:
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { geminiVideo } from '@tanstack/ai-gemini'
+
+const adapter = geminiVideo('gemini-omni-flash-preview')
+
+// Turn 1: generate
+const first = await generateVideo({
+  adapter,
+  prompt: 'A woman playing violin outdoors at golden hour',
+})
+
+// …poll first.jobId to completion, then…
+
+// Turn 2: edit the result conversationally
+const second = await generateVideo({
+  adapter,
+  prompt: 'Make the violin invisible',
+  modelOptions: { previous_interaction_id: first.jobId },
+})
+```
+
+`modelOptions` also passes through the Interactions API's request fields
+(e.g. `generation_config.video_config.task` to pin
+`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`
+instead of letting the model infer the task mode).
+
+### Grok (xAI Imagine) Model Options
+
+Based on the [xAI video generation API](https://docs.x.ai/docs/guides/video-generations). Two models are available: `grok-imagine-video` (v1.0) supports **text-to-video and image-to-video**, while `grok-imagine-video-1.5` is **image-to-video only** (a text-only prompt is rejected by the API; the adapter throws a clear error pointing you at `grok-imagine-video`). Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+
+Text-to-video with the base model:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video'),
+  prompt: 'A beautiful sunset over the ocean',
+  size: '16:9_720p',  // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
+                      // resolution (optional suffix): '480p' | '720p' | '1080p'
+  duration: 5,        // integer seconds, 1-15
+  modelOptions: {
+    aspect_ratio: '16:9',  // Alternative way to specify the aspect ratio
+    resolution: '720p',    // Alternative way to specify the resolution
+    duration: 5,           // Alternative way to specify the duration
+  },
+})
+```
+
+Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo('grok-imagine-video-1.5'),
+  prompt: [
+    { type: 'text', content: 'Slowly pan out as the waves roll in' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/still.png' },
+    },
+  ],
+  size: '16:9_720p',
+  duration: 5,
+})
+```
+
+Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
+
+```typescript
+import { grokVideo } from '@tanstack/ai-grok'
+
+const adapter = grokVideo('grok-imagine-video')
+
+adapter.availableDurations() // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
+adapter.snapDuration(2.5) // 3 — clamped/rounded into range
+adapter.snapDuration(99) // 15
+```
+
+Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 ## Response Types
 
@@ -579,6 +735,8 @@ interface VideoStatusResult {
 ### VideoUrlResult (from url)
 
 ```typescript
+import type { TokenUsage } from '@tanstack/ai'
+
 interface VideoUrlResult {
   jobId: string
   url: string        // URL to download/stream the video
@@ -609,6 +767,9 @@ interface VideoUrlResult {
 Video generation can fail for various reasons. Always implement proper error handling:
 
 ```typescript
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
 try {
   const { jobId } = await generateVideo({
     adapter: openaiVideo('sora-2'),
@@ -626,12 +787,14 @@ try {
     // Handle failure (e.g., retry, notify user)
   }
 } catch (error) {
-  if (error.message.includes('Video generation API is not available')) {
-    console.error('Sora API access may be required. Check your OpenAI account.')
-  } else if (error.message.includes('rate limit')) {
-    console.error('Rate limited. Please wait before trying again.')
-  } else {
-    console.error('Unexpected error:', error)
+  if (error instanceof Error) {
+    if (error.message.includes('Video generation API is not available')) {
+      console.error('Sora API access may be required. Check your OpenAI account.')
+    } else if (error.message.includes('rate limit')) {
+      console.error('Rate limited. Please wait before trying again.')
+    } else {
+      console.error('Unexpected error:', error)
+    }
   }
 }
 ```

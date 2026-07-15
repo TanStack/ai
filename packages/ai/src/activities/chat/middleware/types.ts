@@ -13,6 +13,50 @@ import type {
   CapabilityRegistry,
 } from './capabilities'
 
+/** A file change observed inside a sandbox during a chat run. */
+export interface SandboxFileEvent {
+  type: 'create' | 'change' | 'delete'
+  /** Absolute path inside the sandbox (under the workspace root). */
+  path: string
+  timestamp: number
+}
+
+/** The file event a sandbox hook receives: the serializable {@link SandboxFileEvent}
+ *  plus lazy, git-backed content accessors. Accessors compute on call, so a hook
+ *  that only reads `path`/`type` pays nothing. Never present on the serialized
+ *  `sandbox.file` CUSTOM chunk. */
+export interface SandboxFileHookEvent extends SandboxFileEvent {
+  /** Content at the session baseline (`''` for a new file or non-git workspace). */
+  before: () => Promise<string>
+  /** Current content (`''` when the event is a delete). */
+  after: () => Promise<string>
+  /** Unified patch vs the session baseline (synthesized add-patch when non-git). */
+  diff: () => Promise<string>
+}
+
+/**
+ * Sandbox file-event hooks a chat middleware can declare. Fire server-side for
+ * every file create/change/delete observed in the sandbox during the run.
+ */
+export interface ChatSandboxHooks<TContext = unknown> {
+  onFile?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileCreate?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileChange?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileDelete?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+}
+
 // ===========================
 // Middleware Context
 // ===========================
@@ -539,6 +583,12 @@ export interface ChatMiddleware<TContext = unknown> {
     ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
   ) => void | Promise<void>
+
+  /**
+   * Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
+   * active during the run and a file is created/changed/deleted. Server-side.
+   */
+  sandbox?: ChatSandboxHooks<TContext>
 }
 
 /** A `ChatMiddleware` with a permissive context — for use as a constraint. */

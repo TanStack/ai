@@ -10,7 +10,7 @@ import type {
 } from '../model-meta'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type { GrokMessageMetadataByModality } from '../message-types'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
 /**
@@ -43,8 +43,11 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
-  TProviderOptions extends Record<string, unknown> =
-    ResolveProviderOptions<TModel>,
+  // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
+  // adapter: the resolved Grok provider options are a type-alias intersection
+  // with no explicit index signature, which is assignable to
+  // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =

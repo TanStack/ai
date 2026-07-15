@@ -24,7 +24,7 @@ import type {
 } from './types'
 
 export function useChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(
@@ -168,17 +168,29 @@ export function useChat<
     }
   }, [client])
 
+  // Sync each wire-payload slot in its own effect so an unrelated option
+  // changing doesn't re-run the others. `updateOptions` declares strict-optional
+  // fields and rejects explicit `undefined` under EOPT, so guard the optional
+  // slots before passing them.
   useEffect(() => {
-    // Conditional spread: `updateOptions` declares strict-optional
-    // fields and rejects explicit `undefined` under EOPT.
-    client.updateOptions({
-      body: options.body,
-      ...(options.forwardedProps !== undefined && {
-        forwardedProps: options.forwardedProps,
-      }),
-      context: options.context,
-    })
-  }, [client, options.body, options.forwardedProps, options.context])
+    client.updateOptions({ body: options.body })
+  }, [client, options.body])
+
+  useEffect(() => {
+    if (options.forwardedProps !== undefined) {
+      client.updateOptions({ forwardedProps: options.forwardedProps })
+    }
+  }, [client, options.forwardedProps])
+
+  useEffect(() => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }, [client, options.tools])
+
+  useEffect(() => {
+    client.updateOptions({ context: options.context })
+  }, [client, options.context])
 
   useEffect(() => {
     if (options.live) {

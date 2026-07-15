@@ -12,6 +12,7 @@ const ALL_OFF: ResolvedCategories = {
   config: false,
   errors: false,
   request: false,
+  sandbox: false,
 }
 
 const ALL_ON: ResolvedCategories = {
@@ -23,6 +24,7 @@ const ALL_ON: ResolvedCategories = {
   config: true,
   errors: true,
   request: true,
+  sandbox: true,
 }
 
 const errorsOnlyCategories = (): ResolvedCategories => ({
@@ -41,6 +43,7 @@ const resolveCategoriesFromPartial = (
   config: partial.config ?? true,
   errors: partial.errors ?? true,
   request: partial.request ?? true,
+  sandbox: partial.sandbox ?? true,
 })
 
 /**

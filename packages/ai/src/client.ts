@@ -114,12 +114,15 @@ export type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourcePart,
   VideoPart,
   InferSchemaType,
 } from './types'
 
 export type {
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeError,
   RealtimeErrorCode,
   RealtimeEvent,

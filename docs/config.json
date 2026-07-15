@@ -62,7 +62,8 @@
         {
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         }
       ]
     },
@@ -72,12 +73,14 @@
         {
           "label": "Tools",
           "to": "tools/tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Provider Tools",
           "to": "tools/provider-tools",
-          "addedAt": "2026-04-21"
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Provider Skills",
@@ -87,7 +90,8 @@
         {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Server Tools",
@@ -97,17 +101,20 @@
         {
           "label": "Client Tools",
           "to": "tools/client-tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-08"
         }
       ]
     },
@@ -133,6 +140,12 @@
           "label": "MCP Type Generation",
           "to": "tools/mcp-codegen",
           "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-06-26"
         }
       ]
     },
@@ -147,7 +160,8 @@
         {
           "label": "Streaming",
           "to": "chat/streaming",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Connection Adapters",
@@ -163,6 +177,16 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02"
+        }
+      ]
+    },
+    {
+      "label": "Protocol",
+      "children": [
+        {
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03"
         }
       ]
     },
@@ -193,7 +217,8 @@
         {
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-07-08"
         }
       ]
     },
@@ -220,6 +245,11 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
       ]
     },
@@ -244,7 +274,14 @@
         {
           "label": "Transcription",
           "to": "media/transcription",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
+        },
+        {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-06-26"
         },
         {
           "label": "Audio Generation",
@@ -256,13 +293,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-07"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-02"
         },
         {
           "label": "Generation Hooks",
@@ -294,12 +331,83 @@
       ]
     },
     {
+      "label": "Sandboxes",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "sandbox/overview",
+          "addedAt": "2026-06-16",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Quick Start",
+          "to": "sandbox/quick-start",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Providers",
+          "to": "sandbox/providers",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Harnesses",
+          "to": "sandbox/harnesses",
+          "addedAt": "2026-06-30"
+        },
+        {
+          "label": "Workspace",
+          "to": "sandbox/workspace",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Tools",
+          "to": "sandbox/tools",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Policy",
+          "to": "sandbox/policy",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Lifecycle & Snapshots",
+          "to": "sandbox/lifecycle",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "Events",
+          "to": "sandbox/events",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-03"
+        },
+        {
+          "label": "Observability",
+          "to": "sandbox/observability",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-08"
+        },
+        {
+          "label": "Cloudflare (Edge)",
+          "to": "sandbox/cloudflare",
+          "addedAt": "2026-06-29"
+        }
+      ]
+    },
+    {
       "label": "Advanced",
       "children": [
         {
           "label": "Runtime Context",
           "to": "advanced/runtime-context",
-          "addedAt": "2026-06-01"
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Debug Logging",
@@ -349,12 +457,14 @@
         {
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
-          "addedAt": "2026-04-20"
+          "addedAt": "2026-04-20",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
-          "addedAt": "2026-05-16"
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "Sampling → modelOptions",
@@ -374,37 +484,44 @@
         {
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-08"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
-          "addedAt": "2026-06-15"
+          "addedAt": "2026-06-15",
+          "updatedAt": "2026-07-08"
         }
       ]
     },
@@ -414,17 +531,20 @@
         {
           "label": "OpenAI",
           "to": "adapters/openai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-04"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
         },
         {
           "label": "Ollama",
@@ -434,12 +554,18 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-24"
         },
         {
           "label": "Groq",
           "to": "adapters/groq",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-01"
+        },
+        {
+          "label": "Mistral",
+          "to": "adapters/mistral"
         },
         {
           "label": "ElevenLabs",
@@ -465,12 +591,14 @@
         {
           "label": "Claude Code",
           "to": "adapters/claude-code",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
         },
         {
           "label": "Gemini CLI",
@@ -480,7 +608,23 @@
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
-          "addedAt": "2026-06-12"
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-06-30"
+        },
+        {
+          "label": "Grok Build",
+          "to": "adapters/grok-build",
+          "addedAt": "2026-06-29"
+        },
+        {
+          "label": "ACP-Compatible",
+          "to": "adapters/acp-compatible",
+          "addedAt": "2026-06-30"
+        },
+        {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock",
+          "addedAt": "2026-06-25"
         }
       ]
     },

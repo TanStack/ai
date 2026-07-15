@@ -4,7 +4,9 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter
+**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, bedrock, bedrock-responses
+
+> **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
@@ -187,6 +189,16 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 2. **Add to `src/lib/feature-support.ts`** — mark which features it supports
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
+
+### Bedrock Converse coverage gap
+
+The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
+
+The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-bedrock-runtime` and speaks AWS's **binary event-stream (`vnd.amazon.eventstream`) Converse protocol**, which `@copilotkit/aimock` does not currently mock. Adding `bedrock-converse` to the live matrix would fail without a Converse-capable aimock provider.
+
+**Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
+
+**Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
 
 **SDK baseURL notes:**
 

@@ -11,6 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
@@ -342,6 +343,39 @@ export class MiddlewareRunner<TContext = unknown> {
     }
 
     return chunks
+  }
+
+  /**
+   * Dispatch a sandbox file event to every middleware's `sandbox` hooks, in
+   * array order: the catch-all `onFile` then the type-specific hook. Errors are
+   * logged and swallowed so one bad hook can't break the run.
+   */
+  async runSandboxFile(
+    ctx: ChatMiddlewareContext<TContext>,
+    event: SandboxFileHookEvent,
+  ): Promise<void> {
+    const typed = (
+      {
+        create: 'onFileCreate',
+        change: 'onFileChange',
+        delete: 'onFileDelete',
+      } as const
+    )[event.type]
+    for (const mw of this.middlewares) {
+      const hooks = mw.sandbox
+      if (!hooks) continue
+      for (const fn of [hooks.onFile, hooks[typed]]) {
+        if (!fn) continue
+        try {
+          await fn(ctx, event)
+        } catch (error) {
+          this.logger.sandbox(
+            `hook=${typed} middleware=${mw.name ?? 'unnamed'} threw`,
+            { middleware: mw.name ?? 'unnamed', error },
+          )
+        }
+      }
+    }
   }
 
   /**

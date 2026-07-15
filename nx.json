@@ -63,6 +63,14 @@
       "cache": true,
       "inputs": ["{workspaceRoot}/docs/**/*"]
     },
+    "test:kiira": {
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/docs/**/*",
+        "{workspaceRoot}/packages/*/src/**/*",
+        "{workspaceRoot}/kiira.config.ts"
+      ]
+    },
     "test:knip": {
       "cache": true,
       "inputs": ["{workspaceRoot}/**/*"]
@@ -70,6 +78,13 @@
     "test:sherif": {
       "cache": true,
       "inputs": ["{workspaceRoot}/**/package.json"]
+    },
+    "test:dts": {
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/scripts/scan-dangling-dts.mjs",
+        "{workspaceRoot}/packages/*/dist/**/*.d.ts"
+      ]
     }
   }
 }

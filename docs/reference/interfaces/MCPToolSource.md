@@ -5,7 +5,7 @@ title: MCPToolSource
 
 # Interface: MCPToolSource
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L10)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L25)
 
 Minimal structural shape that `chat({ mcp })` needs from an MCP client.
 
@@ -21,11 +21,37 @@ shape — the core `@tanstack/ai` package does NOT import `@tanstack/ai-mcp`
 close: () => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L15)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L30)
 
 #### Returns
 
 `Promise`\<`void`\>
+
+***
+
+### readResource()?
+
+```ts
+optional readResource: (uri) => Promise<McpResourceReadResult>;
+```
+
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L38)
+
+Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
+`ui://` resource widgets (MCP Apps) after a tool result resolves.
+
+Optional — sources that do not serve `ui://` resources need not implement
+this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
+
+#### Parameters
+
+##### uri
+
+`string`
+
+#### Returns
+
+`Promise`\<`McpResourceReadResult`\>
 
 ***
 
@@ -35,7 +61,7 @@ Defined in: [packages/ai/src/activities/chat/mcp/types.ts:15](https://github.com
 tools: (options?) => Promise<ServerTool<SchemaInput, SchemaInput, string, unknown>[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/mcp/types.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L14)
+Defined in: [packages/ai/src/activities/chat/mcp/types.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L29)
 
 #### Parameters
 

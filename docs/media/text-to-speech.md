@@ -77,6 +77,9 @@ const result = await generateSpeech({
 ```
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { falSpeech } from '@tanstack/ai-fal'
+
 // Kokoro multilingual
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/kokoro/american-english'),
@@ -90,6 +93,9 @@ console.log(result.format) // e.g. "wav"
 ```
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { falSpeech } from '@tanstack/ai-fal'
+
 // ElevenLabs v3 with model-specific options
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
@@ -149,6 +155,9 @@ OpenAI provides several distinct voices:
 ### OpenAI Model Options
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
 const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
   text: 'High quality speech synthesis',
@@ -173,7 +182,7 @@ const result = await generateSpeech({
 
 The TTS result includes:
 
-```typescript
+```typescript ignore
 interface TTSResult {
   id: string        // Unique identifier for this generation
   model: string     // The model used
@@ -186,7 +195,7 @@ interface TTSResult {
 
 ## Playing Audio in the Browser
 
-```typescript
+```typescript ignore
 // Convert base64 to audio and play
 function playAudio(result: TTSResult) {
   const audioData = atob(result.audio)
@@ -208,7 +217,9 @@ function playAudio(result: TTSResult) {
 
 ## Saving Audio to File (Node.js)
 
-```typescript
+```typescript ignore
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
 import { writeFile } from 'fs/promises'
 
 async function saveAudio(result: TTSResult, filename: string) {
@@ -234,7 +245,7 @@ TanStack AI provides React hooks and server-side streaming helpers to build full
 
 **Server** — Create an API route that wraps `generateSpeech` as a streaming response:
 
-```typescript
+```typescript ignore
 // routes/api/generate/speech.ts
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
@@ -305,7 +316,7 @@ function SpeechGenerator() {
 
 For non-streaming usage with TanStack Start server functions:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateSpeech } from '@tanstack/ai'
@@ -338,7 +349,7 @@ function SpeechGenerator() {
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
@@ -407,11 +418,12 @@ The `onResult` callback can optionally return a transformed value that replaces 
 
 ```tsx
 import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { TTSResult } from '@tanstack/ai'
 
 function SpeechPlayer() {
   const { generate, result, isLoading } = useGenerateSpeech({
     connection: fetchServerSentEvents('/api/generate/speech'),
-    onResult: (raw) => {
+    onResult: (raw: TTSResult) => {
       const audioData = atob(raw.audio)
       const bytes = new Uint8Array(audioData.length)
       for (let i = 0; i < audioData.length; i++) {
@@ -465,18 +477,23 @@ TypeScript automatically infers the result type from your `onResult` return valu
 ## Error Handling
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
 try {
   const result = await generateSpeech({
     adapter: openaiSpeech('tts-1'),
     text: 'Hello!',
   })
 } catch (error) {
-  if (error.message.includes('exceeds maximum length')) {
-    console.error('Text is too long (max 4096 characters)')
-  } else if (error.message.includes('Speed must be between')) {
-    console.error('Invalid speed value')
-  } else {
-    console.error('TTS error:', error.message)
+  if (error instanceof Error) {
+    if (error.message.includes('exceeds maximum length')) {
+      console.error('Text is too long (max 4096 characters)')
+    } else if (error.message.includes('Speed must be between')) {
+      console.error('Invalid speed value')
+    } else {
+      console.error('TTS error:', error.message)
+    }
   }
 }
 ```

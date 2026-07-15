@@ -1,0 +1,64 @@
+{
+  "name": "@tanstack/ai-bedrock",
+  "version": "0.1.2",
+  "type": "module",
+  "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-bedrock"
+  },
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "bedrock",
+    "aws",
+    "adapter",
+    "llm",
+    "chat",
+    "tool-calling"
+  ],
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.3.3"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
+    "@aws-sdk/credential-providers": "^3.1057.0",
+    "@smithy/signature-v4": "^5.4.5",
+    "@smithy/types": "^4.14.2",
+    "@tanstack/openai-base": "workspace:*",
+    "openai": "^6.41.0"
+  }
+}

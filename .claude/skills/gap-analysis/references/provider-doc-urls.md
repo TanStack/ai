@@ -70,6 +70,16 @@ WebFetch — call `resolve-library-id` with the SDK npm name, then `query-docs`.
 - Provider routing: https://openrouter.ai/docs/features/provider-routing
 - (Proxies many providers; uses OpenAI-compatible API.)
 
+## bedrock (Amazon Bedrock)
+
+- Models / API compatibility: https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html
+- Converse API reference (default path): https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html
+- OpenAI-compatible Chat Completions: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
+- Responses API (mantle): https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+- Cross-region inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+- API keys: https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html
+- (Default path uses Converse API via `@aws-sdk/client-bedrock-runtime` (adapter `bedrock-converse`). Opt-in paths: `api: 'chat'` → OpenAI-compatible Chat Completions (adapter `bedrock`); `api: 'responses'` → Responses API (adapter `bedrock-responses`).)
+
 ## fal (media-only)
 
 - Models catalog: https://fal.ai/models

@@ -1,5 +1,94 @@
 # @tanstack/ai-openrouter
 
+## 0.15.8
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.15.7
+
+### Patch Changes
+
+- [#887](https://github.com/TanStack/ai/pull/887) [`f80a279`](https://github.com/TanStack/ai/commit/f80a279ce191eb841e931782b78c4fefc7db54a9) - Update model metadata from OpenRouter API
+
+  Releases the model-metadata syncs from [#772](https://github.com/TanStack/ai/issues/772) and [#883](https://github.com/TanStack/ai/issues/883) that were generated
+  without a changeset: adds Claude Sonnet 5 (`anthropic/claude-sonnet-5`),
+  Claude Fable 5 (`anthropic/claude-fable-5`), DeepSeek V3.2, GLM-5.2,
+  Kimi K2.7 Code, Qwen 3.7 Plus, Nemotron 3 Ultra, and other new models;
+  refreshes pricing and capability flags; and removes ids retired upstream
+  (e.g. `anthropic/claude-3.5-haiku`, `anthropic/claude-opus-4.6-fast`).
+
+## 0.15.6
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.15.5
+
+### Patch Changes
+
+- [#824](https://github.com/TanStack/ai/pull/824) [`80dad77`](https://github.com/TanStack/ai/commit/80dad77030810665377b123d31acf375bc73f741) - Update `@openrouter/sdk` to `0.13.20`. This removes the duplicate `rootDir` key from the published SDK package metadata (fixes [#712](https://github.com/TanStack/ai/issues/712)) and picks up the fix to the `getVideoContent` download helper, which previously requested `Accept: application/octet-stream` and matched the streamed 200 response without a content type, so the upstream `video/mp4` body failed to match. The SDK now requests `Accept: video/mp4` and matches the stream with `ctype: "video/mp4"`.
+
+## 0.15.4
+
+### Patch Changes
+
+- [#823](https://github.com/TanStack/ai/pull/823) [`234d54e`](https://github.com/TanStack/ai/commit/234d54e394034a568e531c3b2e3027a451a59567) - Forward tool-definition `cacheControl` through the OpenRouter function-tool converter so Anthropic prompt caching of tool definitions works over OpenRouter. Previously `metadata.cacheControl` was dropped before serialization, so the cache breakpoint never reached the wire. The OpenRouter SDK already accepts `cacheControl` on a function tool and remaps it to `cache_control`; this mirrors `convertCustomToolToAdapterFormat` in `@tanstack/ai-anthropic`.
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.15.3
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.15.0
+
+### Minor Changes
+
+- [#777](https://github.com/TanStack/ai/pull/777) [`170451d`](https://github.com/TanStack/ai/commit/170451d40dcee1fad7d73998afe2b669645574cb) - Forward per-system-prompt `cache_control` breakpoints to the wire. The text adapter previously collapsed `systemPrompts` to a plain joined string and dropped the object-form `metadata`, so Anthropic-family prompt caching over OpenRouter was unreachable. It now declares `OpenRouterSystemPromptMetadata` (narrowing `systemPrompts[i].metadata` so `cache_control` is typed and autocompleted at the `chat()` call site) and, when any system prompt carries `cache_control`, emits the system message as a content-array part carrying the directive — mirroring `@tanstack/ai-anthropic`. Callers without `cache_control` are unaffected: the system message is still sent as the same joined string.
+
+### Patch Changes
+
+- Updated dependencies [[`4188693`](https://github.com/TanStack/ai/commit/4188693d09297ce400eb1ba5fab30cfea2fdb8a6)]:
+  - @tanstack/ai@0.34.1
+
 ## 0.14.2
 
 ### Patch Changes

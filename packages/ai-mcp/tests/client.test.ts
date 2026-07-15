@@ -1,6 +1,6 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it } from 'vitest'
-import { createMCPClientFromTransport } from '../src/client'
+import { createMCPClient, createMCPClientFromTransport } from '../src/client'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
@@ -91,6 +91,28 @@ describe('createMCPClient', () => {
     expect(tools[0].name).toBe('wx_get_weather')
   })
 
+  it('stamps mcp.serverToolName + serverId on bound definitions', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      'wx',
+    )
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    // The runtime name is prefixed, but the UNPREFIXED native name + serverId
+    // must be recoverable from metadata (mirrors auto-discovery).
+    expect(tools[0].metadata?.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+  })
+
   it('excludes task-required tools from auto-discovery', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
@@ -129,11 +151,54 @@ describe('createMCPClient', () => {
     expect((err as MCPConnectionError).cause).toBeInstanceOf(Error)
   })
 
+  it('callTool proxies directly to the server and returns CallToolResult', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const result = await client.callTool('get_weather', { city: 'Tokyo' })
+    expect(result.isError).toBeFalsy()
+    expect(
+      Array.isArray(result.content) &&
+        result.content.some(
+          (c: { type: string; text?: string }) =>
+            c.type === 'text' && c.text?.includes('Tokyo'),
+        ),
+    ).toBe(true)
+  })
+
+  it('callTool throws MCPConnectionError when client is closed', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    const client = await createMCPClientFromTransport(clientTransport)
+    await client.close()
+    await expect(
+      client.callTool('get_weather', { city: 'Tokyo' }),
+    ).rejects.toThrow(MCPConnectionError)
+  })
+
   it('close() is idempotent', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     const client = await createMCPClientFromTransport(clientTransport)
     await client.close()
     await expect(client.close()).resolves.toBeUndefined()
+  })
+
+  it('getInfo() retains no transport when createMCPClient is given a Transport instance', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+    })
+    // A ready-made Transport instance is single-use / not reconnectable, so
+    // only serializable transport configs are retained as a descriptor.
+    expect(client.getInfo()).toEqual({ transport: undefined, prefix: 'wx' })
+  })
+
+  it('getInfo() returns an undefined transport for a client built from a raw Transport', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      'wx',
+    )
+    expect(client.getInfo()).toEqual({ transport: undefined, prefix: 'wx' })
   })
 
   it('closes on asyncDispose', async () => {

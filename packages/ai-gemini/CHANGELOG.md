@@ -1,5 +1,92 @@
 # @tanstack/ai-gemini
 
+## 0.19.1
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.19.0
+
+### Minor Changes
+
+- [#875](https://github.com/TanStack/ai/pull/875) [`f0c12ba`](https://github.com/TanStack/ai/commit/f0c12ba0895704156c1853c09ae41646cce9254b) - Drop retired Gemini media models and add **Veo 3.1 Lite**.
+
+  The following models return `404 NOT_FOUND` from the Gemini Developer API and have been removed from the adapter's model lists and type maps:
+  - `imagen-3.0-generate-002` (superseded by the Imagen 4 family)
+  - `veo-2.0-generate-001`
+  - `veo-3.0-generate-001`
+  - `veo-3.0-fast-generate-001`
+
+  Added `veo-3.1-lite-generate-preview` (Veo 3.1 Lite) — the lowest-cost Veo 3.1 tier ($0.05/sec, 720p, video + audio), with the same `4 | 6 | 8` second durations as the rest of the Veo 3.1 family.
+
+  If you were referencing one of the removed model ids, switch to a current model (e.g. `imagen-4.0-generate-001`, `veo-3.1-generate-preview`, or `veo-3.1-lite-generate-preview`).
+
+- [#874](https://github.com/TanStack/ai/pull/874) [`84d1225`](https://github.com/TanStack/ai/commit/84d1225046b70f67a1af5ee428893ffa96e9ab65) - Add proper support for **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) as a Gemini-native image model. The automated model sync had landed this model mis-classified as a text-only chat model (`output: ['text']`, in `GEMINI_MODELS`); it's now corrected and wired into the image surface — routed through the `generateContent` API with `output: ['text', 'image']`, template-literal sizes (`aspectRatio_resolution`, e.g. `"1:1_2K"`), and image-conditioned prompts, matching the other native image models. Built for ultra-low-latency, low-cost image generation and editing.
+
+  Also fixes the OpenRouter model sync (`scripts/sync-provider-models.ts`) so native image models that output both text and image are skipped for manual curation instead of being inserted as chat models.
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Update model metadata from OpenRouter API
+
+## 0.18.4
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.18.3
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.18.2
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+
+## 0.18.1
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.18.0
+
+### Minor Changes
+
+- [#781](https://github.com/TanStack/ai/pull/781) [`6f3b353`](https://github.com/TanStack/ai/commit/6f3b35314a287fd9fd29eecd0478cc8352f64732) - Upgrade `@google/genai` to v2 and migrate the experimental text-interactions adapter to the SDK 2.x step-based streaming API (`step.start` / `step.delta` / `step.stop`), replacing the prior `content.*` events. Streamed function-call arguments are now accumulated from `arguments_delta` fragments and parsed leniently with `partial-json`, so an incomplete or truncated buffer keeps the last good arguments instead of resetting them and no longer logs a parse error per fragment. Exported built-in-tool CUSTOM event payloads now carry `Interactions.*Step` values, and structured output uses the polymorphic `response_format` request shape.
+
+## 0.17.3
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
 ## 0.17.2
 
 ### Patch Changes

@@ -10,6 +10,7 @@ import type {
   ModelMessage,
   StreamChunk,
   StructuredOutputPart,
+  UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
 import type { ConnectionAdapter } from './connection-adapters'
@@ -165,15 +166,27 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       /** Parsed tool input (typed from inputSchema) */
       input?: InferToolInput<T>
       state: ToolCallState
-      /** Approval metadata if tool requires user approval */
-      approval?: {
-        id: string // Unique approval ID
-        needsApproval: boolean // Always true if present
-        approved?: boolean // User's decision (undefined until responded)
-      }
       /** Tool execution output (for client tools or after approval) */
       output?: InferToolOutput<T>
-    }
+    } & (NonNullable<T['needsApproval']> extends true
+      ? {
+          /**
+           * Approval metadata — present only on tools defined with
+           * `needsApproval: true`. Populated once the call reaches
+           * `state: 'approval-requested'`. `needsApproval` is an optional
+           * property on the tool, so we index into it (rather than
+           * `T extends { needsApproval: true }`, which an optional property
+           * never satisfies) and strip `undefined` before comparing to `true`.
+           */
+          approval?: {
+            id: string // Unique approval ID
+            needsApproval: boolean // Always true if present
+            approved?: boolean // User's decision (undefined until responded)
+          }
+        }
+      : // Tools without `needsApproval: true` never carry an approval field.
+        // `& unknown` is a no-op intersection (adds nothing).
+        unknown)
   : never
 
 /**
@@ -244,6 +257,7 @@ export type MessagePart<
   | ToolResultPart
   | ThinkingPart
   | StructuredOutputPart<TData>
+  | UIResourcePart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs

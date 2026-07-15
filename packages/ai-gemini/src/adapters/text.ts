@@ -41,7 +41,7 @@ import type {
   GeminiMessageMetadataByModality,
   GeminiToolCallMetadata,
 } from '../message-types'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini text adapter

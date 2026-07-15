@@ -5,6 +5,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { productTools } from '@/lib/tools/product-tools'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -90,7 +91,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
             ],
             agentLoopStrategy: maxIterations(30),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const requestStartTimeMs = Date.now()

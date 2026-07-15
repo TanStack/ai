@@ -1,6 +1,10 @@
+import type { AnyClientTool } from '../activities/chat/tools/tool-definition'
+
 // ============================================================================
 // Token Types
 // ============================================================================
+
+import type { UsageInfo } from '../activities/chat/middleware/types'
 
 /**
  * Voice activity detection configuration
@@ -22,6 +26,7 @@ export interface RealtimeToolConfig {
   name: string
   description: string
   inputSchema?: Record<string, any>
+  outputSchema?: Record<string, any>
 }
 
 /**
@@ -244,6 +249,8 @@ export type RealtimeEvent =
   | 'message_complete'
   | 'interrupted'
   | 'error'
+  | 'go_away' // Event that signals that the current connection will soon be terminated
+  | 'usage'
 
 /**
  * Event payloads for realtime events
@@ -261,6 +268,8 @@ export interface RealtimeEventPayloads {
   message_complete: { message: RealtimeMessage }
   interrupted: { messageId?: string }
   error: { error: Error }
+  go_away: { timeLeft?: string }
+  usage: UsageInfo
 }
 
 /**
@@ -291,4 +300,81 @@ export interface RealtimeError extends Error {
   code: RealtimeErrorCode
   provider?: string
   details?: unknown
+}
+
+// ============================================================================
+// Adapter Contract
+// ============================================================================
+
+/**
+ * Adapter interface for connecting to realtime providers.
+ * Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
+ *
+ * Defined here in `@tanstack/ai` — the shared layer that both provider adapter
+ * packages and the client runtime (`@tanstack/ai-client`) already depend on —
+ * so a provider package can describe its realtime adapter without taking a
+ * dependency on the client-only `@tanstack/ai-client`. `@tanstack/ai-client`
+ * re-exports this type for backwards compatibility.
+ */
+export interface RealtimeAdapter {
+  /** Provider identifier */
+  provider: string
+
+  /**
+   * Create a connection using the provided token
+   * @param token - The ephemeral token from the server
+   * @param clientTools - Optional client-side tools to register with the provider
+   * @returns A connection instance
+   */
+  connect: (
+    token: RealtimeToken,
+    clientTools?: ReadonlyArray<AnyClientTool>,
+  ) => Promise<RealtimeConnection>
+}
+
+/**
+ * Connection interface representing an active realtime session.
+ * Handles audio I/O, events, and session management.
+ */
+export interface RealtimeConnection {
+  // Lifecycle
+  /** Disconnect from the realtime session */
+  disconnect: () => Promise<void>
+
+  // Audio I/O
+  /** Start capturing audio from the microphone */
+  startAudioCapture: () => Promise<void>
+  /** Stop capturing audio */
+  stopAudioCapture: () => void
+
+  // Text input
+  /** Send a text message (fallback for when voice isn't available) */
+  sendText: (text: string) => void
+
+  // Image input
+  /** Send an image to the conversation */
+  sendImage: (imageData: string, mimeType: string) => void
+
+  // Tool results
+  /** Send a tool execution result back to the provider */
+  sendToolResult: (callId: string, result: string) => void
+
+  // Session management
+  /** Update session configuration */
+  updateSession: (config: Partial<RealtimeSessionConfig>) => void
+  /** Update the ephemeral token (e.g. on refresh); provider may reconnect */
+  updateToken?: (token: RealtimeToken) => void
+  /** Interrupt the current response */
+  interrupt: () => void
+
+  // Events
+  /** Subscribe to connection events */
+  on: <TEvent extends RealtimeEvent>(
+    event: TEvent,
+    handler: RealtimeEventHandler<TEvent>,
+  ) => () => void
+
+  // Audio visualization
+  /** Get audio visualization data */
+  getAudioVisualization: () => AudioVisualization
 }

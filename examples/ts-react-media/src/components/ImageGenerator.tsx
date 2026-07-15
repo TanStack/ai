@@ -6,8 +6,8 @@ import type { MediaPrompt } from '@tanstack/ai/client'
 import { generateImageFn } from '@/lib/server-functions'
 import { getRandomImagePrompt } from '@/lib/prompts'
 import { IMAGE_MODELS } from '@/lib/models'
-import { readImageFile, toImagePart } from '@/lib/media'
-import type { AttachedImage } from '@/lib/media'
+import { readMediaFile, toImagePart } from '@/lib/media'
+import type { AttachedMedia } from '@/lib/media'
 
 interface ImageGeneratorProps {
   onImageGenerated?: (imageUrl: string) => void
@@ -27,6 +27,7 @@ function getImageSrc(image: { url?: string; b64Json?: string }): string {
 
 const falModels = IMAGE_MODELS.filter((m) => m.provider === 'fal')
 const geminiModels = IMAGE_MODELS.filter((m) => m.provider === 'gemini')
+const xaiModels = IMAGE_MODELS.filter((m) => m.provider === 'xai')
 
 export default function ImageGenerator({
   onImageGenerated,
@@ -35,7 +36,7 @@ export default function ImageGenerator({
   const [selectedModel, setSelectedModel] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<Record<string, ModelResult>>({})
-  const [images, setImages] = useState<Array<AttachedImage>>([])
+  const [images, setImages] = useState<Array<AttachedMedia>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentModel = IMAGE_MODELS.find((m) => m.id === selectedModel)
@@ -55,7 +56,7 @@ export default function ImageGenerator({
     const files = Array.from(e.target.files ?? [])
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (files.length === 0) return
-    const attached = await Promise.all(files.map((file) => readImageFile(file)))
+    const attached = await Promise.all(files.map((file) => readMediaFile(file)))
     setImages((prev) => [...prev, ...attached])
   }
 
@@ -156,6 +157,13 @@ export default function ImageGenerator({
             </optgroup>
             <optgroup label="Gemini">
               {geminiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="xAI (direct)">
+              {xaiModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name}
                 </option>

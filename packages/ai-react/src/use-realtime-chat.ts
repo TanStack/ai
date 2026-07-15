@@ -3,6 +3,7 @@ import { RealtimeClient } from '@tanstack/ai-client'
 import type {
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
 } from '@tanstack/ai'
 import type {
@@ -70,9 +71,6 @@ export function useRealtimeChat(
   const [error, setError] = useState<Error | null>(null)
   const [inputLevel, setInputLevel] = useState(0)
   const [outputLevel, setOutputLevel] = useState(0)
-  const [vadMode, setVADModeState] = useState<'server' | 'semantic' | 'manual'>(
-    options.vadMode ?? 'server',
-  )
 
   // Refs
   const clientRef = useRef<RealtimeClient | null>(null)
@@ -125,6 +123,12 @@ export function useRealtimeChat(
       onMessage: (message) => {
         setMessages((prev) => [...prev, message])
         optionsRef.current.onMessage?.(message)
+      },
+      onUsage(usage) {
+        optionsRef.current.onUsage?.(usage)
+      },
+      onGoAway(timeLeft) {
+        optionsRef.current.onGoAway?.(timeLeft)
       },
       onError: (err) => {
         setError(err)
@@ -248,14 +252,9 @@ export function useRealtimeChat(
     )
   }, [])
 
-  // VAD mode control
-  const setVADMode = useCallback(
-    (newMode: 'server' | 'semantic' | 'manual') => {
-      setVADModeState(newMode)
-      // TODO: Update session config if connected
-    },
-    [],
-  )
+  const updateSession = useCallback((config: RealtimeSessionConfig) => {
+    clientRef.current?.updateSession(config)
+  }, [])
 
   return {
     // Connection state
@@ -289,8 +288,7 @@ export function useRealtimeChat(
     getInputTimeDomainData,
     getOutputTimeDomainData,
 
-    // VAD control
-    vadMode,
-    setVADMode,
+    // Session control
+    updateSession,
   }
 }

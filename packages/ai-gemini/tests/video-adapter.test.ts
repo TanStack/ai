@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { generateVideo } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   GeminiVideoAdapter,
@@ -56,8 +57,12 @@ function createClientStub(
 class StubbedGeminiVideoAdapter<
   TModel extends GeminiVideoModel,
 > extends GeminiVideoAdapter<TModel> {
-  constructor(model: TModel, stub: ClientStub) {
-    super({ apiKey: 'test-key' }, model)
+  constructor(
+    model: TModel,
+    stub: ClientStub,
+    config?: { allowUrlFetch?: boolean },
+  ) {
+    super({ apiKey: 'test-key', ...config }, model)
     this.client = stub as unknown as GoogleGenAI
   }
 }
@@ -90,18 +95,13 @@ describe('Gemini Video Adapter', () => {
 
   describe('availableDurations', () => {
     it('returns the discrete Veo 3.x duration set', () => {
-      const adapter = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const adapter = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expect(adapter.availableDurations()).toEqual({
         kind: 'discrete',
         values: [4, 6, 8],
-      })
-    })
-
-    it('returns the discrete Veo 2 duration set', () => {
-      const adapter = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expect(adapter.availableDurations()).toEqual({
-        kind: 'discrete',
-        values: [5, 6, 8],
       })
     })
 
@@ -109,31 +109,32 @@ describe('Gemini Video Adapter', () => {
       for (const model of Object.keys(
         GEMINI_VIDEO_DURATIONS,
       ) as Array<GeminiVideoModel>) {
-        expect(getGeminiVideoDurationOptions(model).kind).toBe('discrete')
+        expect(['discrete', 'range']).toContain(
+          getGeminiVideoDurationOptions(model).kind,
+        )
       }
     })
   })
 
   describe('snapDuration', () => {
     it('snaps to the closest valid duration', () => {
-      const adapter = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const adapter = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expect(adapter.snapDuration(3)).toBe(4)
       expect(adapter.snapDuration(5)).toBe(4)
       expect(adapter.snapDuration(7)).toBe(6)
       expect(adapter.snapDuration(100)).toBe(8)
     })
-
-    it('snaps Veo 2 values to its own set', () => {
-      const adapter = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expect(adapter.snapDuration(1)).toBe(5)
-      expect(adapter.snapDuration(7)).toBe(6)
-      expect(adapter.snapDuration(9)).toBe(8)
-    })
   })
 
   describe('per-model duration typing', () => {
     it('types duration as the model-specific union at compile time', () => {
-      const veo3 = createGeminiVideo('veo-3.0-generate-001', 'test-key')
+      const veo3 = createGeminiVideo(
+        'veo-3.1-lite-generate-preview',
+        'test-key',
+      )
       expectTypeOf(veo3.snapDuration).returns.toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
@@ -141,15 +142,25 @@ describe('Gemini Video Adapter', () => {
       expectTypeOf<Veo3Options['duration']>().toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
+    })
 
-      const veo2 = createGeminiVideo('veo-2.0-generate-001', 'test-key')
-      expectTypeOf(veo2.snapDuration).returns.toEqualTypeOf<
-        5 | 6 | 8 | undefined
+    it('satisfies generateVideo constraints despite narrowed per-model maps', () => {
+      // Regression guard for the VideoAdapter generic-arity fix:
+      // generateVideo's constraints once spelled `VideoAdapter<_, _, _, _>`
+      // (four generics), whose duration-map parameter defaulted to
+      // Record<string, number> — the closed-key
+      // GeminiVideoModelDurationByName is not assignable to that, so these
+      // instantiations failed to compile. They must keep compiling, with
+      // `duration` narrowed per model.
+      const veo3 = createGeminiVideo('veo-3.1-generate-preview', 'test-key')
+      type VeoCreate = Parameters<typeof generateVideo<typeof veo3>>[0]
+      expectTypeOf<VeoCreate['duration']>().toEqualTypeOf<
+        4 | 6 | 8 | undefined
       >()
-      type Veo2Options = Parameters<typeof veo2.createVideoJob>[0]
-      expectTypeOf<Veo2Options['duration']>().toEqualTypeOf<
-        5 | 6 | 8 | undefined
-      >()
+
+      const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      type OmniCreate = Parameters<typeof generateVideo<typeof omni>>[0]
+      expectTypeOf<OmniCreate['duration']>().toEqualTypeOf<number | undefined>()
     })
   })
 
@@ -188,18 +199,18 @@ describe('Gemini Video Adapter', () => {
     it('omits aspectRatio and durationSeconds when size/duration are not given', async () => {
       const stub = createClientStub()
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-2.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await adapter.createVideoJob({
-        model: 'veo-2.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: 'a sunset',
         logger: testLogger,
       })
 
       expect(stub.models.generateVideos).toHaveBeenCalledWith({
-        model: 'veo-2.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: 'a sunset',
         config: {},
       })
@@ -208,13 +219,13 @@ describe('Gemini Video Adapter', () => {
     it('throws when the operation comes back without a name', async () => {
       const stub = createClientStub({ createResult: {} })
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-3.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await expect(
         adapter.createVideoJob({
-          model: 'veo-3.0-generate-001',
+          model: 'veo-3.1-lite-generate-preview',
           prompt: 'a sunset',
           logger: testLogger,
         }),
@@ -292,12 +303,12 @@ describe('Gemini Video Adapter', () => {
     it('decodes base64 data: URI image sources', async () => {
       const stub = createClientStub()
       const adapter = new StubbedGeminiVideoAdapter(
-        'veo-3.0-generate-001',
+        'veo-3.1-lite-generate-preview',
         stub,
       )
 
       await adapter.createVideoJob({
-        model: 'veo-3.0-generate-001',
+        model: 'veo-3.1-lite-generate-preview',
         prompt: [
           { type: 'text', content: 'animate' },
           {
@@ -312,6 +323,68 @@ describe('Gemini Video Adapter', () => {
       expect(call.image).toEqual({
         imageBytes: 'aGVsbG8=',
         mimeType: 'image/png',
+      })
+    })
+
+    it('throws on an HTTP(S) URL image input by default instead of buffering it (#907)', async () => {
+      const stub = createClientStub()
+      const adapter = new StubbedGeminiVideoAdapter(
+        'veo-3.1-generate-preview',
+        stub,
+      )
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'veo-3.1-generate-preview',
+          prompt: [
+            { type: 'text', content: 'animate' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/frame.jpg' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/allowUrlFetch/)
+      expect(stub.models.generateVideos).not.toHaveBeenCalled()
+    })
+
+    it('fetches HTTP(S) URL image inputs when allowUrlFetch is set', async () => {
+      const stub = createClientStub()
+      const adapter = new StubbedGeminiVideoAdapter(
+        'veo-3.1-generate-preview',
+        stub,
+        { allowUrlFetch: true },
+      )
+      // 'hi' → base64 'aGk='
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([104, 105]), {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      try {
+        await adapter.createVideoJob({
+          model: 'veo-3.1-generate-preview',
+          prompt: [
+            { type: 'text', content: 'animate' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/frame.jpg' },
+            },
+          ],
+          logger: testLogger,
+        })
+      } finally {
+        vi.unstubAllGlobals()
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/frame.jpg')
+      const call = stub.models.generateVideos.mock.calls[0]?.[0]
+      expect(call.image).toEqual({
+        imageBytes: 'aGk=',
+        mimeType: 'image/jpeg',
       })
     })
 
@@ -513,6 +586,432 @@ describe('Gemini Video Adapter', () => {
       )
 
       await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/unsafe content/)
+    })
+  })
+})
+
+// ===========================
+// Gemini Omni Flash (Interactions API)
+// ===========================
+
+interface InteractionsClientStub {
+  interactions: {
+    create: ReturnType<typeof vi.fn>
+    get: ReturnType<typeof vi.fn>
+  }
+}
+
+const completedOmniInteraction = {
+  id: 'v1_omni-job-123',
+  status: 'completed',
+  usage: {
+    total_input_tokens: 12,
+    total_output_tokens: 57920,
+    total_tokens: 57932,
+    output_tokens_by_modality: [{ modality: 'video', tokens: 57920 }],
+  },
+  steps: [
+    { type: 'user_input', content: [{ type: 'text', text: 'a sunset' }] },
+    { type: 'thought', signature: 'sig' },
+    {
+      type: 'model_output',
+      content: [
+        { type: 'video', mime_type: 'video/mp4', data: 'AAAAIGZ0eXA=' },
+      ],
+    },
+  ],
+}
+
+function createInteractionsClientStub(
+  overrides: {
+    createResult?: Record<string, unknown>
+    getResult?: Record<string, unknown>
+  } = {},
+): InteractionsClientStub {
+  return {
+    interactions: {
+      create: vi.fn().mockResolvedValue(
+        overrides.createResult ?? {
+          id: 'v1_omni-job-123',
+          status: 'in_progress',
+          object: 'interaction',
+        },
+      ),
+      get: vi
+        .fn()
+        .mockResolvedValue(overrides.getResult ?? completedOmniInteraction),
+    },
+  }
+}
+
+class StubbedGeminiOmniVideoAdapter extends GeminiVideoAdapter<'gemini-omni-flash-preview'> {
+  constructor(stub: InteractionsClientStub) {
+    super({ apiKey: 'test-key' }, 'gemini-omni-flash-preview')
+    this.client = stub as unknown as GoogleGenAI
+  }
+}
+
+describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
+  describe('durations', () => {
+    it('reports the 3-10 second range and clamps raw seconds into it', () => {
+      const adapter = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'range',
+        min: 3,
+        max: 10,
+        unit: 'seconds',
+      })
+      expect(adapter.snapDuration(1)).toBe(3)
+      expect(adapter.snapDuration(7)).toBe(7)
+      expect(adapter.snapDuration(60)).toBe(10)
+    })
+
+    it('types duration as number (continuous range) at compile time', () => {
+      const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      expectTypeOf(omni.snapDuration).returns.toEqualTypeOf<
+        number | undefined
+      >()
+      type OmniOptions = Parameters<typeof omni.createVideoJob>[0]
+      expectTypeOf<OmniOptions['duration']>().toEqualTypeOf<
+        number | undefined
+      >()
+    })
+  })
+
+  describe('createVideoJob', () => {
+    it('creates a background interaction requesting video output', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const result = await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'a sunset over the ocean',
+        size: '9:16',
+        duration: 8,
+        logger: testLogger,
+      })
+
+      expect(result).toEqual({
+        jobId: 'v1_omni-job-123',
+        model: 'gemini-omni-flash-preview',
+      })
+      expect(stub.interactions.create).toHaveBeenCalledWith({
+        model: 'gemini-omni-flash-preview',
+        input: [
+          {
+            type: 'user_input',
+            content: [{ type: 'text', text: 'a sunset over the ocean' }],
+          },
+        ],
+        response_modalities: ['video'],
+        background: true,
+        response_format: {
+          type: 'video',
+          aspect_ratio: '9:16',
+          duration: '8s',
+        },
+      })
+    })
+
+    it('omits response_format when no size is given and passes modelOptions through', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'make the violin invisible',
+        modelOptions: { previous_interaction_id: 'v1_prior-turn' },
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith({
+        model: 'gemini-omni-flash-preview',
+        previous_interaction_id: 'v1_prior-turn',
+        input: [
+          {
+            type: 'user_input',
+            content: [{ type: 'text', text: 'make the violin invisible' }],
+          },
+        ],
+        response_modalities: ['video'],
+        background: true,
+      })
+    })
+
+    it('sends image and video prompt parts as content blocks before the text', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: [
+          {
+            type: 'image',
+            source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+          },
+          {
+            type: 'video',
+            source: {
+              type: 'url',
+              value:
+                'https://generativelanguage.googleapis.com/v1beta/files/abc',
+              mimeType: 'video/mp4',
+            },
+          },
+          { type: 'text', content: 'animate this' },
+        ],
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: [
+            {
+              type: 'user_input',
+              content: [
+                { type: 'image', data: 'aGVsbG8=', mime_type: 'image/png' },
+                {
+                  type: 'video',
+                  uri: 'https://generativelanguage.googleapis.com/v1beta/files/abc',
+                  mime_type: 'video/mp4',
+                },
+                { type: 'text', text: 'animate this' },
+              ],
+            },
+          ],
+        }),
+      )
+    })
+
+    it('throws on audio prompt parts', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'gemini-omni-flash-preview',
+          prompt: [
+            { type: 'text', content: 'sync to this' },
+            {
+              type: 'audio',
+              source: {
+                type: 'data',
+                value: 'aGVsbG8=',
+                mimeType: 'audio/wav',
+              },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/audio prompt parts/)
+      expect(stub.interactions.create).not.toHaveBeenCalled()
+    })
+
+    it('throws when the interaction comes back without an id', async () => {
+      const stub = createInteractionsClientStub({
+        createResult: { status: 'in_progress' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'gemini-omni-flash-preview',
+          prompt: 'a sunset',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/interaction id/)
+    })
+
+    it('rejects out-of-range durations without calling the API', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      for (const duration of [2, 15]) {
+        await expect(
+          adapter.createVideoJob({
+            model: 'gemini-omni-flash-preview',
+            prompt: 'a sunset',
+            duration,
+            logger: testLogger,
+          }),
+        ).rejects.toThrow(/outside the 3–10s range/)
+      }
+      expect(stub.interactions.create).not.toHaveBeenCalled()
+    })
+
+    it('passes fractional in-range durations through verbatim', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'a sunset',
+        duration: 4.5,
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          response_format: { type: 'video', duration: '4.5s' },
+        }),
+      )
+    })
+  })
+
+  describe('getVideoStatus', () => {
+    const jobId = 'v1_omni-job-123'
+
+    it('maps in_progress to processing', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'in_progress' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      expect(await adapter.getVideoStatus(jobId)).toEqual({
+        jobId,
+        status: 'processing',
+      })
+      expect(stub.interactions.get).toHaveBeenCalledWith(jobId)
+    })
+
+    it('maps a completed interaction with a video to completed', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      expect(await adapter.getVideoStatus(jobId)).toEqual({
+        jobId,
+        status: 'completed',
+      })
+    })
+
+    it('maps requires_action to failed instead of polling forever', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'requires_action' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const status = await adapter.getVideoStatus(jobId)
+      expect(status.status).toBe('failed')
+      expect(status.error).toMatch(/client action/)
+    })
+
+    it('maps a completed interaction without video output to failed', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: {
+          id: jobId,
+          status: 'completed',
+          steps: [
+            {
+              type: 'model_output',
+              content: [{ type: 'text', text: 'cannot do that' }],
+            },
+          ],
+        },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const status = await adapter.getVideoStatus(jobId)
+      expect(status.status).toBe('failed')
+      expect(status.error).toMatch(/without returning a video/)
+    })
+
+    it('maps terminal non-success statuses to failed', async () => {
+      for (const failure of ['failed', 'cancelled', 'incomplete']) {
+        const stub = createInteractionsClientStub({
+          getResult: { id: jobId, status: failure },
+        })
+        const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+        const status = await adapter.getVideoStatus(jobId)
+        expect(status.status).toBe('failed')
+        expect(status.error).toContain(failure)
+      }
+    })
+  })
+
+  describe('getVideoUrl', () => {
+    const jobId = 'v1_omni-job-123'
+
+    it('returns the inline base64 video as a data: URL with usage', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      expect(await adapter.getVideoUrl(jobId)).toEqual({
+        jobId,
+        url: 'data:video/mp4;base64,AAAAIGZ0eXA=',
+        usage: {
+          promptTokens: 12,
+          completionTokens: 57920,
+          totalTokens: 57932,
+        },
+      })
+    })
+
+    it('falls back to the video-modality token count when totals are missing', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: {
+          ...completedOmniInteraction,
+          usage: {
+            output_tokens_by_modality: [{ modality: 'video', tokens: 57920 }],
+          },
+        },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const result = await adapter.getVideoUrl(jobId)
+      expect(result.usage).toEqual({
+        promptTokens: 0,
+        completionTokens: 57920,
+        totalTokens: 57920,
+      })
+    })
+
+    it('passes a URI delivery through as the URL', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: {
+          id: jobId,
+          status: 'completed',
+          output_video: {
+            type: 'video',
+            uri: 'https://generativelanguage.googleapis.com/v1beta/files/xyz:download',
+          },
+        },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      const result = await adapter.getVideoUrl(jobId)
+      expect(result.url).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/files/xyz:download',
+      )
+    })
+
+    it('throws when the interaction is still in progress', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'in_progress' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/not ready/)
+    })
+
+    it('throws with the terminal status on failure', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'failed' },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/"failed"/)
+    })
+
+    it('throws when a completed interaction has no video content', async () => {
+      const stub = createInteractionsClientStub({
+        getResult: { id: jobId, status: 'completed', steps: [] },
+      })
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(
+        /Video not found/,
+      )
     })
   })
 })
