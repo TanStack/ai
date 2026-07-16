@@ -297,11 +297,27 @@ If discussions are disabled on the repo, omit the "Discussions to engage with" s
 
 After writing the file, give the user a 3–5 line summary: total counts (plus how many issues/discussions were folded under a covering PR/issue), top 3 PRs to review, top 3 issues to fix, top 3 discussions to engage with, and the report path. Do not paste the full report into chat.
 
+### 7. Offer to publish as a secret gist (opt-in)
+
+The report stays local by default. After the summary, offer once:
+
+> Report saved to `<path>`. Want me to publish it as a **secret gist** to share? Note: a secret gist is _unlisted, not private_ — anyone with the link can read it, and the report names contributors next to candid verdicts (`close`, `low-effort`, etc.).
+
+Only if the user says yes **that run**, publish the markdown report (never the JSON snapshot):
+
+```bash
+gh gist create <report-path> --desc "Triage report — <repo nameWithOwner> — <YYYY-MM-DD>"
+```
+
+Secret is the `gh gist create` default — do **not** pass `--public`. Print the returned URL back to the user. If the call fails with a scope error, tell the user to run `gh auth refresh -s gist` and re-run; don't try to work around it.
+
+Do not create the gist pre-emptively, on a schedule, or without an explicit yes — it is the one outward-facing action this skill can take, and it must be user-initiated on each run.
+
 ## Notes
 
 - **Cost**: 100 agents is expensive. If the combined open-item total is small (say <20), just triage them yourself in the main thread instead of fanning out — mention this and proceed.
 - **Rate limits**: `gh` shares one auth token; 100 concurrent `gh` calls usually fits inside GitHub's per-hour quota for authenticated users, but if the user has run heavy `gh` traffic recently, batch the agents in two waves of 50. Discussion GraphQL queries cost more rate-limit points per call than REST — factor that in.
 - **Failed agents**: if an agent times out or returns garbage, include it in the report under a "Triage failures" subsection rather than silently dropping it.
 - **Snapshots & deltas**: each run writes a `triage-<date>.json` snapshot to the triage data dir (`.agent/triage/` or `.triage/`); the next run diffs against the latest prior one to produce the "What changed" section. Snapshots are local-only working data — gitignore them, and delete freely (deleting just disables deltas for the next run). If no prior snapshot exists or it won't parse, the run proceeds without a delta section rather than guessing.
-- **Don't take actions**: this skill is read-only. Do not close issues, request changes, merge PRs, comment on discussions, convert discussions to issues, or post any reply. The report is for the human to act on.
+- **Don't take actions**: this skill is read-only. Do not close issues, request changes, merge PRs, comment on discussions, convert discussions to issues, or post any reply. The report is for the human to act on. The **only** exception is the opt-in secret gist in step 7 — an explicit, user-initiated publish of the report itself; it never happens automatically.
 - **Discussion category names** vary per repo. The common GitHub defaults are Q&A, Ideas, General, Show and tell, Announcements, Polls. Unknown categories should be tagged as `"other"` and ranked under the General rubric.
