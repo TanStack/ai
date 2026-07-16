@@ -60,6 +60,19 @@ async function collectText(stream: AsyncIterable<unknown>): Promise<string> {
   return text
 }
 
+// One-shot media plugin: image generation, exercising the `imagePlugin`
+// factory over `generateImage` end to end (aimock's image mock). Hoisted to
+// a named export so callers (e.g. the direct `.run()` E2E test) invoke the
+// documented `bannerImage.run(...)` pattern instead of reaching through the
+// internal `~plugins` field of `e2ePlugin`.
+export const bannerImage = imagePlugin((req) => {
+  const { provider, testId, aimockPort } = routingFrom(req.forwardedProps)
+  return generateImage({
+    adapter: createImageAdapter(provider, aimockPort, testId),
+    prompt: req.input.prompt,
+  })
+})
+
 /**
  * The e2e plugin registry: one endpoint exercising all three plugin kinds —
  * a conversational plugin, a one-shot text plugin, and a one-shot media
@@ -112,15 +125,7 @@ export const e2ePlugin = definePlugin({
     },
   }),
 
-  // One-shot media plugin: image generation, exercising the `imagePlugin`
-  // factory over `generateImage` end to end (aimock's image mock).
-  bannerImage: imagePlugin((req) => {
-    const { provider, testId, aimockPort } = routingFrom(req.forwardedProps)
-    return generateImage({
-      adapter: createImageAdapter(provider, aimockPort, testId),
-      prompt: req.input.prompt,
-    })
-  }),
+  bannerImage,
 })
 
 export type E2ePlugin = typeof e2ePlugin

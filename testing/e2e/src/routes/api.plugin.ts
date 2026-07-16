@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { e2ePlugin } from '@/lib/e2e-plugin'
+import { bannerImage, e2ePlugin } from '@/lib/e2e-plugin'
 
 export const Route = createFileRoute('/api/plugin')({
   server: {
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/api/plugin')({
           ? Number.parseInt(aimockPortParam, 10)
           : undefined
 
-        const result = await e2ePlugin['~plugins'].bannerImage.run(
+        const result = await bannerImage.run(
           { prompt: 'solo banner image' },
           { forwardedProps: { provider, testId, aimockPort } },
         )
