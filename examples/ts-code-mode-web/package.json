@@ -10,6 +10,10 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@jitl/quickjs-wasmfile-debug-asyncify": "^0.31.0",
+    "@jitl/quickjs-wasmfile-debug-sync": "^0.31.0",
+    "@jitl/quickjs-wasmfile-release-asyncify": "^0.31.0",
+    "@jitl/quickjs-wasmfile-release-sync": "^0.31.0",
     "@radix-ui/react-collapsible": "^1.1.2",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
@@ -24,16 +28,19 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",
     "@tanstack/store": "^0.8.0",
     "framer-motion": "^11.15.0",
     "highlight.js": "^11.11.1",
+    "isolated-vm": "^6.1.2",
     "lucide-react": "^0.561.0",
     "marked": "^15.0.6",
+    "nitro": "3.0.260610-beta",
     "puppeteer": "^24.34.0",
+    "quickjs-emscripten": "^0.31.0",
+    "quickjs-emscripten-core": "^0.31.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
@@ -53,6 +60,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^8.1.4"
   }
 }
