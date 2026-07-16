@@ -99,15 +99,19 @@ function injectBinding(
     // abandoned execution is interrupted instead of running unbounded.
     void promise.settled.then(() => {
       if (!vm.runtime.alive) return
-      const jobs = vm.runtime.executePendingJobs()
-      if (jobs.error) {
-        // Errors thrown inside guest async code reject the observed program
-        // promise instead of surfacing here; anything that does land here
-        // would otherwise be silently swallowed and leak its handle.
-        logs.push(
-          `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
-        )
-        jobs.error.dispose()
+      try {
+        const jobs = vm.runtime.executePendingJobs()
+        if (jobs.error) {
+          // Errors thrown inside guest async code reject the observed program
+          // promise instead of surfacing here; anything that does land here
+          // would otherwise be silently swallowed and leak its handle.
+          logs.push(
+            `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
+          )
+          jobs.error.dispose()
+        }
+      } finally {
+        promise.dispose()
       }
     })
 

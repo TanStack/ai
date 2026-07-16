@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createQuickJSIsolateDriver } from '../src/isolate-driver'
+import { normalizeError } from '../src/error-normalizer'
 import type { ToolBinding } from '@tanstack/ai-code-mode'
 
 function makeBinding(
@@ -13,6 +14,31 @@ function makeBinding(
     execute,
   }
 }
+
+describe('normalizeError', () => {
+  it('normalizes dumped QuickJS interrupt errors as timeouts', () => {
+    expect(
+      normalizeError({
+        name: 'InternalError',
+        message: 'interrupted',
+        stack: 'guest stack',
+      }),
+    ).toEqual({
+      name: 'TimeoutError',
+      message: 'Code execution timed out',
+      stack: 'guest stack',
+    })
+  })
+
+  it('does not treat unrelated interrupted errors as timeouts', () => {
+    const error = new Error('operation interrupted')
+
+    expect(normalizeError(error)).toMatchObject({
+      name: 'Error',
+      message: 'operation interrupted',
+    })
+  })
+})
 
 describe('createQuickJSIsolateDriver', () => {
   describe('createContext', () => {
@@ -235,6 +261,32 @@ describe('createQuickJSIsolateDriver', () => {
       expect(second.error?.name).toBe('DisposedError')
 
       await expect(context.dispose()).resolves.toBeUndefined()
+    })
+
+    it('safely disposes while an in-flight execution times out', async () => {
+      let markToolStarted!: () => void
+      const toolStarted = new Promise<void>((resolve) => {
+        markToolStarted = resolve
+      })
+      const never = makeBinding('never', () => {
+        markToolStarted()
+        return new Promise(() => {})
+      })
+
+      const driver = createQuickJSIsolateDriver({ timeout: 100 })
+      const context = await driver.createContext({ bindings: { never } })
+
+      const execution = context.execute(`
+        await never({});
+        return 1;
+      `)
+      await toolStarted
+
+      const disposal = context.dispose()
+      const [result] = await Promise.all([execution, disposal])
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('TimeoutError')
     })
   })
 

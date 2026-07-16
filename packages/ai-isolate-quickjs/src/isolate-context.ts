@@ -281,6 +281,10 @@ export class QuickJSIsolateContext implements IsolateContext {
     // try to access a freed context.
     if (this.executing) {
       await this.execQueue
+      // The execution may have disposed the VM, or intentionally retained an
+      // unsettled VM, while dispose() was waiting for the queue.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- execution cleanup may set disposed while awaiting
+      if (this.disposed) return
     }
 
     this.disposed = true
