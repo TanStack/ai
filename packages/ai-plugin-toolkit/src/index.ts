@@ -97,6 +97,7 @@ export function generationPlugin<
       validation.data,
       envelope,
       normalized.request,
+      runOptions?.signal ?? normalized.request.signal,
     )
     const out = execute(req)
     return isAsyncIterable(out) ? extractGenerationResult(out) : await out
@@ -232,12 +233,13 @@ function buildGenerationRequest(
   input: unknown,
   envelope: RunEnvelope,
   request: Request,
+  signal: AbortSignal = request.signal,
 ): GenerationPluginRequest {
   return {
     input,
     ...envelope,
     request,
-    signal: request.signal,
+    signal,
   }
 }
 
