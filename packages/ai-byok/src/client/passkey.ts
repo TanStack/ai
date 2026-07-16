@@ -1,3 +1,4 @@
+import { memoryStorage } from './storage'
 import type { Keyring } from './keyring'
 import type { KeyPreview, KeyringStorage } from './storage'
 import type { ProviderId } from '../shared/providers'
@@ -342,6 +343,12 @@ export function passkeyStorage(
       return decryptKeyring(key, existing.iv, existing.ciphertext)
     },
     save: async (keys) => {
+      const existing = await idbGet(dbName)
+      const hasKeys = Object.values(keys).some(Boolean)
+      // First save with an empty keyring is a no-op — avoids a passkey ceremony
+      // when another storage tier (e.g. OpenRouter PKCE in session memory) saves.
+      if (!hasKeys && !existing) return
+
       const { key, credentialId, salt } = await ensureKey()
       const { iv, ciphertext } = await encryptKeyring(key, keys)
       await idbPut(dbName, {
@@ -359,4 +366,16 @@ export function passkeyStorage(
       await idbClear(dbName)
     },
   }
+}
+
+/**
+ * Passkey-encrypted storage when supported, otherwise session memory.
+ * All keys — pasted or OpenRouter PKCE — use the same tier.
+ */
+export function defaultByokStorage(
+  options?: PasskeyStorageOptions,
+): KeyringStorage {
+  return isPasskeyStorageSupported()
+    ? passkeyStorage(options)
+    : memoryStorage()
 }

@@ -8,6 +8,8 @@ export type {
   KeyStatus,
 } from './react/byok-context'
 export { useByok } from './react/use-byok'
+export { useOpenRouterPkce } from './react/use-openrouter-pkce'
+export type { UseOpenRouterPkceOptions } from './react/use-openrouter-pkce'
 export { ByokKeyManager } from './react/byok-key-manager'
 export type { ByokKeyManagerProps } from './react/byok-key-manager'
 
@@ -19,9 +21,13 @@ export {
   byokFetcher,
   isByokMissingBody,
   memoryStorage,
+  defaultByokStorage,
   passkeyStorage,
   isPasskeyStorageSupported,
   validateKey,
+  startOpenRouterPkceLogin,
+  completeOpenRouterPkceFromUrl,
+  defaultOpenRouterCallbackUrl,
   BYOK_PROVIDERS,
   PROVIDER_IDS,
   byokHeaderName,
@@ -36,4 +42,6 @@ export type {
   ByokConnectionOptions,
   ByokFetcherContext,
   ByokMissingBody,
+  OpenRouterAuthUrlOptions,
+  StartOpenRouterPkceOptions,
 } from './index'

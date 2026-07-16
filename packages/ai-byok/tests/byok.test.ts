@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   byokFetch,
   byokFetcher,
@@ -19,7 +19,18 @@ import {
   decryptKeyring,
   deriveAesKey,
   encryptKeyring,
+  defaultByokStorage,
 } from '../src/client/passkey'
+import {
+  buildOpenRouterAuthUrl,
+  clearOpenRouterPkcePending,
+  completeOpenRouterPkceFromUrl,
+  createS256CodeChallenge,
+  exchangeOpenRouterCode,
+  generateCodeVerifier,
+  loadOpenRouterPkcePending,
+  storeOpenRouterPkcePending,
+} from '../src/client/openrouter-pkce'
 
 describe('byokHeaders', () => {
   it('emits one header per present provider and skips empty keys', () => {
@@ -162,5 +173,94 @@ describe('passkey crypto', () => {
     })
     const wrongKey = await deriveAesKey(new Uint8Array(32).fill(9))
     await expect(decryptKeyring(wrongKey, iv, ciphertext)).rejects.toThrow()
+  })
+})
+
+describe('defaultByokStorage', () => {
+  it('returns passkey or memory storage', () => {
+    const store = defaultByokStorage()
+    expect(['passkey', 'memory']).toContain(store.id)
+  })
+})
+
+describe('OpenRouter PKCE', () => {
+  const storage = new Map<string, string>()
+
+  beforeEach(() => {
+    storage.clear()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    })
+  })
+
+  it('generateCodeVerifier produces URL-safe strings', () => {
+    const verifier = generateCodeVerifier(48)
+    expect(verifier).toHaveLength(48)
+    expect(verifier).toMatch(/^[A-Za-z0-9\-._~]+$/)
+  })
+
+  it('createS256CodeChallenge is deterministic for a fixed verifier', async () => {
+    const challenge = await createS256CodeChallenge('test-verifier-fixed')
+    expect(challenge).toMatch(/^[A-Za-z0-9\-_]+$/)
+    expect(await createS256CodeChallenge('test-verifier-fixed')).toBe(challenge)
+  })
+
+  it('buildOpenRouterAuthUrl encodes callback and S256 challenge', () => {
+    const url = buildOpenRouterAuthUrl({
+      callbackUrl: 'https://app.test/chat',
+      codeChallenge: 'abc123',
+      codeChallengeMethod: 'S256',
+    })
+    expect(url).toContain('https://openrouter.ai/auth?')
+    expect(url).toContain('callback_url=https%3A%2F%2Fapp.test%2Fchat')
+    expect(url).toContain('code_challenge=abc123')
+    expect(url).toContain('code_challenge_method=S256')
+  })
+
+  it('exchangeOpenRouterCode posts code and verifier', async () => {
+    let postedBody = ''
+    const fetchImpl = vi.fn(
+      async (_url: string, init?: RequestInit) => {
+        postedBody = String(init?.body ?? '')
+        return Response.json({ key: 'sk-or-pkce-key' })
+      },
+    ) as typeof fetch
+    const key = await exchangeOpenRouterCode({
+      code: 'auth-code',
+      codeVerifier: 'verifier-1',
+      codeChallengeMethod: 'S256',
+      fetchImpl,
+    })
+    expect(key).toBe('sk-or-pkce-key')
+    expect(JSON.parse(postedBody)).toEqual({
+      code: 'auth-code',
+      code_verifier: 'verifier-1',
+      code_challenge_method: 'S256',
+    })
+  })
+
+  it('completeOpenRouterPkceFromUrl exchanges when code and pending state exist', async () => {
+    storeOpenRouterPkcePending({
+      codeVerifier: 'verifier-xyz',
+      codeChallengeMethod: 'S256',
+      callbackUrl: 'https://app.test/',
+    })
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ key: 'sk-or-returned' }),
+    )
+    const key = await completeOpenRouterPkceFromUrl({
+      url: 'https://app.test/?code=returned-code',
+      fetchImpl,
+      cleanUrl: false,
+    })
+    expect(key).toBe('sk-or-returned')
+    expect(loadOpenRouterPkcePending()).toBeNull()
+    clearOpenRouterPkcePending()
   })
 })

@@ -183,7 +183,7 @@ export function ByokProvider({
       // is now unlocked.
       setLocked(false)
     },
-    [persist],
+    [persist, storage],
   )
 
   const clearKey = useCallback(
@@ -194,7 +194,7 @@ export function ByokProvider({
       setStatuses((prev) => ({ ...prev, [provider]: EMPTY }))
       await persist(next)
     },
-    [persist],
+    [persist, storage],
   )
 
   const clearAll = useCallback(async () => {

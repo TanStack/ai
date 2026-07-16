@@ -23,6 +23,10 @@ interface ByokKeyDialogProps {
   onOpenChange: (open: boolean) => void
   /** Provider row to highlight when opened reactively (e.g. a missing key). */
   highlightProvider?: ProviderId | null
+  /** Start OpenRouter PKCE sign-in (parent runs auto-complete on return). */
+  onOpenRouterLogin?: () => void
+  openRouterCompleting?: boolean
+  openRouterError?: string | null
 }
 
 /**
@@ -37,6 +41,9 @@ export function ByokKeyDialog({
   open,
   onOpenChange,
   highlightProvider,
+  onOpenRouterLogin,
+  openRouterCompleting,
+  openRouterError,
 }: ByokKeyDialogProps) {
   const { keys, status, locked, unlock } = useByok()
 
@@ -99,6 +106,15 @@ export function ByokKeyDialog({
               </button>
             ) : null}
 
+            {openRouterCompleting ? (
+              <p className="mb-3 text-sm text-gray-400">
+                Completing OpenRouter sign-in…
+              </p>
+            ) : null}
+            {openRouterError ? (
+              <p className="mb-3 text-sm text-red-400">{openRouterError}</p>
+            ) : null}
+
             <div className="flex flex-col gap-3">
               {PROVIDERS.map((provider) => (
                 <ProviderKeyRow
@@ -107,6 +123,9 @@ export function ByokKeyDialog({
                   hasEnvKey={Boolean(envStatus[provider])}
                   status={status[provider]}
                   highlight={provider === highlightProvider}
+                  onOpenRouterLogin={
+                    provider === 'openrouter' ? onOpenRouterLogin : undefined
+                  }
                 />
               ))}
             </div>
@@ -122,11 +141,13 @@ function ProviderKeyRow({
   hasEnvKey,
   status,
   highlight,
+  onOpenRouterLogin,
 }: {
   provider: ProviderId
   hasEnvKey: boolean
   status: KeyStatus
   highlight?: boolean
+  onOpenRouterLogin?: () => void
 }) {
   const { keys, setKey, clearKey } = useByok()
   const [draft, setDraft] = useState('')
@@ -161,6 +182,19 @@ function ProviderKeyRow({
           <span className="text-xs font-medium text-amber-400">No key</span>
         )}
       </div>
+      {provider === 'openrouter' &&
+      onOpenRouterLogin &&
+      !yourKey &&
+      status.state === 'empty' ? (
+        <button
+          type="button"
+          onClick={onOpenRouterLogin}
+          className="mb-2 w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+        >
+          Sign in with OpenRouter
+        </button>
+      ) : null}
+
       <form
         className="flex gap-2"
         onSubmit={(event) => {

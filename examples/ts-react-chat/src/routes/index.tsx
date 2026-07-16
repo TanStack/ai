@@ -28,10 +28,9 @@ import {
 } from '@tanstack/ai-react'
 import {
   ByokProvider,
-  isPasskeyStorageSupported,
-  memoryStorage,
-  passkeyStorage,
+  defaultByokStorage,
   useByok,
+  useOpenRouterPkce,
   withByok,
 } from '@tanstack/ai-byok/react'
 import { clientTools } from '@tanstack/ai-client'
@@ -394,6 +393,7 @@ function ChatPage() {
   // BYOK: read the browser-held keyring and report which providers have a
   // server-side env key, so we can warn before a keyless model is used.
   const { keys, status, unlock } = useByok()
+  const openRouterPkce = useOpenRouterPkce()
   const keysRef = useRef(keys)
   keysRef.current = keys
   const statusRef = useRef(status)
@@ -682,6 +682,9 @@ function ChatPage() {
               open={keyDialog.open}
               onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
               highlightProvider={keyDialog.provider}
+              onOpenRouterLogin={() => void openRouterPkce.login()}
+              openRouterCompleting={openRouterPkce.completing}
+              openRouterError={openRouterPkce.error}
             />
             <Link
               to="/generations/image"
@@ -867,31 +870,7 @@ function ChatPage() {
 }
 
 function ChatRoute() {
-  // Passkey-encrypted persistence when a platform authenticator (Touch ID,
-  // Windows Hello, Android) is actually available — keys then survive refresh
-  // and are unlocked with biometrics. Otherwise session-only memory. The choice
-  // needs an async capability probe, so wait for it before mounting the
-  // provider (storage is fixed for the provider's life).
-  const [storage, setStorage] = useState<ReturnType<
-    typeof memoryStorage
-  > | null>(null)
-  useEffect(() => {
-    let active = true
-    async function pick() {
-      const platformAuth =
-        isPasskeyStorageSupported() &&
-        (await globalThis.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable().catch(
-          () => false,
-        ))
-      if (active) setStorage(platformAuth ? passkeyStorage() : memoryStorage())
-    }
-    void pick()
-    return () => {
-      active = false
-    }
-  }, [])
-
-  if (!storage) return null
+  const [storage] = useState(() => defaultByokStorage())
   return (
     <ByokProvider storage={storage}>
       <ChatPage />
