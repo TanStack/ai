@@ -78,10 +78,10 @@ describe('withByok / byokFetch / buildByokRequestContext', () => {
   it('buildByokRequestContext shares headers and fetch between helpers', async () => {
     const onMissingKey = vi.fn()
     const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
-    const ctx = buildByokRequestContext(
-      () => ({ openai: 'sk-a' }),
-      { onMissingKey, fetchClient: fetchImpl },
-    )
+    const ctx = buildByokRequestContext(() => ({ openai: 'sk-a' }), {
+      onMissingKey,
+      fetchClient: fetchImpl,
+    })
     expect(ctx.headers).toEqual({ 'x-byok-openai': 'sk-a' })
     await ctx.fetch('https://x.test')
     expect(onMissingKey).toHaveBeenCalledWith('anthropic')
@@ -164,7 +164,11 @@ describe('preferByokAdapter', () => {
       headers: { [byokHeaderName('openai')]: 'sk-byok' },
     })
     const withoutKey = new Request('https://x.test')
-    const byok = vi.fn((model: string, key: string) => ({ kind: 'byok', model, key }))
+    const byok = vi.fn((model: string, key: string) => ({
+      kind: 'byok',
+      model,
+      key,
+    }))
     const env = vi.fn((model: string) => ({ kind: 'env', model }))
 
     expect(

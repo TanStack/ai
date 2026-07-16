@@ -19,10 +19,7 @@ import { createOpenRouterText, openRouterText } from '@tanstack/ai-openrouter'
 import { createGrokText, grokText } from '@tanstack/ai-grok'
 import { createGroqText, groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
-import {
-  preferByokAdapter,
-  requireByokOrEnv,
-} from '@tanstack/ai-byok/server'
+import { preferByokAdapter, requireByokOrEnv } from '@tanstack/ai-byok/server'
 import { BYOK_PROVIDER_MAP, byokIdForProvider } from '@/lib/byok-config'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {

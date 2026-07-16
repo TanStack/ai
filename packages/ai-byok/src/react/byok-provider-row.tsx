@@ -35,7 +35,8 @@ export function ByokProviderRow({
   variant = 'light',
   styles,
 }: ByokProviderRowProps) {
-  const resolvedStyles = styles ?? (variant === 'dark' ? darkStyles : lightStyles)
+  const resolvedStyles =
+    styles ?? (variant === 'dark' ? darkStyles : lightStyles)
   const { keys, setKey, clearKey, validateKey } = useByok()
   const [draft, setDraft] = useState('')
   const yourKey = keys[provider]
@@ -149,19 +150,13 @@ function ProviderPresenceBadge({
   styles: ByokRowStyles
 }) {
   if (yourKey) {
-    return (
-      <span style={{ ...styles.badge, color: '#059669' }}>Your key</span>
-    )
+    return <span style={{ ...styles.badge, color: '#059669' }}>Your key</span>
   }
   if (lockedLast4) {
-    return (
-      <span style={{ ...styles.badge, color: '#d97706' }}>Locked</span>
-    )
+    return <span style={{ ...styles.badge, color: '#d97706' }}>Locked</span>
   }
   if (hasEnvKey) {
-    return (
-      <span style={{ ...styles.badge, color: '#6b7280' }}>Server key</span>
-    )
+    return <span style={{ ...styles.badge, color: '#6b7280' }}>Server key</span>
   }
   return <StatusBadge status={status} styles={styles} />
 }

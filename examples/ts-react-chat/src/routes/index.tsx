@@ -699,9 +699,7 @@ function ChatPage() {
               trigger={
                 <button
                   type="button"
-                  onClick={() =>
-                    setKeyDialog((s) => ({ ...s, open: true }))
-                  }
+                  onClick={() => setKeyDialog((s) => ({ ...s, open: true }))}
                   title="API keys"
                   aria-label="API keys"
                   className="relative flex items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 p-2 text-orange-400 transition-colors hover:bg-orange-500/20"
