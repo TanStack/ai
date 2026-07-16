@@ -288,6 +288,25 @@ export class QuickJSIsolateContext implements IsolateContext {
     }
 
     this.disposed = true
+
+    // A completed execution can leave tool calls still awaiting their host
+    // promise (e.g. a Promise.race loser abandoned by the guest program).
+    // Each holds an unsettled QuickJS deferred, and freeing a runtime with
+    // live deferred handles aborts the shared WASM module
+    // (`Assertion failed: list_empty(&rt->gc_obj_list)` in JS_FreeRuntime),
+    // poisoning every later context in this process. Settle them exactly like
+    // the timeout path does, then give the settled pumps one macrotask tick
+    // to dispose their deferreds before the VM goes away.
+    if (this.execState.pendingCancels.size > 0) {
+      this.execState.deadline = Date.now() + CANCEL_GRACE_MS
+      for (const cancel of [...this.execState.pendingCancels]) {
+        cancel()
+      }
+      this.execState.pendingCancels.clear()
+      await new Promise((r) => setTimeout(r, 0))
+      this.execState.deadline = 0
+    }
+
     this.vm.dispose()
   }
 }

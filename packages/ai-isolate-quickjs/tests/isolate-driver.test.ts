@@ -355,6 +355,47 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.error?.name).toBe('DisposedError')
       expect(result.error?.message).toContain('disposed')
     })
+
+    it('disposes cleanly while an abandoned tool call is still in flight', async () => {
+      // A guest program can settle while a tool call is still awaiting its
+      // host promise (e.g. a Promise.race loser). Disposing the VM with that
+      // unsettled deferred used to abort the shared WASM module in
+      // JS_FreeRuntime (`list_empty(&rt->gc_obj_list)`), breaking every
+      // later context in the process.
+      const driver = createQuickJSIsolateDriver()
+      let resolveSlow!: (value: unknown) => void
+      const slow = new Promise((resolve) => {
+        resolveSlow = resolve
+      })
+      const context = await driver.createContext({
+        bindings: {
+          fast: makeBinding('fast', async () => 'fast'),
+          slow: makeBinding('slow', () => slow),
+        },
+      })
+
+      const result = await context.execute(
+        'return await Promise.race([slow({}), fast({})])',
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.value).toBe('fast')
+
+      await expect(context.dispose()).resolves.toBeUndefined()
+
+      // The shared WASM module must still be healthy for later contexts.
+      const next = await driver.createContext({
+        bindings: { fast: makeBinding('fast', async () => 'ok') },
+      })
+      const after = await next.execute('return await fast({})')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe('ok')
+
+      await next.dispose()
+      // The host promise settling after disposal must be a no-op.
+      resolveSlow('late')
+    })
   })
 
   describe('memory isolation', () => {
