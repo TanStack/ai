@@ -1,5 +1,22 @@
 # @tanstack/ai-svelte
 
+## 0.14.4
+
+### Patch Changes
+
+- [#918](https://github.com/TanStack/ai/pull/918) [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589) - Add the `const` modifier to the `TTools` type parameter of `useChat`
+  (`createChat` in Svelte, `injectChat` in Angular) so a plain inline `tools` array
+  now yields full type-safe message chunks. Previously the array widened to
+  `Array<Union>` and lost the literal tool `name`s that drive the
+  discriminated `tool-call` part union, so callers had to wrap their tools in
+  `clientTools(...)` (or add `as const`) to get narrowing. That wrapper is now
+  optional — `tools: [toolA, toolB]` narrows `part.name`, `part.input`, and
+  `part.output` on its own. `clientTools(...)` still works and remains useful
+  for defining a shared tuple outside the hook call.
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+  - @tanstack/ai-client@0.21.0
+
 ## 0.14.3
 
 ### Patch Changes
