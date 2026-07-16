@@ -5,7 +5,7 @@ import {
 import { computed, onMounted, onScopeDispose, readonly, shallowRef } from 'vue'
 import type { ShallowRef } from 'vue'
 import type { ModelMessage } from '@tanstack/ai'
-import type { PluginDefinition } from '@tanstack/ai/plugin'
+import type { PluginDefinition } from '@tanstack/ai-plugin-toolkit'
 import type {
   PluginClientOptions,
   PluginOptionsMap,

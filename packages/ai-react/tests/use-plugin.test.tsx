@@ -1,6 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { chatPlugin, definePlugin, generationPlugin } from '@tanstack/ai/plugin'
+import {
+  chatPlugin,
+  definePlugin,
+  generationPlugin,
+} from '@tanstack/ai-plugin-toolkit'
 import { stream } from '@tanstack/ai-client'
 import { z } from 'zod'
 import { usePlugin } from '../src/use-plugin.js'

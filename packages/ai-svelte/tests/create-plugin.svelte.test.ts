@@ -1,5 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { chatPlugin, definePlugin, generationPlugin } from '@tanstack/ai/plugin'
+import {
+  chatPlugin,
+  definePlugin,
+  generationPlugin,
+} from '@tanstack/ai-plugin-toolkit'
 import { stream } from '@tanstack/ai-client'
 import { z } from 'zod'
 import { createPlugin } from '../src/create-plugin.svelte.js'

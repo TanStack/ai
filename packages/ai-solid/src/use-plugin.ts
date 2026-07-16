@@ -24,7 +24,7 @@ import type {
   PluginSystem,
 } from '@tanstack/ai-client/plugin'
 import type { ModelMessage } from '@tanstack/ai'
-import type { PluginDefinition } from '@tanstack/ai/plugin'
+import type { PluginDefinition } from '@tanstack/ai-plugin-toolkit'
 
 /** Reactive chat-plugin sub-state, mirrored from that plugin's `ChatClient` callbacks. */
 interface ChatState {

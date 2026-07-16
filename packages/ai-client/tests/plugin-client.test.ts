@@ -1,6 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { chat, toolDefinition } from '@tanstack/ai'
-import { chatPlugin, definePlugin, generationPlugin } from '@tanstack/ai/plugin'
+import {
+  chatPlugin,
+  definePlugin,
+  generationPlugin,
+} from '@tanstack/ai-plugin-toolkit'
 import { z } from 'zod'
 import { PluginClient } from '../src/plugin-client.js'
 import { fetchServerSentEvents } from '../src/connection-adapters.js'

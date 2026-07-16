@@ -1493,6 +1493,9 @@ importers:
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../ai-plugin-toolkit
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
@@ -2026,6 +2029,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../ai-plugin-toolkit
     devDependencies:
       '@mcp-ui/client':
         specifier: ^7.1.1
@@ -2210,6 +2216,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../ai-plugin-toolkit
     devDependencies:
       '@solidjs/testing-library':
         specifier: ^0.8.10
@@ -2284,6 +2293,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../ai-plugin-toolkit
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -2339,6 +2351,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../ai-plugin-toolkit
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0

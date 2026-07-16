@@ -1,7 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { chatPlugin, definePlugin, generationPlugin } from '@tanstack/ai/plugin'
+import {
+  chatPlugin,
+  definePlugin,
+  generationPlugin,
+} from '@tanstack/ai-plugin-toolkit'
 import { stream } from '@tanstack/ai-client'
 import { z } from 'zod'
 import { usePlugin } from '../src/use-plugin.js'

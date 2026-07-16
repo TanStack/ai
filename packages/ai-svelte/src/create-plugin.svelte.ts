@@ -13,7 +13,7 @@ import type {
   ConnectionStatus,
   GenerationClientState,
 } from '@tanstack/ai-client'
-import type { PluginDefinition } from '@tanstack/ai/plugin'
+import type { PluginDefinition } from '@tanstack/ai-plugin-toolkit'
 import type { ModelMessage } from '@tanstack/ai'
 import type { MultimodalContent, UIMessage } from './types'
 

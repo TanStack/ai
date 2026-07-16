@@ -3,7 +3,7 @@ import {
   computeStructuredParts,
 } from '@tanstack/ai-client/plugin'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { PluginDefinition } from '@tanstack/ai/plugin'
+import type { PluginDefinition } from '@tanstack/ai-plugin-toolkit'
 import type {
   PluginClientOptions,
   PluginOptionsMap,

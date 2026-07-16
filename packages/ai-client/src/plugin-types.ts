@@ -4,7 +4,7 @@ import type {
   ChatPlugin,
   GenerationPlugin,
   PluginDefinition,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import type {
   AnyClientTool,
   InferSchemaType,

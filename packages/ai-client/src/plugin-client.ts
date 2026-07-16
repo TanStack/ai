@@ -1,6 +1,6 @@
 import { ChatClient } from './chat-client.js'
 import { GenerationClient } from './generation-client.js'
-import type { PluginDefinition } from '@tanstack/ai/plugin'
+import type { PluginDefinition } from '@tanstack/ai-plugin-toolkit'
 import type {
   ChatPluginOptions,
   GenerationPluginClientOptions,

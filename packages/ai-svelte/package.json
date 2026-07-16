@@ -61,7 +61,8 @@
     "media-generation"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
