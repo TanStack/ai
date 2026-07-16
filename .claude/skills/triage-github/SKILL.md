@@ -24,7 +24,7 @@ Do **not** invoke for single-item review (just look at it directly) or when the 
 Run these `gh` calls in parallel. Use JSON so the downstream agent prompts are self-contained. The discussions call is a GraphQL query because `gh` has no built-in `discussion list` command.
 
 ```bash
-gh pr list --state open --limit 200 --json number,title,url,author,createdAt,updatedAt,isDraft,mergeable,reviewDecision,labels,additions,deletions,changedFiles,statusCheckRollup
+gh pr list --state open --limit 200 --json number,title,url,author,assignees,createdAt,updatedAt,isDraft,mergeable,reviewDecision,labels,additions,deletions,changedFiles,statusCheckRollup
 
 gh issue list --state open --limit 200 --json number,title,url,author,createdAt,updatedAt,labels,comments,reactionGroups
 
@@ -73,12 +73,14 @@ Per-PR prompt template (substitute the bracketed values):
 Triage GitHub PR [URL]. You have read-only access via `gh` and web tools.
 
 Gather:
-- `gh pr view [NUMBER] --json title,body,author,createdAt,updatedAt,isDraft,mergeable,mergeStateStatus,reviewDecision,labels,additions,deletions,changedFiles,statusCheckRollup,comments`
+- `gh pr view [NUMBER] --json title,body,author,assignees,createdAt,updatedAt,isDraft,mergeable,mergeStateStatus,reviewDecision,labels,additions,deletions,changedFiles,statusCheckRollup,comments,closingIssuesReferences`
 - `gh pr diff [NUMBER]` (skim — don't dump it)
 - Recent review comments if any
 
+`closingIssuesReferences` is GitHub's authoritative "this PR closes #X" linkage (populated by closing keywords like `Closes #123`). Put those issue numbers in `closesIssues`. Also scan the PR body/title for issue references that use closing keywords but weren't auto-linked (cross-repo, typos) and include those too. `assignees` is the array of assigned logins (may be empty).
+
 Return ONLY a JSON object on a single line (no prose, no fences), matching:
-{"kind":"pr","number":N,"title":"...","url":"...","author":"...","ageDays":N,"sizeLOC":N,"ciStatus":"passing|failing|pending|none","mergeable":true|false,"reviewState":"approved|changes_requested|review_required|none","draft":true|false,"priority":"P0|P1|P2|P3","reason":"<=140 chars","blockedBy":"<=80 chars or empty","recommendedAction":"merge|review|request-changes|close|wait"}
+{"kind":"pr","number":N,"title":"...","url":"...","author":"...","assignees":["login",...],"closesIssues":[N,...],"ageDays":N,"sizeLOC":N,"ciStatus":"passing|failing|pending|none","mergeable":true|false,"reviewState":"approved|changes_requested|review_required|none","draft":true|false,"priority":"P0|P1|P2|P3","reason":"<=140 chars","blockedBy":"<=80 chars or empty","recommendedAction":"merge|review|request-changes|close|wait"}
 
 Priority rubric:
 - P0: ready-to-merge (approved + green CI + mergeable + non-draft), or fixes broken main
@@ -96,10 +98,13 @@ Triage GitHub issue [URL]. Read-only access via `gh`.
 
 Gather:
 - `gh issue view [NUMBER] --json title,body,author,createdAt,updatedAt,labels,comments,reactionGroups,assignees`
-- Skim comments for repro steps, workarounds, related PRs
+- Cross-referenced/linked PRs from the timeline: `gh api "repos/<OWNER>/<REPO>/issues/[NUMBER]/timeline" --jq '[.[] | select(.event=="cross-referenced" and .source.issue.pull_request != null) | .source.issue.html_url] | unique'` (substitute `<OWNER>`/`<REPO>`). Any URL returned is a PR that references this issue — capture it in `linkedPR`.
+- Skim comments for repro steps, workarounds, and any "fixed by #NNN" / PR links
+
+Set `linkedPR` to the URL of an open PR that addresses this issue if one exists (from the timeline query or comments), else empty. This is used to dedup: issues with a linked PR are folded under that PR in the report. `assignees` is the array of assigned logins (may be empty).
 
 Return ONLY a JSON object on one line:
-{"kind":"issue","number":N,"title":"...","url":"...","author":"...","ageDays":N,"reactions":N,"comments":N,"hasRepro":true|false,"linkedPR":"<url or empty>","category":"bug|feature|docs|question|chore","priority":"P0|P1|P2|P3","reason":"<=140 chars","recommendedAction":"fix|investigate|answer|close|wait-for-info"}
+{"kind":"issue","number":N,"title":"...","url":"...","author":"...","assignees":["login",...],"ageDays":N,"reactions":N,"comments":N,"hasRepro":true|false,"linkedPR":"<url or empty>","category":"bug|feature|docs|question|chore","priority":"P0|P1|P2|P3","reason":"<=140 chars","recommendedAction":"fix|investigate|answer|close|wait-for-info"}
 
 Priority rubric:
 - P0: regression / data loss / security / blocks many users (high reactions + recent activity)
@@ -117,10 +122,12 @@ Triage GitHub discussion [URL]. Read-only access via `gh api graphql`.
 
 Gather:
 - `gh api graphql -f query='{ repository(owner:"<OWNER>", name:"<REPO>") { discussion(number: [NUMBER]) { title body url createdAt updatedAt upvoteCount isAnswered locked category { name } author { login } labels(first: 10) { nodes { name } } comments(first: 30) { totalCount nodes { author { login } body createdAt isAnswer upvoteCount } } reactions { totalCount } } } }'`
-- Skim comments for: maintainer engagement, repro steps that suggest a real bug, links to issues/PRs
+- Skim body + comments for: maintainer engagement, repro steps that suggest a real bug, and any links to issues/PRs (`#NNN` or full github.com/.../issues|pull/NNN URLs)
+
+If the discussion body or comments reference an existing issue or PR that tracks it (or it was converted to an issue), capture that URL in `linkedIssueOrPR`, else empty. This is used to dedup: discussions already tracked by an issue or PR are folded away and only surface if unlinked.
 
 Return ONLY a JSON object on one line:
-{"kind":"discussion","number":N,"title":"...","url":"...","author":"...","category":"Q&A|Ideas|General|Show and tell|Announcements|Polls|other","ageDays":N,"updatedDaysAgo":N,"upvotes":N,"comments":N,"reactions":N,"isAnswered":true|false|null,"maintainerEngaged":true|false,"looksLikeBug":true|false,"priority":"P0|P1|P2|P3","reason":"<=140 chars","recommendedAction":"answer|convert-to-issue|engage|mark-answered|close|wait"}
+{"kind":"discussion","number":N,"title":"...","url":"...","author":"...","linkedIssueOrPR":"<url or empty>","category":"Q&A|Ideas|General|Show and tell|Announcements|Polls|other","ageDays":N,"updatedDaysAgo":N,"upvotes":N,"comments":N,"reactions":N,"isAnswered":true|false|null,"maintainerEngaged":true|false,"looksLikeBug":true|false,"priority":"P0|P1|P2|P3","reason":"<=140 chars","recommendedAction":"answer|convert-to-issue|engage|mark-answered|close|wait"}
 
 Priority rubric (category-aware):
 - Q&A:
@@ -153,11 +160,25 @@ One JSON object. No commentary.
 
 Collect every agent's JSON line. If an agent returned prose instead of JSON (rare), extract what you can or mark `priority: "P3", reason: "agent parse failed"`.
 
-Sort:
+#### 4a. Build the linkage/dedup map (do this BEFORE sorting)
+
+The report is a strict hierarchy — **PRs > issues > discussions**. Each unit of work appears **once**, in the highest tier that covers it. A PR outranks the issue it closes; an issue outranks the discussion that spawned it.
+
+1. **`coveredIssues`** = the union of every PR's `closesIssues`, PLUS every issue whose own `linkedPR` is non-empty. These issues are represented by a PR, so they are **removed from the Issues section**.
+2. For each PR, attach the human-readable `closes #X[, #Y]` list from its `closesIssues`. Pull each closed issue's title from the issue results (if that issue was triaged) so the PR line can name what it closes.
+3. **`coveredDiscussions`** = every discussion whose `linkedIssueOrPR` is non-empty. These are tracked elsewhere, so they are **removed from the Discussions section**.
+4. Keep a short "Folded away" tally (counts only) so the report can note how many issues/discussions were hidden because a PR/issue already covers them.
+
+Edge cases:
+- A PR closing an issue that is itself **closed/not in the open set** — still list `closes #X` on the PR (it's informative), just don't try to fetch a title.
+- An issue with a `linkedPR` pointing at a PR that is **not open** (already merged/closed) — treat the issue as still open work: keep it in the Issues section, but note the merged PR in its reason. Only fold an issue away when the linked PR is **open**.
+- Two PRs closing the same issue (competing fixes) — list the issue under both PRs; fold the issue once.
+
+#### 4b. Sort
 
 1. PRs by priority (P0→P3), then by `ageDays` ascending within each tier (newer first for P0/P1 to capture momentum; for P3 by oldest first — those are stalest).
-2. Issues by priority, then by `reactions + comments` desc within each tier.
-3. Discussions by priority, then by `upvotes * 2 + comments + reactions` desc within each tier. Inside the same tier, surface Q&A above Ideas above other categories (response latency matters most for Q&A).
+2. Issues (after removing `coveredIssues`) by priority, then by `reactions + comments` desc within each tier.
+3. Discussions (after removing `coveredDiscussions`) by priority, then by `upvotes * 2 + comments + reactions` desc within each tier. Inside the same tier, surface Q&A above Ideas above other categories (response latency matters most for Q&A).
 
 ### 5. Write the report
 
@@ -168,45 +189,51 @@ Report skeleton:
 ```markdown
 # Triage Report — <repo nameWithOwner> — <YYYY-MM-DD>
 
-Scanned **N PRs**, **M issues**, and **D discussions**. Skipped K items over the 100-agent budget (listed at bottom).
+Scanned **N PRs**, **M issues**, and **D discussions**. Folded away **X issues** covered by an open PR and **Y discussions** already tracked by an issue/PR (they appear under the covering item, not in their own section). Skipped K items over the 100-agent budget (listed at bottom).
+
+PR lines carry the metadata format: **by @author** · **assigned @assignee1, @assignee2** (or _unassigned_) · **closes #X** (when the PR closes an issue).
 
 ## PRs to review first
 
 ### P0 — merge/fix today
 
-- [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
+- [#NUM Title](url) — by @author · assigned @assignee (or _unassigned_) · closes #X — <reason>. _Action: <recommendedAction>_
 
 ### P1 — review this week
 
-- [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
+- [#NUM Title](url) — by @author · assigned @assignee · closes #X — <reason>. _Action: <recommendedAction>_
 
 ### P2 — when time permits
 
-<one-line per item>
+<one-line per item, same by/assigned/closes prefix>
 
 ### P3 — needs author input or close
 
-<one-line per item>
+<one-line per item, same by/assigned/closes prefix>
 
 ## Issues to address first
 
+_Only issues with **no open PR** addressing them. Issues that a PR already closes are folded under that PR above._
+
 ### P0 — fix now
 
-- [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
+- [#NUM Title](url) — assigned @assignee (or _unassigned_) — <reason>. _Action: <recommendedAction>_
 
 ### P1 — schedule this sprint
 
-- [#NUM Title](url) — <reason>. _Action: <recommendedAction>_
+- [#NUM Title](url) — assigned @assignee — <reason>. _Action: <recommendedAction>_
 
 ### P2 — backlog
 
-<one-line per item>
+<one-line per item, with assignee>
 
 ### P3 — close or ask for info
 
-<one-line per item>
+<one-line per item, with assignee>
 
 ## Discussions to engage with
+
+_Only discussions **not already tracked** by an issue or PR._
 
 ### P0 — respond today
 
@@ -230,14 +257,14 @@ Scanned **N PRs**, **M issues**, and **D discussions**. Skipped K items over the
 
 ## How this was generated
 
-N parallel triage agents ran via the `triage-github` skill on <date>. Each agent independently scored its item; this report aggregates and ranks them. Priorities are heuristic — sanity-check P0s before acting, especially `convert-to-issue` and `close` recommendations on discussions.
+N parallel triage agents ran via the `triage-github` skill on <date>. Each agent independently scored its item; this report aggregates and ranks them, then applies a PR > issue > discussion linkage pass so each unit of work appears once under the highest tier that covers it (a PR's `closesIssues` and each issue's `linkedPR` drive the folding). Priorities are heuristic — sanity-check P0s before acting, especially `convert-to-issue` and `close` recommendations on discussions.
 ```
 
 If discussions are disabled on the repo, omit the "Discussions to engage with" section and add a one-liner near the top noting they're disabled.
 
 ### 6. Summarize for the user
 
-After writing the file, give the user a 3–5 line summary: total counts, top 3 PRs to review, top 3 issues to fix, top 3 discussions to engage with, and the report path. Do not paste the full report into chat.
+After writing the file, give the user a 3–5 line summary: total counts (plus how many issues/discussions were folded under a covering PR/issue), top 3 PRs to review, top 3 issues to fix, top 3 discussions to engage with, and the report path. Do not paste the full report into chat.
 
 ## Notes
 
