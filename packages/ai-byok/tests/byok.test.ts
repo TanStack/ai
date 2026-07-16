@@ -225,12 +225,10 @@ describe('OpenRouter PKCE', () => {
 
   it('exchangeOpenRouterCode posts code and verifier', async () => {
     let postedBody = ''
-    const fetchImpl = vi.fn(
-      async (_url: string, init?: RequestInit) => {
-        postedBody = String(init?.body ?? '')
-        return Response.json({ key: 'sk-or-pkce-key' })
-      },
-    ) as typeof fetch
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      postedBody = String(init?.body ?? '')
+      return Response.json({ key: 'sk-or-pkce-key' })
+    }) as typeof fetch
     const key = await exchangeOpenRouterCode({
       code: 'auth-code',
       codeVerifier: 'verifier-1',

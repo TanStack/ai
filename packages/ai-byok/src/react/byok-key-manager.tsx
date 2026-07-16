@@ -80,7 +80,9 @@ export function ByokKeyManager({
           provider={provider}
           status={status[provider]}
           onOpenRouterLogin={
-            provider === 'openrouter' ? () => void openRouterPkce.login() : undefined
+            provider === 'openrouter'
+              ? () => void openRouterPkce.login()
+              : undefined
           }
         />
       ))}
@@ -132,7 +134,9 @@ function ProviderRow({
         </div>
       ) : null}
 
-      {provider === 'openrouter' && onOpenRouterLogin && status.state === 'empty' ? (
+      {provider === 'openrouter' &&
+      onOpenRouterLogin &&
+      status.state === 'empty' ? (
         <button
           type="button"
           style={styles.oauthButton}

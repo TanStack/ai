@@ -114,7 +114,9 @@ function sessionStorage(): Storage | null {
 }
 
 /** Persist pending PKCE state until the callback completes. */
-export function storeOpenRouterPkcePending(pending: OpenRouterPkcePending): void {
+export function storeOpenRouterPkcePending(
+  pending: OpenRouterPkcePending,
+): void {
   sessionStorage()?.setItem(PENDING_STORAGE_KEY, JSON.stringify(pending))
 }
 
@@ -186,9 +188,11 @@ export async function startOpenRouterPkceLogin(
     codeChallengeMethod: useS256 ? 'S256' : undefined,
   })
 
-  const navigate = options.navigate ?? ((url: string) => {
-    globalThis.location.assign(url)
-  })
+  const navigate =
+    options.navigate ??
+    ((url: string) => {
+      globalThis.location.assign(url)
+    })
   navigate(authUrl)
 }
 
@@ -259,9 +263,7 @@ export async function completeOpenRouterPkceFromUrl(
 ): Promise<string | null> {
   const href =
     options.url ??
-    (typeof globalThis.location !== 'undefined'
-      ? globalThis.location.href
-      : '')
+    (typeof globalThis.location !== 'undefined' ? globalThis.location.href : '')
   if (!href) return null
 
   const code = new URL(href).searchParams.get('code')

@@ -23,10 +23,7 @@ event/observability stream.
 ```tsx
 import { useRef } from 'react'
 import { ByokProvider, ByokKeyManager, useByok } from '@tanstack/ai-byok/react'
-import {
-  withByok,
-  defaultByokStorage,
-} from '@tanstack/ai-byok/react'
+import { withByok, defaultByokStorage } from '@tanstack/ai-byok/react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 
