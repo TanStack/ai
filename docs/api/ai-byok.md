@@ -24,14 +24,14 @@ npm install @tanstack/ai-byok
 
 Subpath exports:
 
-```bash
-# Stateless server helpers (no React dependency)
+```typescript
+// Stateless server helpers (no React dependency)
 import { getByokKey, byokMissing } from "@tanstack/ai-byok/server";
 
-# React bindings (requires react peer)
+// React bindings (requires react peer)
 import { ByokProvider, useByok } from "@tanstack/ai-byok/react";
 
-# OpenRouter OAuth PKCE (optional vendor add-on)
+// OpenRouter OAuth PKCE (optional vendor add-on)
 import { useOpenRouterPkce } from "@tanstack/ai-byok/openrouter/react";
 ```
 
@@ -54,17 +54,27 @@ const headers = byokHeaders({ openai: "sk-live", anthropic: "" });
 
 Builds BYOK connection options for fetch-based [connection adapters](../chat/connection-adapters). Returns a **function** that produces fresh options on every request.
 
-```typescript
+```tsx
+import { useRef } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { withByok } from "@tanstack/ai-byok";
+import { openKeyDialog } from "./byok-ui";
+import { customFetch } from "./fetch";
 
-const buildOptions = withByok(() => keysRef.current, {
-  onMissingKey: (provider) => openKeyDialog(provider),
-  headers: { "x-custom": "value" },
-  fetchClient: customFetch,
-});
+function Chat() {
+  const keysRef = useRef({ openai: "sk-live" });
+  const buildOptions = withByok(() => keysRef.current, {
+    onMissingKey: (provider) => openKeyDialog(provider),
+    headers: { "x-custom": "value" },
+    fetchClient: customFetch,
+  });
 
-// Pass to fetchServerSentEvents, fetchHttpStream, etc.
-fetchServerSentEvents("/api/chat", buildOptions);
+  useChat({
+    connection: fetchServerSentEvents("/api/chat", buildOptions),
+  });
+
+  return null;
+}
 ```
 
 **`WithByokOptions`**
@@ -87,20 +97,31 @@ Wraps `fetch` so a `byokMissing` 401 invokes `onMissingKey` with the provider id
 
 The `fetcher` transport counterpart to `withByok`. Wraps a fetcher body so it receives BYOK `headers`, a missing-key-aware `fetch`, and the transport `signal`, read fresh on every call.
 
-```typescript
+```tsx
+import { useRef } from "react";
+import { useGenerateAudio } from "@tanstack/ai-react";
 import { byokFetcher } from "@tanstack/ai-byok";
+import { openKeyDialog } from "./byok-ui";
 
-const fetcher = byokFetcher(
-  () => keysRef.current,
-  (input, { headers, fetch, signal }) =>
-    fetch("/api/generate", {
-      method: "POST",
-      headers: { "content-type": "application/json", ...headers },
-      body: JSON.stringify(input),
-      signal,
-    }),
-  { onMissingKey: (provider) => openKeyDialog(provider) },
-);
+function AudioPage() {
+  const keysRef = useRef({ elevenlabs: "xi-key" });
+
+  useGenerateAudio({
+    fetcher: byokFetcher(
+      () => keysRef.current,
+      (input, { headers, fetch, signal }) =>
+        fetch("/api/generate", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(input),
+          signal,
+        }),
+      { onMissingKey: (provider) => openKeyDialog(provider) },
+    ),
+  });
+
+  return null;
+}
 ```
 
 **`ByokFetcherContext`**
@@ -204,7 +225,10 @@ Accepts any object with a `Headers`-like `.get()` — works across Fetch-API run
 ```typescript
 import { getByokKey } from "@tanstack/ai-byok/server";
 
-const apiKey = getByokKey(request, "openai");
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, "openai");
+  // ...
+}
 ```
 
 ### `byokMissing(provider, init?)`
@@ -212,9 +236,13 @@ const apiKey = getByokKey(request, "openai");
 Returns a typed JSON 401 telling the client which provider key is missing. Carries no key material.
 
 ```typescript
-import { byokMissing } from "@tanstack/ai-byok/server";
+import { byokMissing, getByokKey } from "@tanstack/ai-byok/server";
 
-if (!apiKey) return byokMissing("anthropic");
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, "anthropic");
+  if (!apiKey) return byokMissing("anthropic");
+  // ...
+}
 ```
 
 ### `preferByokAdapter(request, provider, model, factories)`
@@ -244,9 +272,11 @@ Provides the keyring context. `storage` is chosen once at mount and cannot chang
 ```tsx
 import { ByokProvider, memoryStorage } from "@tanstack/ai-byok/react";
 
-<ByokProvider storage={memoryStorage()}>
-  <App />
-</ByokProvider>
+function Root({ children }: { children: React.ReactNode }) {
+  return (
+    <ByokProvider storage={memoryStorage()}>{children}</ByokProvider>
+  );
+}
 ```
 
 ### `useByok()`
@@ -254,18 +284,24 @@ import { ByokProvider, memoryStorage } from "@tanstack/ai-byok/react";
 Access the keyring and controls. Must be called under `<ByokProvider>` — throws otherwise.
 
 ```tsx
-const {
-  keys,           // live keyring — pass to byokHeaders / withByok
-  setKey,         // (provider, key) => Promise<void>
-  clearKey,       // (provider) => Promise<void>
-  clearAll,       // () => Promise<void>
-  validateKey,    // (provider, key?) => Promise<KeyStatus>
-  status,         // per-provider KeyStatus map
-  storage,        // configured KeyringStorage
-  locked,         // true when unlockable storage may hold encrypted keys
-  unlock,         // () => Promise<void> — decrypt / load
-  hasKey,         // (provider) => boolean
-} = useByok();
+import { useByok } from "@tanstack/ai-byok/react";
+
+function KeySettings() {
+  const {
+    keys, // live keyring — pass to byokHeaders / withByok
+    setKey, // (provider, key) => Promise<void>
+    clearKey, // (provider) => Promise<void>
+    clearAll, // () => Promise<void>
+    validateKey, // (provider, key?) => Promise<KeyStatus>
+    status, // per-provider KeyStatus map
+    storage, // configured KeyringStorage
+    locked, // true when unlockable storage may hold encrypted keys
+    unlock, // () => Promise<void> — decrypt / load
+    hasKey, // (provider) => boolean
+  } = useByok();
+
+  return null;
+}
 ```
 
 **`KeyStatus` union**

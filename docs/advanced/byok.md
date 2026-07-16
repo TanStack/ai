@@ -119,6 +119,8 @@ function App({ children }: { children: React.ReactNode }) {
 import { useRef, useCallback } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { useByok, withByok } from "@tanstack/ai-byok/react";
+import type { ProviderId } from "@tanstack/ai-byok/react";
+import { openKeyDialog } from "./byok-ui";
 
 function Chat() {
   const { keys, status, unlock } = useByok();
@@ -126,8 +128,8 @@ function Chat() {
   keysRef.current = keys;
 
   const handleMissingKey = useCallback(
-    (provider: string) => {
-      if (status[provider as keyof typeof status]?.state === "locked") {
+    (provider: ProviderId) => {
+      if (status[provider]?.state === "locked") {
         void unlock();
       } else {
         openKeyDialog(provider);
@@ -143,7 +145,7 @@ function Chat() {
     ),
   });
 
-  return (/* ... */);
+  return null;
 }
 ```
 
@@ -195,8 +197,11 @@ When the relay has no env key and the request carried no BYOK header, return a t
 ```typescript
 import { byokMissing } from "@tanstack/ai-byok/server";
 
-return byokMissing("openai");
-// → 401 { error: { type: "byok_missing", provider: "openai", message: "..." } }
+export async function POST(request: Request) {
+  // ...no BYOK header and no server env key for this provider
+  return byokMissing("openai");
+  // → 401 { error: { type: "byok_missing", provider: "openai", message: "..." } }
+}
 ```
 
 On the client, `withByok` / `byokFetch` detect this response and invoke `onMissingKey(provider)` as a side channel — the SSE error path only exposes the HTTP status, not the JSON body.
@@ -217,9 +222,11 @@ Passkey-encrypted storage when supported; session memory otherwise. **All keys**
 ```tsx
 import { ByokProvider, defaultByokStorage } from "@tanstack/ai-byok/react";
 
-<ByokProvider storage={defaultByokStorage()}>
-  <App />
-</ByokProvider>
+function Root({ children }: { children: React.ReactNode }) {
+  return (
+    <ByokProvider storage={defaultByokStorage()}>{children}</ByokProvider>
+  );
+}
 ```
 
 OpenRouter enforces PKCE key expiry server-side based on what the user chose at sign-in.
@@ -244,41 +251,53 @@ Supply your own `KeyringStorage` implementation for custom strategies (for examp
 
 `withByok` targets [connection adapters](../chat/connection-adapters) (`fetchServerSentEvents`, `fetchHttpStream`, etc.). For the **`fetcher`** transport — used by `useGeneration` (image, audio, video, speech, transcribe) and `useChat({ fetcher })` — use `byokFetcher`:
 
-```typescript
+```tsx
+import { useRef } from "react";
+import { useGenerateAudio } from "@tanstack/ai-react";
 import { byokFetcher } from "@tanstack/ai-byok";
+import { openKeyDialog } from "./byok-ui";
+import { generateAudioFn } from "./server-functions";
 
-// Fetch-based fetcher
-useGenerateAudio({
-  fetcher: byokFetcher(
-    () => keysRef.current,
-    (input, { headers, fetch, signal }) =>
-      fetch("/api/generate/audio", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify(input),
-        signal,
-      }),
-    { onMissingKey: (provider) => openKeyDialog(provider) },
-  ),
-});
+function AudioGenerator() {
+  const keysRef = useRef({ elevenlabs: "xi-key" });
 
-// TanStack Start server function — forward headers at the call site
-useGenerateAudio({
-  fetcher: byokFetcher(
-    () => keysRef.current,
-    (input, { headers }) => generateAudioFn({ data: input, headers }),
-  ),
-});
+  // Fetch-based fetcher
+  useGenerateAudio({
+    fetcher: byokFetcher(
+      () => keysRef.current,
+      (input, { headers, fetch, signal }) =>
+        fetch("/api/generate/audio", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(input),
+          signal,
+        }),
+      { onMissingKey: (provider) => openKeyDialog(provider) },
+    ),
+  });
+
+  // TanStack Start server function — forward headers at the call site
+  useGenerateAudio({
+    fetcher: byokFetcher(
+      () => keysRef.current,
+      (input, { headers }) => generateAudioFn({ data: input, headers }),
+    ),
+  });
+
+  return null;
+}
 ```
 
 On the server, read the key the same way:
 
 ```typescript
 import { getByokKey, byokMissing } from "@tanstack/ai-byok/server";
-import { getRequest } from "@tanstack/react-start/server";
 
-const apiKey = getByokKey(getRequest(), "elevenlabs");
-if (!apiKey) return byokMissing("elevenlabs");
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, "elevenlabs");
+  if (!apiKey) return byokMissing("elevenlabs");
+  // ...
+}
 ```
 
 `onMissingKey` fires only when `byokFetcher` owns the `fetch` call. Server-function fetchers surface a missing key as a thrown error instead.
@@ -311,20 +330,29 @@ Pass `openRouter={{ onLogin, completing, error }}` to `<ByokKeyManager>` or `<By
 
 ### Lower-level client API
 
-```typescript
+```tsx
+import { useByok } from "@tanstack/ai-byok/react";
 import {
   startOpenRouterPkceLogin,
   completeOpenRouterPkceFromUrl,
 } from "@tanstack/ai-byok/openrouter";
 
-// Redirect the browser to OpenRouter (stores PKCE verifier in sessionStorage)
-await startOpenRouterPkceLogin({
-  callbackUrl: "https://myapp.com/chat",
-});
+function OpenRouterLogin() {
+  const { setKey } = useByok();
 
-// On the callback page, after OpenRouter appends ?code=…
-const key = await completeOpenRouterPkceFromUrl();
-if (key) await setKey("openrouter", key);
+  async function login() {
+    await startOpenRouterPkceLogin({
+      callbackUrl: "https://myapp.com/chat",
+    });
+  }
+
+  async function completeFromCallback() {
+    const key = await completeOpenRouterPkceFromUrl();
+    if (key) await setKey("openrouter", key);
+  }
+
+  return null;
+}
 ```
 
 S256 PKCE is used by default. Localhost callbacks are supported on any port for local dev.
@@ -356,19 +384,26 @@ The server helpers never log key material. Relay authors are responsible for kee
 A common pattern (see the `ts-react-chat` example) keeps **server env keys** as the default and lets BYOK override per request:
 
 ```typescript
-import { preferByokAdapter, requireByokOrEnv } from "@tanstack/ai-byok/server";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createOpenaiChat, openaiText } from "@tanstack/ai-openai";
+import {
+  preferByokAdapter,
+  requireByokOrEnv,
+} from "@tanstack/ai-byok/server";
 
-const adapter = preferByokAdapter(request, "openai", model, {
-  byok: createOpenaiChat,
-  env: openaiText,
-});
-```
+export async function POST(request: Request) {
+  const { messages, model } = await request.json();
 
-Before starting an expensive stream, check whether the selected provider can run at all:
+  const blocked = requireByokOrEnv(request, "openai", ["OPENAI_API_KEY"]);
+  if (blocked) return blocked;
 
-```typescript
-const blocked = requireByokOrEnv(request, "openai", ["OPENAI_API_KEY"]);
-if (blocked) return blocked;
+  const adapter = preferByokAdapter(request, "openai", model, {
+    byok: createOpenaiChat,
+    env: openaiText,
+  });
+
+  return toServerSentEventsResponse(chat({ adapter, messages }));
+}
 ```
 
 On the client, a server function can report which providers have env keys (booleans only — never the values) so the UI can warn before the user picks a model they cannot run.
@@ -379,11 +414,12 @@ When you do not need React bindings:
 
 ```typescript
 import { byokHeaders, byokFetch } from "@tanstack/ai-byok";
+import { openKeyDialog } from "./byok-ui";
 
 const headers = byokHeaders({ openai: "sk-...", gemini: "..." });
 // → { "x-byok-openai": "sk-...", "x-byok-gemini": "..." }
 
-const fetch = byokFetch((provider) => openKeyDialog(provider));
+const fetchWithByok = byokFetch((provider) => openKeyDialog(provider));
 ```
 
 Empty or absent keys are skipped — only providers with a non-empty key get a header.
