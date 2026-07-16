@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CHAIN_EVENTS, EventType } from '@tanstack/ai'
+import { CHAIN_EVENTS, EventType } from '@tanstack/ai/client'
 import { ChainClient, chainStepKey } from '../src'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'

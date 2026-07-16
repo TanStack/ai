@@ -1,10 +1,8 @@
-import { CHAIN_EVENTS } from '@tanstack/ai'
-import { parsePartialJSON } from '@tanstack/ai/client'
+import { CHAIN_EVENTS, parsePartialJSON } from '@tanstack/ai/client'
 import { GENERATION_EVENTS } from './generation-types'
 import { parseSSEResponse } from './sse-parser'
 import { chainStepKey } from './chain-types'
-import type { StreamChunk } from '@tanstack/ai/client'
-import type { ChainStepEventValue } from '@tanstack/ai'
+import type { ChainStepEventValue, StreamChunk } from '@tanstack/ai/client'
 import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,

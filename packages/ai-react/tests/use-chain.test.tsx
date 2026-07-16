@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { CHAIN_EVENTS, EventType } from '@tanstack/ai'
+import { CHAIN_EVENTS, EventType } from '@tanstack/ai/client'
 import { useChain } from '../src/use-chain'
 import { createMockConnectionAdapter } from './test-utils'
 import type { StreamChunk } from '@tanstack/ai'

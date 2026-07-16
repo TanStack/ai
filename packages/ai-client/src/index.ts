@@ -20,6 +20,10 @@ export type {
   ChainSteps,
   ChainTransport,
 } from './chain-types'
+// Re-export the wire protocol constant so consumers don't need the server
+// package just to match `chain:step` events.
+export { CHAIN_EVENTS } from '@tanstack/ai/client'
+export type { ChainStepEventValue } from '@tanstack/ai/client'
 export type {
   // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,
