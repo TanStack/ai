@@ -77,7 +77,10 @@ export function useChain<
   options: Omit<UseChainOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
   },
-): UseChainReturn<TInput, InferGenerationOutputFromReturn<TResult, TTransformed>> {
+): UseChainReturn<
+  TInput,
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+> {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
   const clientId = options.id || hookId

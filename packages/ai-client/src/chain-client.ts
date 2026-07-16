@@ -169,7 +169,9 @@ export class ChainClient<
     }
   }
 
-  private async processStream(source: AsyncIterable<StreamChunk>): Promise<void> {
+  private async processStream(
+    source: AsyncIterable<StreamChunk>,
+  ): Promise<void> {
     for await (const chunk of source) {
       if (this.abortController?.signal.aborted) break
 
