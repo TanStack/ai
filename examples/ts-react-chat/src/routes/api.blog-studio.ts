@@ -2,38 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { defineAssistant } from '@tanstack/ai/assistant'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
+import { BLOG_STUDIO_SYSTEM_PROMPT, BlogPostSchema } from '../lib/blog-studio'
 
-/**
- * The shape a blog post is drafted into. The `chat` capability declares this
- * as its `outputSchema`, so `assistant.chat.sendMessage(...)` resolves to a
- * validated `{ title, subtitle, body } | null` on the client — no manual
- * parsing, and `assistant.chat.partial` streams a live draft.
- *
- * Exported so the client page (`blog-studio.tsx`) can import the same schema
- * and stay in type-sync. Only this schema lives at module scope; the actual
- * `defineAssistant` (with its server adapters) is built inside the POST
- * handler so importing the schema never pulls provider SDKs into the browser
- * bundle.
- */
-export const BlogPostSchema = z.object({
-  title: z.string().describe('A punchy, editorial blog post title'),
-  subtitle: z.string().describe('A one-sentence standfirst / subtitle'),
-  body: z
-    .string()
-    .describe(
-      'The full blog post body as GitHub-flavored Markdown: use ## / ### ' +
-        'headings, short paragraphs, and the occasional list. ~400-600 words.',
-    ),
-})
-
-export type BlogPost = z.infer<typeof BlogPostSchema>
-
-const SYSTEM_PROMPT =
-  'You are a seasoned staff writer. Given a topic, write one engaging, ' +
-  'well-structured blog post. Return a title, a short subtitle, and the ' +
-  'body as GitHub-flavored Markdown with section headings and tight ' +
-  'paragraphs. Be vivid and concrete; avoid filler and clichés.'
+// Re-export so the assistant page can import schema + types from this route
+// module (keeps client types in sync without pulling server adapters).
 
 export const Route = createFileRoute('/api/blog-studio')({
   server: {
@@ -49,7 +21,7 @@ export const Route = createFileRoute('/api/blog-studio')({
             chat({
               adapter: openaiText('gpt-5.5'),
               messages: req.messages,
-              systemPrompts: [SYSTEM_PROMPT],
+              systemPrompts: [BLOG_STUDIO_SYSTEM_PROMPT],
               outputSchema: BlogPostSchema,
               stream: true,
               threadId: req.threadId,

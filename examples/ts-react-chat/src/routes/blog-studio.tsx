@@ -1,5 +1,4 @@
-import type { FormEvent, ReactNode } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { chat, generateImage, generateSpeech } from '@tanstack/ai'
 import { defineAssistant } from '@tanstack/ai/assistant'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -18,7 +17,8 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { BlogPostSchema } from './api.blog-studio'
+import { BlogPostSchema, forNarration, heroPromptFor } from '../lib/blog-studio'
+import type { FormEvent, ReactNode } from 'react'
 
 // Client-side assistant definition. `defineAssistant` is INERT in the browser
 // — these callbacks never run; `useAssistant` only reads the declared
@@ -63,29 +63,6 @@ function statusToStep(
       : status === 'error'
         ? 'failed'
         : 'pending'
-}
-
-// Prepare the post body for narration: strip Markdown so TTS doesn't read the
-// syntax aloud, and cap the length at a sentence boundary (OpenAI TTS rejects
-// input over 4096 characters, and long posts easily exceed it).
-function forNarration(markdown: string, max = 4000): string {
-  const plain = markdown
-    .replace(/^#{1,6}\s+/gm, '') // headings
-    .replace(/^\s*[-*+]\s+/gm, '') // list bullets
-    .replace(/^\s*>\s?/gm, '') // blockquotes
-    .replace(/\*\*(.*?)\*\*/g, '$1') // bold
-    .replace(/\*(.*?)\*/g, '$1') // italic
-    .replace(/`([^`]+)`/g, '$1') // inline code
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links → link text
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  if (plain.length <= max) return plain
-  const clipped = plain.slice(0, max)
-  const boundary = Math.max(
-    clipped.lastIndexOf('. '),
-    clipped.lastIndexOf('\n'),
-  )
-  return (boundary > max / 2 ? clipped.slice(0, boundary + 1) : clipped).trim()
 }
 
 function BlogStudio() {
@@ -152,12 +129,7 @@ function BlogStudio() {
 
     // 2. Illustrate and narrate in parallel — fire and forget; the surfaces'
     //    reactive result/status/error drive the UI. `generate()` never rejects.
-    void image.generate({
-      prompt:
-        `A striking editorial hero image for a blog post titled ` +
-        `"${draftedPost.title}". ${draftedPost.subtitle}. Modern, clean, ` +
-        `cinematic, high quality, no text.`,
-    })
+    void image.generate({ prompt: heroPromptFor(draftedPost) })
     void speech.generate({ text: forNarration(draftedPost.body) })
   }
 
@@ -174,10 +146,20 @@ function BlogStudio() {
         <h1 className="mb-1 text-2xl font-bold text-stone-900">
           Turn a topic into a finished post
         </h1>
-        <p className="mb-5 text-stone-500">
+        <p className="mb-3 text-stone-500">
           One assistant writes the article, then illustrates it and records a
           voice-over in parallel — chained from a single prompt over one
           endpoint.
+        </p>
+        <p className="mb-5 text-xs text-stone-400">
+          Prefer the server to own the whole pipeline? See the{' '}
+          <Link
+            to="/blog-studio-server"
+            className="font-medium text-amber-700 underline underline-offset-2"
+          >
+            server version
+          </Link>
+          .
         </p>
 
         <form onSubmit={run}>

@@ -11,10 +11,10 @@ import {
   Guitar,
   Home,
   Image,
-  Menu,
   LayoutGrid,
-  Mic,
+  Menu,
   MessageSquare,
+  Mic,
   Music,
   Newspaper,
   Plug,
@@ -218,6 +218,32 @@ export default function Header() {
           >
             <Newspaper size={20} />
             <span className="font-medium">Blog Studio</span>
+          </Link>
+
+          <Link
+            to="/blog-studio-hooks"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio (hooks)</span>
+          </Link>
+
+          <Link
+            to="/blog-studio-server"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio (server)</span>
           </Link>
 
           <Link
