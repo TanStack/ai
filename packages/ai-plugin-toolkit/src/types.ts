@@ -94,11 +94,13 @@ export interface ChatPlugin<
   run: ((
     messages: Array<UIMessage | ModelMessage>,
     options?: PluginRunOptions,
-  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) & ((
-    request: Request,
-  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) & ((
-    body: PluginRequestBody,
-  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>)
+  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) &
+    ((
+      request: Request,
+    ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) &
+    ((
+      body: PluginRequestBody,
+    ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>)
 }
 
 /**
@@ -153,7 +155,9 @@ export interface GenerationPlugin<TInput = unknown, TResult = unknown> {
    * Accepts raw input (+ envelope `options`), an HTTP `Request`, or an
    * already-parsed AG-UI body.
    */
-  run: ((input: TInput, options?: PluginRunOptions) => Promise<TResult>) & ((request: Request) => Promise<TResult>) & ((body: PluginRequestBody) => Promise<TResult>)
+  run: ((input: TInput, options?: PluginRunOptions) => Promise<TResult>) &
+    ((request: Request) => Promise<TResult>) &
+    ((body: PluginRequestBody) => Promise<TResult>)
 }
 
 /** The options accepted by {@link generationPlugin}. */

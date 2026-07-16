@@ -163,9 +163,7 @@ interface NormalizedRunArg {
 
 /** An object carries AG-UI envelope markers → treat it as a request body. */
 function isBodyLike(value: object): boolean {
-  return (
-    'forwardedProps' in value || ('messages' in value && 'runId' in value)
-  )
+  return 'forwardedProps' in value || ('messages' in value && 'runId' in value)
 }
 
 /**

@@ -342,7 +342,10 @@ import { definePlugin, imagePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImage = imagePlugin((req) =>
-  generateImage({ adapter: openaiImage('gpt-image-2'), prompt: req.input.prompt }),
+  generateImage({
+    adapter: openaiImage('gpt-image-2'),
+    prompt: req.input.prompt,
+  }),
 )
 
 export const blogPlugin = definePlugin({ heroImage })

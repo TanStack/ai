@@ -20,10 +20,7 @@ async function* makeTextStream(text: string): ChatStream {
  * Chat stream emitting only a terminal `structured-output.complete` event —
  * exercises `collectChatStream`'s structured-output branch in isolation.
  */
-async function* makeStructuredStream(
-  object: unknown,
-  raw: string,
-): ChatStream {
+async function* makeStructuredStream(object: unknown, raw: string): ChatStream {
   yield {
     type: EventType.CUSTOM,
     name: 'structured-output.complete',
