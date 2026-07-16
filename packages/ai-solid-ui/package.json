@@ -70,7 +70,7 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^20.0.10",
     "solid-js": "^1.9.10",
     "vite": "^8.1.4",
     "vite-plugin-solid": "^2.11.10"

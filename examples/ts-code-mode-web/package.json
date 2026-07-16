@@ -34,7 +34,7 @@
     "@tanstack/store": "^0.8.0",
     "framer-motion": "^11.15.0",
     "highlight.js": "^11.11.1",
-    "isolated-vm": "^6.1.2",
+    "isolated-vm": "^6.0.2",
     "lucide-react": "^0.561.0",
     "marked": "^15.0.6",
     "nitro": "3.0.260610-beta",

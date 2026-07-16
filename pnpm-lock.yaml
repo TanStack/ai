@@ -460,7 +460,7 @@ importers:
         specifier: ^11.11.1
         version: 11.11.1
       isolated-vm:
-        specifier: ^6.1.2
+        specifier: ^6.0.2
         version: 6.1.2
       lucide-react:
         specifier: ^0.561.0
@@ -750,8 +750,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       dockerode:
-        specifier: ^4.0.12
-        version: 4.0.12(supports-color@7.2.0)
+        specifier: ^4.0.2
+        version: 4.0.12
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -2159,7 +2159,7 @@ importers:
     dependencies:
       dockerode:
         specifier: ^4.0.2
-        version: 4.0.12(supports-color@7.2.0)
+        version: 4.0.12
     devDependencies:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
@@ -2270,7 +2270,7 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
       happy-dom:
-        specifier: ^20.0.11
+        specifier: ^20.0.10
         version: 20.0.11
       solid-js:
         specifier: ^1.9.10
@@ -25308,7 +25308,7 @@ snapshots:
 
   dnssd-advertise@1.1.4: {}
 
-  docker-modem@5.0.7(supports-color@7.2.0):
+  docker-modem@5.0.7:
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       readable-stream: 3.6.2
@@ -25317,12 +25317,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  dockerode@4.0.12(supports-color@7.2.0):
+  dockerode@4.0.12:
     dependencies:
       '@balena/dockerignore': 1.0.2
       '@grpc/grpc-js': 1.14.4
       '@grpc/proto-loader': 0.7.15
-      docker-modem: 5.0.7(supports-color@7.2.0)
+      docker-modem: 5.0.7
       protobufjs: 7.6.4
       tar-fs: 2.1.4
       uuid: 10.0.0
