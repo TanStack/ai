@@ -27,22 +27,21 @@ editor value as `unknown`, and resolve only on success:
 ```tsx
 // app/generic-interrupt.tsx
 import { useState } from 'react'
+import type { GenericAGUIInterrupt } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { z } from 'zod'
 
-export function GenericInterrupt() {
-  const { interrupts } = useChat({
-    threadId: 'workflow-7',
-    connection: fetchServerSentEvents('/api/chat'),
-  })
+// A generic item owns its own editor state, so give each one its own component.
+function GenericInterruptForm({
+  interrupt,
+}: {
+  interrupt: GenericAGUIInterrupt
+}) {
   const [value, setValue] = useState('')
   const [errors, setErrors] = useState<ReadonlyArray<string>>([])
 
-  const generic = interrupts.find((item) => item.kind === 'generic')
-  if (generic?.kind !== 'generic') return null
-
   const submit = () => {
-    if (!generic.responseSchema) {
+    if (!interrupt.responseSchema) {
       setErrors(['This interrupt has no response schema.'])
       return
     }
@@ -53,26 +52,43 @@ export function GenericInterrupt() {
       setErrors(['Enter valid JSON.'])
       return
     }
-    const result = z.fromJSONSchema(generic.responseSchema).safeParse(candidate)
+    const result = z.fromJSONSchema(interrupt.responseSchema).safeParse(candidate)
     if (!result.success) {
       setErrors(result.error.issues.map((issue) => issue.message))
       return
     }
-    generic.resolveInterrupt(result.data)
+    interrupt.resolveInterrupt(result.data)
     setErrors([])
   }
 
   return (
     <article>
-      <p>{generic.message ?? generic.reason}</p>
+      <p>{interrupt.message ?? interrupt.reason}</p>
       <textarea value={value} onChange={(event) => setValue(event.target.value)} />
-      <button disabled={!generic.canResolve} onClick={submit}>
+      <button disabled={!interrupt.canResolve} onClick={submit}>
         Submit
       </button>
       {errors.map((message) => (
         <p key={message}>{message}</p>
       ))}
     </article>
+  )
+}
+
+export function GenericInterrupts() {
+  const { interrupts } = useChat({
+    threadId: 'workflow-7',
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <>
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'generic' ? (
+          <GenericInterruptForm key={interrupt.id} interrupt={interrupt} />
+        ) : null,
+      )}
+    </>
   )
 }
 ```

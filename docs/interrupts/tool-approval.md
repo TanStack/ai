@@ -85,8 +85,9 @@ export async function POST(request: Request) {
 ## Render and resolve it
 
 Pass the shared definition to `useChat` so `toolName`, `originalArgs`, edits, and
-branch payloads are inferred. Find the pending `tool-approval` item and resolve
-it:
+branch payloads are inferred. Loop the pending `interrupts`, narrow on `kind`,
+and render each `transfer` approval — the same shape scales to a mixed queue
+(see [Multiple Interrupts](./multiple)):
 
 ```tsx
 // app/transfer-approval.tsx
@@ -94,45 +95,56 @@ import type { ItemInterruptError } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { transferTool } from '../tools/transfer'
 
-export function TransferApproval() {
+export function TransferApprovals() {
   const { interrupts, resuming } = useChat({
     threadId: 'account-42',
     connection: fetchServerSentEvents('/api/chat'),
     tools: [transferTool] as const,
   })
 
-  const transfer = interrupts.find(
-    (item) => item.kind === 'tool-approval' && item.toolName === 'transfer',
-  )
-  if (transfer?.kind !== 'tool-approval' || transfer.toolName !== 'transfer') {
-    return null
-  }
-
   return (
-    <article>
-      <p>
-        Transfer {transfer.originalArgs.amount} to {transfer.originalArgs.recipient}?
-      </p>
-      <button
-        disabled={!transfer.canResolve || resuming}
-        onClick={() =>
-          transfer.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
+    <>
+      {interrupts.map((interrupt) => {
+        // Render only the transfer approvals; ignore other kinds/tools here.
+        if (
+          interrupt.kind !== 'tool-approval' ||
+          interrupt.toolName !== 'transfer'
+        ) {
+          return null
         }
-      >
-        Approve
-      </button>
-      <button
-        disabled={!transfer.canResolve || resuming}
-        onClick={() =>
-          transfer.resolveInterrupt(false, { payload: { reason: 'Too large' } })
-        }
-      >
-        Reject
-      </button>
-      {transfer.errors.map((error: ItemInterruptError) => (
-        <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>{error.message}</p>
-      ))}
-    </article>
+        return (
+          <article key={interrupt.id}>
+            <p>
+              Transfer {interrupt.originalArgs.amount} to{' '}
+              {interrupt.originalArgs.recipient}?
+            </p>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() =>
+                interrupt.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
+              }
+            >
+              Approve
+            </button>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() =>
+                interrupt.resolveInterrupt(false, {
+                  payload: { reason: 'Too large' },
+                })
+              }
+            >
+              Reject
+            </button>
+            {interrupt.errors.map((error: ItemInterruptError) => (
+              <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>
+                {error.message}
+              </p>
+            ))}
+          </article>
+        )
+      })}
+    </>
   )
 }
 ```
@@ -144,16 +156,16 @@ A valid resolution for a single-item batch submits automatically — no extra
 
 ```ts ignore
 // Approve as-is.
-transfer.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
+interrupt.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
 
 // Approve with edited arguments — a validated FULL replacement, not a merge.
-transfer.resolveInterrupt(true, {
+interrupt.resolveInterrupt(true, {
   editedArgs: { amount: 12, recipient: 'Ada' },
   payload: { note: 'Capped to policy' },
 })
 
 // Reject — the reject branch schema validates its own payload.
-transfer.resolveInterrupt(false, { payload: { reason: 'Policy limit' } })
+interrupt.resolveInterrupt(false, { payload: { reason: 'Policy limit' } })
 ```
 
 Only approval accepts `editedArgs`; rejection never does. Branch data always

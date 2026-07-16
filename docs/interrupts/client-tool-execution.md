@@ -28,7 +28,6 @@ Register the tool so its `outputSchema` types `resolveInterrupt`:
 
 ```tsx
 // app/receipt-tool.tsx
-import { useEffect } from 'react'
 import { toolDefinition } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { z } from 'zod'
@@ -40,34 +39,42 @@ const showReceiptTool = toolDefinition({
   outputSchema: z.object({ displayed: z.boolean() }),
 })
 
-export function ReceiptTool() {
+export function ReceiptTools() {
   const { interrupts } = useChat({
     threadId: 'account-42',
     connection: fetchServerSentEvents('/api/chat'),
     tools: [showReceiptTool] as const,
   })
 
-  const execution = interrupts.find(
-    (item) =>
-      item.kind === 'client-tool-execution' && item.toolName === 'showReceipt',
+  return (
+    <>
+      {interrupts.map((interrupt) => {
+        if (
+          interrupt.kind !== 'client-tool-execution' ||
+          interrupt.toolName !== 'showReceipt'
+        ) {
+          return null
+        }
+        // Render the receipt in the browser, then return its typed output.
+        return (
+          <button
+            key={interrupt.id}
+            disabled={!interrupt.canResolve}
+            onClick={() => interrupt.resolveInterrupt({ displayed: true })}
+          >
+            Mark receipt shown
+          </button>
+        )
+      })}
+    </>
   )
-
-  useEffect(() => {
-    if (
-      execution?.kind === 'client-tool-execution' &&
-      execution.toolName === 'showReceipt'
-    ) {
-      // ...render the receipt, then report the result:
-      execution.resolveInterrupt({ displayed: true })
-    }
-  }, [execution])
-
-  return null
 }
 ```
 
-The output is validated against the tool's `outputSchema`. `resolveInterrupt`
-stages it and submits as part of the [batch](./multiple).
+`resolveInterrupt`'s argument is typed by the tool's `outputSchema`, and the
+output is validated before it's staged and submitted as part of the
+[batch](./multiple). When the result is computed rather than confirmed by a
+click, resolve it from an effect once the item appears instead of on `onClick`.
 
 ## `addToolResult` interop
 
