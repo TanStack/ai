@@ -5,7 +5,7 @@ title: RealtimeSessionConfig
 
 # Interface: RealtimeSessionConfig
 
-Defined in: [packages/ai/src/realtime/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L32)
+Defined in: [packages/ai/src/realtime/types.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L35)
 
 Configuration for a realtime session
 
@@ -17,7 +17,7 @@ Configuration for a realtime session
 optional instructions: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L38)
+Defined in: [packages/ai/src/realtime/types.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L41)
 
 System instructions for the assistant
 
@@ -29,7 +29,7 @@ System instructions for the assistant
 optional maxOutputTokens: number | "inf";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L50)
+Defined in: [packages/ai/src/realtime/types.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L53)
 
 Maximum number of tokens in a response
 
@@ -41,7 +41,7 @@ Maximum number of tokens in a response
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L34)
+Defined in: [packages/ai/src/realtime/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L37)
 
 Model to use for the session
 
@@ -53,7 +53,7 @@ Model to use for the session
 optional outputModalities: ("text" | "audio")[];
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L46)
+Defined in: [packages/ai/src/realtime/types.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L49)
 
 Output modalities for responses (e.g., ['audio', 'text'], ['text'])
 
@@ -65,7 +65,7 @@ Output modalities for responses (e.g., ['audio', 'text'], ['text'])
 optional providerOptions: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L54)
+Defined in: [packages/ai/src/realtime/types.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L57)
 
 Provider-specific options
 
@@ -77,7 +77,7 @@ Provider-specific options
 optional semanticEagerness: "high" | "low" | "medium";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L52)
+Defined in: [packages/ai/src/realtime/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L55)
 
 Eagerness level for semantic VAD ('low', 'medium', 'high')
 
@@ -89,7 +89,7 @@ Eagerness level for semantic VAD ('low', 'medium', 'high')
 optional temperature: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L48)
+Defined in: [packages/ai/src/realtime/types.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L51)
 
 Temperature for generation (provider-specific range, e.g., 0.6-1.2 for OpenAI)
 
@@ -101,7 +101,7 @@ Temperature for generation (provider-specific range, e.g., 0.6-1.2 for OpenAI)
 optional tools: RealtimeToolConfig[];
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L40)
+Defined in: [packages/ai/src/realtime/types.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L43)
 
 Tools available in the session
 
@@ -113,7 +113,7 @@ Tools available in the session
 optional vadConfig: VADConfig;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L44)
+Defined in: [packages/ai/src/realtime/types.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L47)
 
 VAD configuration
 
@@ -125,7 +125,7 @@ VAD configuration
 optional vadMode: "server" | "manual" | "semantic";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L42)
+Defined in: [packages/ai/src/realtime/types.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L45)
 
 VAD mode
 
@@ -137,6 +137,6 @@ VAD mode
 optional voice: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:36](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L36)
+Defined in: [packages/ai/src/realtime/types.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L39)
 
 Voice to use for audio output
