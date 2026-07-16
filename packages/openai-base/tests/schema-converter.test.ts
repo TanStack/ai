@@ -434,6 +434,37 @@ describe('isStrictModeCompatible', () => {
     ).toBe(true)
   })
 
+  it('returns false when an anyOf variant needs optional-field widening', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          value: {
+            anyOf: [
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'optional' },
+                  note: { type: 'string' },
+                },
+                required: ['kind'],
+              },
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'nullable' },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['kind', 'note'],
+              },
+            ],
+          },
+        },
+        required: ['value'],
+      }),
+    ).toBe(false)
+  })
+
   it.each(['oneOf', 'allOf', 'not'])(
     'returns false when a combinator keyword (%s) appears anywhere',
     (keyword) => {
