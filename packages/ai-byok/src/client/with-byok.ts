@@ -110,9 +110,7 @@ export function withByok(
     )
     return {
       headers,
-      ...(options.onMissingKey || options.fetchClient
-        ? { fetchClient }
-        : {}),
+      ...(options.onMissingKey || options.fetchClient ? { fetchClient } : {}),
     }
   }
 }
@@ -148,8 +146,5 @@ export function byokFetcher<TInput, TReturn>(
   options: WithByokOptions = {},
 ): (input: TInput, transport?: { signal?: AbortSignal }) => TReturn {
   return (input, transport) =>
-    handler(
-      input,
-      buildByokRequestContext(getKeys, options, transport?.signal),
-    )
+    handler(input, buildByokRequestContext(getKeys, options, transport?.signal))
 }

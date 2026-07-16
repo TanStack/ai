@@ -4,8 +4,10 @@ import type { ByokKeyManagerProps } from './byok-key-manager'
 import type { CSSProperties, ReactNode } from 'react'
 import type { ProviderId } from '../shared/providers'
 
-export interface ByokKeyDialogProps
-  extends Omit<ByokKeyManagerProps, 'className' | 'style'> {
+export interface ByokKeyDialogProps extends Omit<
+  ByokKeyManagerProps,
+  'className' | 'style'
+> {
   /** Controlled open state. */
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -116,7 +118,10 @@ export function ByokKeyDialog({
               variant={
                 managerProps.variant ?? (panelClassName ? 'dark' : 'light')
               }
-              style={{ maxWidth: 'none', color: panelClassName ? '#e5e7eb' : undefined }}
+              style={{
+                maxWidth: 'none',
+                color: panelClassName ? '#e5e7eb' : undefined,
+              }}
             />
           </div>
         </div>
