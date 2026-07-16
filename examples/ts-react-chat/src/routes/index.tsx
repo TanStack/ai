@@ -164,7 +164,9 @@ function Messages({
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
               <Newspaper size={24} className="text-sky-400" />
-              <span className="text-sm text-gray-300">Blog Studio (server)</span>
+              <span className="text-sm text-gray-300">
+                Blog Studio (server)
+              </span>
             </Link>
             <Link
               to="/generations/image"
