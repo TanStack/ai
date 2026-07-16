@@ -66,6 +66,8 @@ const { messages } = useChat({
 });
 ```
 
+> **Tip:** For [bring-your-own-key (BYOK)](../advanced/byok) flows, use `withByok` from `@tanstack/ai-byok` as the connection options factory. It merges `x-byok-<provider>` headers on every request and detects the relay's `byokMissing` 401 so the UI can prompt for (or unlock) the missing key.
+
 **Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message data passed to `sendMessage` wins over this:
 
 ```typescript

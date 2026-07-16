@@ -780,6 +780,11 @@
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
           "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "@tanstack/ai-byok",
+          "to": "api/ai-byok",
+          "addedAt": "2026-07-16"
         }
       ]
     },

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BYOK_PROVIDERS, PROVIDER_IDS } from '../shared/providers'
 import { useByok } from './use-byok'
+import { useOpenRouterPkce } from './use-openrouter-pkce'
 import type { CSSProperties } from 'react'
 import type { KeyStatus } from './byok-context'
 import type { ProviderId } from '../shared/providers'
@@ -8,6 +9,11 @@ import type { ProviderId } from '../shared/providers'
 export interface ByokKeyManagerProps {
   /** Providers to show. Defaults to every registered provider. */
   providers?: Array<ProviderId>
+  /**
+   * OpenRouter PKCE callback URL. Defaults to `origin + pathname` of the
+   * current page. Only used when `openrouter` is in `providers`.
+   */
+  openRouterCallbackUrl?: string
   className?: string
   style?: CSSProperties
 }
@@ -20,10 +26,15 @@ export interface ByokKeyManagerProps {
  */
 export function ByokKeyManager({
   providers = PROVIDER_IDS,
+  openRouterCallbackUrl,
   className,
   style,
 }: ByokKeyManagerProps) {
   const { status, storage, locked, unlock } = useByok()
+  const openRouterPkce = useOpenRouterPkce({
+    callbackUrl: openRouterCallbackUrl,
+    autoComplete: providers.includes('openrouter'),
+  })
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
 
@@ -56,11 +67,21 @@ export function ByokKeyManager({
 
       {storage.warning ? <p style={styles.warning}>{storage.warning}</p> : null}
 
+      {openRouterPkce.completing ? (
+        <p style={styles.hint}>Completing OpenRouter sign-in…</p>
+      ) : null}
+      {openRouterPkce.error ? (
+        <p style={styles.warning}>{openRouterPkce.error}</p>
+      ) : null}
+
       {providers.map((provider) => (
         <ProviderRow
           key={provider}
           provider={provider}
           status={status[provider]}
+          onOpenRouterLogin={
+            provider === 'openrouter' ? () => void openRouterPkce.login() : undefined
+          }
         />
       ))}
     </div>
@@ -70,9 +91,11 @@ export function ByokKeyManager({
 function ProviderRow({
   provider,
   status,
+  onOpenRouterLogin,
 }: {
   provider: ProviderId
   status: KeyStatus
+  onOpenRouterLogin?: () => void
 }) {
   const { setKey, clearKey, validateKey } = useByok()
   const [draft, setDraft] = useState('')
@@ -107,6 +130,16 @@ function ProviderRow({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {provider === 'openrouter' && onOpenRouterLogin && status.state === 'empty' ? (
+        <button
+          type="button"
+          style={styles.oauthButton}
+          onClick={onOpenRouterLogin}
+        >
+          Sign in with OpenRouter
+        </button>
       ) : null}
 
       <form
@@ -165,6 +198,17 @@ const styles = {
     maxWidth: 480,
   },
   warning: { margin: 0, color: '#b45309', fontSize: 12, lineHeight: 1.4 },
+  hint: { margin: 0, color: '#6b7280', fontSize: 12, lineHeight: 1.4 },
+  oauthButton: {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 13,
+  },
   unlockBanner: {
     display: 'flex',
     alignItems: 'center',

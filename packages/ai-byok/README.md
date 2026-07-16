@@ -25,21 +25,15 @@ import { useRef } from 'react'
 import { ByokProvider, ByokKeyManager, useByok } from '@tanstack/ai-byok/react'
 import {
   withByok,
-  memoryStorage,
-  passkeyStorage,
-  isPasskeyStorageSupported,
+  defaultByokStorage,
 } from '@tanstack/ai-byok/react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 
-// Wrap your app. `storage` is chosen once. Defaults to the safest option
-// (session-only, nothing persisted). Opt into encrypted persistence with
-// passkeyStorage() where supported, falling back to memory otherwise.
+// Wrap your app. `storage` is chosen once. defaultByokStorage() uses passkey
+// encryption when supported — all keys, including OpenRouter PKCE.
 function App({ children }) {
-  const storage = isPasskeyStorageSupported()
-    ? passkeyStorage()
-    : memoryStorage()
-  return <ByokProvider storage={storage}>{children}</ByokProvider>
+  return <ByokProvider storage={defaultByokStorage()}>{children}</ByokProvider>
 }
 
 // Drop-in settings UI — shows the last 4 chars of a saved key, never the whole key.
@@ -70,6 +64,14 @@ function Chat() {
 
 For a lower-level path, `byokHeaders(keys)` returns the raw header map and
 `byokFetch(onMissingKey)` wraps a `fetch` to detect the `byokMissing` 401.
+
+### OpenRouter PKCE sign-in
+
+OpenRouter users can connect in one click via OAuth PKCE instead of pasting a
+key. Use `useOpenRouterPkce()` in React (or `startOpenRouterPkceLogin` /
+`completeOpenRouterPkceFromUrl` client-side) — the returned key is stored as
+`openrouter` in the passkey-encrypted keyring like any other BYOK key when
+using `defaultByokStorage()`.
 
 ### Fetcher transport (`useChat`/`useGeneration` with a `fetcher`)
 
@@ -148,12 +150,13 @@ export async function POST(request: Request) {
 
 ## Storage
 
-Pass one `storage` to `<ByokProvider>`. Two are built in — **there is no
-plaintext persistence**:
+Pass one `storage` to `<ByokProvider>`. Built-ins:
 
-- **`memoryStorage()` (default)** — session / in-memory. Keys vanish on refresh.
-  Never persisted. Zero at-rest liability.
-- **`passkeyStorage()` (opt-in)** — encrypted at rest. The keyring is stored in
+- **`defaultByokStorage()` (recommended)** — passkey-encrypted when supported;
+  session memory fallback. All keys (pasted and OpenRouter PKCE) share one tier.
+- **`memoryStorage()` (default alone)** — session / in-memory. All keys vanish on
+  refresh. Zero at-rest liability.
+- **`passkeyStorage()`** — encrypted at rest. The keyring is stored in
   IndexedDB as AES-256-GCM ciphertext, with the key derived from a passkey's
   WebAuthn **PRF** output (via HKDF) and unwrapped on demand with a
   biometric/PIN tap. Fully client-side — no server, no custodian.

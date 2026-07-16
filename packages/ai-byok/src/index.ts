@@ -38,9 +38,36 @@ export type { ByokMissingBody } from './server/byok-missing'
 // Storage
 export { memoryStorage } from './client/storage'
 export type { KeyringStorage, KeyPreview } from './client/storage'
-export { passkeyStorage, isPasskeyStorageSupported } from './client/passkey'
+export {
+  passkeyStorage,
+  isPasskeyStorageSupported,
+  defaultByokStorage,
+} from './client/passkey'
 export type { PasskeyStorageOptions } from './client/passkey'
 
 // Validation
 export { validateKey } from './client/validate'
 export type { ValidationStatus } from './client/validate'
+
+// OpenRouter OAuth PKCE
+export {
+  generateCodeVerifier,
+  createS256CodeChallenge,
+  buildOpenRouterAuthUrl,
+  storeOpenRouterPkcePending,
+  loadOpenRouterPkcePending,
+  clearOpenRouterPkcePending,
+  defaultOpenRouterCallbackUrl,
+  startOpenRouterPkceLogin,
+  exchangeOpenRouterCode,
+  stripOpenRouterCodeFromUrl,
+  completeOpenRouterPkceFromUrl,
+} from './client/openrouter-pkce'
+export type {
+  OpenRouterPkceChallengeMethod,
+  OpenRouterPkcePending,
+  OpenRouterAuthUrlOptions,
+  StartOpenRouterPkceOptions,
+  ExchangeOpenRouterCodeOptions,
+  CompleteOpenRouterPkceFromUrlOptions,
+} from './client/openrouter-pkce'
