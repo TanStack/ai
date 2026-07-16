@@ -1,8 +1,12 @@
 import { EventType } from '@ag-ui/core'
-import { chatParamsFromRequestBody } from '../../utilities/chat-params.js'
-import { toServerSentEventsResponse } from '../../stream-to-response.js'
-import { toRunErrorPayload } from '../error-payload.js'
-import { validateWithStandardSchema } from '../chat/tools/schema-converter.js'
+import {
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import {
+  toRunErrorPayload,
+  validateWithStandardSchema,
+} from '@tanstack/ai/adapter-internals'
 import type {
   AnyPlugin,
   ChatPlugin,
@@ -14,9 +18,26 @@ import type {
   PluginConfig,
   PluginDefinition,
 } from './types.js'
-import type { InferSchemaType, SchemaInput, StreamChunk } from '../../types.js'
+import type { InferSchemaType, SchemaInput, StreamChunk } from '@tanstack/ai'
 
 export type * from './types.js'
+export {
+  audioPlugin,
+  imagePlugin,
+  speechPlugin,
+  summarizePlugin,
+  transcriptionPlugin,
+  videoPlugin,
+} from './media.js'
+export type {
+  AudioPluginInput,
+  ImagePluginInput,
+  MaybeStream,
+  SpeechPluginInput,
+  SummarizePluginInput,
+  TranscriptionPluginInput,
+  VideoPluginInput,
+} from './media.js'
 
 /** Declare a conversational plugin (full chat surface on the client). */
 export function chatPlugin<TRet extends ChatPluginReturn>(

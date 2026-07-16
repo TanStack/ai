@@ -1,12 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import {
-  chatPlugin,
-  definePlugin,
-  generationPlugin,
-} from '../../../src/activities/plugin/index.js'
-import type { ChatPluginCallback } from '../../../src/activities/plugin/types.js'
-import type { ChatStream } from '../../../src/types.js'
+import { chatPlugin, definePlugin, generationPlugin } from '../src/index.js'
+import type { ChatPluginCallback } from '../src/types.js'
+import type { ChatStream } from '@tanstack/ai'
 
 // Compile-only: a streaming chat callback (the shape `chat()` returns by
 // default) must be assignable to `ChatPluginCallback` without a cast.
@@ -72,8 +68,8 @@ describe('definePlugin', () => {
     expect(typeof def.handler).toBe('function')
   })
 
-  it('is exported from the plugin subpath entry', async () => {
-    const mod = await import('../../../src/plugin.js')
+  it('is exported from the toolkit entry', async () => {
+    const mod = await import('../src/index.js')
     expect(typeof mod.definePlugin).toBe('function')
     expect(typeof mod.generationPlugin).toBe('function')
     expect(typeof mod.chatPlugin).toBe('function')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generationPlugin, imagePlugin } from '../../../src/plugin'
+import { generationPlugin, imagePlugin } from '../src/index'
 
 describe('imagePlugin', () => {
   it('produces a one-shot generation plugin that types req.input as the image contract', async () => {

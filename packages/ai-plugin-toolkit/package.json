@@ -1,0 +1,67 @@
+{
+  "name": "@tanstack/ai-plugin-toolkit",
+  "version": "0.1.0",
+  "description": "Authoring toolkit for TanStack AI plugins: definePlugin, chat/generation plugin factories, media plugin factories, and direct in-process execution.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-plugin-toolkit"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "plugin",
+    "generative-ai",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@ag-ui/core": "^0.0.52",
+    "@standard-schema/spec": "^1.1.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
+  }
+}

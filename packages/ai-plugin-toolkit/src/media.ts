@@ -1,4 +1,4 @@
-// packages/ai/src/activities/plugin/media.ts
+// packages/ai-plugin-toolkit/src/media.ts
 //
 // Media plugin factories: thin, callback-style wrappers over the generic
 // `generationPlugin`. Each fixes the input schema + result type for one media
@@ -24,7 +24,7 @@ import type {
   TTSResult,
   TranscriptionResult,
   VideoJobResult,
-} from '../../types.js'
+} from '@tanstack/ai'
 
 /**
  * A media plugin callback may resolve to the activity's result, or return a

@@ -1,4 +1,4 @@
-// packages/ai/src/activities/plugin/types.ts
+// packages/ai-plugin-toolkit/src/types.ts
 import type { Context as AGUIContext } from '@ag-ui/core'
 import type {
   ChatStream,
@@ -9,7 +9,7 @@ import type {
   StreamChunk,
   StructuredOutputStream,
   UIMessage,
-} from '../../types.js'
+} from '@tanstack/ai'
 
 /** The parsed request handed to a chat plugin's callback. */
 export interface ChatPluginRequest {
