@@ -141,3 +141,13 @@ export type {
   RealtimeToolResultPart,
   VADConfig,
 } from './realtime/types'
+
+// Client-safe chain protocol constants/types (no server-side chain() runtime).
+// Importing these must not pull BaseTextAdapter or other declare-field sources
+// into React Native Metro source resolution.
+export { CHAIN_EVENTS } from './activities/chain/types'
+export type {
+  ChainStepEventValue,
+  InferChainInput,
+  InferChainOutput,
+} from './activities/chain/types'

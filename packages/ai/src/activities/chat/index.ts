@@ -45,6 +45,7 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
+  ChatResultMeta,
   ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
@@ -2712,7 +2713,8 @@ export function chat<
     TTools,
     TMiddleware
   >,
-): TextActivityResult<TSchema, TStream> {
+): TextActivityResult<TSchema, TStream> &
+  ChatResultMeta<TTools, TSchema, TStream> {
   validateCapabilities(options.middleware ?? [], options.adapter)
 
   const { outputSchema, stream } = options
@@ -2721,36 +2723,57 @@ export function chat<
   // output. Without an explicit `stream: true`, schema-bearing calls run the
   // agent loop and resolve to a typed Promise<InferSchemaType<TSchema>>.
   if (outputSchema && stream === true) {
+    // phantom-only cast: ~chatMeta never exists at runtime; carries
+    // TTools/TSchema/TStream for downstream inference. The `unknown`
+    // hop is required because intersecting the deferred conditional
+    // `TextActivityResult<TSchema, TStream>` with the (all-optional)
+    // `ChatResultMeta` makes TS eagerly compare the concrete runtime
+    // return type against every branch of the conditional instead of
+    // deferring, which trips the overlap check.
+    // eslint-disable-next-line no-restricted-syntax -- phantom-only cast, see comment above
     return runStreamingStructuredOutput({
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as unknown as TextActivityResult<TSchema, TStream> &
+      ChatResultMeta<TTools, TSchema, TStream>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
   if (outputSchema) {
+    // phantom-only cast: ~chatMeta never exists at runtime; carries
+    // TTools/TSchema/TStream for downstream inference (see note above).
+    // eslint-disable-next-line no-restricted-syntax -- phantom-only cast, see comment above
     return runAgenticStructuredOutput({
       ...options,
       outputSchema,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as unknown as TextActivityResult<TSchema, TStream> &
+      ChatResultMeta<TTools, TSchema, TStream>
   }
 
   // If stream is explicitly false, run non-streaming text
   if (stream === false) {
+    // phantom-only cast: ~chatMeta never exists at runtime; carries
+    // TTools/TSchema/TStream for downstream inference (see note above).
+    // eslint-disable-next-line no-restricted-syntax -- phantom-only cast, see comment above
     return runNonStreamingText({
       ...options,
       outputSchema: undefined,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as unknown as TextActivityResult<TSchema, TStream> &
+      ChatResultMeta<TTools, TSchema, TStream>
   }
 
   // Otherwise, run streaming text (default)
+  // phantom-only cast: ~chatMeta never exists at runtime; carries
+  // TTools/TSchema/TStream for downstream inference (see note above).
+  // eslint-disable-next-line no-restricted-syntax -- phantom-only cast, see comment above
   return runStreamingText({
     ...options,
     outputSchema: undefined,
     stream,
-  }) as TextActivityResult<TSchema, TStream>
+  }) as unknown as TextActivityResult<TSchema, TStream> &
+    ChatResultMeta<TTools, TSchema, TStream>
 }
 
 /**

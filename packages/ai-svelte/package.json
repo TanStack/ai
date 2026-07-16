@@ -26,6 +26,11 @@
       "types": "./dist/index.d.ts",
       "svelte": "./dist/index.js",
       "import": "./dist/index.js"
+    },
+    "./assistant": {
+      "types": "./dist/assistant.d.ts",
+      "svelte": "./dist/assistant.js",
+      "import": "./dist/assistant.js"
     }
   },
   "files": [

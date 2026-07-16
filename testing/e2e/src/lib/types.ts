@@ -44,6 +44,7 @@ export type Feature =
   | 'image-to-video'
   | 'interactions-video'
   | 'stateful-interactions'
+  | 'assistant'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -90,4 +91,5 @@ export const ALL_FEATURES: Feature[] = [
   'image-to-video',
   'interactions-video',
   'stateful-interactions',
+  'assistant',
 ]

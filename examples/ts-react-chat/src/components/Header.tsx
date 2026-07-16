@@ -11,11 +11,12 @@ import {
   Guitar,
   Home,
   Image,
-  Menu,
   LayoutGrid,
-  Mic,
+  Menu,
   MessageSquare,
+  Mic,
   Music,
+  Newspaper,
   Plug,
   Server,
   Sparkles,
@@ -205,6 +206,45 @@ export default function Header() {
           <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
             Examples
           </p>
+
+          <Link
+            to="/blog-studio"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio</span>
+          </Link>
+
+          <Link
+            to="/blog-studio-hooks"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio (hooks)</span>
+          </Link>
+
+          <Link
+            to="/blog-studio-server"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Newspaper size={20} />
+            <span className="font-medium">Blog Studio (server)</span>
+          </Link>
 
           <Link
             to="/example/guitars"
