@@ -375,7 +375,5 @@ export function passkeyStorage(
 export function defaultByokStorage(
   options?: PasskeyStorageOptions,
 ): KeyringStorage {
-  return isPasskeyStorageSupported()
-    ? passkeyStorage(options)
-    : memoryStorage()
+  return isPasskeyStorageSupported() ? passkeyStorage(options) : memoryStorage()
 }
