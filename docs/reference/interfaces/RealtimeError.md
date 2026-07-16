@@ -5,7 +5,7 @@ title: RealtimeError
 
 # Interface: RealtimeError
 
-Defined in: [packages/ai/src/realtime/types.ts:292](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L292)
+Defined in: [packages/ai/src/realtime/types.ts:299](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L299)
 
 Extended error with realtime-specific information
 
@@ -21,7 +21,7 @@ Extended error with realtime-specific information
 code: RealtimeErrorCode;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:293](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L293)
+Defined in: [packages/ai/src/realtime/types.ts:300](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L300)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/realtime/types.ts:293](https://github.com/TanStack/
 optional details: unknown;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:295](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L295)
+Defined in: [packages/ai/src/realtime/types.ts:302](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L302)
 
 ***
 
@@ -41,4 +41,4 @@ Defined in: [packages/ai/src/realtime/types.ts:295](https://github.com/TanStack/
 optional provider: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:294](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L294)
+Defined in: [packages/ai/src/realtime/types.ts:301](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L301)
