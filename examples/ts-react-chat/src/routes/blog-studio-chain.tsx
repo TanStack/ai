@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -14,19 +14,18 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { CHAIN_EVENTS, EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import { useChain } from '@tanstack/ai-react'
 import { forNarration, heroPromptFor } from '../lib/blog-studio'
 import { createBlogPostChainFn } from '../lib/blog-studio-chain-server-fns'
 import {
   regenerateBlogHeroFn,
   regenerateBlogNarrationFn,
 } from '../lib/blog-studio-server-fns'
-import type {
-  ChainStepEventValue,
-  ImageGenerationResult,
-  TTSResult,
-} from '@tanstack/ai'
+import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
+import type { ChainStepStatus } from '@tanstack/ai-client'
 import type { BlogPost } from '../lib/blog-studio'
+import type { BlogStudioChainResult } from '../lib/blog-studio-chain-server-fns'
 import type { FormEvent, ReactNode } from 'react'
 
 export const Route = createFileRoute('/blog-studio-chain')({
@@ -70,229 +69,114 @@ function isTtsResult(value: unknown): value is TTSResult {
   return isRecord(value) && typeof value.audio === 'string'
 }
 
-function isChainStepEvent(value: unknown): value is ChainStepEventValue {
-  return (
-    isRecord(value) &&
-    typeof value.step === 'string' &&
-    (value.status === 'started' ||
-      value.status === 'done' ||
-      value.status === 'error')
-  )
-}
-
-/** Read `data: {…}\\n\\n` SSE from a Response (same format as toServerSentEventsResponse). */
-async function* readSseJson(
-  response: Response,
-  signal: AbortSignal,
-): AsyncGenerator<unknown> {
-  if (!response.ok) {
-    throw new Error(
-      `HTTP error! status: ${response.status} ${response.statusText}`,
-    )
-  }
-  const body = response.body
-  if (!body) throw new Error('Response has no body')
-
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (!signal.aborted) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) continue
-        const data = trimmed.slice(5).trim()
-        if (!data || data === '[DONE]') continue
-        try {
-          yield JSON.parse(data) as unknown
-        } catch {
-          // skip malformed
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock()
-  }
+function toUiStep(status: ChainStepStatus | undefined): StepState {
+  if (status === 'active') return 'active'
+  if (status === 'done') return 'done'
+  if (status === 'error') return 'failed'
+  return 'pending'
 }
 
 function BlogStudioChain() {
-  const abortRef = useRef<AbortController | null>(null)
-
   const [topic, setTopic] = useState('')
   const [hasRun, setHasRun] = useState(false)
-  const [isRunning, setIsRunning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [writingStep, setWritingStep] = useState<StepState>('pending')
-  const [heroStep, setHeroStep] = useState<StepState>('pending')
-  const [narrationStep, setNarrationStep] = useState<StepState>('pending')
-
-  const [post, setPost] = useState<BlogPost | null>(null)
-  const [hero, setHero] = useState<ImageGenerationResult | null>(null)
-  const [audio, setAudio] = useState<TTSResult | null>(null)
   const [draftChars, setDraftChars] = useState(0)
 
+  // Local overrides after "Regenerate hero" / "Re-narrate" (one-shot server fns).
+  const [heroOverride, setHeroOverride] =
+    useState<ImageGenerationResult | null>(null)
+  const [audioOverride, setAudioOverride] = useState<TTSResult | null>(null)
   const [heroBusy, setHeroBusy] = useState(false)
   const [narrationBusy, setNarrationBusy] = useState(false)
+  const [touchUpError, setTouchUpError] = useState<string | null>(null)
 
+  const chain = useChain<{ topic: string }, BlogStudioChainResult>({
+    fetcher: (input, options) =>
+      createBlogPostChainFn({ data: input, signal: options?.signal }),
+    onChunk: (chunk) => {
+      if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) return
+      const delta = chunk.delta
+      if (typeof delta === 'string') {
+        setDraftChars((n) => n + delta.length)
+      }
+    },
+  })
+
+  const draftStep = chain.getStep('draft')
+  const heroStepMeta = chain.getStep('media', 'hero')
+  const narrationStepMeta = chain.getStep('media', 'narration')
+
+  const draftResult = draftStep ? draftStep.result : undefined
+  const post: BlogPost | null = isBlogPost(draftResult)
+    ? draftResult
+    : chain.result && isBlogPost(chain.result.post)
+      ? chain.result.post
+      : null
+
+  const heroFromStep = heroStepMeta ? heroStepMeta.result : undefined
+  const heroFromResult = chain.result ? chain.result.hero : undefined
+  const hero: ImageGenerationResult | null =
+    heroOverride ??
+    (isImageResult(heroFromStep)
+      ? heroFromStep
+      : isImageResult(heroFromResult)
+        ? heroFromResult
+        : null)
+
+  const audioFromStep = narrationStepMeta ? narrationStepMeta.result : undefined
+  const audioFromResult = chain.result ? chain.result.narration : undefined
+  const audio: TTSResult | null =
+    audioOverride ??
+    (isTtsResult(audioFromStep)
+      ? audioFromStep
+      : isTtsResult(audioFromResult)
+        ? audioFromResult
+        : null)
+
+  const writingStep = toUiStep(draftStep ? draftStep.status : undefined)
+  const heroStep: StepState = heroBusy
+    ? 'active'
+    : heroOverride
+      ? 'done'
+      : toUiStep(heroStepMeta ? heroStepMeta.status : undefined)
+  const narrationStep: StepState = narrationBusy
+    ? 'active'
+    : audioOverride
+      ? 'done'
+      : toUiStep(narrationStepMeta ? narrationStepMeta.status : undefined)
+
+  const isRunning = chain.isLoading
+  const error = touchUpError ?? (chain.error ? chain.error.message : null)
   const imageUrl = imageUrlOf(hero)
   const audioSrc = audioSrcOf(audio)
   const showArticle = Boolean(post)
 
-  function stop() {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsRunning(false)
-    setHeroBusy(false)
-    setNarrationBusy(false)
-  }
-
-  function resetPipeline() {
-    setError(null)
-    setPost(null)
-    setHero(null)
-    setAudio(null)
-    setDraftChars(0)
-    setWritingStep('pending')
-    setHeroStep('pending')
-    setNarrationStep('pending')
-  }
-
-  /**
-   * Map a `chain:step` event onto UI state. Steps come straight from the
-   * chain definition: `draft`, then the `media` fan-out's `hero` /
-   * `narration` branches (`post` is the passthrough branch — ignored here).
-   */
-  function applyStepEvent(event: ChainStepEventValue) {
-    const setStep =
-      event.step === 'draft'
-        ? setWritingStep
-        : event.step === 'media' && event.branch === 'hero'
-          ? setHeroStep
-          : event.step === 'media' && event.branch === 'narration'
-            ? setNarrationStep
-            : null
-    if (!setStep) return
-
-    if (event.status === 'started') {
-      setStep('active')
-      return
-    }
-    if (event.status === 'error') {
-      setStep('failed')
-      setError(event.error)
-      return
-    }
-    setStep('done')
-    if (event.step === 'draft' && isBlogPost(event.result)) {
-      setPost(event.result)
-    } else if (event.branch === 'hero' && isImageResult(event.result)) {
-      setHero(event.result)
-    } else if (event.branch === 'narration' && isTtsResult(event.result)) {
-      setAudio(event.result)
-    }
-  }
-
-  async function run(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const nextTopic = topic.trim()
     if (!nextTopic || isRunning) return
 
-    stop()
-    resetPipeline()
     setHasRun(true)
-    setIsRunning(true)
-
-    const abort = new AbortController()
-    abortRef.current = abort
-
-    try {
-      // Server function returns an SSE Response. One request: the server
-      // chain runs draft → (hero ∥ narration) and streams `chain:step`
-      // progress, live structured-output deltas, then `generation:result`.
-      const response = await createBlogPostChainFn({
-        data: { topic: nextTopic },
-        signal: abort.signal,
-      })
-
-      if (!(response instanceof Response)) {
-        throw new Error('Expected an SSE Response from createBlogPostChainFn')
-      }
-
-      for await (const chunk of readSseJson(response, abort.signal)) {
-        if (!isRecord(chunk) || typeof chunk.type !== 'string') continue
-
-        if (chunk.type === EventType.RUN_ERROR) {
-          const message =
-            typeof chunk.message === 'string' ? chunk.message : 'Chain failed'
-          if (message !== 'Aborted') setError(message)
-          setWritingStep((s) => (s === 'done' ? s : 'failed'))
-          setHeroStep((s) => (s === 'active' ? 'failed' : s))
-          setNarrationStep((s) => (s === 'active' ? 'failed' : s))
-          break
-        }
-
-        // Live draft JSON length while structured output streams.
-        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
-          const delta = chunk.delta
-          if (typeof delta === 'string') {
-            setDraftChars((n) => n + delta.length)
-          }
-        }
-
-        if (chunk.type === EventType.CUSTOM) {
-          if (
-            chunk.name === CHAIN_EVENTS.STEP &&
-            isChainStepEvent(chunk.value)
-          ) {
-            applyStepEvent(chunk.value)
-          } else if (
-            chunk.name === 'generation:result' &&
-            isRecord(chunk.value)
-          ) {
-            if (isBlogPost(chunk.value.post)) setPost(chunk.value.post)
-            if (isImageResult(chunk.value.hero)) setHero(chunk.value.hero)
-            if (isTtsResult(chunk.value.narration)) {
-              setAudio(chunk.value.narration)
-            }
-            setWritingStep('done')
-            setHeroStep((s) => (s === 'failed' ? s : 'done'))
-            setNarrationStep((s) => (s === 'failed' ? s : 'done'))
-          }
-        }
-      }
-    } catch (err) {
-      if (abort.signal.aborted) return
-      setError(err instanceof Error ? err.message : 'Chain failed')
-      setWritingStep((s) => (s === 'done' ? s : 'failed'))
-    } finally {
-      if (abortRef.current === abort) {
-        abortRef.current = null
-        setIsRunning(false)
-      }
-    }
+    setDraftChars(0)
+    setHeroOverride(null)
+    setAudioOverride(null)
+    setTouchUpError(null)
+    chain.reset()
+    await chain.run({ topic: nextTopic })
   }
 
   async function regenerateHero() {
     if (!post || isRunning || heroBusy) return
     setHeroBusy(true)
-    setHeroStep('active')
-    setError(null)
+    setTouchUpError(null)
     try {
       const result = await regenerateBlogHeroFn({
         data: { prompt: heroPromptFor(post) },
       })
-      setHero(result)
-      setHeroStep('done')
+      setHeroOverride(result)
     } catch (err) {
-      setHeroStep('failed')
-      setError(err instanceof Error ? err.message : 'Hero regenerate failed')
+      setTouchUpError(
+        err instanceof Error ? err.message : 'Hero regenerate failed',
+      )
     } finally {
       setHeroBusy(false)
     }
@@ -301,17 +185,14 @@ function BlogStudioChain() {
   async function regenerateNarration() {
     if (!post || isRunning || narrationBusy) return
     setNarrationBusy(true)
-    setNarrationStep('active')
-    setError(null)
+    setTouchUpError(null)
     try {
       const result = await regenerateBlogNarrationFn({
         data: { text: forNarration(post.body) },
       })
-      setAudio(result)
-      setNarrationStep('done')
+      setAudioOverride(result)
     } catch (err) {
-      setNarrationStep('failed')
-      setError(
+      setTouchUpError(
         err instanceof Error ? err.message : 'Narration regenerate failed',
       )
     } finally {
@@ -332,22 +213,19 @@ function BlogStudioChain() {
           One chain, one stream
         </h1>
         <p className="mb-3 text-stone-500">
-          A declared{' '}
-          <code className="rounded bg-stone-100 px-1 text-xs">chain()</code> —{' '}
-          <code className="rounded bg-stone-100 px-1 text-xs">
-            .step('draft')
-          </code>{' '}
-          then{' '}
-          <code className="rounded bg-stone-100 px-1 text-xs">
-            .parallel('media')
-          </code>{' '}
-          — runs on the server and streams back as a single activity: typed{' '}
+          Server{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">chain()</code>{' '}
+          streams into{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">useChain</code>:{' '}
+          live{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">chain:step</code>{' '}
-          progress, live draft deltas, then one{' '}
+          progress, draft deltas via{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">onChunk</code>,
+          then{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
             generation:result
           </code>
-          . No hand-rolled pipeline code.
+          .
         </p>
         <p className="mb-5 text-xs text-stone-400">
           Compare with the{' '}
@@ -357,24 +235,24 @@ function BlogStudioChain() {
           >
             server version
           </Link>{' '}
-          (same pipeline, hand-rolled), the{' '}
+          (hand-rolled SSE), the{' '}
           <Link
             to="/blog-studio"
             className="font-medium text-emerald-700 underline underline-offset-2"
           >
             assistant version
           </Link>{' '}
-          (client chains on one multi-capability endpoint) or the{' '}
+          (client chains) or the{' '}
           <Link
             to="/blog-studio-hooks"
             className="font-medium text-emerald-700 underline underline-offset-2"
           >
             hooks version
-          </Link>{' '}
-          (three separate hooks, client chains).
+          </Link>
+          .
         </p>
 
-        <form onSubmit={(e) => void run(e)}>
+        <form onSubmit={(e) => void onSubmit(e)}>
           <label
             htmlFor="blog-topic-chain"
             className="mb-1 block text-sm font-medium text-stone-600"
@@ -406,7 +284,7 @@ function BlogStudioChain() {
             {isRunning && (
               <button
                 type="button"
-                onClick={stop}
+                onClick={() => chain.stop()}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-3 font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50"
               >
                 <Square size={16} />
@@ -569,8 +447,11 @@ function BlogStudioChain() {
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
               <Newspaper size={48} className="text-stone-300" />
               <p className="max-w-xs text-sm">
-                Your finished post streams in step-by-step from one declared
-                server-side chain.
+                Your finished post streams in step-by-step via{' '}
+                <code className="rounded bg-stone-100 px-1 text-xs">
+                  useChain
+                </code>
+                .
               </p>
             </div>
           </div>

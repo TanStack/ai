@@ -21,6 +21,9 @@ export type {
   UseGenerationReturn,
 } from './use-generation'
 
+export { useChain } from './use-chain'
+export type { UseChainOptions, UseChainReturn } from './use-chain'
+
 export { useGenerateImage } from './use-generate-image'
 export type {
   UseGenerateImageOptions,
@@ -83,6 +86,10 @@ export {
   type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
+  type ChainStepState,
+  type ChainSteps,
+  type ChainStepStatus,
+  chainStepKey,
   type ImageGenerateInput,
   type AudioGenerateInput,
   type SpeechGenerateInput,

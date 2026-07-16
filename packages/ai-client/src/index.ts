@@ -10,7 +10,16 @@ export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
 export { RealtimeClient } from './realtime-client'
 export { GenerationClient } from './generation-client'
+export { ChainClient } from './chain-client'
 export { VideoGenerationClient } from './video-generation-client'
+export { chainStepKey } from './chain-types'
+export type {
+  ChainClientOptions,
+  ChainStepState,
+  ChainStepStatus,
+  ChainSteps,
+  ChainTransport,
+} from './chain-types'
 export type {
   // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,
