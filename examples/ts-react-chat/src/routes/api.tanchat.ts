@@ -19,9 +19,11 @@ import { createOpenRouterText, openRouterText } from '@tanstack/ai-openrouter'
 import { createGrokText, grokText } from '@tanstack/ai-grok'
 import { createGroqText, groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
-import { byokMissing, getByokKey } from '@tanstack/ai-byok/server'
+import {
+  preferByokAdapter,
+  requireByokOrEnv,
+} from '@tanstack/ai-byok/server'
 import { BYOK_PROVIDER_MAP, byokIdForProvider } from '@/lib/byok-config'
-import type { ProviderId } from '@tanstack/ai-byok/server'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -254,19 +256,6 @@ export const Route = createFileRoute('/api/tanchat')({
             ? params.forwardedProps.previousInteractionId
             : undefined
 
-        // BYOK: prefer a per-request key from the request header, falling back
-        // to the env-configured adapter. The key is read from the header only,
-        // never persisted or logged.
-        function byokAdapter<M extends string>(
-          provider: ProviderId,
-          m: M,
-          byok: (model: M, apiKey: string) => AnyTextAdapter,
-          env: (model: M) => AnyTextAdapter,
-        ): AnyTextAdapter {
-          const key = getByokKey(request, provider)
-          return key ? byok(m, key) : env(m)
-        }
-
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
         const adapterConfig: Record<
@@ -275,20 +264,20 @@ export const Route = createFileRoute('/api/tanchat')({
         > = {
           anthropic: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'anthropic',
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
-                createAnthropicChat,
-                anthropicText,
+                { byok: createAnthropicChat, env: anthropicText },
               ),
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'openrouter',
                 (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
-                createOpenRouterText,
-                openRouterText,
+                { byok: createOpenRouterText, env: openRouterText },
               ),
               modelOptions: {
                 reasoning: {
@@ -298,11 +287,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           gemini: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
-                createGeminiChat,
-                geminiText,
+                { byok: createGeminiChat, env: geminiText },
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -313,11 +302,14 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           'gemini-interactions': () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
-                createGeminiTextInteractions,
-                geminiTextInteractions,
+                {
+                  byok: createGeminiTextInteractions,
+                  env: geminiTextInteractions,
+                },
               ),
               modelOptions: {
                 previous_interaction_id: previousInteractionId,
@@ -326,21 +318,21 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'grok',
                 (model || 'grok-build-0.1') as 'grok-build-0.1',
-                createGrokText,
-                grokText,
+                { byok: createGrokText, env: grokText },
               ),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'groq',
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
-                createGroqText,
-                groqText,
+                { byok: createGroqText, env: groqText },
               ),
             }),
           bedrock: () =>
@@ -367,11 +359,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openai: () =>
             createChatOptions({
-              adapter: byokAdapter(
+              adapter: preferByokAdapter(
+                request,
                 'openai',
                 (model || 'gpt-5.2') as 'gpt-5.2',
-                createOpenaiChat,
-                openaiText,
+                { byok: createOpenaiChat, env: openaiText },
               ),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',
@@ -392,11 +384,12 @@ export const Route = createFileRoute('/api/tanchat')({
           // detects (via withByok) instead of a generic 500 from the SDK.
           const byokId = byokIdForProvider(provider)
           if (byokId) {
-            const hasByokKey = Boolean(getByokKey(request, byokId))
-            const hasEnvKey = BYOK_PROVIDER_MAP[provider]?.envVars.some(
-              (name) => Boolean(process.env[name]),
+            const blocked = requireByokOrEnv(
+              request,
+              byokId,
+              BYOK_PROVIDER_MAP[provider]?.envVars ?? [],
             )
-            if (!hasByokKey && !hasEnvKey) return byokMissing(byokId)
+            if (blocked) return blocked
           }
 
           // Get typed adapter options using createChatOptions pattern

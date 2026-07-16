@@ -1,13 +1,9 @@
+import { isByokMissingBody } from '../shared/byok-missing'
+import type { ByokMissingBody } from '../shared/byok-missing'
 import type { ProviderId } from '../shared/providers'
 
-/** Discriminated body returned by {@link byokMissing}. */
-export interface ByokMissingBody {
-  error: {
-    type: 'byok_missing'
-    provider: ProviderId
-    message: string
-  }
-}
+export type { ByokMissingBody }
+export { isByokMissingBody }
 
 /**
  * Builds a typed JSON error response telling the client which provider key is
@@ -33,12 +29,4 @@ export function byokMissing(
       ...init?.headers,
     },
   })
-}
-
-/** Type guard for a {@link ByokMissingBody} parsed from a response. */
-export function isByokMissingBody(value: unknown): value is ByokMissingBody {
-  if (typeof value !== 'object' || value === null) return false
-  const { error } = value as { error?: unknown }
-  if (typeof error !== 'object' || error === null) return false
-  return (error as { type?: unknown }).type === 'byok_missing'
 }

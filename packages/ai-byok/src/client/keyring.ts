@@ -1,4 +1,4 @@
-import { PROVIDER_IDS, byokHeaderName } from '../shared/providers'
+import { PROVIDER_IDS, byokHeaderName, isProviderId } from '../shared/providers'
 import type { ProviderId } from '../shared/providers'
 
 /**
@@ -7,6 +7,18 @@ import type { ProviderId } from '../shared/providers'
  * persisting storage tier is selected).
  */
 export type Keyring = Partial<Record<ProviderId, string>>
+
+/** Keep only known providers with non-empty string keys. */
+export function sanitizeKeyring(value: unknown): Keyring {
+  if (typeof value !== 'object' || value === null) return {}
+  const keys: Keyring = {}
+  for (const [provider, key] of Object.entries(value)) {
+    if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
+      keys[provider] = key
+    }
+  }
+  return keys
+}
 
 /**
  * Turns a keyring into request headers for the connection layer — one header

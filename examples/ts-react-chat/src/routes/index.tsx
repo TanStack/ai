@@ -8,6 +8,7 @@ import {
   Github,
   Image,
   ImagePlus,
+  KeyRound,
   Mic,
   Music,
   Send,
@@ -27,15 +28,15 @@ import {
   useTranscription,
 } from '@tanstack/ai-react'
 import {
+  ByokKeyDialog,
   ByokProvider,
   defaultByokStorage,
   useByok,
-  useOpenRouterPkce,
   withByok,
 } from '@tanstack/ai-byok/react'
+import { useOpenRouterPkce } from '@tanstack/ai-byok/openrouter/react'
 import { clientTools } from '@tanstack/ai-client'
 import type { ProviderId } from '@tanstack/ai-byok/react'
-import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 import { byokIdForProvider, getEnvKeyStatus } from '@/lib/byok-config'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
@@ -677,14 +678,44 @@ function ChatPage() {
               </select>
             </div>
             <ByokKeyDialog
+              providers={[
+                'openai',
+                'anthropic',
+                'gemini',
+                'grok',
+                'groq',
+                'openrouter',
+              ]}
               envStatus={envKeyStatus}
               activeProvider={activeByokId}
               open={keyDialog.open}
               onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
               highlightProvider={keyDialog.provider}
-              onOpenRouterLogin={() => void openRouterPkce.login()}
-              openRouterCompleting={openRouterPkce.completing}
-              openRouterError={openRouterPkce.error}
+              openRouter={{
+                onLogin: () => void openRouterPkce.login(),
+                completing: openRouterPkce.completing,
+                error: openRouterPkce.error,
+              }}
+              trigger={
+                <button
+                  type="button"
+                  onClick={() =>
+                    setKeyDialog((s) => ({ ...s, open: true }))
+                  }
+                  title="API keys"
+                  aria-label="API keys"
+                  className="relative flex items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 p-2 text-orange-400 transition-colors hover:bg-orange-500/20"
+                >
+                  <KeyRound className="h-5 w-5" />
+                  {notUsable && activeByokId ? (
+                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-gray-800" />
+                  ) : null}
+                </button>
+              }
+              overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              panelClassName="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
+              variant="dark"
+              description="Keys stay in your browser and are sent per-request in a header — never stored on the server. Providers with a server key already work without one."
             />
             <Link
               to="/generations/image"

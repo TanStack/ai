@@ -183,7 +183,7 @@ export function ByokProvider({
       // is now unlocked.
       setLocked(false)
     },
-    [persist, storage],
+    [persist],
   )
 
   const clearKey = useCallback(

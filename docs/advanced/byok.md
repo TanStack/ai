@@ -45,8 +45,9 @@ npm install react
 | Entry | What it contains |
 | --- | --- |
 | `@tanstack/ai-byok` | Provider registry, `byokHeaders`, `withByok` / `byokFetch`, `byokFetcher`, storage (`memoryStorage`, `passkeyStorage`), `validateKey` |
-| `@tanstack/ai-byok/server` | `getByokKey`, `byokMissing`, `scrubSecrets` / `maskKey` |
-| `@tanstack/ai-byok/react` | `<ByokProvider>`, `useByok()`, `<ByokKeyManager>` |
+| `@tanstack/ai-byok/server` | `getByokKey`, `byokMissing`, `preferByokAdapter`, `requireByokOrEnv`, `scrubSecrets` / `maskKey` |
+| `@tanstack/ai-byok/react` | `<ByokProvider>`, `useByok()`, `<ByokKeyManager>`, `<ByokKeyDialog>` |
+| `@tanstack/ai-byok/openrouter` | OpenRouter OAuth PKCE helpers (optional) |
 
 See the [API reference](../api/ai-byok) for every export.
 
@@ -289,7 +290,7 @@ OpenRouter supports one-click login via [OAuth PKCE](https://openrouter.ai/docs/
 ### React hook
 
 ```tsx
-import { useOpenRouterPkce } from "@tanstack/ai-byok/react";
+import { useOpenRouterPkce } from "@tanstack/ai-byok/openrouter/react";
 
 function App() {
   const { login, completing, error } = useOpenRouterPkce();
@@ -306,7 +307,7 @@ function App() {
 
 `callbackUrl` defaults to `origin + pathname` of the current page. Override it when your OAuth return route differs.
 
-`<ByokKeyManager>` shows a **Sign in with OpenRouter** button on the OpenRouter row when no key is set (and completes the callback when `openrouter` is in `providers`).
+Pass `openRouter={{ onLogin, completing, error }}` to `<ByokKeyManager>` or `<ByokKeyDialog>` to show a **Sign in with OpenRouter** button on the OpenRouter row when no key is set.
 
 ### Lower-level client API
 
@@ -314,7 +315,7 @@ function App() {
 import {
   startOpenRouterPkceLogin,
   completeOpenRouterPkceFromUrl,
-} from "@tanstack/ai-byok";
+} from "@tanstack/ai-byok/openrouter";
 
 // Redirect the browser to OpenRouter (stores PKCE verifier in sessionStorage)
 await startOpenRouterPkceLogin({
@@ -355,23 +356,19 @@ The server helpers never log key material. Relay authors are responsible for kee
 A common pattern (see the `ts-react-chat` example) keeps **server env keys** as the default and lets BYOK override per request:
 
 ```typescript
-function byokAdapter(
-  provider: ProviderId,
-  model: string,
-  byok: (model: string, apiKey: string) => AnyTextAdapter,
-  env: (model: string) => AnyTextAdapter,
-): AnyTextAdapter {
-  const key = getByokKey(request, provider);
-  return key ? byok(model, key) : env(model);
-}
+import { preferByokAdapter, requireByokOrEnv } from "@tanstack/ai-byok/server";
+
+const adapter = preferByokAdapter(request, "openai", model, {
+  byok: createOpenaiChat,
+  env: openaiText,
+});
 ```
 
 Before starting an expensive stream, check whether the selected provider can run at all:
 
 ```typescript
-const hasByokKey = Boolean(getByokKey(request, "openai"));
-const hasEnvKey = Boolean(process.env.OPENAI_API_KEY);
-if (!hasByokKey && !hasEnvKey) return byokMissing("openai");
+const blocked = requireByokOrEnv(request, "openai", ["OPENAI_API_KEY"]);
+if (blocked) return blocked;
 ```
 
 On the client, a server function can report which providers have env keys (booleans only — never the values) so the UI can warn before the user picks a model they cannot run.

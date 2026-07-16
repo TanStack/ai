@@ -65,10 +65,10 @@ For a lower-level path, `byokHeaders(keys)` returns the raw header map and
 ### OpenRouter PKCE sign-in
 
 OpenRouter users can connect in one click via OAuth PKCE instead of pasting a
-key. Use `useOpenRouterPkce()` in React (or `startOpenRouterPkceLogin` /
-`completeOpenRouterPkceFromUrl` client-side) — the returned key is stored as
-`openrouter` in the passkey-encrypted keyring like any other BYOK key when
-using `defaultByokStorage()`.
+key. Import from `@tanstack/ai-byok/openrouter` (and
+`@tanstack/ai-byok/openrouter/react` for `useOpenRouterPkce`) — the returned key
+is stored as `openrouter` in the passkey-encrypted keyring like any other BYOK
+key when using `defaultByokStorage()`.
 
 ### Fetcher transport (`useChat`/`useGeneration` with a `fetcher`)
 

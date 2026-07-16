@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   byokFetch,
   byokFetcher,
   byokHeaders,
   byokHeaderName,
+  buildByokRequestContext,
+  sanitizeKeyring,
   withByok,
 } from '../src/index'
 import type { Keyring } from '../src/index'
@@ -12,6 +14,8 @@ import {
   getByokKey,
   isByokMissingBody,
   maskKey,
+  preferByokAdapter,
+  requireByokOrEnv,
   scrubSecrets,
 } from '../src/server'
 import { memoryStorage } from '../src/client/storage'
@@ -30,7 +34,7 @@ import {
   generateCodeVerifier,
   loadOpenRouterPkcePending,
   storeOpenRouterPkcePending,
-} from '../src/client/openrouter-pkce'
+} from '../src/openrouter'
 
 describe('byokHeaders', () => {
   it('emits one header per present provider and skips empty keys', () => {
@@ -46,7 +50,20 @@ describe('byokHeaders', () => {
   })
 })
 
-describe('withByok / byokFetch', () => {
+describe('sanitizeKeyring', () => {
+  it('keeps only known providers with non-empty string keys', () => {
+    expect(
+      sanitizeKeyring({
+        openai: 'sk-1',
+        anthropic: '',
+        bogus: 'nope',
+        gemini: 42,
+      }),
+    ).toEqual({ openai: 'sk-1' })
+  })
+})
+
+describe('withByok / byokFetch / buildByokRequestContext', () => {
   it('withByok attaches BYOK headers read fresh at request time', () => {
     let keys: Keyring = { openai: 'sk-a' }
     const build = withByok(() => keys)
@@ -56,6 +73,18 @@ describe('withByok / byokFetch', () => {
       'x-byok-openai': 'sk-b',
       'x-byok-gemini': 'g-1',
     })
+  })
+
+  it('buildByokRequestContext shares headers and fetch between helpers', async () => {
+    const onMissingKey = vi.fn()
+    const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
+    const ctx = buildByokRequestContext(
+      () => ({ openai: 'sk-a' }),
+      { onMissingKey, fetchClient: fetchImpl },
+    )
+    expect(ctx.headers).toEqual({ 'x-byok-openai': 'sk-a' })
+    await ctx.fetch('https://x.test')
+    expect(onMissingKey).toHaveBeenCalledWith('anthropic')
   })
 
   it('byokFetch fires onMissingKey with the provider on a byokMissing 401', async () => {
@@ -74,6 +103,14 @@ describe('withByok / byokFetch', () => {
     )
     await wrapped('https://x.test')
     expect(onMissingKey).not.toHaveBeenCalled()
+  })
+
+  it('isByokMissingBody rejects malformed provider ids', () => {
+    expect(
+      isByokMissingBody({
+        error: { type: 'byok_missing', provider: 'not-a-provider' },
+      }),
+    ).toBe(false)
   })
 })
 
@@ -121,6 +158,48 @@ describe('getByokKey', () => {
   })
 })
 
+describe('preferByokAdapter', () => {
+  it('uses the BYOK header when present, otherwise the env factory', () => {
+    const withKey = new Request('https://x.test', {
+      headers: { [byokHeaderName('openai')]: 'sk-byok' },
+    })
+    const withoutKey = new Request('https://x.test')
+    const byok = vi.fn((model: string, key: string) => ({ kind: 'byok', model, key }))
+    const env = vi.fn((model: string) => ({ kind: 'env', model }))
+
+    expect(
+      preferByokAdapter(withKey, 'openai', 'gpt-5.2', { byok, env }),
+    ).toEqual({ kind: 'byok', model: 'gpt-5.2', key: 'sk-byok' })
+    expect(
+      preferByokAdapter(withoutKey, 'openai', 'gpt-5.2', { byok, env }),
+    ).toEqual({ kind: 'env', model: 'gpt-5.2' })
+  })
+})
+
+describe('requireByokOrEnv', () => {
+  const originalOpenAi = process.env.OPENAI_API_KEY
+
+  afterEach(() => {
+    if (originalOpenAi === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = originalOpenAi
+  })
+
+  it('returns byokMissing when neither header nor env is present', async () => {
+    delete process.env.OPENAI_API_KEY
+    const request = new Request('https://x.test')
+    const blocked = requireByokOrEnv(request, 'openai', ['OPENAI_API_KEY'])
+    expect(blocked?.status).toBe(401)
+    const body: unknown = await blocked!.json()
+    expect(isByokMissingBody(body)).toBe(true)
+  })
+
+  it('returns null when an env var is configured', () => {
+    process.env.OPENAI_API_KEY = 'sk-env'
+    const request = new Request('https://x.test')
+    expect(requireByokOrEnv(request, 'openai', ['OPENAI_API_KEY'])).toBeNull()
+  })
+})
+
 describe('byokMissing', () => {
   it('returns a typed 401 the client can detect', async () => {
     const response = byokMissing('openai')
@@ -152,8 +231,6 @@ describe('memory storage', () => {
 })
 
 describe('passkey crypto', () => {
-  // The WebAuthn ceremony can't run in jsdom, but the PRF → AES-GCM path can:
-  // derive a key from a fixed 32-byte "PRF output" and round-trip a keyring.
   const prf = new Uint8Array(32).fill(7)
 
   it('round-trips a keyring through AES-256-GCM', async () => {
@@ -162,6 +239,22 @@ describe('passkey crypto', () => {
       openai: 'sk-secret',
     })
     expect(await decryptKeyring(key, iv, ciphertext)).toEqual({
+      openai: 'sk-secret',
+    })
+  })
+
+  it('drops unknown providers when decrypting', async () => {
+    const key = await deriveAesKey(prf)
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const plaintext = new TextEncoder().encode(
+      JSON.stringify({ openai: 'sk-secret', evil: 'bad' }),
+    )
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      plaintext,
+    )
+    expect(await decryptKeyring(key, iv.buffer, ciphertext)).toEqual({
       openai: 'sk-secret',
     })
   })

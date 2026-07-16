@@ -3,7 +3,7 @@ import {
   completeOpenRouterPkceFromUrl,
   defaultOpenRouterCallbackUrl,
   startOpenRouterPkceLogin,
-} from '../client/openrouter-pkce'
+} from '../client/openrouter-pkce' // openrouter subpath re-exports these
 import { useByok } from './use-byok'
 
 export interface UseOpenRouterPkceOptions {

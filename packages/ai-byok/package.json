@@ -32,6 +32,14 @@
     "./react": {
       "types": "./dist/esm/react.d.ts",
       "import": "./dist/esm/react.js"
+    },
+    "./openrouter": {
+      "types": "./dist/esm/openrouter.d.ts",
+      "import": "./dist/esm/openrouter.js"
+    },
+    "./openrouter/react": {
+      "types": "./dist/esm/openrouter-react.d.ts",
+      "import": "./dist/esm/openrouter-react.js"
     }
   },
   "files": [

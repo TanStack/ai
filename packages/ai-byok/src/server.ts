@@ -8,6 +8,7 @@
 export { getByokKey } from './server/get-byok-key'
 export { byokMissing, isByokMissingBody } from './server/byok-missing'
 export type { ByokMissingBody } from './server/byok-missing'
+export { preferByokAdapter, requireByokOrEnv } from './server/prefer-byok'
 export { lastFour, maskKey, scrubSecrets } from './server/scrub'
 
 // Re-export the shared registry so a server can enumerate/validate provider ids
