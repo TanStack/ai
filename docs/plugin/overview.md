@@ -20,7 +20,7 @@ keywords:
 
 Plugin names are *your* domain language, not a fixed set of library nouns. A blog studio declares `drafting`, `heroImage`, and `narration`; a video tool might declare `storyboard`, `thumbnail`, and `voiceover`. The library doesn't care what you call them — it routes on the names you choose and types the client from them.
 
-`definePlugin()` lives on the `/plugin` subpath of `@tanstack/ai`, and `usePlugin()` on the `/plugin` subpath of `@tanstack/ai-react` (Solid and Vue follow the same pattern; Svelte exports `createPlugin` from `@tanstack/ai-svelte/plugin`) — not the package root.
+`definePlugin()` (and the rest of the plugin authoring API) lives in the `@tanstack/ai-plugin-toolkit` package, and `usePlugin()` on the `/plugin` subpath of `@tanstack/ai-react` (Solid and Vue follow the same pattern; Svelte exports `createPlugin` from `@tanstack/ai-svelte/plugin`).
 
 ```ts group=overview-blog
 // lib/blog-studio.ts — define once; the API route only calls `.handler`
@@ -30,7 +30,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 
 export const blogPlugin = definePlugin({
@@ -116,7 +116,7 @@ Both `plugin.<oneShot>.run(input)` and `plugin.<chatPlugin>.sendMessage(...)` **
 ```ts group=overview-share
 // lib/blog-studio.ts
 import { chat } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 
 // One value, imported by BOTH the API route (calls `.handler`) and the
@@ -149,7 +149,7 @@ You can declare **several plugins of the same kind** — including several chat 
 ```ts group=overview-support
 // api/support.ts
 import { chat } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 
 export const supportPlugin = definePlugin({
@@ -182,6 +182,89 @@ On the client, `plugin.primaryChat` and `plugin.summaryChat` are two fully indep
 
 The handler discriminates each incoming request by a `plugin` field the client sends, routes it to the matching callback, and streams the result back over Server-Sent Events. Undeclared plugin names get a `400` before any callback runs.
 
+## Run a plugin directly
+
+`.handler` serves a plugin over HTTP — parsing the request, validating input, and streaming a response back. Every plugin also has a `.run()`: it executes the plugin **in-process** and resolves with the typed result directly. There's no `Response` and nothing streams over the wire — call it from a script, a cron job, a server action, or a test, anywhere you want the value itself instead of an HTTP round trip. If you do want to serve that value over HTTP, you wrap it in a `Response` yourself.
+
+Keep the factory's return value in a `const` before handing it to `definePlugin` — that same const is your typed handle for `.run()`:
+
+```ts group=overview-run
+// lib/blog-studio.ts
+import { generateImage } from '@tanstack/ai'
+import { definePlugin, imagePlugin } from '@tanstack/ai-plugin-toolkit'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const heroImage = imagePlugin((req) =>
+  generateImage({
+    adapter: openaiImage('gpt-image-2'),
+    prompt: req.input.prompt,
+  }),
+)
+
+export const blogPlugin = definePlugin({ heroImage })
+
+// Runs `heroImage`'s `execute` in-process — no HTTP, no `blogPlugin.handler`
+// involved — and resolves with the typed `ImageGenerationResult` directly.
+const img = await heroImage.run({ prompt: 'a cat wearing sunglasses' })
+console.log(img.images[0]?.url)
+```
+
+A **generation** plugin's `.run()` resolves to `Promise<TResult>` — the same result type `execute` returns. A **chat** plugin's `.run()` collects the streamed conversation and resolves to `Promise<{ text, structured }>`: `text` is the accumulated assistant reply, and `structured` is the validated output when the callback declared `outputSchema` (otherwise `null`):
+
+```ts group=overview-run-chat
+// lib/blog-studio.ts
+import { chat } from '@tanstack/ai'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
+import { openaiText } from '@tanstack/ai-openai'
+
+const drafting = chatPlugin((req) =>
+  chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: req.messages,
+    systemPrompts: ['You are a seasoned staff writer.'],
+  }),
+)
+
+export const draftingPlugin = definePlugin({ drafting })
+
+const { text } = await drafting.run([
+  { role: 'user', content: 'Pitch me a blog topic about red foxes.' },
+])
+console.log(text)
+```
+
+### Three input forms
+
+`.run()` accepts whatever shape you already have on hand:
+
+- **Raw input** — a generation plugin's own input (`heroImage.run({ prompt: '...' })` above), or a chat plugin's message array (`drafting.run(messages)` above). This is the typed happy path.
+- **An HTTP `Request`** — hand it the real request and `.run()` reads and parses the body itself, the same way `.handler` does. Useful when you want the plugin's raw result inside your own route instead of the SSE response `.handler` would give you:
+
+  ```ts
+  // routes/api.poster.ts — serve the plugin's result as plain JSON, not SSE
+  import { generateImage } from '@tanstack/ai'
+  import { imagePlugin } from '@tanstack/ai-plugin-toolkit'
+  import { openaiImage } from '@tanstack/ai-openai'
+
+  // The same `heroImage` your server module already defines — repeated here
+  // so this snippet type-checks on its own.
+  const heroImage = imagePlugin((req) =>
+    generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: req.input.prompt,
+    }),
+  )
+
+  export async function POST(request: Request) {
+    const img = await heroImage.run(request)
+    return Response.json(img)
+  }
+  ```
+
+- **An already-parsed request body** — when something upstream already parsed the AG-UI envelope for you (a framework middleware, a test harness), pass that object directly instead of re-wrapping it in a `Request`.
+
+Because `.run()` resolves with the value rather than a `Response`, serving it over HTTP is your call to make — `Response.json(img)` above is the whole job; there's no streaming envelope to opt out of.
+
 ## Media factories
 
 The six **media factories** are `generationPlugin` with the input schema and result type pre-bound for one media activity — so `plugin.<name>.run(input)` is typed input → output end to end without you writing a schema:
@@ -213,7 +296,7 @@ import {
   summarizePlugin,
   transcriptionPlugin,
   videoPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import {
   openaiImage,
   openaiSpeech,
@@ -257,7 +340,7 @@ On the client, each is the same typed run/result surface as any generation plugi
 ```tsx group=overview-media-client
 // components/Poster.tsx
 import { generateImage } from '@tanstack/ai'
-import { definePlugin, imagePlugin } from '@tanstack/ai/plugin'
+import { definePlugin, imagePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiImage } from '@tanstack/ai-openai'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
@@ -303,7 +386,7 @@ A chat plugin inherits `useChat`'s full type inference, driven entirely by what 
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
 import { chat, toolDefinition } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -366,7 +449,7 @@ No tools option was passed to `usePlugin` — `weatherCall.output` is still narr
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
 import { chat, toolDefinition } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -409,7 +492,7 @@ function useToastChat() {
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
 import { chat } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -470,7 +553,7 @@ Each generation plugin's entry in the flat options accepts an `onResult` transfo
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
 import { generateImage } from '@tanstack/ai'
-import { definePlugin, imagePlugin } from '@tanstack/ai/plugin'
+import { definePlugin, imagePlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const coverPlugin = definePlugin({

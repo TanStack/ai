@@ -35,7 +35,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 
 // One place to change the model / provider options for every surface.
@@ -88,7 +88,7 @@ Each page calls `usePlugin` against *its own* definition value and *its own* con
 ```tsx
 // pages/SupportPage.tsx
 import { chat } from '@tanstack/ai'
-import { chatPlugin, definePlugin } from '@tanstack/ai/plugin'
+import { chatPlugin, definePlugin } from '@tanstack/ai-plugin-toolkit'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
 import { openaiText } from '@tanstack/ai-openai'

@@ -55,9 +55,9 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
     "@ag-ui/core": "^0.0.52",
-    "@standard-schema/spec": "^1.1.0"
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

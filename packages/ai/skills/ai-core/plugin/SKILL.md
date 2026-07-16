@@ -12,10 +12,9 @@ type: sub-skill
 library: tanstack-ai
 library_version: '0.10.0'
 sources:
-  - 'TanStack/ai:packages/ai/src/activities/plugin/index.ts'
-  - 'TanStack/ai:packages/ai/src/activities/plugin/types.ts'
-  - 'TanStack/ai:packages/ai/src/activities/plugin/media.ts'
-  - 'TanStack/ai:packages/ai/src/plugin.ts'
+  - 'TanStack/ai:packages/ai-plugin-toolkit/src/index.ts'
+  - 'TanStack/ai:packages/ai-plugin-toolkit/src/types.ts'
+  - 'TanStack/ai:packages/ai-plugin-toolkit/src/media.ts'
   - 'TanStack/ai:packages/ai-client/src/plugin-client.ts'
   - 'TanStack/ai:packages/ai-client/src/plugin-types.ts'
   - 'TanStack/ai:packages/ai-react/src/use-plugin.ts'
@@ -69,7 +68,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -300,7 +299,7 @@ writing a Zod schema.
 | `summarizePlugin`     | `{ text, maxLength?, style?, focus?, modelOptions? }`                                     | `SummarizationResult`   |
 
 ```typescript
-import { transcriptionPlugin } from '@tanstack/ai/plugin'
+import { transcriptionPlugin } from '@tanstack/ai-plugin-toolkit'
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
@@ -324,6 +323,55 @@ directly with your own Standard Schema (Zod, Valibot, ArkType, …).
 underlying sub-client (a `ChatClient` per chat plugin, a `GenerationClient`
 per generation plugin) tags its own requests with the plugin name so the
 single `handler` can route.
+
+### 6. `.run()` — calling a plugin directly, in-process
+
+Every plugin (chat or generation) also has a `.run()`, sibling to `.handler`.
+Where `.handler` parses an HTTP `Request` and streams an SSE `Response`,
+`.run()` executes the plugin's logic **directly, in-process**, and resolves
+with the typed result itself — no `Request` required, no `Response` produced.
+Reach for it from a script, a server action, a cron job, or a test — anywhere
+you want the value, not an HTTP round trip.
+
+Keep the factory's return value in a `const` before handing it to
+`definePlugin`; that same const is the typed handle you call `.run()` on:
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { definePlugin, imagePlugin } from '@tanstack/ai-plugin-toolkit'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const heroImage = imagePlugin((req) =>
+  generateImage({ adapter: openaiImage('gpt-image-2'), prompt: req.input.prompt }),
+)
+
+export const blogPlugin = definePlugin({ heroImage })
+
+const img = await heroImage.run({ prompt: 'a cat wearing sunglasses' })
+```
+
+- **Generation plugins** — `.run()` resolves to `Promise<TResult>`, the same
+  type `execute` returns (draining the terminal `generation:result` when
+  `execute` streams).
+- **Chat plugins** — `.run()` collects the callback's stream and resolves to
+  `Promise<{ text, structured }>`: `text` is the accumulated assistant reply;
+  `structured` is the validated `outputSchema` result, or `null` when the
+  callback declared none.
+
+`.run()` accepts **three input forms**, discriminated at runtime:
+
+1. **Raw input** — the plugin's own typed input (generation) or a message
+   array (chat): `heroImage.run({ prompt })`, `drafting.run(messages)`. The
+   typed happy path shown above.
+2. **A `Request`** — `heroImage.run(request)` reads and parses the body
+   itself, the same path `.handler` uses.
+3. **An already-parsed request body** — the AG-UI envelope object, when
+   something upstream already parsed it for you.
+
+Don't reach through `definePlugin`'s return value for this (e.g.
+`blogPlugin['~plugins'].heroImage`) — `'~plugins'` is a type-only carrier for
+client inference, never meant to be read at runtime. Call `.run()` on the
+same named `const` you passed into `definePlugin`.
 
 ## Common Mistakes
 

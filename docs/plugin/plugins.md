@@ -32,7 +32,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -95,7 +95,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { usePlugin } from '@tanstack/ai-react/plugin'
@@ -212,7 +212,7 @@ Server-side, each plugin's `execute` / chat callback receives the request's `Abo
 
 ```ts
 import { chat } from '@tanstack/ai'
-import { generationPlugin } from '@tanstack/ai/plugin'
+import { generationPlugin } from '@tanstack/ai-plugin-toolkit'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
