@@ -23,6 +23,7 @@ import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as BlogStudioServerRouteImport } from './routes/blog-studio-server'
 import { Route as BlogStudioHooksRouteImport } from './routes/blog-studio-hooks'
+import { Route as BlogStudioChainRouteImport } from './routes/blog-studio-chain'
 import { Route as BlogStudioRouteImport } from './routes/blog-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -128,6 +129,11 @@ const BlogStudioServerRoute = BlogStudioServerRouteImport.update({
 const BlogStudioHooksRoute = BlogStudioHooksRouteImport.update({
   id: '/blog-studio-hooks',
   path: '/blog-studio-hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogStudioChainRoute = BlogStudioChainRouteImport.update({
+  id: '/blog-studio-chain',
+  path: '/blog-studio-chain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogStudioRoute = BlogStudioRouteImport.update({
@@ -317,6 +323,7 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-chain': typeof BlogStudioChainRoute
   '/blog-studio-hooks': typeof BlogStudioHooksRoute
   '/blog-studio-server': typeof BlogStudioServerRoute
   '/capability-demo': typeof CapabilityDemoRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-chain': typeof BlogStudioChainRoute
   '/blog-studio-hooks': typeof BlogStudioHooksRoute
   '/blog-studio-server': typeof BlogStudioServerRoute
   '/capability-demo': typeof CapabilityDemoRoute
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/blog-studio': typeof BlogStudioRoute
+  '/blog-studio-chain': typeof BlogStudioChainRoute
   '/blog-studio-hooks': typeof BlogStudioHooksRoute
   '/blog-studio-server': typeof BlogStudioServerRoute
   '/capability-demo': typeof CapabilityDemoRoute
@@ -476,6 +485,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/blog-studio'
+    | '/blog-studio-chain'
     | '/blog-studio-hooks'
     | '/blog-studio-server'
     | '/capability-demo'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/blog-studio'
+    | '/blog-studio-chain'
     | '/blog-studio-hooks'
     | '/blog-studio-server'
     | '/capability-demo'
@@ -580,6 +591,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/blog-studio'
+    | '/blog-studio-chain'
     | '/blog-studio-hooks'
     | '/blog-studio-server'
     | '/capability-demo'
@@ -633,6 +645,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BlogStudioRoute: typeof BlogStudioRoute
+  BlogStudioChainRoute: typeof BlogStudioChainRoute
   BlogStudioHooksRoute: typeof BlogStudioHooksRoute
   BlogStudioServerRoute: typeof BlogStudioServerRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
@@ -781,6 +794,13 @@ declare module '@tanstack/react-router' {
       path: '/blog-studio-hooks'
       fullPath: '/blog-studio-hooks'
       preLoaderRoute: typeof BlogStudioHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog-studio-chain': {
+      id: '/blog-studio-chain'
+      path: '/blog-studio-chain'
+      fullPath: '/blog-studio-chain'
+      preLoaderRoute: typeof BlogStudioChainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog-studio': {
@@ -1041,6 +1061,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BlogStudioRoute: BlogStudioRoute,
+  BlogStudioChainRoute: BlogStudioChainRoute,
   BlogStudioHooksRoute: BlogStudioHooksRoute,
   BlogStudioServerRoute: BlogStudioServerRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,

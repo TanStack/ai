@@ -6,29 +6,31 @@ import {
   AlertTriangle,
   Check,
   Image as ImageIcon,
+  Link2,
   Loader2,
   Newspaper,
   PenLine,
-  Sparkles,
   Square,
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { EventType } from '@tanstack/ai'
+import { CHAIN_EVENTS, EventType } from '@tanstack/ai'
 import { forNarration, heroPromptFor } from '../lib/blog-studio'
+import { createBlogPostChainFn } from '../lib/blog-studio-chain-server-fns'
 import {
-  BLOG_STUDIO_SERVER_EVENTS,
-  createBlogPostStreamFn,
   regenerateBlogHeroFn,
   regenerateBlogNarrationFn,
 } from '../lib/blog-studio-server-fns'
-import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
+import type {
+  ChainStepEventValue,
+  ImageGenerationResult,
+  TTSResult,
+} from '@tanstack/ai'
 import type { BlogPost } from '../lib/blog-studio'
-import type { BlogStudioStep } from '../lib/blog-studio-server-fns'
 import type { FormEvent, ReactNode } from 'react'
 
-export const Route = createFileRoute('/blog-studio-server')({
-  component: BlogStudioServer,
+export const Route = createFileRoute('/blog-studio-chain')({
+  component: BlogStudioChain,
 })
 
 type StepState = 'pending' | 'active' | 'done' | 'failed'
@@ -66,6 +68,16 @@ function isImageResult(value: unknown): value is ImageGenerationResult {
 
 function isTtsResult(value: unknown): value is TTSResult {
   return isRecord(value) && typeof value.audio === 'string'
+}
+
+function isChainStepEvent(value: unknown): value is ChainStepEventValue {
+  return (
+    isRecord(value) &&
+    typeof value.step === 'string' &&
+    (value.status === 'started' ||
+      value.status === 'done' ||
+      value.status === 'error')
+  )
 }
 
 /** Read `data: {…}\\n\\n` SSE from a Response (same format as toServerSentEventsResponse). */
@@ -109,7 +121,7 @@ async function* readSseJson(
   }
 }
 
-function BlogStudioServer() {
+function BlogStudioChain() {
   const abortRef = useRef<AbortController | null>(null)
 
   const [topic, setTopic] = useState('')
@@ -152,40 +164,38 @@ function BlogStudioServer() {
     setNarrationStep('pending')
   }
 
-  function isBlogStudioStep(step: string): step is BlogStudioStep {
-    return step === 'drafting' || step === 'heroImage' || step === 'narration'
-  }
-
-  function applyStepEvent(value: unknown) {
-    if (!isRecord(value) || typeof value.step !== 'string') return
-    if (!isBlogStudioStep(value.step)) return
-    const step = value.step
-    const status = value.status
+  /**
+   * Map a `chain:step` event onto UI state. Steps come straight from the
+   * chain definition: `draft`, then the `media` fan-out's `hero` /
+   * `narration` branches (`post` is the passthrough branch — ignored here).
+   */
+  function applyStepEvent(event: ChainStepEventValue) {
     const setStep =
-      step === 'drafting'
+      event.step === 'draft'
         ? setWritingStep
-        : step === 'heroImage'
+        : event.step === 'media' && event.branch === 'hero'
           ? setHeroStep
-          : setNarrationStep
+          : event.step === 'media' && event.branch === 'narration'
+            ? setNarrationStep
+            : null
+    if (!setStep) return
 
-    if (status === 'started') {
+    if (event.status === 'started') {
       setStep('active')
       return
     }
-    if (status === 'error') {
+    if (event.status === 'error') {
       setStep('failed')
-      if (typeof value.error === 'string') setError(value.error)
+      setError(event.error)
       return
     }
-    if (status === 'done') {
-      setStep('done')
-      if (step === 'drafting' && isBlogPost(value.result)) {
-        setPost(value.result)
-      } else if (step === 'heroImage' && isImageResult(value.result)) {
-        setHero(value.result)
-      } else if (step === 'narration' && isTtsResult(value.result)) {
-        setAudio(value.result)
-      }
+    setStep('done')
+    if (event.step === 'draft' && isBlogPost(event.result)) {
+      setPost(event.result)
+    } else if (event.branch === 'hero' && isImageResult(event.result)) {
+      setHero(event.result)
+    } else if (event.branch === 'narration' && isTtsResult(event.result)) {
+      setAudio(event.result)
     }
   }
 
@@ -203,16 +213,16 @@ function BlogStudioServer() {
     abortRef.current = abort
 
     try {
-      // Server function returns an SSE Response. One request: server chains
-      // draft → (hero ∥ narration) and streams pipeline:step / pipeline:result
-      // plus live structured-output deltas while drafting.
-      const response = await createBlogPostStreamFn({
+      // Server function returns an SSE Response. One request: the server
+      // chain runs draft → (hero ∥ narration) and streams `chain:step`
+      // progress, live structured-output deltas, then `generation:result`.
+      const response = await createBlogPostChainFn({
         data: { topic: nextTopic },
         signal: abort.signal,
       })
 
       if (!(response instanceof Response)) {
-        throw new Error('Expected an SSE Response from createBlogPostStreamFn')
+        throw new Error('Expected an SSE Response from createBlogPostChainFn')
       }
 
       for await (const chunk of readSseJson(response, abort.signal)) {
@@ -220,9 +230,7 @@ function BlogStudioServer() {
 
         if (chunk.type === EventType.RUN_ERROR) {
           const message =
-            typeof chunk.message === 'string'
-              ? chunk.message
-              : 'Pipeline failed'
+            typeof chunk.message === 'string' ? chunk.message : 'Chain failed'
           if (message !== 'Aborted') setError(message)
           setWritingStep((s) => (s === 'done' ? s : 'failed'))
           setHeroStep((s) => (s === 'active' ? 'failed' : s))
@@ -239,15 +247,20 @@ function BlogStudioServer() {
         }
 
         if (chunk.type === EventType.CUSTOM) {
-          if (chunk.name === BLOG_STUDIO_SERVER_EVENTS.STEP) {
+          if (
+            chunk.name === CHAIN_EVENTS.STEP &&
+            isChainStepEvent(chunk.value)
+          ) {
             applyStepEvent(chunk.value)
           } else if (
-            chunk.name === BLOG_STUDIO_SERVER_EVENTS.RESULT &&
+            chunk.name === 'generation:result' &&
             isRecord(chunk.value)
           ) {
             if (isBlogPost(chunk.value.post)) setPost(chunk.value.post)
             if (isImageResult(chunk.value.hero)) setHero(chunk.value.hero)
-            if (isTtsResult(chunk.value.audio)) setAudio(chunk.value.audio)
+            if (isTtsResult(chunk.value.narration)) {
+              setAudio(chunk.value.narration)
+            }
             setWritingStep('done')
             setHeroStep((s) => (s === 'failed' ? s : 'done'))
             setNarrationStep((s) => (s === 'failed' ? s : 'done'))
@@ -256,7 +269,7 @@ function BlogStudioServer() {
       }
     } catch (err) {
       if (abort.signal.aborted) return
-      setError(err instanceof Error ? err.message : 'Pipeline failed')
+      setError(err instanceof Error ? err.message : 'Chain failed')
       setWritingStep((s) => (s === 'done' ? s : 'failed'))
     } finally {
       if (abortRef.current === abort) {
@@ -307,52 +320,54 @@ function BlogStudioServer() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-72px)] flex-col bg-gradient-to-b from-stone-50 to-sky-50 text-stone-800 md:flex-row">
+    <div className="flex h-[calc(100vh-72px)] flex-col bg-gradient-to-b from-stone-50 to-emerald-50 text-stone-800 md:flex-row">
       <aside className="w-full shrink-0 border-b border-stone-200 bg-white/70 p-6 md:w-96 md:overflow-y-auto md:border-b-0 md:border-r">
-        <div className="mb-2 flex items-center gap-2 text-sky-700">
-          <Newspaper size={20} />
+        <div className="mb-2 flex items-center gap-2 text-emerald-700">
+          <Link2 size={20} />
           <span className="text-sm font-semibold uppercase tracking-wider">
-            Blog Studio (server)
+            Blog Studio (chain)
           </span>
         </div>
         <h1 className="mb-1 text-2xl font-bold text-stone-900">
-          Server-composed, streaming
+          One chain, one stream
         </h1>
         <p className="mb-3 text-stone-500">
-          One{' '}
+          A declared{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">chain()</code> —{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
-            createServerFn
+            .step('draft')
           </code>{' '}
-          chains draft → (hero ∥ narration) on the server and streams step
-          progress over SSE (
+          then{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
-            pipeline:step
-          </code>
-          , live draft deltas, then{' '}
+            .parallel('media')
+          </code>{' '}
+          — runs on the server and streams back as a single activity: typed{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">chain:step</code>{' '}
+          progress, live draft deltas, then one{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
-            pipeline:result
+            generation:result
           </code>
-          ). The client only reads the stream — it does not call each step.
+          . No hand-rolled pipeline code.
         </p>
         <p className="mb-5 text-xs text-stone-400">
           Compare with the{' '}
           <Link
-            to="/blog-studio-chain"
-            className="font-medium text-sky-700 underline underline-offset-2"
+            to="/blog-studio-server"
+            className="font-medium text-emerald-700 underline underline-offset-2"
           >
-            chain version
+            server version
           </Link>{' '}
-          (same pipeline, declared with <code>chain()</code>), the{' '}
+          (same pipeline, hand-rolled), the{' '}
           <Link
             to="/blog-studio"
-            className="font-medium text-sky-700 underline underline-offset-2"
+            className="font-medium text-emerald-700 underline underline-offset-2"
           >
             assistant version
           </Link>{' '}
           (client chains on one multi-capability endpoint) or the{' '}
           <Link
             to="/blog-studio-hooks"
-            className="font-medium text-sky-700 underline underline-offset-2"
+            className="font-medium text-emerald-700 underline underline-offset-2"
           >
             hooks version
           </Link>{' '}
@@ -361,25 +376,25 @@ function BlogStudioServer() {
 
         <form onSubmit={(e) => void run(e)}>
           <label
-            htmlFor="blog-topic-server"
+            htmlFor="blog-topic-chain"
             className="mb-1 block text-sm font-medium text-stone-600"
           >
             Topic
           </label>
           <input
-            id="blog-topic-server"
+            id="blog-topic-chain"
             name="topic"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g. The quiet comeback of urban foxes"
             disabled={isRunning}
-            className="mb-3 w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60"
+            className="mb-3 w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:opacity-60"
           />
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={isRunning}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-sky-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -507,8 +522,8 @@ function BlogStudioServer() {
               )}
 
               <div className="mb-6 flex items-center gap-3 border-y border-stone-100 py-3 text-sm text-stone-500">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                  <Sparkles size={16} />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                  <Link2 size={16} />
                 </div>
                 <span>Written &amp; narrated by TanStack AI</span>
                 {narrationBusy || narrationStep === 'active' ? (
@@ -518,7 +533,7 @@ function BlogStudioServer() {
                   </span>
                 ) : audioSrc ? (
                   <div className="ml-auto flex items-center gap-2">
-                    <Volume2 size={16} className="text-sky-700" />
+                    <Volume2 size={16} className="text-emerald-700" />
                     <audio src={audioSrc} controls className="h-8" />
                   </div>
                 ) : narrationStep === 'failed' ? (
@@ -529,7 +544,7 @@ function BlogStudioServer() {
                 ) : null}
               </div>
 
-              <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-sky-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-sky-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
+              <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-emerald-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-emerald-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {post.body}
                 </ReactMarkdown>
@@ -539,7 +554,7 @@ function BlogStudioServer() {
         ) : isRunning ? (
           <div className="flex h-full items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
-              <Loader2 size={40} className="animate-spin text-sky-500" />
+              <Loader2 size={40} className="animate-spin text-emerald-500" />
               <p className="max-w-xs text-sm">
                 {writingStep === 'active'
                   ? draftChars > 0
@@ -554,8 +569,8 @@ function BlogStudioServer() {
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
               <Newspaper size={48} className="text-stone-300" />
               <p className="max-w-xs text-sm">
-                Your finished post streams in step-by-step from a single server
-                function.
+                Your finished post streams in step-by-step from one declared
+                server-side chain.
               </p>
             </div>
           </div>
@@ -578,7 +593,7 @@ function StepRow({
 }) {
   const cls =
     state === 'active'
-      ? 'text-sky-700 font-medium'
+      ? 'text-emerald-700 font-medium'
       : state === 'done'
         ? 'text-stone-500'
         : state === 'failed'
