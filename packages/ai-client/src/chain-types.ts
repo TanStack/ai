@@ -24,6 +24,13 @@ export interface ChainStepState {
   result?: unknown
   /** Present when `status === 'error'`. */
   error?: string
+  /**
+   * Progressive structured-output object while this step streams
+   * (`structured-output.start` + `TEXT_MESSAGE_CONTENT` JSON deltas, parsed
+   * with `parsePartialJSON`). Cleared when the step finishes or a new run
+   * starts. Same protocol as `useChat` / `useAssistant` chat surfaces.
+   */
+  partial?: unknown
 }
 
 /**

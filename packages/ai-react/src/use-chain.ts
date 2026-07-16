@@ -54,7 +54,9 @@ export interface UseChainReturn<TInput, TOutput> {
  * Demuxes one SSE run into:
  * - `result` — terminal `generation:result`
  * - `steps` — progressive `chain:step` state for UI (drafting / hero / …)
- * - live chunks via `onChunk` (e.g. structured-output text deltas)
+ * - `steps[name].partial` — live structured-output object while a step streams
+ *   (native `structured-output.start` + JSON text deltas + `.complete`)
+ * - live chunks via `onChunk` for anything else you want to handle yourself
  *
  * @example
  * ```tsx
@@ -64,7 +66,8 @@ export interface UseChainReturn<TInput, TOutput> {
  * })
  *
  * await chain.run({ topic: 'urban foxes' })
- * chain.steps['draft']?.status // 'done'
+ * chain.steps['draft']?.partial // { title?: string, body?: string, ... }
+ * chain.steps['draft']?.result  // full validated object when the step finishes
  * chain.steps['media/hero']?.result
  * chain.result // { post, hero, narration }
  * ```

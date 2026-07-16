@@ -1,4 +1,5 @@
 import { CHAIN_EVENTS } from '@tanstack/ai'
+import { parsePartialJSON } from '@tanstack/ai/client'
 import { GENERATION_EVENTS } from './generation-types'
 import { parseSSEResponse } from './sse-parser'
 import { chainStepKey } from './chain-types'
@@ -48,24 +49,17 @@ function isChainStepEvent(value: unknown): value is ChainStepEventValue {
  * Client for a server-side `chain()` activity streamed as one AG-UI run.
  *
  * Understands the same outer lifecycle as {@link GenerationClient}
- * (`generation:result`, RUN_*), plus demuxes `chain:step` CUSTOM events into
- * a reactive {@link ChainSteps} map for progressive UIs.
+ * (`generation:result`, RUN_*), demuxes `chain:step` CUSTOM events into a
+ * reactive {@link ChainSteps} map, and mirrors chat's native structured-output
+ * protocol onto the active step:
+ *
+ * 1. `structured-output.start` — begin accumulating JSON for the current step
+ * 2. `TEXT_MESSAGE_CONTENT` deltas — progressive `parsePartialJSON` → `step.partial`
+ * 3. `structured-output.complete` / `chain:step` done — terminal object on `step.result`
  *
  * @template TInput - Chain input (e.g. `{ topic: string }`)
  * @template TResult - Final `generation:result` payload
  * @template TOutput - Stored result after optional transform
- *
- * @example
- * ```ts
- * const client = new ChainClient<{ topic: string }, BlogResult>({
- *   fetcher: (input, { signal }) =>
- *     createBlogPostChainFn({ data: input, signal }),
- *   onStepsChange: setSteps,
- *   onResultChange: setResult,
- * })
- * await client.run({ topic: 'urban foxes' })
- * client.getSteps()['draft']?.status // 'done'
- * ```
  */
 export class ChainClient<
   TInput extends Record<string, unknown>,
@@ -84,6 +78,13 @@ export class ChainClient<
   private status: GenerationClientState = 'idle'
   private abortController: AbortController | null = null
   private readonly callbacksRef: ChainCallbacks<TResult, TOutput>
+
+  /** Most recently `started` step key — structured deltas attach here. */
+  private lastActiveStepKey: string | null = null
+  /** Step currently receiving structured-output JSON (after `.start`). */
+  private structuredTargetKey: string | null = null
+  /** Accumulated raw JSON for the in-flight structured stream. */
+  private structuredRaw = ''
 
   constructor(
     options: ChainClientOptions<TInput, TResult, TOutput> &
@@ -122,6 +123,7 @@ export class ChainClient<
   async run(input: TInput): Promise<TOutput | null> {
     if (this.isLoading) return this.result
 
+    this.clearStructuredStream()
     this.setSteps({})
     this.setIsLoading(true)
     this.setStatus('generating')
@@ -165,6 +167,7 @@ export class ChainClient<
       return null
     } finally {
       this.abortController = null
+      this.clearStructuredStream()
       this.setIsLoading(false)
     }
   }
@@ -177,13 +180,27 @@ export class ChainClient<
 
       this.callbacksRef.onChunk?.(chunk)
 
-      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- only handle lifecycle + chain events
+      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- only handle lifecycle + chain + structured-output events
       switch (chunk.type) {
         case 'CUSTOM': {
           if (chunk.name === CHAIN_EVENTS.STEP) {
             this.applyStepEvent(chunk.value)
+          } else if (chunk.name === 'structured-output.start') {
+            this.beginStructuredStream()
+          } else if (chunk.name === 'structured-output.complete') {
+            this.finishStructuredStream(chunk.value)
           } else if (chunk.name === GENERATION_EVENTS.RESULT) {
             this.setResult(chunk.value as TResult)
+          }
+          break
+        }
+        case 'TEXT_MESSAGE_CONTENT': {
+          if (
+            this.structuredTargetKey &&
+            typeof chunk.delta === 'string' &&
+            chunk.delta.length > 0
+          ) {
+            this.appendStructuredDelta(chunk.delta)
           }
           break
         }
@@ -213,6 +230,63 @@ export class ChainClient<
     }
   }
 
+  private beginStructuredStream(): void {
+    // Attach to the step that most recently started (typically the chat step
+    // that declared outputSchema). Without an active step, ignore.
+    this.structuredTargetKey = this.lastActiveStepKey
+    this.structuredRaw = ''
+    if (!this.structuredTargetKey) return
+
+    const prev = this.steps[this.structuredTargetKey]
+    if (!prev || prev.status !== 'active') return
+
+    // Clear any stale partial from a previous structured attempt on this step.
+    this.patchStep(this.structuredTargetKey, {
+      ...prev,
+      partial: undefined,
+    })
+  }
+
+  private appendStructuredDelta(delta: string): void {
+    const key = this.structuredTargetKey
+    if (!key) return
+
+    const prev = this.steps[key]
+    if (!prev || prev.status !== 'active') return
+
+    this.structuredRaw += delta
+    const progressive = parsePartialJSON(this.structuredRaw)
+    // Keep the last good partial when the buffer isn't a parseable prefix yet
+    // (same behavior as chat's appendStructuredOutputDelta).
+    const nextPartial =
+      progressive !== undefined && progressive !== null
+        ? progressive
+        : prev.partial
+
+    this.patchStep(key, {
+      ...prev,
+      ...(nextPartial !== undefined ? { partial: nextPartial } : {}),
+    })
+  }
+
+  private finishStructuredStream(value: unknown): void {
+    const key = this.structuredTargetKey
+    this.clearStructuredStream()
+    if (!key) return
+
+    const prev = this.steps[key]
+    if (!prev || prev.status !== 'active') return
+
+    // Prefer the validated object on complete so partial jumps to final shape
+    // before the outer chain:step done event arrives.
+    if (isRecord(value) && 'object' in value) {
+      this.patchStep(key, {
+        ...prev,
+        partial: value.object,
+      })
+    }
+  }
+
   private applyStepEvent(value: unknown): void {
     if (!isChainStepEvent(value)) return
 
@@ -221,6 +295,7 @@ export class ChainClient<
     let next: ChainStepState
 
     if (value.status === 'started') {
+      this.lastActiveStepKey = key
       next = {
         step: value.step,
         ...(value.branch !== undefined && { branch: value.branch }),
@@ -228,6 +303,9 @@ export class ChainClient<
         status: 'active',
       }
     } else if (value.status === 'error') {
+      if (this.structuredTargetKey === key) {
+        this.clearStructuredStream()
+      }
       next = {
         step: value.step,
         ...(value.branch !== undefined && { branch: value.branch }),
@@ -235,20 +313,34 @@ export class ChainClient<
         status: 'error',
         error: value.error,
         ...(prev?.result !== undefined && { result: prev.result }),
+        ...(prev?.partial !== undefined && { partial: prev.partial }),
       }
     } else {
+      if (this.structuredTargetKey === key) {
+        this.clearStructuredStream()
+      }
       next = {
         step: value.step,
         ...(value.branch !== undefined && { branch: value.branch }),
         index: value.index,
         status: 'done',
         result: value.result,
+        // Drop partial once the validated result is on the step.
       }
     }
 
+    this.patchStep(key, next)
+  }
+
+  private patchStep(key: string, next: ChainStepState): void {
     this.steps = { ...this.steps, [key]: next }
     this.callbacksRef.onStepsChange?.(this.steps)
     this.callbacksRef.onStep?.(next, this.steps)
+  }
+
+  private clearStructuredStream(): void {
+    this.structuredTargetKey = null
+    this.structuredRaw = ''
   }
 
   stop(): void {
@@ -256,6 +348,7 @@ export class ChainClient<
       this.abortController.abort()
       this.abortController = null
     }
+    this.clearStructuredStream()
     this.setIsLoading(false)
     if (this.status === 'generating') {
       this.setStatus('idle')
@@ -264,6 +357,7 @@ export class ChainClient<
 
   reset(): void {
     this.stop()
+    this.lastActiveStepKey = null
     this.setResult(null)
     this.setSteps({})
     this.setError(undefined)

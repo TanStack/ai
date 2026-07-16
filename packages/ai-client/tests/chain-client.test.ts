@@ -174,7 +174,7 @@ describe('ChainClient', () => {
           type: EventType.RUN_ERROR,
           message: 'image failed',
           timestamp: Date.now(),
-        } as StreamChunk,
+        },
       ]),
     })
 
@@ -235,4 +235,109 @@ describe('ChainClient', () => {
     await p2
     expect(calls).toBe(1)
   })
+
+  it('streams structured-output partials onto the active step', async () => {
+    const finalPost = {
+      title: 'Urban Foxes',
+      subtitle: 'Quiet comeback',
+      body: 'Full article.',
+    }
+    const partials: Array<unknown> = []
+
+    const client = new ChainClient({
+      connection: createMockConnection([
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: CHAIN_EVENTS.STEP,
+          value: { step: 'draft', index: 0, status: 'started' },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          delta: '{"title":"Urban',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          delta: ' Foxes","subtitle":"Quiet',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          delta: ' comeback","body":"Full article."}',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: finalPost, raw: JSON.stringify(finalPost) },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: CHAIN_EVENTS.STEP,
+          value: {
+            step: 'draft',
+            index: 0,
+            status: 'done',
+            result: finalPost,
+          },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { post: finalPost },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: Date.now(),
+        },
+      ]),
+      onStepsChange: (steps) => {
+        const p = steps.draft?.partial
+        if (p !== undefined) partials.push(p)
+      },
+    })
+
+    await client.run({ topic: 'foxes' })
+
+    // Progressive partials should have included the title before the step finished.
+    expect(
+      partials.some(
+        (p) =>
+          isRecord(p) &&
+          typeof p.title === 'string' &&
+          p.title.includes('Urban'),
+      ),
+    ).toBe(true)
+
+    const done = client.getStep('draft')
+    expect(done?.status).toBe('done')
+    expect(done?.result).toEqual(finalPost)
+    // partial is cleared once the validated result is on the step
+    expect(done?.partial).toBeUndefined()
+  })
 })
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}

@@ -14,7 +14,6 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { EventType } from '@tanstack/ai'
 import { useChain } from '@tanstack/ai-react'
 import { forNarration, heroPromptFor } from '../lib/blog-studio'
 import { createBlogPostChainFn } from '../lib/blog-studio-chain-server-fns'
@@ -76,10 +75,15 @@ function toUiStep(status: ChainStepStatus | undefined): StepState {
   return 'pending'
 }
 
+function stringField(value: unknown, key: string): string | undefined {
+  if (!isRecord(value)) return undefined
+  const field = value[key]
+  return typeof field === 'string' ? field : undefined
+}
+
 function BlogStudioChain() {
   const [topic, setTopic] = useState('')
   const [hasRun, setHasRun] = useState(false)
-  const [draftChars, setDraftChars] = useState(0)
 
   // Local overrides after "Regenerate hero" / "Re-narrate" (one-shot server fns).
   const [heroOverride, setHeroOverride] =
@@ -89,16 +93,12 @@ function BlogStudioChain() {
   const [narrationBusy, setNarrationBusy] = useState(false)
   const [touchUpError, setTouchUpError] = useState<string | null>(null)
 
+  // Structured draft partials stream natively: server emits
+  // structured-output.start + JSON TEXT_MESSAGE_CONTENT + .complete; useChain
+  // puts progressive parsePartialJSON onto steps.draft.partial.
   const chain = useChain<{ topic: string }, BlogStudioChainResult>({
     fetcher: (input, options) =>
       createBlogPostChainFn({ data: input, signal: options?.signal }),
-    onChunk: (chunk) => {
-      if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) return
-      const delta = chunk.delta
-      if (typeof delta === 'string') {
-        setDraftChars((n) => n + delta.length)
-      }
-    },
   })
 
   const draftStep = chain.getStep('draft')
@@ -106,11 +106,17 @@ function BlogStudioChain() {
   const narrationStepMeta = chain.getStep('media', 'narration')
 
   const draftResult = draftStep ? draftStep.result : undefined
+  const draftPartial = draftStep ? draftStep.partial : undefined
   const post: BlogPost | null = isBlogPost(draftResult)
     ? draftResult
     : chain.result && isBlogPost(chain.result.post)
       ? chain.result.post
       : null
+
+  // Live article fields: validated post wins; otherwise progressive partial.
+  const title = post?.title ?? stringField(draftPartial, 'title')
+  const subtitle = post?.subtitle ?? stringField(draftPartial, 'subtitle')
+  const body = post?.body ?? stringField(draftPartial, 'body') ?? ''
 
   const heroFromStep = heroStepMeta ? heroStepMeta.result : undefined
   const heroFromResult = chain.result ? chain.result.hero : undefined
@@ -148,7 +154,7 @@ function BlogStudioChain() {
   const error = touchUpError ?? (chain.error ? chain.error.message : null)
   const imageUrl = imageUrlOf(hero)
   const audioSrc = audioSrcOf(audio)
-  const showArticle = Boolean(post)
+  const showArticle = Boolean(post) || Boolean(title) || Boolean(body)
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -156,7 +162,6 @@ function BlogStudioChain() {
     if (!nextTopic || isRunning) return
 
     setHasRun(true)
-    setDraftChars(0)
     setHeroOverride(null)
     setAudioOverride(null)
     setTouchUpError(null)
@@ -219,9 +224,11 @@ function BlogStudioChain() {
           <code className="rounded bg-stone-100 px-1 text-xs">useChain</code>:{' '}
           live{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">chain:step</code>{' '}
-          progress, draft deltas via{' '}
-          <code className="rounded bg-stone-100 px-1 text-xs">onChunk</code>,
-          then{' '}
+          progress, native structured-output partials on{' '}
+          <code className="rounded bg-stone-100 px-1 text-xs">
+            steps.draft.partial
+          </code>
+          , then{' '}
           <code className="rounded bg-stone-100 px-1 text-xs">
             generation:result
           </code>
@@ -301,8 +308,8 @@ function BlogStudioChain() {
               icon={<PenLine size={16} />}
               state={writingStep}
               detail={
-                writingStep === 'active' && draftChars > 0
-                  ? `${draftChars} chars drafted`
+                writingStep === 'active' && body.length > 0
+                  ? `${body.length} chars drafted`
                   : undefined
               }
             />
@@ -361,13 +368,13 @@ function BlogStudioChain() {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-6">
-        {showArticle && post ? (
+        {showArticle ? (
           <article className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-200/60">
             <div className="relative aspect-[3/2] w-full bg-stone-100">
               {imageUrl && !heroBusy && heroStep !== 'active' ? (
                 <img
                   src={imageUrl}
-                  alt={post.title}
+                  alt={title ?? ''}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -393,10 +400,10 @@ function BlogStudioChain() {
 
             <div className="px-8 py-8">
               <h1 className="mb-3 text-4xl font-extrabold leading-tight tracking-tight text-stone-900">
-                {post.title}
+                {title ?? (writingStep === 'active' ? 'Drafting…' : 'Untitled')}
               </h1>
-              {post.subtitle && (
-                <p className="mb-6 text-xl text-stone-500">{post.subtitle}</p>
+              {subtitle && (
+                <p className="mb-6 text-xl text-stone-500">{subtitle}</p>
               )}
 
               <div className="mb-6 flex items-center gap-3 border-y border-stone-100 py-3 text-sm text-stone-500">
@@ -423,9 +430,13 @@ function BlogStudioChain() {
               </div>
 
               <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-emerald-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-emerald-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {post.body}
-                </ReactMarkdown>
+                {body ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {body}
+                  </ReactMarkdown>
+                ) : writingStep === 'active' ? (
+                  <p className="text-stone-400">Streaming structured draft…</p>
+                ) : null}
               </div>
             </div>
           </article>
@@ -435,9 +446,7 @@ function BlogStudioChain() {
               <Loader2 size={40} className="animate-spin text-emerald-500" />
               <p className="max-w-xs text-sm">
                 {writingStep === 'active'
-                  ? draftChars > 0
-                    ? `Drafting… ${draftChars} characters so far.`
-                    : 'Drafting the article…'
+                  ? 'Drafting the article…'
                   : 'Illustrating and recording voice-over…'}
               </p>
             </div>
@@ -447,7 +456,7 @@ function BlogStudioChain() {
             <div className="flex flex-col items-center gap-3 text-center text-stone-400">
               <Newspaper size={48} className="text-stone-300" />
               <p className="max-w-xs text-sm">
-                Your finished post streams in step-by-step via{' '}
+                Your post streams live via structured-output partials on{' '}
                 <code className="rounded bg-stone-100 px-1 text-xs">
                   useChain
                 </code>
