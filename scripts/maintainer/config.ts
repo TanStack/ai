@@ -26,13 +26,14 @@ export function parseConfig(raw: unknown): ToolsetConfig {
     if (typeof m.github !== 'string' || m.github.length === 0) {
       fail(`maintainers[${idx}].github must be a string`)
     }
-    if (!Array.isArray(m.areas) || m.areas.some((a) => typeof a !== 'string')) {
+    const areas = m.areas ?? []
+    if (!Array.isArray(areas) || areas.some((a) => typeof a !== 'string')) {
       fail(`maintainers[${idx}].areas must be an array of glob strings`)
     }
     return {
       github: m.github,
       discord: typeof m.discord === 'string' ? m.discord : null,
-      areas: m.areas as Array<string>,
+      areas: areas as Array<string>,
       maxOpenAssignments:
         typeof m.maxOpenAssignments === 'number' ? m.maxOpenAssignments : 10,
     }
