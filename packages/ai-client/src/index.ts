@@ -37,7 +37,6 @@ export type {
   BoundInterrupts,
   ChatInterrupt,
   ChatInterruptState,
-  ClientToolExecutionInterrupt,
   GenericAGUIInterrupt,
   InterruptItemStatus,
   ToolApprovalInterrupt,

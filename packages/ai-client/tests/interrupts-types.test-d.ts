@@ -12,7 +12,6 @@ import type {
   InterruptBinding,
   Interrupt as WireInterrupt,
   InputSchemaOf,
-  ItemInterruptError,
   NoSchema,
   OutputSchemaOf,
 } from '@tanstack/ai/client'
@@ -20,7 +19,6 @@ import type {
   BoundInterrupts,
   ChatClient,
   ChatInterrupt,
-  ClientToolExecutionInterrupt,
   ToolApprovalInterrupt,
 } from '../src/index'
 
@@ -146,49 +144,12 @@ confirmation.resolveInterrupt(true, { editedArgs: { value: 1 } })
 // @ts-expect-error omitted approval branch forbids payload
 confirmation.resolveInterrupt(false, { payload: { reason: 'no schema' } })
 
-declare const lookupExecution: Extract<
-  Interrupt,
-  { kind: 'client-tool-execution'; toolName: 'lookup' }
->
-lookupExecution.resolveInterrupt({ accountId: 'account-1' })
-// @ts-expect-error client tool output is inferred
-lookupExecution.resolveInterrupt({ account: 'account-1' })
-
-const structuralLookup = toolDefinition({
-  name: 'structuralLookup',
-  description: 'Client lookup with a structural Standard Schema',
-  outputSchema: {
-    '~standard': {
-      version: 1 as const,
-      vendor: 'test',
-      types: {
-        input: { accountId: '' },
-        output: { accountId: '' },
-      },
-      validate: () => ({ value: { accountId: '' } }),
-    },
-  },
-}).client()
-
-declare const structuralLookupExecution: Extract<
-  ChatInterrupt<readonly [typeof structuralLookup]>,
-  { kind: 'client-tool-execution'; toolName: 'structuralLookup' }
->
-structuralLookupExecution.resolveInterrupt({ accountId: 'account-1' })
-// @ts-expect-error structural Standard Schema output remains inferred
-structuralLookupExecution.resolveInterrupt({ account: 'account-1' })
-
-declare const rawExecution: Extract<
-  Interrupt,
-  { kind: 'client-tool-execution'; toolName: 'raw' }
->
-expectTypeOf(rawExecution.errors).toEqualTypeOf<
-  ReadonlyArray<ItemInterruptError>
->()
-expectTypeOf(rawExecution.error).toEqualTypeOf<ItemInterruptError | undefined>()
-expectTypeOf(rawExecution.resolveInterrupt)
-  .parameter(0)
-  .toEqualTypeOf<unknown>()
+// `client-tool-execution` is intentionally NOT part of the public interrupt
+// union. Client tools resolve through their `.client()` implementation or
+// `addToolResult`, never as a bound interrupt.
+expectTypeOf<
+  Extract<Interrupt, { kind: 'client-tool-execution' }>
+>().toEqualTypeOf<never>()
 
 expectTypeOf<BoundInterrupts<Tools>>().toEqualTypeOf<
   readonly ChatInterrupt<Tools>[]
@@ -212,6 +173,3 @@ client.unsafeResumeInterrupts([])
 expectTypeOf<Extract<Interrupt, { kind: 'tool-approval' }>>().toMatchTypeOf<
   ToolApprovalInterrupt<Tools[number]>
 >()
-expectTypeOf<
-  Extract<Interrupt, { kind: 'client-tool-execution' }>
->().toMatchTypeOf<ClientToolExecutionInterrupt<Tools[number]>>()

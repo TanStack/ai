@@ -334,7 +334,6 @@ function InterruptsV2Page() {
     resuming,
     resolveInterrupts,
     retryInterrupts,
-    addToolResult,
   } = useChat({
     id: `interrupts-v2-${testId}`,
     threadId: `interrupts-v2-${testId}`,
@@ -370,9 +369,9 @@ function InterruptsV2Page() {
   const second = interrupts.find(
     (interrupt) => interrupt.interruptId === 'question-1',
   )
-  const clientTool = interrupts.find(
-    (interrupt) => interrupt.kind === 'client-tool-execution',
-  )
+  // `browser_action` is a client tool with a `.client()` implementation, so it
+  // executes automatically and never appears in the public `interrupts` array.
+  // Its resolution is observed via `submitted-decisions` once the batch resumes.
   const invalidItemIds = interrupts
     .filter((interrupt) => interrupt.error !== undefined)
     .map((interrupt) => interrupt.interruptId)
@@ -433,13 +432,6 @@ function InterruptsV2Page() {
       </output>
       <output data-testid="callback-return-values">{callbackReturns}</output>
       <output data-testid="staged-response-first">{drafts.stagedFirst}</output>
-      <output data-testid="client-tool-output">{drafts.clientOutput}</output>
-      <output data-testid="add-tool-result-count">
-        {drafts.addToolResultCount}
-      </output>
-      <output data-testid="client-tool-status">
-        {clientTool?.status ?? ''}
-      </output>
       <output data-testid="resume-status">
         {resuming ? 'resuming' : 'idle'}
       </output>
@@ -698,40 +690,6 @@ function InterruptsV2Page() {
         Correct second
       </button>
 
-      <button
-        data-testid="resolve-client-tool-bound"
-        onClick={() => {
-          if (
-            clientTool?.kind !== 'client-tool-execution' ||
-            clientTool.toolName !== 'browser_action'
-          ) {
-            return
-          }
-          const output = { browserValue: 'done' }
-          clientTool.resolveInterrupt(output)
-          updateDrafts({ clientOutput: JSON.stringify(output) })
-        }}
-      >
-        Resolve client tool
-      </button>
-      <button
-        data-testid="resolve-client-tool-delegated"
-        onClick={() => {
-          if (clientTool?.kind !== 'client-tool-execution') return
-          const output = { browserValue: 'done' }
-          void addToolResult({
-            toolCallId: clientTool.toolCallId,
-            tool: clientTool.toolName,
-            output,
-          })
-          updateDrafts({
-            clientOutput: JSON.stringify(output),
-            addToolResultCount: drafts.addToolResultCount + 1,
-          })
-        }}
-      >
-        Delegate client tool
-      </button>
       <button data-testid="approve-server-tool" onClick={approveFirst}>
         Resolve server tool
       </button>

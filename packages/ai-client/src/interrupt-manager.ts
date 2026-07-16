@@ -839,64 +839,55 @@ export class InterruptManager<
     transaction?: TransactionToken,
   ): BoundInterrupts<TTools> {
     const hydration = this.requireHydration()
-    const next = this.items.map((item) => {
-      const base = baseSnapshot(
-        item,
-        hydration,
-        () => this.cancelItem(item.descriptor.id, transaction),
-        () => this.clearItem(item.descriptor.id, transaction),
-      )
-      if (
-        item.kind === 'tool-approval' &&
-        item.binding.kind === 'tool-approval'
-      ) {
-        const snapshot = {
+    // `client-tool-execution` items stay in `this.items` (they gate batch
+    // submission and are resolved internally via auto-execution / addToolResult),
+    // but they are never surfaced as public bound interrupts.
+    const next = this.items
+      .filter((item) => item.kind !== 'client-tool-execution')
+      .map((item) => {
+        const base = baseSnapshot(
+          item,
+          hydration,
+          () => this.cancelItem(item.descriptor.id, transaction),
+          () => this.clearItem(item.descriptor.id, transaction),
+        )
+        if (
+          item.kind === 'tool-approval' &&
+          item.binding.kind === 'tool-approval'
+        ) {
+          const snapshot = {
+            ...base,
+            kind: 'tool-approval' as const,
+            toolName: item.binding.toolName,
+            toolCallId: item.binding.toolCallId,
+            originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
+            resolveInterrupt: (approved: boolean, options?: unknown) => {
+              const details = isUnknownObject(options) ? options : undefined
+              this.resolveItem(
+                item.descriptor.id,
+                {
+                  approved,
+                  ...(approved && details?.['editedArgs'] !== undefined
+                    ? { editedArgs: details['editedArgs'] }
+                    : {}),
+                  ...(details?.['payload'] !== undefined
+                    ? { payload: details['payload'] }
+                    : {}),
+                },
+                transaction,
+              )
+            },
+          }
+          return Object.freeze(snapshot)
+        }
+        const snapshot: GenericAGUIInterrupt = {
           ...base,
-          kind: 'tool-approval' as const,
-          toolName: item.binding.toolName,
-          toolCallId: item.binding.toolCallId,
-          originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
-          resolveInterrupt: (approved: boolean, options?: unknown) => {
-            const details = isUnknownObject(options) ? options : undefined
-            this.resolveItem(
-              item.descriptor.id,
-              {
-                approved,
-                ...(approved && details?.['editedArgs'] !== undefined
-                  ? { editedArgs: details['editedArgs'] }
-                  : {}),
-                ...(details?.['payload'] !== undefined
-                  ? { payload: details['payload'] }
-                  : {}),
-              },
-              transaction,
-            )
-          },
+          kind: 'generic',
+          resolveInterrupt: (payload) =>
+            this.resolveItem(item.descriptor.id, payload, transaction),
         }
         return Object.freeze(snapshot)
-      }
-      if (
-        item.kind === 'client-tool-execution' &&
-        item.binding.kind === 'client-tool-execution'
-      ) {
-        const snapshot = {
-          ...base,
-          kind: 'client-tool-execution' as const,
-          toolName: item.binding.toolName,
-          toolCallId: item.binding.toolCallId,
-          resolveInterrupt: (output: unknown) =>
-            this.resolveItem(item.descriptor.id, output, transaction),
-        }
-        return Object.freeze(snapshot)
-      }
-      const snapshot: GenericAGUIInterrupt = {
-        ...base,
-        kind: 'generic',
-        resolveInterrupt: (payload) =>
-          this.resolveItem(item.descriptor.id, payload, transaction),
-      }
-      return Object.freeze(snapshot)
-    })
+      })
 
     // The runtime items are created only from the exact configured TTools entry
     // selected by name. TypeScript cannot preserve that per-element lookup
@@ -1208,12 +1199,18 @@ export class InterruptManager<
   }
 
   private resolveBooleanBulk(approved: boolean): void {
-    const eligible = this.items.every(
+    // `client-tool-execution` items resolve out-of-band (auto execution /
+    // addToolResult); they are transparent to the boolean shorthand. Eligibility
+    // and resolution consider only the publicly resolvable items.
+    const resolvable = this.items.filter(
+      (item) => item.kind !== 'client-tool-execution',
+    )
+    const eligible = resolvable.every(
       (item) =>
         item.kind === 'tool-approval' &&
         this.approvalBranchSchema(item.tool, approved) === undefined,
     )
-    if (!eligible || this.items.length === 0) {
+    if (!eligible || resolvable.length === 0) {
       this.addRootError(
         'unsupported-bulk-operation',
         'Boolean bulk resolution requires payloadless tool approvals.',
@@ -1222,7 +1219,7 @@ export class InterruptManager<
       return
     }
     this.invalidateRetry()
-    for (const item of this.items) {
+    for (const item of resolvable) {
       item.validationGeneration++
       item.resolution = cloneAndDeepFreezeJson({
         interruptId: item.descriptor.id,
@@ -1269,7 +1266,13 @@ export class InterruptManager<
       if (
         failure === undefined &&
         this.items.some(
-          (item) => item.resolution === undefined || item.status !== 'staged',
+          (item) =>
+            // `client-tool-execution` items are resolved out-of-band (auto
+            // execution / addToolResult), not by this synchronous resolver, so
+            // they don't count against transaction completeness. `maybeSubmit`
+            // still gates the actual submission on them being resolved.
+            item.kind !== 'client-tool-execution' &&
+            (item.resolution === undefined || item.status !== 'staged'),
         )
       ) {
         failure = {

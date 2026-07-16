@@ -236,37 +236,25 @@ test('reports a two-tab loser as a conflict without a second continuation', asyn
   await secondPage.close()
 })
 
-test('keeps client-tool execution typed, visible, and resolvable by its bound method', async ({
+test('auto-executes the client tool internally and keeps it out of the public interrupts', async ({
   page,
 }) => {
   const testId = fixtureId('interrupt-client-tool')
   await startScenario(page, testId, 'client-tool-and-approval')
+  // The client tool has a `.client()` implementation, so it executes
+  // automatically and never appears as a public interrupt — only the approval
+  // is surfaced.
   await expect(
     page.getByTestId('interrupt-kind-client-tool-execution'),
-  ).toHaveCount(1)
+  ).toHaveCount(0)
   await expect(page.getByTestId('interrupt-kind-tool-approval')).toHaveCount(1)
-  await page.getByTestId('resolve-client-tool-bound').click()
-  await expect(page.getByTestId('client-tool-status')).toHaveText('staged')
+  // Resolving the public approval completes the batch (the client tool has
+  // already auto-resolved internally) and the run continues.
   await page.getByTestId('approve-server-tool').click()
   await expect(page.getByTestId('continuation-count')).toHaveText('1')
-  await expect(page.getByTestId('client-tool-output')).toHaveText(
-    '{"browserValue":"done"}',
+  await expect(page.getByTestId('submitted-decisions')).toContainText(
+    'client-tool',
   )
-})
-
-test('retains addToolResult as delegation to the same staged client-tool item', async ({
-  page,
-}) => {
-  const testId = fixtureId('interrupt-add-tool-result')
-  await startScenario(page, testId, 'client-tool-and-approval')
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
-  await page.getByTestId('resolve-client-tool-delegated').click()
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
-  await expect(page.getByTestId('client-tool-status')).toHaveText('staged')
-  await expect(page.getByTestId('continuation-count')).toHaveText('0')
-  await page.getByTestId('approve-server-tool').click()
-  await expect(page.getByTestId('continuation-count')).toHaveText('1')
-  await expect(page.getByTestId('add-tool-result-count')).toHaveText('1')
 })
 
 test('schedules a mixed core batch and resumes only after every item resolves', async ({
@@ -274,16 +262,16 @@ test('schedules a mixed core batch and resumes only after every item resolves', 
 }) => {
   const testId = fixtureId('interrupt-core-mixed')
   await startScenario(page, testId, 'core-mixed-client-approval')
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
+  // Only the approval is public; the client tool auto-executes internally.
+  await expect(page.getByTestId('interrupt-card')).toHaveCount(1)
   await expect(
     page.getByTestId('interrupt-kind-client-tool-execution'),
-  ).toHaveCount(1)
+  ).toHaveCount(0)
   await expect(page.getByTestId('interrupt-kind-tool-approval')).toHaveCount(1)
 
-  await page.getByTestId('resolve-client-tool-bound').click()
-  await expect(page.getByTestId('client-tool-status')).toHaveText('staged')
+  // The batch resumes only after the public approval resolves; the client tool
+  // has already auto-resolved internally.
   await expect(page.getByTestId('continuation-count')).toHaveText('0')
-
   await page.getByTestId('approve-server-tool').click()
   await expect(page.getByTestId('continuation-count')).toHaveText('1')
   await expect(page.getByTestId('submitted-decisions')).toHaveText(

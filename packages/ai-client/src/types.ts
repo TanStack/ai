@@ -157,17 +157,6 @@ export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
       }
     : never
 
-export type ClientToolExecutionInterrupt<
-  TTool extends AnyClientTool = AnyClientTool,
-> = TTool extends AnyClientTool
-  ? BoundInterruptBase & {
-      readonly kind: 'client-tool-execution'
-      readonly toolName: TTool['name']
-      readonly toolCallId: string
-      resolveInterrupt: (output: InferToolOutput<TTool>) => void
-    }
-  : never
-
 type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
   TTools[number] extends infer TTool
     ? TTool extends AnyClientTool
@@ -177,20 +166,13 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
       : never
     : never
 
-type ClientToolExecutionInterrupts<
-  TTools extends ReadonlyArray<AnyClientTool>,
-> = TTools[number] extends infer TTool
-  ? TTool extends AnyClientTool
-    ? ClientToolExecutionInterrupt<TTool>
-    : never
-  : never
-
+// Client tools resolve through their `.client()` implementation (auto-run) or
+// `addToolResult` — never as a bound interrupt. The `client-tool-execution`
+// pause is handled internally and is intentionally absent from this public
+// union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> =
-  | GenericAGUIInterrupt
-  | ApprovalInterrupts<TTools>
-  | ClientToolExecutionInterrupts<TTools>
+> = GenericAGUIInterrupt | ApprovalInterrupts<TTools>
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,

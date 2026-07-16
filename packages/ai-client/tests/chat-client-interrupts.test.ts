@@ -144,11 +144,10 @@ describe('InterruptManager hydration', () => {
       ],
     })
 
+    // The client-tool-execution item is hydrated internally but never surfaced
+    // publicly — only the approval appears in the bound array.
     const snapshot = manager.getInterrupts()
-    expect(snapshot.map((item) => item.kind)).toEqual([
-      'tool-approval',
-      'client-tool-execution',
-    ])
+    expect(snapshot.map((item) => item.kind)).toEqual(['tool-approval'])
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot[0])).toBe(true)
     expect(Object.isFrozen(snapshot[0]?.binding)).toBe(true)
@@ -326,7 +325,8 @@ describe('InterruptManager hydration', () => {
       generation: 1,
       interrupts: terminal.outcome.interrupts,
     })
-    expect(manager.getInterrupts()[0]?.kind).toBe('client-tool-execution')
+    // A correctly-correlated client-tool item is internal only — not public.
+    expect(manager.getInterrupts()).toHaveLength(0)
 
     manager.hydrate({
       threadId: 'core-thread',
@@ -391,9 +391,10 @@ describe('InterruptManager hydration', () => {
       ],
     })
 
+    // The legacy client-tool alias hydrates internally but stays out of the
+    // public bound array; only the approval is surfaced.
     expect(manager.getInterrupts().map((interrupt) => interrupt.kind)).toEqual([
       'tool-approval',
-      'client-tool-execution',
     ])
   })
 
@@ -531,31 +532,28 @@ describe('InterruptManager transactions', () => {
       interrupts: [descriptor(binding), genericDescriptor('other')],
     })
 
-    const first = manager.getInterrupts()[0]
-    if (first?.kind !== 'client-tool-execution') {
-      throw new Error('Expected client tool execution interrupt')
-    }
-    first.resolveInterrupt({ accountId: 'valid' })
-    expect(manager.getInterrupts()[0]?.status).toBe('validating')
-    await settle()
-    expect(manager.getInterrupts()[0]?.status).toBe('staged')
+    // `client-tool-execution` is internal only: the public array surfaces just
+    // the generic item, never the client tool.
+    expect(manager.getInterrupts()).toHaveLength(1)
+    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
 
-    const replacement = manager.getInterrupts()[0]
-    if (replacement?.kind !== 'client-tool-execution') {
-      throw new Error('Expected client tool execution interrupt')
-    }
-    replacement.resolveInterrupt({ accountId: '' })
+    // The client tool result resolves through the internal path (the same one
+    // `addToolResult` uses) and is validated against the tool's output schema.
+    expect(
+      manager.resolveClientToolOutput('call-1', { accountId: 'valid' }),
+    ).toBe(true)
     await settle()
-    expect(manager.getInterrupts()[0]).toMatchObject({
-      status: 'error',
-      errors: [{ code: 'invalid-tool-output' }],
-      error: { code: 'invalid-tool-output' },
-    })
-    expect(Object.isFrozen(manager.getInterrupts()[0]?.errors)).toBe(true)
-    manager.getInterrupts()[1]?.cancel()
+
+    // The batch submits only once both the internal client-tool item and the
+    // public generic item are resolved.
     expect(submit).not.toHaveBeenCalled()
-    manager.getInterrupts()[0]?.clearResolution()
-    expect(manager.getInterrupts()[0]?.status).toBe('pending')
+    const generic = manager.getInterrupts()[0]
+    if (generic?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    generic.resolveInterrupt('done')
+    await settle()
+    expect(submit).toHaveBeenCalledTimes(1)
   })
 
   it('rolls callback transactions back on thrown, returned, thenable, or incomplete work', () => {

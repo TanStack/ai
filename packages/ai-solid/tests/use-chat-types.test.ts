@@ -232,16 +232,11 @@ describe('useChat() interrupt types', () => {
       Interrupt,
       { kind: 'tool-approval'; toolName: 'confirm' }
     >
-    type Lookup = Extract<
-      Interrupt,
-      { kind: 'client-tool-execution'; toolName: 'lookup' }
-    >
     type Generic = Extract<Interrupt, { kind: 'generic' }>
 
     const check = (
       transferInterrupt: Transfer,
       confirmInterrupt: Confirm,
-      lookupInterrupt: Lookup,
       genericInterrupt: Generic,
     ) => {
       transferInterrupt.resolveInterrupt(true, {
@@ -267,9 +262,6 @@ describe('useChat() interrupt types', () => {
         payload: { reason: 'no branch' },
       })
 
-      lookupInterrupt.resolveInterrupt({ accountId: 'account-1' })
-      // @ts-expect-error client-tool output is inferred
-      lookupInterrupt.resolveInterrupt({ account: 'account-1' })
       expectTypeOf(genericInterrupt.resolveInterrupt)
         .parameter(0)
         .toEqualTypeOf<unknown>()
