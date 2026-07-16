@@ -79,6 +79,23 @@ export {
   toHttpResponse,
 } from './stream-to-response'
 
+// Chain activity (server-side activity composition)
+export {
+  chain,
+  CHAIN_EVENTS,
+  type Chain,
+  type ChainContext,
+  type ChainResultMeta,
+  type ChainRunOptions,
+  type ChainStep,
+  type ChainStepEventValue,
+  type ChainStepResult,
+  type ChainStream,
+  type InferChainInput,
+  type InferChainOutput,
+  type ResolveStepResult,
+} from './activities/chain/index'
+
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
