@@ -19,18 +19,18 @@ and PR code is never checked out or executed (no `pull_request_target`).
 
 ## Configuration — `.github/maintainers.json`
 
-| Field                              | Meaning                                                                                                                                                                      |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maintainers[].github`             | GitHub login; the roster defines who counts as "a maintainer responded".                                                                                                     |
-| `maintainers[].discord`            | Discord user id (snowflake) for digest @-mentions; `null` → plain bold name.                                                                                                 |
+| Field                              | Meaning                                                                                                                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maintainers[].github`             | GitHub login; the roster defines who counts as "a maintainer responded".                                                                                                                                          |
+| `maintainers[].discord`            | Discord user id (snowflake) for digest @-mentions; `null` → plain bold name.                                                                                                                                      |
 | `maintainers[].areas`              | Optional file globs (`**`, `*`, `?`) giving this maintainer routing priority for matching PRs (issues match package names in title/body). Omitted/empty (the default) → assignment is pure least-loaded rotation. |
-| `maintainers[].maxOpenAssignments` | Routing skips a maintainer at this many open assignments.                                                                                                                    |
-| `sla.firstResponseHours`           | Deadline for the first human response on a new item (default 24h).                                                                                                           |
-| `sla.followUpResponseHours`        | Deadline for answering a follow-up message (default 48h).                                                                                                                    |
-| `sla.staleAuthorDays`              | Author silence before an item is a nudge/close candidate (default 14d).                                                                                                      |
-| `spam.*`                           | Drive-by/bounty heuristic: account younger than `maxAccountAgeDays` **and** diff ≤ `maxChangedLines` **and** no linked issue → flagged for human judgment, never auto-acked. |
-| `botAllowlist`                     | Logins always treated as bots (excluded from human metrics and acks).                                                                                                        |
-| `maxCommentsPerRun`                | Safety cap on comments per sweep; overflow defers to the next run.                                                                                                           |
+| `maintainers[].maxOpenAssignments` | Routing skips a maintainer at this many open assignments.                                                                                                                                                         |
+| `sla.firstResponseHours`           | Deadline for the first human response on a new item (default 24h).                                                                                                                                                |
+| `sla.followUpResponseHours`        | Deadline for answering a follow-up message (default 48h).                                                                                                                                                         |
+| `sla.staleAuthorDays`              | Author silence before an item is a nudge/close candidate (default 14d).                                                                                                                                           |
+| `spam.*`                           | Drive-by/bounty heuristic: account younger than `maxAccountAgeDays` **and** diff ≤ `maxChangedLines` **and** no linked issue → flagged for human judgment, never auto-acked.                                      |
+| `botAllowlist`                     | Logins always treated as bots (excluded from human metrics and acks).                                                                                                                                             |
+| `maxCommentsPerRun`                | Safety cap on comments per sweep; overflow defers to the next run.                                                                                                                                                |
 
 ## Secrets
 
