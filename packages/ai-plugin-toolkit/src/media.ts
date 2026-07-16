@@ -13,8 +13,8 @@
 // zod into the bundle and make it a hard runtime dependency. Callers who want
 // richer input validation can bypass these factories and pass their own
 // zod/valibot/arktype schema straight to `generationPlugin({ input, execute })`.
-import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { generationPlugin } from './index.js'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { GenerationPlugin, GenerationPluginRequest } from './types.js'
 import type {
   AudioGenerationResult,

@@ -10,15 +10,24 @@ import {
 import type {
   AnyPlugin,
   ChatPlugin,
-  ChatPluginReturn,
   ChatPluginRequest,
+  ChatPluginReturn,
+  CollectedChatResult,
   GenerationPlugin,
+  GenerationPluginExecute,
   GenerationPluginOptions,
   GenerationPluginRequest,
   PluginConfig,
   PluginDefinition,
+  PluginRunOptions,
 } from './types.js'
-import type { InferSchemaType, SchemaInput, StreamChunk } from '@tanstack/ai'
+import type {
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+  UIMessage,
+} from '@tanstack/ai'
 
 export type * from './types.js'
 export {
@@ -43,7 +52,21 @@ export type {
 export function chatPlugin<TRet extends ChatPluginReturn>(
   callback: (req: ChatPluginRequest) => TRet,
 ): ChatPlugin<(req: ChatPluginRequest) => TRet> {
-  return { kind: 'chat', callback }
+  const run = (async (arg: unknown, options?: PluginRunOptions) => {
+    const normalized = await normalizeRunArg(arg, options)
+    const messages = normalized.params
+      ? normalized.params.messages
+      : (normalized.rawMessages ?? [])
+    const tools = normalized.params ? normalized.params.tools : []
+    const envelope = buildEnvelope(normalized.params, options)
+    const req = buildChatRequest(messages, tools, envelope, normalized.request)
+    const result = callback(req)
+    if (!isAsyncIterable(result)) {
+      throw new Error('chat plugin must return a streaming ChatStream')
+    }
+    return collectChatStream(result)
+  }) as ChatPlugin<(req: ChatPluginRequest) => TRet>['run']
+  return { kind: 'chat', callback, run }
 }
 
 /** Declare a one-shot plugin: (optionally schema-validated) input in, result out. */
@@ -56,10 +79,36 @@ export function generationPlugin<
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
   TResult
 > {
+  const schema = options.input
+  const execute = options.execute as GenerationPluginExecute<unknown, TResult>
+  const run = (async (arg: unknown, runOptions?: PluginRunOptions) => {
+    const normalized = await normalizeRunArg(arg, runOptions)
+    const rawInput = normalized.params
+      ? stripPluginDiscriminator(normalized.params.forwardedProps)
+      : normalized.rawInput
+    const validation = await validateWithStandardSchema(schema, rawInput)
+    if (!validation.success) {
+      throw new Error(
+        `Invalid plugin input: ${JSON.stringify(validation.issues)}`,
+      )
+    }
+    const envelope = buildEnvelope(normalized.params, runOptions)
+    const req = buildGenerationRequest(
+      validation.data,
+      envelope,
+      normalized.request,
+    )
+    const out = execute(req)
+    return isAsyncIterable(out) ? extractGenerationResult(out) : await out
+  }) as GenerationPlugin<
+    TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+    TResult
+  >['run']
   return {
     kind: 'one-shot',
-    ...(options.input !== undefined && { input: options.input }),
+    ...(schema !== undefined && { input: schema }),
     execute: options.execute,
+    run,
   }
 }
 
@@ -85,6 +134,161 @@ interface RunEnvelope {
   state: unknown
   aguiContext: ChatPluginRequest['aguiContext']
   forwardedProps: Record<string, unknown>
+}
+
+type ParsedParams = Awaited<ReturnType<typeof chatParamsFromRequestBody>>
+
+/** The synthetic request used when `.run()` is called without a real one. */
+const SYNTHETIC_RUN_URL = 'http://plugin.local/run'
+
+/** Drop the `plugin` routing discriminator, leaving the plugin's own input. */
+function stripPluginDiscriminator(
+  forwardedProps: Record<string, unknown>,
+): Record<string, unknown> {
+  const { plugin: _omit, ...rest } = forwardedProps
+  return rest
+}
+
+interface NormalizedRunArg {
+  /** The `Request` exposed to the plugin (real for form 1, synthetic otherwise). */
+  request: Request
+  /** Parsed AG-UI params, present for the `Request` and body forms. */
+  params?: ParsedParams
+  /** Raw chat messages (form 3: an array argument). */
+  rawMessages?: Array<UIMessage | ModelMessage>
+  /** Raw generation input (form 3: a non-array, non-body argument). */
+  rawInput?: unknown
+}
+
+/** An object carries AG-UI envelope markers → treat it as a request body. */
+function isBodyLike(value: object): boolean {
+  return (
+    'forwardedProps' in value || ('messages' in value && 'runId' in value)
+  )
+}
+
+/**
+ * Normalize any of the three `.run()` input forms to a common shape:
+ * - `Request` → read + parse its JSON body through `chatParamsFromRequestBody`.
+ * - `Array` → raw chat messages.
+ * - object with AG-UI markers → parse as a request body.
+ * - anything else → raw generation input.
+ */
+async function normalizeRunArg(
+  arg: unknown,
+  options?: PluginRunOptions,
+): Promise<NormalizedRunArg> {
+  if (arg instanceof Request) {
+    const body = await arg.json()
+    const params = await chatParamsFromRequestBody(body)
+    return { request: arg, params }
+  }
+  const request = options?.request ?? new Request(SYNTHETIC_RUN_URL)
+  if (Array.isArray(arg)) {
+    return { request, rawMessages: arg as Array<UIMessage | ModelMessage> }
+  }
+  if (typeof arg === 'object' && arg !== null && isBodyLike(arg)) {
+    const params = await chatParamsFromRequestBody(arg)
+    return { request, params }
+  }
+  return { request, rawInput: arg }
+}
+
+/**
+ * Build the run envelope. When a parsed body is present its fields are used
+ * verbatim (so the handler's SSE output is unchanged); otherwise `options`
+ * overrides win over synthetic defaults (`crypto.randomUUID()` ids,
+ * `state: null`, empty `aguiContext`/`forwardedProps`).
+ */
+function buildEnvelope(
+  source: ParsedParams | undefined,
+  options?: PluginRunOptions,
+): RunEnvelope {
+  if (source) {
+    return {
+      threadId: source.threadId,
+      runId: source.runId,
+      ...(source.parentRunId !== undefined && {
+        parentRunId: source.parentRunId,
+      }),
+      state: source.state,
+      aguiContext: source.aguiContext,
+      forwardedProps: source.forwardedProps,
+    }
+  }
+  const parentRunId = options?.parentRunId
+  return {
+    threadId: options?.threadId ?? crypto.randomUUID(),
+    runId: options?.runId ?? crypto.randomUUID(),
+    ...(parentRunId !== undefined && { parentRunId }),
+    state: options?.state ?? null,
+    aguiContext: options?.aguiContext ?? [],
+    forwardedProps: options?.forwardedProps ?? {},
+  }
+}
+
+/** Assemble a one-shot plugin request from validated input + envelope. */
+function buildGenerationRequest(
+  input: unknown,
+  envelope: RunEnvelope,
+  request: Request,
+): GenerationPluginRequest {
+  return {
+    input,
+    ...envelope,
+    request,
+    signal: request.signal,
+  }
+}
+
+/** Assemble a chat plugin request from messages/tools + envelope. */
+function buildChatRequest(
+  messages: ChatPluginRequest['messages'],
+  tools: ChatPluginRequest['tools'],
+  envelope: RunEnvelope,
+  request: Request,
+): ChatPluginRequest {
+  return { messages, tools, ...envelope, request }
+}
+
+/** Drain a one-shot stream and return the terminal `generation:result` value. */
+async function extractGenerationResult(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<unknown> {
+  let result: unknown
+  for await (const chunk of stream) {
+    if (chunk.type === EventType.CUSTOM && chunk.name === 'generation:result') {
+      result = chunk.value
+    }
+  }
+  return result
+}
+
+/**
+ * Collect a chat stream into `{ text, structured }`. `text` accumulates the
+ * `TEXT_MESSAGE_CONTENT` deltas; `structured` is the terminal
+ * `structured-output.complete` event's `value.object` (else `null`).
+ */
+async function collectChatStream(
+  stream: AsyncIterable<StreamChunk>,
+): Promise<CollectedChatResult> {
+  let text = ''
+  let structured: unknown = null
+  for await (const chunk of stream) {
+    if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+      const { delta } = chunk
+      if (typeof delta === 'string') text += delta
+    } else if (
+      chunk.type === EventType.CUSTOM &&
+      chunk.name === 'structured-output.complete'
+    ) {
+      const value = chunk.value
+      if (value !== null && typeof value === 'object' && 'object' in value) {
+        structured = (value as { object: unknown }).object
+      }
+    }
+  }
+  return { text, structured }
 }
 
 /**
@@ -145,24 +349,15 @@ export function definePlugin<const T extends PluginConfig>(
       })
     }
 
-    const envelope: RunEnvelope = {
-      threadId: params.threadId,
-      runId: params.runId,
-      ...(params.parentRunId !== undefined && {
-        parentRunId: params.parentRunId,
-      }),
-      state: params.state,
-      aguiContext: params.aguiContext,
-      forwardedProps: params.forwardedProps,
-    }
+    const envelope = buildEnvelope(params)
 
     if (target.kind === 'chat') {
-      const chatReq: ChatPluginRequest = {
-        messages: params.messages,
-        tools: params.tools,
-        ...envelope,
+      const chatReq = buildChatRequest(
+        params.messages,
+        params.tools,
+        envelope,
         request,
-      }
+      )
       const result = target.callback(chatReq)
       if (!isAsyncIterable(result)) {
         return new Response('chat plugin must return a streaming ChatStream', {
@@ -174,7 +369,7 @@ export function definePlugin<const T extends PluginConfig>(
 
     // One-shot plugin: input = the forwarded props minus the routing
     // discriminator, validated against the plugin's schema when declared.
-    const { plugin: _omit, ...rawInput } = params.forwardedProps
+    const rawInput = stripPluginDiscriminator(params.forwardedProps)
     const validation = await validateWithStandardSchema(target.input, rawInput)
     if (!validation.success) {
       return new Response(
@@ -207,12 +402,7 @@ async function* runGenerationPluginStream(
 ): AsyncIterable<StreamChunk> {
   const { threadId, runId } = envelope
 
-  const req: GenerationPluginRequest = {
-    input,
-    ...envelope,
-    request,
-    signal: request.signal,
-  }
+  const req = buildGenerationRequest(input, envelope, request)
 
   const out = target.execute(req)
 

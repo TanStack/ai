@@ -1,5 +1,5 @@
 // packages/ai-plugin-toolkit/src/types.ts
-import type { Context as AGUIContext } from '@ag-ui/core'
+import type { Context as AGUIContext, RunAgentInput } from '@ag-ui/core'
 import type {
   ChatStream,
   InferSchemaType,
@@ -10,6 +10,38 @@ import type {
   StructuredOutputStream,
   UIMessage,
 } from '@tanstack/ai'
+
+/**
+ * An already-parsed AG-UI request body — the shape
+ * `chatParamsFromRequestBody` accepts. Passed to `.run(body)` when the caller
+ * has the parsed envelope but no HTTP `Request`.
+ */
+export type PluginRequestBody = RunAgentInput
+
+/**
+ * Envelope overrides for a direct `.run(rawInput, options)` call. Every field
+ * is optional; absent fields fall back to synthetic defaults (`crypto.randomUUID()`
+ * ids, `state: null`, empty `aguiContext`/`forwardedProps`, a synthetic `Request`).
+ */
+export interface PluginRunOptions {
+  /** A real `Request` to expose to the plugin (headers, auth, abort signal). */
+  request?: Request
+  threadId?: string
+  runId?: string
+  parentRunId?: string
+  signal?: AbortSignal
+  state?: unknown
+  aguiContext?: Array<AGUIContext>
+  forwardedProps?: Record<string, unknown>
+}
+
+/** The collected result of running a chat plugin directly (no streaming). */
+export interface CollectedChatResult<TStructured = unknown> {
+  /** The accumulated assistant text (concatenated `TEXT_MESSAGE_CONTENT` deltas). */
+  text: string
+  /** The terminal structured output, or `null` when the run produced none. */
+  structured: TStructured | null
+}
 
 /** The parsed request handed to a chat plugin's callback. */
 export interface ChatPluginRequest {
@@ -54,7 +86,27 @@ export interface ChatPlugin<
 > {
   readonly kind: 'chat'
   readonly callback: TCallback
+  /**
+   * Run this chat plugin directly, in-process (no HTTP). Collects the callback's
+   * stream into `{ text, structured }`. Accepts raw messages (+ envelope
+   * `options`), an HTTP `Request`, or an already-parsed AG-UI body.
+   */
+  run: ((
+    messages: Array<UIMessage | ModelMessage>,
+    options?: PluginRunOptions,
+  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) & ((
+    request: Request,
+  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>) & ((
+    body: PluginRequestBody,
+  ) => Promise<CollectedChatResult<StructuredOutputOf<TCallback>>>)
 }
+
+/**
+ * The structured-output type a chat callback yields, when it returns a
+ * {@link StructuredOutputStream}; otherwise `unknown`.
+ */
+export type StructuredOutputOf<TCallback extends ChatPluginCallback> =
+  ReturnType<TCallback> extends StructuredOutputStream<infer T> ? T : unknown
 
 /** The parsed request handed to a one-shot plugin's `execute`. */
 export interface GenerationPluginRequest<TInput = unknown> {
@@ -94,6 +146,14 @@ export interface GenerationPlugin<TInput = unknown, TResult = unknown> {
   /** Optional Standard Schema for the input; validated before `execute`. */
   readonly input?: SchemaInput
   readonly execute: GenerationPluginExecute<TInput, TResult>
+  /**
+   * Run this one-shot plugin directly, in-process (no HTTP). Validates the input
+   * against the plugin's schema (when declared), runs `execute`, and returns the
+   * result — draining the terminal `generation:result` when `execute` streams.
+   * Accepts raw input (+ envelope `options`), an HTTP `Request`, or an
+   * already-parsed AG-UI body.
+   */
+  run: ((input: TInput, options?: PluginRunOptions) => Promise<TResult>) & ((request: Request) => Promise<TResult>) & ((body: PluginRequestBody) => Promise<TResult>)
 }
 
 /** The options accepted by {@link generationPlugin}. */
