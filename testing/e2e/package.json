@@ -48,7 +48,6 @@
     "remark-cjk-friendly": "^2.0.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.2.0"
   },
   "devDependencies": {
