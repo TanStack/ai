@@ -181,9 +181,29 @@ Edge cases:
 2. Issues (after removing `coveredIssues`) by priority, then by `reactions + comments` desc within each tier.
 3. Discussions (after removing `coveredDiscussions`) by priority, then by `upvotes * 2 + comments + reactions` desc within each tier. Inside the same tier, surface Q&A above Ideas above other categories (response latency matters most for Q&A).
 
-### 5. Write the report
+#### 4c. Compute deltas vs the previous run
 
-Save to `TRIAGE_REPORT.md` at the repo root (or `.agent/triage/TRIAGE_REPORT-YYYY-MM-DD.md` if the repo has a `.agent/` directory). Ask before overwriting an existing report from today.
+**Triage data dir.** Machine-readable snapshots live in a stable directory so runs can be compared: use `.agent/triage/` if the repo has a `.agent/` directory, else `.triage/` at the repo root (create it, and add `/.triage/` to `.gitignore` if not already ignored). These snapshots are local working data — never commit them.
+
+Find the most recent snapshot `triage-*.json` in that dir whose date is **before today** (ignore any from today so a same-day re-run doesn't diff against itself). If none exists, skip deltas and note "first tracked run — no prior snapshot to compare" in the report.
+
+Otherwise load it. Each snapshot is `{ "date", "repo", "items": [ <agent JSON> + "highStreak": N ] }`. Match items across runs by `kind` + `number` and compute:
+
+- **New** — in current, not in prior.
+- **Resolved** — in prior, not in current (merged / closed / answered since last run).
+- **Escalated** — priority increased (e.g. `P2 → P0`). Record `old → new`.
+- **De-escalated** — priority decreased.
+- **Recurring high priority** — `highStreak >= 2` (see below): P0/P1 now and also high-priority last run. A P0 that recurs across runs is being ignored despite "act today" — the single most actionable delta signal.
+
+**`highStreak`** propagates the streak so you don't need full history: when building the current snapshot, for each item look up its prior entry. If the item is P0/P1 **and** its prior entry was P0/P1, set `highStreak = priorHighStreak + 1`; otherwise `highStreak = 1`. Store it on each current item.
+
+Deltas are additive — they never change an item's score or its placement in the sections below. If the prior snapshot is missing or unparseable, skip the delta section entirely rather than guessing; do **not** fabricate a comparison.
+
+### 5. Write the snapshot, then the report
+
+First write the machine-readable snapshot to `<triage data dir>/triage-YYYY-MM-DD.json` (the dir from 4c) — `{ "date", "repo", "items": [...] }`, one entry per triaged item (the agent's JSON verbatim plus the computed `highStreak`). This is the source of truth the next run diffs against; the markdown report is human-facing only. Overwrite today's snapshot if re-running.
+
+Then save the human report to `TRIAGE_REPORT.md` at the repo root (or `.agent/triage/TRIAGE_REPORT-YYYY-MM-DD.md` if the repo has a `.agent/` directory). Ask before overwriting an existing report from today.
 
 Report skeleton:
 
@@ -193,6 +213,16 @@ Report skeleton:
 Scanned **N PRs**, **M issues**, and **D discussions**. Folded away **X issues** covered by an open PR and **Y discussions** already tracked by an issue/PR (they appear under the covering item, not in their own section). Skipped K items over the 100-agent budget (listed at bottom).
 
 PR lines carry the metadata format: **by @author** · **assigned @assignee1, @assignee2** (or _unassigned_) · **closes #X** (when the PR closes an issue).
+
+## What changed since <prior date>
+
+_Diffed against the previous snapshot (<prior date>). Omit this whole section on the first tracked run._
+
+- **New (<count>):** [#NUM Title](url) _(pr/issue/discussion, P0)_, …
+- **Resolved (<count>):** [#NUM Title](url), … — open last run, now merged/closed/answered.
+- **Escalated (<count>):** [#NUM Title](url) **P2 → P0**, … — priority rose; look here first.
+- **De-escalated (<count>):** [#NUM Title](url) **P0 → P2**, …
+- **Recurring high priority (<count>):** [#NUM Title](url) — **P0 for 3 consecutive runs**, still _<action>_, … — keeps surfacing without resolution.
 
 ## PRs to review first
 
@@ -258,7 +288,7 @@ _Only discussions **not already tracked** by an issue or PR._
 
 ## How this was generated
 
-N parallel triage agents ran via the `triage-github` skill on <date>. Each agent independently scored its item; this report aggregates and ranks them, then applies a PR > issue > discussion linkage pass so each unit of work appears once under the highest tier that covers it (a PR's `closesIssues` and each issue's `linkedPR` drive the folding). Priorities are heuristic — sanity-check P0s before acting, especially `convert-to-issue` and `close` recommendations on discussions.
+N parallel triage agents ran via the `triage-github` skill on <date>. Each agent independently scored its item; this report aggregates and ranks them, then applies a PR > issue > discussion linkage pass so each unit of work appears once under the highest tier that covers it (a PR's `closesIssues` and each issue's `linkedPR` drive the folding). A machine-readable snapshot was written to `<triage data dir>/triage-<date>.json`; the "What changed" section above diffs this run against the most recent prior snapshot. Priorities are heuristic — sanity-check P0s before acting, especially `convert-to-issue` and `close` recommendations on discussions.
 ```
 
 If discussions are disabled on the repo, omit the "Discussions to engage with" section and add a one-liner near the top noting they're disabled.
@@ -272,5 +302,6 @@ After writing the file, give the user a 3–5 line summary: total counts (plus h
 - **Cost**: 100 agents is expensive. If the combined open-item total is small (say <20), just triage them yourself in the main thread instead of fanning out — mention this and proceed.
 - **Rate limits**: `gh` shares one auth token; 100 concurrent `gh` calls usually fits inside GitHub's per-hour quota for authenticated users, but if the user has run heavy `gh` traffic recently, batch the agents in two waves of 50. Discussion GraphQL queries cost more rate-limit points per call than REST — factor that in.
 - **Failed agents**: if an agent times out or returns garbage, include it in the report under a "Triage failures" subsection rather than silently dropping it.
+- **Snapshots & deltas**: each run writes a `triage-<date>.json` snapshot to the triage data dir (`.agent/triage/` or `.triage/`); the next run diffs against the latest prior one to produce the "What changed" section. Snapshots are local-only working data — gitignore them, and delete freely (deleting just disables deltas for the next run). If no prior snapshot exists or it won't parse, the run proceeds without a delta section rather than guessing.
 - **Don't take actions**: this skill is read-only. Do not close issues, request changes, merge PRs, comment on discussions, convert discussions to issues, or post any reply. The report is for the human to act on.
 - **Discussion category names** vary per repo. The common GitHub defaults are Q&A, Ideas, General, Show and tell, Announcements, Polls. Unknown categories should be tagged as `"other"` and ranked under the General rubric.
