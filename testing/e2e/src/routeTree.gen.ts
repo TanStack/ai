@@ -9,8 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TransactionRouteImport } from './routes/transaction'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as PluginRouteImport } from './routes/plugin'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
@@ -25,10 +25,10 @@ import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
-import { Route as ApiTransactionRouteImport } from './routes/api.transaction'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiPluginRouteImport } from './routes/api.plugin'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
@@ -60,14 +60,14 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
-const TransactionRoute = TransactionRouteImport.update({
-  id: '/transaction',
-  path: '/transaction',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PluginRoute = PluginRouteImport.update({
+  id: '/plugin',
+  path: '/plugin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
@@ -140,11 +140,6 @@ const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
   path: '/api/transcription',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTransactionRoute = ApiTransactionRouteImport.update({
-  id: '/api/transaction',
-  path: '/api/transaction',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   id: '/api/tools-test',
   path: '/api/tools-test',
@@ -159,6 +154,11 @@ const ApiToolCallLifecycleWireRoute =
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPluginRoute = ApiPluginRouteImport.update({
+  id: '/api/plugin',
+  path: '/api/plugin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
@@ -327,8 +327,8 @@ export interface FileRoutesByFullPath {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/plugin': typeof PluginRoute
   '/tools-test': typeof ToolsTestRoute
-  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -354,10 +354,10 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/plugin': typeof ApiPluginRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -379,8 +379,8 @@ export interface FileRoutesByTo {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/plugin': typeof PluginRoute
   '/tools-test': typeof ToolsTestRoute
-  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -406,10 +406,10 @@ export interface FileRoutesByTo {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/plugin': typeof ApiPluginRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -432,8 +432,8 @@ export interface FileRoutesById {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/plugin': typeof PluginRoute
   '/tools-test': typeof ToolsTestRoute
-  '/transaction': typeof TransactionRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -459,10 +459,10 @@ export interface FileRoutesById {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/plugin': typeof ApiPluginRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transaction': typeof ApiTransactionRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
@@ -486,8 +486,8 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/plugin'
     | '/tools-test'
-    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -513,10 +513,10 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/plugin'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
-    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -538,8 +538,8 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/plugin'
     | '/tools-test'
-    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -565,10 +565,10 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/plugin'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
-    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -590,8 +590,8 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/plugin'
     | '/tools-test'
-    | '/transaction'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -617,10 +617,10 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/plugin'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
-    | '/api/transaction'
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
@@ -643,8 +643,8 @@ export interface RootRouteChildren {
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
+  PluginRoute: typeof PluginRoute
   ToolsTestRoute: typeof ToolsTestRoute
-  TransactionRoute: typeof TransactionRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
@@ -670,10 +670,10 @@ export interface RootRouteChildren {
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
+  ApiPluginRoute: typeof ApiPluginRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
-  ApiTransactionRoute: typeof ApiTransactionRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
@@ -682,18 +682,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/transaction': {
-      id: '/transaction'
-      path: '/transaction'
-      fullPath: '/transaction'
-      preLoaderRoute: typeof TransactionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/tools-test': {
       id: '/tools-test'
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plugin': {
+      id: '/plugin'
+      path: '/plugin'
+      fullPath: '/plugin'
+      preLoaderRoute: typeof PluginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/middleware-test': {
@@ -794,13 +794,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/transaction': {
-      id: '/api/transaction'
-      path: '/api/transaction'
-      fullPath: '/api/transaction'
-      preLoaderRoute: typeof ApiTransactionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/tools-test': {
       id: '/api/tools-test'
       path: '/api/tools-test'
@@ -820,6 +813,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/plugin': {
+      id: '/api/plugin'
+      path: '/api/plugin'
+      fullPath: '/api/plugin'
+      preLoaderRoute: typeof ApiPluginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/otel-usage': {
@@ -1104,8 +1104,8 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsToolsRoute: DevtoolsToolsRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
+  PluginRoute: PluginRoute,
   ToolsTestRoute: ToolsTestRoute,
-  TransactionRoute: TransactionRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
@@ -1131,10 +1131,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
+  ApiPluginRoute: ApiPluginRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
-  ApiTransactionRoute: ApiTransactionRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,

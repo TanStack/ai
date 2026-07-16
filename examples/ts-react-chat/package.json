@@ -34,6 +34,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-opencode": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",

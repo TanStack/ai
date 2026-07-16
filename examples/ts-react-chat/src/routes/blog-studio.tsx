@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { useTransaction } from '@tanstack/ai-react/transaction'
+import { usePlugin } from '@tanstack/ai-react/plugin'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -15,7 +15,7 @@ import {
   Volume2,
   Wand2,
 } from 'lucide-react'
-import { blogTxnDef, forNarration, heroPromptFor } from '../lib/blog-studio'
+import { blogPlugin, forNarration, heroPromptFor } from '../lib/blog-studio'
 import type { ImageGenerationResult, TTSResult } from '@tanstack/ai'
 import type { FormEvent, ReactNode } from 'react'
 
@@ -25,18 +25,17 @@ export const Route = createFileRoute('/blog-studio')({
 
 type StepState = 'pending' | 'active' | 'done' | 'failed'
 
-// Map a live sub-run's status onto a step state. `undefined` means the
-// server hasn't started that sub-run yet.
-function subRunToStep(
-  status: 'running' | 'success' | 'error' | undefined,
-): StepState {
-  return status === 'running'
-    ? 'active'
-    : status === 'success'
-      ? 'done'
-      : status === 'error'
-        ? 'failed'
-        : 'pending'
+// Derive a step's UI state from a one-shot plugin surface (heroImage /
+// narration): active while running, failed on error, done once a result lands.
+function genStep(surface: {
+  isLoading: boolean
+  error: Error | undefined
+  result: unknown
+}): StepState {
+  if (surface.isLoading) return 'active'
+  if (surface.error) return 'failed'
+  if (surface.result) return 'done'
+  return 'pending'
 }
 
 // The image result carries either a URL or base64 data, provider-dependent.
@@ -55,99 +54,92 @@ function audioSrcOf(result: TTSResult | null): string | null {
   return `data:${result.contentType ?? 'audio/mpeg'};base64,${result.audio}`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-// The drafting sub-run's live `partial` is typed `unknown` (progressively
-// parsed structured output). Narrow it to the blog-post fields without an
-// `as` cast — each field may be absent or half-written while streaming.
-function asBlogPostDraft(partial: unknown): {
-  title?: string
-  subtitle?: string
-  body?: string
-} {
-  if (!isRecord(partial)) return {}
-  const str = (value: unknown): string | undefined =>
-    typeof value === 'string' ? value : undefined
-  return {
-    title: str(partial.title),
-    subtitle: str(partial.subtitle),
-    body: str(partial.body),
-  }
-}
-
 function BlogStudio() {
-  const txn = useTransaction(blogTxnDef, {
+  // The blog plugin exposes three independent surfaces behind one endpoint.
+  // Orchestration happens here on the client — there is no server composition.
+  const p = usePlugin(blogPlugin, {
     connection: fetchServerSentEvents('/api/blog-studio'),
+    drafting: {},
+    heroImage: {},
+    narration: {},
   })
 
-  // Everything below is derived from the transaction's reactive state — no
-  // useState / useEffect. `blogPost` is the one-click transaction; `heroImage`
-  // and `narration` are the same verbs, driven directly by the user for
-  // regeneration.
-  const { blogPost } = txn
-  const heroRerun = txn.heroImage
-  const narrationRerun = txn.narration
+  const { drafting, heroImage, narration } = p
 
-  const post = blogPost.result?.post ?? null
-  // Prefer an individually regenerated hero / narration over the one the
-  // transaction produced.
-  const imageUrl = imageUrlOf(heroRerun.result ?? blogPost.result?.hero ?? null)
-  const audioSrc = audioSrcOf(
-    narrationRerun.result ?? blogPost.result?.audio ?? null,
-  )
+  // The finished, schema-validated draft (once the structured-output stream
+  // completes); `partial` is the live, progressively-parsed version.
+  const post = drafting.final
+  const partial = drafting.partial
 
-  // Live sub-run state, demultiplexed from the single SSE response: one entry
-  // per `ctx.call` the server made, keyed by verb name.
-  const subRuns = blogPost.subRuns
-  const draftingRun = subRuns.find((run) => run.verb === 'drafting')
-  const heroRun = subRuns.find((run) => run.verb === 'heroImage')
-  const narrationRun = subRuns.find((run) => run.verb === 'narration')
+  const imageUrl = imageUrlOf(heroImage.result)
+  const audioSrc = audioSrcOf(narration.result)
 
-  const isRunning = blogPost.isLoading
-  const hasRun = blogPost.status !== 'idle'
-
-  // While the `drafting` chat sub-run streams, the demux progressively parses
-  // its structured output into `partial` — a live `{ title?, subtitle?, body? }`
-  // that fills in as the JSON arrives. Render it directly for a streaming
-  // preview before the transaction finishes and `blogPost.result` lands.
-  const liveDraft = asBlogPostDraft(draftingRun?.partial)
-  const draftedChars = liveDraft.body?.length ?? 0
-  const writingStep = subRunToStep(draftingRun?.status)
+  // Any leg of the pipeline in flight.
+  const isRunning =
+    drafting.isLoading || heroImage.isLoading || narration.isLoading
 
   // Prefer the finished post; fall back to the live streaming draft.
-  const shownTitle = post?.title ?? liveDraft.title
-  const shownSubtitle = post?.subtitle ?? liveDraft.subtitle
-  const shownBody = post?.body ?? liveDraft.body
+  const shownTitle = post?.title ?? partial.title
+  const shownSubtitle = post?.subtitle ?? partial.subtitle
+  const shownBody = post?.body ?? partial.body
   const showArticle = Boolean(shownTitle || shownBody)
+  const draftedChars = shownBody?.length ?? 0
 
-  const heroBusy = heroRerun.isLoading || heroRun?.status === 'running'
-  const heroFailed = heroRerun.status === 'error' || heroRun?.status === 'error'
-  const narrationBusy =
-    narrationRerun.isLoading || narrationRun?.status === 'running'
-  const narrationFailed =
-    narrationRerun.status === 'error' || narrationRun?.status === 'error'
+  const writingStep: StepState = drafting.isLoading
+    ? 'active'
+    : post
+      ? 'done'
+      : drafting.error
+        ? 'failed'
+        : 'pending'
+  const heroStep = genStep(heroImage)
+  const narrationStep = genStep(narration)
 
-  function run(e: FormEvent<HTMLFormElement>) {
+  const heroBusy = heroImage.isLoading
+  const heroFailed = heroStep === 'failed'
+  const narrationBusy = narration.isLoading
+  const narrationFailed = narrationStep === 'failed'
+
+  // Has anything started? Drives the step list + empty state.
+  const hasRun =
+    isRunning ||
+    Boolean(post) ||
+    Boolean(heroImage.result) ||
+    Boolean(narration.result) ||
+    Boolean(shownBody)
+
+  // Client-side orchestration: draft the post, then illustrate and narrate in
+  // parallel — both derived from the completed draft. Each step drives its own
+  // reactive surface, so the UI fills in as work finishes.
+  async function orchestrate(topic: string) {
+    drafting.clear()
+    heroImage.reset()
+    narration.reset()
+
+    const draft = await drafting.sendMessage(
+      `Write a blog post about: ${topic}`,
+    )
+    if (!draft) return // drafting failed / was stopped before completing
+
+    await Promise.all([
+      heroImage.run({ prompt: heroPromptFor(draft) }),
+      narration.run({ text: forNarration(draft.body) }),
+    ])
+  }
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const topic = String(
       new FormData(e.currentTarget).get('topic') ?? '',
     ).trim()
     if (!topic || isRunning) return
+    void orchestrate(topic)
+  }
 
-    // Reset the surfaces so a re-run starts clean: the previous post, and any
-    // individually regenerated hero/narration that would shadow the new
-    // transaction's results.
-    blogPost.reset()
-    heroRerun.reset()
-    narrationRerun.reset()
-
-    // ONE call. The server composes drafting → (illustrate ∥ narrate) and
-    // streams every sub-run live into `blogPost.subRuns`; the final
-    // `{ post, hero, audio }` lands in `blogPost.result`. Fire and forget —
-    // the reactive surfaces drive the UI.
-    void blogPost.run({ topic })
+  function stopAll() {
+    drafting.stop()
+    heroImage.stop()
+    narration.stop()
   }
 
   return (
@@ -164,9 +156,9 @@ function BlogStudio() {
           Turn a topic into a finished post
         </h1>
         <p className="mb-5 text-stone-500">
-          One transaction writes the article, then illustrates it and records a
-          voice-over in parallel — composed on the server from a single request,
-          with every step streamed back live.
+          The client writes the article, then illustrates it and records a
+          voice-over in parallel — three independent plugins behind one
+          endpoint, orchestrated in the browser, each streamed back live.
         </p>
         <p className="mb-5 text-xs text-stone-400">
           Prefer plain fetch + JSON? See the{' '}
@@ -179,7 +171,7 @@ function BlogStudio() {
           .
         </p>
 
-        <form onSubmit={run}>
+        <form onSubmit={onSubmit}>
           <label
             htmlFor="blog-topic"
             className="mb-1 block text-sm font-medium text-stone-600"
@@ -210,7 +202,7 @@ function BlogStudio() {
             {isRunning && (
               <button
                 type="button"
-                onClick={() => blogPost.stop()}
+                onClick={stopAll}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-3 font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50"
               >
                 <Square size={16} />
@@ -235,12 +227,12 @@ function BlogStudio() {
             <StepRow
               label="Illustrating"
               icon={<ImageIcon size={16} />}
-              state={subRunToStep(heroRun?.status)}
+              state={heroStep}
             />
             <StepRow
               label="Recording voice-over"
               icon={<Volume2 size={16} />}
-              state={subRunToStep(narrationRun?.status)}
+              state={narrationStep}
             />
           </div>
         )}
@@ -250,17 +242,17 @@ function BlogStudio() {
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-400">
               Touch up
             </span>
-            {/* The same verbs the transaction composed, driven directly by
-                the user — inputs derived from the current post. */}
+            {/* The same plugins the pipeline used, driven directly by the user
+                — inputs derived from the current post. */}
             <button
               type="button"
-              disabled={isRunning || heroRerun.isLoading}
+              disabled={isRunning || heroImage.isLoading}
               onClick={() =>
-                void heroRerun.run({ prompt: heroPromptFor(post) })
+                void heroImage.run({ prompt: heroPromptFor(post) })
               }
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {heroRerun.isLoading ? (
+              {heroImage.isLoading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <ImageIcon size={16} />
@@ -269,13 +261,13 @@ function BlogStudio() {
             </button>
             <button
               type="button"
-              disabled={isRunning || narrationRerun.isLoading}
+              disabled={isRunning || narration.isLoading}
               onClick={() =>
-                void narrationRerun.run({ text: forNarration(post.body) })
+                void narration.run({ text: forNarration(post.body) })
               }
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {narrationRerun.isLoading ? (
+              {narration.isLoading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <Volume2 size={16} />
@@ -285,16 +277,16 @@ function BlogStudio() {
           </div>
         )}
 
-        {blogPost.error && (
+        {(drafting.error || heroImage.error || narration.error) && (
           <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {blogPost.error.message}
+            {(drafting.error ?? heroImage.error ?? narration.error)?.message}
           </div>
         )}
       </aside>
 
-      {/* Right: the post. Appears as soon as the drafting sub-run streams a
+      {/* Right: the post. Appears as soon as the drafting stream emits a
           title/body — the body fills in live — then the hero image and
-          voice-over slot in as their sub-runs finish. */}
+          voice-over slot in as their runs finish. */}
       <main className="flex-1 overflow-y-auto p-6">
         {showArticle ? (
           <article className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-200/60">
@@ -364,9 +356,8 @@ function BlogStudio() {
               </div>
 
               {/* Body — rendered as Markdown live while the draft streams in.
-                  The client batches the streamed structured-output updates
-                  (see TransactionClient), so this re-parses at a bounded rate
-                  rather than once per token. */}
+                  The client batches the streamed structured-output updates, so
+                  this re-parses at a bounded rate rather than once per token. */}
               <div className="text-[1.05rem] leading-8 text-stone-800 [&_a]:text-amber-700 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-amber-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-stone-600 [&_code]:rounded [&_code]:bg-stone-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-stone-900 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {shownBody ?? ''}
@@ -384,7 +375,7 @@ function BlogStudio() {
               <p className="max-w-xs text-sm">
                 {draftedChars > 0
                   ? `Drafting the article… ${draftedChars} characters so far.`
-                  : 'Starting the transaction…'}
+                  : 'Starting the draft…'}
               </p>
             </div>
           </div>

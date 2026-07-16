@@ -144,7 +144,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
-  transaction: {
+  plugin: {
     tools: [],
     modelOptions: {},
   },

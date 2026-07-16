@@ -10,6 +10,7 @@ export {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from './activities/error-payload'
+export { validateWithStandardSchema } from './activities/chat/tools/schema-converter'
 export {
   getSandboxRuntime,
   provideSandboxRuntime,

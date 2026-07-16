@@ -25,10 +25,6 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
-    "./transaction": {
-      "types": "./dist/esm/transaction.d.ts",
-      "import": "./dist/esm/transaction.js"
-    },
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"

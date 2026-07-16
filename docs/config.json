@@ -309,25 +309,25 @@
       ]
     },
     {
-      "label": "Transaction",
+      "label": "Plugin",
       "children": [
         {
           "label": "Overview",
-          "to": "transaction/overview",
+          "to": "plugin/overview",
           "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-15"
         },
         {
-          "label": "Transactions",
-          "to": "transaction/transactions",
+          "label": "Orchestration",
+          "to": "plugin/plugins",
           "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-15"
         },
         {
           "label": "Scenarios",
-          "to": "transaction/scenarios",
+          "to": "plugin/scenarios",
           "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-15"
         }
       ]
     },

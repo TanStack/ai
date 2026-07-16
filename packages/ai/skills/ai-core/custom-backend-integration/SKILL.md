@@ -461,8 +461,7 @@ Source: `docs/protocol/http-stream-protocol.md`
 - See also: **ai-core/ag-ui-protocol/SKILL.md** -- Understanding the AG-UI protocol helps build compatible custom servers
 - See also: **ai-core/chat-experience/SKILL.md** -- Full chat setup patterns including server-side `chat()` and `toServerSentEventsResponse()`
 - See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events on the server side
-- See also: **ai-core/transaction/SKILL.md** -- If the backend needs to
-  compose chat with other app-defined verbs (media generation,
-  server-composed pipelines) behind one endpoint, `defineTransaction` +
-  `useTransaction` may fit better than a custom connection adapter wrapping
-  `useChat` alone
+- See also: **ai-core/plugin/SKILL.md** -- If the backend needs to bundle
+  chat with other app-defined plugins (media generation, one-shot
+  activities) behind one endpoint, `definePlugin` + `usePlugin` may fit
+  better than a custom connection adapter wrapping `useChat` alone

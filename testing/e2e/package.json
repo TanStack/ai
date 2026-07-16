@@ -31,6 +31,7 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/devtools-event-bus": "^0.4.1",

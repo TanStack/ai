@@ -27,10 +27,10 @@
       "svelte": "./dist/index.js",
       "import": "./dist/index.js"
     },
-    "./transaction": {
-      "types": "./dist/transaction.d.ts",
-      "svelte": "./dist/transaction.js",
-      "import": "./dist/transaction.js"
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "svelte": "./dist/plugin.js",
+      "import": "./dist/plugin.js"
     }
   },
   "files": [
@@ -61,7 +61,8 @@
     "media-generation"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

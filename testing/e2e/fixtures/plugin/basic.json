@@ -1,0 +1,24 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[plugin] recommend a guitar" },
+      "response": {
+        "content": "I'd recommend the Fender Stratocaster — versatile and comfortable."
+      }
+    },
+    {
+      "match": { "userMessage": "[plugin] banner: solo banner" },
+      "response": {
+        "content": "BANNER: solo banner"
+      }
+    },
+    {
+      "match": { "userMessage": "solo banner image" },
+      "response": {
+        "image": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        }
+      }
+    }
+  ]
+}

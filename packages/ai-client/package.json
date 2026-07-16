@@ -43,9 +43,9 @@
       "types": "./dist/esm/devtools.d.ts",
       "import": "./dist/esm/devtools.js"
     },
-    "./transaction": {
-      "types": "./dist/esm/transaction.d.ts",
-      "import": "./dist/esm/transaction.js"
+    "./plugin": {
+      "types": "./dist/esm/plugin.d.ts",
+      "import": "./dist/esm/plugin.js"
     }
   },
   "files": [
@@ -67,6 +67,7 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*",
     "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {

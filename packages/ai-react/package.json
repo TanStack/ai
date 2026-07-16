@@ -29,9 +29,9 @@
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
     },
-    "./transaction": {
-      "types": "./dist/esm/transaction.d.ts",
-      "import": "./dist/esm/transaction.js"
+    "./plugin": {
+      "types": "./dist/esm/plugin.d.ts",
+      "import": "./dist/esm/plugin.js"
     }
   },
   "files": [
@@ -63,7 +63,8 @@
     "media-generation"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-plugin-toolkit": "workspace:*"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",
