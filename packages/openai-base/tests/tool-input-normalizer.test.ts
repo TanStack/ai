@@ -43,4 +43,41 @@ describe('createToolInputNormalizer', () => {
 
     expect(normalize('duplicate', input)).toBe(input)
   })
+
+  it('leaves anyOf inputs unchanged when variant widening is ambiguous', () => {
+    const tool: Tool = {
+      name: 'union',
+      description: 'Uses variant-specific nullability',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          value: {
+            anyOf: [
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'optional' },
+                  note: { type: 'string' },
+                },
+                required: ['kind'],
+              },
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'nullable' },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['kind', 'note'],
+              },
+            ],
+          },
+        },
+        required: ['value'],
+      },
+    }
+    const normalize = createToolInputNormalizer([tool])
+    const input = { value: { kind: 'nullable', note: null } }
+
+    expect(normalize(tool.name, input)).toBe(input)
+  })
 })

@@ -71,6 +71,10 @@ interface StructuredOutputCompatibility {
   nullWideningMap: NullWideningMap | undefined
 }
 
+interface CoercedStrictSchema extends StructuredOutputCompatibility {
+  hasUntrackableAnyOfWidening: boolean
+}
+
 /**
  * Strict-schema conversion plus an exact map of the nullability introduced by
  * that conversion. Consumers can pass provider output through
@@ -144,6 +148,9 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  * 3. It contains an open object schema. OpenAI strict mode requires objects to
  *    set `additionalProperties: false`, which would change the semantics of a
  *    free-form map rather than merely normalizing it.
+ * 4. An `anyOf` variant itself needs null widening. The inverse map is
+ *    intentionally schema-blind, so it cannot select a variant without risking
+ *    removal of a genuine nullable value accepted by another variant.
  *
  * Conservative by design: for (1) keywords are matched as object keys, so a
  * property literally named e.g. `oneOf` also trips it. That only costs that one
@@ -154,8 +161,22 @@ export function isStrictModeCompatible(schema: unknown): boolean {
   return (
     !containsStrictUnsupportedKeyword(schema) &&
     !containsTypelessSchema(schema) &&
-    !containsOpenObject(schema)
+    !containsOpenObject(schema) &&
+    !containsUntrackableAnyOfWidening(schema)
   )
+}
+
+/**
+ * Reports strict conversions whose synthesized nulls cannot be represented by
+ * the schema-blind inverse map. Optional `anyOf` wrappers remain supported:
+ * only widening introduced inside one of their variants triggers fallback.
+ */
+function containsUntrackableAnyOfWidening(schema: unknown): boolean {
+  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+    return false
+  }
+  return coerceStrictSchema(schema as Record<string, any>)
+    .hasUntrackableAnyOfWidening
 }
 
 /**
@@ -258,9 +279,10 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
 function coerceStrictSchema(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
-): StructuredOutputCompatibility {
+): CoercedStrictSchema {
   const result = { ...schema }
   const nullWideningMap: NullWideningMap = {}
+  let hasUntrackableAnyOfWidening = false
   const required =
     originalRequired ??
     (Array.isArray(result['required']) ? result['required'] : [])
@@ -281,6 +303,7 @@ function coerceStrictSchema(
         const nested = coerceStrictSchema(prop, prop.required || [])
         prop = nested.schema
         childMap = nested.nullWideningMap
+        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
       } else if (prop.type === 'array' && prop.items) {
         const nested = coerceStrictSchema(prop.items, prop.items.required || [])
         prop = {
@@ -290,10 +313,12 @@ function coerceStrictSchema(
         childMap = nested.nullWideningMap
           ? { items: nested.nullWideningMap }
           : undefined
+        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
       } else if (prop.anyOf) {
         const nested = coerceStrictSchema(prop, prop.required || [])
         prop = nested.schema
         childMap = nested.nullWideningMap
+        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
       } else if (prop.oneOf) {
         throw new Error(
           'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
@@ -340,11 +365,18 @@ function coerceStrictSchema(
     if (nested.nullWideningMap) {
       nullWideningMap.items = nested.nullWideningMap
     }
+    hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {
-    result.anyOf = result.anyOf.map(
-      (variant) => coerceStrictSchema(variant, variant.required || []).schema,
+    const variants = result.anyOf.map((variant) =>
+      coerceStrictSchema(variant, variant.required || []),
+    )
+    result.anyOf = variants.map((variant) => variant.schema)
+    hasUntrackableAnyOfWidening ||= variants.some(
+      (variant) =>
+        variant.nullWideningMap !== undefined ||
+        variant.hasUntrackableAnyOfWidening,
     )
   }
 
@@ -357,5 +389,6 @@ function coerceStrictSchema(
   return {
     schema: result,
     nullWideningMap: pruneMap(nullWideningMap),
+    hasUntrackableAnyOfWidening,
   }
 }

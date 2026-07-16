@@ -55,6 +55,37 @@ const freeFormMapTool: Tool = {
   },
 }
 
+const anyOfWithOptionalVariantTool: Tool = {
+  name: 'store_variant',
+  description: 'Store a union variant',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      value: {
+        anyOf: [
+          {
+            type: 'object',
+            properties: {
+              kind: { const: 'optional' },
+              note: { type: 'string' },
+            },
+            required: ['kind'],
+          },
+          {
+            type: 'object',
+            properties: {
+              kind: { const: 'nullable' },
+              note: { type: ['string', 'null'] },
+            },
+            required: ['kind', 'note'],
+          },
+        ],
+      },
+    },
+    required: ['value'],
+  },
+}
+
 describe('responses tool converter — strict fallback', () => {
   it('uses strict:true for strict-subset schemas', () => {
     const out = convertFunctionToolToResponsesFormat(strictSafeTool)
@@ -82,6 +113,16 @@ describe('responses tool converter — strict fallback', () => {
       (out.parameters as any).properties.labels.additionalProperties,
     ).toEqual({ type: 'string' })
   })
+
+  it('falls back to strict:false when an anyOf variant needs null widening', () => {
+    const out = convertFunctionToolToResponsesFormat(
+      anyOfWithOptionalVariantTool,
+    )
+    expect(out.strict).toBe(false)
+    expect(
+      (out.parameters as any).properties.value.anyOf[0].required,
+    ).toEqual(['kind'])
+  })
 })
 
 describe('chat-completions tool converter — strict fallback', () => {
@@ -100,6 +141,13 @@ describe('chat-completions tool converter — strict fallback', () => {
 
   it('falls back to strict:false for free-form maps', () => {
     const out = convertFunctionToolToChatCompletionsFormat(freeFormMapTool)
+    expect(out.function.strict).toBe(false)
+  })
+
+  it('falls back to strict:false when an anyOf variant needs null widening', () => {
+    const out = convertFunctionToolToChatCompletionsFormat(
+      anyOfWithOptionalVariantTool,
+    )
     expect(out.function.strict).toBe(false)
   })
 })
@@ -129,6 +177,13 @@ describe('function-tool adapter converter — strict fallback', () => {
 
   it('falls back to strict:false for free-form maps', () => {
     const out = convertFunctionToolToAdapterFormat(freeFormMapTool)
+    expect(out.strict).toBe(false)
+  })
+
+  it('falls back to strict:false when an anyOf variant needs null widening', () => {
+    const out = convertFunctionToolToAdapterFormat(
+      anyOfWithOptionalVariantTool,
+    )
     expect(out.strict).toBe(false)
   })
 })
