@@ -770,6 +770,44 @@ describe('authoritative interrupt persistence', () => {
 })
 
 describe('interrupt recovery', () => {
+  it('restores the trusted binding metadata for pending descriptors', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.openInterruptBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'interrupted-run',
+      descriptors: [{ id: 'interrupt-1', reason: 'generic', responseSchema }],
+      bindings: [
+        {
+          kind: 'generic',
+          interruptId: 'interrupt-1',
+          responseSchemaHash: responseSchemaHash(),
+        },
+      ],
+    })
+
+    const state =
+      await persistence.stores.interrupts!.getInterruptRecoveryState({
+        threadId: 'thread-1',
+        interruptedRunId: 'interrupted-run',
+        knownGeneration: 1,
+      })
+
+    expect(state.pendingInterrupts).toEqual([
+      expect.objectContaining({
+        id: 'interrupt-1',
+        metadata: {
+          [bindingMetadataKey]: {
+            kind: 'generic',
+            interruptId: 'interrupt-1',
+            interruptedRunId: 'interrupted-run',
+            generation: 1,
+            responseSchemaHash: responseSchemaHash(),
+          },
+        },
+      }),
+    ])
+  })
+
   it('requires authorization and can redact committed resolutions', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.interrupts!.openInterruptBatch({

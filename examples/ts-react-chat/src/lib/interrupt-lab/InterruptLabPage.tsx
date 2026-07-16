@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { localStoragePersistence } from '@tanstack/ai-client'
+import {
+  createInterruptStateFetcher,
+  localStoragePersistence,
+} from '@tanstack/ai-client'
 import {
   AlertTriangle,
   Check,
@@ -17,6 +20,7 @@ import {
 import {
   buildGenericResolution,
   createDurableDraftEnvelope,
+  createInterruptLabDebugFetch,
   createIncompleteBulkResolver,
   describeInterruptErrors,
   durableCapabilityStatuses,
@@ -26,7 +30,9 @@ import {
   interruptProgressLabel,
   invalidAggregateResolutionArguments,
   isNormalSendDisabled,
+  logInterruptLabClientDebug,
   restoreDurableDrafts,
+  shouldShowOpenAiApiKeyGuidance,
 } from './client-ui'
 import {
   approvalBasicTool,
@@ -170,9 +176,17 @@ function messageText(message: UIMessage<typeof clientTools>): string {
     .join('\n')
 }
 
-export function InterruptLabPage({ mode }: { mode: InterruptLabMode }) {
-  const [scenarioId, setScenarioId] =
-    useState<InterruptLabScenarioId>('approval-basic')
+export function InterruptLabPage({
+  mode,
+  debug = false,
+  scenarioId,
+  onScenarioChange,
+}: {
+  mode: InterruptLabMode
+  debug?: boolean
+  scenarioId: InterruptLabScenarioId
+  onScenarioChange: (scenarioId: InterruptLabScenarioId) => void
+}) {
   const [thread, setThread] = useState<{
     key: string
     threadId: string
@@ -214,6 +228,11 @@ export function InterruptLabPage({ mode }: { mode: InterruptLabMode }) {
                 <strong className="uppercase tracking-widest">
                   {mode === 'durable' ? 'Durable SQLite' : 'Ephemeral'}
                 </strong>
+                {debug && (
+                  <span className="border border-[#cbd9aa]/60 px-2 py-0.5 text-[10px] uppercase tracking-widest text-[#dce7c1]">
+                    Debug on
+                  </span>
+                )}
               </div>
               <p className="mt-2 max-w-xs text-[#cbd9c2]">
                 {mode === 'durable'
@@ -229,12 +248,13 @@ export function InterruptLabPage({ mode }: { mode: InterruptLabMode }) {
             mode={mode}
             selected={scenarioId}
             disabled={caseBusy}
-            onSelect={setScenarioId}
+            onSelect={onScenarioChange}
           />
           {threadId ? (
             <InterruptRunner
               key={`${mode}:${scenarioId}:${threadId}`}
               mode={mode}
+              debug={debug}
               scenarioId={scenarioId}
               threadId={threadId}
               onBusyChange={setCaseBusy}
@@ -308,20 +328,37 @@ function ScenarioIndex({
 
 function InterruptRunner({
   mode,
+  debug,
   scenarioId,
   threadId,
   onBusyChange,
 }: {
   mode: InterruptLabMode
+  debug: boolean
   scenarioId: InterruptLabScenarioId
   threadId: string
   onBusyChange: (busy: boolean) => void
 }) {
   const config = interruptLabPageConfig(mode)
   const scenario = interruptLabScenarios[scenarioId]
+  const debugFetch = useMemo(
+    () => createInterruptLabDebugFetch({ enabled: debug }),
+    [debug],
+  )
   const connection = useMemo(
-    () => fetchServerSentEvents(config.endpoint),
-    [config.endpoint],
+    () =>
+      fetchServerSentEvents(config.endpoint, {
+        fetchClient: debugFetch,
+        ...(mode === 'durable'
+          ? {
+              interruptStateFetcher: createInterruptStateFetcher(
+                config.endpoint,
+                { fetchClient: debugFetch },
+              ),
+            }
+          : {}),
+      }),
+    [config.endpoint, debugFetch, mode],
   )
   const [drafts, setDrafts] = useState<Record<string, InterruptEditorDraft>>({})
   const [note, setNote] = useState('')
@@ -336,6 +373,7 @@ function InterruptRunner({
     connection,
     forwardedProps: {
       interruptScenario: scenarioId,
+      ...(debug ? { interruptLabDebug: true } : {}),
       ...(mode === 'durable' && failNextResume
         ? { interruptLabFailResumeOnce: true }
         : {}),
@@ -345,6 +383,7 @@ function InterruptRunner({
       ? { persistence: { server: durableResumePersistence } }
       : {}),
     onChunk(chunk) {
+      logInterruptLabClientDebug(debug, { event: 'chunk', chunk })
       const detail =
         chunk.type === 'RUN_ERROR'
           ? chunk.message
@@ -383,6 +422,29 @@ function InterruptRunner({
       (interrupt) => interrupt.expiresAt !== undefined,
     ),
   })
+
+  useEffect(() => {
+    logInterruptLabClientDebug(debug, {
+      event: 'interrupt-state',
+      resumeState: chat.resumeState,
+      resuming: chat.resuming,
+      interrupts: chat.interrupts.map((interrupt) => ({
+        id: interrupt.id,
+        kind: interrupt.kind,
+        status: interrupt.status,
+        canResolve: interrupt.canResolve,
+        binding: interrupt.binding,
+        errors: interrupt.errors,
+      })),
+      interruptErrors: chat.interruptErrors,
+    })
+  }, [
+    chat.interruptErrors,
+    chat.interrupts,
+    chat.resumeState,
+    chat.resuming,
+    debug,
+  ])
 
   useEffect(() => {
     onBusyChange(pending || chat.isLoading || chat.resuming)
@@ -719,9 +781,11 @@ function InterruptRunner({
             className="mt-4 border border-[#a44a39] bg-[#f7ddd4] p-4 text-sm text-[#6d281d]"
           >
             <strong>Server request failed.</strong> {chat.error.message}
-            <span className="mt-1 block">
-              This lab requires <code>OPENAI_API_KEY</code> on the server.
-            </span>
+            {shouldShowOpenAiApiKeyGuidance(chat.error) && (
+              <span className="mt-1 block">
+                This lab requires <code>OPENAI_API_KEY</code> on the server.
+              </span>
+            )}
           </div>
         )}
         {localNotice && (

@@ -19,6 +19,7 @@ import { InterruptManager } from '../src/interrupt-manager'
 import { ChatClient } from '../src/chat-client'
 import type {
   AnyTextAdapter,
+  InterruptSubmissionError,
   InterruptRecoveryStateV1,
   InterruptPersistenceGateway,
   StreamChunk,
@@ -740,6 +741,233 @@ describe('InterruptManager transactions', () => {
     conflictManager.getInterrupts()[0]?.cancel()
     await settle()
     expect(recover).toHaveBeenCalled()
+  })
+
+  it('supersedes a server batch error set without dropping local client, transport, or item errors', async () => {
+    const firstErrors: ReadonlyArray<InterruptSubmissionError> = [
+      {
+        scope: 'batch',
+        code: 'incomplete-batch',
+        message: 'first incomplete batch',
+        source: 'client',
+        retryable: false,
+        interruptIds: ['generic'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'batch',
+        code: 'item-validation-failed',
+        message: 'first aggregate validation failure',
+        source: 'client',
+        retryable: false,
+        interruptIds: ['generic'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'item',
+        interruptId: 'generic',
+        code: 'unknown-interrupt',
+        message: 'first item failure',
+        source: 'client',
+        retryable: false,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'batch',
+        code: 'transport',
+        message: 'transport failure remains locally actionable',
+        source: 'transport',
+        retryable: false,
+        interruptIds: ['generic'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+    ]
+    const secondErrors: ReadonlyArray<InterruptSubmissionError> = [
+      {
+        scope: 'batch',
+        code: 'incomplete-batch',
+        message: 'updated incomplete batch',
+        source: 'client',
+        retryable: false,
+        interruptIds: ['generic'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'batch',
+        code: 'server',
+        message: 'a distinct server failure',
+        source: 'client',
+        retryable: false,
+        interruptIds: ['generic'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'item',
+        interruptId: 'generic',
+        code: 'unknown-interrupt',
+        message: 'updated item failure',
+        source: 'client',
+        retryable: false,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+    ]
+    const submit = vi
+      .fn(async (_submission: InterruptManagerSubmission) => undefined)
+      .mockRejectedValueOnce({ errors: firstErrors })
+      .mockRejectedValueOnce({ errors: secondErrors })
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('generic')],
+    })
+
+    manager.resolve(() => undefined)
+    const firstItem = manager.getInterrupts()[0]
+    if (firstItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    firstItem.resolveInterrupt('first answer')
+    await settle()
+    manager.getInterrupts()[0]?.clearResolution()
+    const secondItem = manager.getInterrupts()[0]
+    if (secondItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    secondItem.resolveInterrupt('second answer')
+    await settle()
+
+    expect(manager.getInterruptErrors()).toMatchObject([
+      {
+        code: 'incomplete-batch',
+        message: 'Interrupt transaction did not resolve every item.',
+        source: 'client',
+      },
+      {
+        code: 'transport',
+        message: 'transport failure remains locally actionable',
+        source: 'transport',
+      },
+      {
+        code: 'incomplete-batch',
+        message: 'updated incomplete batch',
+        source: 'client',
+      },
+      {
+        code: 'server',
+        message: 'a distinct server failure',
+        source: 'client',
+      },
+    ])
+    expect(manager.getInterrupts()[0]?.errors).toMatchObject([
+      {
+        code: 'unknown-interrupt',
+        message: 'updated item failure',
+        source: 'client',
+      },
+    ])
+  })
+
+  it('rejects submission errors that do not correlate to the active interrupt batch', async () => {
+    const foreignErrors: ReadonlyArray<InterruptSubmissionError> = [
+      {
+        scope: 'item',
+        interruptId: 'generic',
+        code: 'unknown-interrupt',
+        message: 'foreign thread',
+        source: 'server',
+        retryable: false,
+        threadId: 'other-thread',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'item',
+        interruptId: 'generic',
+        code: 'unknown-interrupt',
+        message: 'foreign run',
+        source: 'server',
+        retryable: false,
+        threadId: 'thread-1',
+        interruptedRunId: 'other-run',
+        generation: 1,
+      },
+      {
+        scope: 'item',
+        interruptId: 'generic',
+        code: 'unknown-interrupt',
+        message: 'foreign generation',
+        source: 'server',
+        retryable: false,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 2,
+      },
+      {
+        scope: 'item',
+        interruptId: 'other-interrupt',
+        code: 'unknown-interrupt',
+        message: 'foreign item',
+        source: 'server',
+        retryable: false,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+      {
+        scope: 'batch',
+        code: 'item-validation-failed',
+        message: 'foreign batch',
+        source: 'server',
+        retryable: false,
+        interruptIds: ['other-interrupt'],
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+      },
+    ]
+    const submit = vi
+      .fn(async (_submission: InterruptManagerSubmission) => undefined)
+      .mockRejectedValueOnce({ errors: foreignErrors })
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('generic')],
+    })
+    const item = manager.getInterrupts()[0]
+    if (item?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+
+    item.resolveInterrupt('answer')
+    await settle()
+
+    expect(manager.getInterrupts()[0]?.errors).toEqual([])
+    expect(manager.getInterruptErrors()).toMatchObject([
+      {
+        code: 'protocol',
+        message: 'Interrupt submission errors did not match the active batch.',
+        source: 'client',
+        retryable: false,
+      },
+    ])
   })
 })
 

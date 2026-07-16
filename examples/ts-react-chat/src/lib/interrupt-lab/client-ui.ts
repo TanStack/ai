@@ -1,4 +1,4 @@
-import { interruptLabScenarios } from './scenarios'
+import { interruptLabScenarios, isInterruptLabScenarioId } from './scenarios'
 import type { InterruptLabMode, InterruptLabScenarioId } from './scenarios'
 
 export type DurableControl =
@@ -19,6 +19,20 @@ export interface InterruptErrorLike {
   code: string
   message: string
 }
+
+export interface ChatErrorLike {
+  code?: string
+  message: string
+}
+
+export interface InterruptLabClientDebugEntry {
+  event: 'request' | 'response' | 'chunk' | 'interrupt-state'
+  [key: string]: unknown
+}
+
+export type InterruptLabClientDebugLog = (
+  entry: InterruptLabClientDebugEntry,
+) => void
 
 export interface InterruptEditorDraft {
   editedArgs: string
@@ -53,6 +67,91 @@ export interface DurableCapabilityStatus {
 function parseOptionalJson(source: string): unknown | undefined {
   const trimmed = source.trim()
   return trimmed === '' ? undefined : JSON.parse(trimmed)
+}
+
+export function interruptLabDebugFromSearch(
+  search: Record<string, unknown>,
+): boolean {
+  return (
+    search.debug === true || search.debug === '1' || search.debug === 'true'
+  )
+}
+
+export function interruptLabSearchFromSearch(
+  search: Record<string, unknown>,
+  mode: InterruptLabMode,
+): { debug?: boolean; case?: InterruptLabScenarioId } {
+  const scenarioId = search.case
+  const validScenario =
+    isInterruptLabScenarioId(scenarioId) &&
+    interruptLabScenarios[scenarioId].modes.includes(mode)
+      ? scenarioId
+      : undefined
+  return {
+    ...(interruptLabDebugFromSearch(search) ? { debug: true } : {}),
+    ...(validScenario === undefined ? {} : { case: validScenario }),
+  }
+}
+
+export function logInterruptLabClientDebug(
+  enabled: boolean,
+  entry: InterruptLabClientDebugEntry,
+  log: InterruptLabClientDebugLog = (debugEntry) =>
+    console.debug('[interrupt-lab:client]', debugEntry),
+): void {
+  if (enabled) log(entry)
+}
+
+function debugRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.toString()
+  return input.url
+}
+
+function debugRequestBody(body: BodyInit | null | undefined): unknown {
+  if (typeof body !== 'string') return undefined
+  try {
+    return JSON.parse(body)
+  } catch {
+    return body
+  }
+}
+
+export function createInterruptLabDebugFetch({
+  enabled,
+  fetchClient = fetch,
+  log,
+}: {
+  enabled: boolean
+  fetchClient?: typeof fetch
+  log?: InterruptLabClientDebugLog
+}): typeof fetch {
+  return async (input, init) => {
+    const url = debugRequestUrl(input)
+    logInterruptLabClientDebug(
+      enabled,
+      {
+        event: 'request',
+        url,
+        method:
+          init?.method ?? (input instanceof Request ? input.method : 'GET'),
+        body: debugRequestBody(init?.body),
+      },
+      log,
+    )
+    const response = await fetchClient(input, init)
+    logInterruptLabClientDebug(
+      enabled,
+      {
+        event: 'response',
+        url,
+        status: response.status,
+        ok: response.ok,
+      },
+      log,
+    )
+    return response
+  }
 }
 
 export function interruptLabPageConfig(
@@ -126,6 +225,13 @@ export function isNormalSendDisabled(
   interruptCount: number,
 ): boolean {
   return message.trim() === '' || isLoading || resuming || interruptCount > 0
+}
+
+export function shouldShowOpenAiApiKeyGuidance(error: ChatErrorLike): boolean {
+  return (
+    error.code === 'openai-api-key-required' ||
+    error.message.includes('OPENAI_API_KEY')
+  )
 }
 
 export function visibleDurableControls(

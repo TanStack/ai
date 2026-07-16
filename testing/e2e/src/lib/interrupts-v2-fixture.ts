@@ -323,6 +323,48 @@ export function createInterruptFixtureAdapter(
       }
 
       if (!resuming) {
+        if (scenario === 'core-mixed-client-approval') {
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'core-approval-call',
+            toolCallName: editableActionDefinition.name,
+            toolName: editableActionDefinition.name,
+            model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'core-approval-call',
+            delta: JSON.stringify({ action: 'original-action' }),
+            model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'core-client-call',
+            toolCallName: browserActionDefinition.name,
+            toolName: browserActionDefinition.name,
+            model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'core-client-call',
+            delta: JSON.stringify({ value: 'fixture' }),
+            model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            model,
+            finishReason: 'tool_calls',
+            timestamp: Date.now(),
+          }
+          return
+        }
+
         yield {
           type: EventType.RUN_FINISHED,
           runId,
@@ -388,6 +430,11 @@ export function responseDecision(item: RunAgentResumeItem): string {
   if (payload && typeof payload === 'object' && 'approved' in payload) {
     return payload.approved === true ? 'approve' : 'deny'
   }
-  if (item.interruptId.startsWith('client-tool')) return 'client-tool'
+  if (
+    item.interruptId.startsWith('client-tool') ||
+    item.interruptId.startsWith('client_tool_')
+  ) {
+    return 'client-tool'
+  }
   return 'generic'
 }

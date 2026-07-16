@@ -268,3 +268,62 @@ test('retains addToolResult as delegation to the same staged client-tool item', 
   await expect(page.getByTestId('continuation-count')).toHaveText('1')
   await expect(page.getByTestId('add-tool-result-count')).toHaveText('1')
 })
+
+test('schedules a mixed core batch and resumes only after every item resolves', async ({
+  page,
+}) => {
+  const testId = fixtureId('interrupt-core-mixed')
+  await startScenario(page, testId, 'core-mixed-client-approval')
+  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
+  await expect(
+    page.getByTestId('interrupt-kind-client-tool-execution'),
+  ).toHaveCount(1)
+  await expect(page.getByTestId('interrupt-kind-tool-approval')).toHaveCount(1)
+
+  await page.getByTestId('resolve-client-tool-bound').click()
+  await expect(page.getByTestId('client-tool-status')).toHaveText('staged')
+  await expect(page.getByTestId('continuation-count')).toHaveText('0')
+
+  await page.getByTestId('approve-server-tool').click()
+  await expect(page.getByTestId('continuation-count')).toHaveText('1')
+  await expect(page.getByTestId('submitted-decisions')).toHaveText(
+    'approve,client-tool',
+  )
+  await expect(page.getByTestId('result-event-names')).toHaveText(
+    'TOOL_CALL_RESULT,TOOL_CALL_RESULT,RUN_STARTED,RUN_FINISHED',
+  )
+})
+
+test('ignores a foreign structured resume error and applies the correlated local failure', async ({
+  page,
+}) => {
+  const testId = fixtureId('interrupt-shared-error')
+  await startScenario(page, testId, 'shared-error-correlation')
+  await expect(page.getByTestId('interrupt-kind-generic')).toHaveCount(1)
+  await page.getByTestId('generic-draft').fill('{"answer":"ready"}')
+  await page.getByTestId('resolve-generic').click()
+  await expect(page.getByTestId('resume-status')).toHaveText('resuming')
+
+  await page.getByTestId('publish-foreign-error').click()
+  await expect(page.getByTestId('retry-banner')).toBeVisible()
+  await expect(page.getByTestId('interrupt-errors-items')).toHaveText('')
+  await expect(page.getByTestId('interrupt-errors-root')).toContainText(
+    'transport',
+  )
+  await expect(page.getByTestId('interrupt-errors-root')).not.toContainText(
+    'foreign',
+  )
+
+  await page.getByTestId('retry-interrupts').click()
+  await expect(page.getByTestId('resume-status')).toHaveText('resuming')
+  await page.getByTestId('publish-local-error').click()
+  await expect(page.getByTestId('interrupt-errors-items')).toContainText(
+    'local item error',
+  )
+  await expect(page.getByTestId('interrupt-errors-root')).toContainText(
+    'local batch error',
+  )
+  await expect(page.getByTestId('interrupt-errors-root')).not.toContainText(
+    'foreign',
+  )
+})

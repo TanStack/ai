@@ -3077,9 +3077,10 @@ class TextEngine<
       }
     }
 
-    // Mirror executeToolCalls' scheduling boundary. While any approval is
-    // outstanding, the server emits only that approval batch; plain client
-    // tools do not become interrupts until the approved continuation runs.
+    // Mirror executeToolCalls' scheduling boundary. Server execution remains
+    // gated while any approval is outstanding, but plain client tools are
+    // represented in the same interrupt batch because requesting their output
+    // does not execute a server-side effect.
     for (const toolCall of pendingToolCalls) {
       const tool = toolsByCallId.get(toolCall.id)
       if (tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)) {
@@ -3092,16 +3093,18 @@ class TextEngine<
       }
     }
 
-    if (approvalRequests.length === 0) {
-      for (const toolCall of pendingToolCalls) {
-        const tool = toolsByCallId.get(toolCall.id)
-        if (!tool?.execute) {
-          clientRequests.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
-            input: toolInputs.get(toolCall.id) ?? {},
-          })
-        }
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (
+        tool !== undefined &&
+        !tool.execute &&
+        (!tool.needsApproval || clientExecutionCallIds.has(toolCall.id))
+      ) {
+        clientRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+        })
       }
     }
 

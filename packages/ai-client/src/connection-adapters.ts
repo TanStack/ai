@@ -32,9 +32,13 @@ const chunkRunIds = new WeakMap<StreamChunk, string>()
  * run the connect wrapper stamped it with.
  */
 export function getChunkRunId(chunk: StreamChunk): string | undefined {
-  return 'runId' in chunk && typeof chunk.runId === 'string'
-    ? chunk.runId
-    : chunkRunIds.get(chunk)
+  const requestRunId = chunkRunIds.get(chunk)
+  return (
+    requestRunId ??
+    ('runId' in chunk && typeof chunk.runId === 'string'
+      ? chunk.runId
+      : undefined)
+  )
 }
 
 /**
@@ -568,7 +572,7 @@ export function normalizeConnectionAdapter(
             timestamp: Date.now(),
             finishReason: 'stop',
           }
-          push(synthetic)
+          push(synthetic, runContext?.runId)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
@@ -587,7 +591,7 @@ export function normalizeConnectionAdapter(
             timestamp: Date.now(),
             message,
           }
-          push(synthetic)
+          push(synthetic, runContext?.runId)
         }
         throw err
       }

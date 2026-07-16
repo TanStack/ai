@@ -246,7 +246,7 @@ export function createGenericInterruptMiddleware({
       if (
         isContinuation ||
         chunk.type !== EventType.RUN_FINISHED ||
-        chunk.outcome?.type !== 'success'
+        (chunk.outcome !== undefined && chunk.outcome.type !== 'success')
       ) {
         return
       }
@@ -409,7 +409,7 @@ export function createInterruptLabPost({
 
       const stream = dependencies.runChat({
         adapter: dependencies.createAdapter('gpt-5.5', apiKey),
-        debug: false,
+        debug: params.forwardedProps.interruptLabDebug === true,
         messages: params.messages,
         tools: [...scenario.tools],
         systemPrompts: [SYSTEM_PROMPT, scenario.systemPrompt],

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { EventType } from '@tanstack/ai'
 import {
   fetchServerSentEvents,
   localStoragePersistence,
@@ -7,12 +8,16 @@ import { useChat } from '@tanstack/ai-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { interruptFixtureTools } from '../lib/interrupts-v2-fixture'
 import type {
+  Interrupt,
   InterruptRecoveryQuery,
   InterruptRecoveryStateV1,
+  StreamChunk,
 } from '@tanstack/ai'
 import type {
   ChatResumeSnapshot,
   ConnectConnectionAdapter,
+  RunAgentInputContext,
+  SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 
 interface FixtureStats {
@@ -47,6 +52,163 @@ const emptyDrafts: LocalDrafts = {
   stagedFirst: '',
   clientOutput: '',
   addToolResultCount: 0,
+}
+
+const sharedErrorResponseSchema = {
+  type: 'object',
+  properties: { answer: { type: 'string' } },
+  required: ['answer'],
+  additionalProperties: false,
+} as const
+
+function sharedErrorInterrupt(
+  interruptedRunId: string,
+  generation: number,
+): Interrupt {
+  return {
+    id: 'shared-generic',
+    reason: 'confirmation',
+    message: 'Resolve the shared-stream fixture.',
+    responseSchema: sharedErrorResponseSchema,
+    metadata: {
+      kind: 'generic',
+      'tanstack:interruptBinding': {
+        kind: 'generic',
+        interruptId: 'shared-generic',
+        interruptedRunId,
+        generation,
+        responseSchemaHash: 'fixture:shared-generic',
+      },
+    },
+  }
+}
+
+function createSharedErrorFixture() {
+  const chunks: Array<StreamChunk> = []
+  let wake: (() => void) | undefined
+  let activeResume: RunAgentInputContext | undefined
+
+  const publish = (chunk: StreamChunk) => {
+    chunks.push(chunk)
+    const resolve = wake
+    wake = undefined
+    resolve?.()
+  }
+
+  const connection: SubscribeConnectionAdapter = {
+    async *subscribe(abortSignal) {
+      while (!abortSignal?.aborted) {
+        const chunk = chunks.shift()
+        if (chunk) {
+          yield chunk
+          continue
+        }
+        await new Promise<void>((resolve) => {
+          wake = resolve
+          abortSignal?.addEventListener('abort', () => resolve(), {
+            once: true,
+          })
+        })
+      }
+    },
+    send: (_messages, _data, _abortSignal, runContext) => {
+      if (!runContext) {
+        return Promise.reject(new Error('Missing shared fixture run context.'))
+      }
+      if (runContext.resume === undefined) {
+        publish({
+          type: EventType.RUN_STARTED,
+          threadId: runContext.threadId,
+          runId: runContext.runId,
+          timestamp: Date.now(),
+        })
+        publish({
+          type: EventType.RUN_FINISHED,
+          threadId: runContext.threadId,
+          runId: runContext.runId,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [sharedErrorInterrupt(runContext.runId, 1)],
+          },
+          timestamp: Date.now(),
+        })
+      } else {
+        activeResume = runContext
+      }
+      return Promise.resolve()
+    },
+  }
+
+  return {
+    connection,
+    publishForeignError() {
+      publish({
+        type: EventType.RUN_ERROR,
+        threadId: 'foreign-thread',
+        runId: 'foreign-child-run',
+        timestamp: Date.now(),
+        message: 'foreign run failed',
+        'tanstack:interruptErrors': [
+          {
+            scope: 'item',
+            interruptId: 'shared-generic',
+            code: 'invalid-payload',
+            message: 'foreign item error',
+            source: 'server',
+            retryable: false,
+            threadId: 'foreign-thread',
+            interruptedRunId: 'foreign-parent-run',
+            generation: 7,
+          },
+          {
+            scope: 'batch',
+            code: 'item-validation-failed',
+            message: 'foreign batch error',
+            source: 'server',
+            retryable: false,
+            interruptIds: ['shared-generic'],
+            threadId: 'foreign-thread',
+            interruptedRunId: 'foreign-parent-run',
+            generation: 7,
+          },
+        ],
+      })
+    },
+    publishLocalError() {
+      if (!activeResume?.parentRunId) return
+      publish({
+        type: EventType.RUN_ERROR,
+        threadId: activeResume.threadId,
+        runId: activeResume.runId,
+        timestamp: Date.now(),
+        message: 'local validation failed',
+        'tanstack:interruptErrors': [
+          {
+            scope: 'item',
+            interruptId: 'shared-generic',
+            code: 'invalid-payload',
+            message: 'local item error',
+            source: 'server',
+            retryable: false,
+            threadId: activeResume.threadId,
+            interruptedRunId: activeResume.parentRunId,
+            generation: 1,
+          },
+          {
+            scope: 'batch',
+            code: 'item-validation-failed',
+            message: 'local batch error',
+            source: 'server',
+            retryable: false,
+            interruptIds: ['shared-generic'],
+            threadId: activeResume.threadId,
+            interruptedRunId: activeResume.parentRunId,
+            generation: 1,
+          },
+        ],
+      })
+    },
+  }
 }
 
 function createInterruptStateFetcher(
@@ -111,6 +273,7 @@ function InterruptsV2Page() {
   const [callbackReturns, setCallbackReturns] = useState('')
   const [retryVisible, setRetryVisible] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const sharedErrorFixture = useMemo(createSharedErrorFixture, [testId])
 
   const updateDrafts = useCallback(
     (update: Partial<LocalDrafts>) => {
@@ -137,6 +300,9 @@ function InterruptsV2Page() {
   }, [testId])
 
   const connection = useMemo(() => {
+    if (scenario === 'shared-error-correlation') {
+      return sharedErrorFixture.connection
+    }
     const chatUrl = () =>
       `/api/interrupts-v2?testId=${encodeURIComponent(testId)}&scenario=${encodeURIComponent(scenario)}`
     const recoveryUrl = () =>
@@ -145,7 +311,7 @@ function InterruptsV2Page() {
       ...fetchServerSentEvents(chatUrl),
       loadInterruptState: createInterruptStateFetcher(recoveryUrl, testId),
     }
-  }, [scenario, testId])
+  }, [scenario, sharedErrorFixture, testId])
 
   const resumePersistence = useMemo(
     () =>
@@ -194,9 +360,13 @@ function InterruptsV2Page() {
 
   useEffect(() => setHydrated(true), [])
 
-  const first = interrupts.find(
-    (interrupt) => interrupt.interruptId === 'approval-1',
-  )
+  const first =
+    interrupts.find((interrupt) => interrupt.interruptId === 'approval-1') ??
+    interrupts.find(
+      (interrupt) =>
+        interrupt.kind === 'tool-approval' &&
+        interrupt.toolName === 'editable_action',
+    )
   const second = interrupts.find(
     (interrupt) => interrupt.interruptId === 'question-1',
   )
@@ -270,6 +440,19 @@ function InterruptsV2Page() {
       <output data-testid="client-tool-status">
         {clientTool?.status ?? ''}
       </output>
+      <output data-testid="resume-status">
+        {resuming ? 'resuming' : 'idle'}
+      </output>
+      <output data-testid="interrupt-errors-items">
+        {interrupts
+          .flatMap((interrupt) =>
+            interrupt.errors.map(
+              (interruptError) =>
+                `${interruptError.code}:${interruptError.message}`,
+            ),
+          )
+          .join('|')}
+      </output>
 
       <output data-testid="interrupt-error-first">
         {first?.error ? `${first.error.code}:${first.error.message}` : ''}
@@ -305,6 +488,22 @@ function InterruptsV2Page() {
       >
         Retry interrupts
       </button>
+      {scenario === 'shared-error-correlation' ? (
+        <>
+          <button
+            data-testid="publish-foreign-error"
+            onClick={sharedErrorFixture.publishForeignError}
+          >
+            Publish foreign error
+          </button>
+          <button
+            data-testid="publish-local-error"
+            onClick={sharedErrorFixture.publishLocalError}
+          >
+            Publish local error
+          </button>
+        </>
+      ) : null}
 
       {interrupts.map((interrupt) => (
         <section data-testid="interrupt-card" key={interrupt.id}>

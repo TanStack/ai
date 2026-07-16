@@ -243,6 +243,47 @@ describe('interrupt lab API request correlation', () => {
     expect(deps.toResponse).toHaveBeenCalledOnce()
   })
 
+  it('enables the chat debug pipeline only for an explicit lab request flag', async () => {
+    const deps = dependencies()
+    const post = createInterruptLabPost({
+      mode: 'ephemeral',
+      dependencies: deps,
+    })
+
+    await post(
+      request('approval-basic', {
+        forwardedProps: {
+          interruptScenario: 'approval-basic',
+          interruptLabDebug: true,
+        },
+      }),
+    )
+
+    expect(deps.runChat.mock.calls[0]?.[0].debug).toBe(true)
+  })
+
+  it.each([false, 'true', 1] as const)(
+    'keeps the chat debug pipeline disabled for non-true forwarded value %s',
+    async (interruptLabDebug) => {
+      const deps = dependencies()
+      const post = createInterruptLabPost({
+        mode: 'ephemeral',
+        dependencies: deps,
+      })
+
+      await post(
+        request('approval-basic', {
+          forwardedProps: {
+            interruptScenario: 'approval-basic',
+            interruptLabDebug,
+          },
+        }),
+      )
+
+      expect(deps.runChat.mock.calls[0]?.[0].debug).toBe(false)
+    },
+  )
+
   it('uses only the scenario registry tool definitions and ignores client-declared schemas', async () => {
     const deps = dependencies()
     const post = createInterruptLabPost({
@@ -551,6 +592,34 @@ describe('controlled generic AG-UI interrupt', () => {
             },
           },
         ],
+      },
+    })
+  })
+
+  it('replaces a provider success terminal that omits the optional outcome', async () => {
+    const middleware = createGenericInterruptMiddleware({
+      scenario,
+      mode: 'ephemeral',
+    })
+    const terminal: StreamChunk = {
+      type: EventType.RUN_FINISHED,
+      runId: 'provider-run-1',
+      threadId: 'thread-1',
+      model: 'gpt-5.5',
+      finishReason: 'stop',
+      timestamp: 1,
+    }
+
+    const transformed = await middleware.onChunk?.(
+      { runId: 'request-run-1' } as ChatMiddlewareContext,
+      terminal,
+    )
+
+    expect(transformed).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: [{ id: 'interrupt_lab_generic_request-run-1' }],
       },
     })
   })

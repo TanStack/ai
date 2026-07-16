@@ -19,6 +19,19 @@ export class InterruptStoreCorruptionError extends Error {
   }
 }
 
+const interruptBindingMetadataKey = 'tanstack:interruptBinding'
+
+function recoverableInterrupt(row: InterruptRecord): Interrupt {
+  const descriptor = row.payload as Interrupt
+  return {
+    ...descriptor,
+    metadata: {
+      ...descriptor.metadata,
+      [interruptBindingMetadataKey]: row.binding,
+    },
+  }
+}
+
 export function hasExactInterruptIds(
   expected: ReadonlyArray<string>,
   actual: ReadonlyArray<string>,
@@ -79,9 +92,7 @@ export function projectInterruptRecovery(input: {
     return cloneAndDeepFreezeJson({
       ...correlation,
       state: expired ? 'expired' : 'pending',
-      pendingInterrupts: expired
-        ? []
-        : pending.map((row) => row.payload as Interrupt),
+      pendingInterrupts: expired ? [] : pending.map(recoverableInterrupt),
     })
   }
 

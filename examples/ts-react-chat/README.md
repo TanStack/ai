@@ -40,6 +40,13 @@ OPENAI_API_KEY=your_openai_api_key
 SQLITE_CHAT_DB_URL=file:./sqlite-chat-persistence.db
 ```
 
+## Interrupt Lab
+
+Run `pnpm dev:interrupt-lab` before opening `/interrupts` or
+`/durable-interrupts`. Its lifecycle prebuild refreshes the workspace package
+distributions used by the lab, preventing Vite from serving stale interrupt
+runtime code. Add `?debug=true` to either route for client and server traces.
+
 ## SQLite Persistence Demo
 
 The `/sqlite-persistence` route demonstrates server state persistence with the

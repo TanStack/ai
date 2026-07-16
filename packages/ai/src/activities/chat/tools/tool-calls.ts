@@ -765,10 +765,11 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Skip non-pending tools while approvals are outstanding
     if (hasPendingApprovals) {
-      if (
-        !tool.needsApproval ||
-        approvalResolution(approvals, toolCall.id) !== undefined
-      ) {
+      const isPendingApproval =
+        tool.needsApproval &&
+        approvalResolution(approvals, toolCall.id) === undefined
+      const isPlainClientRequest = !tool.needsApproval && !tool.execute
+      if (!isPendingApproval && !isPlainClientRequest) {
         continue
       }
     }

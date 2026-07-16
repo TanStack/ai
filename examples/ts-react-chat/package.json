@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "concurrently -k -n proxy,threejs,vite -c magenta,green,cyan \"node scripts/serve-sandbox.mjs\" \"npx -y @modelcontextprotocol/server-threejs\" \"vite dev --port 3000\"",
     "dev:vite": "vite dev --port 3000",
+    "predev:interrupt-lab": "pnpm --filter \"@tanstack/ai-react...\" --filter \"@tanstack/ai-openai...\" --filter \"@tanstack/ai-persistence-drizzle...\" build",
+    "dev:interrupt-lab": "vite dev --port 3000",
     "build": "vite build",
     "serve": "vite preview",
     "test": "exit 0",

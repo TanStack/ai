@@ -4,19 +4,111 @@ import {
   buildApprovalResolution,
   buildGenericResolution,
   createDurableDraftEnvelope,
+  createInterruptLabDebugFetch,
   createIncompleteBulkResolver,
   describeInterruptErrors,
   durableCapabilityStatuses,
   durableOutcomeStatus,
   interruptLabPageConfig,
+  interruptLabSearchFromSearch,
   interruptProgressLabel,
+  interruptLabDebugFromSearch,
   invalidAggregateResolutionArguments,
   isNormalSendDisabled,
   restoreDurableDrafts,
+  shouldShowOpenAiApiKeyGuidance,
   visibleDurableControls,
 } from './client-ui'
 
 describe('interrupt lab client interaction contract', () => {
+  it('enables debug logging only for an explicit public query flag', () => {
+    expect(interruptLabDebugFromSearch({})).toBe(false)
+    expect(interruptLabDebugFromSearch({ debug: false })).toBe(false)
+    expect(interruptLabDebugFromSearch({ debug: '0' })).toBe(false)
+    expect(interruptLabDebugFromSearch({ debug: true })).toBe(true)
+    expect(interruptLabDebugFromSearch({ debug: '1' })).toBe(true)
+    expect(interruptLabDebugFromSearch({ debug: 'true' })).toBe(true)
+  })
+
+  it('keeps a valid scenario case with the debug flag and rejects unknown cases', () => {
+    expect(
+      interruptLabSearchFromSearch(
+        { debug: '1', case: 'approval-edit-args' },
+        'durable',
+      ),
+    ).toEqual({ debug: true, case: 'approval-edit-args' })
+    expect(
+      interruptLabSearchFromSearch(
+        { debug: 'true', case: 'not-a-scenario' },
+        'durable',
+      ),
+    ).toEqual({ debug: true })
+  })
+
+  it('logs structured client requests and responses only when debug is enabled', async () => {
+    const entries: Array<unknown> = []
+    const fetchClient: typeof fetch = () => Promise.resolve(new Response('ok'))
+    const disabledFetch = createInterruptLabDebugFetch({
+      enabled: false,
+      fetchClient,
+      log: (entry) => entries.push(entry),
+    })
+    await disabledFetch('http://localhost/api/interrupts', {
+      method: 'POST',
+      body: JSON.stringify({ runId: 'run-disabled' }),
+    })
+    expect(entries).toEqual([])
+
+    const debugFetch = createInterruptLabDebugFetch({
+      enabled: true,
+      fetchClient,
+      log: (entry) => entries.push(entry),
+    })
+    await debugFetch('http://localhost/api/interrupts', {
+      method: 'POST',
+      headers: { authorization: 'never-log-this-secret' },
+      body: JSON.stringify({
+        threadId: 'thread-1',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        resume: [
+          {
+            interruptId: 'approval_fc_1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+      }),
+    })
+
+    expect(entries).toEqual([
+      {
+        event: 'request',
+        url: 'http://localhost/api/interrupts',
+        method: 'POST',
+        body: {
+          threadId: 'thread-1',
+          runId: 'run-2',
+          parentRunId: 'run-1',
+          resume: [
+            {
+              interruptId: 'approval_fc_1',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+          ],
+        },
+      },
+      {
+        event: 'response',
+        url: 'http://localhost/api/interrupts',
+        status: 200,
+        ok: true,
+      },
+    ])
+    expect(JSON.stringify(entries)).not.toContain('never-log-this-secret')
+  })
+
   it('maps each mode to its own endpoint and stable thread namespace', () => {
     expect(interruptLabPageConfig('ephemeral')).toMatchObject({
       endpoint: '/api/interrupts',
@@ -68,6 +160,40 @@ describe('interrupt lab client interaction contract', () => {
     expect(isNormalSendDisabled('note', false, false, 1)).toBe(true)
     expect(isNormalSendDisabled('note', false, false, 0)).toBe(false)
     expect(isNormalSendDisabled('', false, false, 0)).toBe(true)
+  })
+
+  it('does not mislabel generic or interrupt failures as a missing API key', () => {
+    expect(
+      shouldShowOpenAiApiKeyGuidance({
+        message: 'Interrupt lab run failed.',
+      }),
+    ).toBe(false)
+    expect(
+      shouldShowOpenAiApiKeyGuidance({
+        code: 'unknown-interrupt',
+        message: 'Resume entry references unknown interrupt approval_fc_123.',
+      }),
+    ).toBe(false)
+    expect(
+      shouldShowOpenAiApiKeyGuidance({
+        message: 'The server returned an unexpected response.',
+      }),
+    ).toBe(false)
+  })
+
+  it('shows API-key guidance only for an explicit missing-key failure', () => {
+    expect(
+      shouldShowOpenAiApiKeyGuidance({
+        message:
+          'OPENAI_API_KEY is required for the interrupt lab. Set it and restart the dev server.',
+      }),
+    ).toBe(true)
+    expect(
+      shouldShowOpenAiApiKeyGuidance({
+        code: 'openai-api-key-required',
+        message: 'Server configuration is incomplete.',
+      }),
+    ).toBe(true)
   })
 
   it('only exposes recovery controls in durable mode', () => {

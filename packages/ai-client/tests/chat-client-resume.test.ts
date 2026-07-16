@@ -21,9 +21,15 @@ import type {
  * A script can be a function of the live `runContext` (so a test can emit a
  * RUN_FINISHED carrying the same runId the client generated and passed in).
  */
+interface ThrowingScript {
+  chunks: Array<StreamChunk>
+  error: Error
+}
+
+type ScriptResult = Array<StreamChunk> | ThrowingScript
 type Script =
-  | Array<StreamChunk>
-  | ((ctx: RunAgentInputContext | undefined) => Array<StreamChunk>)
+  | ScriptResult
+  | ((ctx: RunAgentInputContext | undefined) => ScriptResult)
 
 function recordingAdapter(scripts: Array<Script>) {
   const contexts: Array<RunAgentInputContext | undefined> = []
@@ -36,12 +42,49 @@ function recordingAdapter(scripts: Array<Script>) {
       contexts.push(runContext)
       const script = scripts[i]
       i++
-      const chunks =
+      const result =
         typeof script === 'function' ? script(runContext) : (script ?? [])
+      const chunks = Array.isArray(result) ? result : result.chunks
       for (const c of chunks) yield c
+      if (!Array.isArray(result)) throw result.error
     },
   }
   return { adapter, contexts, sentMessages }
+}
+
+async function createInterruptedClient(continuation: Script) {
+  const { adapter } = recordingAdapter([
+    (ctx) => [
+      {
+        type: EventType.RUN_STARTED,
+        runId: ctx?.runId ?? 'interrupted-run',
+        threadId: ctx?.threadId ?? 'thread-1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: ctx?.runId ?? 'interrupted-run',
+        threadId: ctx?.threadId ?? 'thread-1',
+        timestamp: Date.now(),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+        },
+      },
+    ],
+    continuation,
+  ])
+  const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+  await client.sendMessage('hi')
+  return client
+}
+
+function resolveGenericInterrupt(client: ChatClient): void {
+  const interrupt = client.getInterrupts()[0]
+  if (interrupt?.kind !== 'generic') {
+    throw new Error('Expected a generic interrupt')
+  }
+  interrupt.resolveInterrupt({ answer: 'continue' })
 }
 
 const text = (delta: string): StreamChunk => ({
@@ -223,6 +266,100 @@ describe('ChatClient resume', () => {
     expect(contexts[1]?.resume).toEqual(resumeItems)
     expect(client.getPendingInterrupts()).toEqual([])
     expect(client.getResumeState()).toBeNull()
+  })
+
+  it('clears interrupts when a resumed provider run has a different run id', async () => {
+    const resumeItems: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+      [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(client.getPendingInterrupts()).toHaveLength(1)
+
+    await client.resumeInterrupts(resumeItems)
+
+    expect(contexts[1]?.runId).not.toBe('provider-continuation-run')
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+  })
+
+  it('correlates a synthesized resume finish to the client request run', async () => {
+    const client = await createInterruptedClient([
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'provider-continuation-run',
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+      },
+    ])
+
+    resolveGenericInterrupt(client)
+
+    await vi.waitFor(() => expect(client.getInterrupts()).toEqual([]))
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getSessionGenerating()).toBe(false)
+  })
+
+  it('correlates a synthesized resume error to the client request run', async () => {
+    const client = await createInterruptedClient({
+      chunks: [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+      ],
+      error: new Error('continuation transport failed'),
+    })
+
+    resolveGenericInterrupt(client)
+
+    await vi.waitFor(() =>
+      expect(client.getInterrupts()[0]?.status).toBe('error'),
+    )
+    expect(client.getResumeState()).not.toBeNull()
+    expect(client.getSessionGenerating()).toBe(false)
   })
 
   it('resumeInterrupts reconnects with the full current message history', async () => {

@@ -348,6 +348,81 @@ function readSubmissionErrors(
   return error['errors'].every(isSubmissionError) ? error['errors'] : []
 }
 
+function haveSameInterruptIds(
+  left: ReadonlyArray<string>,
+  right: ReadonlyArray<string>,
+): boolean {
+  if (left.length !== right.length) return false
+  const sortedLeft = [...left].sort()
+  const sortedRight = [...right].sort()
+  return sortedLeft.every((id, index) => id === sortedRight[index])
+}
+
+function haveSameBatchCorrelation(
+  left: BatchInterruptError,
+  right: BatchInterruptError,
+): boolean {
+  return (
+    left.threadId === right.threadId &&
+    left.interruptedRunId === right.interruptedRunId &&
+    left.generation === right.generation &&
+    haveSameInterruptIds(left.interruptIds, right.interruptIds)
+  )
+}
+
+function mergeSubmissionBatchErrors(
+  current: ReadonlyArray<BatchInterruptError>,
+  previousSubmission: ReadonlyArray<BatchInterruptError>,
+  incoming: ReadonlyArray<BatchInterruptError>,
+): {
+  rootErrors: ReadonlyArray<BatchInterruptError>
+  submissionRootErrors: ReadonlyArray<BatchInterruptError>
+} {
+  const replaceableIncoming = incoming.filter(
+    (error) => error.source !== 'transport',
+  )
+  const isSuperseded = (candidate: BatchInterruptError): boolean =>
+    previousSubmission.includes(candidate) &&
+    replaceableIncoming.some((error) =>
+      haveSameBatchCorrelation(candidate, error),
+    )
+  const retainedRootErrors = current.filter(
+    (candidate) => !isSuperseded(candidate),
+  )
+  const retainedSubmissionRootErrors = previousSubmission.filter(
+    (candidate) =>
+      !replaceableIncoming.some((error) =>
+        haveSameBatchCorrelation(candidate, error),
+      ),
+  )
+  return Object.freeze({
+    rootErrors: Object.freeze([...retainedRootErrors, ...incoming]),
+    submissionRootErrors: Object.freeze([
+      ...retainedSubmissionRootErrors,
+      ...replaceableIncoming,
+    ]),
+  })
+}
+
+function submissionErrorMatchesActiveBatch(
+  error: InterruptSubmissionError,
+  submission: InterruptManagerSubmission,
+): boolean {
+  if (
+    error.threadId !== submission.threadId ||
+    error.interruptedRunId !== submission.interruptedRunId ||
+    error.generation !== submission.generation
+  ) {
+    return false
+  }
+  const interruptIds = submission.resolutions.map(
+    (resolution) => resolution.interruptId,
+  )
+  return error.scope === 'item'
+    ? interruptIds.includes(error.interruptId)
+    : haveSameInterruptIds(error.interruptIds, interruptIds)
+}
+
 function genericBinding(
   interrupt: Interrupt,
   hydration: InterruptManagerHydration,
@@ -417,6 +492,8 @@ export class InterruptManager<
   private items: Array<RuntimeInterrupt> = []
   private snapshot: ReadonlyArray<ChatInterrupt<TTools>> = Object.freeze([])
   private rootErrors: ReadonlyArray<BatchInterruptError> = Object.freeze([])
+  private submissionRootErrors: ReadonlyArray<BatchInterruptError> =
+    Object.freeze([])
   private state: ChatInterruptState<TTools> = Object.freeze({
     interrupts: this.snapshot,
     pendingInterrupts: this.snapshot,
@@ -447,6 +524,7 @@ export class InterruptManager<
       this.hydrateInterrupt(interrupt, hydration),
     )
     this.rootErrors = Object.freeze([])
+    this.submissionRootErrors = Object.freeze([])
     this.retrySubmission = undefined
     this.resuming = false
     this.publish()
@@ -581,6 +659,7 @@ export class InterruptManager<
     this.snapshot = Object.freeze([])
     if (options?.preserveRootErrors !== true) {
       this.rootErrors = Object.freeze([])
+      this.submissionRootErrors = Object.freeze([])
     }
     this.retrySubmission = undefined
     this.resuming = false
@@ -1299,9 +1378,21 @@ export class InterruptManager<
       return
     }
 
+    const correlatedErrors = errors.filter((submissionError) =>
+      submissionErrorMatchesActiveBatch(submissionError, submission),
+    )
+    if (correlatedErrors.length !== errors.length) {
+      this.addRootError(
+        'protocol',
+        'Interrupt submission errors did not match the active batch.',
+        false,
+      )
+    }
+
     let requiresRecovery = false
     let retryable = false
-    for (const submissionError of errors) {
+    const batchErrors: Array<BatchInterruptError> = []
+    for (const submissionError of correlatedErrors) {
       if (
         submissionError.code === 'stale' ||
         submissionError.code === 'expired' ||
@@ -1320,12 +1411,16 @@ export class InterruptManager<
           item.error = cloneAndDeepFreezeJson(submissionError)
         }
       } else {
-        this.rootErrors = Object.freeze([
-          ...this.rootErrors,
-          cloneAndDeepFreezeJson(submissionError),
-        ])
+        batchErrors.push(cloneAndDeepFreezeJson(submissionError))
       }
     }
+    const mergedBatchErrors = mergeSubmissionBatchErrors(
+      this.rootErrors,
+      this.submissionRootErrors,
+      batchErrors,
+    )
+    this.rootErrors = mergedBatchErrors.rootErrors
+    this.submissionRootErrors = mergedBatchErrors.submissionRootErrors
     for (const item of this.items) {
       if (item.status === 'submitting') item.status = 'error'
     }

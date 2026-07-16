@@ -237,7 +237,7 @@ export class ChatClient<
   private lastResume: ChatResumeState | null = null
   private readonly interruptManager: InterruptManager<TTools>
   private readonly continuationLoader: ChatContinuationLoader | undefined
-  private activeInterruptSubmission = false
+  private activeInterruptSubmission: InterruptManagerSubmission | undefined
   private pendingInterruptReplayRunId: string | undefined
   private interruptSubmissionFailure:
     | {
@@ -925,7 +925,7 @@ export class ChatClient<
   private async submitInterruptBatch(
     submission: InterruptManagerSubmission,
   ): Promise<InterruptCommitResult | void> {
-    this.activeInterruptSubmission = true
+    this.activeInterruptSubmission = submission
     this.pendingInterruptReplayRunId = undefined
     this.interruptSubmissionFailure = undefined
     const resumed = await this.resumeInterruptsUnsafe(
@@ -935,7 +935,7 @@ export class ChatClient<
         runId: submission.interruptedRunId,
       },
     ).finally(() => {
-      this.activeInterruptSubmission = false
+      this.activeInterruptSubmission = undefined
     })
     const replayRunId = this.takeInterruptReplayRunId()
     const failure = this.takeInterruptSubmissionFailure()
@@ -1427,8 +1427,7 @@ export class ChatClient<
   private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
     if (
       chunk.type === 'RUN_ERROR' &&
-      this.activeInterruptSubmission &&
-      (chunk['tanstack:interruptErrors']?.length ?? 0) > 0
+      this.isActiveInterruptSubmissionFailure(chunk)
     ) {
       this.interruptSubmissionFailure = {
         errors: chunk['tanstack:interruptErrors'] ?? [],
@@ -1458,6 +1457,28 @@ export class ChatClient<
     this.observeInterruptState(chunk)
     await new Promise((resolve) => setTimeout(resolve, 0))
     this.resolveJoinedRun(chunk)
+  }
+
+  private isActiveInterruptSubmissionFailure(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): boolean {
+    const submission = this.activeInterruptSubmission
+    const errors = chunk['tanstack:interruptErrors']
+    if (!submission || !errors || errors.length === 0) return false
+    const runId = getChunkRunId(chunk)
+    if (runId !== undefined && runId !== this.currentRunId) return false
+    if (
+      typeof chunk.threadId === 'string' &&
+      chunk.threadId !== submission.threadId
+    ) {
+      return false
+    }
+    return errors.every(
+      (error) =>
+        error.threadId === submission.threadId &&
+        error.interruptedRunId === submission.interruptedRunId &&
+        error.generation === submission.generation,
+    )
   }
 
   private resolveJoinedRun(chunk: StreamChunk): void {
