@@ -155,14 +155,21 @@ export function useChat<
   // Conditional spread: `updateOptions` declares strict-optional fields and
   // rejects explicit `undefined` under EOPT.
   watch(
-    () => [options.body, options.forwardedProps, options.context] as const,
-    ([newBody, newForwardedProps, newContext]) => {
+    () =>
+      [
+        options.body,
+        options.forwardedProps,
+        options.context,
+        options.queue,
+      ] as const,
+    ([newBody, newForwardedProps, newContext, newQueue]) => {
       client.updateOptions({
         body: newBody,
         ...(newForwardedProps !== undefined && {
           forwardedProps: newForwardedProps,
         }),
         context: newContext,
+        ...(newQueue !== undefined && { queue: newQueue }),
       })
     },
   )

@@ -65,6 +65,11 @@ export type {
   UIMessage,
   ChatRequestBody,
   MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  WhenBusy,
   ReactiveOption,
 } from './types'
 

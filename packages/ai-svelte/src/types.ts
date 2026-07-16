@@ -149,7 +149,7 @@ interface BaseCreateChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  queue: Array<QueuedMessage>
+  readonly queue: Array<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.

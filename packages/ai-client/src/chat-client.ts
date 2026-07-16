@@ -57,6 +57,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   tools?: TTools
+  queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
   onChunk?: (chunk: StreamChunk) => void
   onFinish?: (message: UIMessage) => void
@@ -64,6 +65,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
   onCustomEvent?: (
     eventType: string,
     data: unknown,
@@ -113,11 +115,21 @@ export function normalizeQueueOption(
   if (!option) return base
   if (typeof option === 'string') return { ...base, whenBusy: option }
   if (typeof option === 'function') return { ...base, strategy: option }
+
+  const maxSize = option.maxSize
+  if (maxSize !== undefined) {
+    if (!Number.isInteger(maxSize) || maxSize < 0) {
+      throw new Error(
+        'ChatClient: queue.maxSize must be a non-negative integer',
+      )
+    }
+  }
+
   return {
     whenBusy: option.whenBusy ?? 'queue',
     drain: option.drain ?? 'fifo',
     onOverflow: option.onOverflow ?? 'reject',
-    ...(option.maxSize !== undefined ? { maxSize: option.maxSize } : {}),
+    ...(maxSize !== undefined ? { maxSize } : {}),
   }
 }
 
@@ -174,9 +186,27 @@ export class ChatClient<
   private forwardedPropsOption: Record<string, any> = {}
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
-  private readonly queueConfig: NormalizedQueueConfig
+  private queueConfig: NormalizedQueueConfig
   private messageQueue: Array<QueuedMessage & { body?: Record<string, any> }> =
     []
+  /**
+   * True from the moment `sendMessage` claims the client until its
+   * `streamResponse` settles. Closes the race where concurrent callers both
+   * see `isLoading === false`, both append a user message, and only one stream
+   * actually runs (leaving stranded user messages with no reply).
+   */
+  private sendInFlight = false
+  /**
+   * True while `drainQueue` is delivering queued messages. Concurrent
+   * `sendMessage` calls during a drain are treated as busy and follow
+   * `whenBusy` (default: enqueue).
+   */
+  private messageQueueDraining = false
+  /**
+   * Set by `whenBusy: 'interrupt'` so an in-progress FIFO drain loop stops
+   * before starting the next queued item (the interrupting send owns the client).
+   */
+  private stopMessageQueueDrain = false
   private isLoading = false
   private isSubscribed = false
   private error: Error | undefined = undefined
@@ -809,6 +839,8 @@ export class ChatClient<
    *   - A MultimodalContent object with content array and optional custom ID
    * @param body - Optional body parameters to merge with the client's base body for this request.
    *               Uses shallow merge with per-message body taking priority.
+   * @param sendOptions - Per-call overrides, e.g. `{ whenBusy: 'interrupt' }` to
+   *                      override the configured queue policy for this one send.
    *
    * @example
    * ```ts
@@ -817,6 +849,9 @@ export class ChatClient<
    *
    * // Text message with custom body params
    * await client.sendMessage('Hello!', { temperature: 0.7 })
+   *
+   * // Per-call whenBusy override (body must still be the 2nd arg on ChatClient)
+   * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
    *
    * // Multimodal message with image
    * await client.sendMessage({
@@ -850,20 +885,53 @@ export class ChatClient<
       return
     }
 
-    if (this.isLoading) {
-      const action = this.decideWhenBusy(content, sendOptions)
+    if (this.isSendBusy()) {
+      const { action, id } = this.decideWhenBusy(content, sendOptions)
       if (action === 'drop') {
         return
       }
       if (action === 'enqueue') {
-        this.enqueueMessage(content, body)
+        this.enqueueMessage(content, body, id)
         return
       }
-      // 'interrupt': abort the current stream, then fall through to send now.
+      // 'interrupt': abort the current stream, then send now.
+      // Unlike stop(), does not flush already-queued messages — they drain
+      // after this interrupting send settles successfully.
+      // Claim sendInFlight *before* cancelling so a concurrent send cannot
+      // slip in between cancel and the deliver below.
+      this.stopMessageQueueDrain = true
+      this.sendInFlight = true
       this.cancelInFlightStream({ setReadyStatus: true })
       this.resetSessionGenerating()
+      try {
+        await this.deliverMessage(content, body)
+      } finally {
+        this.sendInFlight = false
+      }
+      return
     }
 
+    this.sendInFlight = true
+    try {
+      await this.deliverMessage(content, body)
+    } finally {
+      this.sendInFlight = false
+    }
+  }
+
+  /** True while a stream is active, a send is claiming the client, or the queue is draining. */
+  private isSendBusy(): boolean {
+    return this.isLoading || this.sendInFlight || this.messageQueueDraining
+  }
+
+  /**
+   * Append a user message and run the stream. Used by both direct sends and
+   * queue drains — callers are responsible for busy/queue policy.
+   */
+  private async deliverMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+  ): Promise<boolean> {
     const normalizedContent = this.normalizeMessageInput(content)
     this.pendingMessageBody = body
     const userMessage = this.processor.addUserMessage(
@@ -871,50 +939,64 @@ export class ChatClient<
       normalizedContent.id,
     )
     this.events.messageSent(userMessage.id, normalizedContent.content)
-    await this.streamResponse()
+    return await this.streamResponse()
   }
 
   /**
-   * Resolve the effective action for a send that arrives while streaming.
+   * Resolve the effective action for a send that arrives while busy.
    * A strategy that returns `'send'` while streaming is coerced to
    * `'enqueue'` — you cannot start a second concurrent stream.
+   * The returned `id` is the id that will be stored if the action is enqueue.
    */
   private decideWhenBusy(
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
-  ): 'drop' | 'enqueue' | 'interrupt' {
+  ): { action: 'drop' | 'enqueue' | 'interrupt'; id: string } {
+    const id = this.generateUniqueId('queued')
     if (sendOptions?.whenBusy) {
-      return sendOptions.whenBusy === 'queue' ? 'enqueue' : sendOptions.whenBusy
+      return {
+        action:
+          sendOptions.whenBusy === 'queue' ? 'enqueue' : sendOptions.whenBusy,
+        id,
+      }
     }
     const { strategy, whenBusy } = this.queueConfig
     if (strategy) {
       const { action } = strategy({
         pending: {
-          id: this.generateUniqueId('queued'),
+          id,
           content,
           createdAt: Date.now(),
         },
         isStreaming: true,
         queued: this.getQueue(),
       })
-      return action === 'send' ? 'enqueue' : action
+      return {
+        action: action === 'send' ? 'enqueue' : action,
+        id,
+      }
     }
-    return whenBusy === 'queue' ? 'enqueue' : whenBusy
+    return {
+      action: whenBusy === 'queue' ? 'enqueue' : whenBusy,
+      id,
+    }
   }
 
   private enqueueMessage(
     content: string | MultimodalContent,
     body?: Record<string, any>,
+    id?: string,
   ): void {
     const { maxSize, onOverflow } = this.queueConfig
     if (maxSize !== undefined && this.messageQueue.length >= maxSize) {
-      if (onOverflow === 'reject') {
+      // maxSize 0 is a hard cap (never queue). drop-oldest cannot make room.
+      if (onOverflow === 'reject' || maxSize === 0) {
         return
       }
       this.messageQueue.shift() // drop-oldest
     }
     this.messageQueue.push({
-      id: this.generateUniqueId('queued'),
+      id: id ?? this.generateUniqueId('queued'),
       content,
       createdAt: Date.now(),
       ...(body !== undefined ? { body } : {}),
@@ -1201,6 +1283,11 @@ export class ChatClient<
               await this.checkForContinuation()
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
+              // Continuation failed without starting a new stream — don't
+              // leave queued user messages stranded forever.
+              if (!this.isLoading) {
+                await this.drainQueue()
+              }
             }
           } else {
             if (this.status !== 'ready') {
@@ -1212,8 +1299,11 @@ export class ChatClient<
             }
             // Auto-send queued messages once the run fully settles. When a
             // continuation runs instead (tool-result branch above), that
-            // continuation's own finally drains the queue.
-            await this.drainQueue()
+            // continuation's own finally drains the queue. Skip if a drain
+            // loop is already walking the queue (avoids nested re-entry).
+            if (!this.messageQueueDraining) {
+              await this.drainQueue()
+            }
           }
         } else {
           // Error/abort settle for the active generation: don't strand or
@@ -1256,6 +1346,7 @@ export class ChatClient<
       setReadyStatus: true,
       abortSubscription: true,
     })
+    this.sendInFlight = false
     this.flushQueue()
     this.resetSessionGenerating()
     this.setIsSubscribed(false)
@@ -1280,6 +1371,10 @@ export class ChatClient<
     if (this.isLoading) {
       this.cancelInFlightStream()
     }
+    this.sendInFlight = false
+    // Discard pending follow-ups so "regenerate last answer" does not also
+    // auto-send messages that were typed during the previous stream.
+    this.flushQueue()
 
     this.events.reloaded(lastUserMessageIndex)
 
@@ -1297,6 +1392,7 @@ export class ChatClient<
   stop(): void {
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    this.sendInFlight = false
     this.flushQueue()
     if (hadLocalStream) {
       this.resetSessionGenerating()
@@ -1325,6 +1421,7 @@ export class ChatClient<
       this.persistor.beginClear()
     }
     this.processor.clearMessages()
+    this.sendInFlight = false
     this.flushQueue()
     this.persistor?.remove()
     this.setError(undefined)
@@ -1522,26 +1619,59 @@ export class ChatClient<
   }
 
   /**
-   * Send the next queued message (fifo) or all queued messages merged into one
-   * (batch). Called from streamResponse's finally once the run has settled;
-   * the fifo case relies on the resulting stream's own finally to continue the
-   * chain.
+   * Deliver queued messages after a successful settle.
+   * - `batch`: merge everything currently queued into one send.
+   * - `fifo`: walk the queue in a loop, one stream at a time, until empty
+   *   (or until another send claims the client via interrupt).
+   *
+   * Uses `deliverMessage` directly so drains do not re-enter `sendMessage`'s
+   * busy/queue policy (which would re-enqueue items and strand the rest).
    */
   private async drainQueue(): Promise<void> {
-    if (this.isLoading || this.messageQueue.length === 0) {
+    // Note: do not gate on `sendInFlight`. Normal sends still hold
+    // `sendInFlight` while `streamResponse`'s finally invokes drain; blocking
+    // on it would permanently strand the queue.
+    if (
+      this.messageQueueDraining ||
+      this.isLoading ||
+      this.messageQueue.length === 0
+    ) {
       return
     }
-    if (this.queueConfig.drain === 'batch') {
-      const items = this.messageQueue.splice(0)
-      this.emitQueueChange()
-      const merged = mergeQueuedMessages(items)
-      await this.sendMessage(merged.content, merged.body)
-      return
-    }
-    const next = this.messageQueue.shift()
-    this.emitQueueChange()
-    if (next) {
-      await this.sendMessage(next.content, next.body)
+
+    this.messageQueueDraining = true
+    this.stopMessageQueueDrain = false
+    try {
+      if (this.queueConfig.drain === 'batch') {
+        const items = this.messageQueue.splice(0)
+        this.emitQueueChange()
+        if (items.length > 0) {
+          const merged = mergeQueuedMessages(items)
+          await this.deliverMessage(merged.content, merged.body)
+        }
+        return
+      }
+
+      while (this.messageQueue.length > 0) {
+        // Interrupt (or a new direct send) claimed the client — stop draining;
+        // remaining items stay queued and will drain after that send settles.
+        if (this.isLoading || this.stopMessageQueueDrain) {
+          return
+        }
+        const next = this.messageQueue.shift()
+        this.emitQueueChange()
+        if (!next) {
+          return
+        }
+        const completed = await this.deliverMessage(next.content, next.body)
+        // Failed/aborted deliver flushes the rest of the queue in streamResponse.
+        if (!completed || this.stopMessageQueueDrain) {
+          return
+        }
+      }
+    } finally {
+      this.messageQueueDraining = false
+      this.stopMessageQueueDrain = false
     }
   }
 
@@ -1571,6 +1701,11 @@ export class ChatClient<
     this.emitQueueChange()
   }
 
+  /**
+   * Discard all pending queued messages (stop / error / clear / unsubscribe /
+   * reload). Does not send them. Emits `onQueueChange([])` when anything was
+   * removed.
+   */
   private flushQueue(): void {
     if (this.messageQueue.length === 0) return
     this.messageQueue = []
@@ -1689,6 +1824,9 @@ export class ChatClient<
       }
       this.devtoolsBridge.notifyToolsChanged()
     }
+    if (options.queue !== undefined) {
+      this.queueConfig = normalizeQueueOption(options.queue)
+    }
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
     }
@@ -1712,6 +1850,9 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onQueueChange !== undefined) {
+      this.callbacksRef.current.onQueueChange = options.onQueueChange
     }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent

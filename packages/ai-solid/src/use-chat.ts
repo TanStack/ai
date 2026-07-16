@@ -161,6 +161,7 @@ export function useChat<
         forwardedProps: options.forwardedProps,
       }),
       context: options.context,
+      ...(options.queue !== undefined && { queue: options.queue }),
     })
   })
 

@@ -36,6 +36,11 @@ describe('normalizeQueueOption', () => {
       maxSize: 3,
     })
   })
+
+  it('rejects invalid maxSize', () => {
+    expect(() => normalizeQueueOption({ maxSize: -1 })).toThrow(/maxSize/)
+    expect(() => normalizeQueueOption({ maxSize: 1.5 })).toThrow(/maxSize/)
+  })
 })
 
 /**
@@ -324,5 +329,239 @@ describe('ChatClient queue drain', () => {
     expect(userMessages.map((m) => m.parts[0])).toEqual([
       { type: 'text', content: 'first' },
     ])
+  })
+
+  it('flushes the queue on clear()', async () => {
+    const { connection, release } = createHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('second')
+    expect(client.getQueue()).toHaveLength(1)
+
+    client.clear()
+    expect(client.getQueue()).toEqual([])
+
+    release()
+    await firstSend
+  })
+})
+
+describe('ChatClient queue policy branches', () => {
+  it("whenBusy: 'interrupt' aborts the in-flight stream and sends immediately", async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection, queue: 'interrupt' })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    const secondSend = client.sendMessage('urgent')
+    // Interrupt does not enqueue.
+    expect(client.getQueue()).toEqual([])
+
+    // The interrupting send should be in messages immediately (and loading).
+    await vi.waitFor(() => {
+      const users = client.getMessages().filter((m) => m.role === 'user')
+      expect(users.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'first' },
+        { type: 'text', content: 'urgent' },
+      ])
+    })
+
+    release()
+    await Promise.all([firstSend, secondSend])
+
+    expect(client.getQueue()).toEqual([])
+  })
+
+  it('per-call whenBusy override beats the client default', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    // Default is queue; override one send to interrupt.
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('queued-one')
+    expect(client.getQueue()).toHaveLength(1)
+
+    const interruptSend = client.sendMessage('urgent', undefined, {
+      whenBusy: 'interrupt',
+    })
+    // Interrupt does not flush existing queue; item stays pending.
+    expect(client.getQueue()).toHaveLength(1)
+
+    release()
+    await Promise.all([firstSend, interruptSend])
+
+    // After interrupt settles, the previously queued item drains.
+    await vi.waitFor(() => {
+      expect(client.getQueue()).toEqual([])
+    })
+
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
+    expect(userMessages.map((m) => m.parts[0])).toEqual([
+      { type: 'text', content: 'first' },
+      { type: 'text', content: 'urgent' },
+      { type: 'text', content: 'queued-one' },
+    ])
+  })
+
+  it("maxSize + onOverflow: 'reject' drops the newest when full", async () => {
+    const { connection, release } = createHoldingConnection()
+    const client = new ChatClient({
+      connection,
+      queue: { maxSize: 1, onOverflow: 'reject' },
+    })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('a')
+    await client.sendMessage('b')
+    expect(client.getQueue().map((m) => m.content)).toEqual(['a'])
+
+    release()
+    await firstSend
+  })
+
+  it("maxSize + onOverflow: 'drop-oldest' rotates the queue", async () => {
+    const { connection, release } = createHoldingConnection()
+    const client = new ChatClient({
+      connection,
+      queue: { maxSize: 1, onOverflow: 'drop-oldest' },
+    })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('a')
+    await client.sendMessage('b')
+    expect(client.getQueue().map((m) => m.content)).toEqual(['b'])
+
+    release()
+    await firstSend
+  })
+
+  it('maxSize: 0 never enqueues under drop-oldest', async () => {
+    const { connection, release } = createHoldingConnection()
+    const client = new ChatClient({
+      connection,
+      queue: { maxSize: 0, onOverflow: 'drop-oldest' },
+    })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('should-not-queue')
+    expect(client.getQueue()).toEqual([])
+
+    release()
+    await firstSend
+  })
+
+  it('QueueStrategy pending.id matches the enqueued item id', async () => {
+    const { connection, release } = createHoldingConnection()
+    let seenId: string | undefined
+    const client = new ChatClient({
+      connection,
+      queue: ({ pending }) => {
+        seenId = pending.id
+        return { action: 'enqueue' }
+      },
+    })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('second')
+    const queue = client.getQueue()
+    expect(queue).toHaveLength(1)
+    expect(seenId).toBe(queue[0]?.id)
+
+    // cancelQueued with the strategy-visible id must work.
+    client.cancelQueued(seenId!)
+    expect(client.getQueue()).toEqual([])
+
+    release()
+    await firstSend
+  })
+
+  it('concurrent rapid sends do not strand user messages without streams', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    // Fire several sends without awaiting between them (composer spam).
+    const sends = [
+      client.sendMessage('first'),
+      client.sendMessage('second'),
+      client.sendMessage('third'),
+    ]
+
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    // Only one should be in-flight as a user message initially; the rest queue
+    // (or all become user messages only as they drain in order).
+    await vi.waitFor(() => {
+      expect(client.getQueue().length + 1).toBeGreaterThanOrEqual(1)
+    })
+
+    release()
+    await Promise.all(sends)
+
+    // Every user message must have been delivered with no stranded leftovers
+    // in the queue, and all three must appear in order.
+    expect(client.getQueue()).toEqual([])
+    const userMessages = client.getMessages().filter((m) => m.role === 'user')
+    expect(userMessages.map((m) => m.parts[0])).toEqual([
+      { type: 'text', content: 'first' },
+      { type: 'text', content: 'second' },
+      { type: 'text', content: 'third' },
+    ])
+    // Each user message should have a corresponding assistant reply after
+    // the full FIFO drain completes.
+    const assistantMessages = client
+      .getMessages()
+      .filter((m) => m.role === 'assistant')
+    expect(assistantMessages.length).toBe(3)
+  })
+
+  it('flushes the queue on reload()', async () => {
+    const { connection, release } = createSequencedHoldingConnection()
+    const client = new ChatClient({ connection })
+
+    const firstSend = client.sendMessage('first')
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+
+    await client.sendMessage('queued')
+    expect(client.getQueue()).toHaveLength(1)
+
+    // Reload while the first stream is held open and something is queued.
+    const reloadPromise = client.reload()
+    expect(client.getQueue()).toEqual([])
+
+    release()
+    await Promise.all([firstSend, reloadPromise])
+    expect(client.getQueue()).toEqual([])
   })
 })

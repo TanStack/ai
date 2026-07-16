@@ -203,6 +203,12 @@ export function useChat<
   }, [client, options.context])
 
   useEffect(() => {
+    if (options.queue !== undefined) {
+      client.updateOptions({ queue: options.queue })
+    }
+  }, [client, options.queue])
+
+  useEffect(() => {
     if (options.live) {
       client.subscribe()
     } else {

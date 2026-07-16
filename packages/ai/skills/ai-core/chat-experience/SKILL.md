@@ -426,15 +426,23 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 ```
 
 - **`whenBusy`** — `'queue'` (default) holds the message; `'drop'` ignores
-  the send; `'interrupt'` aborts the current stream (like `stop()`) and
-  sends immediately. Also accepts a plain `WhenBusy` string as shorthand, or
-  a `QueueStrategy` function for full per-send control.
+  the send; `'interrupt'` aborts the current stream and sends immediately
+  (unlike `stop()`, does **not** flush already-queued items).
 - **`drain`** — `'fifo'` (default) sends queued items one at a time in
   order; `'batch'` merges everything queued into a single send once the
   stream settles.
 - **`maxSize`** / **`onOverflow`** — cap the queue length; `'reject'`
   (default) ignores overflow sends, `'drop-oldest'` evicts the oldest
   queued item to make room.
+
+The top-level `queue` option also accepts a plain `WhenBusy` string
+shorthand (e.g. `queue: 'interrupt'`) or a `QueueStrategy` function for
+per-send action control. Strategy form always drains FIFO; `'send'` while
+busy is coerced to `'enqueue'`.
+
+**Drain vs flush:** queued messages auto-send only after a **successful**
+settle. They are **discarded** on stream error/abort, `stop()`, `clear()`,
+`unsubscribe()`, and `reload()`. `interrupt` does not flush.
 
 `queue: Array<QueuedMessage>` (`{ id, content, createdAt }`) is separate
 from `messages` — render pending sends distinctly and cancel with

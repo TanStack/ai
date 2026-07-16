@@ -148,7 +148,9 @@ export interface MultimodalContent {
  * Action taken when `sendMessage` is called while a stream is in flight.
  * - `queue`: hold the message; it auto-sends when the stream settles.
  * - `drop`: ignore the send.
- * - `interrupt`: abort the current stream (like `stop()`) and send now.
+ * - `interrupt`: abort the current stream and send immediately. Unlike
+ *   `stop()`, does **not** flush already-queued messages — they still drain
+ *   after the interrupting send settles successfully.
  */
 export type WhenBusy = 'queue' | 'drop' | 'interrupt'
 
@@ -183,7 +185,12 @@ export interface QueueConfig {
 
 /**
  * Escape hatch: decide the action for a single send. Drain stays FIFO for the
- * function form (no `batch` via function).
+ * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
+ * overrides the strategy for that send.
+ *
+ * Returning `'send'` while a stream is in flight is coerced to `'enqueue'` —
+ * concurrent streams are not supported. `pending.id` is the id that will be
+ * stored if the action is `'enqueue'` (safe to pass to `cancelQueued`).
  */
 export type QueueStrategy = (ctx: {
   pending: QueuedMessage

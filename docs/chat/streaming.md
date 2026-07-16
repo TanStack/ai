@@ -218,13 +218,19 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 
 - **`whenBusy`** — what happens to a send that arrives mid-stream:
   - `"queue"` (default) — hold the message; it sends once the stream settles.
-  - `"drop"` — ignore the send.
-  - `"interrupt"` — abort the current stream (like calling `stop()`) and send the new message immediately.
-- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the stream settles (string contents joined with `\n`, multimodal content concatenated in order).
-- **`maxSize`** — caps how many messages can be queued.
-- **`onOverflow`** — `"reject"` (default) ignores a send once `maxSize` is reached; `"drop-oldest"` evicts the oldest queued item to make room.
+  - `"drop"` — ignore the send (promise still resolves; do not clear the composer until the message appears in `messages` or `queue`).
+  - `"interrupt"` — abort the current stream and send the new message immediately. Unlike `stop()`, this does **not** clear already-queued messages — they still drain after the interrupting send succeeds.
+- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the stream settles (string contents joined with `\n`, multimodal content concatenated in order; when sending via `ChatClient` with per-message `body`, the last item's `body` wins).
+- **`maxSize`** — caps how many messages can be queued (`0` means never queue).
+- **`onOverflow`** — `"reject"` (default) silently ignores a send once `maxSize` is reached; `"drop-oldest"` evicts the oldest queued item to make room.
 
-You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }` — this applies for any `WhenBusy` value (`"queue"`, `"drop"`, or `"interrupt"`), not just `"interrupt"` — or a `QueueStrategy` function for full control over the per-send decision (the drain order stays FIFO for the function form).
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`); returning `"send"` while busy is coerced to `"enqueue"` (no concurrent streams). Per-call `whenBusy` overrides both config and strategy.
+
+### When the queue drains vs flushes
+
+- **Drain (auto-send)** — only after a **successful** stream settle (including after tool continuations finish).
+- **Flush (discard without sending)** — on stream **error/abort** of the active generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
+- **`interrupt` does not flush** — existing queued items remain and drain after the interrupting turn.
 
 `useChat` exposes the pending queue as `queue` so you can render it distinctly from `messages`, along with `cancelQueued(id)` to cancel an item before it sends:
 
@@ -249,7 +255,7 @@ Override the configured policy for a single send with the second argument to `se
 sendMessage("Never mind, do this instead", { whenBusy: "interrupt" });
 ```
 
-> **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `whenBusy: "drop"` or `"interrupt"`.
+> **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `queue: "drop"` (or `{ whenBusy: "drop" }`) to restore the old behavior, or `queue: "interrupt"`.
 
 ## Best Practices
 

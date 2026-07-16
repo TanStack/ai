@@ -14,12 +14,26 @@ import type {
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { ReactiveOption } from './internal/to-reactive'
 
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  UIMessage,
+  WhenBusy,
+}
 export type { ReactiveOption }
 
 /**
@@ -55,6 +69,7 @@ export type InjectChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
   | 'context'
   | 'devtools'
   | 'body'
@@ -102,7 +117,14 @@ interface BaseInjectChatResult<
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
   /** Send a message (string or multimodal content). */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: { whenBusy?: WhenBusy },
+  ) => Promise<void>
+  /** Pending messages queued while a stream is in flight. */
+  queue: Signal<ReadonlyArray<QueuedMessage>>
+  /** Cancel a queued message before it drains. */
+  cancelQueued: (id: string) => void
   /** Append a message to the conversation. */
   append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
   /** Add the result of a client-side tool execution. */

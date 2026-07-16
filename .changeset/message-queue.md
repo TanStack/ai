@@ -5,9 +5,10 @@
 '@tanstack/ai-vue': minor
 '@tanstack/ai-svelte': minor
 '@tanstack/ai-preact': minor
+'@tanstack/ai-angular': minor
 ---
 
-Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.**
+Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.** Restore the previous drop-while-busy behavior with `queue: 'drop'`.
 
 The behavior is configurable via a new `queue` option, which accepts `whenBusy: 'queue' | 'drop' | 'interrupt'`, `drain: 'fifo' | 'batch'`, `maxSize`, and `onOverflow`, or a custom strategy function for full control.
 

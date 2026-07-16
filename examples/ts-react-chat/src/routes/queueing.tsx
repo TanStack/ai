@@ -37,7 +37,7 @@ const FIFO: StrategyMeta = {
 const INTERRUPT: StrategyMeta = {
   title: 'interrupt',
   blurb:
-    'A message sent while streaming aborts the in-flight response and sends immediately. The queue never fills.',
+    'A message sent while streaming aborts the in-flight response and sends immediately. Unlike stop(), already-queued items are kept and still drain afterward.',
   config: { whenBusy: 'interrupt' },
 }
 const BATCH: StrategyMeta = {
