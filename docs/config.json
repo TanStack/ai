@@ -206,11 +206,6 @@
           "addedAt": "2026-07-16"
         },
         {
-          "label": "Client-Tool Execution",
-          "to": "interrupts/client-tool-execution",
-          "addedAt": "2026-07-16"
-        },
-        {
           "label": "Persistence & Recovery",
           "to": "interrupts/persistence",
           "addedAt": "2026-07-16"

@@ -1,7 +1,7 @@
 ---
 title: Migration
 id: interrupts-migration
-order: 7
+order: 6
 description: "Migrate approval and resume code from legacy custom events and raw resume APIs to typed, atomic AG-UI interrupts."
 keywords:
   - tanstack ai migration

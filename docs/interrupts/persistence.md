@@ -1,7 +1,7 @@
 ---
 title: Persistence & Recovery
 id: interrupts-persistence
-order: 6
+order: 5
 description: "Choose ephemeral resume or durable persistence for interrupts, and wire explicit recovery and continuation endpoints."
 keywords:
   - tanstack ai

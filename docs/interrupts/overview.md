@@ -2,7 +2,7 @@
 title: Overview
 id: interrupts-overview
 order: 1
-description: "Pause an agent run for a decision, then resume it — tool approvals, generic pauses, and client-tool execution over the AG-UI interrupt lifecycle."
+description: "Pause an agent run for a decision, then resume it — tool approvals and generic application pauses over the AG-UI interrupt lifecycle."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -32,27 +32,27 @@ reconstructs and validates the expected batch from the submitted history and its
 current tool definitions. Persistence is an optional durability layer — see
 [Persistence & Recovery](./persistence).
 
-## Three kinds
+## Kinds you resolve
 
-The bound `interrupts` array is a union discriminated by `kind`:
+The bound `interrupts` array holds the pauses your app resolves:
 
 | `kind` | Meaning | Guide |
 | --- | --- | --- |
 | `tool-approval` | Approve or reject a tool call, optionally editing its args | [Tool Approval](./tool-approval) |
-| `client-tool-execution` | Run a tool in the browser and return its output | [Client-Tool Execution](./client-tool-execution) |
 | `generic` | Any application pause with a wire `responseSchema` | [Generic Interrupts](./generic) |
 
-These describe the **pause**, not the tool — approval and browser execution are
-independent axes. A client tool with `needsApproval: true` trips **both** in
-sequence: a `tool-approval` decision first, then a `client-tool-execution`
-request once approved.
+**Client tools are not on this list.** Running a tool in the browser and
+returning its result is not something you resolve by hand — a tool with a
+`.client()` implementation runs automatically and reports its own result. See
+[Client Tools](../tools/client-tools). Approval is a separate axis: add
+`needsApproval: true` to any tool (server or client) and it pauses on a
+`tool-approval` interrupt first; a client tool then runs automatically once
+approved.
 
-| Tool | Interrupts it produces |
+| Tool | What you handle |
 | --- | --- |
-| Server tool, no approval | none — runs on the server |
-| Server tool, `needsApproval` | `tool-approval`, then runs on the server |
-| Client tool, no approval | `client-tool-execution` |
-| Client tool, `needsApproval` | `tool-approval`, then `client-tool-execution` |
+| Server tool | nothing (runs on the server); a `tool-approval` interrupt first if `needsApproval` |
+| Client tool (`.client()` impl) | nothing (runs automatically); a `tool-approval` interrupt first if `needsApproval` |
 
 ## Where to go next
 
@@ -61,7 +61,7 @@ request once approved.
 | Approve/reject a single tool call and render it | [Tool Approval](./tool-approval) |
 | Render and resolve several pending interrupts at once | [Multiple Interrupts](./multiple) |
 | Validate a schema-driven application pause | [Generic Interrupts](./generic) |
-| Return a browser-computed tool result | [Client-Tool Execution](./client-tool-execution) |
+| Run a tool in the browser and return its result | [Client Tools](../tools/client-tools) |
 | Survive reloads, retries, and multi-tab conflicts | [Persistence & Recovery](./persistence) |
 | Move off legacy `approval-requested` events | [Migration](./migration) |
 

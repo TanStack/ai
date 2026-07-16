@@ -63,12 +63,13 @@ Native client-tool execution uses the same atomic interrupt lifecycle as other
 waits. See [Interrupts](../interrupts/overview) for persistence, batches, recovery,
 and migration from the historical `tool-input-available` custom event.
 
-## Approval and execution are separate axes
+## Approval is a separate axis
 
-A client tool can require approval, but approval is not the browser result. A
-tool with `needsApproval: true` first produces a `tool-approval` interrupt. Once
-approved, its browser work is represented separately by a
-`client-tool-execution` interrupt.
+A client tool can also require approval, and approval is separate from the
+browser result. Add `needsApproval: true` and the tool pauses on a
+`tool-approval` interrupt first. You resolve **that decision only** — once
+approved, the client runs the `.client()` implementation automatically and
+returns its result:
 
 ```ts ignore
 const approval = interrupts.find(
@@ -83,26 +84,14 @@ if (
 ) {
   approval.resolveInterrupt(true)
 }
-
-const execution = interrupts.find(
-  (interrupt) =>
-    interrupt.kind === 'client-tool-execution' &&
-    interrupt.toolName === 'delete_local_data',
-)
-
-if (
-  execution?.kind === 'client-tool-execution' &&
-  execution.toolName === 'delete_local_data'
-) {
-  execution.resolveInterrupt({ deleted: true })
-}
 ```
 
-The result is validated against the tool's output schema. The existing
-`addToolResult` API remains supported and delegates to the same staged native
-item when one matches; it also preserves the historical path for legacy
-streams. See [Tool approval flow](./tool-approval) for approval forms and
-[Migrate to AG-UI interrupts](../interrupts/migration) for compatibility limits.
+You never resolve the execution by hand — that is what the `.client()`
+implementation is for. If you register a tool **without** a `.client()`
+implementation and want to supply the result yourself, use `addToolResult`
+(validated against the tool's output schema); it also preserves the historical
+path for legacy streams. See [Tool approval flow](./tool-approval) for approval
+forms and [Interrupts](../interrupts/overview) for the approval lifecycle.
 
 ## Defining Client Tools
 
