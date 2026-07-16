@@ -1,4 +1,4 @@
-import { isByokMissingBody } from '../server/byok-missing'
+import { isByokMissingBody } from '../shared/byok-missing'
 import { byokHeaders } from './keyring'
 import type { Keyring } from './keyring'
 import type { ProviderId } from '../shared/providers'
@@ -41,6 +41,45 @@ export interface ByokConnectionOptions {
   fetchClient?: typeof fetch
 }
 
+/** Context a {@link byokFetcher} handler receives alongside the request input. */
+export interface ByokFetcherContext {
+  /**
+   * Per-provider BYOK headers read fresh for this request. Spread onto a
+   * `fetch` call's `headers`, or pass as a TanStack Start server function's
+   * call-site `headers` option — either way the key travels in the header,
+   * never the body.
+   */
+  headers: Record<string, string>
+  /**
+   * A `fetch` that also detects the relay's `byokMissing` 401 and invokes
+   * `onMissingKey` (identical to the global `fetch` when `onMissingKey` is
+   * unset). Only relevant to fetch-based fetchers; a server-function fetcher
+   * uses `headers` and surfaces a missing key as a thrown error instead.
+   */
+  fetch: typeof fetch
+  /** The abort signal the transport forwards from `stop()`, when provided. */
+  signal?: AbortSignal
+}
+
+function buildByokFetch(options: WithByokOptions): typeof fetch {
+  return options.onMissingKey
+    ? byokFetch(options.onMissingKey, options.fetchClient)
+    : (options.fetchClient ?? fetch)
+}
+
+/** Shared header + fetch wiring for {@link withByok} and {@link byokFetcher}. */
+export function buildByokRequestContext(
+  getKeys: () => Keyring,
+  options: WithByokOptions = {},
+  signal?: AbortSignal,
+): ByokFetcherContext {
+  return {
+    headers: { ...options.headers, ...byokHeaders(getKeys()) },
+    fetch: buildByokFetch(options),
+    signal,
+  }
+}
+
 /**
  * Build BYOK connection options for a fetch-based connection adapter: attaches
  * `byokHeaders(keys)` on every request and, when `onMissingKey` is set, detects
@@ -65,34 +104,17 @@ export function withByok(
   options: WithByokOptions = {},
 ): () => ByokConnectionOptions {
   return () => {
-    const fetchClient = options.onMissingKey
-      ? byokFetch(options.onMissingKey, options.fetchClient)
-      : options.fetchClient
+    const { headers, fetch: fetchClient } = buildByokRequestContext(
+      getKeys,
+      options,
+    )
     return {
-      headers: { ...options.headers, ...byokHeaders(getKeys()) },
-      ...(fetchClient ? { fetchClient } : {}),
+      headers,
+      ...(options.onMissingKey || options.fetchClient
+        ? { fetchClient }
+        : {}),
     }
   }
-}
-
-/** Context a {@link byokFetcher} handler receives alongside the request input. */
-export interface ByokFetcherContext {
-  /**
-   * Per-provider BYOK headers read fresh for this request. Spread onto a
-   * `fetch` call's `headers`, or pass as a TanStack Start server function's
-   * call-site `headers` option — either way the key travels in the header,
-   * never the body.
-   */
-  headers: Record<string, string>
-  /**
-   * A `fetch` that also detects the relay's `byokMissing` 401 and invokes
-   * `onMissingKey` (identical to the global `fetch` when `onMissingKey` is
-   * unset). Only relevant to fetch-based fetchers; a server-function fetcher
-   * uses `headers` and surfaces a missing key as a thrown error instead.
-   */
-  fetch: typeof fetch
-  /** The abort signal the transport forwards from `stop()`, when provided. */
-  signal?: AbortSignal
 }
 
 /**
@@ -126,11 +148,8 @@ export function byokFetcher<TInput, TReturn>(
   options: WithByokOptions = {},
 ): (input: TInput, transport?: { signal?: AbortSignal }) => TReturn {
   return (input, transport) =>
-    handler(input, {
-      headers: { ...options.headers, ...byokHeaders(getKeys()) },
-      fetch: options.onMissingKey
-        ? byokFetch(options.onMissingKey, options.fetchClient)
-        : (options.fetchClient ?? fetch),
-      signal: transport?.signal,
-    })
+    handler(
+      input,
+      buildByokRequestContext(getKeys, options, transport?.signal),
+    )
 }

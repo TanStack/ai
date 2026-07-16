@@ -30,6 +30,9 @@ import { getByokKey, byokMissing } from "@tanstack/ai-byok/server";
 
 # React bindings (requires react peer)
 import { ByokProvider, useByok } from "@tanstack/ai-byok/react";
+
+# OpenRouter OAuth PKCE (optional vendor add-on)
+import { useOpenRouterPkce } from "@tanstack/ai-byok/openrouter/react";
 ```
 
 ## `@tanstack/ai-byok` (client)
@@ -71,6 +74,10 @@ fetchServerSentEvents("/api/chat", buildOptions);
 | `onMissingKey?` | `(provider: ProviderId) => void` | Called when the relay returns a `byokMissing` 401 |
 | `headers?` | `Record<string, string>` | Extra headers merged under BYOK headers |
 | `fetchClient?` | `typeof fetch` | Underlying fetch (defaults to global `fetch`) |
+
+### `buildByokRequestContext(getKeys, options?, signal?)`
+
+Shared header + fetch wiring used by `withByok` and `byokFetcher`. Returns `{ headers, fetch, signal? }`.
 
 ### `byokFetch(onMissingKey, fetchImpl?)`
 
@@ -135,7 +142,7 @@ Passkey-encrypted persistence (WebAuthn PRF → HKDF → AES-256-GCM in IndexedD
 
 Returns whether WebAuthn is available. PRF support is confirmed only during registration — catch errors from `passkeyStorage()` and fall back to `memoryStorage()`.
 
-### OpenRouter PKCE
+### OpenRouter PKCE (`@tanstack/ai-byok/openrouter`)
 
 | Export | Description |
 | --- | --- |
@@ -148,7 +155,7 @@ Returns whether WebAuthn is available. PRF support is confirmed only during regi
 | `defaultOpenRouterCallbackUrl()` | `origin + pathname` default |
 | `storeOpenRouterPkcePending` / `load` / `clear` | Session-scoped PKCE state |
 
-### `useOpenRouterPkce(options?)`
+### `useOpenRouterPkce(options?)` (`@tanstack/ai-byok/openrouter/react`)
 
 React hook (requires `<ByokProvider>`). Auto-completes when the URL contains `?code=` from OpenRouter (unless `autoComplete: false`).
 
@@ -210,6 +217,14 @@ import { byokMissing } from "@tanstack/ai-byok/server";
 if (!apiKey) return byokMissing("anthropic");
 ```
 
+### `preferByokAdapter(request, provider, model, factories)`
+
+Prefer a per-request BYOK header key over a server env-configured adapter factory.
+
+### `requireByokOrEnv(request, provider, envVarNames)`
+
+Return a typed `byokMissing` response when neither a BYOK header nor any named env var is present. Returns `null` when the request may proceed.
+
 ### `scrubSecrets(input, secrets)`
 
 Replaces every occurrence of each secret in `input` with its masked form. Use before logging or returning strings that may have interpolated a key.
@@ -266,7 +281,11 @@ const {
 
 ### `<ByokKeyManager providers={...} />`
 
-Drop-in settings UI for entering, validating, and clearing keys. Only ever shows the last four characters of a saved key.
+Drop-in settings UI for entering, validating, and clearing keys. Only ever shows the last four characters of a saved key. Accepts optional `envStatus`, `highlightProvider`, `openRouter`, and `variant` (`'light' | 'dark'`).
+
+### `<ByokKeyDialog open onOpenChange={...} />`
+
+Modal wrapper around `<ByokKeyManager>` with a trigger button. Supports custom `trigger`, `overlayClassName`, and `panelClassName` for app styling.
 
 ## Header convention
 

@@ -22,18 +22,23 @@ export type {
 } from './shared/providers'
 
 // Keyring + headers
-export { byokHeaders } from './client/keyring'
+export { byokHeaders, sanitizeKeyring } from './client/keyring'
 export type { Keyring } from './client/keyring'
 
 // Connection helper: attach BYOK headers + detect a missing-key response
-export { withByok, byokFetch, byokFetcher } from './client/with-byok'
+export {
+  withByok,
+  byokFetch,
+  byokFetcher,
+  buildByokRequestContext,
+} from './client/with-byok'
 export type {
   WithByokOptions,
   ByokConnectionOptions,
   ByokFetcherContext,
 } from './client/with-byok'
-export { isByokMissingBody } from './server/byok-missing'
-export type { ByokMissingBody } from './server/byok-missing'
+export { isByokMissingBody } from './shared/byok-missing'
+export type { ByokMissingBody } from './shared/byok-missing'
 
 // Storage
 export { memoryStorage } from './client/storage'
@@ -48,26 +53,3 @@ export type { PasskeyStorageOptions } from './client/passkey'
 // Validation
 export { validateKey } from './client/validate'
 export type { ValidationStatus } from './client/validate'
-
-// OpenRouter OAuth PKCE
-export {
-  generateCodeVerifier,
-  createS256CodeChallenge,
-  buildOpenRouterAuthUrl,
-  storeOpenRouterPkcePending,
-  loadOpenRouterPkcePending,
-  clearOpenRouterPkcePending,
-  defaultOpenRouterCallbackUrl,
-  startOpenRouterPkceLogin,
-  exchangeOpenRouterCode,
-  stripOpenRouterCodeFromUrl,
-  completeOpenRouterPkceFromUrl,
-} from './client/openrouter-pkce'
-export type {
-  OpenRouterPkceChallengeMethod,
-  OpenRouterPkcePending,
-  OpenRouterAuthUrlOptions,
-  StartOpenRouterPkceOptions,
-  ExchangeOpenRouterCodeOptions,
-  CompleteOpenRouterPkceFromUrlOptions,
-} from './client/openrouter-pkce'

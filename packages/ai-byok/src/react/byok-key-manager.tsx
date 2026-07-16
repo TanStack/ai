@@ -1,19 +1,33 @@
 import { useState } from 'react'
-import { BYOK_PROVIDERS, PROVIDER_IDS } from '../shared/providers'
+import { PROVIDER_IDS } from '../shared/providers'
 import { useByok } from './use-byok'
-import { useOpenRouterPkce } from './use-openrouter-pkce'
+import { ByokProviderRow } from './byok-provider-row'
+import type {
+  ByokOpenRouterLoginProps,
+  ByokUiVariant,
+} from './byok-provider-row'
 import type { CSSProperties } from 'react'
-import type { KeyStatus } from './byok-context'
 import type { ProviderId } from '../shared/providers'
 
 export interface ByokKeyManagerProps {
   /** Providers to show. Defaults to every registered provider. */
   providers?: Array<ProviderId>
   /**
-   * OpenRouter PKCE callback URL. Defaults to `origin + pathname` of the
-   * current page. Only used when `openrouter` is in `providers`.
+   * Which providers already have a server env key (booleans only — never the
+   * key values). Rows show "Server key" when true.
    */
-  openRouterCallbackUrl?: string
+  envStatus?: Partial<Record<ProviderId, boolean>>
+  /** Highlight a provider row (e.g. after a missing-key prompt). */
+  highlightProvider?: ProviderId | null
+  /**
+   * OpenRouter PKCE controls from `@tanstack/ai-byok/openrouter/react`. Omit
+   * when OpenRouter sign-in is not needed.
+   */
+  openRouter?: ByokOpenRouterLoginProps & {
+    completing?: boolean
+    error?: string | null
+  }
+  variant?: ByokUiVariant
   className?: string
   style?: CSSProperties
 }
@@ -26,15 +40,14 @@ export interface ByokKeyManagerProps {
  */
 export function ByokKeyManager({
   providers = PROVIDER_IDS,
-  openRouterCallbackUrl,
+  envStatus,
+  highlightProvider,
+  openRouter,
+  variant = 'light',
   className,
   style,
 }: ByokKeyManagerProps) {
   const { status, storage, locked, unlock } = useByok()
-  const openRouterPkce = useOpenRouterPkce({
-    callbackUrl: openRouterCallbackUrl,
-    autoComplete: providers.includes('openrouter'),
-  })
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
 
@@ -67,128 +80,33 @@ export function ByokKeyManager({
 
       {storage.warning ? <p style={styles.warning}>{storage.warning}</p> : null}
 
-      {openRouterPkce.completing ? (
+      {openRouter?.completing ? (
         <p style={styles.hint}>Completing OpenRouter sign-in…</p>
       ) : null}
-      {openRouterPkce.error ? (
-        <p style={styles.warning}>{openRouterPkce.error}</p>
+      {openRouter?.error ? (
+        <p style={styles.warning}>{openRouter.error}</p>
       ) : null}
 
       {providers.map((provider) => (
-        <ProviderRow
+        <ByokProviderRow
           key={provider}
           provider={provider}
           status={status[provider]}
-          onOpenRouterLogin={
-            provider === 'openrouter'
-              ? () => void openRouterPkce.login()
+          variant={variant}
+          hasEnvKey={Boolean(envStatus?.[provider])}
+          highlight={provider === highlightProvider}
+          openRouter={
+            provider === 'openrouter' && openRouter
+              ? {
+                  onLogin: openRouter.onLogin,
+                  completing: openRouter.completing,
+                  error: openRouter.error,
+                }
               : undefined
           }
         />
       ))}
     </div>
-  )
-}
-
-function ProviderRow({
-  provider,
-  status,
-  onOpenRouterLogin,
-}: {
-  provider: ProviderId
-  status: KeyStatus
-  onOpenRouterLogin?: () => void
-}) {
-  const { setKey, clearKey, validateKey } = useByok()
-  const [draft, setDraft] = useState('')
-  const hasKey = status.state !== 'empty'
-
-  return (
-    <div style={styles.row}>
-      <div style={styles.rowHeader}>
-        <span style={styles.provider}>{BYOK_PROVIDERS[provider].label}</span>
-        <StatusBadge status={status} />
-      </div>
-
-      {hasKey && 'masked' in status ? (
-        <div style={styles.savedRow}>
-          <code data-testid={`byok-masked-${provider}`} style={styles.masked}>
-            {status.masked}
-          </code>
-          <div style={styles.actions}>
-            <button
-              type="button"
-              style={styles.button}
-              onClick={() => void validateKey(provider)}
-            >
-              Validate
-            </button>
-            <button
-              type="button"
-              style={styles.button}
-              onClick={() => void clearKey(provider)}
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {provider === 'openrouter' &&
-      onOpenRouterLogin &&
-      status.state === 'empty' ? (
-        <button
-          type="button"
-          style={styles.oauthButton}
-          onClick={onOpenRouterLogin}
-        >
-          Sign in with OpenRouter
-        </button>
-      ) : null}
-
-      <form
-        style={styles.inputRow}
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!draft) return
-          void setKey(provider, draft)
-          setDraft('')
-        }}
-      >
-        <input
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={hasKey ? 'Replace key…' : `Paste ${provider} key…`}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          style={styles.input}
-        />
-        <button type="submit" style={styles.primaryButton} disabled={!draft}>
-          Save
-        </button>
-      </form>
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: KeyStatus }) {
-  const config: Record<KeyStatus['state'], { label: string; color: string }> = {
-    empty: { label: 'Not set', color: '#9ca3af' },
-    set: { label: 'Saved', color: '#6b7280' },
-    locked: { label: 'Locked', color: '#d97706' },
-    validating: { label: 'Validating…', color: '#d97706' },
-    valid: { label: 'Valid', color: '#059669' },
-    invalid: { label: 'Invalid', color: '#dc2626' },
-    unsupported: { label: 'Cannot verify', color: '#9ca3af' },
-    error: { label: 'Check failed', color: '#dc2626' },
-  }
-  const { label, color } = config[status.state]
-  const title = status.state === 'error' ? status.message : undefined
-  return (
-    <span style={{ ...styles.badge, color }} title={title}>
-      {label}
-    </span>
   )
 }
 
@@ -203,16 +121,6 @@ const styles = {
   },
   warning: { margin: 0, color: '#b45309', fontSize: 12, lineHeight: 1.4 },
   hint: { margin: 0, color: '#6b7280', fontSize: 12, lineHeight: 1.4 },
-  oauthButton: {
-    width: '100%',
-    padding: '8px 12px',
-    borderRadius: 6,
-    border: '1px solid #d1d5db',
-    background: '#fff',
-    cursor: 'pointer',
-    fontWeight: 600,
-    fontSize: 13,
-  },
   unlockBanner: {
     display: 'flex',
     alignItems: 'center',
@@ -222,47 +130,6 @@ const styles = {
     borderRadius: 8,
     background: '#f3f4f6',
     border: '1px solid #e5e7eb',
-  },
-  row: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    padding: 12,
-    border: '1px solid #e5e7eb',
-    borderRadius: 8,
-  },
-  rowHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  provider: { fontWeight: 600 },
-  savedRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  masked: {
-    fontFamily: 'ui-monospace, monospace',
-    color: '#374151',
-    letterSpacing: 1,
-  },
-  actions: { display: 'flex', gap: 6 },
-  inputRow: { display: 'flex', gap: 6 },
-  input: {
-    flex: 1,
-    padding: '6px 8px',
-    borderRadius: 6,
-    border: '1px solid #d1d5db',
-  },
-  badge: { fontSize: 12, fontWeight: 600 },
-  button: {
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: '1px solid #d1d5db',
-    background: '#fff',
-    cursor: 'pointer',
   },
   primaryButton: {
     padding: '6px 12px',

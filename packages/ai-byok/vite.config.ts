@@ -29,7 +29,13 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/server.ts', './src/react.ts'],
+    entry: [
+      './src/index.ts',
+      './src/server.ts',
+      './src/react.ts',
+      './src/openrouter.ts',
+      './src/openrouter-react.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

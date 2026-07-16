@@ -1,3 +1,4 @@
+import { sanitizeKeyring } from './keyring'
 import { memoryStorage } from './storage'
 import type { Keyring } from './keyring'
 import type { KeyPreview, KeyringStorage } from './storage'
@@ -114,8 +115,7 @@ export async function decryptKeyring(
     ciphertext,
   )
   const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext))
-  if (typeof parsed !== 'object' || parsed === null) return {}
-  return parsed
+  return sanitizeKeyring(parsed)
 }
 
 // ---------------------------------------------------------------------------

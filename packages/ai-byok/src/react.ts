@@ -8,10 +8,15 @@ export type {
   KeyStatus,
 } from './react/byok-context'
 export { useByok } from './react/use-byok'
-export { useOpenRouterPkce } from './react/use-openrouter-pkce'
-export type { UseOpenRouterPkceOptions } from './react/use-openrouter-pkce'
 export { ByokKeyManager } from './react/byok-key-manager'
 export type { ByokKeyManagerProps } from './react/byok-key-manager'
+export { ByokKeyDialog } from './react/byok-key-dialog'
+export type { ByokKeyDialogProps } from './react/byok-key-dialog'
+export { ByokProviderRow } from './react/byok-provider-row'
+export type {
+  ByokProviderRowProps,
+  ByokOpenRouterLoginProps,
+} from './react/byok-provider-row'
 
 // Re-export the client toolkit so React consumers have one import path.
 export {
@@ -19,15 +24,13 @@ export {
   withByok,
   byokFetch,
   byokFetcher,
+  buildByokRequestContext,
   isByokMissingBody,
   memoryStorage,
   defaultByokStorage,
   passkeyStorage,
   isPasskeyStorageSupported,
   validateKey,
-  startOpenRouterPkceLogin,
-  completeOpenRouterPkceFromUrl,
-  defaultOpenRouterCallbackUrl,
   BYOK_PROVIDERS,
   PROVIDER_IDS,
   byokHeaderName,
@@ -42,6 +45,4 @@ export type {
   ByokConnectionOptions,
   ByokFetcherContext,
   ByokMissingBody,
-  OpenRouterAuthUrlOptions,
-  StartOpenRouterPkceOptions,
 } from './index'
