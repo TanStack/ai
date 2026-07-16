@@ -170,6 +170,7 @@ The report is a strict hierarchy — **PRs > issues > discussions**. Each unit o
 4. Keep a short "Folded away" tally (counts only) so the report can note how many issues/discussions were hidden because a PR/issue already covers them.
 
 Edge cases:
+
 - A PR closing an issue that is itself **closed/not in the open set** — still list `closes #X` on the PR (it's informative), just don't try to fetch a title.
 - An issue with a `linkedPR` pointing at a PR that is **not open** (already merged/closed) — treat the issue as still open work: keep it in the Issues section, but note the merged PR in its reason. Only fold an issue away when the linked PR is **open**.
 - Two PRs closing the same issue (competing fixes) — list the issue under both PRs; fold the issue once.
