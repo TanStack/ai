@@ -67,9 +67,7 @@ async function collect(
 
 function stepEvents(chunks: Array<StreamChunk>): Array<ChainStepEventValue> {
   return chunks
-    .filter(
-      (c) => c.type === EventType.CUSTOM && c.name === CHAIN_EVENTS.STEP,
-    )
+    .filter((c) => c.type === EventType.CUSTOM && c.name === CHAIN_EVENTS.STEP)
     .map((c) => (c as { value: ChainStepEventValue }).value)
 }
 
@@ -209,9 +207,9 @@ describe('chain.stream', () => {
     )
 
     // Exactly one RUN_STARTED / RUN_FINISHED — the chain's own.
-    expect(
-      chunks.filter((c) => c.type === EventType.RUN_STARTED),
-    ).toHaveLength(1)
+    expect(chunks.filter((c) => c.type === EventType.RUN_STARTED)).toHaveLength(
+      1,
+    )
     expect(
       chunks.filter((c) => c.type === EventType.RUN_FINISHED),
     ).toHaveLength(1)
@@ -306,9 +304,7 @@ describe('chain.stream', () => {
       type: EventType.RUN_ERROR,
       message: 'boom',
     })
-    expect(
-      chunks.some((c) => c.type === EventType.RUN_FINISHED),
-    ).toBe(false)
+    expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
   })
 
   it('ends with RUN_ERROR "Aborted" when the run is aborted mid-step', async () => {
@@ -370,9 +366,9 @@ describe('chain.stream', () => {
     ])
 
     // Only the outer chain emits run lifecycle + generation:result.
-    expect(
-      chunks.filter((c) => c.type === EventType.RUN_STARTED),
-    ).toHaveLength(1)
+    expect(chunks.filter((c) => c.type === EventType.RUN_STARTED)).toHaveLength(
+      1,
+    )
     const results = chunks.filter(
       (c) => c.type === EventType.CUSTOM && c.name === 'generation:result',
     )

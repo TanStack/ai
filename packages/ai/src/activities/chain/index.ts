@@ -286,7 +286,10 @@ class ChainImpl {
     return new ChainImpl([...this.nodes, { kind: 'parallel', name, branches }])
   }
 
-  stream(input: unknown, options?: ChainRunOptions): AsyncGenerator<StreamChunk> {
+  stream(
+    input: unknown,
+    options?: ChainRunOptions,
+  ): AsyncGenerator<StreamChunk> {
     const nodes = this.nodes
     const abortController = options?.abortController ?? new AbortController()
     const { signal } = abortController
@@ -306,12 +309,10 @@ class ChainImpl {
       const closeOnAbort = () => channel.close()
       signal.addEventListener('abort', closeOnAbort, { once: true })
 
-      const work = executeNodes(nodes, input, channel.push, ctx).finally(
-        () => {
-          signal.removeEventListener('abort', closeOnAbort)
-          channel.close()
-        },
-      )
+      const work = executeNodes(nodes, input, channel.push, ctx).finally(() => {
+        signal.removeEventListener('abort', closeOnAbort)
+        channel.close()
+      })
       // Observe the rejection even if the consumer abandons this generator
       // early — `await work` below is unreachable in that case.
       void work.catch(() => {})
