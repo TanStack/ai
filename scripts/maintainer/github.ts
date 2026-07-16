@@ -49,11 +49,11 @@ export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
         typeof payload === 'object' &&
         payload !== null &&
         'errors' in payload &&
-        Array.isArray((payload as { errors: unknown }).errors) &&
+        Array.isArray(payload.errors) &&
         (payload as { errors: Array<unknown> }).errors.length > 0
       ) {
         throw new Error(
-          `GitHub GraphQL errors: ${JSON.stringify((payload as { errors: unknown }).errors).slice(0, 800)}`,
+          `GitHub GraphQL errors: ${JSON.stringify(payload.errors).slice(0, 800)}`,
         )
       }
       return (payload as { data: T }).data

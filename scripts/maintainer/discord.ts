@@ -22,8 +22,17 @@ interface TriageLike {
   unansweredHours?: number | null
 }
 
+/**
+ * Titles are attacker-controlled; escape Discord markdown so a title like
+ * `[click me](https://evil.com)` renders as literal text, not a masked link.
+ */
+function escapeMarkdown(text: string): string {
+  return text.replace(/[\\`*_~|[\]()<>#-]/g, '\\$&')
+}
+
 function shortTitle(title: string): string {
-  return title.length > 60 ? `${title.slice(0, 57)}…` : title
+  const truncated = title.length > 60 ? `${title.slice(0, 57)}…` : title
+  return escapeMarkdown(truncated)
 }
 
 function itemLine(t: TriageLike, note?: string): string {

@@ -217,6 +217,26 @@ describe('discord rendering', () => {
     expect(all).toContain('PR clusters')
   })
 
+  it('escapes markdown in untrusted titles (no masked links)', () => {
+    const hostile = structuredClone(scorecard)
+    hostile.readyToMerge = [
+      {
+        ...hostile.readyToMerge[0]!,
+        item: {
+          ...hostile.readyToMerge[0]!.item,
+          title: '[urgent: click](https://evil.com) `x` **y**',
+        },
+      },
+    ]
+    const embeds = buildScorecardEmbeds(hostile, 'TanStack/ai')
+    const ready = embeds[1]!.description
+    expect(ready).not.toContain('[urgent: click](https://evil.com)')
+    expect(ready).toContain('\\[urgent: click\\]\\(https://evil.com\\)')
+    expect(ready).toContain('\\`x\\` \\*\\*y\\*\\*')
+    // the real item link is still a working masked link
+    expect(ready).toMatch(/\[#\d+\]\(https:\/\/github\.com\//)
+  })
+
   it('chunks embeds under Discord message limits', () => {
     const big = Array.from({ length: 13 }, (_, i) => ({
       title: `t${i}`,
