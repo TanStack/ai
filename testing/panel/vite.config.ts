@@ -6,12 +6,7 @@ import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [
-    nitroV2Plugin(),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
+  plugins: [nitroV2Plugin(), tailwindcss(), tanstackStart(), viteReact()],
 })
 
 export default config

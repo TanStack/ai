@@ -49,13 +49,7 @@ const config = defineConfig({
   // this is a no-op there.
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
   resolve: { tsconfigPaths: true },
-  plugins: [
-    devtools(),
-    nitro(),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
+  plugins: [devtools(), nitro(), tailwindcss(), tanstackStart(), viteReact()],
 })
 
 export default config
