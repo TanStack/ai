@@ -42,6 +42,18 @@ The bound `interrupts` array is a union discriminated by `kind`:
 | `client-tool-execution` | Run a tool in the browser and return its output | [Client-Tool Execution](./client-tool-execution) |
 | `generic` | Any application pause with a wire `responseSchema` | [Generic Interrupts](./generic) |
 
+These describe the **pause**, not the tool — approval and browser execution are
+independent axes. A client tool with `needsApproval: true` trips **both** in
+sequence: a `tool-approval` decision first, then a `client-tool-execution`
+request once approved.
+
+| Tool | Interrupts it produces |
+| --- | --- |
+| Server tool, no approval | none — runs on the server |
+| Server tool, `needsApproval` | `tool-approval`, then runs on the server |
+| Client tool, no approval | `client-tool-execution` |
+| Client tool, `needsApproval` | `tool-approval`, then `client-tool-execution` |
+
 ## Where to go next
 
 | You want to… | Page |
