@@ -41,7 +41,7 @@
     "@tanstack/ai-sandbox-docker": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-sandbox-vercel": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-router-devtools": "^1.158.4",

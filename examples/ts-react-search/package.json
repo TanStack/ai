@@ -28,7 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
-    "nitro": "latest",
+    "nitro": "3.0.260610-beta",
     "radix-ui": "^1.4.3",
     "react": "^19.2.3",
     "react-day-picker": "^9.12.0",

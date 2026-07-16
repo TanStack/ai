@@ -34,7 +34,7 @@
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/devtools-event-bus": "^0.4.1",
-    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
