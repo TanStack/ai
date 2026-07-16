@@ -60,7 +60,7 @@ sequenceDiagram
 7. **LLM Continuation**: LLM receives the result and continues the conversation
 
 Native client-tool execution uses the same atomic interrupt lifecycle as other
-waits. See [Interrupts](../chat/interrupts) for persistence, batches, recovery,
+waits. See [Interrupts](../interrupts/overview) for persistence, batches, recovery,
 and migration from the historical `tool-input-available` custom event.
 
 ## Approval and execution are separate axes
@@ -102,7 +102,7 @@ The result is validated against the tool's output schema. The existing
 `addToolResult` API remains supported and delegates to the same staged native
 item when one matches; it also preserves the historical path for legacy
 streams. See [Tool approval flow](./tool-approval) for approval forms and
-[Migrate to AG-UI interrupts](../migration/interrupts) for compatibility limits.
+[Migrate to AG-UI interrupts](../interrupts/migration) for compatibility limits.
 
 ## Defining Client Tools
 

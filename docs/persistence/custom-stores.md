@@ -119,7 +119,7 @@ for `replayed`. Do not accept a subset or superset of the opened IDs.
 
 An `interrupts` store requires a `runs` store when used with chat persistence.
 `defineAIPersistence` rejects an adapter that advertises interrupts without the
-atomic methods. See [Interrupts](../chat/interrupts) for client semantics and
+atomic methods. See [Interrupts](../interrupts/overview) for client semantics and
 [Delivery durability](./delivery-durability) for exact replay behavior.
 
 ### Explicit recovery handler

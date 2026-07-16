@@ -132,7 +132,7 @@ that GET, as shown above.
 
 For interrupt recovery, configure this winning-run loader explicitly with
 `createInterruptContinuationLoader`. TanStack AI never guesses a continuation
-or recovery route from the chat URL. See [Interrupts](../chat/interrupts) for
+or recovery route from the chat URL. See [Interrupts](../interrupts/overview) for
 the client setup.
 
 ## Accepted tombstones and exact replay
@@ -212,4 +212,4 @@ policies. Add [Chat Persistence](./chat-persistence) or
 
 For atomic interrupt store requirements and conflict receipts, see
 [Custom stores](./custom-stores). For the legacy-to-native transition, see
-[Migrate to AG-UI interrupts](../migration/interrupts).
+[Migrate to AG-UI interrupts](../interrupts/migration).

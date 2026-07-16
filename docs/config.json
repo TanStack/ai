@@ -175,16 +175,51 @@
           "addedAt": "2026-04-15"
         },
         {
-          "label": "Interrupts",
-          "to": "chat/interrupts",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-15"
-        },
-        {
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02",
           "updatedAt": "2026-07-14"
+        }
+      ]
+    },
+    {
+      "label": "Interrupts",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "interrupts/overview",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Tool Approval",
+          "to": "interrupts/tool-approval",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Multiple Interrupts",
+          "to": "interrupts/multiple",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Generic Interrupts",
+          "to": "interrupts/generic",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Client-Tool Execution",
+          "to": "interrupts/client-tool-execution",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Persistence & Recovery",
+          "to": "interrupts/persistence",
+          "addedAt": "2026-07-16"
+        },
+        {
+          "label": "Migration",
+          "to": "interrupts/migration",
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-16"
         }
       ]
     },
@@ -570,12 +605,6 @@
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
           "updatedAt": "2026-07-08"
-        },
-        {
-          "label": "AG-UI Interrupts",
-          "to": "migration/interrupts",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-15"
         },
         {
           "label": "Sampling \u2192 modelOptions",

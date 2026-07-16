@@ -18,7 +18,7 @@ of an interrupted run and indexes for pending recovery lookups.
 Do not approximate this with sequential interrupt rows. A partial write can
 expose an interrupt that cannot be resumed safely. See
 [Custom stores](./custom-stores) for the atomic capability and
-[Interrupts](../chat/interrupts) for the lifecycle.
+[Interrupts](../interrupts/overview) for the lifecycle.
 
 ## Drizzle SQLite
 

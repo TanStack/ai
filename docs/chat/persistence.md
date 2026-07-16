@@ -26,7 +26,7 @@ This is client hydration, not server state durability. Persist authoritative
 messages, runs, and interrupts with `withChatPersistence(...)`; make an
 in-flight response replayable with SSE delivery durability. See
 [Chat Persistence](../persistence/chat-persistence) for the complete flow and
-[Interrupts](./interrupts) for resolution and recovery semantics.
+[Interrupts](../interrupts/overview) for resolution and recovery semantics.
 
 ## Use IndexedDB for chat messages
 
@@ -233,7 +233,7 @@ export const connection = fetchServerSentEvents('/api/chat', {
 
 Exact retries use the stored fingerprint and join the winning continuation.
 Stale tabs recover the authoritative generation instead of executing a second
-continuation. See [Migrate to AG-UI interrupts](../migration/interrupts) for V1
+continuation. See [Migrate to AG-UI interrupts](../interrupts/migration) for V1
 compatibility and rollout steps.
 
 ## SSR and custom adapters

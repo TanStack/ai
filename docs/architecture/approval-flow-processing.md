@@ -47,8 +47,8 @@ SSE delivery durability separately assigns opaque resume offsets to delivered
 events. Native paths do not emit `approval-requested` or
 `tool-input-available` custom events.
 
-See [Interrupts](../chat/interrupts) for the public server/client guide and
-[Migrate to AG-UI interrupts](../migration/interrupts) for deprecated readers.
+See [Interrupts](../interrupts/overview) for the public server/client guide and
+[Migrate to AG-UI interrupts](../interrupts/migration) for deprecated readers.
 
 ## Responsibilities
 

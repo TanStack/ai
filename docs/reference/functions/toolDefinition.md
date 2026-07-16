@@ -58,7 +58,7 @@ bound resolver overloads.
 At runtime, defining `approvalSchema` without `needsApproval: true` throws.
 TanStack AI converts the input, output, and selected approval branches to
 canonical JSON Schema, embeds their hashes in the protected interrupt binding,
-and validates again on resume. See [Interrupts](../../chat/interrupts) for the
+and validates again on resume. See [Interrupts](../../interrupts/overview) for the
 full lifecycle.
 
 ## Type Parameters

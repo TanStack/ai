@@ -17,8 +17,8 @@ The tool approval flow allows you to require user approval before executing sens
 
 The current client API exposes approvals as bound AG-UI interrupts. For the
 complete server/client lifecycle, atomic batch controls, generic interrupts,
-and recovery, see [Interrupts](../chat/interrupts). For deprecated API mapping,
-see [Migrate to AG-UI interrupts](../migration/interrupts).
+and recovery, see [Interrupts](../interrupts/overview). For deprecated API mapping,
+see [Migrate to AG-UI interrupts](../interrupts/migration).
 
 1. **`awaiting-input`** — Tool call started, no arguments yet
 2. **`input-streaming`** — Arguments arriving incrementally
@@ -102,7 +102,7 @@ approval.cancel()
 
 A singleton submits after its valid resolution. Multiple items stage until all
 are valid, then submit atomically. Use root `resolveInterrupts(...)` for one
-synchronous batch transaction. See [Interrupts](../chat/interrupts#singleton-and-batch-submission).
+synchronous batch transaction. See [Multiple Interrupts](../interrupts/multiple).
 
 ## Enabling Approval
 
