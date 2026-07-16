@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.8.14",
+  "version": "0.8.15",
   "description": "Ollama adapter for TanStack AI local LLM chat, tool calling, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
