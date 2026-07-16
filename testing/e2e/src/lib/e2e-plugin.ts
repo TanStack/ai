@@ -4,7 +4,7 @@ import {
   definePlugin,
   generationPlugin,
   imagePlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { z } from 'zod'
 import { createTextAdapter } from './providers'
 import { createImageAdapter } from './media-providers'

@@ -97,5 +97,25 @@ for (const provider of providersFor('plugin')) {
       await expect(image).toHaveCount(1)
       await expect(image).toHaveAttribute('src', /.+/)
     })
+
+    test('bannerImage.run() executes directly in-process via a GET handler', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      const params = new URLSearchParams({
+        provider,
+        testId,
+        aimockPort: String(aimockPort),
+      })
+      const response = await page.request.get(
+        `/api/plugin?${params.toString()}`,
+      )
+      expect(response.ok()).toBe(true)
+
+      const result = await response.json()
+      expect(Array.isArray(result.images)).toBe(true)
+      expect(result.images.length).toBeGreaterThan(0)
+    })
   })
 }

@@ -670,6 +670,9 @@ importers:
       '@tanstack/ai-openrouter':
         specifier: workspace:*
         version: link:../../packages/ai-openrouter
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../../packages/ai-plugin-toolkit
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
@@ -2567,6 +2570,9 @@ importers:
       '@tanstack/ai-openrouter':
         specifier: workspace:*
         version: link:../../packages/ai-openrouter
+      '@tanstack/ai-plugin-toolkit':
+        specifier: workspace:*
+        version: link:../../packages/ai-plugin-toolkit
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react

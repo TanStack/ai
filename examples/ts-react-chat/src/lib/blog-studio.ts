@@ -4,7 +4,7 @@ import {
   definePlugin,
   imagePlugin,
   speechPlugin,
-} from '@tanstack/ai/plugin'
+} from '@tanstack/ai-plugin-toolkit'
 import { openaiImage, openaiSpeech, openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
