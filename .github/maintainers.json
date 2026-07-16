@@ -1,0 +1,55 @@
+{
+  "repo": "TanStack/ai",
+  "maintainers": [
+    {
+      "github": "tombeckenham",
+      "discord": null,
+      "areas": [
+        "packages/ai-sandbox*/**",
+        "packages/ai-claude-code/**",
+        "packages/ai-acp/**",
+        "packages/ai-codex/**",
+        "packages/ai-gemini-cli/**",
+        "packages/ai-grok-build/**",
+        "packages/ai-opencode/**",
+        "packages/ai-code-mode*/**"
+      ],
+      "maxOpenAssignments": 10
+    },
+    {
+      "github": "AlemTuzlak",
+      "discord": null,
+      "areas": [
+        "packages/ai/**",
+        "packages/ai-client/**",
+        "packages/ai-react/**",
+        "packages/ai-solid/**",
+        "packages/ai-vue/**",
+        "packages/ai-svelte/**",
+        "packages/ai-openai/**",
+        "packages/ai-anthropic/**",
+        "packages/ai-gemini/**",
+        "packages/ai-ollama/**",
+        "packages/ai-devtools/**"
+      ],
+      "maxOpenAssignments": 15
+    },
+    {
+      "github": "jherr",
+      "discord": null,
+      "areas": ["docs/**", "examples/**"],
+      "maxOpenAssignments": 8
+    }
+  ],
+  "sla": {
+    "firstResponseHours": 24,
+    "followUpResponseHours": 48,
+    "staleAuthorDays": 14
+  },
+  "spam": {
+    "maxAccountAgeDays": 30,
+    "maxChangedLines": 30
+  },
+  "botAllowlist": ["renovate", "dependabot", "github-actions"],
+  "maxCommentsPerRun": 25
+}

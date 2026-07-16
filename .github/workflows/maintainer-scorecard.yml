@@ -1,0 +1,44 @@
+name: Maintainer Scorecard
+
+# Daily maintainer to-do digest posted to Discord: SLA breaches, ready-to-merge
+# PRs, per-maintainer queues, new/stale items, and response-time stats.
+# Requires the DISCORD_MAINTAINER_WEBHOOK repo secret; without it the digest
+# only lands in the workflow step summary.
+
+on:
+  schedule:
+    # 21:00 UTC ≈ start of the Australian workday
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the digest instead of posting to Discord'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  scorecard:
+    name: Scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Build and post scorecard
+        run: pnpm maintainer:scorecard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MAINTAINER_WEBHOOK }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
