@@ -147,9 +147,9 @@ describe('resumable SSE connection adapter', () => {
     expect(chunks.map((c) => c.type)).toContain(EventType.RUN_FINISHED)
   })
 
-  // Finding 6: a durable (id-tagged) run that ends with no terminal event and
-  // makes no forward progress on reconnect must surface an error, not silently
-  // return leaving the consumer with neither a terminal nor a failure.
+  // A durable (id-tagged) run that ends with no terminal event and makes no
+  // forward progress on reconnect must surface an error, not silently return
+  // leaving the consumer with neither a terminal nor a failure.
   it('surfaces an error when a durable run ends without a terminal and cannot progress', async () => {
     const fetchClient = vi.fn<typeof fetch>(async () => {
       if (fetchClient.mock.calls.length === 1) {

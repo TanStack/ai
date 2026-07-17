@@ -264,7 +264,7 @@ describe('resumable XHR transports', () => {
   it('xhrHttpStream reconnects after an onerror socket drop (held offset)', async () => {
     // Proves the full XHR error→reconnect chain: readXhrLines.onerror wraps the
     // failure as StreamReadError, which reaches resumableStream's retry branch
-    // and re-issues with Last-Event-ID (the parity the R1 comment claims).
+    // and re-issues with Last-Event-ID (fetch/XHR reconnect parity).
     const queue = createXhrQueue()
     const adapter = xhrHttpStream('/api/chat', {
       xhrFactory: queue.xhrFactory,

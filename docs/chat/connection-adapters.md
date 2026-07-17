@@ -317,20 +317,30 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
 
   return {
     async *subscribe(abortSignal) {
-      while (!abortSignal?.aborted && !closed) {
-        const buffered = queue.shift();
-        if (buffered !== undefined) {
-          yield buffered;
-          continue;
-        }
-        const chunk = await new Promise<StreamChunk | null>((resolve) => {
-          pending = resolve;
-          abortSignal?.addEventListener("abort", () => resolve(null), {
-            once: true,
+      // Register the abort listener once (not per-iteration) so it can't
+      // accumulate on a long-lived socket.
+      const onAbort = () => deliver(null);
+      abortSignal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        while (!abortSignal?.aborted) {
+          // Drain buffered chunks BEFORE honoring `closed`: a burst of messages
+          // followed by a close event (common within one macrotask) must still
+          // deliver the queued chunks — including a trailing RUN_FINISHED —
+          // otherwise the client would hang waiting for a terminal it dropped.
+          const buffered = queue.shift();
+          if (buffered !== undefined) {
+            yield buffered;
+            continue;
+          }
+          if (closed) return;
+          const chunk = await new Promise<StreamChunk | null>((resolve) => {
+            pending = resolve;
           });
-        });
-        if (chunk === null) return;
-        yield chunk;
+          if (chunk === null) return;
+          yield chunk;
+        }
+      } finally {
+        abortSignal?.removeEventListener("abort", onAbort);
       }
     },
 

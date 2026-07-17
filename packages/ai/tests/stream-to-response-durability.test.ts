@@ -551,6 +551,54 @@ describe('durability producer robustness', () => {
     expect(field(terminals[0]!, 'type')).toBe(EventType.RUN_FINISHED)
   })
 
+  it('logs (does not rethrow) a producer error thrown after a terminal was forwarded', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => undefined,
+      async *read() {
+        // Not exercised.
+      },
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield runFinished()
+        throw new Error('provider exploded after terminal')
+      },
+    }
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+          debug: { logger },
+        }),
+      ),
+    )
+    // Exactly one terminal on the wire (the forwarded RUN_FINISHED) — the
+    // post-terminal producer error is NOT re-emitted as a contradictory
+    // RUN_ERROR...
+    const terminals = events.filter((event) => {
+      const type = field(event, 'type')
+      return type === EventType.RUN_FINISHED || type === EventType.RUN_ERROR
+    })
+    expect(terminals).toHaveLength(1)
+    expect(field(terminals[0]!, 'type')).toBe(EventType.RUN_FINISHED)
+    // ...but it must still be recorded server-side rather than vanishing.
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('after a terminal event was forwarded'),
+      expect.objectContaining({ error: expect.any(Error) }),
+    )
+  })
+
   it('rejects SSE offsets with surrounding whitespace', async () => {
     const response = toServerSentEventsResponse(textStreamWithOneChunk(), {
       durability: { adapter: fixedOffsetDurability(['  padded  ']) },

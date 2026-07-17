@@ -98,11 +98,17 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const runId = new URL(request.url).searchParams.get('runId')
+  const url = new URL(request.url)
+  const runId = url.searchParams.get('runId')
   if (!runId) return new Response('runId is required', { status: 400 })
+  // A join must carry an offset (joinRun sends offset=-1). With one present,
+  // the durability adapter's resumeFrom() is non-null, so respond() replays the
+  // log and never iterates this lazy provider stream — the placeholder input is
+  // not sent upstream. (Without an offset a GET would take the produce path.)
+  if (!url.searchParams.get('offset')) {
+    return new Response('offset is required', { status: 400 })
+  }
 
-  // A resume request replays the durability log and never iterates this lazy
-  // provider stream. The placeholder input is therefore not sent upstream.
   return respond(request, {
     messages: [],
     threadId: `replay:${runId}`,
@@ -269,9 +275,12 @@ The producer awaits `close()` on all in-process exits:
 
 Cancellation and provider failure also attempt to append a terminal
 `RUN_ERROR` with an aborted or failed error payload before closing. If terminal
-append or close fails, the failure is surfaced to the live consumer. Because a
-_joiner_ replaying the log only sees a generic incomplete error, pass
-`debug` to `toServerSentEventsResponse` to record the real cause server-side:
+append or close fails, the failure is surfaced to the live consumer (unless a
+terminal was already delivered, in which case it is logged rather than
+re-emitted). These failures are logged server-side by default; because a
+_joiner_ replaying the log only sees a generic incomplete error, that
+server-side record is where the real cause lives. Pass `debug` to route it to a
+custom logger:
 
 ```ts
 import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'

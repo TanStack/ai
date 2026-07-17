@@ -194,6 +194,7 @@ function toEncodedStream(
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param abortController - Optional AbortController to abort when stream is cancelled
+ * @param getId - Optional per-chunk durability offset; when present, each event gets an `id:` line
  * @returns ReadableStream in Server-Sent Events format
  */
 export function toServerSentEventsStream(
@@ -447,12 +448,22 @@ function durableStreamSource<TOffset extends string>(
       // Rethrow a terminalization/close failure to the live consumer ONLY when
       // no terminal reached it yet — the transport then synthesizes a live
       // RUN_ERROR so the consumer isn't left without a terminal. If a terminal
-      // was already forwarded (the run ended on the wire), a late close()
-      // failure is a server-side cleanup issue already recorded via
-      // logger.errors; rethrowing it would append a contradictory second
-      // terminal (RUN_ERROR after RUN_FINISHED) on the wire.
-      // eslint-disable-next-line no-unsafe-finally
-      if (failure !== undefined && !terminalForwarded) throw failure.error
+      // was already forwarded (the run ended on the wire), a late failure is a
+      // server-side cleanup issue; rethrowing it would append a contradictory
+      // second terminal (RUN_ERROR after RUN_FINISHED) on the wire. Suppress the
+      // rethrow, but never let the cause vanish — record it server-side, the
+      // same as the close / terminal-append failures above. (This also covers a
+      // provider that throws AFTER emitting its own terminal, whose error is
+      // otherwise neither delivered nor logged.)
+      if (failure !== undefined) {
+        if (!terminalForwarded) {
+          // eslint-disable-next-line no-unsafe-finally
+          throw failure.error
+        }
+        logger?.errors('durability failure after a terminal event was forwarded', {
+          error: failure.error,
+        })
+      }
     }
   }
 
@@ -509,9 +520,12 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
     /**
-     * Debug logging for durability failure paths (terminal-append and close).
-     * These are rethrown to the live consumer, but a joiner only sees a generic
-     * incomplete error, so enabling this surfaces the real cause server-side.
+     * Customize logging for durability failure paths (terminal-append and
+     * close). These failures are always logged server-side by default (the
+     * `errors` category is on even without `debug`, via a `ConsoleLogger`);
+     * pass `debug` to route them to a custom `Logger` or raise verbosity. A
+     * joiner replaying the log only ever sees a generic incomplete error, so
+     * server-side logging is where the real cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -644,9 +658,12 @@ export function toHttpResponse<TOffset extends string = string>(
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
     /**
-     * Debug logging for durability failure paths (terminal-append and close).
-     * These are rethrown to the live consumer, but a joiner only sees a generic
-     * incomplete error, so enabling this surfaces the real cause server-side.
+     * Customize logging for durability failure paths (terminal-append and
+     * close). These failures are always logged server-side by default (the
+     * `errors` category is on even without `debug`, via a `ConsoleLogger`);
+     * pass `debug` to route them to a custom `Logger` or raise verbosity. A
+     * joiner replaying the log only ever sees a generic incomplete error, so
+     * server-side logging is where the real cause is recoverable.
      */
     debug?: DebugOption
   },
