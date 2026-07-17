@@ -143,8 +143,10 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.executing = true
     this.logs.length = 0
 
-    // True until a program promise is in flight; sync failure paths (parse
-    // errors, interrupted straight-line code) leave no unsettled guest state.
+    // Starts true.
+    // Becomes false once the guest program promise is being awaited, and returns to true when it settles.
+    // Stays false if the program promise never settles (e.g. interrupt during a spin).
+    // Only pre-arm failures leave it true so timeout release can dispose.
     let guestSettled = true
 
     const releaseVmAfterFatalError = async () => {
