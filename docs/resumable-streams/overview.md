@@ -31,6 +31,13 @@ Two adapters ship:
 - `durableStream(request, options)` writes to an external
   [Durable Streams](https://durablestreams.com) protocol URL.
 
+Any backend that speaks the Durable Streams protocol works with `durableStream`
+directly — for example the Cloudflare Workers + Durable Objects server (see
+[below](#cloudflare-durable-streams)). To back durability with a different
+system — a Postgres-backed log via [Electric](https://electric-sql.com), Redis
+streams, a message queue — implement the four-method `StreamDurability`
+interface against it; core only round-trips the opaque offsets it returns.
+
 Resumable delivery is supported by `toServerSentEventsResponse`. NDJSON
 helpers do not accept durability and do not resume.
 
