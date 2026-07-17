@@ -37,7 +37,8 @@ directly — for example the Cloudflare Workers + Durable Objects server (see
 [below](#cloudflare-durable-streams)). To back durability with a different
 system — a Postgres-backed log via [Electric](https://electric-sql.com), Redis
 streams, a message queue — implement the four-method `StreamDurability`
-interface against it; core only round-trips the opaque offsets it returns.
+interface against it; core only round-trips the opaque offsets it returns. See
+[Custom Durability Adapter](./custom-adapter) for a worked implementation.
 
 Resumable delivery works over both wire encodings:
 
@@ -320,17 +321,21 @@ event and makes no forward progress fails with `DurableStreamIncompleteError`
 (the run cannot complete); only a non-durable (untagged) stream that ends cleanly
 is treated as a completed run. This asymmetry is deliberate: a clean close means
 the server ended the response, so a durable transport must never surface an empty
-long-poll window as a clean end while the producer is still alive. To keep a
-flapping producer (or a proxy that rolls the socket after every event) from
-reconnecting without end, the client throttles between attempts and caps the
-total, failing with `StreamReconnectLimitError`:
+long-poll window as a clean end while the producer is still alive.
+
+The client throttles between attempts and bounds reconnection with
+`maxAttempts`, failing with `StreamReconnectLimitError`. The ceiling counts only
+**consecutive** reconnects that deliver no new events; forward progress resets
+it to zero. So a healthy long run, even one behind a proxy that rolls the socket
+after every event, never approaches the ceiling. It fires only when the run is
+genuinely stuck, reconnecting over and over with nothing new.
 
 ```ts
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 
 function makeConnection() {
   return fetchServerSentEvents('/api/chat', {
-    reconnect: { maxAttempts: 1000, delayMs: 250 }, // defaults shown
+    reconnect: { maxAttempts: 5, delayMs: 250 }, // defaults shown
   })
 }
 ```

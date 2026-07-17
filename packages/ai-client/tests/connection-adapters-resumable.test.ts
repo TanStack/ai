@@ -340,14 +340,16 @@ describe('resumable SSE connection adapter', () => {
     expect(fetchClient).toHaveBeenCalledTimes(3)
   })
 
-  it('bounds reconnection with a total-attempts ceiling', async () => {
-    // Every pass delivers one NEW tagged event then ends cleanly with no
-    // terminal — an endless progress-then-drop flapper the ceiling must stop.
-    let pass = 0
-    const fetchClient = vi.fn<typeof fetch>(async () => {
-      pass += 1
-      return sseResponse(contentEvent(`run@${pass}`, 'x'))
-    })
+  it('bounds reconnection with a consecutive-no-progress ceiling', async () => {
+    // Every pass replays only the already-seen boundary event then drops — no
+    // new events ever arrive, so the run is genuinely stuck. The ceiling counts
+    // these consecutive no-progress reconnects and fails.
+    const fetchClient = vi.fn<typeof fetch>(async () =>
+      failingSseResponse(
+        contentEvent('run@1', 'x'),
+        new TypeError('socket disconnected'),
+      ),
+    )
     const adapter = fetchServerSentEvents('/api/chat', {
       fetchClient,
       reconnect: { maxAttempts: 3, delayMs: 0 },
@@ -364,9 +366,51 @@ describe('resumable SSE connection adapter', () => {
       }
     }).rejects.toBeInstanceOf(StreamReconnectLimitError)
 
-    // Initial fetch + 3 permitted reconnects; the 4th trips the ceiling before
-    // re-fetching.
-    expect(fetchClient).toHaveBeenCalledTimes(4)
+    // fetch #1 delivers run@1 (progress) then drops → resets the counter; fetches
+    // #2-#5 each replay only the de-duped run@1 then drop (no progress), so the
+    // 4th such reconnect (after fetch #5) trips maxAttempts=3.
+    expect(fetchClient).toHaveBeenCalledTimes(5)
+  })
+
+  it('does not count progress-making reconnects toward the ceiling', async () => {
+    // A deliberately low ceiling, but every pass delivers a NEW event before
+    // dropping, so the no-progress counter keeps resetting and the run completes
+    // instead of failing — a healthy socket-per-event run must not be bounded.
+    let pass = 0
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      pass += 1
+      if (pass <= 4) {
+        return failingSseResponse(
+          contentEvent(`run@${pass}`, String(pass)),
+          new TypeError('socket rolled'),
+        )
+      }
+      return sseResponse(finishedEvent('run@final'))
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { maxAttempts: 2, delayMs: 0 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+    }
+
+    // 4 progress-then-drop reconnects, each resetting the ceiling of 2, then a
+    // clean finish — never trips the limit.
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        .map((chunk) => chunk.delta),
+    ).toEqual(['1', '2', '3', '4'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(fetchClient).toHaveBeenCalledTimes(5)
   })
 
   it('stops reconnecting promptly when aborted during the throttle delay', async () => {

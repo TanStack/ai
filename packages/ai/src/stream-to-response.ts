@@ -314,6 +314,8 @@ function durableStreamSource<TOffset extends string>(
     // opposed to only appended to the log). Distinguishes "the run already ended
     // on the wire" from "the log has a terminal but the consumer never saw one",
     // which governs whether a late durability-cleanup failure may be rethrown.
+    // Only ever assigned inside the nested flush() closure, which TS's
+    // control-flow analysis can't observe (see the disable at the read site).
     let terminalForwarded = false
     let failure: RecordedFailure | undefined
     let terminalCause: unknown
@@ -456,6 +458,7 @@ function durableStreamSource<TOffset extends string>(
       // provider that throws AFTER emitting its own terminal, whose error is
       // otherwise neither delivered nor logged.)
       if (failure !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
         if (!terminalForwarded) {
           // eslint-disable-next-line no-unsafe-finally
           throw failure.error
@@ -555,11 +558,9 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: deliveryAbortController,
       batch: durability.batch,
-      // Instantiate unconditionally (matching every other activity): the
       // `errors` category is on by default even when `debug` is undefined, so
-      // durability terminal-append / close failures always surface server-side.
-      // Without this, a backend error on the client-disconnect path (no live
-      // consumer) is lost entirely.
+      // durability terminal-append / close failures always surface server-side —
+      // including on the client-disconnect path where there is no live consumer.
       logger: resolveDebugOption(debug),
     })
     body = toServerSentEventsStream(source, deliveryAbortController, getId)
@@ -691,11 +692,7 @@ export function toHttpResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: deliveryAbortController,
       batch: durability.batch,
-      // Instantiate unconditionally (matching every other activity): the
-      // `errors` category is on by default even when `debug` is undefined, so
-      // durability terminal-append / close failures always surface server-side.
-      // Without this, a backend error on the client-disconnect path (no live
-      // consumer) is lost entirely.
+      // Errors-on-by-default logger (see toServerSentEventsResponse).
       logger: resolveDebugOption(debug),
     })
     body = toHttpStream(source, deliveryAbortController, getId)

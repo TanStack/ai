@@ -37,8 +37,9 @@ loop:
   is gone); resuming an expired/unknown run throws, and a from-start join to a
   run that never produces fails after `MemoryStreamOptions.firstChunkDeadlineMs`.
 - all four HTTP adapters accept `reconnect: { maxAttempts, delayMs }` — a
-  throttle plus a total ceiling that fails with the new
-  `StreamReconnectLimitError` instead of reconnecting endlessly.
+  throttle plus a ceiling on CONSECUTIVE no-progress reconnects (default 5;
+  forward progress resets it) that fails with the new `StreamReconnectLimitError`
+  instead of reconnecting endlessly, without penalizing a healthy long-lived run.
 - `durableStream` accepts `reconnect: { maxReadFailures, delayMs }` to bound its
   read-retry loop, and `server` is now optional when `fetch` is provided (e.g. a
   Cloudflare service binding).

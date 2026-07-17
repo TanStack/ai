@@ -84,20 +84,18 @@ export class StreamReconnectLimitError extends Error {
 }
 
 /**
- * Reconnect bounding for resumable streams. Reconnection only follows forward
- * progress (a no-progress end already fails), so a constant throttle delay
- * prevents a hot loop against the origin, and a total-attempts ceiling caps a
- * pathological progress-then-drop flapper.
+ * Reconnect bounding for resumable streams. A constant throttle delay prevents a
+ * hot loop against the origin, and the ceiling bounds a pathologically failing
+ * run — but only counts CONSECUTIVE reconnects that made no forward progress.
  */
 export interface ReconnectOptions {
   /**
-   * Ceiling on the TOTAL number of reconnects over the run's lifetime (not
-   * consecutive no-progress ones) before failing with
-   * {@link StreamReconnectLimitError}. A run that drops only on rare network
-   * blips never approaches the default of 1000; the ceiling exists to bound a
-   * flapper that makes a little progress then drops on every attempt. A
-   * deployment behind a proxy that rolls the socket after every event can
-   * legitimately reconnect often, so raise this if you expect that.
+   * Ceiling on the number of CONSECUTIVE reconnects that deliver no new events,
+   * before failing with {@link StreamReconnectLimitError}. The counter resets to
+   * zero whenever a reconnect makes forward progress, so a healthy long run —
+   * even one behind a proxy that rolls the socket after every event — never
+   * approaches it; the ceiling only fires when the run is genuinely stuck
+   * (reconnecting repeatedly without receiving anything new). Default 5.
    */
   maxAttempts?: number
   /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
@@ -113,7 +111,7 @@ function resolveReconnectOptions(
   options: ReconnectOptions | undefined,
 ): ResolvedReconnectOptions {
   return {
-    maxAttempts: options?.maxAttempts ?? 1000,
+    maxAttempts: options?.maxAttempts ?? 5,
     delayMs: options?.delayMs ?? 250,
   }
 }
@@ -478,10 +476,18 @@ async function* resumableStream(
   // Throttle before re-issuing the request, and enforce the total ceiling so a
   // producer that keeps dropping after each event is bounded rather than
   // reconnecting forever.
-  async function waitBeforeReconnect(): Promise<void> {
-    reconnectAttempts += 1
-    if (reconnectAttempts > reconnect.maxAttempts) {
-      throw new StreamReconnectLimitError(reconnect.maxAttempts)
+  // Bound only CONSECUTIVE no-progress reconnects. A reconnect that made forward
+  // progress resets the counter, so a healthy long run (even one whose socket
+  // rolls after every event) never approaches the ceiling; it fires only when
+  // the run is genuinely stuck — reconnecting repeatedly with nothing new.
+  async function waitBeforeReconnect(madeProgress: boolean): Promise<void> {
+    if (madeProgress) {
+      reconnectAttempts = 0
+    } else {
+      reconnectAttempts += 1
+      if (reconnectAttempts > reconnect.maxAttempts) {
+        throw new StreamReconnectLimitError(reconnect.maxAttempts)
+      }
     }
     await abortableDelay(reconnect.delayMs, abortSignal)
   }
@@ -515,17 +521,17 @@ async function* resumableStream(
       // A transport drop is resumable once we hold an offset — retry from it,
       // even if THIS attempt made no new progress. A caught-up run whose parked
       // long-poll socket drops (or a proxy that drops just after replaying the
-      // de-duped overlap) is transient, not fatal; the total-attempts ceiling
-      // in waitBeforeReconnect already bounds a genuinely stuck flapper, so a
-      // per-attempt progress requirement here would only convert recoverable
-      // drops into hard failures on flaky (mobile/edge) networks. Without an
-      // offset (a non-durable stream), surface the failure.
+      // de-duped overlap) is transient, not fatal; the consecutive-no-progress
+      // ceiling in waitBeforeReconnect already bounds a genuinely stuck flapper,
+      // so a per-attempt progress requirement here would only convert
+      // recoverable drops into hard failures on flaky (mobile/edge) networks.
+      // Without an offset (a non-durable stream), surface the failure.
       if (
         (error instanceof StreamTruncatedError ||
           error instanceof StreamReadError) &&
         lastEventId !== undefined
       ) {
-        await waitBeforeReconnect()
+        await waitBeforeReconnect(progressed)
         continue
       }
       throw error
@@ -538,8 +544,9 @@ async function* resumableStream(
       if (progressed) {
         // Clean end WITHOUT a terminal event but we advanced — the producer is
         // still going (or the socket rolled over). Reconnect from the last
-        // offset (backing off to avoid a hot loop against the origin).
-        await waitBeforeReconnect()
+        // offset (backing off to avoid a hot loop against the origin). Progress
+        // resets the no-progress ceiling.
+        await waitBeforeReconnect(true)
         continue
       }
       // Ended without a terminal event AND made no forward progress on this
