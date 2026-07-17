@@ -65,17 +65,16 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const runId = new URL(request.url).searchParams.get('runId')
-  if (!runId) return new Response('runId is required', { status: 400 })
-  // A resume replays the log and never re-runs the model, so this placeholder
-  // input is not sent upstream.
-  const stream = chat({
-    adapter: openaiText('gpt-5.5'),
-    messages: [],
-    threadId: `replay:${runId}`,
-    runId,
-  })
-  return toServerSentEventsResponse(stream, {
+  const url = new URL(request.url)
+  const runId = url.searchParams.get('runId')
+  // joinRun sends ?offset=-1; without an offset there is nothing to replay.
+  if (!runId || !url.searchParams.get('offset')) {
+    return new Response('runId and offset are required', { status: 400 })
+  }
+  // A resume is served entirely from the durability log, so there is no chat()
+  // or model call here: the source stream is never iterated.
+  async function* nothing() {}
+  return toServerSentEventsResponse(nothing(), {
     durability: { adapter: memoryStream(request) },
   })
 }
