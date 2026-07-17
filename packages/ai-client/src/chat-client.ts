@@ -144,9 +144,10 @@ export function normalizeQueueOption(
  * All-string content is joined with newlines; mixed/multimodal content is
  * flattened into a single `ContentPart` array. The last item's `body` wins.
  */
-function mergeQueuedMessages(
-  items: Array<InternalQueuedMessage>,
-): { content: string | MultimodalContent; body?: Record<string, any> } {
+function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
+  content: string | MultimodalContent
+  body?: Record<string, any>
+} {
   const body = items.at(-1)?.body
   const stringContents: Array<string> = []
   for (const item of items) {
