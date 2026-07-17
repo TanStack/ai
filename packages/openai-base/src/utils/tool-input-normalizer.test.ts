@@ -97,4 +97,23 @@ describe('createToolInputNormalizer', () => {
 
     expect(normalize(tool.name, input)).toBe(input)
   })
+
+  it.each([
+    ['const', { anyOf: [{ type: 'string' }, { const: null }] }],
+    ['enum', { anyOf: [{ type: 'string' }, { enum: [null] }] }],
+  ])('preserves genuine null accepted by an anyOf %s branch', (_, value) => {
+    const tool: Tool = {
+      name: 'nullable_union',
+      description: 'Uses an optional union that genuinely accepts null',
+      inputSchema: {
+        type: 'object',
+        properties: { value },
+        required: [],
+      },
+    }
+    const normalize = createToolInputNormalizer([tool])
+    const input = { value: null }
+
+    expect(normalize(tool.name, input)).toBe(input)
+  })
 })

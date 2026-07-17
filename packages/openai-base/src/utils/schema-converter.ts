@@ -230,13 +230,11 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
 
 /** A schema-position node that declares no type and so 400s strict mode. */
 function isTypelessSchema(node: unknown): boolean {
-  // JSON Schema also permits bare `true` / `false` schema nodes, but OpenAI's
-  // strict subset requires one of its supported declared types. Preserve
-  // boolean schemas by sending the containing tool in non-strict mode.
-  if (typeof node === 'boolean') return true
   if (node === null || typeof node !== 'object' || Array.isArray(node)) {
-    // Non-object values other than boolean schemas aren't schema nodes.
-    return false
+    // JSON Schema permits bare boolean nodes; malformed inputs may contain
+    // other primitives. OpenAI's strict subset requires a declared type, so
+    // preserve the containing tool by sending it in non-strict mode.
+    return true
   }
   return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
 }
@@ -280,6 +278,31 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
   return Object.keys(map).length > 0 ? map : undefined
 }
 
+function isSchemaObject(schema: unknown): schema is Record<string, any> {
+  return typeof schema === 'object' && schema !== null && !Array.isArray(schema)
+}
+
+/** Whether every active JSON Schema constraint at this node admits null. */
+function acceptsNull(schema: unknown): boolean {
+  if (schema === true) return true
+  if (!isSchemaObject(schema)) return false
+
+  if ('const' in schema && schema.const !== null) return false
+  if (Array.isArray(schema.enum) && !schema.enum.includes(null)) return false
+
+  if (typeof schema.type === 'string' && schema.type !== 'null') return false
+  if (Array.isArray(schema.type) && !schema.type.includes('null')) return false
+
+  if (
+    Array.isArray(schema.anyOf) &&
+    !schema.anyOf.some((variant: unknown) => acceptsNull(variant))
+  ) {
+    return false
+  }
+
+  return true
+}
+
 function coerceStrictSchema(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
@@ -303,12 +326,16 @@ function coerceStrictSchema(
       let widenedHere = false
 
       // Step 1: Recurse into nested structures
-      if (prop.type === 'object' && prop.properties) {
+      if (isSchemaObject(prop) && prop.type === 'object' && prop.properties) {
         const nested = coerceStrictSchema(prop, prop.required || [])
         prop = nested.schema
         childMap = nested.nullWideningMap
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (prop.type === 'array' && prop.items) {
+      } else if (
+        isSchemaObject(prop) &&
+        prop.type === 'array' &&
+        prop.items
+      ) {
         const nested = coerceStrictSchema(prop.items, prop.items.required || [])
         prop = {
           ...prop,
@@ -318,12 +345,12 @@ function coerceStrictSchema(
           ? { items: nested.nullWideningMap }
           : undefined
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (prop.anyOf) {
+      } else if (isSchemaObject(prop) && prop.anyOf) {
         const nested = coerceStrictSchema(prop, prop.required || [])
         prop = nested.schema
         childMap = nested.nullWideningMap
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (prop.oneOf) {
+      } else if (isSchemaObject(prop) && prop.oneOf) {
         throw new Error(
           'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
         )
@@ -331,31 +358,43 @@ function coerceStrictSchema(
 
       // Step 2: Apply null-widening for optional properties (after recursion)
       if (wasOptional) {
+        const originallyAcceptedNull = acceptsNull(prop)
+
         // `type: [..., 'null']` alone does not make null valid when an enum or
         // const still excludes it; strict decoding would be forced to emit the
         // original literal instead of the synthetic omission marker.
-        if ('const' in prop && prop.const !== null) {
+        if (isSchemaObject(prop) && 'const' in prop && prop.const !== null) {
           const { const: constValue, ...withoutConst } = prop
           prop = { ...withoutConst, enum: [constValue, null] }
-          widenedHere = true
-        } else if (Array.isArray(prop.enum) && !prop.enum.includes(null)) {
+        } else if (
+          isSchemaObject(prop) &&
+          Array.isArray(prop.enum) &&
+          !prop.enum.includes(null)
+        ) {
           prop = { ...prop, enum: [...prop.enum, null] }
-          widenedHere = true
         }
 
-        if (prop.anyOf) {
-          // For anyOf, add a null variant if not already present
-          if (!prop.anyOf.some((v: any) => v.type === 'null')) {
+        if (isSchemaObject(prop) && prop.anyOf) {
+          // A genuine null branch can use type, enum, or const. Only add a
+          // provider omission marker when the original union rejected null.
+          if (!acceptsNull(prop)) {
             prop = { ...prop, anyOf: [...prop.anyOf, { type: 'null' }] }
-            widenedHere = true
           }
-        } else if (prop.type && !Array.isArray(prop.type)) {
+        } else if (
+          isSchemaObject(prop) &&
+          prop.type &&
+          !Array.isArray(prop.type)
+        ) {
           prop = { ...prop, type: [prop.type, 'null'] }
-          widenedHere = true
-        } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
+        } else if (
+          isSchemaObject(prop) &&
+          Array.isArray(prop.type) &&
+          !prop.type.includes('null')
+        ) {
           prop = { ...prop, type: [...prop.type, 'null'] }
-          widenedHere = true
         }
+
+        widenedHere = !originallyAcceptedNull && acceptsNull(prop)
       }
 
       properties[propName] = prop
