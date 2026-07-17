@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeMistralStructuredOutputCompatibleWithMap } from '../src/utils/schema-converter'
+import { makeMistralStructuredOutputCompatibleWithMap } from './schema-converter'
 
 describe('makeMistralStructuredOutputCompatibleWithMap', () => {
   it('widens optional enum and const constraints to admit the omission marker', () => {
