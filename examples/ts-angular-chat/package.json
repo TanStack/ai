@@ -24,7 +24,7 @@
     "zone.js": "^0.15.0"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "^1.10.0",
+    "@analogjs/vite-plugin-angular": "^2.6.2",
     "@angular/build": "^21.2.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",

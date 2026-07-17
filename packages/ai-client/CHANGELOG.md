@@ -1,5 +1,77 @@
 # @tanstack/ai-client
 
+## 0.22.0
+
+### Minor Changes
+
+- [#900](https://github.com/TanStack/ai/pull/900) [`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c) - Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.** Restore the previous drop-while-busy behavior with `queue: 'drop'`.
+
+  The behavior is configurable via a new `queue` option, which accepts `whenBusy: 'queue' | 'drop' | 'interrupt'`, `drain: 'fifo' | 'batch'`, `maxSize`, and `onOverflow`, or a custom strategy function for full control.
+
+  Queued messages are exposed on the hook as `queue` and can be cancelled before they send via `cancelQueued(id)`. `sendMessage` also accepts a per-call `{ whenBusy }` override.
+
+## 0.21.0
+
+### Minor Changes
+
+- [#405](https://github.com/TanStack/ai/pull/405) [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1) - Added Gemini Realtime Adapter
+
+- [#918](https://github.com/TanStack/ai/pull/918) [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589) - Gate the tool-call part's `approval` field on the tool's `needsApproval` flag.
+  Previously `approval?` was declared on every typed tool-call part regardless of
+  whether the tool could ever request approval. Now the flag is captured as a
+  literal type (`toolDefinition({ needsApproval: true })` → `true`) and threaded
+  through `ClientTool` / `ToolDefinitionInstance` / `ToolDefinition`, and
+  `ToolCallPartForTool` only includes `approval` for tools defined with
+  `needsApproval: true`:
+
+  ```ts
+  const { messages } = useChat({ tools: [getGuitars, addToCart] }) // addToCart: needsApproval: true
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') continue
+    if (part.name === 'addToCart') part.approval?.id // ✅ typed
+    if (part.name === 'getGuitars') part.approval // ✅ compile error — no such field
+  }
+  ```
+
+  ## ⚠️ Breaking change (types only)
+
+  **This is the primary migration surface for this release.** When you pass a typed
+  `tools` array to `useChat` / `createChat` / `injectChat`, reading `part.approval`
+  on a mixed tool-call union **without first narrowing by `part.name`** no longer
+  compiles. Code that previously did `part.approval?.id` in a generic handler over
+  all tool-call parts must be updated:
+
+  ```ts
+  // ❌ No longer compiles on a typed mixed union
+  part.approval?.id
+
+  // ✅ Narrow to an approval-required tool first
+  if (part.name === 'deleteAccount') part.approval?.id
+
+  // ✅ Or guard with `in`
+  if ('approval' in part) part.approval?.id
+
+  // ✅ Or type the handler against the base (untyped) ToolCallPart
+  function handleApproval(part: ToolCallPart) {
+    return part.approval?.id
+  }
+  ```
+
+  Untyped `useChat()` (no inferred `tools` generic) and the base `ToolCallPart`
+  type are unaffected: `approval` stays available on every tool-call part there.
+  **Runtime behavior is unchanged** — only TypeScript narrowing is stricter.
+
+  Adds a `TNeedsApproval extends boolean` type parameter (defaulting to `false`)
+  to the client tool types; existing explicit type arguments keep working via the
+  default. Literal capture requires `toolDefinition({ needsApproval: true })` at
+  the call site — a dynamic `needsApproval: boolean` variable will not gate the
+  type.
+
+### Patch Changes
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+
 ## 0.20.0
 
 ### Minor Changes

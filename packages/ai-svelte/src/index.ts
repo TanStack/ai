@@ -5,6 +5,12 @@ export type {
   DeepPartial,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
