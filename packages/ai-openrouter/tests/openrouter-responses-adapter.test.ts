@@ -711,6 +711,133 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finishedIndex).toBeGreaterThan(endIndex)
   })
 
+  it('recovers final text from response.output_text.done when no delta was streamed', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.done',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        contentIndex: 0,
+        itemId: 'msg_1',
+        logprobs: [],
+        text: 'Recovered done-event answer',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'Answer carefully' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks.filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT),
+    ).toEqual([
+      expect.objectContaining({
+        delta: 'Recovered done-event answer',
+        content: 'Recovered done-event answer',
+      }),
+    ])
+  })
+
+  it('recovers final text from response.completed outputText', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          outputText: 'Recovered outputText answer',
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'Answer carefully' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks.filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT),
+    ).toEqual([
+      expect.objectContaining({
+        delta: 'Recovered outputText answer',
+        content: 'Recovered outputText answer',
+      }),
+    ])
+  })
+
+  it('recovers final text from raw response.completed output_text', async () => {
+    setupMockSdkClient([
+      {
+        isUnknown: true,
+        raw: {
+          type: 'response.completed',
+          sequence_number: 1,
+          response: {
+            model: 'm',
+            output: [],
+            output_text: 'Recovered raw output_text answer',
+            usage: {
+              input_tokens: 5,
+              output_tokens: 3,
+              total_tokens: 8,
+            },
+          },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'Answer carefully' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks.filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT),
+    ).toEqual([
+      expect.objectContaining({
+        delta: 'Recovered raw output_text answer',
+        content: 'Recovered raw output_text answer',
+      }),
+    ])
+  })
+
   it('routes function-call args through TOOL_CALL_START/ARGS/END', async () => {
     setupMockSdkClient([
       {

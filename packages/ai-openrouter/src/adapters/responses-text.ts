@@ -984,6 +984,36 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
+        // Some Responses-compatible providers omit text deltas and expose the
+        // completed text only on the dedicated done event.
+        if (
+          chunk.type === 'response.output_text.done' &&
+          chunk.text &&
+          accumulatedContent.length === 0
+        ) {
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+
+          accumulatedContent = chunk.text
+          hasStreamedContentDeltas = true
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            delta: chunk.text,
+            content: accumulatedContent,
+          }
+        }
+
         // Handle reasoning deltas
         if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
           const reasoningDelta = Array.isArray(chunk.delta)
@@ -1355,7 +1385,7 @@ export class OpenRouterResponsesTextAdapter<
             ? responseObj.output
             : []
 
-          const completedText = outputItems
+          const outputItemText = outputItems
             .flatMap((item) =>
               item.type === 'message' && Array.isArray(item.content)
                 ? item.content
@@ -1364,6 +1394,11 @@ export class OpenRouterResponsesTextAdapter<
             .filter((part) => part.type === 'output_text')
             .map((part) => part.text)
             .join('')
+          const completedText =
+            typeof responseObj.outputText === 'string' &&
+            responseObj.outputText.length > 0
+              ? responseObj.outputText
+              : outputItemText
 
           if (accumulatedContent.length === 0 && completedText.length > 0) {
             if (!hasEmittedTextMessageStart) {
@@ -1909,6 +1944,7 @@ function camelCaseResponseShape(
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
     out.incompleteDetails = src.incomplete_details
+  if ('output_text' in src) out.outputText = src.output_text
   if (
     'input_tokens' in src ||
     'output_tokens' in src ||
