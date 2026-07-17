@@ -1,4 +1,7 @@
-import { GENERATION_EVENTS } from './generation-types'
+import {
+  GENERATION_EVENTS,
+  updateGenerationResumeSnapshot,
+} from './generation-types'
 import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai/client'
@@ -16,6 +19,8 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationResumeSnapshot,
+  GenerationServerPersistence,
 } from './generation-types'
 
 /**
@@ -33,6 +38,9 @@ interface GenerationCallbacks<TResult, TOutput> {
   onLoadingChange?: ((isLoading: boolean) => void) | undefined
   onErrorChange?: ((error: Error | undefined) => void) | undefined
   onStatusChange?: ((status: GenerationClientState) => void) | undefined
+  onResumeSnapshotChange?:
+    | ((snapshot: GenerationResumeSnapshot) => void)
+    | undefined
 }
 
 /**
@@ -81,6 +89,7 @@ export class GenerationClient<
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
+  private readonly serverPersistence: GenerationServerPersistence | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
   private input: TInput | null = null
@@ -88,9 +97,13 @@ export class GenerationClient<
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
+  private resumeSnapshot: GenerationResumeSnapshot | undefined
+  private resumeSnapshotPersistenceQueue: Promise<void> = Promise.resolve()
+  private resumePersistenceError: Error | undefined = undefined
   private abortController: AbortController | null = null
   private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
   private devtoolsMounted = false
+  private disposed = false
 
   constructor(
     options: GenerationClientOptions<TInput, TResult, TOutput> &
@@ -107,6 +120,8 @@ export class GenerationClient<
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.body = options.body ?? {}
+    this.serverPersistence = options.persistence?.server
+    this.resumeSnapshot = options.initialResumeSnapshot
 
     this.callbacksRef = {
       onResult: options.onResult,
@@ -117,6 +132,7 @@ export class GenerationClient<
       onLoadingChange: options.onLoadingChange,
       onErrorChange: options.onErrorChange,
       onStatusChange: options.onStatusChange,
+      onResumeSnapshotChange: options.onResumeSnapshotChange,
     }
 
     this.devtoolsMetadata = this.createDevtoolsMetadata(options.devtools)
@@ -159,6 +175,7 @@ export class GenerationClient<
    */
   async generate(input: TInput): Promise<void> {
     this.mountDevtools()
+    if (this.disposed) return
     if (this.isLoading) return
 
     this.input = input
@@ -179,11 +196,16 @@ export class GenerationClient<
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
-          await this.processStream(parseSSEResponse(result, signal), runId)
+          await this.processStream(
+            parseSSEResponse(result, signal),
+            runId,
+            signal,
+          )
         } else {
           this.devtoolsBridge.ensureRunStarted(runId)
           this.setResult(result)
           this.setStatus('success')
+          this.completePlainFetcherResumeSnapshot()
         }
       } else if (this.connection) {
         // Streaming adapter path
@@ -194,7 +216,7 @@ export class GenerationClient<
           signal,
           this.createRunContext(runId),
         )
-        await this.processStream(stream, runId)
+        await this.processStream(stream, runId, signal)
       } else {
         throw new Error(
           'GenerationClient requires either a connection or fetcher option',
@@ -225,8 +247,10 @@ export class GenerationClient<
       )
       this.callbacksRef.onError?.(error)
     } finally {
-      this.abortController = null
-      this.setIsLoading(false)
+      if (this.abortController === abortController) {
+        this.abortController = null
+        this.setIsLoading(false)
+      }
     }
   }
 
@@ -236,13 +260,15 @@ export class GenerationClient<
   private async processStream(
     source: AsyncIterable<StreamChunk>,
     fallbackRunId: string,
+    signal: AbortSignal,
   ): Promise<void> {
     let streamRunId: string | undefined
 
     for await (const chunk of source) {
-      if (this.abortController?.signal.aborted) break
+      if (signal.aborted) break
 
       this.callbacksRef.onChunk?.(chunk)
+      this.observeResumeSnapshot(chunk)
       const chunkRunId =
         'runId' in chunk && typeof chunk.runId === 'string'
           ? chunk.runId
@@ -352,6 +378,7 @@ export class GenerationClient<
   }
 
   dispose(): void {
+    this.disposed = true
     this.stop()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
@@ -373,8 +400,39 @@ export class GenerationClient<
     return this.error
   }
 
+  getResumePersistenceError(): Error | undefined {
+    return this.resumePersistenceError
+  }
+
   getStatus(): GenerationClientState {
     return this.status
+  }
+
+  getResumeSnapshot(): GenerationResumeSnapshot | undefined {
+    return this.resumeSnapshot
+      ? {
+          ...this.resumeSnapshot,
+          ...(this.resumeSnapshot.pendingArtifacts
+            ? { pendingArtifacts: [...this.resumeSnapshot.pendingArtifacts] }
+            : {}),
+          ...(this.resumeSnapshot.result
+            ? {
+                result: {
+                  ...this.resumeSnapshot.result,
+                  ...(this.resumeSnapshot.result.artifacts
+                    ? { artifacts: [...this.resumeSnapshot.result.artifacts] }
+                    : {}),
+                },
+              }
+            : {}),
+          ...(this.resumeSnapshot.error
+            ? { error: { ...this.resumeSnapshot.error } }
+            : {}),
+          ...(this.resumeSnapshot.lastEvent
+            ? { lastEvent: { ...this.resumeSnapshot.lastEvent } }
+            : {}),
+        }
+      : undefined
   }
 
   // ===========================
@@ -464,6 +522,58 @@ export class GenerationClient<
     return {
       threadId: this.threadId,
       runId,
+    }
+  }
+
+  private observeResumeSnapshot(chunk: StreamChunk): void {
+    this.resumeSnapshot = updateGenerationResumeSnapshot(
+      this.resumeSnapshot,
+      chunk,
+    )
+    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
+    void this.persistResumeSnapshot(this.resumeSnapshot)
+  }
+
+  private completePlainFetcherResumeSnapshot(): void {
+    if (!this.resumeSnapshot) {
+      return
+    }
+    this.resumeSnapshot = {
+      ...this.resumeSnapshot,
+      resumeState: null,
+      status: 'complete',
+    }
+    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
+    void this.persistResumeSnapshot(this.resumeSnapshot)
+  }
+
+  private async persistResumeSnapshot(
+    snapshot: GenerationResumeSnapshot,
+  ): Promise<void> {
+    if (!this.serverPersistence) {
+      return
+    }
+
+    this.resumeSnapshotPersistenceQueue =
+      this.resumeSnapshotPersistenceQueue.then(
+        () => this.writeResumeSnapshot(snapshot),
+        () => this.writeResumeSnapshot(snapshot),
+      )
+    await this.resumeSnapshotPersistenceQueue
+  }
+
+  private async writeResumeSnapshot(
+    snapshot: GenerationResumeSnapshot,
+  ): Promise<void> {
+    try {
+      await this.serverPersistence?.setItem(this.threadId, snapshot)
+    } catch (error) {
+      this.resumePersistenceError =
+        error instanceof Error ? error : new Error(String(error))
+      console.warn(
+        '[TanStack AI] Failed to persist generation resume snapshot',
+        error,
+      )
     }
   }
 }

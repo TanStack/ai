@@ -13,11 +13,14 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
   ChatClientState,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   StructuredOutputPart,
@@ -53,6 +56,12 @@ export function useChat<
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
+  const resumeState = shallowRef<ChatResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const pendingInterrupts = shallowRef<Array<ChatPendingInterrupt>>(
+    options.initialResumeSnapshot?.pendingInterrupts ?? [],
+  )
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -89,6 +98,9 @@ export function useChat<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
     ...(options.body !== undefined && { body: options.body }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
@@ -122,6 +134,7 @@ export function useChat<
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading.value = newIsLoading
+      syncResumeState()
     },
     onStatusChange: (newStatus: ChatClientState) => {
       status.value = newStatus
@@ -138,7 +151,16 @@ export function useChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating.value = isGenerating
     },
+    onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+      resumeState.value = nextResumeState
+      pendingInterrupts.value = nextPendingInterrupts
+    },
   })
+
+  function syncResumeState() {
+    resumeState.value = client.getResumeState()
+    pendingInterrupts.value = client.getPendingInterrupts()
+  }
 
   messages.value = client.getMessages()
 
@@ -174,6 +196,10 @@ export function useChat<
 
   onMounted(() => {
     client.mountDevtools()
+    // Delivery-durability resume is transparent: the resumable SSE connection
+    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
+    // We only seed interrupt (state) resume from the client here.
+    syncResumeState()
   })
 
   // Cleanup on unmount: stop any in-flight requests
@@ -191,15 +217,27 @@ export function useChat<
   // or mutated options propagate without recreating the client.
 
   const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+    try {
+      await client.sendMessage(content)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.append(message)
+    try {
+      await client.append(message)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const reload = async () => {
-    await client.reload()
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState()
+    }
   }
 
   const stop = () => {
@@ -208,6 +246,7 @@ export function useChat<
 
   const clear = () => {
     client.clear()
+    syncResumeState()
   }
 
   const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
@@ -229,6 +268,16 @@ export function useChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
+    syncResumeState()
+  }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client.resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
   }
 
   // The "active" structured-output part is the one on the assistant message
@@ -292,6 +341,9 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resumeState: readonly(resumeState),
+    pendingInterrupts: readonly(pendingInterrupts),
+    resumeInterrupts,
     partial: readonly(partial),
     final: readonly(final),
   } as unknown as UseChatReturn<TTools, TSchema>

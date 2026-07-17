@@ -7,7 +7,9 @@ import type {
   ImagePart,
   InferToolInput,
   InferToolOutput,
+  Interrupt,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
   StructuredOutputPart,
   UIResourcePart,
@@ -17,7 +19,19 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart } from '@tanstack/ai/client'
+export type { StructuredOutputPart }
+
+export interface ChatResumeState {
+  threadId: string
+  runId: string
+}
+
+export type ChatPendingInterrupt = Interrupt
+
+export interface ChatResumeSnapshot {
+  resumeState: ChatResumeState
+  pendingInterrupts?: Array<ChatPendingInterrupt>
+}
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
@@ -31,6 +45,7 @@ export interface ChatFetcherInput {
   data?: Record<string, unknown>
   threadId: string
   runId: string
+  resume?: Array<RunAgentResumeItem>
 }
 
 export interface ChatFetcherOptions {
@@ -281,21 +296,25 @@ export interface UIMessage<
   createdAt?: Date
 }
 
-export interface ChatClientPersistence<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
+export interface ChatStorageAdapter<TValue> {
   getItem: (
     id: string,
-  ) =>
-    | Array<UIMessage<TTools>>
-    | null
-    | undefined
-    | Promise<Array<UIMessage<TTools>> | null | undefined>
-  setItem: (
-    id: string,
-    messages: Array<UIMessage<TTools>>,
-  ) => void | Promise<void>
+  ) => TValue | null | undefined | Promise<TValue | null | undefined>
+  setItem: (id: string, value: TValue) => void | Promise<void>
   removeItem: (id: string) => void | Promise<void>
+}
+
+export type ChatClientPersistence<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> = ChatStorageAdapter<Array<UIMessage<TTools>>>
+
+export type ChatServerPersistence = ChatStorageAdapter<ChatResumeSnapshot>
+
+export interface ChatPersistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  client?: ChatClientPersistence<TTools>
+  server?: ChatServerPersistence
 }
 
 type IsUnknown<T> = unknown extends T
@@ -389,9 +408,13 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapter for chat messages.
+   * Optional persistence adapters for chat state.
+   *
+   * `client` stores client-rendered `UIMessage[]` using this chat's `id`;
+   * `server` stores `{ resumeState, pendingInterrupts }` using this chat's
+   * `threadId`.
    */
-  persistence?: ChatClientPersistence<TTools>
+  persistence?: ChatPersistenceOptions<TTools>
 
   /**
    * Unique identifier for this chat instance
@@ -404,6 +427,13 @@ export interface ChatClientBaseOptions<
    * the session. If omitted, a unique thread ID is generated.
    */
   threadId?: string
+
+  /**
+   * Initial resumable run state, useful when rehydrating a persisted client
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
+   */
+  initialResumeSnapshot?: ChatResumeSnapshot
 
   /**
    * Arbitrary client-controlled JSON forwarded to the server in the
@@ -491,6 +521,14 @@ export interface ChatClientBaseOptions<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Callback when resumable run state or pending interrupts change.
+   */
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: Array<ChatPendingInterrupt>,
+  ) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

@@ -1,0 +1,65 @@
+{
+  "name": "@tanstack/ai-persistence-cloudflare",
+  "version": "0.0.0",
+  "description": "Cloudflare D1, R2, and Durable Object state persistence for TanStack AI.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-cloudflare"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence",
+    "cloudflare",
+    "d1",
+    "r2",
+    "durable-objects"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "bin": {
+    "tanstack-ai-cloudflare-migrations": "./bin/tanstack-ai-cloudflare-migrations.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "migrations",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "peerDependencies": {
+    "@cloudflare/workers-types": ">=4.20260317.1",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai-persistence-drizzle": "workspace:^",
+    "drizzle-orm": ">=0.44.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-drizzle": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "drizzle-orm": "^0.45.0",
+    "miniflare": "^4.20260609.0"
+  }
+}

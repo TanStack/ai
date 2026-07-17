@@ -54,16 +54,21 @@
   },
   "peerDependencies": {
     "@ngrok/ngrok": "^1.0.0",
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@ngrok/ngrok": {
+      "optional": true
+    },
+    "@tanstack/ai-persistence": {
       "optional": true
     }
   },
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }

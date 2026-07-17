@@ -49,6 +49,7 @@ import type {
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
+  Interrupt,
   JSONSchema,
   LazyToolsConfig,
   ModelMessage,
@@ -178,7 +179,7 @@ export interface TextActivityOptions<
   TStream extends boolean,
   TContext = unknown,
 > {
-  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
   /**
    * Conversation messages. Accepts:
@@ -255,6 +256,11 @@ export interface TextActivityOptions<
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
   /**
+   * AG-UI interrupt resume responses. Persistence middleware validates these
+   * before accepting new input on a thread with pending interrupts.
+   */
+  resume?: TextOptions['resume']
+  /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:
    * 1. Run the full agentic loop (executing tools as needed)
@@ -265,7 +271,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const result = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
@@ -286,7 +292,7 @@ export interface TextActivityOptions<
    * @example Non-streaming text
    * ```ts
    * const text = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
    * })
@@ -301,7 +307,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const stream = chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [...],
    *   middleware: [loggingMiddleware, redactionMiddleware],
    * })
@@ -531,12 +537,15 @@ class TextEngine<
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
   private readonly initialApprovals: Map<string, boolean>
   private readonly initialClientToolResults: Map<string, any>
+  private readonly resumeApprovals = new Map<string, boolean>()
+  private readonly resumeClientToolResults = new Map<string, any>()
 
   // AG-UI protocol IDs
   private readonly threadId: string
@@ -861,12 +870,15 @@ class TextEngine<
       // requested AND the run hasn't already errored/aborted, run it through
       // the middleware pipeline. The terminal hook fires once at the very
       // end (after finalization), not after the agent loop.
+      // Actionable waits already emitted a RUN_FINISHED interrupt terminal, so
+      // do not run finalization after `processToolCalls()` pauses the stream.
       //
       // Native combined mode takes a different path: the agent loop's final-
       // turn text IS the schema-constrained JSON, so we harvest it from
       // `accumulatedContent` instead of issuing a second provider call.
       if (
         this.finalStructuredOutput &&
+        this.toolPhase !== 'wait' &&
         !this.isCancelled() &&
         !this.finalizationError
       ) {
@@ -1048,6 +1060,8 @@ class TextEngine<
         ? this.finalStructuredOutput.jsonSchema
         : undefined
 
+    const { approvals } = this.collectClientState()
+
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
@@ -1063,7 +1077,7 @@ class TextEngine<
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
       capabilities: this.middlewareCtx,
       // Client approval decisions, for harness interactive-approval resolution.
-      approvals: this.initialApprovals,
+      approvals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
       if (this.isCancelled()) {
@@ -1136,6 +1150,10 @@ class TextEngine<
           (outputChunk.type === EventType.RUN_STARTED ||
             outputChunk.type === EventType.RUN_FINISHED)
         ) {
+          continue
+        }
+        if (this.shouldDeferToolCallRunFinished(outputChunk)) {
+          this.deferredToolCallRunFinishedChunks.push(outputChunk)
           continue
         }
         this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
@@ -1403,6 +1421,8 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      this.discardDeferredToolCallRunFinishedChunks()
+
       if (executionResult.results.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           executionResult.results,
@@ -1413,19 +1433,13 @@ class TextEngine<
         }
       }
 
-      for (const chunk of this.buildApprovalChunks(
-        executionResult.needsApproval,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      for (const chunk of this.buildClientToolChunks(
-        executionResult.needsClientExecution,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
+      yield* this.pipeThroughMiddleware(
+        this.buildInterruptFinishedChunk(
+          finishEvent,
+          executionResult.needsApproval,
+          executionResult.needsClientExecution,
+        ),
+      )
 
       this.setToolPhase('wait')
       return 'wait'
@@ -1489,6 +1503,7 @@ class TextEngine<
     }
 
     if (executableToolCalls.length === 0) {
+      yield* this.flushDeferredToolCallRunFinishedChunks()
       // All tool calls were undiscovered lazy tools — errors emitted, continue loop
       this.toolCallManager.clear()
       this.setToolPhase('continue')
@@ -1569,23 +1584,19 @@ class TextEngine<
         }
       }
 
-      for (const chunk of this.buildApprovalChunks(
-        executionResult.needsApproval,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      for (const chunk of this.buildClientToolChunks(
-        executionResult.needsClientExecution,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
+      yield* this.pipeThroughMiddleware(
+        this.buildInterruptFinishedChunk(
+          finishEvent,
+          executionResult.needsApproval,
+          executionResult.needsClientExecution,
+        ),
+      )
 
       this.setToolPhase('wait')
       return
     }
+
+    yield* this.flushDeferredToolCallRunFinishedChunks()
 
     const toolResultChunks = this.buildToolResultChunks(
       executionResult.results,
@@ -1610,6 +1621,28 @@ class TextEngine<
     this.toolCallManager.clear()
 
     this.setToolPhase('continue')
+  }
+
+  private shouldDeferToolCallRunFinished(chunk: StreamChunk): boolean {
+    return (
+      chunk.type === EventType.RUN_FINISHED &&
+      this.finishedEvent?.finishReason === 'tool_calls' &&
+      this.tools.length > 0 &&
+      this.toolCallManager.hasToolCalls()
+    )
+  }
+
+  private *flushDeferredToolCallRunFinishedChunks(): Generator<StreamChunk> {
+    for (const chunk of this.deferredToolCallRunFinishedChunks) {
+      this.logger.output(`type=${chunk.type}`, { chunk })
+      yield chunk
+      this.middlewareCtx.chunkIndex++
+    }
+    this.deferredToolCallRunFinishedChunks = []
+  }
+
+  private discardDeferredToolCallRunFinishedChunks(): void {
+    this.deferredToolCallRunFinishedChunks = []
   }
 
   private shouldExecuteToolPhase(): boolean {
@@ -1682,6 +1715,12 @@ class TextEngine<
     // Start with the initial client state extracted from original messages
     const approvals = new Map(this.initialApprovals)
     const clientToolResults = new Map(this.initialClientToolResults)
+    for (const [approvalId, approved] of this.resumeApprovals) {
+      approvals.set(approvalId, approved)
+    }
+    for (const [toolCallId, result] of this.resumeClientToolResults) {
+      clientToolResults.set(toolCallId, result)
+    }
 
     // Also check current messages for any additional tool results (from server tools)
     for (const message of this.messages) {
@@ -1720,54 +1759,61 @@ class TextEngine<
     return { approvals, clientToolResults }
   }
 
-  private buildApprovalChunks(
+  private buildActionableInterrupts(
     approvals: Array<ApprovalRequest>,
-    finishEvent: RunFinishedEvent,
-  ): Array<StreamChunk> {
-    const chunks: Array<StreamChunk> = []
+    clientRequests: Array<ClientToolRequest>,
+  ): Array<Interrupt> {
+    const interrupts: Array<Interrupt> = []
 
     for (const approval of approvals) {
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        name: 'approval-requested',
-        value: {
-          toolCallId: approval.toolCallId,
+      interrupts.push({
+        id: approval.approvalId,
+        reason: 'approval_required',
+        message: `Approval required to run ${approval.toolName}`,
+        toolCallId: approval.toolCallId,
+        responseSchema: {
+          type: 'object',
+          properties: { approved: { type: 'boolean' } },
+          required: ['approved'],
+        },
+        metadata: {
+          kind: 'approval',
           toolName: approval.toolName,
           input: approval.input,
-          approval: {
-            id: approval.approvalId,
-            needsApproval: true,
-          },
         },
-      } as StreamChunk)
+      })
     }
 
-    return chunks
-  }
-
-  private buildClientToolChunks(
-    clientRequests: Array<ClientToolRequest>,
-    finishEvent: RunFinishedEvent,
-  ): Array<StreamChunk> {
-    const chunks: Array<StreamChunk> = []
-
     for (const clientTool of clientRequests) {
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        name: 'tool-input-available',
-        value: {
-          toolCallId: clientTool.toolCallId,
+      interrupts.push({
+        id: `client_tool_${clientTool.toolCallId}`,
+        reason: 'client_tool_input',
+        message: `Client tool ${clientTool.toolName} is ready to run`,
+        toolCallId: clientTool.toolCallId,
+        metadata: {
+          kind: 'client_tool',
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
-    return chunks
+    return interrupts
+  }
+
+  private buildInterruptFinishedChunk(
+    finishEvent: RunFinishedEvent,
+    approvals: Array<ApprovalRequest>,
+    clientRequests: Array<ClientToolRequest>,
+  ): StreamChunk {
+    return {
+      ...finishEvent,
+      timestamp: Date.now(),
+      outcome: {
+        type: 'interrupt',
+        interrupts: this.buildActionableInterrupts(approvals, clientRequests),
+      },
+    }
   }
 
   private buildToolResultChunks(
@@ -2514,12 +2560,28 @@ class TextEngine<
       messages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
+      resume: this.params.resume,
+      resumeToolState: {
+        approvals: this.resumeApprovals,
+        clientToolResults: this.resumeClientToolResults,
+      },
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
     }
   }
 
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
+    if (config.resumeToolState?.approvals) {
+      for (const [approvalId, approved] of config.resumeToolState.approvals) {
+        this.resumeApprovals.set(approvalId, approved)
+      }
+    }
+    if (config.resumeToolState?.clientToolResults) {
+      for (const [toolCallId, result] of config.resumeToolState
+        .clientToolResults) {
+        this.resumeClientToolResults.set(toolCallId, result)
+      }
+    }
     this.messages = config.messages
     this.systemPrompts = config.systemPrompts
     this.tools = config.tools
@@ -2637,7 +2699,7 @@ class TextEngine<
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
@@ -2650,7 +2712,7 @@ class TextEngine<
  * @example One-shot text (streaming without tools)
  * ```ts
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * })) {
  *   console.log(chunk)
@@ -2660,7 +2722,7 @@ class TextEngine<
  * @example Non-streaming text (stream: false)
  * ```ts
  * const text = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
@@ -2672,7 +2734,7 @@ class TextEngine<
  * import { z } from 'zod'
  *
  * const result = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
@@ -3125,11 +3187,12 @@ function runStreamingStructuredOutput<
     undoNullWidening(data, nullWideningMap)
 
   // The implementation generator yields the broader internal type
-  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so agent-loop
-  // CustomEvents can flow through; the public-facing type narrows to
-  // `Exclude<StreamChunk, CustomEvent> | StructuredOutputCompleteEvent<T>`
-  // which lets consumers narrow `chunk.value` cleanly. The widen→narrow
-  // is contained here so consumers see only the strict type.
+  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so middleware and
+  // tool-emitted CustomEvents can flow through. Core approval/client-tool
+  // waits are represented by RUN_FINISHED interrupt outcomes, not by direct
+  // CUSTOM wait events.
+  // The contained cast keeps the public stream type focused on
+  // structured-output completion.
   return runStreamingStructuredOutputImpl(
     options,
     jsonSchema,
@@ -3139,11 +3202,11 @@ function runStreamingStructuredOutput<
 
 /**
  * Internal generator return type — broader than the public
- * `StructuredOutputStream<T>`. The public type pins three tagged `CUSTOM`
- * events (`structured-output.complete`, `approval-requested`,
- * `tool-input-available`) so consumers can narrow `chunk.value` cleanly by
- * literal `name`. At runtime, tools can also emit arbitrary user-defined
- * `CustomEvent`s through the `emitCustomEvent` context API; those flow
+ * `StructuredOutputStream<T>`. The structured-output completion event remains
+ * the pinned public CUSTOM event for this stream; approval and client-tool
+ * waits now surface as RUN_FINISHED interrupt outcomes. At runtime, tools can
+ * still emit arbitrary user-defined `CustomEvent`s through the
+ * `emitCustomEvent` context API; those flow
  * through this generator with `name: string` and are widened out at the
  * public boundary because keeping them would collapse the typed narrow back
  * to `any`. The cast inside `runStreamingStructuredOutput` is where that

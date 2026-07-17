@@ -1,7 +1,10 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import { onMount } from 'svelte'
 import type {
   ChatClientState,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   StructuredOutputPart,
@@ -10,6 +13,7 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
@@ -71,6 +75,12 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
+  let resumeState = $state<ChatResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  let pendingInterrupts = $state<Array<ChatPendingInterrupt>>(
+    options.initialResumeSnapshot?.pendingInterrupts ?? [],
+  )
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -102,6 +112,9 @@ export function createChat<
     }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
@@ -137,6 +150,7 @@ export function createChat<
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
+      syncResumeState()
     },
     onStatusChange: (newStatus: ChatClientState) => {
       status = newStatus
@@ -153,7 +167,16 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
+    onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+      resumeState = nextResumeState
+      pendingInterrupts = nextPendingInterrupts
+    },
   })
+
+  function syncResumeState() {
+    resumeState = client.getResumeState()
+    pendingInterrupts = client.getPendingInterrupts()
+  }
 
   messages = client.getMessages()
 
@@ -163,6 +186,19 @@ export function createChat<
 
   client.mountDevtools()
 
+  if (typeof window !== 'undefined') {
+    try {
+      onMount(() => {
+        // Delivery-durability resume is transparent: the resumable SSE
+        // connection adapter reattaches via the browser's native
+        // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
+        syncResumeState()
+      })
+    } catch {
+      // Svelte lifecycle hooks are only valid during component initialization.
+    }
+  }
+
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
   // during component initialization, so we don't add automatic cleanup here.
@@ -170,15 +206,27 @@ export function createChat<
 
   // Define methods
   const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+    try {
+      await client.sendMessage(content)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.append(message)
+    try {
+      await client.append(message)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const reload = async () => {
-    await client.reload()
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState()
+    }
   }
 
   const stop = () => {
@@ -191,6 +239,7 @@ export function createChat<
 
   const clear = () => {
     client.clear()
+    syncResumeState()
   }
 
   const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
@@ -212,6 +261,16 @@ export function createChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
+    syncResumeState()
+  }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client.resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
   }
 
   /**
@@ -293,6 +352,12 @@ export function createChat<
     get sessionGenerating() {
       return sessionGenerating
     },
+    get resumeState() {
+      return resumeState
+    },
+    get pendingInterrupts() {
+      return pendingInterrupts
+    },
     get partial() {
       return partial
     },
@@ -308,6 +373,7 @@ export function createChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resumeInterrupts,
     updateBody,
     updateForwardedProps,
     updateContext,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { EventType } from '@tanstack/ai/client'
 import { Component, signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
 import { ChatClient } from '@tanstack/ai-client'
@@ -117,6 +118,55 @@ describe('injectChat — reactive options', () => {
     } finally {
       updateSpy.mockRestore()
     }
+  })
+})
+
+describe('injectChat — resume', () => {
+  it('forwards onResumeStateChange to ChatClient', async () => {
+    const onResumeStateChange = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'Hi',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    })
+    const { result } = renderInjectChat({
+      connection: adapter,
+      threadId: 'thread-1',
+      onResumeStateChange,
+    })
+
+    await result.sendMessage('Hi')
+
+    // A run that pauses on an interrupt forwards interrupt (state) resume —
+    // the thread/run ids to target on a follow-up. No delivery cursor.
+    expect(onResumeStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: expect.any(String),
+      }),
+      expect.arrayContaining([expect.objectContaining({ id: 'interrupt-1' })]),
+    )
   })
 })
 

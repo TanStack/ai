@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
+import { Route as SqlitePersistenceRouteImport } from './routes/sqlite-persistence'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
@@ -36,6 +37,7 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
+import { Route as ApiSqlitePersistentChatRouteImport } from './routes/api.sqlite-persistent-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
@@ -63,6 +65,11 @@ const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
   path: '/threads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SqlitePersistenceRoute = SqlitePersistenceRouteImport.update({
+  id: '/sqlite-persistence',
+  path: '/sqlite-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
@@ -193,6 +200,11 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSqlitePersistentChatRoute = ApiSqlitePersistentChatRouteImport.update({
+  id: '/api/sqlite-persistent-chat',
+  path: '/api/sqlite-persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   id: '/api/sandbox-triage',
   path: '/api/sandbox-triage',
@@ -296,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -310,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -343,6 +357,7 @@ export interface FileRoutesByTo {
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -357,6 +372,7 @@ export interface FileRoutesByTo {
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -391,6 +407,7 @@ export interface FileRoutesById {
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
@@ -405,6 +422,7 @@ export interface FileRoutesById {
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
+  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -440,6 +458,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -454,6 +473,7 @@ export interface FileRouteTypes {
     | '/api/mcp-pool'
     | '/api/mcp-status'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -487,6 +507,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -501,6 +522,7 @@ export interface FileRouteTypes {
     | '/api/mcp-pool'
     | '/api/mcp-status'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -534,6 +556,7 @@ export interface FileRouteTypes {
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
+    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
@@ -548,6 +571,7 @@ export interface FileRouteTypes {
     | '/api/mcp-pool'
     | '/api/mcp-status'
     | '/api/sandbox-triage'
+    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -582,6 +606,7 @@ export interface RootRouteChildren {
   RealtimeRoute: typeof RealtimeRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
+  SqlitePersistenceRoute: typeof SqlitePersistenceRoute
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
@@ -596,6 +621,7 @@ export interface RootRouteChildren {
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
+  ApiSqlitePersistentChatRoute: typeof ApiSqlitePersistentChatRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -632,6 +658,13 @@ declare module '@tanstack/react-router' {
       path: '/threads'
       fullPath: '/threads'
       preLoaderRoute: typeof ThreadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sqlite-persistence': {
+      id: '/sqlite-persistence'
+      path: '/sqlite-persistence'
+      fullPath: '/sqlite-persistence'
+      preLoaderRoute: typeof SqlitePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/server-fn-chat': {
@@ -809,6 +842,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sqlite-persistent-chat': {
+      id: '/api/sqlite-persistent-chat'
+      path: '/api/sqlite-persistent-chat'
+      fullPath: '/api/sqlite-persistent-chat'
+      preLoaderRoute: typeof ApiSqlitePersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sandbox-triage': {
       id: '/api/sandbox-triage'
       path: '/api/sandbox-triage'
@@ -950,6 +990,7 @@ const rootRouteChildren: RootRouteChildren = {
   RealtimeRoute: RealtimeRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
+  SqlitePersistenceRoute: SqlitePersistenceRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
@@ -964,6 +1005,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
+  ApiSqlitePersistentChatRoute: ApiSqlitePersistentChatRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

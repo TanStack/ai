@@ -10,10 +10,16 @@ import {
 } from 'preact/hooks'
 import type {
   ChatClientState,
+  ChatPendingInterrupt,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
 } from '@tanstack/ai-client'
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  ModelMessage,
+  RunAgentResumeItem,
+} from '@tanstack/ai'
 
 import type {
   MultimodalContent,
@@ -39,6 +45,12 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
+  const [resumeState, setResumeState] = useState<ChatResumeState | null>(
+    options.initialResumeSnapshot?.resumeState ?? null,
+  )
+  const [pendingInterrupts, setPendingInterrupts] = useState<
+    Array<ChatPendingInterrupt>
+  >(options.initialResumeSnapshot?.pendingInterrupts ?? [])
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -49,9 +61,19 @@ export function useChat<
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
+  const cleanupDisposalRef = useRef<{
+    client: ChatClient
+    timeout: ReturnType<typeof setTimeout>
+  } | null>(null)
   const optionsRef = useRef<UseChatOptions<TTools, TContext>>(options)
 
   optionsRef.current = options
+
+  const syncResumeState = useCallback((target: ChatClient | null) => {
+    if (!target) return
+    setResumeState(target.getResumeState())
+    setPendingInterrupts(target.getPendingInterrupts())
+  }, [])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -84,6 +106,9 @@ export function useChat<
       }),
       ...(initialOptions.persistence !== undefined && {
         persistence: initialOptions.persistence,
+      }),
+      ...(initialOptions.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: initialOptions.initialResumeSnapshot,
       }),
       ...(initialOptions.context !== undefined && {
         context: initialOptions.context,
@@ -130,6 +155,7 @@ export function useChat<
       onLoadingChange: (newIsLoading: boolean) => {
         if (activeClientRef.current !== instance) return
         setIsLoading(newIsLoading)
+        syncResumeState(instance)
       },
       onStatusChange: (newStatus: ChatClientState) => {
         if (activeClientRef.current !== instance) return
@@ -151,10 +177,15 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
+      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+        if (activeClientRef.current !== instance) return
+        setResumeState(nextResumeState)
+        setPendingInterrupts(nextPendingInterrupts)
+      },
     })
     activeClientRef.current = instance
     return instance
-  }, [clientId])
+  }, [clientId, syncResumeState])
 
   useEffect(() => {
     const clientMessages = client.getMessages()
@@ -191,12 +222,20 @@ export function useChat<
   // DO NOT include isLoading in dependencies - that would cause the cleanup
   // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
+    if (cleanupDisposalRef.current?.client === client) {
+      clearTimeout(cleanupDisposalRef.current.timeout)
+      cleanupDisposalRef.current = null
+    }
     if (cleanupInvalidationRef.current) {
       clearTimeout(cleanupInvalidationRef.current)
       cleanupInvalidationRef.current = null
     }
     activeClientRef.current = client
     client.mountDevtools()
+    // Delivery-durability resume is transparent: the resumable SSE connection
+    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
+    // We only seed interrupt (state) resume from the client here.
+    syncResumeState(client)
 
     return () => {
       cleanupInvalidationRef.current = setTimeout(() => {
@@ -214,29 +253,50 @@ export function useChat<
       } else {
         client.stop()
       }
-      client.dispose()
+      const disposal = {
+        client,
+        timeout: setTimeout(() => {
+          client.dispose()
+          if (cleanupDisposalRef.current === disposal) {
+            cleanupDisposalRef.current = null
+          }
+        }, 0),
+      }
+      cleanupDisposalRef.current = disposal
     }
-  }, [client])
+  }, [client, syncResumeState])
 
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
-      await client.sendMessage(content)
+      try {
+        await client.sendMessage(content)
+      } finally {
+        syncResumeState(client)
+      }
     },
-    [client],
+    [client, syncResumeState],
   )
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
-      await client.append(message)
+      try {
+        await client.append(message)
+      } finally {
+        syncResumeState(client)
+      }
     },
-    [client],
+    [client, syncResumeState],
   )
 
   const reload = useCallback(async () => {
-    await client.reload()
-  }, [client])
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState(client)
+    }
+  }, [client, syncResumeState])
 
   const stop = useCallback(() => {
     client.stop()
@@ -244,7 +304,8 @@ export function useChat<
 
   const clear = useCallback(() => {
     client.clear()
-  }, [client])
+    syncResumeState(client)
+  }, [client, syncResumeState])
 
   const setMessagesManually = useCallback(
     (newMessages: Array<UIMessage<TTools>>) => {
@@ -269,8 +330,18 @@ export function useChat<
   const addToolApprovalResponse = useCallback(
     async (response: { id: string; approved: boolean }) => {
       await client.addToolApprovalResponse(response)
+      syncResumeState(client)
     },
-    [client],
+    [client, syncResumeState],
+  )
+
+  const resumeInterrupts = useCallback(
+    async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
+      const result = await client.resumeInterrupts(resumeItems, state)
+      syncResumeState(client)
+      return result
+    },
+    [client, syncResumeState],
   )
 
   const renderedMessages = client.getMessages()
@@ -291,5 +362,8 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resumeState,
+    pendingInterrupts,
+    resumeInterrupts,
   }
 }

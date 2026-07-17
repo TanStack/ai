@@ -8,8 +8,13 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGeneration hook.
@@ -31,6 +36,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight generation state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Initial lightweight resume snapshot restored by the app (read-only state). */
+  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -67,6 +76,14 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation state snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Observed run/cursor metadata from the snapshot (read-only state) */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
 }
 
 /**
@@ -111,6 +128,9 @@ export function useGeneration<
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<GenerationClientState>('idle')
+  const [resumeSnapshot, setResumeSnapshot] = useState<
+    GenerationResumeSnapshot | undefined
+  >(options.initialResumeSnapshot)
 
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -125,6 +145,10 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: opts.body,
+      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
+      ...(opts.initialResumeSnapshot !== undefined && {
+        initialResumeSnapshot: opts.initialResumeSnapshot,
+      }),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
         hookName: 'useGeneration',
@@ -150,6 +174,7 @@ export function useGeneration<
       onLoadingChange: setIsLoading,
       onErrorChange: setError,
       onStatusChange: setStatus,
+      onResumeSnapshotChange: setResumeSnapshot,
     }
 
     if (opts.connection) {
@@ -179,7 +204,8 @@ export function useGeneration<
     })
   }, [client, options.body])
 
-  // Cleanup on unmount
+  // Mount devtools and clean up on unmount. Generation runs are never
+  // auto-started on mount — persisted state is read-only for display.
   useEffect(() => {
     client.mountDevtools()
 
@@ -211,5 +237,9 @@ export function useGeneration<
     status,
     stop,
     reset,
+    resumeSnapshot,
+    resumeState: resumeSnapshot?.resumeState ?? null,
+    pendingArtifacts: resumeSnapshot?.pendingArtifacts ?? [],
+    resultArtifacts: resumeSnapshot?.result?.artifacts ?? [],
   }
 }

@@ -1,0 +1,78 @@
+// Provider-neutral TanStack AI persistence models.
+//
+// Copy this file into a Prisma multi-file schema directory, then create and
+// apply migrations using the application's selected provider and normal Prisma
+// workflow. This fragment intentionally contains no datasource or generator.
+
+/// Thread message history (`MessageStore`).
+model Message {
+  threadId     String @id @map("thread_id")
+  messagesJson String @map("messages_json")
+
+  @@map("messages")
+}
+
+/// Run lifecycle records (`RunStore`).
+model Run {
+  runId      String  @id @map("run_id")
+  threadId   String  @map("thread_id")
+  status     String
+  startedAt  BigInt  @map("started_at")
+  finishedAt BigInt? @map("finished_at")
+  error      String?
+  usageJson  String? @map("usage_json")
+
+  @@map("runs")
+}
+
+/// Interrupt / approval records (`InterruptStore`).
+model Interrupt {
+  interruptId  String  @id @map("interrupt_id")
+  runId        String  @map("run_id")
+  threadId     String  @map("thread_id")
+  status       String
+  requestedAt  BigInt  @map("requested_at")
+  resolvedAt   BigInt? @map("resolved_at")
+  payloadJson  String  @map("payload_json")
+  responseJson String? @map("response_json")
+
+  @@map("interrupts")
+}
+
+/// Scoped key/value metadata (`MetadataStore`).
+model Metadata {
+  scope     String
+  key       String
+  valueJson String @map("value_json")
+
+  @@id([scope, key])
+  @@map("metadata")
+}
+
+/// Generation artifact references (`ArtifactStore`). Bytes live in the blob store.
+model Artifact {
+  artifactId  String  @id @map("artifact_id")
+  runId       String  @map("run_id")
+  threadId    String  @map("thread_id")
+  name        String
+  mimeType    String  @map("mime_type")
+  size        BigInt
+  externalUrl String? @map("external_url")
+  createdAt   BigInt  @map("created_at")
+
+  @@map("artifacts")
+}
+
+/// Generic blob objects (`BlobStore`).
+model Blob {
+  key                String  @id
+  contentType        String? @map("content_type")
+  size               BigInt?
+  etag               String?
+  customMetadataJson String? @map("custom_metadata_json")
+  createdAt          BigInt? @map("created_at")
+  updatedAt          BigInt? @map("updated_at")
+  body               Bytes?
+
+  @@map("blobs")
+}

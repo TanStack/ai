@@ -18,6 +18,7 @@ import type {
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
+  Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
@@ -25,8 +26,10 @@ import type {
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
   ReasoningStartEvent as AGUIReasoningStartEvent,
+  ResumeEntry as AGUIResumeEntry,
   RunErrorEvent as AGUIRunErrorEvent,
   RunFinishedEvent as AGUIRunFinishedEvent,
+  RunFinishedOutcome as AGUIRunFinishedOutcome,
   RunStartedEvent as AGUIRunStartedEvent,
   StateDeltaEvent as AGUIStateDeltaEvent,
   StateSnapshotEvent as AGUIStateSnapshotEvent,
@@ -980,6 +983,13 @@ export interface TextOptions<
   parentRunId?: string
 
   /**
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * Threaded through request parsing now so later runtime behavior can resolve
+   * upstream-native interrupts.
+   */
+  resume?: Array<RunAgentResumeItem>
+
+  /**
    * Middleware capability context for this run. The engine populates it with
    * the live middleware context so harness adapters that declare
    * `requires: [SomeCapability]` can read provided capabilities from inside
@@ -1067,6 +1077,12 @@ export type {
  * future release.
  */
 export type UsageTotals = TokenUsage
+
+export type Interrupt = AGUIInterrupt
+
+export type RunFinishedOutcome = AGUIRunFinishedOutcome
+
+export type RunAgentResumeItem = AGUIResumeEntry
 
 /**
  * Emitted when a run completes successfully.
@@ -1492,11 +1508,15 @@ export type ChatStream = AsyncIterable<
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
- * Yields all standard `StreamChunk` lifecycle events plus the three tagged
- * `CUSTOM` events the orchestrator can emit through this path:
+ * Yields all standard `StreamChunk` lifecycle events plus the typed
+ * structured-output `CUSTOM` event emitted through this path:
  * - `structured-output.complete` — terminal event with typed `value.object: T`
- * - `approval-requested` — server tool needs approval (pauses the run)
- * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * User-actionable waits, such as tool approval and client tool input, are
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
+ * streams. Legacy `approval-requested` and `tool-input-available` custom
+ * events may still be consumed for replay and backward compatibility, but
+ * they are not the current source of truth for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1505,8 +1525,6 @@ export type ChatStream = AsyncIterable<
  * for await (const chunk of stream) {
  *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
  *     chunk.value.object // typed as T
- *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *     chunk.value.toolCallId // typed as string
  *   }
  * }
  * ```
@@ -1817,6 +1835,36 @@ export type GeneratedMediaSource =
       url?: never
     }
 
+export type PersistedArtifactRole = 'input' | 'output'
+
+export type PersistedArtifactActivity =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+export interface PersistedArtifactRef {
+  role: PersistedArtifactRole
+  artifactId: string
+  threadId: string
+  runId: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+  externalUrl?: string
+  source: {
+    activity: PersistedArtifactActivity
+    path: string
+    provider: string
+    model: string
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    jobId?: string
+    expiresAt?: string
+  }
+}
+
 /**
  * A single generated image
  */
@@ -1837,6 +1885,8 @@ export interface ImageGenerationResult {
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1888,6 +1938,8 @@ export interface AudioGenerationResult {
   audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1979,6 +2031,8 @@ export interface VideoUrlResult {
    * real billed quantity — so consumers can compute exact cost.
    */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2028,6 +2082,8 @@ export interface TTSResult {
   contentType?: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2118,6 +2174,8 @@ export interface TranscriptionResult {
   words?: Array<TranscriptionWord>
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

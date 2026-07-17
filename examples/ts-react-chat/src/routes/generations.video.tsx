@@ -24,7 +24,10 @@ function DirectVideoGeneration() {
   const hookReturn = useGenerateVideo({
     fetcher: (input) =>
       generateVideoFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          prompt: resolveMediaPrompt(input.prompt).text,
+          duration: input.duration,
+        },
       }),
   })
 
@@ -39,7 +42,10 @@ function ServerFnVideoGeneration() {
   const hookReturn = useGenerateVideo({
     fetcher: (input) =>
       generateVideoStreamFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          prompt: resolveMediaPrompt(input.prompt).text,
+          duration: input.duration,
+        },
       }),
   })
 

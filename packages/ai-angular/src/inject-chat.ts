@@ -90,6 +90,9 @@ export function injectChat<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
     ...(bodySource !== undefined && { body: bodySource() }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(forwardedPropsSource !== undefined && {
@@ -106,6 +109,9 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
+    onResumeStateChange: (resumeState, pendingInterrupts) => {
+      options.onResumeStateChange?.(resumeState, pendingInterrupts)
+    },
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
@@ -156,7 +162,15 @@ export function injectChat<
     )
   }
 
-  afterNextRender(() => client.mountDevtools(), { injector })
+  afterNextRender(
+    () => {
+      client.mountDevtools()
+      // Delivery-durability resume is transparent: the resumable SSE
+      // connection adapter reattaches via the browser's native Last-Event-ID
+      // on reconnect. No client-side auto-resume wiring is needed.
+    },
+    { injector },
+  )
 
   destroyRef.onDestroy(() => {
     if (liveSource?.()) {

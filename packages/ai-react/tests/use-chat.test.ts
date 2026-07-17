@@ -3,7 +3,7 @@ import { EventType } from '@tanstack/ai'
 import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { StrictMode, useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UIMessage, UseChatOptions } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
@@ -14,6 +14,10 @@ import {
 } from './test-utils'
 
 describe('useChat', () => {
+  afterEach(() => {
+    vi.doUnmock('react')
+  })
+
   function createDeferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((promiseResolve) => {
@@ -34,6 +38,29 @@ describe('useChat', () => {
       expect(result.current.isSubscribed).toBe(false)
       expect(result.current.connectionStatus).toBe('disconnected')
       expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('reports persistence errors raised while the client is initializing', () => {
+      const persistenceError = new Error('resume persistence unavailable')
+      const onError = vi.fn()
+
+      expect(() =>
+        renderUseChat({
+          connection: createMockConnectionAdapter(),
+          onError,
+          persistence: {
+            server: {
+              getItem: () => {
+                throw persistenceError
+              },
+              setItem: vi.fn(),
+              removeItem: vi.fn(),
+            },
+          },
+        }),
+      ).not.toThrow()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(onError).toHaveBeenCalledWith(persistenceError)
     })
 
     it('should subscribe immediately when live is true', async () => {
@@ -86,7 +113,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -115,7 +142,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -155,7 +182,7 @@ describe('useChat', () => {
         const chat = useChat({
           connection: createMockConnectionAdapter(),
           id,
-          persistence,
+          persistence: { client: persistence },
         })
 
         return { ...chat, setId }
@@ -229,6 +256,18 @@ describe('useChat', () => {
 
       // Client should be the same instance, state should persist
       expect(result.current.messages).toBe(initialMessages)
+    })
+
+    it('does not expose delivery-cursor resume/autoResume machinery', () => {
+      // Delivery-durability resume is now transparent (the resumable SSE
+      // connection adapter reattaches via native Last-Event-ID). useChat only
+      // keeps interrupt (state) resume: `resumeInterrupts` + `resumeState`.
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter })
+
+      expect(result.current).not.toHaveProperty('resume')
+      expect(typeof result.current.resumeInterrupts).toBe('function')
+      expect(result.current.resumeState).toBeNull()
     })
   })
 
@@ -1854,6 +1893,56 @@ describe('useChat', () => {
   })
 
   describe('sessionGenerating', () => {
+    it('updates resume state from live interrupt chunks without a wrapper call', async () => {
+      const chunks: Array<StreamChunk> = [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-live-interrupt',
+          threadId: 'thread-live',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-live-interrupt',
+          timestamp: Date.now(),
+          delta: 'needs input',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-live-interrupt',
+          threadId: 'thread-live',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-live',
+                reason: 'client_tool_input',
+              },
+            ],
+          },
+        },
+      ]
+      const adapter: SubscribeConnectionAdapter = {
+        subscribe: async function* () {
+          for (const chunk of chunks) yield chunk
+        },
+        send: vi.fn(async () => {}),
+      }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.resumeState).toEqual({
+          threadId: 'thread-live',
+          runId: 'run-live-interrupt',
+        })
+        expect(result.current.pendingInterrupts).toEqual([
+          expect.objectContaining({ id: 'interrupt-live' }),
+        ])
+      })
+    })
+
     it('should expose sessionGenerating and update from stream run events', async () => {
       // Build chunks as a typed StreamChunk array so each yielded event is
       // checked against the AGUI discriminated union — no inline `as any`.

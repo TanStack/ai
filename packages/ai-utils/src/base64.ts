@@ -1,11 +1,12 @@
 /**
  * Cross-runtime base64 helpers.
  *
- * Both `arrayBufferToBase64` and `base64ToArrayBuffer` prefer the new native
- * `Uint8Array.toBase64()` / `Uint8Array.fromBase64()` methods (TC39 base64
- * proposal, Stage 3) when available — they are significantly faster and more
- * memory-efficient than the byte-walking fallback. The fallbacks use Node's
- * `Buffer` when present, then `atob`/`btoa` for browser / edge runtimes.
+ * `arrayBufferToBase64`, `base64ToUint8Array`, and `base64ToArrayBuffer`
+ * prefer the new native `Uint8Array.toBase64()` / `Uint8Array.fromBase64()`
+ * methods (TC39 base64 proposal, Stage 3) when available — they are
+ * significantly faster and more memory-efficient than the byte-walking
+ * fallback. The fallbacks use Node's `Buffer` when present, then
+ * `atob`/`btoa` for browser / edge runtimes.
  */
 
 interface Uint8ArrayWithBase64 {
@@ -56,13 +57,13 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 /**
- * Decode a base64 string into an `ArrayBuffer`.
+ * Decode a base64 string into a `Uint8Array`.
  */
-export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+export function base64ToUint8Array(base64: string): Uint8Array {
   // eslint-disable-next-line no-restricted-syntax -- feature-detecting Uint8Array.fromBase64 Stage-3 proposal not yet in lib.es types
   const fast = (Uint8Array as unknown as Uint8ArrayWithBase64).fromBase64
   if (typeof fast === 'function') {
-    return fast(base64).buffer as ArrayBuffer
+    return fast(base64)
   }
 
   if (typeof atob === 'function') {
@@ -71,13 +72,23 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i)
     }
-    return bytes.buffer
+    return bytes
   }
 
   if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-    const buf = Buffer.from(base64, 'base64')
-    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+    return new Uint8Array(Buffer.from(base64, 'base64'))
   }
 
   throw new Error('No base64 decoder available in this environment.')
+}
+
+/**
+ * Decode a base64 string into an `ArrayBuffer`.
+ */
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const bytes = base64ToUint8Array(base64)
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer
 }

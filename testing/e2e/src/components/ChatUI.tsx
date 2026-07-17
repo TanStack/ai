@@ -16,6 +16,7 @@ interface ChatUIProps {
     id: string
     approved: boolean
   }) => Promise<void>
+  hasPendingInterrupt?: boolean
   showImageInput?: boolean
   onStop?: () => void
   /** When the streaming structured-output CUSTOM event lands, the page
@@ -33,6 +34,7 @@ export function ChatUI({
   onSendMessage,
   onSendMessageWithImage,
   addToolApprovalResponse,
+  hasPendingInterrupt = false,
   showImageInput,
   onStop,
   structuredObject,
@@ -49,6 +51,7 @@ export function ChatUI({
   }, [messages])
 
   const handleSubmit = () => {
+    if (hasPendingInterrupt) return
     if (!input.trim()) return
     onSendMessage(input.trim())
     setInput('')
@@ -229,12 +232,13 @@ export function ChatUI({
             }
           }}
           placeholder="Type a message..."
+          disabled={hasPendingInterrupt}
           className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-orange-500/50"
         />
         <button
           data-testid="send-button"
           onClick={handleSubmit}
-          disabled={!input.trim() || isLoading}
+          disabled={!input.trim() || isLoading || hasPendingInterrupt}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >
           Send

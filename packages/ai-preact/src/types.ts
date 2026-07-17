@@ -1,9 +1,16 @@
-import type { AnyClientTool, ModelMessage, SchemaInput } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  ModelMessage,
+  RunAgentResumeItem,
+  SchemaInput,
+} from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ChatClientOptions,
   ChatClientState,
+  ChatPendingInterrupt,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
@@ -43,6 +50,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onResumeStateChange'
   | 'context'
   | 'devtools'
 > & {
@@ -95,6 +103,13 @@ export interface UseChatReturn<
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
+
+  resumeState: ChatResumeState | null
+  pendingInterrupts: Array<ChatPendingInterrupt>
+  resumeInterrupts: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
 
   /**
    * Reload the last assistant message

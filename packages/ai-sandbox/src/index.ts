@@ -39,6 +39,16 @@ export type {
   ReuseStrategy,
   SnapshotStrategy,
 } from './sandbox'
+export {
+  WORKSPACE_PERSISTENCE_METADATA_SCOPE,
+  workspacePersistenceArtifactId,
+  workspacePersistenceBlobKey,
+  workspacePersistenceManifestKey,
+} from './workspace-persistence-types'
+export type {
+  WorkspacePersistenceManifest,
+  WorkspacePersistenceOptions,
+} from './workspace-persistence-types'
 
 // Workspace
 export {

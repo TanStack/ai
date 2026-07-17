@@ -4,6 +4,7 @@ import type {
   GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  GenerationResultTransformContext,
   GenerationUsageInfo,
 } from './types'
 
@@ -19,6 +20,9 @@ export function createGenerationContext(args: {
   provider: string
   model: string
   modelOptions?: unknown
+  threadId?: string
+  runId?: string
+  artifactInputs?: unknown
   createId: (prefix: string) => string
 }): GenerationMiddlewareContext {
   return {
@@ -27,9 +31,13 @@ export function createGenerationContext(args: {
     provider: args.provider,
     model: args.model,
     modelOptions: args.modelOptions,
+    threadId: args.threadId,
+    runId: args.runId,
     source: 'server',
     createId: args.createId,
     context: undefined,
+    resultTransforms: [],
+    artifactInputs: args.artifactInputs,
   }
 }
 
@@ -85,4 +93,21 @@ export function runGenerationError(
   info: GenerationErrorInfo,
 ): Promise<void> {
   return run(middleware, (mw) => mw.onError?.(ctx, info))
+}
+
+export async function applyGenerationResultTransforms<TResult>(
+  ctx: GenerationMiddlewareContext,
+  result: TResult,
+): Promise<TResult> {
+  let current = result
+  const transformCtx: GenerationResultTransformContext = { middleware: ctx }
+
+  for (const transform of ctx.resultTransforms ?? []) {
+    const transformed = await transform(current, transformCtx)
+    if (transformed !== undefined) {
+      current = transformed as TResult
+    }
+  }
+
+  return current
 }

@@ -22,6 +22,17 @@ function lazyServerTool(name: string, executeFn: (args: any) => any): Tool {
   }
 }
 
+function expectSingleRunFinished(
+  chunks: Array<StreamChunk>,
+): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
+  const terminals = chunks.filter(
+    (chunk): chunk is Extract<StreamChunk, { type: 'RUN_FINISHED' }> =>
+      chunk.type === 'RUN_FINISHED',
+  )
+  expect(terminals).toHaveLength(1)
+  return terminals[0]!
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -409,7 +420,7 @@ describe('chat()', () => {
   // Client tools (no execute)
   // ==========================================================================
   describe('client tools (no execute)', () => {
-    it('should yield CUSTOM tool-input-available event for client tools', async () => {
+    it('should yield an interrupt outcome for client tools', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -429,17 +440,89 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      // Should yield a CUSTOM event for tool-input-available
-      const customChunks = chunks.filter(
-        (c) =>
-          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
-      )
-      expect(customChunks).toHaveLength(1)
+      const runFinished = expectSingleRunFinished(chunks)
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'tool_calls',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'client_tool_call_1',
+              reason: 'client_tool_input',
+              toolCallId: 'call_1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+    })
 
-      const value = (customChunks[0] as any).value
-      expect(value.toolCallId).toBe('call_1')
-      expect(value.toolName).toBe('clientSearch')
-      expect(value.input).toEqual({ query: 'test' })
+    it('should not run streaming structured-output finalization after a client-tool interrupt', async () => {
+      const structuredOutputSpy = vi.fn().mockResolvedValue({
+        data: { status: 'done' },
+        rawText: '{"status":"done"}',
+      })
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+        structuredOutput: structuredOutputSpy,
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search for test' }],
+        tools: [clientTool('clientSearch')],
+        outputSchema: {
+          type: 'object',
+          properties: { status: { type: 'string' } },
+          required: ['status'],
+        },
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      expect(structuredOutputSpy).not.toHaveBeenCalled()
+
+      const runFinished = expectSingleRunFinished(chunks)
+      expect(runFinished.outcome?.type).toBe('interrupt')
+
+      const interruptTerminalIndex = chunks.indexOf(runFinished)
+      const chunksAfterInterrupt = chunks.slice(interruptTerminalIndex + 1)
+      expect(
+        chunksAfterInterrupt.some(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            (chunk as { name?: string }).name === 'structured-output.complete',
+        ),
+      ).toBe(false)
+      expect(
+        chunksAfterInterrupt.some(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            (chunk as { name?: string }).name === 'structured-output.start',
+        ),
+      ).toBe(false)
+      expect(
+        chunksAfterInterrupt.some(
+          (chunk) =>
+            chunk.type === EventType.RUN_STARTED ||
+            chunk.type === EventType.RUN_FINISHED,
+        ),
+      ).toBe(false)
     })
   })
 
@@ -485,13 +568,36 @@ describe('chat()', () => {
       )
       expect(toolResultChunks).toHaveLength(1)
 
-      // Client tool should get a tool-input-available event
-      const customChunks = chunks.filter(
+      const toolResultIndex = chunks.findIndex(
         (c) =>
-          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
-      expect(customChunks).toHaveLength(1)
-      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+      const runFinished = expectSingleRunFinished(chunks)
+      const runFinishedIndex = chunks.indexOf(runFinished)
+      expect(runFinishedIndex).toBeGreaterThan(toolResultIndex)
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              reason: 'client_tool_input',
+              toolCallId: 'call_client',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'showNotification',
+                input: { message: 'done' },
+              },
+            },
+          ],
+        },
+      })
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        ),
+      ).toBe(false)
 
       // Adapter called once (waiting for client result, not looping)
       expect(calls).toHaveLength(1)
@@ -550,13 +656,36 @@ describe('chat()', () => {
       )
       expect(toolResultChunks).toHaveLength(1)
 
-      // Client tool should get a tool-input-available event
-      const customChunks = chunks.filter(
+      const toolResultIndex = chunks.findIndex(
         (c) =>
-          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
-      expect(customChunks).toHaveLength(1)
-      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+      const runFinished = expectSingleRunFinished(chunks)
+      const runFinishedIndex = chunks.indexOf(runFinished)
+      expect(runFinishedIndex).toBeGreaterThan(toolResultIndex)
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              reason: 'client_tool_input',
+              toolCallId: 'call_client',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'showNotification',
+                input: { message: 'done' },
+              },
+            },
+          ],
+        },
+      })
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        ),
+      ).toBe(false)
 
       // Adapter should NOT be called (still waiting for client result)
       expect(calls).toHaveLength(0)
@@ -567,7 +696,7 @@ describe('chat()', () => {
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
-    it('should yield CUSTOM approval-requested event for tools with needsApproval', async () => {
+    it('should end with an interrupt outcome for tools with needsApproval', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -590,18 +719,43 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      const approvalChunks = chunks.filter(
-        (c) => c.type === 'CUSTOM' && (c as any).name === 'approval-requested',
-      )
-      expect(approvalChunks).toHaveLength(1)
+      const runFinished = expectSingleRunFinished(chunks)
+      expect(runFinished).toBeDefined()
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'tool_calls',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'approval_call_1',
+              reason: 'approval_required',
+              message: 'Approval required to run dangerousTool',
+              toolCallId: 'call_1',
+              responseSchema: {
+                type: 'object',
+                properties: { approved: { type: 'boolean' } },
+                required: ['approved'],
+              },
+              metadata: {
+                kind: 'approval',
+                toolName: 'dangerousTool',
+                input: { action: 'delete' },
+              },
+            },
+          ],
+        },
+      })
 
-      const value = (approvalChunks[0] as any).value
-      expect(value.toolCallId).toBe('call_1')
-      expect(value.toolName).toBe('dangerousTool')
-      expect(value.approval.needsApproval).toBe(true)
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'CUSTOM' && (c as any).name === 'approval-requested',
+        ),
+      ).toBe(false)
     })
 
-    it('should yield CUSTOM approval-requested for client tools with needsApproval', async () => {
+    it('should end with an interrupt outcome for client tools with needsApproval', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -621,10 +775,99 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      const approvalChunks = chunks.filter(
-        (c) => c.type === 'CUSTOM' && (c as any).name === 'approval-requested',
-      )
-      expect(approvalChunks).toHaveLength(1)
+      const runFinished = expectSingleRunFinished(chunks)
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'tool_calls',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'approval_call_1',
+              reason: 'approval_required',
+              toolCallId: 'call_1',
+              metadata: {
+                kind: 'approval',
+                toolName: 'clientDanger',
+                input: {},
+              },
+            },
+          ],
+        },
+      })
+    })
+
+    it('should end with an interrupt outcome for client tool execution waits', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search for test' }],
+        tools: [clientTool('clientSearch')],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      const runFinished = expectSingleRunFinished(chunks)
+
+      expect(runFinished).toMatchObject({
+        type: 'RUN_FINISHED',
+        finishReason: 'tool_calls',
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'client_tool_call_1',
+              reason: 'client_tool_input',
+              message: 'Client tool clientSearch is ready to run',
+              toolCallId: 'call_1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+        ),
+      ).toBe(false)
+    })
+
+    it('should not expose internal lazy-tool waits as interrupts', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'missingLazyTool'),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Use the lazy tool' }],
+        tools: [lazyServerTool('missingLazyTool', () => ({ ok: true }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      const runFinished = chunks.findLast((c) => c.type === 'RUN_FINISHED')
+      expect((runFinished as any)?.outcome?.type).not.toBe('interrupt')
     })
   })
 

@@ -1,3 +1,194 @@
+import type {
+  AudioGenerationOptions,
+  ImageGenerationOptions,
+  TTSOptions,
+  TranscriptionOptions,
+  VideoGenerationOptions,
+} from './types'
+
+export type GenerationKind =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+type GenerationInputByKind = {
+  image: Omit<ImageGenerationOptions, 'logger' | 'model'>
+  audio: Omit<AudioGenerationOptions, 'logger' | 'model'>
+  tts: Omit<TTSOptions, 'logger' | 'model'>
+  video: Omit<VideoGenerationOptions, 'logger' | 'model'>
+  transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
+}
+
+export interface GenerationParams<TKind extends GenerationKind> {
+  input: GenerationInputByKind[TKind]
+  forwardedProps: Record<string, unknown>
+  threadId?: string
+  runId?: string
+}
+
+const generationKinds = [
+  'image',
+  'audio',
+  'tts',
+  'video',
+  'transcription',
+] as const satisfies ReadonlyArray<GenerationKind>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasOwnKey(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key)
+}
+
+function isGenerationEnvelope(body: unknown): body is Record<string, unknown> {
+  return (
+    isRecord(body) &&
+    (hasOwnKey(body, 'data') || hasOwnKey(body, 'forwardedProps'))
+  )
+}
+
+function assertGenerationKind(kind: unknown): asserts kind is GenerationKind {
+  if (!generationKinds.includes(kind as GenerationKind)) {
+    throw new Error(
+      `Unsupported generation kind: ${String(
+        kind,
+      )}. Expected one of ${generationKinds.join(', ')}.`,
+    )
+  }
+}
+
+function assertInputForKind(
+  kind: GenerationKind,
+  input: unknown,
+): asserts input is GenerationInputByKind[GenerationKind] {
+  if (!isRecord(input)) {
+    throw new Error(`Generation ${kind} input must be an object.`)
+  }
+
+  const requiredKey =
+    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
+
+  if (!hasOwnKey(input, requiredKey)) {
+    throw new Error(`Generation ${kind} input must include ${requiredKey}.`)
+  }
+}
+
+function isInputForKind(kind: GenerationKind, input: unknown): boolean {
+  if (!isRecord(input)) return false
+
+  const requiredKey =
+    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
+
+  return hasOwnKey(input, requiredKey)
+}
+
+function forwardedPropsFromEnvelope(
+  envelope: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!hasOwnKey(envelope, 'forwardedProps')) {
+    return {}
+  }
+
+  if (!isRecord(envelope.forwardedProps)) {
+    throw new Error('Generation envelope forwardedProps must be an object.')
+  }
+
+  return envelope.forwardedProps
+}
+
+function optionalStringField(
+  envelope: Record<string, unknown>,
+  key: 'threadId' | 'runId',
+): string | undefined {
+  if (!hasOwnKey(envelope, key)) {
+    return undefined
+  }
+
+  const value = envelope[key]
+  if (typeof value !== 'string') {
+    throw new Error(`Generation envelope ${key} must be a string.`)
+  }
+
+  return value
+}
+
+function generationIdentityFields(envelope: Record<string, unknown>): {
+  threadId?: string
+  runId?: string
+} {
+  const identity: {
+    threadId?: string
+    runId?: string
+  } = {}
+  const threadId = optionalStringField(envelope, 'threadId')
+  const runId = optionalStringField(envelope, 'runId')
+
+  if (threadId !== undefined) identity.threadId = threadId
+  if (runId !== undefined) identity.runId = runId
+
+  return identity
+}
+
+export function generationParamsFromBody<TKind extends GenerationKind>(
+  kind: TKind,
+  body: unknown,
+): GenerationParams<TKind> {
+  assertGenerationKind(kind)
+
+  if (isInputForKind(kind, body)) {
+    assertInputForKind(kind, body)
+    return {
+      input: body as GenerationInputByKind[TKind],
+      forwardedProps: {},
+    }
+  }
+
+  if (!isGenerationEnvelope(body)) {
+    assertInputForKind(kind, body)
+    return {
+      input: body as GenerationInputByKind[TKind],
+      forwardedProps: {},
+    }
+  }
+
+  if (!hasOwnKey(body, 'data')) {
+    throw new Error(`Generation ${kind} envelope must include data.`)
+  }
+
+  const input = body.data
+  assertInputForKind(kind, input)
+
+  const forwardedProps = forwardedPropsFromEnvelope(body)
+
+  return {
+    input: input as GenerationInputByKind[TKind],
+    forwardedProps,
+    ...generationIdentityFields(body),
+  }
+}
+
+export async function generationParamsFromRequest<TKind extends GenerationKind>(
+  kind: TKind,
+  request: Request,
+): Promise<GenerationParams<TKind>> {
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch (error) {
+    throw new Error('Invalid JSON request body.', { cause: error })
+  }
+
+  if (!isRecord(body)) {
+    throw new Error('Generation request body must be a JSON object.')
+  }
+
+  return generationParamsFromBody(kind, body)
+}
+
 export enum EventType {
   TEXT_MESSAGE_START = 'TEXT_MESSAGE_START',
   TEXT_MESSAGE_CONTENT = 'TEXT_MESSAGE_CONTENT',
@@ -103,8 +294,14 @@ export type {
   MediaPromptPart,
   MessagePart,
   ModelMessage,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+  Interrupt,
+  RunAgentResumeItem,
   RunErrorEvent,
   RunFinishedEvent,
+  RunFinishedOutcome,
   SchemaInput,
   StreamChunk,
   StructuredOutputPart,

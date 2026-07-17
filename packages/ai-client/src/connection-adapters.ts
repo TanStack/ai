@@ -6,6 +6,7 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
+  RunAgentResumeItem,
   RunErrorEvent,
   RunFinishedEvent,
   StreamChunk,
@@ -199,6 +200,8 @@ export interface RunAgentInputContext {
   threadId: string
   runId: string
   parentRunId?: string
+  /** AG-UI interrupt resume entries returned to the server on a follow-up run. */
+  resume?: Array<RunAgentResumeItem>
   /** Client-declared tools to advertise in the request payload. */
   clientTools?: Array<{
     name: string
@@ -443,6 +446,7 @@ function buildRunAgentInputBody(
     ...(runContext?.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
+    ...(runContext?.resume !== undefined && { resume: runContext.resume }),
     state: {},
     messages: wireMessages,
     tools: runContext?.clientTools ?? [],
@@ -482,7 +486,7 @@ function buildRunAgentInputBody(
  * const connection = fetchServerSentEvents('/api/chat', async () => ({
  *   body: {
  *     provider: 'openai',
- *     model: 'gpt-4o',
+ *     model: 'gpt-5.5',
  *   }
  * }));
  * ```
@@ -524,6 +528,7 @@ export function fetchServerSentEvents(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
+
       const response = await fetchClient(resolvedUrl, {
         method: 'POST',
         headers: requestHeaders,
@@ -566,7 +571,7 @@ export function fetchServerSentEvents(
  * const connection = fetchHttpStream('/api/chat', async () => ({
  *   body: {
  *     provider: 'openai',
- *     model: 'gpt-4o',
+ *     model: 'gpt-5.5',
  *   }
  * }));
  * ```
@@ -941,13 +946,14 @@ export function stream(
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data, abortSignal)
+      yield* streamFactory(messages, data, abortSignal, runContext)
     },
   }
 }
@@ -982,6 +988,7 @@ export function fetcherToConnectionAdapter(
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
+          ...(runContext.resume !== undefined && { resume: runContext.resume }),
         },
         { signal: abortSignal },
       )
@@ -1047,13 +1054,14 @@ export function rpcStream(
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data, abortSignal)
+      yield* rpcCall(messages, data, abortSignal, runContext)
     },
   }
 }

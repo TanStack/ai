@@ -4,7 +4,7 @@ import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/preact'
 import { StrictMode } from 'preact/compat'
 import { useState } from 'preact/hooks'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UIMessage } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
@@ -15,6 +15,10 @@ import {
 } from './test-utils'
 
 describe('useChat', () => {
+  afterEach(() => {
+    vi.doUnmock('preact/hooks')
+  })
+
   function createDeferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((promiseResolve) => {
@@ -87,7 +91,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -116,7 +120,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -156,7 +160,7 @@ describe('useChat', () => {
         const chat = useChat({
           connection: createMockConnectionAdapter(),
           id,
-          persistence,
+          persistence: { client: persistence },
         })
 
         return { ...chat, setId }

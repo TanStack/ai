@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Braces,
   Code2,
+  Database,
   FileAudio,
   FileText,
   Guitar,
@@ -243,6 +244,19 @@ export default function Header() {
           >
             <MessageSquare size={20} />
             <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/sqlite-persistence"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">SQLite Persistence</span>
           </Link>
 
           <Link

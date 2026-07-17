@@ -21,9 +21,15 @@ export type {
   ThinkingPart,
   StructuredOutputPart,
   // Client configuration types
+  ChatStorageAdapter,
   ChatClientPersistence,
+  ChatServerPersistence,
+  ChatPersistenceOptions,
   ChatClientOptions,
+  ChatPendingInterrupt,
   ClientContextOptionFromTools,
+  ChatResumeState,
+  ChatResumeSnapshot,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -36,11 +42,33 @@ export type {
   DistributedOmit,
   MultimodalContent,
 } from './types'
+export {
+  StorageUnavailableError,
+  indexedDBPersistence,
+  localStoragePersistence,
+  sessionStoragePersistence,
+} from './storage-adapters'
+export type {
+  IndexedDBPersistenceOptions,
+  JsonPrimitive,
+  JsonValue,
+  StorageCodec,
+  WebStoragePersistenceOptions,
+} from './storage-adapters'
 // Generation client types
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
+  GenerationResumeState,
+  GenerationResumeStatus,
+  GenerationResumeSnapshot,
+  GenerationPendingArtifact,
+  GenerationResultSnapshot,
+  GenerationErrorSnapshot,
+  GenerationEventSnapshot,
+  GenerationServerPersistence,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,
@@ -55,7 +83,10 @@ export type {
   SummarizeGenerateInput,
   VideoGenerateInput,
 } from './generation-types'
-export { GENERATION_EVENTS } from './generation-types'
+export {
+  GENERATION_EVENTS,
+  updateGenerationResumeSnapshot,
+} from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
 export {
@@ -72,7 +103,15 @@ export type {
   ExtractToolInput,
   ExtractToolOutput,
 } from './tool-types'
-export type { AnyClientTool } from '@tanstack/ai/client'
+export type {
+  AnyClientTool,
+  Interrupt,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+  RunAgentResumeItem,
+  RunFinishedOutcome,
+} from '@tanstack/ai/client'
 export type {
   RealtimeAdapter,
   RealtimeConnection,

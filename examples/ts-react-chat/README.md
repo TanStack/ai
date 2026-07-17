@@ -37,7 +37,23 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+SQLITE_CHAT_DB_URL=file:./sqlite-chat-persistence.db
 ```
+
+## SQLite Persistence Demo
+
+The `/sqlite-persistence` route demonstrates server state persistence with the
+Node SQLite adapter and browser hydration with `localStorage`. Set
+`SQLITE_CHAT_DB_URL` or use the default `file:./sqlite-chat-persistence.db`,
+then run the app and open `/sqlite-persistence`.
+
+The server uses `@tanstack/ai-persistence-drizzle/sqlite` for messages, runs,
+and interrupts. The client stores rendered messages and its lightweight
+interrupt resume snapshot separately. Refresh after a completed response to
+see both sides hydrate the same stable thread.
+
+Replaying a transiently dropped SSE connection (resumable streams) is a
+separate transport-level feature and is not configured in this demo.
 
 ## Trying Out Lazy Tool Discovery
 
@@ -78,7 +94,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 
 ### AI Capabilities
 
-- 🤖 Powered by **TanStack AI** with OpenAI GPT-4o
+- 🤖 Powered by **TanStack AI** with OpenAI `gpt-5.5`
 - 📝 Rich markdown formatting with syntax highlighting
 - 🎯 Customizable system prompts for tailored AI behavior
 - 🔄 Real-time streaming responses with Server-Sent Events
@@ -107,7 +123,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - **Routing**: TanStack Router
 - **State Management**: TanStack Store
 - **Styling**: Tailwind CSS
-- **AI Integration**: TanStack AI with OpenAI GPT-4o
+- **AI Integration**: TanStack AI with OpenAI `gpt-5.5`
 - **Chat Client**: `@tanstack/ai-react` with connection adapters
 - **Streaming**: Server-Sent Events via `fetchServerSentEvents`
 - **Tool Execution**: Automatic loop with `ToolCallManager`

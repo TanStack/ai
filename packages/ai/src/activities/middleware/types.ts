@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../../types'
+import type { StreamChunk, TokenUsage } from '../../types'
 
 // ===========================
 // Generation middleware
@@ -39,6 +39,36 @@ export type GenerationActivity =
   | 'tts'
   | 'transcription'
 
+/** Caller/server supplied identity for a generation run. */
+export interface GenerationRunIdentity {
+  /** Stable conversation/thread id for correlating generation events. */
+  threadId?: string
+  /** Stable run id for correlating generation events. */
+  runId?: string
+}
+
+export interface GenerationReplayInput<TResult = unknown> {
+  /**
+   * Previously persisted public generation events. Streaming replay yields
+   * these events as-is and does not call the provider.
+   */
+  events?: Iterable<StreamChunk> | AsyncIterable<StreamChunk>
+  /**
+   * Previously persisted terminal result. Non-streaming replay returns this
+   * value as-is; streaming replay wraps it in the standard generation event
+   * envelope. Result transforms are intentionally skipped for replay.
+   */
+  result?: TResult
+}
+
+/** Optional replay hook shared by media generation activities. */
+export interface GenerationReplayOptions<TResult = unknown> {
+  replay?: GenerationReplayInput<TResult>
+}
+
+export type GenerationRunOptions<TResult = unknown> = GenerationRunIdentity &
+  GenerationReplayOptions<TResult>
+
 /**
  * Stable context passed to every {@link GenerationMiddleware} hook. Created
  * once per activity call and shared across the hooks of that call.
@@ -60,6 +90,10 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   provider: string
   /** Model id. Emitted as `gen_ai.request.model`. */
   model: string
+  /** Stable conversation/thread id, when supplied by the caller. */
+  threadId?: string
+  /** Stable run id, when supplied by the caller. */
+  runId?: string
   /**
    * Provider-specific options passed to the activity, if any. Typed `unknown`
    * because each activity's options are strongly typed per model; a supertype
@@ -72,7 +106,29 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   createId: (prefix: string) => string
   /** Runtime context provided by the activity options, if any. */
   context: TContext
+  /**
+   * Result transforms registered by middleware during this activity call.
+   * Transforms run after the raw adapter result exists and before the final
+   * result is returned or streamed. Push multiple transforms to run them in
+   * registration order.
+   */
+  resultTransforms?: Array<GenerationResultTransform<any, TContext>>
+  /**
+   * Activity inputs captured for middleware that needs to transform or persist
+   * the result together with reconstructable request metadata.
+   */
+  artifactInputs?: unknown
 }
+
+export interface GenerationResultTransformContext<TContext = unknown> {
+  /** Stable context for the activity call being transformed. */
+  middleware: GenerationMiddlewareContext<TContext>
+}
+
+export type GenerationResultTransform<TResult = unknown, TContext = unknown> = (
+  result: TResult,
+  ctx: GenerationResultTransformContext<TContext>,
+) => TResult | undefined | Promise<TResult | undefined>
 
 // ===========================
 // Hook payloads

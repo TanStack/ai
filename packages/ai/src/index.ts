@@ -110,6 +110,7 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -133,12 +134,18 @@ export type {
 export type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
   GenerationActivity,
   GenerationUsageInfo,
   GenerationFinishInfo,
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationRunIdentity,
+  GenerationReplayInput,
+  GenerationReplayOptions,
+  GenerationRunOptions,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {
@@ -155,6 +162,28 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+
+// Shared lock primitive (one global 'locks' capability; see locks.ts)
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+} from './locks'
+export type { LockStore } from './locks'
+
+// Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
+export { CUSTOM_EVENT, isCustomEvent } from './custom-events'
+export type {
+  WellKnownCustomEventName,
+  FileChangedPayload,
+  ProcessOutputPayload,
+  PortOpenedPayload,
+  ApprovalRequestedPayload,
+  ApprovalResolvedPayload,
+  ArtifactCreatedPayload,
+  SandboxLifecyclePayload,
+} from './custom-events'
 
 // All types
 export * from './types'
@@ -248,6 +277,8 @@ export {
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'
+
+export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
