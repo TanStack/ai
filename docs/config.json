@@ -161,7 +161,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Connection Adapters",
