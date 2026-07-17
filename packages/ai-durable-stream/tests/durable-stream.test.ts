@@ -609,6 +609,57 @@ describe('durableStream official HTTP protocol', () => {
     )
   })
 
+  it('caps consecutive body-read failures and surfaces the read error', async () => {
+    let readNumber = 0
+    const fetchStub = vi.fn<typeof fetch>(async () => {
+      readNumber += 1
+      const seq = readNumber
+      let pullNumber = 0
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pullNumber += 1
+          if (pullNumber === 1) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                dataEvent([{ v: 1, seq, chunk: textChunk(`d${seq}`) }]) +
+                  controlEvent({
+                    // Advance the offset every window so each pass makes real
+                    // progress before the body fails.
+                    streamNextOffset: `opaque::after/${readNumber}?token=%2F`,
+                    streamCursor: `collapse::${readNumber}`,
+                    upToDate: true,
+                  }),
+              ),
+            )
+            return
+          }
+          controller.error(new TypeError('socket read failed'))
+        },
+      })
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-read-cap'),
+      {
+        server: 'https://ds.test',
+        fetch: fetchStub,
+        reconnect: { maxReadFailures: 3, delayMs: 0 },
+      },
+    )
+
+    await expect(async () => {
+      for await (const _entry of durability.read('-1')) {
+        // drain
+      }
+    }).rejects.toThrow(/socket read failed/)
+
+    // Initial read + 3 permitted retries; the 4th failure trips the ceiling.
+    expect(fetchStub).toHaveBeenCalledTimes(4)
+  })
+
   it('reconnects from the same control after data is read before a body failure', async () => {
     const requests: Array<CapturedRequest> = []
     let readNumber = 0

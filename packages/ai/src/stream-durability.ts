@@ -124,18 +124,77 @@ interface MemoryEntry {
 interface MemoryLog {
   entries: Array<MemoryEntry>
   complete: boolean
+  /** Epoch ms when the log was terminalized; undefined while still producing. */
+  completedAt: number | undefined
   waiters: Array<() => void>
+}
+
+/**
+ * Bounds for the in-process log store. `memoryStream` is the dev/single-process
+ * backend; without eviction its module-global Map would grow without bound on a
+ * long-lived server (one retained chunk buffer per run, forever). Completed logs
+ * are swept after a grace window — late resumers/joiners still work briefly —
+ * and a hard cap drops the oldest completed logs under pressure. Active
+ * (incomplete) logs are never evicted, so an in-flight run is never dropped.
+ */
+const MAX_MEMORY_RUNS = 1024
+const COMPLETED_LOG_TTL_MS = 5 * 60_000
+
+/**
+ * How long a from-start join (`-1` / `now`) waits for a run's first chunk before
+ * failing. Bounds the "joined a run that never produces" case so a consumer
+ * gets a surfaced error instead of an indefinitely-open, event-less connection.
+ */
+const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 30_000
+
+/** Options for the in-process delivery-durability backend. */
+export interface MemoryStreamOptions {
+  /**
+   * Milliseconds a from-start join waits for the run's first chunk before
+   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS}.
+   */
+  firstChunkDeadlineMs?: number
 }
 
 const memoryLogs = new Map<string, MemoryLog>()
 
+/**
+ * Evict completed logs past their grace window, then, if still over the cap,
+ * drop the oldest completed logs (the Map preserves insertion order) until back
+ * under the cap. Never touches an incomplete (in-flight) log.
+ */
+function sweepMemoryLogs(now: number): void {
+  for (const [id, log] of memoryLogs) {
+    if (
+      log.complete &&
+      log.completedAt !== undefined &&
+      now - log.completedAt > COMPLETED_LOG_TTL_MS
+    ) {
+      memoryLogs.delete(id)
+    }
+  }
+  if (memoryLogs.size <= MAX_MEMORY_RUNS) return
+  for (const [id, log] of memoryLogs) {
+    if (memoryLogs.size <= MAX_MEMORY_RUNS) break
+    if (log.complete) memoryLogs.delete(id)
+  }
+}
+
 function getOrCreateLog(id: string): MemoryLog {
   let log = memoryLogs.get(id)
   if (!log) {
-    log = { entries: [], complete: false, waiters: [] }
+    sweepMemoryLogs(Date.now())
+    log = { entries: [], complete: false, completedAt: undefined, waiters: [] }
     memoryLogs.set(id, log)
   }
   return log
+}
+
+function markComplete(log: MemoryLog): void {
+  if (!log.complete) {
+    log.complete = true
+    log.completedAt = Date.now()
+  }
 }
 
 function wakeWaiters(log: MemoryLog): void {
@@ -147,10 +206,20 @@ function wakeWaiters(log: MemoryLog): void {
 /**
  * The zero-infrastructure delivery-durability backend. Its versioned cursor is
  * deliberately private: callers and core only pass the returned string back.
+ *
+ * Logs live in a process-global map, so this backend is for development, tests,
+ * and single-process deployments only. Completed runs are evicted after a grace
+ * window (see {@link COMPLETED_LOG_TTL_MS}); a resume of an evicted or unknown
+ * run fails loudly rather than hanging.
  */
-export function memoryStream(request: Request): StreamDurability {
+export function memoryStream(
+  request: Request,
+  options: MemoryStreamOptions = {},
+): StreamDurability {
   const resumeOffset = readResumeOffset(request)
   const runId = resolveMemoryRunId(request, resumeOffset)
+  const firstChunkDeadlineMs =
+    options.firstChunkDeadlineMs ?? DEFAULT_FIRST_CHUNK_DEADLINE_MS
 
   return {
     resumeFrom: () => resumeOffset,
@@ -161,7 +230,7 @@ export function memoryStream(request: Request): StreamDurability {
         const seq = firstSeq + index
         const offset = encodeMemoryOffset(runId, seq)
         log.entries.push({ seq, offset, chunk })
-        if (isTerminalChunk(chunk)) log.complete = true
+        if (isTerminalChunk(chunk)) markComplete(log)
         return offset
       })
       wakeWaiters(log)
@@ -169,12 +238,23 @@ export function memoryStream(request: Request): StreamDurability {
     },
     close: () => {
       const log = getOrCreateLog(runId)
-      log.complete = true
+      markComplete(log)
       wakeWaiters(log)
       return Promise.resolve()
     },
     read: async function* (offset, signal) {
       const log = getOrCreateLog(runId)
+
+      // A concrete resume offset means data provably existed for this run. If
+      // the log holds nothing, the run was evicted (or never lived in this
+      // process) and will not reappear — fail rather than park forever.
+      const isFromStartJoin = offset === '-1' || offset === 'now'
+      if (!isFromStartJoin && log.entries.length === 0 && !log.complete) {
+        throw new Error(
+          `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,
+        )
+      }
+
       const threshold = memoryThreshold(
         offset,
         runId,
@@ -193,18 +273,40 @@ export function memoryStream(request: Request): StreamDurability {
         }
         if (log.complete || signal?.aborted) return
 
-        await new Promise<void>((resolve) => {
-          const onAbort = () => {
+        // Bound only the wait for the very first chunk: once a run has produced
+        // anything, its producer owns termination and a caught-up reader may
+        // legitimately park indefinitely between chunks.
+        const deadlineForFirstChunk =
+          log.entries.length === 0 ? firstChunkDeadlineMs : undefined
+
+        await new Promise<void>((resolve, reject) => {
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const cleanup = () => {
+            if (timer !== undefined) clearTimeout(timer)
+            signal?.removeEventListener('abort', onAbort)
             const waiterIndex = log.waiters.indexOf(wake)
             if (waiterIndex !== -1) log.waiters.splice(waiterIndex, 1)
+          }
+          const onAbort = () => {
+            cleanup()
             resolve()
           }
           const wake = () => {
-            signal?.removeEventListener('abort', onAbort)
+            cleanup()
             resolve()
           }
           log.waiters.push(wake)
           signal?.addEventListener('abort', onAbort, { once: true })
+          if (deadlineForFirstChunk !== undefined) {
+            timer = setTimeout(() => {
+              cleanup()
+              reject(
+                new Error(
+                  `Memory stream run produced no data within ${deadlineForFirstChunk}ms: ${JSON.stringify(runId)}`,
+                ),
+              )
+            }, deadlineForFirstChunk)
+          }
         })
       }
     },

@@ -25,3 +25,18 @@ prefix, and exposes `joinRun(runId)` to attach to an in-flight or finished run
 from the start (read-only GET with `offset=-1`). Untagged streams behave
 exactly as before. A durable run that ends with no terminal event and no
 forward progress now throws `DurableStreamIncompleteError` instead of hanging.
+
+Reconnection and durability are bounded so failures surface rather than hang or
+loop:
+
+- `memoryStream` evicts completed logs after a grace window (unbounded growth
+  is gone); resuming an expired/unknown run throws, and a from-start join to a
+  run that never produces fails after `MemoryStreamOptions.firstChunkDeadlineMs`.
+- `fetchServerSentEvents` accepts `reconnect: { maxAttempts, delayMs }` — a
+  throttle plus a total ceiling that fails with the new
+  `StreamReconnectLimitError` instead of reconnecting endlessly.
+- `durableStream` accepts `reconnect: { maxReadFailures, delayMs }` to bound its
+  read-retry loop, and `server` is now optional when `fetch` is provided (e.g. a
+  Cloudflare service binding).
+- `toServerSentEventsResponse` accepts `debug` to record durability terminal /
+  close failures server-side, where a replaying joiner cannot observe them.

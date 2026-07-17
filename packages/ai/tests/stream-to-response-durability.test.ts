@@ -113,6 +113,44 @@ describe('toServerSentEventsResponse with durability', () => {
     expect(loggedLabels).toEqual(['1', '2', '3', '4', '5'])
   })
 
+  it('logs a durability close failure server-side when debug is enabled', async () => {
+    const closeError = new Error('close boom')
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => {
+        throw closeError
+      },
+      async *read() {
+        // Not exercised by this test.
+      },
+    }
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    const { stream } = fiveChunkStream()
+
+    // The rethrown close failure lands in-band as an error event; the consumer
+    // drains cleanly. The point is that the cause is recorded server-side, where
+    // a joiner (who only sees a generic incomplete error) cannot observe it.
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability },
+        debug: { logger },
+      }),
+    )
+
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('closing durability stream failed'),
+      expect.objectContaining({ error: closeError }),
+    )
+  })
+
   it('replays opaque IDs from the log without iterating the input stream', async () => {
     const { stream } = fiveChunkStream()
     const produced = parseSseEvents(

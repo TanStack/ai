@@ -105,7 +105,11 @@ never guesses an offset.
 
 For development and tests, swap `durableStream(request, durableOptions)` for
 `memoryStream(request)` from `@tanstack/ai` — no external service required,
-at the cost of the log living only in that process's memory.
+at the cost of the log living only in that process's memory. Because that store
+is process-global, `memoryStream` is for development and single-process
+deployments only: completed runs are evicted after a grace window (so resuming
+an expired or unknown run fails loudly instead of hanging), and a from-start
+join to a run that never produces fails after `firstChunkDeadlineMs`.
 
 ### Cloudflare Durable Streams
 
@@ -218,8 +222,43 @@ The producer awaits `close()` on all in-process exits:
 
 Cancellation and provider failure also attempt to append a terminal
 `RUN_ERROR` with an aborted or failed error payload before closing. If terminal
-append or close fails, the failure is surfaced. This prevents a known error
-from leaving readers parked on an apparently live log.
+append or close fails, the failure is surfaced to the live consumer. Because a
+_joiner_ replaying the log only sees a generic incomplete error, pass
+`debug` to `toServerSentEventsResponse` to record the real cause server-side:
+
+```ts
+import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
+
+function respond(request: Request, stream: AsyncIterable<StreamChunk>) {
+  return toServerSentEventsResponse(stream, {
+    durability: { adapter: memoryStream(request) },
+    debug: true, // or { logger } for a custom Logger
+  })
+}
+```
+
+## Reconnection bounding
+
+Reconnection only follows forward progress, so a dropped connection resumes from
+the last offset. To keep a flapping producer (or a proxy that rolls the socket
+after every event) from reconnecting without end, the client throttles between
+attempts and caps the total, failing with `StreamReconnectLimitError`:
+
+```ts
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function makeConnection() {
+  return fetchServerSentEvents('/api/chat', {
+    reconnect: { maxAttempts: 1000, delayMs: 250 }, // defaults shown
+  })
+}
+```
+
+`durableStream` bounds its own read loop the same way — after a mid-window body
+read failure it retries from the last valid position, capping consecutive
+failures (`reconnect: { maxReadFailures: 10, delayMs: 250 }`). Normal
+long-poll window advancement is never throttled.
 
 ## Process death
 

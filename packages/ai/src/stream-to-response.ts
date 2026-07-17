@@ -1,5 +1,8 @@
 import { toRunErrorPayload } from './activities/error-payload'
 import { EventType } from './types'
+import { resolveDebugOption } from './logger/resolve'
+import type { InternalLogger } from './logger/internal-logger'
+import type { DebugOption } from './logger/types'
 import type { StreamDurability } from './stream-durability'
 import type { StreamChunk } from './types'
 
@@ -263,7 +266,11 @@ function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
 function durableStreamSource<TOffset extends string>(
   stream: AsyncIterable<StreamChunk>,
   durability: StreamDurability<TOffset>,
-  options: { abortController: AbortController; batch?: number },
+  options: {
+    abortController: AbortController
+    batch?: number
+    logger?: InternalLogger
+  },
 ): {
   source: AsyncIterable<StreamChunk>
   getId: (chunk: StreamChunk) => string | undefined
@@ -271,6 +278,7 @@ function durableStreamSource<TOffset extends string>(
   const resumeOffset = durability.resumeFrom()
   const batchSize = resolveBatchSize(options.batch)
   const abortController = options.abortController
+  const logger = options.logger
   const idByChunk = new WeakMap<object, string>()
   const seenOffsets = new Set<string>()
   const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
@@ -373,6 +381,12 @@ function durableStreamSource<TOffset extends string>(
           await durability.append([runErrorChunk(cause)])
           terminalPersisted = true
         } catch (terminalError) {
+          // Rethrown to the live consumer below, but a joiner replaying the log
+          // only ever sees a generic incomplete error — so record the real
+          // cause server-side where an operator can act on it.
+          logger?.errors('persisting terminal RUN_ERROR failed', {
+            error: terminalError,
+          })
           recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
         }
       }
@@ -380,6 +394,9 @@ function durableStreamSource<TOffset extends string>(
       try {
         await durability.close()
       } catch (closeError) {
+        // A failed close leaves the durable log unterminated for joiners; the
+        // live consumer gets the rethrow, but log it for the joiner's sake.
+        logger?.errors('closing durability stream failed', { error: closeError })
         recordFailure(closeError, 'closing durability stream failed')
       }
 
@@ -439,9 +456,16 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
   init?: ResponseInit & {
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    /**
+     * Debug logging for durability failure paths (terminal-append and close).
+     * These are rethrown to the live consumer, but a joiner only sees a generic
+     * incomplete error, so enabling this surfaces the real cause server-side.
+     */
+    debug?: DebugOption
   },
 ): Response {
-  const { headers, abortController, durability, ...responseInit } = init ?? {}
+  const { headers, abortController, durability, debug, ...responseInit } =
+    init ?? {}
 
   // Start with default SSE headers
   const mergedHeaders = new Headers({
@@ -465,6 +489,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: deliveryAbortController,
       batch: durability.batch,
+      ...(debug !== undefined ? { logger: resolveDebugOption(debug) } : {}),
     })
     body = toServerSentEventsStream(source, deliveryAbortController, getId)
   } else {

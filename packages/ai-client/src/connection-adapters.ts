@@ -68,6 +68,69 @@ export class DurableStreamIncompleteError extends Error {
   }
 }
 
+/**
+ * Thrown when a durable run exceeds its reconnect ceiling. Bounds the
+ * otherwise-unbounded reconnect loop so a flapping producer (or a proxy that
+ * rolls the socket after every event) surfaces a failure instead of
+ * reconnecting without end.
+ */
+export class StreamReconnectLimitError extends Error {
+  constructor(attempts: number) {
+    super(
+      `Durable run exceeded its reconnect ceiling of ${attempts} attempts — giving up.`,
+    )
+    this.name = 'StreamReconnectLimitError'
+  }
+}
+
+/**
+ * Reconnect bounding for resumable SSE. Reconnection only follows forward
+ * progress (a no-progress end already fails), so a constant throttle delay
+ * prevents a hot loop against the origin without penalizing a legitimately
+ * long-lived run, and a total-attempts ceiling caps a pathological
+ * progress-then-drop flapper.
+ */
+export interface ReconnectOptions {
+  /**
+   * Total reconnect attempts before failing with
+   * {@link StreamReconnectLimitError}. A normal long run reconnects only on
+   * rare drops and never approaches this. Default 1000.
+   */
+  maxAttempts?: number
+  /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
+  delayMs?: number
+}
+
+interface ResolvedReconnectOptions {
+  maxAttempts: number
+  delayMs: number
+}
+
+function resolveReconnectOptions(
+  options: ReconnectOptions | undefined,
+): ResolvedReconnectOptions {
+  return {
+    maxAttempts: options?.maxAttempts ?? 1000,
+    delayMs: options?.delayMs ?? 250,
+  }
+}
+
+/** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0 || signal?.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 function generateRunId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -269,9 +332,23 @@ async function* resumableServerSentEvents(
   url: string,
   requestInit: RequestInit,
   abortSignal?: AbortSignal,
+  reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
   const seen = new Set<string>()
   let lastEventId: string | undefined
+  const reconnect = resolveReconnectOptions(reconnectOptions)
+  let reconnectAttempts = 0
+
+  // Throttle before re-issuing the request, and enforce the total ceiling so a
+  // producer that keeps dropping after each event is bounded rather than
+  // reconnecting forever.
+  async function waitBeforeReconnect(): Promise<void> {
+    reconnectAttempts += 1
+    if (reconnectAttempts > reconnect.maxAttempts) {
+      throw new StreamReconnectLimitError(reconnect.maxAttempts)
+    }
+    await abortableDelay(reconnect.delayMs, abortSignal)
+  }
 
   for (;;) {
     if (abortSignal?.aborted) return
@@ -316,6 +393,7 @@ async function* resumableServerSentEvents(
         lastEventId !== undefined &&
         progressed
       ) {
+        await waitBeforeReconnect()
         continue
       }
       throw error
@@ -328,7 +406,8 @@ async function* resumableServerSentEvents(
       if (progressed) {
         // Clean end WITHOUT a terminal event but we advanced — the producer is
         // still going (or the socket rolled over). Reconnect from the last
-        // offset.
+        // offset (backing off to avoid a hot loop against the origin).
+        await waitBeforeReconnect()
         continue
       }
       // Ended without a terminal event AND made no forward progress on this
@@ -574,6 +653,8 @@ export interface FetchConnectionOptions {
   signal?: AbortSignal
   body?: Record<string, any>
   fetchClient?: typeof globalThis.fetch
+  /** Bounding for resumable-SSE reconnection (throttle delay + attempt ceiling). */
+  reconnect?: ReconnectOptions
 }
 
 /**
@@ -712,6 +793,7 @@ export function fetchServerSentEvents(
           credentials: resolvedOptions.credentials || 'same-origin',
         },
         signal,
+        resolvedOptions.reconnect,
       )
     },
     async *joinRun(runId, abortSignal) {
@@ -742,6 +824,7 @@ export function fetchServerSentEvents(
           credentials: resolvedOptions.credentials || 'same-origin',
         },
         signal,
+        resolvedOptions.reconnect,
       )
     },
   }

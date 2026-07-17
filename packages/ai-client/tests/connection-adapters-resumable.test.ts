@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import {
   DurableStreamIncompleteError,
+  StreamReconnectLimitError,
   fetchServerSentEvents,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
@@ -211,6 +212,70 @@ describe('resumable SSE connection adapter', () => {
         .map((chunk) => chunk.delta),
     ).toEqual(['1', '2'])
     expect(fetchClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds reconnection with a total-attempts ceiling', async () => {
+    // Every pass delivers one NEW tagged event then ends cleanly with no
+    // terminal — an endless progress-then-drop flapper the ceiling must stop.
+    let pass = 0
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      pass += 1
+      return sseResponse(contentEvent(`run@${pass}`, 'x'))
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { maxAttempts: 3, delayMs: 0 },
+    })
+
+    await expect(async () => {
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        // drain
+      }
+    }).rejects.toBeInstanceOf(StreamReconnectLimitError)
+
+    // Initial fetch + 3 permitted reconnects; the 4th trips the ceiling before
+    // re-fetching.
+    expect(fetchClient).toHaveBeenCalledTimes(4)
+  })
+
+  it('stops reconnecting promptly when aborted during the throttle delay', async () => {
+    const controller = new AbortController()
+    let pass = 0
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      pass += 1
+      return sseResponse(contentEvent(`run@${pass}`, 'x'))
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      signal: controller.signal,
+      reconnect: { delayMs: 10_000 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    const done = (async () => {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        chunks.push(chunk)
+      }
+    })()
+
+    // Let the first pass finish and enter the 10s throttle, then abort — the
+    // delay must resolve immediately rather than stalling for 10s.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    controller.abort()
+    await done
+
+    expect(chunks).toHaveLength(1)
+    expect(fetchClient).toHaveBeenCalledTimes(1)
   })
 
   it('does not reconnect a body reader after the caller aborts', async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { memoryStream } from '../src/stream-durability'
 import { EventType } from '../src/types'
 import { ev } from './test-utils'
@@ -169,6 +169,104 @@ describe('memoryStream', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 10))
     controller.abort()
     await expect(iterated).resolves.toEqual([])
+  })
+
+  it('fails a from-start join that never receives data before the deadline', async () => {
+    const joiner = memoryStream(
+      new Request(
+        'https://example.test/api/chat?runId=run-no-producer&offset=-1',
+        { method: 'POST' },
+      ),
+      { firstChunkDeadlineMs: 20 },
+    )
+    const resumeOffset = joiner.resumeFrom()
+    if (resumeOffset === null) throw new Error('Expected a resume offset')
+
+    await expect(readLabels(joiner.read(resumeOffset))).rejects.toThrow(
+      /produced no data within 20ms/,
+    )
+  })
+
+  it('does not apply the first-chunk deadline once a run has produced data', async () => {
+    const producer = memoryStream(
+      new Request('https://example.test/api/chat?runId=run-slow-tail', {
+        method: 'POST',
+      }),
+    )
+    await producer.append([ev.textContent('a')])
+
+    const joiner = memoryStream(
+      new Request('https://example.test/api/chat?runId=run-slow-tail&offset=-1', {
+        method: 'POST',
+      }),
+      { firstChunkDeadlineMs: 20 },
+    )
+    const resumeOffset = joiner.resumeFrom()
+    if (resumeOffset === null) throw new Error('Expected a resume offset')
+
+    const received: Array<string> = []
+    const done = (async () => {
+      for await (const { chunk } of joiner.read(resumeOffset)) {
+        received.push(label(chunk))
+      }
+    })()
+
+    // Well past the 20ms first-chunk deadline: a caught-up reader keeps parking
+    // because the run already produced data.
+    await new Promise<void>((resolve) => setTimeout(resolve, 60))
+    expect(received).toEqual(['a'])
+
+    await producer.append([ev.textContent('b'), ev.runFinished()])
+    await done
+    expect(received).toEqual(['a', 'b', '[RUN_FINISHED]'])
+  })
+
+  it('fails a resume of an evicted run rather than hanging', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    try {
+      const producer = memoryStream(
+        new Request('https://example.test/api/chat?runId=run-evictable', {
+          method: 'POST',
+        }),
+      )
+      const offsets = await producer.append([ev.textContent('a')])
+      await producer.append([ev.runFinished()])
+      await producer.close()
+      const resumeFrom = offsets[0]
+      if (resumeFrom === undefined) throw new Error('Expected an offset')
+
+      // Within the grace window the completed run still resumes.
+      const early = memoryStream(
+        new Request('https://example.test/api/chat?runId=run-evictable', {
+          method: 'POST',
+          headers: { 'Last-Event-ID': resumeFrom },
+        }),
+      )
+      expect(await readLabels(early.read(resumeFrom))).toEqual([
+        '[RUN_FINISHED]',
+      ])
+
+      // Past the grace window, creating a new log sweeps the completed one, and
+      // resuming the evicted run surfaces an error instead of parking.
+      vi.setSystemTime(6 * 60_000)
+      await memoryStream(
+        new Request('https://example.test/api/chat?runId=run-sweep-trigger', {
+          method: 'POST',
+        }),
+      ).append([ev.textContent('x')])
+      const late = memoryStream(
+        new Request('https://example.test/api/chat?runId=run-evictable', {
+          method: 'POST',
+          headers: { 'Last-Event-ID': resumeFrom },
+        }),
+      )
+      await expect(readLabels(late.read(resumeFrom))).rejects.toThrow(
+        /Unknown or expired memory stream run/,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rejects invalid run ids and offsets loudly', () => {

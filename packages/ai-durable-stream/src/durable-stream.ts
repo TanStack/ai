@@ -28,6 +28,38 @@ export interface DurableStreamOptions {
    * resolver is called for every request so credentials can rotate.
    */
   headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>)
+  /**
+   * Bounding for the read reconnect loop. After a response-body read failure
+   * mid-window, `read` retries from the last valid position; these cap
+   * consecutive retries and throttle them so a persistently failing backend
+   * surfaces the error instead of looping without end. Normal window
+   * advancement (long-poll) is never throttled.
+   */
+  reconnect?: {
+    /**
+     * Consecutive body-read-failure retries before surfacing the underlying
+     * read error. Default 10.
+     */
+    maxReadFailures?: number
+    /** Delay between read retries, in ms. Default 250. */
+    delayMs?: number
+  }
+}
+
+/** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0 || signal?.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 export class DurableStreamError extends Error {
@@ -416,6 +448,8 @@ export function durableStream(
     )
   }
   const server = rawServer.replace(/\/+$/, '')
+  const maxReadFailures = options.reconnect?.maxReadFailures ?? 10
+  const readRetryDelayMs = options.reconnect?.delayMs ?? 250
   const prefix = assertTransportField(
     options.streamPrefix ?? 'runs',
     'streamPrefix',
@@ -551,6 +585,7 @@ export function durableStream(
         deliveredThroughSeq = cursor.seq
       }
       let streamCursor: string | undefined
+      let consecutiveReadFailures = 0
 
       for (;;) {
         if (signal?.aborted) return
@@ -626,12 +661,22 @@ export function durableStream(
                 (backendOffset !== requestOffset ||
                   streamCursor !== requestCursor))
             ) {
+              // Made progress before the body failed — retry from the last valid
+              // position, but cap consecutive failures and throttle so a
+              // persistently failing backend surfaces the error, not a hot loop.
+              consecutiveReadFailures += 1
+              if (consecutiveReadFailures > maxReadFailures) throw error.readError
+              await abortableDelay(readRetryDelayMs, signal)
               continue
             }
             throw error.readError
           }
           throw error
         }
+
+        // A window read to completion (no body failure) clears the streak; only
+        // consecutive failures accumulate toward the ceiling.
+        consecutiveReadFailures = 0
 
         if (signal?.aborted) return
         if (dataAwaitingControl || !sawControl) {
