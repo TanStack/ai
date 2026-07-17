@@ -420,6 +420,37 @@ describe('toHttpResponse with durability', () => {
     ])
   })
 
+  it('persists a terminal RUN_ERROR before closing when the source throws', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=ndjson-error', {
+        method: 'POST',
+      }),
+    )
+    const throwing: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('1')
+        throw new Error('provider exploded')
+      },
+    }
+
+    const liveEvents = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(throwing, { durability: { adapter: durability } }),
+      ),
+    )
+    expect(liveEvents.map((event) => field(event, 'type'))).toContain(
+      'RUN_ERROR',
+    )
+
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    expect(logged.map((chunk) => chunk.type)).toEqual([
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_ERROR',
+    ])
+    expect(logged.at(-1)).toMatchObject({ message: 'provider exploded' })
+  })
+
   it('emits bare chunk lines (no envelope) when no durability is configured', async () => {
     const { stream } = fiveChunkStream()
     const events = parseNdjsonEvents(await readBody(toHttpResponse(stream)))

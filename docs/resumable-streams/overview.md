@@ -111,6 +111,15 @@ export async function GET(request: Request) {
 }
 ```
 
+> **Make the POST handler reconnect-safe.** On a dropped connection the client
+> auto-reconnects by re-issuing the **same POST** with a `Last-Event-ID` header.
+> The durability layer guarantees the provider stream is not re-run, but any
+> non-idempotent work your handler does _around_ `respond` — persisting the
+> user's message, creating a run row, incrementing usage — runs again on every
+> reconnect. Guard those side effects behind a resume check (a `Last-Event-ID`
+> header or a non-null `durability.resumeFrom()`) so they run only on a fresh
+> request, not a replay.
+
 Use a static `headers` object for fixed credentials or an async resolver for
 rotating tokens. The resolver runs for every create, append, read, and close
 request. This option belongs to the external URL adapter; a future direct
@@ -295,12 +304,17 @@ requires a backend where the producer outlives the delivery socket (see
 
 ## Reconnection bounding
 
-A dropped connection resumes from the last offset: a transport error retries as
-long as an offset is held (even if that attempt delivered only the replayed
-overlap), while a clean end with no new progress is treated as a completed run.
-To keep a flapping producer (or a proxy that rolls the socket after every event)
-from reconnecting without end, the client throttles between attempts and caps
-the total, failing with `StreamReconnectLimitError`:
+A dropped connection resumes from the last offset. A transport **error** retries
+as long as an offset is held — even if that attempt delivered only the replayed
+overlap and no new events. A durable run that ends **cleanly** without a terminal
+event and makes no forward progress fails with `DurableStreamIncompleteError`
+(the run cannot complete); only a non-durable (untagged) stream that ends cleanly
+is treated as a completed run. This asymmetry is deliberate: a clean close means
+the server ended the response, so a durable transport must never surface an empty
+long-poll window as a clean end while the producer is still alive. To keep a
+flapping producer (or a proxy that rolls the socket after every event) from
+reconnecting without end, the client throttles between attempts and caps the
+total, failing with `StreamReconnectLimitError`:
 
 ```ts
 import { fetchServerSentEvents } from '@tanstack/ai-client'

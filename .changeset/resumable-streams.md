@@ -36,7 +36,7 @@ loop:
 - `memoryStream` evicts completed logs after a grace window (unbounded growth
   is gone); resuming an expired/unknown run throws, and a from-start join to a
   run that never produces fails after `MemoryStreamOptions.firstChunkDeadlineMs`.
-- `fetchServerSentEvents` accepts `reconnect: { maxAttempts, delayMs }` — a
+- all four HTTP adapters accept `reconnect: { maxAttempts, delayMs }` — a
   throttle plus a total ceiling that fails with the new
   `StreamReconnectLimitError` instead of reconnecting endlessly.
 - `durableStream` accepts `reconnect: { maxReadFailures, delayMs }` to bound its

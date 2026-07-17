@@ -184,6 +184,12 @@ class FakeXhr {
     this.onload?.({ type: 'load' } as ProgressEvent)
     this.onloadend?.({ type: 'loadend' } as ProgressEvent)
   }
+
+  /** A transport error mid-stream (socket dropped). */
+  error(): void {
+    this.onerror?.({ type: 'error' } as ProgressEvent)
+    this.onloadend?.({ type: 'loadend' } as ProgressEvent)
+  }
 }
 
 /** A factory that hands out a fresh FakeXhr per open, tracked in `xhrs`. */
@@ -251,6 +257,46 @@ describe('resumable XHR transports', () => {
 
     await done
     expect(deltasOf(chunks)).toEqual(['1', '2', '3'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(queue.xhrs).toHaveLength(2)
+  })
+
+  it('xhrHttpStream reconnects after an onerror socket drop (held offset)', async () => {
+    // Proves the full XHR error→reconnect chain: readXhrLines.onerror wraps the
+    // failure as StreamReadError, which reaches resumableStream's retry branch
+    // and re-issues with Last-Event-ID (the parity the R1 comment claims).
+    const queue = createXhrQueue()
+    const adapter = xhrHttpStream('/api/chat', {
+      xhrFactory: queue.xhrFactory,
+      reconnect: { delayMs: 0 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    const done = (async () => {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        chunks.push(chunk)
+      }
+    })()
+
+    await flush()
+    queue.xhrs[0]!.progress(envelopeLine('run@1', contentChunk('1')))
+    queue.xhrs[0]!.error() // socket drops after delivering run@1
+
+    await flush()
+    expect(queue.xhrs[1]!.requestHeaders['Last-Event-ID']).toBe('run@1')
+    queue.xhrs[1]!.progress(
+      envelopeLine('run@2', contentChunk('2')) +
+        envelopeLine('run@3', finishedChunk()),
+    )
+    queue.xhrs[1]!.end()
+
+    await done
+    expect(deltasOf(chunks)).toEqual(['1', '2'])
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     expect(queue.xhrs).toHaveLength(2)
   })

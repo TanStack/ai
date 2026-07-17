@@ -81,7 +81,10 @@ describe('resumable SSE connection adapter', () => {
       )
     })
 
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.connect(
@@ -128,7 +131,10 @@ describe('resumable SSE connection adapter', () => {
     const fetchClient = vi.fn<typeof fetch>(async () =>
       sseResponse(finishedEvent('run@1')),
     )
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.joinRun('run-x')) {
@@ -158,7 +164,10 @@ describe('resumable SSE connection adapter', () => {
       return sseResponse('')
     })
 
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
 
     const deltas: Array<string> = []
     await expect(async () => {
@@ -194,7 +203,10 @@ describe('resumable SSE connection adapter', () => {
           finishedEvent('run@3'),
       )
     })
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
 
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.connect(
@@ -399,7 +411,10 @@ describe('resumable SSE connection adapter', () => {
         new TypeError('socket disconnected'),
       ),
     )
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
     const controller = new AbortController()
     const chunks: Array<StreamChunk> = []
 
@@ -424,7 +439,10 @@ describe('resumable SSE connection adapter', () => {
       }
       return new Response(null, { status: 503, statusText: 'Unavailable' })
     })
-    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
 
     await expect(async () => {
       for await (const _chunk of adapter.connect(

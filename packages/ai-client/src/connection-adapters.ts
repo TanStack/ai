@@ -300,6 +300,11 @@ async function* linesToSSEEvents(
       pendingId = line.slice(3).trim()
       continue
     }
+    // Assumes the durability wire emits one `id:` immediately followed by one
+    // `data:` per event (both shipped sinks do). `pendingId` attaches to the
+    // next data line and is cleared after it; blank-line event boundaries are
+    // stripped upstream, so a hand-rolled server that emits an id-only event or
+    // a persistent `id:` across events is not supported here.
     if (
       line.startsWith(':') ||
       line.startsWith('event:') ||
@@ -432,10 +437,11 @@ function fetchEventSource(
       // A fetch REJECTION (device offline, DNS blip, connection refused) is a
       // recoverable transport failure, not a fatal one — surface it as
       // StreamReadError so resumableStream retries from the last offset, mirroring
-      // the XHR path (whose onerror wraps the same way). On a genuine abort the
-      // rejection is an AbortError, but resumableStream's `abortSignal.aborted`
-      // check short-circuits before it inspects the error type. Without an offset
-      // (initial connect / non-durable), it still surfaces as a hard failure.
+      // the XHR path (whose onerror wraps the same way). On a genuine abort this
+      // wraps the AbortError too, but that's harmless: resumableStream checks
+      // `abortSignal.aborted` first and returns, so the wrapped error's type is
+      // never inspected. Without an offset (initial connect / non-durable), it
+      // still surfaces as a hard failure.
       throw new StreamReadError(error)
     }
     yield* parseResponse(response, abortSignal)
@@ -1195,7 +1201,10 @@ function readXhrLines(
 
   const finish = () => {
     enqueueDelta()
-    if (xhr.status < 200 || xhr.status >= 300) {
+    // Tolerate a transient status === 0 (matches enqueueDelta): a real non-2xx
+    // is an error, but status 0 here is not — treat the trailing buffer as a
+    // truncation check instead of fabricating a bogus "status: 0" error.
+    if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
       error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
     } else if (buffer.trim() && !aborted) {
       error = new StreamTruncatedError()

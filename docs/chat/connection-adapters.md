@@ -93,10 +93,11 @@ chat client does not create, parse, or persist them. Without ids, behavior is
 identical to a plain single fetch. See
 [Resumable Streams](../resumable-streams/overview).
 
-`fetchHttpStream` and the XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
-resume the same way. For NDJSON the offset rides in an `{ id, chunk }` envelope
-(see below) rather than an SSE `id:` line. Pass a durability adapter to
-`toHttpResponse` to enable it.
+`fetchHttpStream` and `xhrHttpStream` resume the same way over NDJSON, where the
+offset rides in an `{ id, chunk }` envelope (see below) instead of an SSE `id:`
+line — enable it by passing a durability adapter to `toHttpResponse`.
+`xhrServerSentEvents` resumes over SSE exactly like `fetchServerSentEvents`
+(paired with `toServerSentEventsResponse` and its `id:` lines).
 
 ## HTTP Streaming (NDJSON)
 
