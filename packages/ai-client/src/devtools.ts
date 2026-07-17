@@ -16,6 +16,7 @@ import type {
   ChatClientState,
   ConnectionStatus,
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   UIMessage,
 } from './types'
@@ -114,6 +115,7 @@ export interface AIDevtoolsChatSnapshot {
   connectionStatus: ConnectionStatus
   sessionGenerating: boolean
   activeRunIds: Array<string>
+  queue?: Array<QueuedMessage>
   error?: string
 }
 

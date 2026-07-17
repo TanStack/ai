@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { UIMessage } from '@tanstack/ai-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
+import type { UIMessage } from '@tanstack/ai-react'
+import type { QueuedMessage } from '@tanstack/ai-client'
 import { ToolCallDisplay } from '@/components/ToolCallDisplay'
 import { ApprovalPrompt } from '@/components/ApprovalPrompt'
 
@@ -25,6 +26,13 @@ interface ChatUIProps {
   /** Number of TEXT_MESSAGE_CONTENT chunks observed. Used by streaming e2e
    *  tests to verify the response actually streamed in multiple deltas. */
   contentDeltaCount?: number
+  /** Messages sent while a stream was already in flight — held here by
+   *  `useChat` and auto-sent FIFO once the run settles. Rendered in a
+   *  region separate from `messages` so e2e tests can assert queued state
+   *  distinctly from the delivered conversation. */
+  queue?: Array<QueuedMessage>
+  /** Remove a queued message before it drains. */
+  cancelQueued?: (id: string) => void
 }
 
 export function ChatUI({
@@ -37,6 +45,8 @@ export function ChatUI({
   onStop,
   structuredObject,
   contentDeltaCount,
+  queue,
+  cancelQueued,
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -141,13 +151,13 @@ export function ChatUI({
                 return (
                   <ApprovalPrompt
                     key={i}
-                    part={part as any}
+                    part={part}
                     onRespond={addToolApprovalResponse}
                   />
                 )
               }
               if (part.type === 'tool-call') {
-                return <ToolCallDisplay key={i} part={part as any} />
+                return <ToolCallDisplay key={i} part={part} />
               }
               if (part.type === 'tool-result') {
                 return (
@@ -195,6 +205,37 @@ export function ChatUI({
         </div>
       )}
 
+      {queue != null && queue.length > 0 && (
+        <div
+          data-testid="queue-list"
+          className="border-t border-gray-700 p-2 space-y-1"
+        >
+          {queue.map((queued) => (
+            <div
+              key={queued.id}
+              data-testid="queued-message"
+              className="flex items-center justify-between gap-2 text-xs text-gray-400 bg-gray-800/40 rounded px-2 py-1"
+            >
+              <span data-testid="queued-message-text">
+                {typeof queued.content === 'string'
+                  ? queued.content
+                  : JSON.stringify(queued.content)}
+              </span>
+              {cancelQueued && (
+                <button
+                  type="button"
+                  data-testid="cancel-queued-button"
+                  onClick={() => cancelQueued(queued.id)}
+                  className="px-2 py-0.5 bg-gray-700 text-white rounded text-xs"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="border-t border-gray-700 p-3 flex gap-2">
         {showImageInput && (
           <input
@@ -234,7 +275,12 @@ export function ChatUI({
         <button
           data-testid="send-button"
           onClick={handleSubmit}
-          disabled={!input.trim() || isLoading}
+          // Intentionally clickable while `isLoading` — sending here doesn't
+          // start a second concurrent stream; `useChat`/`ChatClient` queues
+          // it (default `whenBusy: 'queue'`) and auto-sends it FIFO once the
+          // in-flight run settles. Disabling on `isLoading` would make the
+          // queue feature unreachable from the UI.
+          disabled={!input.trim()}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >
           Send

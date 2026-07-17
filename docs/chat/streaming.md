@@ -203,6 +203,60 @@ export async function POST(request: Request) {
 }
 ```
 
+## Queueing Messages
+
+By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts a `QueueConfig` object, a plain shorthand string, or a strategy function:
+
+```tsx group=queueing-messages
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  queue: { whenBusy: "queue", drain: "fifo", maxSize: 5 },
+});
+```
+
+- **`whenBusy`** — what happens to a send that arrives while the client is busy (streaming, claiming a send, or draining the queue):
+  - `"queue"` (default) — hold the message; it sends once the run settles **successfully**. Clear the composer once the message appears in `queue` or `messages`.
+  - `"drop"` — ignore the send (promise still resolves; does not throw). The message never appears in `queue` or `messages` — keep the composer text and show feedback if you want the user to retry.
+  - `"interrupt"` — abort the current stream and send the new message immediately. Unlike `stop()`, this does **not** clear already-queued messages — they still drain after the interrupting send succeeds.
+- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the run settles successfully (string contents joined with `\n`, multimodal content concatenated in order; when sending via `ChatClient` with per-message `body`, the last item's `body` wins — framework hooks do not forward per-send `body`).
+- **`maxSize`** — caps how many messages can be queued (`0` means never queue).
+- **`onOverflow`** — `"reject"` (default) silently ignores a send once `maxSize` is reached (does not throw); `"drop-oldest"` evicts the oldest queued item to make room.
+
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`); actions are `'queue' | 'drop' | 'interrupt'` (no concurrent streams). Per-call `whenBusy` overrides both config and strategy.
+
+### When the queue drains vs flushes
+
+- **Drain (auto-send)** — only after a **successful** stream settle (including after tool continuations finish).
+- **Flush (discard without sending)** — on **error/abort of the active generation** (user `stop()`, real stream errors), `clear()`, `unsubscribe()`, and `reload()`. Interrupt aborts the old run without flushing; remaining items drain after a **successful** interrupting turn.
+- **`interrupt` does not flush** — existing queued items remain and drain after the interrupting turn succeeds.
+
+`useChat` exposes the pending queue as `queue` so you can render it distinctly from `messages`, along with `cancelQueued(id)` to cancel an item before it sends:
+
+```tsx group=queueing-messages
+function PendingQueue() {
+  return (
+    <>
+      {queue.map((q) => (
+        <div key={q.id} className="pending">
+          {typeof q.content === "string" ? q.content : "[attachment]"}
+          <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+        </div>
+      ))}
+    </>
+  );
+}
+```
+
+Override the configured policy for a single send with the second argument to `sendMessage`:
+
+```tsx group=queueing-messages
+sendMessage("Never mind, do this instead", { whenBusy: "interrupt" });
+```
+
+> **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `queue: "drop"` (or `{ whenBusy: "drop" }`) to restore the old behavior, or `queue: "interrupt"`.
+
 ## Best Practices
 
 1. **Handle loading states** - Use `isLoading` to show loading indicators
@@ -210,6 +264,7 @@ export async function POST(request: Request) {
 3. **Cancel on unmount** - Clean up streams when components unmount
 4. **Optimize rendering** - Batch updates if needed for performance
 5. **Show progress** - Display partial content as it streams
+6. **Render queued messages distinctly** - Use `queue` to show pending sends separately from `messages`
 
 ## Next Steps
 
