@@ -1,7 +1,7 @@
 ---
 title: Custom Durability Adapter
 id: custom-adapter
-description: "Back resumable streams with your own store — Redis, Postgres, a queue — by implementing the four-method StreamDurability contract."
+description: "Back resumable streams with your own store (Redis, Postgres, a queue) by implementing the four-method StreamDurability contract."
 keywords:
   - custom durability adapter
   - StreamDurability
@@ -57,7 +57,7 @@ import { EventType } from '@tanstack/ai'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 // Your backend, one append-only log per run. Back it with Redis Streams, a
-// Postgres table, a queue — anything that returns a stable cursor per entry.
+// Postgres table, a queue. Anything that returns a stable cursor per entry.
 interface RunLog {
   append: (chunks: Array<StreamChunk>) => Promise<Array<string>>
   readAfter: (
@@ -101,7 +101,7 @@ export function customDurability(
           if (isTerminal(entry.chunk)) return
         }
         if (await log.isComplete()) return
-        // Park — do NOT end the response here while the producer is alive.
+        // Park. Do NOT end the response here while the producer is alive.
         await log.waitForChange(signal)
       }
     },
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 }
 ```
 
-For NDJSON, swap `toServerSentEventsResponse` for `toHttpResponse` — the adapter
+For NDJSON, swap `toServerSentEventsResponse` for `toHttpResponse`. The adapter
 is identical; only the wire encoding changes.
 
 ## Type your offsets (optional)
@@ -149,9 +149,9 @@ Core still treats the value as opaque; the brand only tightens your own code.
 
 ## Terminalization is on you
 
-Core awaits `close()` on every producer exit — normal completion, cancellation,
-and failure — and appends a terminal `RUN_ERROR` on cancel/failure before
+Core awaits `close()` on every producer exit (normal completion, cancellation,
+and failure) and appends a terminal `RUN_ERROR` on cancel/failure before
 closing. Your `close()` must make `read`'s `isComplete()` return `true` and wake
 parked readers, so a caught-up reader stops rather than hanging. If your backend
 producer can die without running `close()` (process crash), add a lease/reaper
-that terminalizes abandoned logs — see [Process death](./overview#process-death).
+that terminalizes abandoned logs. See [Process death](./advanced#process-death).

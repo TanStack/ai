@@ -190,6 +190,11 @@
           "addedAt": "2026-07-17"
         },
         {
+          "label": "Advanced",
+          "to": "resumable-streams/advanced",
+          "addedAt": "2026-07-17"
+        },
+        {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
           "addedAt": "2026-07-17"

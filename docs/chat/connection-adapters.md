@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   });
 }
 
-// joinRun hits GET ?offset=-1&runId=... — replay only, no messages sent.
+// joinRun hits GET ?offset=-1&runId=... (replay only, no messages sent).
 export async function GET(request: Request) {
   const runId = new URL(request.url).searchParams.get("runId");
   if (!runId) return new Response("runId is required", { status: 400 });
@@ -127,7 +127,7 @@ and the provider is not called.
 
 `fetchHttpStream` and `xhrHttpStream` resume the same way over NDJSON, where the
 offset rides in an `{ id, chunk }` envelope (see below) instead of an SSE `id:`
-line — enable it by passing a durability adapter to `toHttpResponse`.
+line. Enable it by passing a durability adapter to `toHttpResponse`.
 `xhrServerSentEvents` resumes over SSE exactly like `fetchServerSentEvents`
 (paired with `toServerSentEventsResponse` and its `id:` lines).
 
@@ -357,7 +357,7 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
         while (!abortSignal?.aborted) {
           // Drain buffered chunks BEFORE honoring `closed`: a burst of messages
           // followed by a close event (common within one macrotask) must still
-          // deliver the queued chunks — including a trailing RUN_FINISHED —
+          // deliver the queued chunks (including a trailing RUN_FINISHED),
           // otherwise the client would hang waiting for a terminal it dropped.
           const buffered = queue.shift();
           if (buffered !== undefined) {
