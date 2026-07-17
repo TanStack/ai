@@ -1,12 +1,18 @@
 // packages/ai-mcp/tests/helpers/in-memory-server.ts
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import {
   InMemoryTaskMessageQueue,
   InMemoryTaskStore,
 } from '@modelcontextprotocol/sdk/experimental/tasks'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolRequestSchema,
+  CallToolResultSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
+import type { Tool as McpToolDef } from '@modelcontextprotocol/sdk/types.js'
 
 /** Build a connected (server, clientTransport) pair over in-memory transports. */
 export async function makeServerWithWeatherTool() {
@@ -101,6 +107,200 @@ export async function makeServerWithTaskRequiredTool() {
     InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return { server, clientTransport }
+}
+
+/**
+ * Like {@link makeServerWithTaskRequiredTool}, but the created task never
+ * reaches a terminal state — the client polls until aborted. Exposes the
+ * taskStore so tests can observe the task server-side.
+ */
+export async function makeServerWithPendingTaskTool() {
+  const taskStore = new InMemoryTaskStore()
+  const server = new McpServer(
+    { name: 'pending-tasky', version: '1.0.0' },
+    {
+      capabilities: { tasks: { requests: { tools: { call: {} } } } },
+      taskStore,
+      taskMessageQueue: new InMemoryTaskMessageQueue(),
+      defaultTaskPollInterval: 1,
+    },
+  )
+  server.experimental.tasks.registerToolTask(
+    'slow_task',
+    {
+      description: 'A task that never completes on its own',
+      inputSchema: { query: z.string() },
+      execution: { taskSupport: 'required' },
+    },
+    {
+      async createTask(_args, { taskStore: store, taskRequestedTtl }) {
+        const task = await store.createTask({
+          ttl: taskRequestedTtl,
+          pollInterval: 1,
+        })
+        return { task }
+      },
+      async getTask(_args, { taskId, taskStore: store }) {
+        return store.getTask(taskId)
+      },
+      async getTaskResult(_args, { taskId, taskStore: store }) {
+        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
+      },
+    },
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport, taskStore }
+}
+
+/** Low-level server exposing `tools` across handlers, with a tools/list request counter. */
+function makeLowLevelToolServer(options: {
+  name: string
+  pages: Array<Array<McpToolDef>>
+  listChanged?: boolean
+  listError?: string
+}) {
+  const server = new Server(
+    { name: options.name, version: '1.0.0' },
+    {
+      capabilities: {
+        tools: options.listChanged ? { listChanged: true } : {},
+      },
+    },
+  )
+  let listRequests = 0
+  server.setRequestHandler(ListToolsRequestSchema, (req) => {
+    listRequests++
+    if (options.listError) throw new Error(options.listError)
+    const cursor = req.params?.cursor
+    const index = cursor ? Number(cursor) : 0
+    const nextCursor =
+      index + 1 < options.pages.length ? String(index + 1) : undefined
+    return {
+      tools: options.pages[index] ?? [],
+      ...(nextCursor ? { nextCursor } : {}),
+    }
+  })
+  server.setRequestHandler(CallToolRequestSchema, (req) => ({
+    content: [{ type: 'text' as const, text: `called ${req.params.name}` }],
+  }))
+  return { server, getListRequests: () => listRequests }
+}
+
+/**
+ * Build a connected pair whose tools/list is split across two pages, with a
+ * request counter. Every tools/call answers `called <name>` — including names
+ * absent from the list.
+ */
+export async function makeServerWithPaginatedTools() {
+  const { server, getListRequests } = makeLowLevelToolServer({
+    name: 'paged',
+    pages: [
+      [
+        {
+          name: 'first_page_tool',
+          description: 'On page one',
+          inputSchema: { type: 'object' },
+        },
+      ],
+      [
+        {
+          name: 'second_page_tool',
+          description: 'On page two',
+          inputSchema: { type: 'object' },
+        },
+      ],
+    ],
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport, getListRequests }
+}
+
+/** Build a connected pair whose tools/list always errors but tools/call works. */
+export async function makeServerWithBrokenToolList() {
+  const { server } = makeLowLevelToolServer({
+    name: 'broken-list',
+    pages: [[]],
+    listError: 'tools/list unavailable',
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+/**
+ * Build a connected pair with one tool that declares an outputSchema but
+ * answers with text-only content (no structuredContent) — a lax server.
+ */
+export async function makeServerWithLaxOutputSchemaTool() {
+  const { server } = makeLowLevelToolServer({
+    name: 'lax',
+    pages: [
+      [
+        {
+          name: 'lax_tool',
+          description: 'Declares an output schema it never honors',
+          inputSchema: { type: 'object' },
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        },
+      ],
+    ],
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+/**
+ * Build a connected pair that LISTS a task-required tool but does NOT declare
+ * the tasks capability for tools/call (e.g. a proxy stripping capabilities).
+ */
+export async function makeServerWithUnsupportedTaskTool() {
+  const { server } = makeLowLevelToolServer({
+    name: 'no-task-capability',
+    pages: [
+      [
+        {
+          name: 'plain_tool',
+          description: 'plain',
+          inputSchema: { type: 'object' },
+        },
+        {
+          name: 'needs_tasks',
+          description: 'Requires tasks the server cannot execute',
+          inputSchema: { type: 'object' },
+          execution: { taskSupport: 'required' },
+        },
+      ],
+    ],
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+/** Build a connected pair with a single tool and tools/list_changed support. */
+export async function makeServerWithChangingTools() {
+  const { server, getListRequests } = makeLowLevelToolServer({
+    name: 'changing',
+    pages: [
+      [{ name: 'tool_a', description: 'A', inputSchema: { type: 'object' } }],
+    ],
+    listChanged: true,
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport, getListRequests }
 }
 
 /** Build a connected (server, clientTransport) pair that exposes a static text resource. */

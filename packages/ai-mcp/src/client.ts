@@ -1,13 +1,19 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import {
+  ListToolsResultSchema,
+  ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js'
+import {
   DuplicateToolNameError,
   MCPConnectionError,
+  MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
 import {
   callMcpTool,
   makeMcpExecute,
   requiresTaskExecution,
+  serverSupportsTaskCalls,
   toServerTools,
 } from './tools'
 import { isTransportInstance, resolveTransport } from './transport'
@@ -64,11 +70,15 @@ export interface MCPClient<
   ) => Promise<GetPromptResult>
   /**
    * Call a tool directly and return its raw MCP result. Tools declaring
-   * `execution.taskSupport: 'required'` automatically use task execution.
+   * `execution.taskSupport: 'required'` automatically use task execution when
+   * the server declares the tasks capability for tools/call. Pass
+   * `options.signal` to abort — an in-flight task is best-effort cancelled on
+   * the server.
    */
   callTool: (
     name: string,
     args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
   ) => Promise<Awaited<ReturnType<Client['callTool']>>>
   /**
    * The ORIGINAL connection descriptor this client was created from — the
@@ -122,6 +132,14 @@ class MCPClientImpl<
 
   async connect(transport: Transport): Promise<void> {
     try {
+      // A tools/list_changed notification invalidates the cached definitions
+      // so the next callTool re-discovers each tool's execution mode.
+      this.#client.setNotificationHandler(
+        ToolListChangedNotificationSchema,
+        () => {
+          this.#toolDefinitions = undefined
+        },
+      )
       await this.#client.connect(transport)
       this.capabilities = this.#client.getServerCapabilities() ?? {}
     } catch (err) {
@@ -129,8 +147,27 @@ class MCPClientImpl<
     }
   }
 
-  async #listTools(): Promise<Array<McpToolDef>> {
-    const defs = (await this.#client.listTools()).tools
+  /**
+   * Fetch every page of tools/list and refresh the definition cache.
+   *
+   * `raw: true` bypasses the SDK's `listTools()` wrapper so the SDK's own
+   * metadata caches (output-schema validators, task flags) are not armed —
+   * `callTool`'s lazy lookup must not switch a previously validation-free
+   * direct call over to strict structured-content validation.
+   */
+  async #listTools(options?: { raw?: boolean }): Promise<Array<McpToolDef>> {
+    const defs: Array<McpToolDef> = []
+    let cursor: string | undefined
+    do {
+      const page = options?.raw
+        ? await this.#client.request(
+            { method: 'tools/list', ...(cursor ? { params: { cursor } } : {}) },
+            ListToolsResultSchema,
+          )
+        : await this.#client.listTools(cursor ? { cursor } : undefined)
+      defs.push(...page.tools)
+      cursor = page.nextCursor
+    } while (cursor)
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
     return defs
   }
@@ -156,6 +193,14 @@ class MCPClientImpl<
       tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
         const serverTool = available.get(def.name)
         if (!serverTool) throw new MCPToolNotFoundError(def.name)
+        // A task-required tool on a server without the tasks capability for
+        // tools/call cannot be invoked (every call fails) — refuse the binding.
+        if (
+          requiresTaskExecution(serverTool) &&
+          !serverSupportsTaskCalls(this.#client)
+        ) {
+          throw new MCPTaskRequiredToolError(def.name)
+        }
         const tool = def.server(
           makeMcpExecute(
             this.#client,
@@ -229,12 +274,32 @@ class MCPClientImpl<
   async callTool(
     name: string,
     args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
   ): Promise<Awaited<ReturnType<Client['callTool']>>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    if (!this.#toolDefinitions?.has(name)) await this.#listTools()
+    if (!this.#toolDefinitions) {
+      // Lazy discovery so task-required tools work without a prior tools()
+      // call. Best-effort: a server whose tools/list fails (or omits the
+      // tool) still gets the plain tools/call it would have received before
+      // task support existed. Raw fetch — see #listTools.
+      try {
+        await this.#listTools({ raw: true })
+      } catch {
+        // fall through to a plain tools/call
+      }
+    }
     const definition = this.#toolDefinitions?.get(name)
-    const taskRequired = definition ? requiresTaskExecution(definition) : false
-    return callMcpTool(this.#client, name, args ?? {}, taskRequired)
+    const taskRequired =
+      definition !== undefined &&
+      requiresTaskExecution(definition) &&
+      serverSupportsTaskCalls(this.#client)
+    return callMcpTool(
+      this.#client,
+      name,
+      args ?? {},
+      taskRequired,
+      options?.signal,
+    )
   }
 
   async close(): Promise<void> {

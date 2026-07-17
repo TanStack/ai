@@ -1,5 +1,5 @@
 // packages/ai-mcp/tests/client.test.ts
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createMCPClient, createMCPClientFromTransport } from '../src/client'
 import {
   DuplicateToolNameError,
@@ -7,16 +7,18 @@ import {
   MCPTaskRequiredToolError,
 } from '../src/errors'
 import {
+  makeServerWithBrokenToolList,
+  makeServerWithChangingTools,
+  makeServerWithLaxOutputSchemaTool,
+  makeServerWithPaginatedTools,
+  makeServerWithPendingTaskTool,
   makeServerWithTaskRequiredTool,
+  makeServerWithUnsupportedTaskTool,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 describe('createMCPClient', () => {
-  it('retains the deprecated MCPTaskRequiredToolError export', () => {
-    expect(new MCPTaskRequiredToolError('legacy')).toBeInstanceOf(Error)
-  })
-
   it('connects and returns discovered tools', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
@@ -188,6 +190,126 @@ describe('createMCPClient', () => {
     expect(result.content).toEqual([
       { type: 'text', text: 'Research complete: direct tasks' },
     ])
+  })
+
+  it('tools() follows tools/list pagination across pages', async () => {
+    const { clientTransport } = await makeServerWithPaginatedTools()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const tools = await client.tools()
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'first_page_tool',
+      'second_page_tool',
+    ])
+  })
+
+  it('callTool does not re-list for a name absent from the cached list', async () => {
+    const { clientTransport, getListRequests } =
+      await makeServerWithPaginatedTools()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.tools()
+    const listed = getListRequests()
+    const result = await client.callTool('not_listed')
+    expect(result.content).toEqual([
+      { type: 'text', text: 'called not_listed' },
+    ])
+    await client.callTool('not_listed')
+    expect(getListRequests()).toBe(listed)
+  })
+
+  it('callTool falls back to a plain call when tools/list fails', async () => {
+    const { clientTransport } = await makeServerWithBrokenToolList()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const result = await client.callTool('anything')
+    expect(result.content).toEqual([{ type: 'text', text: 'called anything' }])
+  })
+
+  it('direct callTool without prior discovery stays validation-free', async () => {
+    const { clientTransport } = await makeServerWithLaxOutputSchemaTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    // The tool declares an outputSchema but returns only text content — the
+    // raw result must come back, not the SDK's strict structured-content error.
+    const result = await client.callTool('lax_tool')
+    expect(result.content).toEqual([{ type: 'text', text: 'called lax_tool' }])
+  })
+
+  it('excludes task-required tools when the server lacks the tasks capability', async () => {
+    const { clientTransport } = await makeServerWithUnsupportedTaskTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const tools = await client.tools()
+    expect(tools.map((t) => t.name)).toEqual(['plain_tool'])
+  })
+
+  it('throws MCPTaskRequiredToolError when binding a task-required tool the server cannot execute', async () => {
+    const { clientTransport } = await makeServerWithUnsupportedTaskTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const needsTasks = toolDefinition({
+      name: 'needs_tasks',
+      description: 'Requires tasks the server cannot execute',
+      inputSchema: z.object({}),
+    })
+    await expect(client.tools([needsTasks])).rejects.toBeInstanceOf(
+      MCPTaskRequiredToolError,
+    )
+  })
+
+  it('callTool rejects immediately when the signal is already aborted', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      client.callTool(
+        'get_weather',
+        { city: 'Berlin' },
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow()
+  })
+
+  it('cancels the remote task when callTool is aborted mid-poll', async () => {
+    const { clientTransport, taskStore } = await makeServerWithPendingTaskTool()
+    const sent: Array<string> = []
+    const origSend = clientTransport.send.bind(clientTransport)
+    clientTransport.send = (message, sendOptions) => {
+      if ('method' in message && typeof message.method === 'string') {
+        sent.push(message.method)
+      }
+      return origSend(message, sendOptions)
+    }
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const controller = new AbortController()
+    const pending = client.callTool(
+      'slow_task',
+      { query: 'q' },
+      { signal: controller.signal },
+    )
+    // Wait until the task exists server-side, then abort the poll loop.
+    await vi.waitFor(async () => {
+      const { tasks } = await taskStore.listTasks()
+      expect(tasks).toHaveLength(1)
+    })
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    await vi.waitFor(() => {
+      expect(sent).toContain('tasks/cancel')
+    })
+  })
+
+  it('re-lists tools after a tools/list_changed notification', async () => {
+    const { server, clientTransport, getListRequests } =
+      await makeServerWithChangingTools()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.callTool('tool_a')
+    const listed = getListRequests()
+    await client.callTool('tool_a')
+    expect(getListRequests()).toBe(listed) // cached — no re-list
+    await server.sendToolListChanged()
+    await vi.waitFor(async () => {
+      await client.callTool('tool_a')
+      expect(getListRequests()).toBeGreaterThan(listed)
+    })
   })
 
   it('callTool throws MCPConnectionError when client is closed', async () => {

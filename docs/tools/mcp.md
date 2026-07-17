@@ -240,9 +240,12 @@ const tools = await mcp.tools()
 > experimental `tasks/callToolStream` flow. TanStack AI waits through task
 > status updates and returns the terminal result to the model. Tools declaring
 > `taskSupport: 'optional'` continue to use ordinary `callTool` execution.
+> Task execution needs the server to declare the tasks capability for
+> `tools/call`; a server that lists a task-required tool without it is
+> skipped by auto-discovery (the tool could never be invoked).
 >
-> If the chat run aborts, TanStack AI stops waiting for the task, but it does
-> not cancel a remote task the server has already created.
+> If the chat run aborts, TanStack AI stops waiting for the task and sends a
+> best-effort `tasks/cancel` for a remote task the server has already created.
 
 ### Mode 2 — Explicit definitions (`client.tools([...defs])`)
 
@@ -486,6 +489,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | Deprecated compatibility export. Task-required tools are now supported and this error is no longer thrown by `tools()` |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` but the server does not declare the tasks capability for `tools/call`, so every invocation would fail |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).
