@@ -446,6 +446,31 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.error?.message).toContain('memory limit')
     })
 
+    it('keeps shared WASM healthy after OOM with an in-flight tool', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
+      const context = await driver.createContext({
+        bindings: {
+          hang: makeBinding('hang', () => new Promise(() => {})),
+        },
+        memoryLimit: 1,
+      })
+
+      const result = await context.execute(`
+        hang({});
+        return "x".repeat(8 * 1024 * 1024);
+      `)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('MemoryLimitError')
+
+      const next = await driver.createContext({ bindings: {} })
+      const after = await next.execute('return 42')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe(42)
+      await next.dispose()
+    })
+
     it('dispose is safe after memory limit error', async () => {
       const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
       const context = await driver.createContext({

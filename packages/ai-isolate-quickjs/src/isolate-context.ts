@@ -147,7 +147,7 @@ export class QuickJSIsolateContext implements IsolateContext {
     // errors, interrupted straight-line code) leave no unsettled guest state.
     let guestSettled = true
 
-    const releaseVmAfterFatalError = () => {
+    const releaseVmAfterFatalError = async () => {
       if (this.disposed) return
       try {
         this.vm.runtime.setInterruptHandler(() => false)
@@ -155,6 +155,16 @@ export class QuickJSIsolateContext implements IsolateContext {
         // ignore if runtime is already torn down
       }
       this.disposed = true
+
+      // Fatal limits can occur while host tools still own unsettled QuickJS
+      // deferreds. Settle them before freeing the runtime so their native
+      // handles cannot abort the shared WASM module during JS_FreeRuntime.
+      for (const cancel of [...this.execState.pendingCancels]) {
+        cancel()
+      }
+      this.execState.pendingCancels.clear()
+      await new Promise((r) => setTimeout(r, 0))
+
       this.vm.dispose()
     }
 
@@ -188,7 +198,7 @@ export class QuickJSIsolateContext implements IsolateContext {
         await releaseAfterTimeout()
       } else if (isFatalQuickJSLimitError(normalized)) {
         // Memory/stack limits leave the heap in an unknown state.
-        releaseVmAfterFatalError()
+        await releaseVmAfterFatalError()
       }
       return {
         success: false as const,
