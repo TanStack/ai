@@ -18,8 +18,7 @@ import type { StreamChunk } from './types'
  * @example
  * ```typescript
  * const stream = chat({
- *   adapter: openaiText(),
- *   model: 'gpt-5.5',
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * });
  * const text = await streamToText(stream);
@@ -284,7 +283,17 @@ function durableStreamSource<TOffset extends string>(
   const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
 
   const validateOffset = (offset: TOffset): void => {
-    if (offset.length === 0 || /[\0\r\n]/.test(offset)) {
+    // Reject NUL/CR/LF (would corrupt the SSE `id:` line) and any offset that
+    // is not invariant under the wire round-trip. The SSE client reads the id
+    // with `.trim()`, so an offset with leading/trailing whitespace would come
+    // back changed and no longer match on reconnect — fail loud here rather
+    // than silently mis-resuming. (NDJSON carries the offset inside the JSON
+    // envelope and is unaffected, but the contract must hold for both wires.)
+    if (
+      offset.length === 0 ||
+      /[\0\r\n]/.test(offset) ||
+      offset !== offset.trim()
+    ) {
       throw new Error(
         `Invalid durability offset for SSE id: ${JSON.stringify(offset)}`,
       )
@@ -300,6 +309,11 @@ function durableStreamSource<TOffset extends string>(
   async function* produce(): AsyncIterable<StreamChunk> {
     let batch: Array<StreamChunk> = []
     let terminalPersisted = false
+    // Whether a terminal event was actually delivered LIVE to the consumer (as
+    // opposed to only appended to the log). Distinguishes "the run already ended
+    // on the wire" from "the log has a terminal but the consumer never saw one",
+    // which governs whether a late durability-cleanup failure may be rethrown.
+    let terminalForwarded = false
     let failure: RecordedFailure | undefined
     let terminalCause: unknown
     let hasTerminalCause = false
@@ -341,7 +355,12 @@ function durableStreamSource<TOffset extends string>(
       ) {
         terminalPersisted = true
       }
-      for (const chunk of toForward) yield chunk
+      for (const chunk of toForward) {
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          terminalForwarded = true
+        }
+        yield chunk
+      }
     }
 
     try {
@@ -373,10 +392,33 @@ function durableStreamSource<TOffset extends string>(
       }
     } finally {
       const cancelled = isAborted(abortController.signal)
+
+      // Persist any buffered-but-unflushed chunks before terminalizing, so a
+      // joiner replaying the log sees everything produced up to a disconnect
+      // rather than a truncated prefix. On the abort path the streaming loop
+      // broke before its trailing flush; drain flush() here for its persistence
+      // side effect only (the delivery socket is gone, so the yielded chunks are
+      // discarded). The normal and provider-throw paths already flushed, so
+      // `batch` is empty for them and this is a no-op.
+      if (batch.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          for await (const _chunk of flush()) {
+            // persist-only: nothing consumes these
+          }
+        } catch (flushError) {
+          recordFailure(flushError, 'flushing buffered chunks on exit failed')
+        }
+      }
+
       if (
         needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
       ) {
-        const cause = cancelled ? { name: 'AbortError' } : terminalCause
+        // Prefer the real provider error even when the delivery socket was also
+        // aborted: if the run genuinely failed, a joiner should see that cause,
+        // not a generic AbortError that masks it. AbortError is only used for a
+        // pure cancellation with no underlying failure.
+        const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
         try {
           await durability.append([runErrorChunk(cause)])
           terminalPersisted = true
@@ -402,9 +444,15 @@ function durableStreamSource<TOffset extends string>(
         recordFailure(closeError, 'closing durability stream failed')
       }
 
-      // Iterator cancellation must reject when awaited terminalization fails.
+      // Rethrow a terminalization/close failure to the live consumer ONLY when
+      // no terminal reached it yet — the transport then synthesizes a live
+      // RUN_ERROR so the consumer isn't left without a terminal. If a terminal
+      // was already forwarded (the run ended on the wire), a late close()
+      // failure is a server-side cleanup issue already recorded via
+      // logger.errors; rethrowing it would append a contradictory second
+      // terminal (RUN_ERROR after RUN_FINISHED) on the wire.
       // eslint-disable-next-line no-unsafe-finally
-      if (failure !== undefined) throw failure.error
+      if (failure !== undefined && !terminalForwarded) throw failure.error
     }
   }
 
@@ -449,8 +497,10 @@ function durableStreamSource<TOffset extends string>(
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } });
+ * export async function POST(request: Request) {
+ *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
+ *   return toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } });
+ * }
  * ```
  */
 export function toServerSentEventsResponse<TOffset extends string = string>(
@@ -531,7 +581,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
+ * const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
  * const readableStream = toHttpStream(stream);
  * // Use with Response for HTTP streaming (not SSE)
  * return new Response(readableStream, {
@@ -582,8 +632,10 @@ export function toHttpStream(
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toHttpResponse(stream, { durability: { adapter: memoryStream(request) } });
+ * export async function POST(request: Request) {
+ *   const stream = chat({ adapter: openaiText('gpt-5.5'), messages: [...] });
+ *   return toHttpResponse(stream, { durability: { adapter: memoryStream(request) } });
+ * }
  * ```
  */
 export function toHttpResponse<TOffset extends string = string>(
@@ -599,7 +651,22 @@ export function toHttpResponse<TOffset extends string = string>(
     debug?: DebugOption
   },
 ): Response {
-  const { abortController, durability, debug, ...responseInit } = init ?? {}
+  const { abortController, durability, debug, headers, ...responseInit } =
+    init ?? {}
+
+  // Default to a streaming NDJSON content type (with no-cache), overridable by
+  // user headers. Without an explicit streaming type some intermediaries buffer
+  // the response, defeating incremental delivery. Mirrors the SSE helper.
+  const mergedHeaders = new Headers({
+    'Content-Type': 'application/x-ndjson',
+    'Cache-Control': 'no-cache',
+  })
+  if (headers) {
+    const userHeaders = new Headers(headers)
+    userHeaders.forEach((value, key) => {
+      mergedHeaders.set(key, value)
+    })
+  }
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
@@ -621,5 +688,6 @@ export function toHttpResponse<TOffset extends string = string>(
 
   return new Response(body, {
     ...responseInit,
+    headers: mergedHeaders,
   })
 }

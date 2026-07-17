@@ -16,6 +16,7 @@ sources:
   - 'TanStack/ai:docs/chat/connection-adapters.md'
   - 'TanStack/ai:docs/chat/thinking-content.md'
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
+  - 'TanStack/ai:docs/resumable-streams/overview.md'
 ---
 
 # Chat Experience
@@ -41,7 +42,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = body
 
         const stream = chat({
-          adapter: openaiText('gpt-5.2'),
+          adapter: openaiText('gpt-5.5'),
           messages,
           systemPrompts: ['You are a helpful assistant.'],
           abortController,
@@ -327,7 +328,7 @@ import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   abortController,
 })
@@ -439,7 +440,7 @@ const result = streamText({ model: openai('gpt-5.5'), messages })
 // CORRECT
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
@@ -453,7 +454,7 @@ streamText({ model: openai('gpt-5.5'), messages })
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
@@ -461,11 +462,11 @@ chat({ adapter: openaiText('gpt-5.2'), messages })
 ```typescript
 // WRONG
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.2', messages })
+chat({ adapter: openai(), model: 'gpt-5.5', messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The monolithic `openai()` adapter is deprecated. Use tree-shakeable adapters:
@@ -487,10 +488,10 @@ return toServerSentEventsResponse(stream, { abortController })
 
 ```typescript
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.2', messages })
+chat({ adapter: openaiText(), model: 'gpt-5.5', messages })
 
 // CORRECT
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.

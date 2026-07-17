@@ -22,6 +22,10 @@ import type { StreamChunk } from '@tanstack/ai'
  * JSON (each durable line is an `{ id, chunk }` envelope). The durability layer
  * — logging, offsets, resume, terminalization — is identical for both.
  */
+// Emits bare TEXT_MESSAGE_CONTENT chunks without TEXT_MESSAGE_START/END
+// bracketing: this harness deliberately exercises raw chunk delivery + resume,
+// not UIMessage reassembly. The durability layer terminalizes on RUN_FINISHED
+// (emitted below), which is all resume/join needs.
 function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
@@ -55,14 +59,20 @@ function durableRun(request: Request) {
   const url = new URL(request.url)
   const runId = url.searchParams.get('runId') ?? crypto.randomUUID()
   url.searchParams.set('runId', runId)
+  // On a reconnect (Last-Event-ID present), memoryStream resolves the real run
+  // from the offset itself and ignores this URL runId — so a freshly minted
+  // random id here does NOT name the run being served and must not be
+  // advertised via X-Run-Id.
+  const isResume = request.headers.get('Last-Event-ID') !== null
   return {
     durability: memoryStream(new Request(url, request)),
     runId,
+    advertiseRunId: isResume ? undefined : runId,
   }
 }
 
-function withRunId(response: Response, runId: string): Response {
-  response.headers.set('X-Run-Id', runId)
+function withRunId(response: Response, runId: string | undefined): Response {
+  if (runId !== undefined) response.headers.set('X-Run-Id', runId)
   return response
 }
 
@@ -92,12 +102,18 @@ export const Route = createFileRoute('/api/durable-delivery')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { durability, runId } = durableRun(request)
-        return withRunId(durableResponse(request, runId, durability, 2), runId)
+        const { durability, runId, advertiseRunId } = durableRun(request)
+        return withRunId(
+          durableResponse(request, runId, durability, 2),
+          advertiseRunId,
+        )
       },
       GET: async ({ request }) => {
-        const { durability, runId } = durableRun(request)
-        return withRunId(durableResponse(request, runId, durability), runId)
+        const { durability, runId, advertiseRunId } = durableRun(request)
+        return withRunId(
+          durableResponse(request, runId, durability),
+          advertiseRunId,
+        )
       },
     },
   },

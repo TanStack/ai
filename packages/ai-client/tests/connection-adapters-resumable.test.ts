@@ -214,6 +214,68 @@ describe('resumable SSE connection adapter', () => {
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 
+  it('retries a reconnect whose fetch() itself rejects (connection-establishment failure)', async () => {
+    // A fetch rejection (offline / DNS blip / connection refused) on a reconnect
+    // must be treated as a recoverable transport drop, not a fatal error, once
+    // an offset is held — matching the XHR path. Without wrapping the rejection
+    // as StreamReadError it would be a raw TypeError and hard-fail.
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      if (fetchClient.mock.calls.length === 1) {
+        // Clean end with progress, no terminal → reconnect.
+        return sseResponse(contentEvent('run@1', '1'))
+      }
+      if (fetchClient.mock.calls.length === 2) {
+        throw new TypeError('Failed to fetch')
+      }
+      return sseResponse(contentEvent('run@2', '2') + finishedEvent('run@3'))
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        .map((chunk) => chunk.delta),
+    ).toEqual(['1', '2'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    expect(fetchClient).toHaveBeenCalledTimes(3)
+  })
+
+  it('surfaces a first-attempt fetch() rejection (no offset held) as a hard failure', async () => {
+    // With no offset yet, a fetch rejection is not recoverable — it must surface.
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
+
+    await expect(async () => {
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'hi' }],
+        undefined,
+        undefined,
+        { threadId: 't', runId: 'r' },
+      )) {
+        // drain
+      }
+    }).rejects.toThrow()
+    expect(fetchClient).toHaveBeenCalledTimes(1)
+  })
+
   it('retries a transport drop that replayed only the de-duped overlap (no new progress that attempt)', async () => {
     // A caught-up run whose reconnect replays only the already-seen boundary
     // event and then the socket drops must retry from the offset, not fail

@@ -229,6 +229,12 @@ async function* readStreamLines(
       }
     }
 
+    // Flush the decoder: a connection cut mid-multibyte-character leaves bytes
+    // held inside the streaming TextDecoder. Draining them here (as U+FFFD)
+    // makes the trailing-buffer check below see the incomplete tail and report
+    // truncation instead of silently swallowing it.
+    buffer += decoder.decode()
+
     // A non-empty trailing buffer means the connection was cut mid-line.
     // Surface this as an error so the chat client transitions to 'error'
     // state instead of silently presenting a partial stream as success.
@@ -412,14 +418,26 @@ function fetchEventSource(
   ) => AsyncIterable<StreamEvent>,
 ): StreamEventSource {
   return async function* (extraHeaders, abortSignal) {
-    const response = await fetchClient(url, {
-      ...requestInit,
-      headers: {
-        ...(requestInit.headers as Record<string, string> | undefined),
-        ...extraHeaders,
-      },
-      ...(abortSignal ? { signal: abortSignal } : {}),
-    })
+    let response: Response
+    try {
+      response = await fetchClient(url, {
+        ...requestInit,
+        headers: {
+          ...(requestInit.headers as Record<string, string> | undefined),
+          ...extraHeaders,
+        },
+        ...(abortSignal ? { signal: abortSignal } : {}),
+      })
+    } catch (error) {
+      // A fetch REJECTION (device offline, DNS blip, connection refused) is a
+      // recoverable transport failure, not a fatal one — surface it as
+      // StreamReadError so resumableStream retries from the last offset, mirroring
+      // the XHR path (whose onerror wraps the same way). On a genuine abort the
+      // rejection is an AbortError, but resumableStream's `abortSignal.aborted`
+      // check short-circuits before it inspects the error type. Without an offset
+      // (initial connect / non-durable), it still surfaces as a hard failure.
+      throw new StreamReadError(error)
+    }
     yield* parseResponse(response, abortSignal)
   }
 }
@@ -441,6 +459,11 @@ async function* resumableStream(
   abortSignal?: AbortSignal,
   reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
+  // Retains every delivered offset for the run's lifetime. Intentionally bounded
+  // by run length (not evicted): a conforming server replays strictly after the
+  // acknowledged offset, so this only needs to catch the single boundary event
+  // on reconnect, but keeping the full set keeps de-dup correct even if a server
+  // replays a wider overlap.
   const seen = new Set<string>()
   let lastEventId: string | undefined
   const reconnect = resolveReconnectOptions(reconnectOptions)
@@ -732,22 +755,30 @@ export function normalizeConnectionAdapter(
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          const message =
-            err instanceof Error ? err.message : 'Unknown error in connect()'
-          const synthetic: RunErrorEvent = {
-            type: EventType.RUN_ERROR,
-            threadId: requireSyntheticId(
-              upstreamThreadId ?? runContext?.threadId,
-              'threadId',
-            ),
-            runId: requireSyntheticId(
-              upstreamRunId ?? runContext?.runId,
-              'runId',
-            ),
-            timestamp: Date.now(),
-            message,
+          // Guard synthesis: requireSyntheticId throws when no id is available,
+          // and that must not replace the original `err` we are about to
+          // rethrow. If we can't synthesize a terminal, the real failure still
+          // surfaces below.
+          try {
+            const message =
+              err instanceof Error ? err.message : 'Unknown error in connect()'
+            const synthetic: RunErrorEvent = {
+              type: EventType.RUN_ERROR,
+              threadId: requireSyntheticId(
+                upstreamThreadId ?? runContext?.threadId,
+                'threadId',
+              ),
+              runId: requireSyntheticId(
+                upstreamRunId ?? runContext?.runId,
+                'runId',
+              ),
+              timestamp: Date.now(),
+              message,
+            }
+            push(synthetic)
+          } catch {
+            // fall through to rethrow the original error
           }
-          push(synthetic)
         }
         throw err
       }

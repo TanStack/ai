@@ -436,6 +436,112 @@ describe('toHttpResponse with durability', () => {
   })
 })
 
+function runFinished(): StreamChunk {
+  return {
+    type: EventType.RUN_FINISHED,
+    threadId: 't',
+    runId: 'r',
+    model: 'm',
+    finishReason: 'stop',
+    timestamp: 0,
+  } as StreamChunk
+}
+
+describe('durability producer robustness', () => {
+  it('flushes buffered chunks to the durable log before the terminal on abort', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=h1-abort', {
+        method: 'POST',
+      }),
+    )
+    const abortController = new AbortController()
+    // Yields 3 chunks (buffered under the default batch), then aborts before
+    // ending. produce breaks on the abort check before buffering '4', so '4' is
+    // dropped but '1'..'3' must still be persisted to the log on the exit path.
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('1')
+        yield ev.textContent('2')
+        yield ev.textContent('3')
+        abortController.abort()
+        yield ev.textContent('4')
+      },
+    }
+
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability, batch: 32 },
+        abortController,
+      }),
+    )
+
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    const deltas = logged.flatMap((chunk) =>
+      chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [],
+    )
+    expect(deltas).toEqual(['1', '2', '3'])
+    expect(logged.at(-1)?.type).toBe(EventType.RUN_ERROR)
+  })
+
+  it('does not emit a second contradictory terminal when close() fails after a forwarded RUN_FINISHED', async () => {
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => {
+        throw new Error('close boom')
+      },
+      async *read() {
+        // Not exercised.
+      },
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('hi')
+        yield runFinished()
+      },
+    }
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+    )
+    const terminals = events.filter((event) => {
+      const type = field(event, 'type')
+      return type === EventType.RUN_FINISHED || type === EventType.RUN_ERROR
+    })
+    // Exactly one terminal (the forwarded RUN_FINISHED). The close() failure is
+    // recorded server-side, not appended as a contradictory RUN_ERROR.
+    expect(terminals).toHaveLength(1)
+    expect(field(terminals[0]!, 'type')).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('rejects SSE offsets with surrounding whitespace', async () => {
+    const response = toServerSentEventsResponse(textStreamWithOneChunk(), {
+      durability: { adapter: fixedOffsetDurability(['  padded  ']) },
+    })
+    const events = parseSseEvents(await readBody(response))
+    expect(events).toHaveLength(1)
+    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[0]!, 'message')).toMatch(/Invalid durability offset/)
+  })
+
+  it('toHttpResponse defaults Content-Type to application/x-ndjson, overridable by the caller', async () => {
+    const res = toHttpResponse(fiveChunkStream().stream)
+    expect(res.headers.get('Content-Type')).toBe('application/x-ndjson')
+    expect(res.headers.get('Cache-Control')).toBe('no-cache')
+
+    const overridden = toHttpResponse(fiveChunkStream().stream, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+    expect(overridden.headers.get('Content-Type')).toBe('application/json')
+  })
+})
+
 function textStreamWithOneChunk(): AsyncIterable<StreamChunk> {
   return {
     async *[Symbol.asyncIterator]() {

@@ -295,10 +295,12 @@ requires a backend where the producer outlives the delivery socket (see
 
 ## Reconnection bounding
 
-Reconnection only follows forward progress, so a dropped connection resumes from
-the last offset. To keep a flapping producer (or a proxy that rolls the socket
-after every event) from reconnecting without end, the client throttles between
-attempts and caps the total, failing with `StreamReconnectLimitError`:
+A dropped connection resumes from the last offset: a transport error retries as
+long as an offset is held (even if that attempt delivered only the replayed
+overlap), while a clean end with no new progress is treated as a completed run.
+To keep a flapping producer (or a proxy that rolls the socket after every event)
+from reconnecting without end, the client throttles between attempts and caps
+the total, failing with `StreamReconnectLimitError`:
 
 ```ts
 import { fetchServerSentEvents } from '@tanstack/ai-client'

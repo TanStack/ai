@@ -73,7 +73,7 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat", {
-    body: { provider: "openai", model: "gpt-5.1" },
+    body: { provider: "openai", model: "gpt-5.5" },
   }),
 });
 ```
@@ -227,7 +227,7 @@ export const chatFn = createServerFn({ method: "POST" })
   .inputValidator((data: { messages: Array<UIMessage> }) => data)
   .handler(({ data }) =>
     toServerSentEventsResponse(
-      chat({ adapter: openaiText("gpt-5.1"), messages: data.messages }),
+      chat({ adapter: openaiText("gpt-5.5"), messages: data.messages }),
     ),
   );
 ```
