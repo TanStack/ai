@@ -290,9 +290,13 @@ class MCPClientImpl<
     }
     const definition = this.#toolDefinitions?.get(name)
     const taskRequired =
-      definition !== undefined &&
-      requiresTaskExecution(definition) &&
-      serverSupportsTaskCalls(this.#client)
+      definition !== undefined && requiresTaskExecution(definition)
+    // A known task-required tool on a server without the tasks capability can
+    // never execute — fail with the clear local error rather than the server's
+    // opaque -32600 (mirrors the tools([...defs]) binding guard).
+    if (taskRequired && !serverSupportsTaskCalls(this.#client)) {
+      throw new MCPTaskRequiredToolError(name)
+    }
     return callMcpTool(
       this.#client,
       name,

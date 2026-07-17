@@ -489,6 +489,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` but the server does not declare the tasks capability for `tools/call`, so every invocation would fail |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` or called via `callTool()` but the server does not declare the tasks capability for `tools/call`, so the call could never execute |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

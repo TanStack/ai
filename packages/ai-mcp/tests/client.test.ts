@@ -239,6 +239,19 @@ describe('createMCPClient', () => {
     expect(tools.map((t) => t.name)).toEqual(['plain_tool'])
   })
 
+  it('callTool throws MCPTaskRequiredToolError for a task-required tool the server cannot execute', async () => {
+    const { clientTransport } = await makeServerWithUnsupportedTaskTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await expect(client.callTool('needs_tasks')).rejects.toBeInstanceOf(
+      MCPTaskRequiredToolError,
+    )
+    // Ordinary tools on the same server keep working.
+    const result = await client.callTool('plain_tool')
+    expect(result.content).toEqual([
+      { type: 'text', text: 'called plain_tool' },
+    ])
+  })
+
   it('throws MCPTaskRequiredToolError when binding a task-required tool the server cannot execute', async () => {
     const { clientTransport } = await makeServerWithUnsupportedTaskTool()
     await using client = await createMCPClientFromTransport(clientTransport)
