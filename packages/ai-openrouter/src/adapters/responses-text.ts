@@ -1061,6 +1061,17 @@ export class OpenRouterResponsesTextAdapter<
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added' && chunk.part) {
           const contentPart = chunk.part
+          // Some Responses-compatible providers announce an empty text part
+          // and put the actual text only on response.completed. Do not count
+          // that placeholder as streamed content; the completion backstop
+          // below must remain eligible to recover the final text.
+          if (
+            (contentPart.type === 'output_text' ||
+              contentPart.type === 'reasoning_text') &&
+            !contentPart.text
+          ) {
+            continue
+          }
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
@@ -1343,6 +1354,40 @@ export class OpenRouterResponsesTextAdapter<
           const outputItems = Array.isArray(responseObj.output)
             ? responseObj.output
             : []
+
+          const completedText = outputItems
+            .flatMap((item) =>
+              item.type === 'message' && Array.isArray(item.content)
+                ? item.content
+                : [],
+            )
+            .filter((part) => part.type === 'output_text')
+            .map((part) => part.text)
+            .join('')
+
+          if (accumulatedContent.length === 0 && completedText.length > 0) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent = completedText
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: completedText,
+              content: accumulatedContent,
+            }
+          }
 
           // Final backstop for function_call lifecycle.
           for (const item of outputItems) {

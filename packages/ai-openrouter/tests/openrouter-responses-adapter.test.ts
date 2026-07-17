@@ -641,6 +641,76 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     })
   })
 
+  it('recovers final text from response.completed when no text was streamed', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.content_part.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        contentIndex: 0,
+        itemId: 'msg_1',
+        part: { type: 'output_text', text: '' },
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [
+            {
+              id: 'msg_1',
+              type: 'message',
+              role: 'assistant',
+              status: 'completed',
+              content: [
+                {
+                  type: 'output_text',
+                  text: 'Recovered final answer',
+                  annotations: [],
+                },
+              ],
+            },
+          ],
+          usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'Answer carefully' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const contentChunks = chunks.filter(
+      (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+    )
+    expect(contentChunks).toHaveLength(1)
+    expect(contentChunks[0]).toMatchObject({
+      delta: 'Recovered final answer',
+      content: 'Recovered final answer',
+    })
+
+    const eventTypes = chunks.map((chunk) => chunk.type)
+    const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+    const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+    const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+    const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+    expect(startIndex).toBeGreaterThanOrEqual(0)
+    expect(contentIndex).toBeGreaterThan(startIndex)
+    expect(endIndex).toBeGreaterThan(contentIndex)
+    expect(finishedIndex).toBeGreaterThan(endIndex)
+  })
+
   it('routes function-call args through TOOL_CALL_START/ARGS/END', async () => {
     setupMockSdkClient([
       {
