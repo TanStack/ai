@@ -18,7 +18,27 @@ describe('responses tool converter', () => {
       },
     })
   })
+
+  it('falls back from strict mode for boolean schema nodes', () => {
+    const out = convertFunctionToolToResponsesFormat(booleanSchemaTool)
+
+    expect(out.strict).toBe(false)
+    expect(out.parameters).toEqual(booleanSchemaTool.inputSchema)
+  })
 })
+
+const booleanSchemaInput = {
+  type: 'object',
+  properties: {},
+  required: [],
+}
+Reflect.set(booleanSchemaInput.properties, 'acceptAnything', true)
+
+const booleanSchemaTool = {
+  name: 'accept_anything',
+  description: 'Accept any value',
+  inputSchema: booleanSchemaInput,
+} satisfies Tool
 
 const anyOfOptionalVariantTool: Tool = {
   name: 'store_variant',

@@ -230,8 +230,12 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
 
 /** A schema-position node that declares no type and so 400s strict mode. */
 function isTypelessSchema(node: unknown): boolean {
+  // JSON Schema also permits bare `true` / `false` schema nodes, but OpenAI's
+  // strict subset requires one of its supported declared types. Preserve
+  // boolean schemas by sending the containing tool in non-strict mode.
+  if (typeof node === 'boolean') return true
   if (node === null || typeof node !== 'object' || Array.isArray(node)) {
-    // boolean schemas (`true`/`false`) and non-objects aren't typeless props.
+    // Non-object values other than boolean schemas aren't schema nodes.
     return false
   }
   return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
