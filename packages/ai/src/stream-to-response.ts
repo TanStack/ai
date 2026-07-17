@@ -491,7 +491,12 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: deliveryAbortController,
       batch: durability.batch,
-      ...(debug !== undefined ? { logger: resolveDebugOption(debug) } : {}),
+      // Instantiate unconditionally (matching every other activity): the
+      // `errors` category is on by default even when `debug` is undefined, so
+      // durability terminal-append / close failures always surface server-side.
+      // Without this, a backend error on the client-disconnect path (no live
+      // consumer) is lost entirely.
+      logger: resolveDebugOption(debug),
     })
     body = toServerSentEventsStream(source, deliveryAbortController, getId)
   } else {
@@ -602,7 +607,12 @@ export function toHttpResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: deliveryAbortController,
       batch: durability.batch,
-      ...(debug !== undefined ? { logger: resolveDebugOption(debug) } : {}),
+      // Instantiate unconditionally (matching every other activity): the
+      // `errors` category is on by default even when `debug` is undefined, so
+      // durability terminal-append / close failures always surface server-side.
+      // Without this, a backend error on the client-disconnect path (no live
+      // consumer) is lost entirely.
+      logger: resolveDebugOption(debug),
     })
     body = toHttpStream(source, deliveryAbortController, getId)
   } else {

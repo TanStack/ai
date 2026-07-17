@@ -434,7 +434,7 @@ export const Route = createFileRoute('/api/chat')({
 // WRONG
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-const result = streamText({ model: openai('gpt-4o'), messages })
+const result = streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { chat } from '@tanstack/ai'
@@ -448,7 +448,7 @@ const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
 // WRONG
 import { createOpenAI } from '@ai-sdk/openai'
 const openai = createOpenAI({ apiKey })
-streamText({ model: openai('gpt-4o'), messages })
+streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'

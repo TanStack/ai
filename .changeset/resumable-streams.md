@@ -14,8 +14,9 @@ an opaque, adapter-owned offset — an SSE `id:` line, or the `id` of an NDJSON
 `{ id, chunk }` envelope (NDJSON has no native event-id). A reconnect
 (`Last-Event-ID`) or an explicit `?offset` read replays strictly after that
 offset from the log — the lazy provider stream is never iterated on resume.
-Producers terminalize the log on completion, cancellation, and failure
-(`RUN_ERROR` append + `close()`), so readers are never parked on a dead run.
+Producers terminalize the log on cancellation and failure (`RUN_ERROR` append
++ `close()`) and on completion when the source stream emits its own terminal
+event (`chat()` always does), so readers are never parked on a dead run.
 
 Two adapters ship: `memoryStream(request)` in `@tanstack/ai` (process-local,
 for development and tests) and the new `@tanstack/ai-durable-stream` package,

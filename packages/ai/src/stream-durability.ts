@@ -243,16 +243,26 @@ export function memoryStream(
       return Promise.resolve()
     },
     read: async function* (offset, signal) {
-      const log = getOrCreateLog(runId)
-
-      // A concrete resume offset means data provably existed for this run. If
-      // the log holds nothing, the run was evicted (or never lived in this
-      // process) and will not reappear — fail rather than park forever.
       const isFromStartJoin = offset === '-1' || offset === 'now'
-      if (!isFromStartJoin && log.entries.length === 0 && !log.complete) {
-        throw new Error(
-          `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,
-        )
+
+      // Peek, never getOrCreateLog. A concrete resume offset for an absent run
+      // means the run was evicted (or never lived in this process) and will not
+      // reappear — fail WITHOUT inserting a log. Inserting here would leave a
+      // permanent empty, never-completed log (sweep only reclaims complete
+      // ones), so client-supplied offsets could grow the map without bound and
+      // defeat the eviction this backend relies on.
+      let log = memoryLogs.get(runId)
+      if (log === undefined || (log.entries.length === 0 && !log.complete)) {
+        if (!isFromStartJoin) {
+          throw new Error(
+            `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,
+          )
+        }
+        // A from-start join may legitimately attach before the producer creates
+        // the log (second-tab race); create it so a later append reuses the
+        // same entry. If no producer ever arrives, the first-chunk deadline
+        // below deletes this phantom before rejecting.
+        log = getOrCreateLog(runId)
       }
 
       const threshold = memoryThreshold(
@@ -300,6 +310,16 @@ export function memoryStream(
           if (deadlineForFirstChunk !== undefined) {
             timer = setTimeout(() => {
               cleanup()
+              // No producer ever created data for this joined run. Drop the
+              // phantom log we created above so it does not linger uncollected
+              // (it is empty and will never be marked complete).
+              if (
+                log.entries.length === 0 &&
+                !log.complete &&
+                memoryLogs.get(runId) === log
+              ) {
+                memoryLogs.delete(runId)
+              }
               reject(
                 new Error(
                   `Memory stream run produced no data within ${deadlineForFirstChunk}ms: ${JSON.stringify(runId)}`,

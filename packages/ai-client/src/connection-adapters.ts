@@ -84,17 +84,20 @@ export class StreamReconnectLimitError extends Error {
 }
 
 /**
- * Reconnect bounding for resumable SSE. Reconnection only follows forward
+ * Reconnect bounding for resumable streams. Reconnection only follows forward
  * progress (a no-progress end already fails), so a constant throttle delay
- * prevents a hot loop against the origin without penalizing a legitimately
- * long-lived run, and a total-attempts ceiling caps a pathological
- * progress-then-drop flapper.
+ * prevents a hot loop against the origin, and a total-attempts ceiling caps a
+ * pathological progress-then-drop flapper.
  */
 export interface ReconnectOptions {
   /**
-   * Total reconnect attempts before failing with
-   * {@link StreamReconnectLimitError}. A normal long run reconnects only on
-   * rare drops and never approaches this. Default 1000.
+   * Ceiling on the TOTAL number of reconnects over the run's lifetime (not
+   * consecutive no-progress ones) before failing with
+   * {@link StreamReconnectLimitError}. A run that drops only on rare network
+   * blips never approaches the default of 1000; the ceiling exists to bound a
+   * flapper that makes a little progress then drops on every attempt. A
+   * deployment behind a proxy that rolls the socket after every event can
+   * legitimately reconnect often, so raise this if you expect that.
    */
   maxAttempts?: number
   /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
@@ -216,8 +219,12 @@ async function* readStreamLines(
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (line.trim()) {
-          yield line
+        // Strip a trailing CR so a CRLF stream matches the LF path (and the
+        // XHR reader). Without this an exact-equality check like the `[DONE]`
+        // sentinel in linesToSSEEvents would miss `data: [DONE]\r`.
+        const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
+        if (normalized.trim()) {
+          yield normalized
         }
       }
     }
@@ -354,10 +361,11 @@ function assertResponseOk(response: Response): void {
 async function* responseToSSEEvents(
   response: Response,
   abortSignal?: AbortSignal,
+  fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
   assertResponseOk(response)
   const reader = getResponseStreamReader(response)
-  yield* linesToSSEEvents(readStreamLines(reader, abortSignal))
+  yield* linesToSSEEvents(readStreamLines(reader, abortSignal), fallbackIds)
 }
 
 /** Yield NDJSON stream events (chunk + offset) from a fetch Response body. */
@@ -885,7 +893,18 @@ export function fetchServerSentEvents(
             body: JSON.stringify(requestBody),
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          responseToSSEEvents,
+          // Thread the run's ids so a `[DONE]`-terminating server that doesn't
+          // stamp them onto events still yields a correlated terminal (parity
+          // with the XHR adapter's xhrSSEParser).
+          (response, sseSignal) =>
+            responseToSSEEvents(response, sseSignal, {
+              ...(runContext?.threadId !== undefined
+                ? { threadId: runContext.threadId }
+                : {}),
+              ...(runContext?.runId !== undefined
+                ? { runId: runContext.runId }
+                : {}),
+            }),
         ),
         signal,
         resolvedOptions.reconnect,
@@ -919,7 +938,9 @@ export function fetchServerSentEvents(
             headers: requestHeaders,
             credentials: resolvedOptions.credentials || 'same-origin',
           },
-          responseToSSEEvents,
+          // A `[DONE]` during a join correlates to the joined run id.
+          (response, sseSignal) =>
+            responseToSSEEvents(response, sseSignal, { runId }),
         ),
         signal,
         resolvedOptions.reconnect,

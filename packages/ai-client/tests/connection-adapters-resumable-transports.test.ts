@@ -81,7 +81,10 @@ describe('resumable NDJSON (fetchHttpStream)', () => {
       )
     })
 
-    const adapter = fetchHttpStream('/api/chat', { fetchClient })
+    const adapter = fetchHttpStream('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
     const chunks: Array<StreamChunk> = []
     for await (const chunk of adapter.connect(
       [{ role: 'user', content: 'hi' }],

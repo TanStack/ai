@@ -319,7 +319,14 @@ function parseNdjsonEvents(body: string): Array<ParsedSseEvent> {
     .filter((line) => line.trim().length > 0)
     .map((line) => {
       const parsed = JSON.parse(line) as Record<string, unknown>
-      if ('chunk' in parsed && 'id' in parsed && typeof parsed.id === 'string') {
+      // Mirror the production `isNdjsonEnvelope` discriminator exactly: an
+      // envelope carries `id` + `chunk` and no top-level `type`.
+      if (
+        'chunk' in parsed &&
+        'id' in parsed &&
+        typeof parsed.id === 'string' &&
+        !('type' in parsed)
+      ) {
         return { id: parsed.id, data: parsed.chunk }
       }
       return { data: parsed }
