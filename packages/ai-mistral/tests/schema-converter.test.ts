@@ -53,4 +53,32 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
 
     expect(nullWideningMap).toBeUndefined()
   })
+
+  it('preserves boolean schemas while widening optional properties', () => {
+    const inputSchema = {
+      type: 'object',
+      properties: {},
+      required: [],
+    }
+    Reflect.set(inputSchema.properties, 'acceptAnything', true)
+    Reflect.set(inputSchema.properties, 'rejectAnything', false)
+
+    const { schema, nullWideningMap } =
+      makeMistralStructuredOutputCompatibleWithMap(inputSchema, [])
+
+    expect(schema).toEqual({
+      type: 'object',
+      properties: {
+        acceptAnything: { anyOf: [true, { type: 'null' }] },
+        rejectAnything: { anyOf: [false, { type: 'null' }] },
+      },
+      required: ['acceptAnything', 'rejectAnything'],
+      additionalProperties: false,
+    })
+    expect(nullWideningMap).toEqual({
+      properties: {
+        rejectAnything: { widened: true },
+      },
+    })
+  })
 })
