@@ -42,11 +42,12 @@ export const Route = createFileRoute('/api/mcp-tasks-chat')({
           )
         }
 
+        let client
         try {
           // The task server is hosted by this same dev server — derive its
           // URL from the incoming request so the demo works on any port.
           const origin = new URL(request.url).origin
-          const client = await createMCPClient({
+          client = await createMCPClient({
             transport: { type: 'http', url: `${origin}/api/mcp-tasks-server` },
           })
 
@@ -68,6 +69,9 @@ export const Route = createFileRoute('/api/mcp-tasks-chat')({
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
+          // chat() only owns the client once the stream is consumed — if
+          // setup throws before the response is returned, close it here.
+          if (client) await client.close().catch(() => {})
           console.error('[api.mcp-tasks-chat] Error:', {
             message: error?.message,
             name: error?.name,
