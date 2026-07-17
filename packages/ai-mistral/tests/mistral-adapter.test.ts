@@ -8,8 +8,15 @@ import {
   type Mock,
 } from 'vitest'
 import { createMistralText, mistralText } from '../src/adapters/text'
+import {
+  chat,
+  createChatOptions,
+  maxIterations,
+  toolDefinition,
+} from '@tanstack/ai'
 import type { StreamChunk, Tool, TextOptions } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
+import { z } from 'zod'
 
 /**
  * Builds chat options for tests. `chatStream`'s `TextOptions` requires fields
@@ -539,6 +546,149 @@ describe('Mistral AG-UI event emission', () => {
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.finishReason).toBe('tool_calls')
     }
+  })
+
+  it('normalizes strict optional nulls before server tool execution', async () => {
+    const responseStreams = [
+      [
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call-tool',
+                    type: 'function',
+                    function: {
+                      name: 'ask_user',
+                      arguments: JSON.stringify({
+                        mode: null,
+                        question: 'Which option?',
+                        nullableNote: null,
+                      }),
+                    },
+                  },
+                ],
+              },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'tool_calls' }],
+          usage: {
+            promptTokens: 10,
+            completionTokens: 5,
+            totalTokens: 15,
+          },
+        },
+      ],
+      [
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: { content: 'Tool executed.' },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+          usage: {
+            promptTokens: 8,
+            completionTokens: 2,
+            totalTokens: 10,
+          },
+        },
+      ],
+    ]
+    let requestCount = 0
+    let firstRequestBody: unknown
+    let executedInput: unknown
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_input, init: RequestInit) => {
+        const chunks = responseStreams[requestCount]
+        requestCount++
+        if (!chunks) throw new Error('Unexpected Mistral request')
+
+        if (requestCount === 1 && typeof init.body === 'string') {
+          firstRequestBody = JSON.parse(init.body)
+        }
+        const sseBody =
+          chunks
+            .map((chunk) => `data: ${JSON.stringify(toApiChunk(chunk))}`)
+            .join('\n\n') + '\n\ndata: [DONE]\n\n'
+        return new Response(sseBody, {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const askUser = toolDefinition({
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: z.object({
+        mode: z.enum(['canary']).optional(),
+        question: z.string(),
+        nullableNote: z.string().nullable(),
+      }),
+    }).server((input) => {
+      executedInput = input
+      return { accepted: true }
+    })
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const text: Array<string> = []
+
+    for await (const chunk of chat({
+      ...createChatOptions({ adapter }),
+      messages: [{ role: 'user', content: 'Ask me a question' }],
+      tools: [askUser],
+      agentLoopStrategy: maxIterations(3),
+    })) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') text.push(chunk.delta)
+    }
+
+    expect(firstRequestBody).toMatchObject({
+      tools: [
+        {
+          function: {
+            name: 'ask_user',
+            strict: true,
+            parameters: {
+              required: ['mode', 'question', 'nullableNote'],
+              properties: {
+                mode: {
+                  type: ['string', 'null'],
+                  enum: ['canary', null],
+                },
+                nullableNote: {
+                  anyOf: [{ type: 'string' }, { type: 'null' }],
+                },
+              },
+            },
+          },
+        },
+      ],
+    })
+    expect(executedInput).toEqual({
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    expect(requestCount).toBe(2)
+    expect(text.join('')).toBe('Tool executed.')
   })
 
   it('emits RUN_ERROR on stream error', async () => {
