@@ -21,6 +21,7 @@ import type { AnyAudioAdapter } from './generateAudio/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
+import type { AnyEmbeddingAdapter } from './embed/adapter'
 
 // ===========================
 // Chat Activity
@@ -171,6 +172,25 @@ export {
 } from './generateTranscription/adapter'
 
 // ===========================
+// Embed Activity
+// ===========================
+
+export {
+  kind as embeddingKind,
+  embed,
+  type EmbedOptions,
+  type EmbedProviderOptionsForModel,
+  type EmbeddingInputForModel,
+} from './embed/index'
+
+export {
+  BaseEmbeddingAdapter,
+  type EmbeddingAdapter,
+  type EmbeddingAdapterConfig,
+  type AnyEmbeddingAdapter,
+} from './embed/adapter'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 
@@ -183,6 +203,7 @@ export type AIAdapter =
   | AnyVideoAdapter
   | AnyTTSAdapter
   | AnyTranscriptionAdapter
+  | AnyEmbeddingAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -193,3 +214,4 @@ export type AdapterKind =
   | 'video'
   | 'tts'
   | 'transcription'
+  | 'embedding'

@@ -381,6 +381,32 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
+## Embeddings
+
+Generate embedding vectors with gemini-embedding-001:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { geminiEmbedding } from "@tanstack/ai-gemini";
+
+const result = await embed({
+  adapter: geminiEmbedding("gemini-embedding-001"),
+  input: "a red guitar",
+  dimensions: 1536,
+  modelOptions: {
+    taskType: "RETRIEVAL_DOCUMENT",
+  },
+});
+
+console.log(result.embeddings[0]?.vector);
+```
+
+> The Gemini API's embedding endpoint does not report token usage, so
+> `result.usage` is absent. The Vertex-only multimodal embedding model
+> (`multimodalembedding@001`) is not supported by this adapter.
+
+See the [Embeddings guide](../embeddings.md) for the full API.
+
 ## Image Generation
 
 The Gemini adapter supports two types of image generation:

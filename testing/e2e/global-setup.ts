@@ -62,6 +62,26 @@ export default async function globalSetup() {
   // aimock's native Gemini handlers.
   mock.mount('/v1beta/models', geminiVeoMount())
 
+  // Embedding endpoints aimock doesn't cover natively. OpenAI's
+  // /v1/embeddings IS covered natively (JSON fixture in fixtures/embedding/),
+  // but the other embedding providers need custom mounts:
+  //
+  // - Gemini: @google/genai posts to `{model}:batchEmbedContents` on the
+  //   MLDev (API-key) surface; aimock 1.34 only handles `:embedContent`.
+  //   Mounted on the same '/v1beta/models' prefix as the Veo mount above —
+  //   mounts are tried in order and each returns false for paths it doesn't
+  //   own, so both coexist and non-matching paths still fall through to
+  //   aimock's native Gemini handlers.
+  // - Ollama: the ollama SDK's `embed()` (POST /api/embed) expects the batch
+  //   `embeddings: number[][]` shape; aimock's native handler responds with
+  //   the legacy singular `embedding` field, which crashes the adapter.
+  // - Mistral: the Mistral SDK Zod-validates the /v1/embeddings response and
+  //   requires an `id` field aimock's OpenAI-format response builder omits.
+  //   The adapter under test points its serverURL at the '/mistral' prefix.
+  mock.mount('/v1beta/models', geminiBatchEmbedMount())
+  mock.mount('/api/embed', ollamaEmbedMount())
+  mock.mount('/mistral', mistralEmbeddingsMount())
+
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
   // (POST /v1beta/interactions with background:true → poll
@@ -416,6 +436,151 @@ function geminiVeoMount(): Mountable {
 
       // Not a Veo path — fall through to aimock's native Gemini handlers.
       return false
+    },
+  }
+}
+
+/**
+ * Deterministic 8-dimension embedding vector shared by the embedding mounts
+ * below and mirrored by the OpenAI JSON fixture in
+ * `fixtures/embedding/basic.json`. The embedding spec asserts each rendered
+ * vector reports exactly this dimension count.
+ */
+const EMBED_VECTOR = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]
+
+/**
+ * Mounts Gemini's `{model}:batchEmbedContents` endpoint. The @google/genai
+ * SDK's `models.embedContent()` posts to `:batchEmbedContents` on the MLDev
+ * (API-key) surface — even for a single input — but aimock 1.34 only models
+ * `:embedContent`. Returns one deterministic vector per request entry, in
+ * the raw MLDev wire shape (`embeddings[].values`) the SDK maps to
+ * `EmbedContentResponse.embeddings`.
+ *
+ * Shares the '/v1beta/models' mount prefix with geminiVeoMount; non-embed
+ * paths return false and fall through to the Veo mount / native handlers.
+ */
+function geminiBatchEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:batchEmbedContents'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):batchEmbedContents$/)
+      if (!match || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let count = 1
+      try {
+        const body = JSON.parse(bodyText) as { requests?: Array<unknown> }
+        if (Array.isArray(body.requests)) count = body.requests.length
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          embeddings: Array.from({ length: count }, () => ({
+            values: [...EMBED_VECTOR],
+          })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Ollama's batch embed endpoint (POST /api/embed). aimock's native
+ * handler answers with the legacy /api/embeddings shape (singular
+ * `embedding: number[]`), but the ollama SDK's `embed()` — which the
+ * @tanstack/ai-ollama embedding adapter uses — expects
+ * `embeddings: number[][]` with one vector per input.
+ */
+function ollamaEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'nomic-embed-text'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model,
+          embeddings: inputs.map(() => [...EMBED_VECTOR]),
+          prompt_eval_count: inputs.length * 3,
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts a Mistral-shaped embeddings endpoint under the '/mistral' prefix
+ * (the adapter under test sets serverURL to `<aimock>/mistral`, so the SDK
+ * posts to '/mistral/v1/embeddings'). aimock's native /v1/embeddings handler
+ * builds an OpenAI-format response without an `id`, which fails the Mistral
+ * SDK's Zod response validation (`EmbeddingResponse` requires `id`).
+ */
+function mistralEmbeddingsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/mistral'), so pathname is
+      // '/v1/embeddings'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1/embeddings' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'mistral-embed'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'embd-e2e',
+          object: 'list',
+          model,
+          usage: { prompt_tokens: 6, completion_tokens: 0, total_tokens: 6 },
+          data: inputs.map((_, index) => ({
+            object: 'embedding',
+            embedding: [...EMBED_VECTOR],
+            index,
+          })),
+        }),
+      )
+      return true
     },
   }
 }

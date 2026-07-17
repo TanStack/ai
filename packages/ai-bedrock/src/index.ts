@@ -161,6 +161,19 @@ export {
   createBedrockConverse,
   type BedrockConverseConfig,
 } from './adapters/converse-text'
+export {
+  BedrockEmbeddingAdapter,
+  bedrockEmbedding,
+  createBedrockEmbedding,
+  type BedrockEmbeddingConfig,
+} from './adapters/embedding'
+export type {
+  BedrockCohereEmbeddingInputType,
+  BedrockCohereEmbeddingProviderOptions,
+  BedrockEmbeddingProviderOptions,
+  BedrockTitanImageEmbeddingProviderOptions,
+  BedrockTitanTextEmbeddingProviderOptions,
+} from './embedding/embedding-provider-options'
 export type { BedrockConverseProviderOptions } from './converse/provider-options'
 export {
   resolveBedrockAuth,
@@ -173,6 +186,10 @@ export {
   BEDROCK_CHAT_MODELS,
   BEDROCK_RESPONSES_MODELS,
   BEDROCK_CONVERSE_MODELS,
+  BEDROCK_EMBEDDING_MODELS,
+  type BedrockEmbeddingModel,
+  type BedrockEmbeddingModelProviderOptionsByName,
+  type BedrockEmbeddingModelInputModalitiesByName,
   type BedrockChatModels,
   type BedrockResponsesModels,
   type BedrockConverseModels,

@@ -20,6 +20,10 @@
     "./adapters/text": {
       "types": "./dist/esm/adapters/text.d.ts",
       "import": "./dist/esm/adapters/text.js"
+    },
+    "./adapters/embedding": {
+      "types": "./dist/esm/adapters/embedding.d.ts",
+      "import": "./dist/esm/adapters/embedding.js"
     }
   },
   "files": [

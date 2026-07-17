@@ -214,6 +214,38 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
+## Embeddings
+
+Generate embedding vectors with the text-embedding-3 models:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+const result = await embed({
+  adapter: openaiEmbedding("text-embedding-3-small"),
+  input: ["a red guitar", "a blue drum kit"],
+});
+
+console.log(result.embeddings[0]?.vector);
+console.log(result.usage?.promptTokens);
+```
+
+Both models support Matryoshka dimension reduction via the top-level `dimensions` option:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+const result = await embed({
+  adapter: openaiEmbedding("text-embedding-3-large"),
+  input: "a red guitar",
+  dimensions: 1024,
+});
+```
+
+See the [Embeddings guide](../embeddings.md) for the full API.
+
 ## Image Generation
 
 Generate images with DALL-E:

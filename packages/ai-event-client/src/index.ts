@@ -644,6 +644,58 @@ export interface ImageUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Embedding Events
+// ===========================
+
+/** Emitted when an embedding request starts. Carries input counts only, never input content. */
+export interface EmbeddingRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Total number of items being embedded (after single→array normalization). */
+  inputCount: number
+  /** Count of text-only input items. */
+  textInputCount: number
+  /** Count of input items containing an image part. */
+  imageInputCount: number
+  /** Requested output dimensionality, when specified. */
+  dimensions?: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when an embedding request completes. */
+export interface EmbeddingRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  embeddingCount: number
+  /** Dimensionality of the returned vectors. */
+  dimensions?: number
+  duration: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when an embedding request fails. */
+export interface EmbeddingRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  /** Provider-specific options passed to the embedding request. */
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when embedding usage metrics are available. */
+export interface EmbeddingUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Speech Events
 // ===========================
 
@@ -1019,6 +1071,12 @@ export interface AIDevtoolsEventMap {
   'image:request:started': ImageRequestStartedEvent
   'image:request:completed': ImageRequestCompletedEvent
   'image:usage': ImageUsageEvent
+
+  // Embedding events
+  'embedding:request:started': EmbeddingRequestStartedEvent
+  'embedding:request:completed': EmbeddingRequestCompletedEvent
+  'embedding:request:error': EmbeddingRequestErrorEvent
+  'embedding:usage': EmbeddingUsageEvent
 
   // Speech events
   'speech:request:started': SpeechRequestStartedEvent

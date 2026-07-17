@@ -14,6 +14,19 @@ export {
   type MistralTextProviderOptions,
 } from './adapters/text'
 
+// Embedding adapter - for embedding vectors
+export {
+  MistralEmbeddingAdapter,
+  createMistralEmbedding,
+  mistralEmbedding,
+  type MistralEmbeddingConfig,
+} from './adapters/embedding'
+export type {
+  MistralEmbeddingProviderOptions,
+  MistralEmbedProviderOptions,
+  CodestralEmbedProviderOptions,
+} from './embedding/embedding-provider-options'
+
 // Types
 export type {
   MistralChatModelProviderOptionsByName,
@@ -21,8 +34,11 @@ export type {
   ResolveProviderOptions,
   ResolveInputModalities,
   MistralChatModels,
+  MistralEmbeddingModel,
+  MistralEmbeddingModelProviderOptionsByName,
+  MistralEmbeddingModelInputModalitiesByName,
 } from './model-meta'
-export { MISTRAL_CHAT_MODELS } from './model-meta'
+export { MISTRAL_CHAT_MODELS, MISTRAL_EMBEDDING_MODELS } from './model-meta'
 export type {
   MistralTextMetadata,
   MistralImageMetadata,

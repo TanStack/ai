@@ -78,6 +78,15 @@ export {
 } from './adapters/transcription'
 export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
 
+// Embedding adapter - for embedding vectors
+export {
+  OpenAIEmbeddingAdapter,
+  createOpenaiEmbedding,
+  openaiEmbedding,
+  type OpenAIEmbeddingConfig,
+} from './adapters/embedding'
+export type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -91,11 +100,15 @@ export type {
   OpenAIVideoModel,
   OpenAITTSModel,
   OpenAITranscriptionModel,
+  OpenAIEmbeddingModel,
+  OpenAIEmbeddingModelProviderOptionsByName,
+  OpenAIEmbeddingModelInputModalitiesByName,
 } from './model-meta'
 export {
   OPENAI_IMAGE_MODELS,
   OPENAI_TTS_MODELS,
   OPENAI_TRANSCRIPTION_MODELS,
+  OPENAI_EMBEDDING_MODELS,
   OPENAI_VIDEO_MODELS,
   OPENAI_CHAT_MODELS,
 } from './model-meta'
