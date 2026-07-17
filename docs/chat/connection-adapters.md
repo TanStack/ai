@@ -80,6 +80,19 @@ const { messages } = useChat({
 
 > **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
 
+### Resumable SSE
+
+`fetchServerSentEvents` watches SSE `id:` values. If a connection drops after
+receiving an id, it reconnects with `Last-Event-ID` and de-duplicates the
+replayed prefix. `joinRun(runId)` performs a read-only GET with `offset=-1` and
+the run id, replaying an in-flight or finished run from the start.
+
+The ids only appear when the server passes a durability adapter to
+`toServerSentEventsResponse`. They are opaque tokens owned by that adapter; the
+chat client does not create, parse, or persist them. Without ids, behavior is
+identical to a plain single fetch. See
+[Resumable Streams](../resumable-streams/overview).
+
 ## HTTP Streaming (NDJSON)
 
 For environments that don't speak SSE — some edge runtimes, certain mobile WebViews, or anywhere a proxy strips `text/event-stream` — use raw newline-delimited JSON. The wire format is one JSON `StreamChunk` per line:

@@ -148,6 +148,16 @@ const stream = chat({
 return toServerSentEventsResponse(stream, { abortController })
 ```
 
+To make the SSE response resumable (reconnect after a drop/refresh without
+re-running the provider), pass a delivery-durability adapter:
+`toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`
+(`memoryStream` from `@tanstack/ai` is process-local, for dev/tests) or
+`durableStream(request, { server })` from `@tanstack/ai-durable-stream`
+(Durable Streams protocol, production). Each SSE event gets an opaque
+adapter-owned `id:`; `fetchServerSentEvents` auto-reconnects with
+`Last-Event-ID` and exposes `joinRun(runId)` to replay a run from the start.
+See `docs/resumable-streams/overview.md`.
+
 **Client:**
 
 ```typescript

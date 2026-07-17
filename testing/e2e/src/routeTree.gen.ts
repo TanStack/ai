@@ -45,6 +45,7 @@ import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -242,6 +243,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
+  id: '/api/durable-delivery',
+  path: '/api/durable-delivery',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -323,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -373,6 +380,7 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -424,6 +432,7 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -476,6 +485,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
@@ -526,6 +536,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
@@ -576,6 +587,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/mcp-apps-call'
@@ -627,6 +639,7 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -908,6 +921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/durable-delivery': {
+      id: '/api/durable-delivery'
+      path: '/api/durable-delivery'
+      fullPath: '/api/durable-delivery'
+      preLoaderRoute: typeof ApiDurableDeliveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -1072,6 +1092,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,

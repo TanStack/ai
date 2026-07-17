@@ -47,6 +47,27 @@ export class StreamTruncatedError extends Error {
   }
 }
 
+class StreamReadError extends Error {
+  constructor(cause: unknown) {
+    super('SSE response body read failed', { cause })
+    this.name = 'StreamReadError'
+  }
+}
+
+/**
+ * Thrown when a durable (id-tagged) run's stream ends with no terminal event
+ * and a reconnect makes no forward progress — the run cannot complete, so the
+ * consumer must not be left silently hanging on a stream that just stops.
+ */
+export class DurableStreamIncompleteError extends Error {
+  constructor() {
+    super(
+      'Durable run ended without a terminal event and could not resume — the run did not complete.',
+    )
+    this.name = 'DurableStreamIncompleteError'
+  }
+}
+
 function generateRunId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -88,6 +109,21 @@ function mergeHeaders(
   return customHeaders
 }
 
+function withSearchParams(url: string, values: Record<string, string>): string {
+  const hashIndex = url.indexOf('#')
+  const hash = hashIndex === -1 ? '' : url.slice(hashIndex)
+  const withoutHash = hashIndex === -1 ? url : url.slice(0, hashIndex)
+  const queryIndex = withoutHash.indexOf('?')
+  const base =
+    queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex)
+  const search = new URLSearchParams(
+    queryIndex === -1 ? '' : withoutHash.slice(queryIndex + 1),
+  )
+  for (const [key, value] of Object.entries(values)) search.set(key, value)
+  const query = search.toString()
+  return `${base}${query.length === 0 ? '' : `?${query}`}${hash}`
+}
+
 /**
  * Read lines from a stream (newline-delimited)
  */
@@ -100,7 +136,14 @@ async function* readStreamLines(
     let buffer = ''
 
     while (!abortSignal?.aborted) {
-      const { done, value } = await reader.read()
+      let result: ReadableStreamReadResult<Uint8Array>
+      try {
+        result = await reader.read()
+      } catch (error) {
+        if (abortSignal?.aborted) return
+        throw new StreamReadError(error)
+      }
+      const { done, value } = result
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
@@ -141,10 +184,16 @@ async function* readStreamLines(
  *
  * A JSON parse failure throws — the consumer surfaces it as an error.
  */
-async function* responseToSSEChunks(
+/**
+ * Yield StreamChunks parsed from an SSE Response body, each paired with the
+ * `id:` offset of the SSE event it arrived on (if any). Delivery durability
+ * tags every event with an adapter-owned opaque `id:`; carrying that id up lets the
+ * resumable adapter track the last offset (for reconnect) and de-dupe replays.
+ */
+async function* responseToSSEEvents(
   response: Response,
   abortSignal?: AbortSignal,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<{ chunk: StreamChunk; id?: string }> {
   if (!response.ok) {
     throw new Error(
       `HTTP error! status: ${response.status} ${response.statusText}`,
@@ -154,11 +203,15 @@ async function* responseToSSEChunks(
   let lastThreadId: string | undefined
   let lastRunId: string | undefined
   let lastModel: string | undefined
+  let pendingId: string | undefined
   for await (const line of readStreamLines(reader, abortSignal)) {
+    if (line.startsWith('id:')) {
+      pendingId = line.slice(3).trim()
+      continue
+    }
     if (
       line.startsWith(':') ||
       line.startsWith('event:') ||
-      line.startsWith('id:') ||
       line.startsWith('retry:')
     ) {
       continue
@@ -173,7 +226,7 @@ async function* responseToSSEChunks(
         timestamp: Date.now(),
         finishReason: 'stop',
       }
-      yield synthetic
+      yield { chunk: synthetic }
       return
     }
     const chunk = JSON.parse(data) as StreamChunk
@@ -186,7 +239,108 @@ async function* responseToSSEChunks(
     if ('model' in chunk && typeof chunk.model === 'string') {
       lastModel = chunk.model
     }
+    const id = pendingId
+    pendingId = undefined
+    yield { chunk, ...(id !== undefined ? { id } : {}) }
+  }
+}
+
+async function* responseToSSEChunks(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  for await (const { chunk } of responseToSSEEvents(response, abortSignal)) {
     yield chunk
+  }
+}
+
+/**
+ * Iterate an SSE endpoint with native-style resumability. Each SSE event's
+ * adapter-owned `id:` delivery-durability offset is remembered; if the
+ * connection drops or ends before a terminal event, the request is re-issued
+ * with a `Last-Event-ID` header so the server replays strictly after the last
+ * offset. Already-seen offsets are de-duped, so an overlapping replay is safe.
+ *
+ * When the server does NOT tag events (no durability), no offset is ever seen,
+ * so no reconnect happens — behaviour is identical to a plain single fetch.
+ */
+async function* resumableServerSentEvents(
+  fetchClient: typeof globalThis.fetch,
+  url: string,
+  requestInit: RequestInit,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  const seen = new Set<string>()
+  let lastEventId: string | undefined
+
+  for (;;) {
+    if (abortSignal?.aborted) return
+    const headers: Record<string, string> = {
+      ...(requestInit.headers as Record<string, string> | undefined),
+    }
+    if (lastEventId !== undefined) {
+      headers['Last-Event-ID'] = lastEventId
+    }
+    const response = await fetchClient(url, {
+      ...requestInit,
+      headers,
+      ...(abortSignal ? { signal: abortSignal } : {}),
+    })
+
+    let sawTerminal = false
+    let progressed = false
+    try {
+      for await (const { chunk, id } of responseToSSEEvents(
+        response,
+        abortSignal,
+      )) {
+        if (id !== undefined) {
+          if (seen.has(id)) continue
+          seen.add(id)
+          lastEventId = id
+        }
+        progressed = true
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          sawTerminal = true
+        }
+        yield chunk
+        if (sawTerminal) return
+      }
+    } catch (error) {
+      if (abortSignal?.aborted) return
+      // A truncated connection is resumable only if we have an offset and made
+      // forward progress; otherwise surface the failure.
+      if (
+        (error instanceof StreamTruncatedError ||
+          error instanceof StreamReadError) &&
+        lastEventId !== undefined &&
+        progressed
+      ) {
+        continue
+      }
+      throw error
+    }
+
+    if (abortSignal?.aborted) return
+
+    if (lastEventId !== undefined) {
+      // A durable (id-tagged) run.
+      if (progressed) {
+        // Clean end WITHOUT a terminal event but we advanced — the producer is
+        // still going (or the socket rolled over). Reconnect from the last
+        // offset.
+        continue
+      }
+      // Ended without a terminal event AND made no forward progress on this
+      // pass: the run cannot complete. Surface an error rather than returning
+      // silently, which would leave the consumer with neither a terminal event
+      // nor a failure.
+      throw new DurableStreamIncompleteError()
+    }
+
+    // A non-durable (untagged) stream that ended cleanly. Legitimate — the
+    // upper layer synthesizes a terminal event. Stop.
+    return
   }
 }
 
@@ -218,6 +372,22 @@ export interface ConnectConnectionAdapter {
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
+  ) => AsyncIterable<StreamChunk>
+}
+
+/**
+ * A {@link ConnectConnectionAdapter} that also supports joining an existing run
+ * (a second tab, or re-attaching after a full reload) via `joinRun`, replaying
+ * the ordered stream from the start off the server's delivery-durability sink.
+ */
+export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdapter {
+  /**
+   * Join an in-flight or finished run by id, replaying from the start
+   * (`?offset=-1`). Read-only — sends no messages.
+   */
+  joinRun: (
+    runId: string,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>
 }
 
@@ -482,7 +652,7 @@ function buildRunAgentInputBody(
  * const connection = fetchServerSentEvents('/api/chat', async () => ({
  *   body: {
  *     provider: 'openai',
- *     model: 'gpt-4o',
+ *     model: 'gpt-5.5',
  *   }
  * }));
  * ```
@@ -492,7 +662,7 @@ export function fetchServerSentEvents(
   options:
     | FetchConnectionOptions
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
-): ConnectConnectionAdapter {
+): ResumableConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
@@ -524,15 +694,55 @@ export function fetchServerSentEvents(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
-      const response = await fetchClient(resolvedUrl, {
-        method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
-        credentials: resolvedOptions.credentials || 'same-origin',
-        ...(signal ? { signal } : {}),
+      const requestUrl = runContext?.runId
+        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
+        : resolvedUrl
+
+      // Resumable SSE: if the server tags events with `id:` offsets (delivery
+      // durability), a dropped/rolled-over connection auto-reconnects with a
+      // `Last-Event-ID` header and de-dupes the replayed prefix. With no tags,
+      // this is a single plain fetch.
+      yield* resumableServerSentEvents(
+        fetchClient,
+        requestUrl,
+        {
+          method: 'POST',
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
+          credentials: resolvedOptions.credentials || 'same-origin',
+        },
+        signal,
+      )
+    },
+    async *joinRun(runId, abortSignal) {
+      // Read an in-flight or finished run from the start. `?offset=-1` tells the
+      // server's delivery-durability sink to replay from the beginning; `runId`
+      // identifies which run. This is a read-only GET — no messages are sent.
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+
+      const joinUrl = withSearchParams(resolvedUrl, {
+        offset: '-1',
+        runId,
       })
 
-      yield* responseToSSEChunks(response, abortSignal)
+      const requestHeaders: Record<string, string> = {
+        ...mergeHeaders(resolvedOptions.headers),
+      }
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const signal = abortSignal || resolvedOptions.signal
+
+      yield* resumableServerSentEvents(
+        fetchClient,
+        joinUrl,
+        {
+          method: 'GET',
+          headers: requestHeaders,
+          credentials: resolvedOptions.credentials || 'same-origin',
+        },
+        signal,
+      )
     },
   }
 }
@@ -566,7 +776,7 @@ export function fetchServerSentEvents(
  * const connection = fetchHttpStream('/api/chat', async () => ({
  *   body: {
  *     provider: 'openai',
- *     model: 'gpt-4o',
+ *     model: 'gpt-5.5',
  *   }
  * }));
  * ```
