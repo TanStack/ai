@@ -48,6 +48,35 @@ describe('makeStructuredOutputCompatible', () => {
     expect(result.properties.nickname.type).toEqual(['string', 'null'])
   })
 
+  it('widens optional enum and const constraints to accept null', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['canary'] },
+        status: { type: 'string', const: 'ready' },
+      },
+      required: [],
+    }
+
+    const { schema: result, nullWideningMap } =
+      makeStructuredOutputCompatibleWithMap(schema, schema.required)
+
+    expect(result.properties.mode).toEqual({
+      type: ['string', 'null'],
+      enum: ['canary', null],
+    })
+    expect(result.properties.status).toEqual({
+      type: ['string', 'null'],
+      enum: ['ready', null],
+    })
+    expect(nullWideningMap).toEqual({
+      properties: {
+        mode: { widened: true },
+        status: { widened: true },
+      },
+    })
+  })
+
   it('records only nullability introduced by strict conversion', () => {
     const schema = {
       type: 'object',

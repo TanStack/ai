@@ -327,6 +327,18 @@ function coerceStrictSchema(
 
       // Step 2: Apply null-widening for optional properties (after recursion)
       if (wasOptional) {
+        // `type: [..., 'null']` alone does not make null valid when an enum or
+        // const still excludes it; strict decoding would be forced to emit the
+        // original literal instead of the synthetic omission marker.
+        if ('const' in prop && prop.const !== null) {
+          const { const: constValue, ...withoutConst } = prop
+          prop = { ...withoutConst, enum: [constValue, null] }
+          widenedHere = true
+        } else if (Array.isArray(prop.enum) && !prop.enum.includes(null)) {
+          prop = { ...prop, enum: [...prop.enum, null] }
+          widenedHere = true
+        }
+
         if (prop.anyOf) {
           // For anyOf, add a null variant if not already present
           if (!prop.anyOf.some((v: any) => v.type === 'null')) {

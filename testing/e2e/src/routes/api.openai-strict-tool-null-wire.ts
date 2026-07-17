@@ -27,6 +27,7 @@ function makeToolCallStream(): ReadableStream<Uint8Array> {
   const responseId = 'resp_strict_tool_null'
   const itemId = 'call_strict_tool_null'
   const args = JSON.stringify({
+    mode: null,
     question: 'Which option?',
     options: null,
     nullableNote: null,
@@ -175,6 +176,7 @@ export const Route = createFileRoute('/api/openai-strict-tool-null-wire')({
           name: 'ask_user',
           description: 'Ask the user to choose an option',
           inputSchema: z.object({
+            mode: z.enum(['canary']).optional(),
             question: z.string(),
             options: z.array(z.string()).optional(),
             nullableNote: z.string().nullable(),

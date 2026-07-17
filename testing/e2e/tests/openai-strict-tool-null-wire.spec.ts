@@ -21,6 +21,7 @@ test.describe('openai strict tool optional fields', () => {
               {
                 type?: string | Array<string>
                 anyOf?: Array<{ type: string }>
+                enum?: Array<unknown>
               }
             >
           }
@@ -38,8 +39,12 @@ test.describe('openai strict tool optional fields', () => {
     expect(tool).toMatchObject({
       strict: true,
       parameters: {
-        required: ['question', 'options', 'nullableNote'],
+        required: ['mode', 'question', 'options', 'nullableNote'],
         properties: {
+          mode: {
+            type: ['string', 'null'],
+            enum: ['canary', null],
+          },
           options: { type: ['array', 'null'] },
           nullableNote: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
