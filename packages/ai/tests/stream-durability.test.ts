@@ -196,9 +196,12 @@ describe('memoryStream', () => {
     await producer.append([ev.textContent('a')])
 
     const joiner = memoryStream(
-      new Request('https://example.test/api/chat?runId=run-slow-tail&offset=-1', {
-        method: 'POST',
-      }),
+      new Request(
+        'https://example.test/api/chat?runId=run-slow-tail&offset=-1',
+        {
+          method: 'POST',
+        },
+      ),
       { firstChunkDeadlineMs: 20 },
     )
     const resumeOffset = joiner.resumeFrom()

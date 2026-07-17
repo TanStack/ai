@@ -665,7 +665,8 @@ export function durableStream(
               // position, but cap consecutive failures and throttle so a
               // persistently failing backend surfaces the error, not a hot loop.
               consecutiveReadFailures += 1
-              if (consecutiveReadFailures > maxReadFailures) throw error.readError
+              if (consecutiveReadFailures > maxReadFailures)
+                throw error.readError
               await abortableDelay(readRetryDelayMs, signal)
               continue
             }

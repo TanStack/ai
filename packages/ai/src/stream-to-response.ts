@@ -396,7 +396,9 @@ function durableStreamSource<TOffset extends string>(
       } catch (closeError) {
         // A failed close leaves the durable log unterminated for joiners; the
         // live consumer gets the rethrow, but log it for the joiner's sake.
-        logger?.errors('closing durability stream failed', { error: closeError })
+        logger?.errors('closing durability stream failed', {
+          error: closeError,
+        })
         recordFailure(closeError, 'closing durability stream failed')
       }
 
