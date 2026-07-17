@@ -486,6 +486,66 @@ describe('durableStream official HTTP protocol', () => {
     expect(new Set(received.map((entry) => entry.offset)).size).toBe(2)
   })
 
+  it('rejects a read response whose record sequences are not strictly increasing', async () => {
+    const fetchStub = vi.fn<typeof fetch>(async (_input, init) => {
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method !== 'GET') {
+        return new Response(null, {
+          status: 200,
+          headers: createHeaders('origin::p/A'),
+        })
+      }
+      const body =
+        dataEvent([
+          { v: 1, seq: 2, chunk: textChunk('b') },
+          { v: 1, seq: 1, chunk: textChunk('a') },
+        ]) +
+        controlEvent({ streamNextOffset: 'origin::p/A', streamClosed: true })
+      return new Response(body, {
+        status: 200,
+        headers: createHeaders('origin::p/A'),
+      })
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?offset=-1&runId=run-nonmono'),
+      { server: 'https://ds.test', fetch: fetchStub },
+    )
+
+    await expect(async () => {
+      for await (const _entry of durability.read('-1')) {
+        // drain until the out-of-order record throws
+      }
+    }).rejects.toThrow(/strictly increasing sequences/)
+  })
+
+  it('times out a stalled close via operationTimeoutMs', async () => {
+    const fetchStub = vi.fn<typeof fetch>((_input, init) => {
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method === 'PUT') {
+        return Promise.resolve(
+          new Response(null, {
+            status: 200,
+            headers: createHeaders('origin::p/A'),
+          }),
+        )
+      }
+      // The close POST hangs; only the timeout's abort resolves it.
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(init.signal?.reason ?? new Error('aborted')),
+          { once: true },
+        )
+      })
+    })
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-timeout'),
+      { server: 'https://ds.test', fetch: fetchStub, operationTimeoutMs: 20 },
+    )
+
+    await expect(durability.close()).rejects.toThrow(/operationTimeoutMs/)
+  })
+
   it('reconnects an open SSE window with control offset and cursor', async () => {
     const requests: Array<CapturedRequest> = []
     let readNumber = 0

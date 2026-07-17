@@ -44,6 +44,13 @@ export interface DurableStreamOptions {
     /** Delay between read retries, in ms. Default 250. */
     delayMs?: number
   }
+  /**
+   * Timeout (ms) for a single create / append / close request to the backend.
+   * A stalled backend would otherwise hang chunk delivery or terminalization
+   * indefinitely. Default 30000. Long-poll `read` window advancement is NOT
+   * bounded by this — a caught-up reader may legitimately wait.
+   */
+  operationTimeoutMs?: number
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
@@ -450,6 +457,29 @@ export function durableStream(
   const server = rawServer.replace(/\/+$/, '')
   const maxReadFailures = options.reconnect?.maxReadFailures ?? 10
   const readRetryDelayMs = options.reconnect?.delayMs ?? 250
+  const operationTimeoutMs = options.operationTimeoutMs ?? 30_000
+
+  // create / append / close go through this so a stalled backend can't hang the
+  // operation forever. Each call gets a fresh timeout; long-poll `read` calls
+  // deliberately do NOT use it (they may wait for the producer to advance).
+  const fetchWithTimeout = async (
+    url: string | URL,
+    init: RequestInit,
+  ): Promise<Response> => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort(
+        new DurableStreamError(
+          `request exceeded operationTimeoutMs (${operationTimeoutMs}ms)`,
+        ),
+      )
+    }, operationTimeoutMs)
+    try {
+      return await fetchFn(url, { ...init, signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
   const prefix = assertTransportField(
     options.streamPrefix ?? 'runs',
     'streamPrefix',
@@ -487,7 +517,7 @@ export function durableStream(
   const ensureCreated = (): Promise<string> => {
     if (createPromise) return createPromise
     createPromise = (async () => {
-      const response = await fetchFn(streamUrl, {
+      const response = await fetchWithTimeout(streamUrl, {
         method: 'PUT',
         headers: await resolveHeaders({ 'Content-Type': 'application/json' }),
       })
@@ -530,10 +560,10 @@ export function durableStream(
       }
       let response: Response
       try {
-        response = await fetchFn(streamUrl, requestInit)
+        response = await fetchWithTimeout(streamUrl, requestInit)
       } catch (firstError) {
         try {
-          response = await fetchFn(streamUrl, requestInit)
+          response = await fetchWithTimeout(streamUrl, requestInit)
         } catch (retryError) {
           throw new AggregateError(
             [firstError, retryError],
@@ -556,7 +586,7 @@ export function durableStream(
       if (closePromise) return closePromise
       closePromise = (async () => {
         await ensureCreated()
-        const response = await fetchFn(streamUrl, {
+        const response = await fetchWithTimeout(streamUrl, {
           method: 'POST',
           headers: await resolveHeaders({ 'Stream-Closed': 'true' }),
         })
@@ -618,12 +648,25 @@ export function durableStream(
         let sawControl = false
         let dataAwaitingControl = false
         let yieldedData = false
+        // Guards intra-response ordering: seqs must strictly increase across the
+        // whole response (including across data frames and control frames — seq
+        // is per-run, not per-window). Starts at 0 so a legitimate replay of
+        // already-delivered records still passes, then the dedup below drops
+        // them; the throw catches a genuinely malformed [seq 2, seq 1] or a
+        // duplicate seq that would otherwise be silently discarded.
+        let previousResponseSeq = 0
         try {
           for await (const event of parseSseEvents(response.body, signal)) {
             if (signal?.aborted) return
             if (event.event === 'data') {
               dataAwaitingControl = true
               for (const record of parseDataRecords(event.data)) {
+                if (record.seq <= previousResponseSeq) {
+                  throw new DurableStreamError(
+                    'data records must have strictly increasing sequences',
+                  )
+                }
+                previousResponseSeq = record.seq
                 if (record.seq <= deliveredThroughSeq) continue
                 deliveredThroughSeq = record.seq
                 yieldedData = true

@@ -110,10 +110,22 @@ interface ResolvedReconnectOptions {
 function resolveReconnectOptions(
   options: ReconnectOptions | undefined,
 ): ResolvedReconnectOptions {
-  return {
-    maxAttempts: options?.maxAttempts ?? 5,
-    delayMs: options?.delayMs ?? 250,
+  const maxAttempts = options?.maxAttempts ?? 5
+  const delayMs = options?.delayMs ?? 250
+  // Reject non-finite / negative bounds up front: a NaN or Infinity maxAttempts
+  // would make the ceiling ineffective (unbounded reconnects), and a non-finite
+  // delayMs would remove throttling. Fail loudly on misconfiguration.
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 0) {
+    throw new Error(
+      `Invalid reconnect.maxAttempts: ${maxAttempts}. Must be a non-negative integer.`,
+    )
   }
+  if (!Number.isFinite(delayMs) || delayMs < 0) {
+    throw new Error(
+      `Invalid reconnect.delayMs: ${delayMs}. Must be a non-negative finite number.`,
+    )
+  }
+  return { maxAttempts, delayMs }
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
@@ -294,8 +306,13 @@ async function* linesToSSEEvents(
   let lastModel: string | undefined
   let pendingId: string | undefined
   for await (const line of lines) {
-    if (line.startsWith('id:')) {
-      pendingId = line.slice(3).trim()
+    if (line === 'id' || line.startsWith('id:')) {
+      // SSE spec: strip a single leading space after the colon, preserve the
+      // rest verbatim so an opaque adapter offset round-trips exactly (do NOT
+      // trim, which would mangle a legitimate offset). An empty value is kept as
+      // '' and resets the resume cursor downstream (see resumableStream).
+      const rawId = line === 'id' ? '' : line.slice(3)
+      pendingId = rawId.startsWith(' ') ? rawId.slice(1) : rawId
       continue
     }
     // Assumes the durability wire emits one `id:` immediately followed by one
@@ -505,9 +522,16 @@ async function* resumableStream(
         abortSignal,
       )) {
         if (id !== undefined) {
-          if (seen.has(id)) continue
-          seen.add(id)
-          lastEventId = id
+          if (id === '') {
+            // SSE spec: an empty `id:` resets the resume cursor. Drop the last
+            // offset and clear the de-dupe set; the chunk itself still delivers.
+            lastEventId = undefined
+            seen.clear()
+          } else {
+            if (seen.has(id)) continue
+            seen.add(id)
+            lastEventId = id
+          }
         }
         progressed = true
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {

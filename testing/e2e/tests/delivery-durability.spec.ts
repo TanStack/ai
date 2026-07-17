@@ -16,6 +16,10 @@ import { expect, test } from '@playwright/test'
  * concern, not something this transport can guarantee. The client-side
  * auto-reconnect (Last-Event-ID resend + de-dupe) is covered by unit tests in
  * `@tanstack/ai-client`.
+ *
+ * Exempt from the aimock policy: the `api.durable-delivery` harness route
+ * streams a fixed AG-UI sequence and never reaches an LLM provider's HTTP layer,
+ * so there is nothing to mock.
  */
 
 interface SseEvent {

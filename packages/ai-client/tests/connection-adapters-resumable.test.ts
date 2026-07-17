@@ -58,6 +58,19 @@ function finishedEvent(id: string): string {
   return `id: ${id}\ndata: ${JSON.stringify(chunk)}\n\n`
 }
 
+/** An event carrying an EMPTY `id:` (SSE reset), plus its data line. */
+function emptyIdEvent(delta: string): string {
+  const chunk = {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId: 'm',
+    model: 'test',
+    timestamp: 0,
+    delta,
+    content: delta,
+  }
+  return `id:\ndata: ${JSON.stringify(chunk)}\n\n`
+}
+
 describe('resumable SSE connection adapter', () => {
   it('reconnects with Last-Event-ID and de-dupes already-seen chunks', async () => {
     const fetchClient = vi.fn<typeof fetch>(async (url, init) => {
@@ -411,6 +424,65 @@ describe('resumable SSE connection adapter', () => {
     ).toEqual(['1', '2', '3', '4'])
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
     expect(fetchClient).toHaveBeenCalledTimes(5)
+  })
+
+  it('rejects invalid reconnect bounds (non-finite maxAttempts / delayMs)', async () => {
+    const fetchClient = vi.fn<typeof fetch>(async () =>
+      sseResponse(finishedEvent('run@1')),
+    )
+    for (const reconnect of [
+      { maxAttempts: Number.NaN },
+      { maxAttempts: Number.POSITIVE_INFINITY },
+      { maxAttempts: -1 },
+      { delayMs: Number.POSITIVE_INFINITY },
+      { delayMs: -5 },
+    ]) {
+      const adapter = fetchServerSentEvents('/api/chat', {
+        fetchClient,
+        reconnect,
+      })
+      await expect(async () => {
+        for await (const _chunk of adapter.connect(
+          [{ role: 'user', content: 'hi' }],
+          undefined,
+          undefined,
+          { threadId: 't', runId: 'r' },
+        )) {
+          // drain
+        }
+      }).rejects.toThrow(/Invalid reconnect\./)
+    }
+  })
+
+  it('delivers an empty-id event and does not track "" as a durable offset', async () => {
+    // A tagged event, then an event with an empty `id:` (SSE reset), then the
+    // terminal — all in one response. The empty-id chunk must be delivered (not
+    // dropped) and '' must not be recorded as an offset.
+    const fetchClient = vi.fn<typeof fetch>(async () =>
+      sseResponse(
+        contentEvent('run@1', '1') + emptyIdEvent('2') + finishedEvent('run@3'),
+      ),
+    )
+    const adapter = fetchServerSentEvents('/api/chat', { fetchClient })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        .map((chunk) => chunk.delta),
+    ).toEqual(['1', '2'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    // Terminal reached on the first response — no reconnect.
+    expect(fetchClient).toHaveBeenCalledTimes(1)
   })
 
   it('stops reconnecting promptly when aborted during the throttle delay', async () => {
