@@ -1,40 +1,4 @@
-/**
- * Recursively transform null values to undefined in an object.
- *
- * This is needed because Mistral's structured output may require optional
- * fields to be declared nullable. When Mistral returns null for optional
- * fields, we convert them back to undefined to match the original Zod schema.
- */
-export function transformNullsToUndefined<T>(obj: T): T {
-  if (obj === null) {
-    // eslint-disable-next-line no-restricted-syntax -- generic T has no structural overlap with undefined; null→undefined conversion is this function's documented contract
-    return undefined as unknown as T
-  }
-
-  if (Array.isArray(obj)) {
-    // Preserve array length and indices — converting null elements to
-    // undefined slots rather than dropping them. `Array<T | null>` schemas
-    // depend on positional alignment.
-    // eslint-disable-next-line no-restricted-syntax -- the mapped array (unknown[]) has no structural overlap with generic T; positional null→undefined transform preserves the array shape T describes
-    return obj.map((item) => transformNullsToUndefined(item)) as unknown as T
-  }
-
-  if (
-    typeof obj === 'object' &&
-    Object.getPrototypeOf(obj) === Object.prototype
-  ) {
-    // Preserve every key — `null` values become `undefined` values, but the
-    // key itself is not removed. Schemas distinguishing absent vs explicit
-    // null rely on this.
-    const result: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      result[key] = transformNullsToUndefined(value)
-    }
-    return result as T
-  }
-
-  return obj
-}
+import type { NullWideningMap } from '@tanstack/ai-utils'
 
 /**
  * Transform a JSON schema to be compatible with Mistral's structured output
@@ -49,7 +13,56 @@ export function makeMistralStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
+  return makeMistralStructuredOutputCompatibleWithMap(schema, originalRequired)
+    .schema
+}
+
+interface MistralStructuredOutputCompatibility {
+  schema: Record<string, any>
+  nullWideningMap: NullWideningMap | undefined
+}
+
+/**
+ * Mistral strict-schema conversion plus an exact map of the nullability added
+ * for optional fields. The map lets callers remove only provider nulls that
+ * represent omitted fields while preserving nulls accepted by the original
+ * schema.
+ */
+export function makeMistralStructuredOutputCompatibleWithMap(
+  schema: Record<string, any>,
+  originalRequired: Array<string> = [],
+): MistralStructuredOutputCompatibility {
+  return coerceMistralStrictSchema(schema, originalRequired)
+}
+
+function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
+  return Object.keys(map).length > 0 ? map : undefined
+}
+
+/** Whether every active JSON Schema constraint at this node admits null. */
+function acceptsNull(schema: Record<string, any>): boolean {
+  if ('const' in schema && schema.const !== null) return false
+  if (Array.isArray(schema.enum) && !schema.enum.includes(null)) return false
+
+  if (typeof schema.type === 'string' && schema.type !== 'null') return false
+  if (Array.isArray(schema.type) && !schema.type.includes('null')) return false
+
+  if (
+    Array.isArray(schema.anyOf) &&
+    !schema.anyOf.some((variant: Record<string, any>) => acceptsNull(variant))
+  ) {
+    return false
+  }
+
+  return true
+}
+
+function coerceMistralStrictSchema(
+  schema: Record<string, any>,
+  originalRequired: Array<string>,
+): MistralStructuredOutputCompatibility {
   const result = { ...schema }
+  const nullWideningMap: NullWideningMap = {}
 
   if (result.type === 'object') {
     if (!result.properties) {
@@ -57,61 +70,58 @@ export function makeMistralStructuredOutputCompatible(
     }
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
+    const propertyMaps: Record<string, NullWideningMap> = {}
 
     for (const propName of allPropertyNames) {
-      const prop = properties[propName]
+      let prop = properties[propName]
       const wasOptional = !originalRequired.includes(propName)
+      let childMap: NullWideningMap | undefined
+      let widenedHere = false
 
       if (prop.type === 'object' && prop.properties) {
-        const converted = makeMistralStructuredOutputCompatible(
-          prop,
-          prop.required || [],
-        )
-        if (wasOptional) {
-          properties[propName] = {
-            ...converted,
-            type: Array.isArray(converted.type)
-              ? converted.type.includes('null')
-                ? converted.type
-                : [...converted.type, 'null']
-              : [converted.type, 'null'],
-          }
-        } else {
-          properties[propName] = converted
-        }
+        const converted = coerceMistralStrictSchema(prop, prop.required || [])
+        prop = converted.schema
+        childMap = converted.nullWideningMap
       } else if (prop.type === 'array' && prop.items) {
-        const converted = {
+        const convertedItems = coerceMistralStrictSchema(
+          prop.items,
+          prop.items.required || [],
+        )
+        prop = {
           ...prop,
-          items: makeMistralStructuredOutputCompatible(
-            prop.items,
-            prop.items.required || [],
-          ),
+          items: convertedItems.schema,
         }
-        if (wasOptional) {
-          properties[propName] = {
-            ...converted,
-            type: Array.isArray(converted.type)
-              ? converted.type.includes('null')
-                ? converted.type
-                : [...converted.type, 'null']
-              : [converted.type, 'null'],
-          }
-        } else {
-          properties[propName] = converted
+        if (convertedItems.nullWideningMap) {
+          childMap = { items: convertedItems.nullWideningMap }
         }
-      } else if (wasOptional) {
+      }
+
+      if (wasOptional) {
+        const originallyAcceptedNull = acceptsNull(prop)
+
+        if ('const' in prop && prop.const !== null) {
+          const { const: constValue, ...withoutConst } = prop
+          prop = { ...withoutConst, enum: [constValue, null] }
+        } else if (Array.isArray(prop.enum) && !prop.enum.includes(null)) {
+          prop = { ...prop, enum: [...prop.enum, null] }
+        }
+
         if (prop.type && !Array.isArray(prop.type)) {
-          properties[propName] = {
-            ...prop,
-            type: [prop.type, 'null'],
-          }
+          prop = { ...prop, type: [prop.type, 'null'] }
         } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
-          properties[propName] = {
-            ...prop,
-            type: [...prop.type, 'null'],
-          }
+          prop = { ...prop, type: [...prop.type, 'null'] }
         } else if (!prop.type) {
-          properties[propName] = { anyOf: [prop, { type: 'null' }] }
+          prop = { anyOf: [prop, { type: 'null' }] }
+        }
+
+        widenedHere = !originallyAcceptedNull
+      }
+
+      properties[propName] = prop
+      if (childMap || widenedHere) {
+        propertyMaps[propName] = {
+          ...(childMap ?? {}),
+          ...(widenedHere ? { widened: true } : {}),
         }
       }
     }
@@ -123,14 +133,24 @@ export function makeMistralStructuredOutputCompatible(
       delete result.required
     }
     result.additionalProperties = false
+    if (Object.keys(propertyMaps).length > 0) {
+      nullWideningMap.properties = propertyMaps
+    }
   }
 
   if (result.type === 'array' && result.items) {
-    result.items = makeMistralStructuredOutputCompatible(
+    const convertedItems = coerceMistralStrictSchema(
       result.items,
       result.items.required || [],
     )
+    result.items = convertedItems.schema
+    if (convertedItems.nullWideningMap) {
+      nullWideningMap.items = convertedItems.nullWideningMap
+    }
   }
 
-  return result
+  return {
+    schema: result,
+    nullWideningMap: pruneMap(nullWideningMap),
+  }
 }

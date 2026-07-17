@@ -8,7 +8,6 @@ import {
   type Mock,
 } from 'vitest'
 import { createMistralText, mistralText } from '../src/adapters/text'
-import { transformNullsToUndefined } from '../src/utils/schema-converter'
 import type { StreamChunk, Tool, TextOptions } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 
@@ -107,6 +106,15 @@ function setupMockStream(chunks: Array<Record<string, unknown>>) {
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      location: { type: 'string' },
+      mode: { type: 'string', enum: ['canary'] },
+      note: { type: ['string', 'null'] },
+    },
+    required: ['location'],
+  },
 }
 
 describe('Mistral adapters', () => {
@@ -137,6 +145,59 @@ describe('Mistral adapters', () => {
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
       expect(adapter.model).toBe('ministral-8b-latest')
+    })
+
+    it('normalizes only strict-schema nulls in structured output', async () => {
+      mockComplete = vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ mode: null, note: null }),
+            },
+          },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['canary'] },
+            note: { type: ['string', 'null'] },
+          },
+          required: [],
+        },
+      })
+
+      expect(result.data).toEqual({ note: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: {
+                type: 'object',
+                properties: {
+                  mode: {
+                    type: ['string', 'null'],
+                    enum: ['canary', null],
+                  },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['mode', 'note'],
+                additionalProperties: false,
+              },
+              strict: true,
+            },
+          },
+        }),
+      )
     })
 
     it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
@@ -373,7 +434,7 @@ describe('Mistral AG-UI event emission', () => {
                 {
                   index: 0,
                   function: {
-                    arguments: '"Berlin"}',
+                    arguments: '"Berlin","mode":null,"note":null}',
                   },
                 },
               ],
@@ -429,7 +490,10 @@ describe('Mistral AG-UI event emission', () => {
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
       expect(toolEndChunk.toolName).toBe('lookup_weather')
-      expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
+      expect(toolEndChunk.input).toEqual({
+        location: 'Berlin',
+        note: null,
+      })
     }
 
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
@@ -1201,37 +1265,5 @@ describe('Mistral reasoning (magistral-* models)', () => {
     )
     // No TEXT_MESSAGE_START — the run was reasoning-only
     expect(types).not.toContain('TEXT_MESSAGE_START')
-  })
-})
-
-describe('transformNullsToUndefined (regression coverage)', () => {
-  it('preserves array length and indices — null elements become undefined slots', () => {
-    const input = ['a', null, 'b', null]
-    const out = transformNullsToUndefined(input)
-    expect(out).toHaveLength(4)
-    expect(out[0]).toBe('a')
-    expect(out[1]).toBeUndefined()
-    expect(out[2]).toBe('b')
-    expect(out[3]).toBeUndefined()
-  })
-
-  it('preserves object keys whose values were null — value becomes undefined, key remains', () => {
-    const input = { a: 1, b: null, c: 'x' }
-    const out = transformNullsToUndefined(input) as Record<string, unknown>
-    expect(Object.keys(out).sort()).toEqual(['a', 'b', 'c'])
-    expect(out.a).toBe(1)
-    expect(out.b).toBeUndefined()
-    expect(out.c).toBe('x')
-  })
-
-  it('recurses into nested arrays and objects', () => {
-    const input = { items: [{ x: null, y: 1 }, null, { x: 2, y: null }] }
-    const out = transformNullsToUndefined(input) as {
-      items: Array<{ x: unknown; y: unknown } | undefined>
-    }
-    expect(out.items).toHaveLength(3)
-    expect(out.items[0]).toEqual({ x: undefined, y: 1 })
-    expect(out.items[1]).toBeUndefined()
-    expect(out.items[2]).toEqual({ x: 2, y: undefined })
   })
 })
