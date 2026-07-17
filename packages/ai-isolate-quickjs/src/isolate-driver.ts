@@ -98,17 +98,18 @@ function injectBinding(
     // active execute() the interrupt deadline is 0, so a stray job from an
     // abandoned execution is interrupted instead of running unbounded.
     void promise.settled.then(() => {
-      if (!vm.runtime.alive) return
       try {
-        const jobs = vm.runtime.executePendingJobs()
-        if (jobs.error) {
-          // Errors thrown inside guest async code reject the observed program
-          // promise instead of surfacing here; anything that does land here
-          // would otherwise be silently swallowed and leak its handle.
-          logs.push(
-            `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
-          )
-          jobs.error.dispose()
+        if (vm.runtime.alive) {
+          const jobs = vm.runtime.executePendingJobs()
+          if (jobs.error) {
+            // Errors thrown inside guest async code reject the observed program
+            // promise instead of surfacing here; anything that does land here
+            // would otherwise be silently swallowed and leak its handle.
+            logs.push(
+              `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
+            )
+            jobs.error.dispose()
+          }
         }
       } finally {
         promise.dispose()
