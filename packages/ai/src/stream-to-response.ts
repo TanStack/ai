@@ -463,9 +463,12 @@ function durableStreamSource<TOffset extends string>(
           // eslint-disable-next-line no-unsafe-finally
           throw failure.error
         }
-        logger?.errors('durability failure after a terminal event was forwarded', {
-          error: failure.error,
-        })
+        logger?.errors(
+          'durability failure after a terminal event was forwarded',
+          {
+            error: failure.error,
+          },
+        )
       }
     }
   }

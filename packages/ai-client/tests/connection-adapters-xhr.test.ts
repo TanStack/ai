@@ -348,7 +348,9 @@ describe('xhr connection adapters', () => {
 
       // A network onerror surfaces as StreamReadError (so a durable run can
       // reconnect); the original cause is preserved on `.cause`.
-      await expect(failureNext).rejects.toThrow('Stream response body read failed')
+      await expect(failureNext).rejects.toThrow(
+        'Stream response body read failed',
+      )
       expect(failureRemoveEventListener).toHaveBeenCalledWith(
         'abort',
         expect.any(Function),

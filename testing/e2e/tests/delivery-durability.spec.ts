@@ -137,9 +137,12 @@ test.describe('delivery durability (ndjson)', () => {
   test('disconnect → reconnect resumes the ordered stream exactly once', async ({
     request,
   }) => {
-    const produce = await request.post('/api/durable-delivery?transport=ndjson', {
-      data: {},
-    })
+    const produce = await request.post(
+      '/api/durable-delivery?transport=ndjson',
+      {
+        data: {},
+      },
+    )
     expect(produce.ok()).toBeTruthy()
     const produced = parseNdjson(await produce.text())
 
@@ -165,9 +168,12 @@ test.describe('delivery durability (ndjson)', () => {
   test('a second tab joins an existing run from the start', async ({
     request,
   }) => {
-    const produce = await request.post('/api/durable-delivery?transport=ndjson', {
-      data: {},
-    })
+    const produce = await request.post(
+      '/api/durable-delivery?transport=ndjson',
+      {
+        data: {},
+      },
+    )
     const produced = parseNdjson(await produce.text())
     const runId = produce.headers()['x-run-id']
     if (!runId) throw new Error('Missing X-Run-Id response header')

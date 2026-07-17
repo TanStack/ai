@@ -26,15 +26,21 @@ function randomId(prefix: string): string {
 }
 
 function ResumablePage() {
-  const [prompt, setPrompt] = useState('Write a short haiku about durable streams.')
+  const [prompt, setPrompt] = useState(
+    'Write a short haiku about durable streams.',
+  )
   const [runId, setRunId] = useState('')
   const [producerText, setProducerText] = useState('')
-  const [producerStatus, setProducerStatus] = useState<'idle' | 'streaming' | 'done' | 'error'>('idle')
+  const [producerStatus, setProducerStatus] = useState<
+    'idle' | 'streaming' | 'done' | 'error'
+  >('idle')
   const producerAbort = useRef<AbortController | null>(null)
 
   const [joinId, setJoinId] = useState('')
   const [joinText, setJoinText] = useState('')
-  const [joinStatus, setJoinStatus] = useState<'idle' | 'streaming' | 'done' | 'error'>('idle')
+  const [joinStatus, setJoinStatus] = useState<
+    'idle' | 'streaming' | 'done' | 'error'
+  >('idle')
   const joinAbort = useRef<AbortController | null>(null)
 
   async function startRun() {
@@ -83,7 +89,14 @@ function ResumablePage() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
+    <div
+      style={{
+        maxWidth: 900,
+        margin: '0 auto',
+        padding: 24,
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
       <h1>Resumable streams</h1>
       <p style={{ color: '#555' }}>
         Start a run, then <strong>join it by run ID</strong> — here, in a second
@@ -102,14 +115,19 @@ function ResumablePage() {
           style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
         />
         <div style={{ marginTop: 8 }}>
-          <button onClick={() => void startRun()} disabled={producerStatus === 'streaming'}>
+          <button
+            onClick={() => void startRun()}
+            disabled={producerStatus === 'streaming'}
+          >
             {producerStatus === 'streaming' ? 'Streaming…' : 'Send'}
           </button>
         </div>
         {runId ? (
           <p style={{ marginTop: 8 }}>
             Run ID: <code>{runId}</code>{' '}
-            <button onClick={() => void navigator.clipboard.writeText(runId)}>Copy</button>
+            <button onClick={() => void navigator.clipboard.writeText(runId)}>
+              Copy
+            </button>
           </p>
         ) : null}
         <pre style={output}>{producerText || '—'}</pre>
@@ -129,7 +147,10 @@ function ResumablePage() {
           style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
         />
         <div style={{ marginTop: 8 }}>
-          <button onClick={() => void joinRun()} disabled={!joinId || joinStatus === 'streaming'}>
+          <button
+            onClick={() => void joinRun()}
+            disabled={!joinId || joinStatus === 'streaming'}
+          >
             {joinStatus === 'streaming' ? 'Joining…' : 'Join'}
           </button>
         </div>
