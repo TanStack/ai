@@ -26,7 +26,7 @@ import {
 } from '@tanstack/ai-mcp'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
+import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import { everythingTransport } from '@/lib/mcp-servers'
 
 /**

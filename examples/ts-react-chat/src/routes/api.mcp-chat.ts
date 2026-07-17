@@ -18,7 +18,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
+import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import { everythingTransport, memoryTransport } from '@/lib/mcp-servers'
 
 export const Route = createFileRoute('/api/mcp-chat')({
