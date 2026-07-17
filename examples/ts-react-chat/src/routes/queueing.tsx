@@ -3,8 +3,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Send, Square, X, Zap } from 'lucide-react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { QueueConfig, QueuedMessage, UIMessage } from '@tanstack/ai-react'
-import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
 import type { ModelOption } from '@/lib/model-selection'
+import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
 
 /**
  * Showcase route for the client-side message queue.
@@ -49,8 +49,7 @@ const BATCH: StrategyMeta = {
 
 function textOf(message: UIMessage): string {
   return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => (part.type === 'text' ? part.content : ''))
+    .flatMap((part) => (part.type === 'text' ? [part.content] : []))
     .join('')
 }
 

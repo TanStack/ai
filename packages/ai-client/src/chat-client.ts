@@ -1284,10 +1284,9 @@ export class ChatClient<
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
               // Continuation failed without starting a new stream — don't
-              // leave queued user messages stranded forever.
-              if (!this.isLoading) {
-                await this.drainQueue()
-              }
+              // leave queued user messages stranded forever. (isLoading is
+              // already false in this finally block.)
+              await this.drainQueue()
             }
           } else {
             if (this.status !== 'ready') {
@@ -1619,6 +1618,15 @@ export class ChatClient<
   }
 
   /**
+   * True when an interrupt (or another direct send) claimed the client during
+   * a drain. Read via a method so cross-await mutations are not constant-folded
+   * by control-flow analysis.
+   */
+  private shouldAbortMessageQueueDrain(): boolean {
+    return this.isLoading || this.stopMessageQueueDrain
+  }
+
+  /**
    * Deliver queued messages after a successful settle.
    * - `batch`: merge everything currently queued into one send.
    * - `fifo`: walk the queue in a loop, one stream at a time, until empty
@@ -1655,17 +1663,17 @@ export class ChatClient<
       while (this.messageQueue.length > 0) {
         // Interrupt (or a new direct send) claimed the client — stop draining;
         // remaining items stay queued and will drain after that send settles.
-        if (this.isLoading || this.stopMessageQueueDrain) {
+        if (this.shouldAbortMessageQueueDrain()) {
           return
         }
         const next = this.messageQueue.shift()
-        this.emitQueueChange()
-        if (!next) {
+        if (next === undefined) {
           return
         }
+        this.emitQueueChange()
         const completed = await this.deliverMessage(next.content, next.body)
         // Failed/aborted deliver flushes the rest of the queue in streamResponse.
-        if (!completed || this.stopMessageQueueDrain) {
+        if (!completed || this.shouldAbortMessageQueueDrain()) {
           return
         }
       }

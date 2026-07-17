@@ -185,7 +185,7 @@ function createErroringHoldingConnection(): {
         timestamp: Date.now(),
         message: 'boom',
         error: { message: 'boom' },
-      } as StreamChunk
+      }
     },
   }
   return { connection, release: () => deferred.resolve() }
