@@ -168,14 +168,12 @@ export class QuickJSIsolateContext implements IsolateContext {
       this.vm.dispose()
     }
 
-    // A timed-out program's interrupted jobs stay queued in the VM, where
-    // they would run inside the next execution's deadline — so a timeout is
-    // terminal for the context. Disposal needs care: freeing a runtime that
-    // still holds an unsettled program promise aborts the shared WASM
-    // module. Cancel every outstanding tool call (settling the guest
-    // program), then dispose once the guest has settled; if it cannot
-    // settle (e.g. an interrupted infinite loop), leak the VM instead.
-    const releaseAfterTimeout = async () => {
+    // A timed-out program or failed initial pending-job pump can leave jobs
+    // queued in the VM, where they would run inside the next execution's
+    // deadline. Both are terminal for the context. Cancel every outstanding
+    // tool call, then dispose once the guest has settled; if it cannot settle,
+    // leak the VM instead of aborting the shared WASM module.
+    const releaseAfterUnsettledExecution = async () => {
       if (this.disposed) return
       this.disposed = true
       this.execState.deadline = Date.now() + CANCEL_GRACE_MS
@@ -192,13 +190,18 @@ export class QuickJSIsolateContext implements IsolateContext {
       }
     }
 
-    const fail = async (error: unknown) => {
+    const fail = async (
+      error: unknown,
+      cleanup: 'reusable' | 'terminal' = 'reusable',
+    ) => {
       const normalized = normalizeError(error)
       if (normalized.name === TIMEOUT_ERROR) {
-        await releaseAfterTimeout()
+        await releaseAfterUnsettledExecution()
       } else if (isFatalQuickJSLimitError(normalized)) {
         // Memory/stack limits leave the heap in an unknown state.
         await releaseVmAfterFatalError()
+      } else if (cleanup === 'terminal') {
+        await releaseAfterUnsettledExecution()
       }
       return {
         success: false as const,
@@ -238,7 +241,7 @@ export class QuickJSIsolateContext implements IsolateContext {
           if (jobs.error) {
             const dumped: unknown = this.vm.dump(jobs.error)
             jobs.error.dispose()
-            return await fail(dumped)
+            return await fail(dumped, 'terminal')
           }
           const resolvedResult = await awaitWithDeadline(
             nativePromise,
