@@ -1,4 +1,5 @@
 import { toRunErrorPayload } from './activities/error-payload'
+import { runErrorEventToError } from './utilities/errors'
 import type { StreamChunk } from './types'
 
 /**
@@ -27,6 +28,10 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
+    if (chunk.type === 'RUN_ERROR') {
+      throw runErrorEventToError(chunk)
+    }
+
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
