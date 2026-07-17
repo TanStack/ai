@@ -612,9 +612,9 @@ const NO_RESUME_OFFSET =
  * }
  * ```
  */
-export function resumeServerSentEventsResponse<
-  TOffset extends string = string,
->(options: ResumeResponseOptions<TOffset>): Response {
+export function resumeServerSentEventsResponse<TOffset extends string = string>(
+  options: ResumeResponseOptions<TOffset>,
+): Response {
   const { adapter, batch, debug, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })

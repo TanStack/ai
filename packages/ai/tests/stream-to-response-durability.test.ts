@@ -670,7 +670,9 @@ describe('resume response helpers', () => {
   it('resumeHttpResponse replays a run over NDJSON', async () => {
     await seedRun('resume-ndjson')
     const join = memoryStream(
-      new Request('https://example.test/api/chat?runId=resume-ndjson&offset=-1'),
+      new Request(
+        'https://example.test/api/chat?runId=resume-ndjson&offset=-1',
+      ),
     )
 
     const events = parseNdjsonEvents(
