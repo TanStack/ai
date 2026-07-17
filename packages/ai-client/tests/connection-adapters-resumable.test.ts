@@ -214,6 +214,58 @@ describe('resumable SSE connection adapter', () => {
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 
+  it('retries a transport drop that replayed only the de-duped overlap (no new progress that attempt)', async () => {
+    // A caught-up run whose reconnect replays only the already-seen boundary
+    // event and then the socket drops must retry from the offset, not fail
+    // hard — the drop is transient and we still hold a valid resume point.
+    const fetchClient = vi.fn<typeof fetch>(async () => {
+      if (fetchClient.mock.calls.length === 1) {
+        // First pass: one new event, then the socket drops.
+        return failingSseResponse(
+          contentEvent('run@1', '1'),
+          new TypeError('socket disconnected'),
+        )
+      }
+      if (fetchClient.mock.calls.length === 2) {
+        // Reconnect: replays ONLY the de-duped overlap (run@1), then drops
+        // again before any new event — this attempt makes no forward progress.
+        return failingSseResponse(
+          contentEvent('run@1', '1'),
+          new TypeError('socket disconnected again'),
+        )
+      }
+      // Final reconnect delivers the tail + terminal.
+      return sseResponse(
+        contentEvent('run@1', '1') +
+          contentEvent('run@2', '2') +
+          finishedEvent('run@3'),
+      )
+    })
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      reconnect: { delayMs: 0 },
+    })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.connect(
+      [{ role: 'user', content: 'hi' }],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'r' },
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        .map((chunk) => chunk.delta),
+    ).toEqual(['1', '2'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+    // The no-progress overlap-only drop was retried, not surfaced as an error.
+    expect(fetchClient).toHaveBeenCalledTimes(3)
+  })
+
   it('bounds reconnection with a total-attempts ceiling', async () => {
     // Every pass delivers one NEW tagged event then ends cleanly with no
     // terminal — an endless progress-then-drop flapper the ceiling must stop.

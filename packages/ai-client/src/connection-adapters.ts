@@ -483,13 +483,18 @@ async function* resumableStream(
       }
     } catch (error) {
       if (abortSignal?.aborted) return
-      // A truncated connection is resumable only if we have an offset and made
-      // forward progress; otherwise surface the failure.
+      // A transport drop is resumable once we hold an offset — retry from it,
+      // even if THIS attempt made no new progress. A caught-up run whose parked
+      // long-poll socket drops (or a proxy that drops just after replaying the
+      // de-duped overlap) is transient, not fatal; the total-attempts ceiling
+      // in waitBeforeReconnect already bounds a genuinely stuck flapper, so a
+      // per-attempt progress requirement here would only convert recoverable
+      // drops into hard failures on flaky (mobile/edge) networks. Without an
+      // offset (a non-durable stream), surface the failure.
       if (
         (error instanceof StreamTruncatedError ||
           error instanceof StreamReadError) &&
-        lastEventId !== undefined &&
-        progressed
+        lastEventId !== undefined
       ) {
         await waitBeforeReconnect()
         continue
@@ -512,6 +517,14 @@ async function* resumableStream(
       // pass: the run cannot complete. Surface an error rather than returning
       // silently, which would leave the consumer with neither a terminal event
       // nor a failure.
+      //
+      // Invariant this relies on: a durable transport must never surface an
+      // empty long-poll window as a CLEAN end while the producer is still
+      // alive. Both shipped backends honor it — memoryStream parks until data
+      // or completion, and durableStream keeps one continuous response across
+      // windows — so this fires only on a genuinely complete-but-unterminated
+      // log. A custom StreamDurability transport that ends a response empty
+      // mid-run would trip this; keep the response open until data or terminal.
       throw new DurableStreamIncompleteError()
     }
 
@@ -1366,9 +1379,17 @@ export function xhrServerSentEvents(
       const signal = abortSignal || resolvedOptions.signal
       const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
       yield* resumableStream(
-        xhrEventSource(joinUrl, resolvedOptions, 'GET', [], undefined, undefined, (
-          lines,
-        ) => linesToSSEEvents(lines)),
+        xhrEventSource(
+          joinUrl,
+          resolvedOptions,
+          'GET',
+          [],
+          undefined,
+          undefined,
+          // A `[DONE]` during a join correlates to the joined run id (parity
+          // with fetchServerSentEvents.joinRun).
+          (lines) => linesToSSEEvents(lines, { runId }),
+        ),
         signal,
         resolvedOptions.reconnect,
       )

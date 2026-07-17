@@ -1,7 +1,7 @@
 ---
 title: Resumable Streams
 id: overview
-description: "Reconnect to an in-flight AI response without re-running the model. Durable, offset-addressed SSE and NDJSON delivery with replay, multi-tab join, and producer-death recovery."
+description: "Reconnect to an in-flight AI response without re-running the model. Durable, offset-addressed SSE and NDJSON delivery with replay, multi-tab join, and backend-driven producer-death recovery."
 keywords:
   - resumable streams
   - resume stream
@@ -275,6 +275,23 @@ function respond(request: Request, stream: AsyncIterable<StreamChunk>) {
   })
 }
 ```
+
+A durable source **must** end with its own terminal event
+(`RUN_FINISHED`/`RUN_ERROR`). On clean completion the producer terminalizes the
+log only when the source emitted a terminal; if it ends without one, the log is
+left unterminated and a durable consumer (fresh, reconnecting, or joining)
+reconnects once, makes no progress, and fails with
+`DurableStreamIncompleteError`. `chat()` always emits `RUN_FINISHED`, so this
+only bites hand-rolled streams.
+
+With `memoryStream` the producer and the delivery socket are the same process,
+so a mid-stream client disconnect aborts the producer and appends a terminal
+`RUN_ERROR` to the log. A later reconnect/join then replays the partial content
+followed by that error rather than resuming a still-running response. So
+`memoryStream` is for replaying completed (or fully-buffered) runs in a single
+process; live resume of a run that is still producing after a disconnect
+requires a backend where the producer outlives the delivery socket (see
+[Process death](#process-death)).
 
 ## Reconnection bounding
 

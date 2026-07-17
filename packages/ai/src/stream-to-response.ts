@@ -444,7 +444,7 @@ function durableStreamSource<TOffset extends string>(
  * controls how many chunks are buffered per `append` (default 32).
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability`, `batch`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
  * @returns Response in Server-Sent Events format
  *
  * @example
@@ -577,7 +577,7 @@ export function toHttpStream(
  * encoding differs.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability`, `batch`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability` with its optional `batch`, and `debug`)
  * @returns Response in HTTP stream format (newline-delimited JSON)
  *
  * @example
