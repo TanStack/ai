@@ -244,7 +244,11 @@ describe('createQuickJSIsolateDriver', () => {
     })
 
     it('disposes the context after a timeout so stale jobs cannot leak into later executions', async () => {
-      const never = makeBinding('never', () => new Promise(() => {}))
+      let resolveNever!: (value: unknown) => void
+      const neverResult = new Promise((resolve) => {
+        resolveNever = resolve
+      })
+      const never = makeBinding('never', () => neverResult)
 
       const driver = createQuickJSIsolateDriver({ timeout: 100 })
       const context = await driver.createContext({ bindings: { never } })
@@ -261,6 +265,16 @@ describe('createQuickJSIsolateDriver', () => {
       expect(second.error?.name).toBe('DisposedError')
 
       await expect(context.dispose()).resolves.toBeUndefined()
+
+      resolveNever('late')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const next = await driver.createContext({ bindings: {} })
+      const after = await next.execute('return 42')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe(42)
+      await next.dispose()
     })
 
     it('safely disposes while an in-flight execution times out', async () => {
