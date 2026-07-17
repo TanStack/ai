@@ -19,13 +19,15 @@ export class DuplicateToolNameError extends Error {
 }
 
 /**
- * @deprecated Task-required tools are supported. This export remains for
- * backward compatibility and is no longer thrown by `MCPClient.tools()`.
+ * Thrown when a task-required tool is explicitly bound via `mcp.tools([...])`
+ * but the server does not declare the tasks capability for tools/call, so
+ * every invocation would fail. (Auto-discovery silently skips such tools.)
  */
 export class MCPTaskRequiredToolError extends Error {
   constructor(public readonly toolName: string) {
     super(
-      `MCP tool "${toolName}" requires the MCP SDK's experimental task-based execution`,
+      `MCP tool "${toolName}" requires task-based execution, but the server ` +
+        `does not declare the tasks capability for tools/call`,
     )
     this.name = 'MCPTaskRequiredToolError'
   }
