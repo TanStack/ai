@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createToolInputNormalizer } from '../src/utils/tool-input-normalizer'
+import { createToolInputNormalizer } from './tool-input-normalizer'
 import type { Tool } from '@tanstack/ai'
 
 describe('createToolInputNormalizer', () => {
