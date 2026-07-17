@@ -100,12 +100,64 @@ request. This option belongs to the external URL adapter; a future direct
 Cloudflare binding would use binding authorization instead.
 
 The external service must return a non-empty `Stream-Next-Offset` header for
-create and append operations. Missing headers fail loudly. The adapter never
-guesses an offset.
+create, append, and close operations. Missing headers fail loudly. The adapter
+never guesses an offset.
 
 For development and tests, swap `durableStream(request, durableOptions)` for
 `memoryStream(request)` from `@tanstack/ai` — no external service required,
 at the cost of the log living only in that process's memory.
+
+### Cloudflare Durable Streams
+
+[Durable Streams](https://durablestreams.com) ships a Cloudflare Workers +
+Durable Objects backend that speaks this same protocol, so `durableStream`
+talks to it directly — no new adapter.
+
+When your TanStack AI endpoint also runs on Workers, reach the backend over a
+[service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/)
+rather than a public URL. The adapter's injectable `fetch` routes every create,
+append, read, and close through the binding, so traffic never leaves
+Cloudflare's network and the binding — not a bearer token — authorizes the call:
+
+```ts
+import { durableStream } from '@tanstack/ai-durable-stream'
+
+interface Env {
+  // A service binding to the deployed Durable Streams Worker.
+  DURABLE_STREAMS: { fetch: typeof fetch }
+}
+
+function cloudflareAdapter(request: Request, env: Env) {
+  return durableStream(request, {
+    streamPrefix: 'chat-runs',
+    // Any absolute URL parses; a service binding dispatches to the bound
+    // Worker regardless of host, and only the `/streams/...` path is used.
+    server: 'https://durable-streams',
+    fetch: env.DURABLE_STREAMS.fetch.bind(env.DURABLE_STREAMS),
+  })
+}
+```
+
+If the backend runs elsewhere, or the caller is off-platform, point `server` at
+the deployed Worker's public URL instead:
+
+```ts
+import { durableStream } from '@tanstack/ai-durable-stream'
+
+const cloudflareOptions = {
+  server: 'https://durable-streams.example.workers.dev',
+  streamPrefix: 'chat-runs',
+}
+
+function urlAdapter(request: Request) {
+  return durableStream(request, cloudflareOptions)
+}
+```
+
+Running on a Durable Object also satisfies the lease/reaper described under
+[Process death](#process-death): a DO alarm can terminalize a run whose producer
+died, so a reconnecting client observes a terminal state instead of waiting
+forever.
 
 ## Client setup
 
