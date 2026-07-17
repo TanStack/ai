@@ -1,5 +1,6 @@
 ---
 '@tanstack/openai-base': patch
+'@tanstack/ai-openrouter': patch
 ---
 
-Recover successful Responses API text that is present only on the completed response event.
+Recover successful OpenAI and OpenRouter Responses API text that is present only on the completed response event.
