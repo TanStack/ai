@@ -18,6 +18,7 @@ import type {
   QueueOption,
   QueueStrategy,
   QueuedMessage,
+  SendMessageOptions,
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
@@ -31,6 +32,7 @@ export type {
   QueuedMessage,
   QueueOption,
   QueueStrategy,
+  SendMessageOptions,
   UIMessage,
   WhenBusy,
 }
@@ -141,7 +143,7 @@ interface BaseUseChatReturn<
    */
   sendMessage: (
     content: string | MultimodalContent,
-    options?: { whenBusy?: WhenBusy },
+    options?: SendMessageOptions,
   ) => Promise<void>
 
   /**

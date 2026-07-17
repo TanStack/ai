@@ -18,6 +18,7 @@ import type {
   QueueOption,
   QueueStrategy,
   QueuedMessage,
+  SendMessageOptions,
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
@@ -31,6 +32,7 @@ export type {
   QueuedMessage,
   QueueOption,
   QueueStrategy,
+  SendMessageOptions,
   UIMessage,
   WhenBusy,
 }
@@ -133,22 +135,26 @@ interface BaseUseChatReturn<
   messages: Accessor<Array<UIMessage<TTools, TData>>>
 
   /**
-   * Pending messages queued while a stream is in flight.
+   * Pending messages queued while the client is busy (streaming, claiming a
+   * send, or draining). Separate from `messages` until they drain.
    */
   queue: Accessor<Array<QueuedMessage>>
 
   /**
-   * Cancel a previously queued message by id.
+   * Cancel a queued message before it drains. No-op if already sent.
    */
   cancelQueued: (id: string) => void
 
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * By default, sends while busy are queued until the run settles successfully
+   * (`queue: 'drop'` restores the old drop-while-busy behavior).
+   * Pass `{ whenBusy }` to override the policy for a single send.
    */
   sendMessage: (
     content: string | MultimodalContent,
-    options?: { whenBusy?: WhenBusy },
+    options?: SendMessageOptions,
   ) => Promise<void>
 
   /**

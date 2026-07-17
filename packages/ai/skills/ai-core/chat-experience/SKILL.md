@@ -412,9 +412,9 @@ export const Route = createFileRoute('/api/chat')({
 ### 7. Queueing Messages Sent While Streaming
 
 By default, a `sendMessage` call that arrives while a stream is in flight is
-**queued** and sent automatically once the stream settles — this is a
-behavior change: such sends used to be silently dropped. Configure it with
-the `queue` option on `useChat`:
+**queued** and sent automatically once the run settles **successfully** —
+this is a behavior change: such sends used to be silently dropped. Configure
+it with the `queue` option on `useChat`:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -425,24 +425,27 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 })
 ```
 
-- **`whenBusy`** — `'queue'` (default) holds the message; `'drop'` ignores
-  the send; `'interrupt'` aborts the current stream and sends immediately
-  (unlike `stop()`, does **not** flush already-queued items).
+- **`whenBusy`** — `'queue'` (default) holds the message until a successful
+  settle; `'drop'` ignores the send (never appears in `queue`/`messages`);
+  `'interrupt'` aborts the current stream and sends immediately (unlike
+  `stop()`, does **not** flush already-queued items — they drain after the
+  interrupting send **succeeds**).
 - **`drain`** — `'fifo'` (default) sends queued items one at a time in
   order; `'batch'` merges everything queued into a single send once the
-  stream settles.
+  run settles successfully.
 - **`maxSize`** / **`onOverflow`** — cap the queue length; `'reject'`
-  (default) ignores overflow sends, `'drop-oldest'` evicts the oldest
-  queued item to make room.
+  (default) silently ignores overflow sends (does not throw),
+  `'drop-oldest'` evicts the oldest queued item to make room.
 
 The top-level `queue` option also accepts a plain `WhenBusy` string
 shorthand (e.g. `queue: 'interrupt'`) or a `QueueStrategy` function for
-per-send action control. Strategy form always drains FIFO; `'send'` while
-busy is coerced to `'enqueue'`.
+per-send action control. Strategy form always drains FIFO; actions are
+`'queue' | 'drop' | 'interrupt'`.
 
 **Drain vs flush:** queued messages auto-send only after a **successful**
-settle. They are **discarded** on stream error/abort, `stop()`, `clear()`,
-`unsubscribe()`, and `reload()`. `interrupt` does not flush.
+settle. They are **discarded** on stream error/abort of the active
+generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
+`interrupt` does not flush.
 
 `queue: Array<QueuedMessage>` (`{ id, content, createdAt }`) is separate
 from `messages` — render pending sends distinctly and cancel with

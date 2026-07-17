@@ -13,8 +13,8 @@ import type {
   ConnectionStatus,
   InferredClientContext,
   QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
-  WhenBusy,
 } from '@tanstack/ai-client'
 
 import type {
@@ -247,7 +247,7 @@ export function useChat<
   const sendMessage = useCallback(
     async (
       content: string | MultimodalContent,
-      sendOptions?: { whenBusy?: WhenBusy },
+      sendOptions?: SendMessageOptions,
     ) => {
       await client.sendMessage(content, undefined, sendOptions)
     },

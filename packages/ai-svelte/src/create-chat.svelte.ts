@@ -5,8 +5,8 @@ import type {
   ConnectionStatus,
   InferredClientContext,
   QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
-  WhenBusy,
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
@@ -178,7 +178,7 @@ export function createChat<
   // Define methods
   const sendMessage = async (
     content: string | MultimodalContent,
-    sendOptions?: { whenBusy?: WhenBusy },
+    sendOptions?: SendMessageOptions,
   ) => {
     await client.sendMessage(content, undefined, sendOptions)
   }

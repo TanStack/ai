@@ -37,6 +37,7 @@ export type {
   MultimodalContent,
   QueuedMessage,
   WhenBusy,
+  QueueBusyReason,
   QueueConfig,
   QueueStrategy,
   QueueOption,

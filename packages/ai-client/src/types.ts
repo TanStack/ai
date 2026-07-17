@@ -145,14 +145,24 @@ export interface MultimodalContent {
 }
 
 /**
- * Action taken when `sendMessage` is called while a stream is in flight.
- * - `queue`: hold the message; it auto-sends when the stream settles.
- * - `drop`: ignore the send.
+ * Action taken when `sendMessage` is called while the client is busy
+ * (streaming, claiming a send, or draining the queue).
+ * - `queue`: hold the message; it auto-sends when the current run settles
+ *   **successfully**.
+ * - `drop`: ignore the send (promise still resolves; does not throw).
  * - `interrupt`: abort the current stream and send immediately. Unlike
  *   `stop()`, does **not** flush already-queued messages — they still drain
  *   after the interrupting send settles successfully.
  */
 export type WhenBusy = 'queue' | 'drop' | 'interrupt'
+
+/**
+ * Why the client is busy when a {@link QueueStrategy} runs.
+ * - `streaming` — an LLM stream is active (`isLoading`).
+ * - `sendInFlight` — a send has claimed the client but is not yet loading.
+ * - `draining` — the queue drain loop is delivering pending messages.
+ */
+export type QueueBusyReason = 'streaming' | 'sendInFlight' | 'draining'
 
 /**
  * A user message held in the send queue while a stream is active.
@@ -169,17 +179,26 @@ export interface QueuedMessage {
  * Declarative queue policy.
  */
 export interface QueueConfig {
-  /** Action when a stream is in flight. Default `'queue'`. */
+  /**
+   * Action when the client is busy (streaming, claiming a send, or draining).
+   * Default `'queue'`.
+   */
   whenBusy?: WhenBusy
   /**
    * How queued items leave the queue.
    * - `'fifo'`: one at a time, in order (default).
-   * - `'batch'`: merge all queued items into one send when the stream settles.
+   * - `'batch'`: merge all queued items into one send when the run settles
+   *   successfully.
    */
   drain?: 'fifo' | 'batch'
-  /** Max queued items. Unlimited when omitted. */
+  /** Max queued items. Unlimited when omitted. `0` means never queue. */
   maxSize?: number
-  /** Behavior when `maxSize` is reached. Default `'reject'`. */
+  /**
+   * Behavior when `maxSize` is reached. Default `'reject'`.
+   * `'reject'` silently discards the new send (does not throw);
+   * `'drop-oldest'` evicts the oldest queued item to make room.
+   * Only meaningful when `maxSize` is set.
+   */
   onOverflow?: 'reject' | 'drop-oldest'
 }
 
@@ -188,15 +207,15 @@ export interface QueueConfig {
  * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
  * overrides the strategy for that send.
  *
- * Returning `'send'` while a stream is in flight is coerced to `'enqueue'` —
- * concurrent streams are not supported. `pending.id` is the id that will be
- * stored if the action is `'enqueue'` (safe to pass to `cancelQueued`).
+ * Actions match {@link WhenBusy}: `'queue' | 'drop' | 'interrupt'`. Concurrent
+ * streams are not supported. `pending.id` is the id that will be stored if the
+ * action is `'queue'` (safe to pass to `cancelQueued`).
  */
 export type QueueStrategy = (ctx: {
   pending: QueuedMessage
-  isStreaming: boolean
+  busyReason: QueueBusyReason
   queued: ReadonlyArray<QueuedMessage>
-}) => { action: 'send' | 'enqueue' | 'drop' | 'interrupt' }
+}) => { action: WhenBusy }
 
 /** A `WhenBusy` shorthand, a full config, or a strategy function. */
 export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
@@ -556,9 +575,13 @@ export interface ChatClientBaseOptions<
   onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
-   * Policy for messages sent while a stream is in flight. Accepts a
-   * `WhenBusy` string, a `QueueConfig`, or a `QueueStrategy` function.
+   * Policy for messages sent while the client is busy (streaming, claiming
+   * a send, or draining the queue). Accepts a `WhenBusy` string, a
+   * `QueueConfig`, or a `QueueStrategy` function.
    * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   * Queued items auto-send only after a **successful** settle; they are
+   * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
+   * `reload()`.
    */
   queue?: QueueOption
 

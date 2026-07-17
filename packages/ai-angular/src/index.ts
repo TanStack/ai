@@ -69,6 +69,7 @@ export type {
   QueuedMessage,
   QueueOption,
   QueueStrategy,
+  SendMessageOptions,
   WhenBusy,
   ReactiveOption,
 } from './types'

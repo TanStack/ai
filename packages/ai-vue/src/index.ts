@@ -6,6 +6,7 @@ export type {
   UIMessage,
   ChatRequestBody,
   QueuedMessage,
+  SendMessageOptions,
   WhenBusy,
   QueueConfig,
   QueueStrategy,
