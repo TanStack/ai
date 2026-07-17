@@ -67,7 +67,10 @@ export async function POST(request: Request) {
 Reconnect after a drop is automatic. To attach to a run from the start on
 purpose (a second tab, or a full reload where you already know the run id), call
 `joinRun`. It performs a read-only `GET` with `offset=-1`, which is why the
-server needs the `GET` handler from the Overview:
+server needs the `GET` handler from the Overview. That handler is just
+`resumeServerSentEventsResponse({ adapter })` (or `resumeHttpResponse` for
+NDJSON): it replays from the log and returns a 400 if the request has no resume
+offset.
 
 ```ts
 import { fetchServerSentEvents } from '@tanstack/ai-client'

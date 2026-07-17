@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   memoryStream,
+  resumeHttpResponse,
+  resumeServerSentEventsResponse,
   toHttpResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
@@ -109,11 +111,12 @@ export const Route = createFileRoute('/api/durable-delivery')({
         )
       },
       GET: async ({ request }) => {
-        const { durability, runId, advertiseRunId } = durableRun(request)
-        return withRunId(
-          durableResponse(request, runId, durability),
-          advertiseRunId,
-        )
+        // A join replays from the log, so no producer stream is built here.
+        const { durability, advertiseRunId } = durableRun(request)
+        const response = isNdjson(request)
+          ? resumeHttpResponse({ adapter: durability })
+          : resumeServerSentEventsResponse({ adapter: durability })
+        return withRunId(response, advertiseRunId)
       },
     },
   },

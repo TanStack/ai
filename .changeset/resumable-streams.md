@@ -23,6 +23,11 @@ Two adapters ship: `memoryStream(request)` in `@tanstack/ai` (process-local,
 for development and tests) and the new `@tanstack/ai-durable-stream` package,
 a Durable Streams protocol adapter for production backends.
 
+For the `GET` handler that a reload or a second tab reconnects to,
+`resumeServerSentEventsResponse({ adapter })` and `resumeHttpResponse({ adapter })`
+replay a run straight from the durability log. They need no producer stream and
+return a 400 when the request carries no resume offset.
+
 On the client, all four HTTP adapters are now resumable — `fetchServerSentEvents`,
 `fetchHttpStream`, `xhrServerSentEvents`, and `xhrHttpStream`. Each tracks the
 per-event offset, auto-reconnects with `Last-Event-ID`, de-duplicates the

@@ -578,6 +578,55 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
 }
 
 /**
+ * A resume is served entirely from the durability log, so there is no producer
+ * to iterate. This empty source satisfies the response helpers' signature; on a
+ * resume `durableStreamSource` replays from the log and never touches it.
+ */
+function emptyDurableSource(): AsyncIterable<StreamChunk> {
+  return (async function* () {})()
+}
+
+/** Shared options for the resume-only response helpers. */
+type ResumeResponseOptions<TOffset extends string> = ResponseInit & {
+  adapter: StreamDurability<TOffset>
+  batch?: number
+  debug?: DebugOption
+}
+
+const NO_RESUME_OFFSET =
+  'No resume offset provided (expected a Last-Event-ID header or an ?offset query parameter).'
+
+/**
+ * Serve a resumable run from its durability log over Server-Sent Events, without
+ * re-running the model. Use this in a `GET` handler so a reload or a second tab
+ * can re-attach to an in-flight or finished run.
+ *
+ * The adapter (`memoryStream(request)` / `durableStream(request)`) captures the
+ * resume offset from the request. If there is none (no `Last-Event-ID` header
+ * and no `?offset`), there is nothing to replay and this returns a 400.
+ *
+ * @example
+ * ```typescript
+ * export async function GET(request: Request) {
+ *   return resumeServerSentEventsResponse({ adapter: memoryStream(request) });
+ * }
+ * ```
+ */
+export function resumeServerSentEventsResponse<
+  TOffset extends string = string,
+>(options: ResumeResponseOptions<TOffset>): Response {
+  const { adapter, batch, debug, ...responseInit } = options
+  if (adapter.resumeFrom() === null) {
+    return new Response(NO_RESUME_OFFSET, { status: 400 })
+  }
+  return toServerSentEventsResponse(emptyDurableSource(), {
+    ...responseInit,
+    durability: { adapter, batch },
+    debug,
+  })
+}
+
+/**
  * Convert a StreamChunk async iterable to a ReadableStream in HTTP stream format (newline-delimited JSON)
  *
  * This creates a ReadableStream that emits chunks as newline-delimited JSON:
@@ -706,5 +755,32 @@ export function toHttpResponse<TOffset extends string = string>(
   return new Response(body, {
     ...responseInit,
     headers: mergedHeaders,
+  })
+}
+
+/**
+ * Serve a resumable run from its durability log over NDJSON, without re-running
+ * the model. The NDJSON counterpart of {@link resumeServerSentEventsResponse};
+ * pair it with a `toHttpResponse` producer. Returns a 400 when the request
+ * carries no resume offset (no `Last-Event-ID` header and no `?offset`).
+ *
+ * @example
+ * ```typescript
+ * export async function GET(request: Request) {
+ *   return resumeHttpResponse({ adapter: memoryStream(request) });
+ * }
+ * ```
+ */
+export function resumeHttpResponse<TOffset extends string = string>(
+  options: ResumeResponseOptions<TOffset>,
+): Response {
+  const { adapter, batch, debug, ...responseInit } = options
+  if (adapter.resumeFrom() === null) {
+    return new Response(NO_RESUME_OFFSET, { status: 400 })
+  }
+  return toHttpResponse(emptyDurableSource(), {
+    ...responseInit,
+    durability: { adapter, batch },
+    debug,
   })
 }

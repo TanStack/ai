@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryStream } from '../src/stream-durability'
 import {
+  resumeHttpResponse,
+  resumeServerSentEventsResponse,
   toHttpResponse,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
@@ -475,7 +477,7 @@ function runFinished(): StreamChunk {
     model: 'm',
     finishReason: 'stop',
     timestamp: 0,
-  } as StreamChunk
+  }
 }
 
 describe('durability producer robustness', () => {
@@ -628,3 +630,75 @@ function textStreamWithOneChunk(): AsyncIterable<StreamChunk> {
     },
   }
 }
+
+// Produce a fresh run into the process-global memory log under `runId`, so a
+// later resume/join can replay it.
+async function seedRun(runId: string): Promise<void> {
+  const producer = memoryStream(
+    new Request(`https://example.test/api/chat?runId=${runId}`, {
+      method: 'POST',
+    }),
+  )
+  await readBody(
+    toServerSentEventsResponse(fiveChunkStream().stream, {
+      durability: { adapter: producer },
+    }),
+  )
+}
+
+describe('resume response helpers', () => {
+  it('resumeServerSentEventsResponse replays a run from its log without a producer', async () => {
+    await seedRun('resume-sse')
+    const join = memoryStream(
+      new Request('https://example.test/api/chat?runId=resume-sse&offset=-1'),
+    )
+
+    const events = parseSseEvents(
+      await readBody(resumeServerSentEventsResponse({ adapter: join })),
+    )
+
+    expect(events.map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+    expect(events.every((event) => event.id !== undefined)).toBe(true)
+  })
+
+  it('resumeHttpResponse replays a run over NDJSON', async () => {
+    await seedRun('resume-ndjson')
+    const join = memoryStream(
+      new Request('https://example.test/api/chat?runId=resume-ndjson&offset=-1'),
+    )
+
+    const events = parseNdjsonEvents(
+      await readBody(resumeHttpResponse({ adapter: join })),
+    )
+
+    expect(events.map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+  })
+
+  it('returns 400 when the request carries no resume offset', async () => {
+    const noOffset = memoryStream(
+      new Request('https://example.test/api/chat?runId=no-offset'),
+    )
+    const sse = resumeServerSentEventsResponse({ adapter: noOffset })
+    const ndjson = resumeHttpResponse({
+      adapter: memoryStream(
+        new Request('https://example.test/api/chat?runId=no-offset-2'),
+      ),
+    })
+
+    expect(sse.status).toBe(400)
+    expect(ndjson.status).toBe(400)
+    expect(await sse.text()).toMatch(/No resume offset/)
+  })
+})

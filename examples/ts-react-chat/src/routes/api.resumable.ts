@@ -3,10 +3,10 @@ import {
   chat,
   chatParamsFromRequestBody,
   memoryStream,
+  resumeServerSentEventsResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import type { StreamChunk } from '@tanstack/ai'
 
 /**
  * Resumable-streams demo endpoint.
@@ -16,19 +16,11 @@ import type { StreamChunk } from '@tanstack/ai'
  * client can reconnect (`Last-Event-ID`) or a second tab can join (`?offset=-1`)
  * without re-running the model.
  *
- * `memoryStream` is process-local — fine for a single-process demo. In
+ * `memoryStream` is process-local, which is fine for a single-process demo. In
  * production, swap it for `durableStream(request, { server })` from
  * `@tanstack/ai-durable-stream` backed by Cloudflare Durable Streams, Electric,
  * or any Durable Streams protocol server.
  */
-
-// A join/replay never iterates the provider stream — the durability log is the
-// source of truth — so the GET handler passes this placeholder.
-const REPLAY_ONLY_STREAM: AsyncIterable<StreamChunk> = {
-  async *[Symbol.asyncIterator]() {
-    // intentionally empty
-  },
-}
 
 export const Route = createFileRoute('/api/resumable')({
   server: {
@@ -56,10 +48,11 @@ export const Route = createFileRoute('/api/resumable')({
       },
 
       // Join an in-flight or finished run from the start (`?offset=-1&runId=…`),
-      // replaying the ordered log. Read-only — no messages are sent.
+      // replaying the ordered log. Read-only, no messages are sent and no model
+      // is called.
       GET: ({ request }) => {
-        return toServerSentEventsResponse(REPLAY_ONLY_STREAM, {
-          durability: { adapter: memoryStream(request) },
+        return resumeServerSentEventsResponse({
+          adapter: memoryStream(request),
         })
       },
     },

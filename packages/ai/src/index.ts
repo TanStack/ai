@@ -75,8 +75,10 @@ export {
   streamToText,
   toServerSentEventsStream,
   toServerSentEventsResponse,
+  resumeServerSentEventsResponse,
   toHttpStream,
   toHttpResponse,
+  resumeHttpResponse,
 } from './stream-to-response'
 
 // Delivery durability (transport layer)

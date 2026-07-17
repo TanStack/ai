@@ -47,6 +47,7 @@ import {
   chat,
   chatParamsFromRequest,
   memoryStream,
+  resumeServerSentEventsResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -65,18 +66,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const url = new URL(request.url)
-  const runId = url.searchParams.get('runId')
-  // joinRun sends ?offset=-1; without an offset there is nothing to replay.
-  if (!runId || !url.searchParams.get('offset')) {
-    return new Response('runId and offset are required', { status: 400 })
-  }
-  // A resume is served entirely from the durability log, so there is no chat()
-  // or model call here: the source stream is never iterated.
-  async function* nothing() {}
-  return toServerSentEventsResponse(nothing(), {
-    durability: { adapter: memoryStream(request) },
-  })
+  // Replays the run from the durability log. No model call happens here.
+  return resumeServerSentEventsResponse({ adapter: memoryStream(request) })
 }
 ```
 
