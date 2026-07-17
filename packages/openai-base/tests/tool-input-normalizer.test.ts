@@ -3,6 +3,23 @@ import { createToolInputNormalizer } from '../src/utils/tool-input-normalizer'
 import type { Tool } from '@tanstack/ai'
 
 describe('createToolInputNormalizer', () => {
+  it('removes a null synthesized for an optional enum', () => {
+    const tool: Tool = {
+      name: 'optional_enum',
+      description: 'Uses an optional literal value',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          value: { type: 'string', enum: ['canary'] },
+        },
+        required: [],
+      },
+    }
+    const normalize = createToolInputNormalizer([tool])
+
+    expect(normalize(tool.name, { value: null })).toEqual({})
+  })
+
   it('leaves non-strict tool inputs unchanged', () => {
     const tool: Tool = {
       name: 'non_strict',
