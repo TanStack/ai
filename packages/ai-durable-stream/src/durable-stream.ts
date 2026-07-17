@@ -11,8 +11,14 @@ type DurableStreamCursor = string & {
 export type DurableStreamOffset = DurableStreamCursor | '-1' | 'now'
 
 export interface DurableStreamOptions {
-  /** Base URL of the Durable Streams server (no trailing slash needed). */
-  server: string
+  /**
+   * Base URL of the Durable Streams server (no trailing slash needed).
+   * Optional when `fetch` is supplied — e.g. a Cloudflare service binding that
+   * ignores the host and dispatches to the bound Worker by path — in which case
+   * an internal placeholder base is used and only the `/streams/...` path
+   * matters.
+   */
+  server?: string
   /** Stream-name prefix. Defaults to `runs`. */
   streamPrefix?: string
   /** Fetch implementation. Defaults to the global fetch. */
@@ -393,15 +399,23 @@ export function durableStream(
   options: DurableStreamOptions,
 ): StreamDurability<DurableStreamOffset> {
   const fetchFn = options.fetch ?? globalThis.fetch
-  assertTransportField(options.server, 'server URL')
-  try {
-    void new URL(options.server)
-  } catch {
+  if (options.server === undefined && options.fetch === undefined) {
     throw new DurableStreamError(
-      `invalid server URL: ${JSON.stringify(options.server)}`,
+      'server is required unless a fetch implementation is provided',
     )
   }
-  const server = options.server.replace(/\/+$/, '')
+  // When a custom fetch routes by path (e.g. a service binding), the host is
+  // irrelevant; a reserved `.internal` base parses without ever resolving.
+  const rawServer = options.server ?? 'https://durable-streams.internal'
+  assertTransportField(rawServer, 'server URL')
+  try {
+    void new URL(rawServer)
+  } catch {
+    throw new DurableStreamError(
+      `invalid server URL: ${JSON.stringify(rawServer)}`,
+    )
+  }
+  const server = rawServer.replace(/\/+$/, '')
   const prefix = assertTransportField(
     options.streamPrefix ?? 'runs',
     'streamPrefix',

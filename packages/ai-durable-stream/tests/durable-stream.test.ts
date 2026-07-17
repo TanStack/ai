@@ -797,6 +797,32 @@ describe('durableStream official HTTP protocol', () => {
     }).rejects.toThrow(/CR\/LF/)
   })
 
+  it('omits server when a routing fetch (e.g. a service binding) is provided', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-binding'),
+      { fetch: server.fetchStub },
+    )
+
+    const [offset] = await durability.append([textChunk('x')])
+    expect(offset).toBeTruthy()
+
+    // The adapter routed through the provided fetch using an internal base URL,
+    // so only the `/streams/...` path is meaningful.
+    const firstCall = server.fetchStub.mock.calls[0]
+    if (!firstCall) throw new Error('Expected the adapter to call fetch')
+    expect(String(firstCall[0])).toContain('/streams/')
+  })
+
+  it('requires server when no fetch is provided', () => {
+    expect(() =>
+      durableStream(
+        new Request('https://app.test/api/chat?runId=run-no-fetch'),
+        {},
+      ),
+    ).toThrow(/server is required unless a fetch/)
+  })
+
   it('awaits external close and sends the protocol close header', async () => {
     const closing = deferred<Response>()
     const server = makeProtocolServer({

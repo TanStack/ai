@@ -128,11 +128,10 @@ interface Env {
 }
 
 function cloudflareAdapter(request: Request, env: Env) {
+  // No `server` needed — the binding routes by path, so the adapter uses an
+  // internal placeholder base and only the `/streams/...` path matters.
   return durableStream(request, {
     streamPrefix: 'chat-runs',
-    // Any absolute URL parses; a service binding dispatches to the bound
-    // Worker regardless of host, and only the `/streams/...` path is used.
-    server: 'https://durable-streams',
     fetch: env.DURABLE_STREAMS.fetch.bind(env.DURABLE_STREAMS),
   })
 }
