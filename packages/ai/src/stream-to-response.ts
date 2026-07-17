@@ -513,8 +513,15 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
  *
  * This format is compatible with `fetchHttpStream` connection adapter.
  *
+ * When `getId` is supplied (delivery durability), each chunk is emitted as an
+ * envelope `{"id":"<offset>","chunk":{…}}` instead of a bare chunk. NDJSON has
+ * no native event-id field like SSE's `id:` line, so the resumable offset rides
+ * inside the payload. Untagged chunks (no id) stay bare, so a non-durable
+ * stream is byte-identical to before and the client auto-detects either form.
+ *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param abortController - Optional AbortController to abort when stream is cancelled
+ * @param getId - Optional per-chunk durability offset; when present, chunks are envelope-encoded
  * @returns ReadableStream in HTTP stream format (newline-delimited JSON)
  *
  * @example
@@ -530,12 +537,18 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
 export function toHttpStream(
   stream: AsyncIterable<StreamChunk>,
   abortController?: AbortController,
+  getId?: (chunk: StreamChunk, index: number) => string | undefined,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return toEncodedStream(
     stream,
     abortController,
-    (chunk) => encoder.encode(`${JSON.stringify(chunk)}\n`),
+    (chunk, index) => {
+      const id = getId?.(chunk, index)
+      const line =
+        id === undefined ? JSON.stringify(chunk) : JSON.stringify({ id, chunk })
+      return encoder.encode(`${line}\n`)
+    },
     (error) => encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
   )
 }
@@ -549,24 +562,52 @@ export function toHttpStream(
  *
  * This format is compatible with `fetchHttpStream` connection adapter.
  *
+ * Pass a `durability` sink (`memoryStream(request)` / `durableStream(request)`)
+ * to make the stream resumable: fresh runs are appended to the log and each
+ * NDJSON line is emitted as an `{ id, chunk }` envelope carrying an opaque
+ * offset; a reconnect (native `Last-Event-ID` header) or a `?offset` join
+ * replays from the log without re-running the producer. `batch` controls how
+ * many chunks are buffered per `append` (default 32). This shares the exact
+ * `durableStreamSource` used by `toServerSentEventsResponse` — only the wire
+ * encoding differs.
+ *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`)
+ * @param init - Optional Response initialization options (including `abortController`, `durability`, `batch`)
  * @returns Response in HTTP stream format (newline-delimited JSON)
  *
  * @example
  * ```typescript
  * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toHttpResponse(stream);
+ * return toHttpResponse(stream, { durability: { adapter: memoryStream(request) } });
  * ```
  */
-export function toHttpResponse(
+export function toHttpResponse<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
   init?: ResponseInit & {
     abortController?: AbortController
+    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
+    /**
+     * Debug logging for durability failure paths (terminal-append and close).
+     * These are rethrown to the live consumer, but a joiner only sees a generic
+     * incomplete error, so enabling this surfaces the real cause server-side.
+     */
+    debug?: DebugOption
   },
 ): Response {
-  const { abortController, ...responseInit } = init ?? {}
-  const body = toHttpStream(stream, abortController)
+  const { abortController, durability, debug, ...responseInit } = init ?? {}
+
+  let body: ReadableStream<Uint8Array>
+  if (durability) {
+    const deliveryAbortController = abortController ?? new AbortController()
+    const { source, getId } = durableStreamSource(stream, durability.adapter, {
+      abortController: deliveryAbortController,
+      batch: durability.batch,
+      ...(debug !== undefined ? { logger: resolveDebugOption(debug) } : {}),
+    })
+    body = toHttpStream(source, deliveryAbortController, getId)
+  } else {
+    body = toHttpStream(stream, abortController)
+  }
 
   return new Response(body, {
     ...responseInit,

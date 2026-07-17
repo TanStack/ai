@@ -348,6 +348,13 @@ const { messages, sendMessage } = useChat({
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
 
+This includes resumability: pass the same `durability` adapter to
+`toHttpResponse(stream, { durability: { adapter: memoryStream(request) } })` and
+each NDJSON line becomes an `{ id, chunk }` envelope. `fetchHttpStream`
+auto-reconnects with `Last-Event-ID`, de-dupes the replayed prefix, and exposes
+`joinRun(runId)` — the same guarantees as resumable SSE. The XHR adapters
+(`xhrServerSentEvents` / `xhrHttpStream`) are resumable too.
+
 ### 6. MCP Tool Discovery via `chat({ mcp })`
 
 Pass `mcp` to let `chat()` own discovery **and** lifecycle for one or more MCP

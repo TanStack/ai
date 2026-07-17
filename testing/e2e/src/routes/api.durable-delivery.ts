@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  memoryStream,
+  toHttpResponse,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
 /**
@@ -9,10 +13,14 @@ import type { StreamChunk } from '@tanstack/ai'
  * resume and second-tab join deterministically, with no LLM in the loop.
  *
  * - `POST` with no offset → fresh run: produce + append the fixed sequence,
- *   tagging each SSE event with an opaque adapter-owned offset.
+ *   tagging each event with an opaque adapter-owned offset.
  * - `POST` with `Last-Event-ID` → reconnect: replay strictly after the offset
  *   from the log (the fixed sequence is never re-produced).
  * - `GET  ?offset=-1&runId=…` → second-tab join: replay from the start.
+ *
+ * `?transport=ndjson` switches the wire encoding from SSE to newline-delimited
+ * JSON (each durable line is an `{ id, chunk }` envelope). The durability layer
+ * — logging, offsets, resume, terminalization — is identical for both.
  */
 function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   return (async function* () {
@@ -58,26 +66,38 @@ function withRunId(response: Response, runId: string): Response {
   return response
 }
 
+function isNdjson(request: Request): boolean {
+  try {
+    return new URL(request.url).searchParams.get('transport') === 'ndjson'
+  } catch {
+    return false
+  }
+}
+
+/** Build the durable response in the requested wire encoding (SSE or NDJSON). */
+function durableResponse(
+  request: Request,
+  runId: string,
+  durability: ReturnType<typeof memoryStream>,
+  batch?: number,
+): Response {
+  const stream = fixedRun('thread-durable', runId)
+  const durabilityOption = { adapter: durability, ...(batch ? { batch } : {}) }
+  return isNdjson(request)
+    ? toHttpResponse(stream, { durability: durabilityOption })
+    : toServerSentEventsResponse(stream, { durability: durabilityOption })
+}
+
 export const Route = createFileRoute('/api/durable-delivery')({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const { durability, runId } = durableRun(request)
-        return withRunId(
-          toServerSentEventsResponse(fixedRun('thread-durable', runId), {
-            durability: { adapter: durability, batch: 2 },
-          }),
-          runId,
-        )
+        return withRunId(durableResponse(request, runId, durability, 2), runId)
       },
       GET: async ({ request }) => {
         const { durability, runId } = durableRun(request)
-        return withRunId(
-          toServerSentEventsResponse(fixedRun('thread-durable', runId), {
-            durability: { adapter: durability },
-          }),
-          runId,
-        )
+        return withRunId(durableResponse(request, runId, durability), runId)
       },
     },
   },

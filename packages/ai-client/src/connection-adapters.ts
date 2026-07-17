@@ -49,7 +49,7 @@ export class StreamTruncatedError extends Error {
 
 class StreamReadError extends Error {
   constructor(cause: unknown) {
-    super('SSE response body read failed', { cause })
+    super('Stream response body read failed', { cause })
     this.name = 'StreamReadError'
   }
 }
@@ -235,39 +235,54 @@ async function* readStreamLines(
   }
 }
 
+/** A parsed stream chunk paired with its adapter-owned delivery offset (if any). */
+interface StreamEvent {
+  chunk: StreamChunk
+  id?: string
+}
+
 /**
- * Yield StreamChunks parsed from an SSE Response body.
+ * Type guard for a durable NDJSON envelope `{ id, chunk }`. NDJSON has no
+ * native event-id field, so durability rides the offset inside the payload.
+ * A bare `StreamChunk` always has a top-level `type`, and the envelope never
+ * does, so the two forms are unambiguous — a non-durable line stays bare.
+ */
+function isNdjsonEnvelope(
+  value: unknown,
+): value is { id: string; chunk: StreamChunk } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'chunk' in value &&
+    'id' in value &&
+    typeof (value as { id: unknown }).id === 'string' &&
+    !('type' in value)
+  )
+}
+
+/**
+ * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
+ * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
+ * adapters so both track delivery offsets identically.
  *
  * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
  * starting with `:` (proxies and CDNs inject these as keepalives) and the
- * `event:` / `id:` / `retry:` SSE control fields. A `[DONE]` sentinel is
- * treated as a terminal event: a synthesized RUN_FINISHED is yielded using
- * the most recent upstream `threadId` / `runId`, ensuring the consumer sees
- * a clean terminal event with real correlation ids.
+ * `event:` / `retry:` SSE control fields. A `[DONE]` sentinel is treated as a
+ * terminal event: a synthesized RUN_FINISHED is yielded using the most recent
+ * upstream `threadId` / `runId` (falling back to `fallbackIds`), so the
+ * consumer sees a clean terminal event with real correlation ids.
  *
  * A JSON parse failure throws — the consumer surfaces it as an error.
  */
-/**
- * Yield StreamChunks parsed from an SSE Response body, each paired with the
- * `id:` offset of the SSE event it arrived on (if any). Delivery durability
- * tags every event with an adapter-owned opaque `id:`; carrying that id up lets the
- * resumable adapter track the last offset (for reconnect) and de-dupe replays.
- */
-async function* responseToSSEEvents(
-  response: Response,
-  abortSignal?: AbortSignal,
-): AsyncGenerator<{ chunk: StreamChunk; id?: string }> {
-  if (!response.ok) {
-    throw new Error(
-      `HTTP error! status: ${response.status} ${response.statusText}`,
-    )
-  }
-  const reader = getResponseStreamReader(response)
+async function* linesToSSEEvents(
+  lines: AsyncIterable<string>,
+  fallbackIds?: { threadId?: string; runId?: string },
+): AsyncGenerator<StreamEvent> {
   let lastThreadId: string | undefined
   let lastRunId: string | undefined
   let lastModel: string | undefined
   let pendingId: string | undefined
-  for await (const line of readStreamLines(reader, abortSignal)) {
+  for await (const line of lines) {
     if (line.startsWith('id:')) {
       pendingId = line.slice(3).trim()
       continue
@@ -283,8 +298,8 @@ async function* responseToSSEEvents(
     if (data === '[DONE]') {
       const synthetic: RunFinishedEvent = {
         type: EventType.RUN_FINISHED,
-        threadId: lastThreadId ?? '',
-        runId: lastRunId ?? '',
+        threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
+        runId: lastRunId ?? fallbackIds?.runId ?? '',
         model: lastModel ?? '',
         timestamp: Date.now(),
         finishReason: 'stop',
@@ -308,6 +323,53 @@ async function* responseToSSEEvents(
   }
 }
 
+/**
+ * Parse NDJSON-format lines into stream events. Durable streams emit each line
+ * as an `{ id, chunk }` envelope carrying the delivery offset; non-durable
+ * streams emit bare chunks. Both are auto-detected (see {@link isNdjsonEnvelope}),
+ * so an untagged stream behaves exactly as a plain single fetch used to.
+ */
+async function* linesToNdjsonEvents(
+  lines: AsyncIterable<string>,
+): AsyncGenerator<StreamEvent> {
+  for await (const line of lines) {
+    const parsed = JSON.parse(line) as unknown
+    if (isNdjsonEnvelope(parsed)) {
+      yield { chunk: parsed.chunk, id: parsed.id }
+    } else {
+      yield { chunk: parsed as StreamChunk }
+    }
+  }
+}
+
+function assertResponseOk(response: Response): void {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+}
+
+/** Yield SSE stream events (chunk + offset) from a fetch Response body. */
+async function* responseToSSEEvents(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  assertResponseOk(response)
+  const reader = getResponseStreamReader(response)
+  yield* linesToSSEEvents(readStreamLines(reader, abortSignal))
+}
+
+/** Yield NDJSON stream events (chunk + offset) from a fetch Response body. */
+async function* responseToNdjsonEvents(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  assertResponseOk(response)
+  const reader = getResponseStreamReader(response)
+  yield* linesToNdjsonEvents(readStreamLines(reader, abortSignal))
+}
+
 async function* responseToSSEChunks(
   response: Response,
   abortSignal?: AbortSignal,
@@ -318,19 +380,56 @@ async function* responseToSSEChunks(
 }
 
 /**
- * Iterate an SSE endpoint with native-style resumability. Each SSE event's
- * adapter-owned `id:` delivery-durability offset is remembered; if the
- * connection drops or ends before a terminal event, the request is re-issued
- * with a `Last-Event-ID` header so the server replays strictly after the last
- * offset. Already-seen offsets are de-duped, so an overlapping replay is safe.
- *
- * When the server does NOT tag events (no durability), no offset is ever seen,
- * so no reconnect happens — behaviour is identical to a plain single fetch.
+ * A re-issuable event source. Given extra headers (a `Last-Event-ID` on a
+ * reconnect) and an abort signal, it opens the transport and yields stream
+ * events. {@link resumableStream} calls it once per attempt, so each call MUST
+ * open a fresh underlying request (a new fetch or a new XHR).
  */
-async function* resumableServerSentEvents(
+type StreamEventSource = (
+  extraHeaders: Record<string, string>,
+  abortSignal?: AbortSignal,
+) => AsyncIterable<StreamEvent>
+
+/**
+ * Build a fetch-backed {@link StreamEventSource}. `parseResponse` decodes the
+ * body into events (SSE or NDJSON) — the reconnect engine is identical for both.
+ */
+function fetchEventSource(
   fetchClient: typeof globalThis.fetch,
   url: string,
   requestInit: RequestInit,
+  parseResponse: (
+    response: Response,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamEvent>,
+): StreamEventSource {
+  return async function* (extraHeaders, abortSignal) {
+    const response = await fetchClient(url, {
+      ...requestInit,
+      headers: {
+        ...(requestInit.headers as Record<string, string> | undefined),
+        ...extraHeaders,
+      },
+      ...(abortSignal ? { signal: abortSignal } : {}),
+    })
+    yield* parseResponse(response, abortSignal)
+  }
+}
+
+/**
+ * Drive a {@link StreamEventSource} with native-style resumability. Each event's
+ * adapter-owned delivery offset (its `id`) is remembered; if the connection
+ * drops or ends before a terminal event, the source is re-opened with a
+ * `Last-Event-ID` header so the server replays strictly after the last offset.
+ * Already-seen offsets are de-duped, so an overlapping replay is safe.
+ *
+ * When the server does NOT tag events (no durability), no offset is ever seen,
+ * so no reconnect happens — behaviour is identical to a plain single request.
+ * This engine is transport-agnostic: fetch/XHR × SSE/NDJSON all share it, the
+ * only difference being the {@link StreamEventSource} they pass in.
+ */
+async function* resumableStream(
+  openEventSource: StreamEventSource,
   abortSignal?: AbortSignal,
   reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
@@ -352,23 +451,14 @@ async function* resumableServerSentEvents(
 
   for (;;) {
     if (abortSignal?.aborted) return
-    const headers: Record<string, string> = {
-      ...(requestInit.headers as Record<string, string> | undefined),
-    }
-    if (lastEventId !== undefined) {
-      headers['Last-Event-ID'] = lastEventId
-    }
-    const response = await fetchClient(url, {
-      ...requestInit,
-      headers,
-      ...(abortSignal ? { signal: abortSignal } : {}),
-    })
+    const extraHeaders: Record<string, string> =
+      lastEventId !== undefined ? { 'Last-Event-ID': lastEventId } : {}
 
     let sawTerminal = false
     let progressed = false
     try {
-      for await (const { chunk, id } of responseToSSEEvents(
-        response,
+      for await (const { chunk, id } of openEventSource(
+        extraHeaders,
         abortSignal,
       )) {
         if (id !== undefined) {
@@ -666,6 +756,8 @@ export interface XhrConnectionOptions {
   signal?: AbortSignal
   body?: Record<string, any>
   xhrFactory?: () => XMLHttpRequest
+  /** Bounding for resumable reconnection (throttle delay + attempt ceiling). */
+  reconnect?: ReconnectOptions
 }
 
 type ResolvedConnectionOptions = Pick<
@@ -783,15 +875,18 @@ export function fetchServerSentEvents(
       // durability), a dropped/rolled-over connection auto-reconnects with a
       // `Last-Event-ID` header and de-dupes the replayed prefix. With no tags,
       // this is a single plain fetch.
-      yield* resumableServerSentEvents(
-        fetchClient,
-        requestUrl,
-        {
-          method: 'POST',
-          headers: requestHeaders,
-          body: JSON.stringify(requestBody),
-          credentials: resolvedOptions.credentials || 'same-origin',
-        },
+      yield* resumableStream(
+        fetchEventSource(
+          fetchClient,
+          requestUrl,
+          {
+            method: 'POST',
+            headers: requestHeaders,
+            body: JSON.stringify(requestBody),
+            credentials: resolvedOptions.credentials || 'same-origin',
+          },
+          responseToSSEEvents,
+        ),
         signal,
         resolvedOptions.reconnect,
       )
@@ -815,14 +910,17 @@ export function fetchServerSentEvents(
       const fetchClient = resolvedOptions.fetchClient ?? fetch
       const signal = abortSignal || resolvedOptions.signal
 
-      yield* resumableServerSentEvents(
-        fetchClient,
-        joinUrl,
-        {
-          method: 'GET',
-          headers: requestHeaders,
-          credentials: resolvedOptions.credentials || 'same-origin',
-        },
+      yield* resumableStream(
+        fetchEventSource(
+          fetchClient,
+          joinUrl,
+          {
+            method: 'GET',
+            headers: requestHeaders,
+            credentials: resolvedOptions.credentials || 'same-origin',
+          },
+          responseToSSEEvents,
+        ),
         signal,
         resolvedOptions.reconnect,
       )
@@ -869,7 +967,7 @@ export function fetchHttpStream(
   options:
     | FetchConnectionOptions
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
-): ConnectConnectionAdapter {
+): ResumableConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
@@ -901,26 +999,60 @@ export function fetchHttpStream(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
-      const response = await fetchClient(resolvedUrl, {
-        method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
-        credentials: resolvedOptions.credentials || 'same-origin',
-        ...(signal ? { signal } : {}),
-      })
+      const requestUrl = runContext?.runId
+        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
+        : resolvedUrl
 
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`,
-        )
+      // Resumable NDJSON: if the server envelopes each line with an
+      // `{ id, chunk }` offset (delivery durability), a dropped/rolled-over
+      // connection auto-reconnects with a `Last-Event-ID` header and de-dupes
+      // the replayed prefix. With bare lines (no durability), this is a single
+      // plain fetch — identical to before.
+      yield* resumableStream(
+        fetchEventSource(
+          fetchClient,
+          requestUrl,
+          {
+            method: 'POST',
+            headers: requestHeaders,
+            body: JSON.stringify(requestBody),
+            credentials: resolvedOptions.credentials || 'same-origin',
+          },
+          responseToNdjsonEvents,
+        ),
+        signal,
+        resolvedOptions.reconnect,
+      )
+    },
+    async *joinRun(runId, abortSignal) {
+      // Read an in-flight or finished run from the start. `?offset=-1` tells the
+      // server's delivery-durability sink to replay from the beginning; `runId`
+      // identifies which run. This is a read-only GET — no messages are sent.
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+
+      const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
+      const requestHeaders: Record<string, string> = {
+        ...mergeHeaders(resolvedOptions.headers),
       }
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const signal = abortSignal || resolvedOptions.signal
 
-      // Parse raw HTTP stream (newline-delimited JSON)
-      const reader = getResponseStreamReader(response)
-
-      for await (const line of readStreamLines(reader, abortSignal)) {
-        yield JSON.parse(line) as StreamChunk
-      }
+      yield* resumableStream(
+        fetchEventSource(
+          fetchClient,
+          joinUrl,
+          {
+            method: 'GET',
+            headers: requestHeaders,
+            credentials: resolvedOptions.credentials || 'same-origin',
+          },
+          responseToNdjsonEvents,
+        ),
+        signal,
+        resolvedOptions.reconnect,
+      )
     },
   }
 }
@@ -1013,7 +1145,10 @@ function readXhrLines(
   }
   xhr.onload = finish
   xhr.onerror = () => {
-    error = new Error('XHR request failed')
+    // Surface as StreamReadError so a durable (id-tagged) run whose socket
+    // drops mid-stream is eligible for auto-reconnect, matching the fetch path.
+    // A non-durable run has no offset, so resumableStream rethrows it as-is.
+    error = new StreamReadError(new Error('XHR request failed'))
     done = true
     wake()
   }
@@ -1080,9 +1215,11 @@ function createConfiguredXhrRequest(
   messages: Array<UIMessage> | Array<ModelMessage>,
   data: Record<string, any> | undefined,
   runContext: RunAgentInputContext | undefined,
+  method: string = 'POST',
+  extraHeaders: Record<string, string> = {},
 ): ConfiguredXhrRequest {
   const xhr = options.xhrFactory?.() ?? createDefaultXMLHttpRequest()
-  xhr.open('POST', url)
+  xhr.open(method, url)
   if (options.withCredentials !== undefined) {
     xhr.withCredentials = options.withCredentials
   }
@@ -1090,6 +1227,8 @@ function createConfiguredXhrRequest(
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...mergeHeaders(options.headers),
+    // Reconnect offset (`Last-Event-ID`) wins over static headers.
+    ...extraHeaders,
   }
 
   for (const [name, value] of Object.entries(requestHeaders)) {
@@ -1113,104 +1252,161 @@ async function resolveXhrConnectionOptions(
 }
 
 /**
+ * Build an XHR-backed {@link StreamEventSource}. `parseLines` decodes the raw
+ * newline-delimited body into events (SSE or NDJSON); the reconnect engine is
+ * shared with the fetch adapters. A fresh XHR is opened per attempt, so a
+ * `Last-Event-ID` reconnect header (via `extraHeaders`) is applied at open time.
+ */
+function xhrEventSource(
+  url: string,
+  options: XhrConnectionOptions,
+  method: string,
+  messages: Array<UIMessage> | Array<ModelMessage>,
+  data: Record<string, any> | undefined,
+  runContext: RunAgentInputContext | undefined,
+  parseLines: (lines: AsyncIterable<string>) => AsyncIterable<StreamEvent>,
+): StreamEventSource {
+  return async function* (extraHeaders, abortSignal) {
+    const request = createConfiguredXhrRequest(
+      url,
+      options,
+      messages,
+      data,
+      runContext,
+      method,
+      extraHeaders,
+    )
+    const lines = readXhrLines(request.xhr, abortSignal)
+    if (abortSignal?.aborted) {
+      await lines.next()
+      return
+    }
+    // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
+    request.xhr.send(method === 'GET' ? null : request.body)
+    try {
+      yield* parseLines(lines)
+    } finally {
+      // Tear the socket down on an early exit (terminal reached or reconnect
+      // break) so late bytes stop downloading. When the abort signal fired,
+      // `readXhrLines` already aborted — skip here to avoid a double abort().
+      if (!abortSignal?.aborted) request.xhr.abort()
+    }
+  }
+}
+
+/** SSE line parser bound to the run's ids for a `[DONE]` fallback. */
+function xhrSSEParser(runContext: RunAgentInputContext | undefined) {
+  const fallbackIds: { threadId?: string; runId?: string } = {
+    ...(runContext?.threadId !== undefined
+      ? { threadId: runContext.threadId }
+      : {}),
+    ...(runContext?.runId !== undefined ? { runId: runContext.runId } : {}),
+  }
+  return (lines: AsyncIterable<string>) => linesToSSEEvents(lines, fallbackIds)
+}
+
+/**
  * Create an XMLHttpRequest-backed Server-Sent Events connection adapter.
+ *
+ * Resumable: against a durable (`id:`-tagged) server response, a dropped socket
+ * auto-reconnects with `Last-Event-ID` and de-dupes the replayed prefix, and
+ * `joinRun` attaches to an existing run from the start. A non-durable response
+ * is a single plain request, exactly as before.
  */
 export function xhrServerSentEvents(
   url: string | (() => string),
   options: XhrConnectionOptionsResolver = {},
-): ConnectConnectionAdapter {
+): ResumableConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       const signal = abortSignal || resolvedOptions.signal
-      const request = createConfiguredXhrRequest(
-        resolvedUrl,
-        resolvedOptions,
-        messages,
-        data,
-        runContext,
+      const requestUrl = runContext?.runId
+        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
+        : resolvedUrl
+      yield* resumableStream(
+        xhrEventSource(
+          requestUrl,
+          resolvedOptions,
+          'POST',
+          messages,
+          data,
+          runContext,
+          xhrSSEParser(runContext),
+        ),
+        signal,
+        resolvedOptions.reconnect,
       )
-      const lines = readXhrLines(request.xhr, signal)
-      if (signal?.aborted) {
-        await lines.next()
-        return
-      }
-      request.xhr.send(request.body)
-      let lastThreadId: string | undefined
-      let lastRunId: string | undefined
-      let lastModel: string | undefined
-
-      for await (const line of lines) {
-        if (
-          line.startsWith(':') ||
-          line.startsWith('event:') ||
-          line.startsWith('id:') ||
-          line.startsWith('retry:')
-        ) {
-          continue
-        }
-
-        const chunkData = parseSseDataLine(line)
-        if (chunkData === '[DONE]') {
-          const synthetic: RunFinishedEvent = {
-            type: EventType.RUN_FINISHED,
-            threadId: lastThreadId ?? runContext?.threadId ?? '',
-            runId: lastRunId ?? runContext?.runId ?? '',
-            model: lastModel ?? '',
-            timestamp: Date.now(),
-            finishReason: 'stop',
-          }
-          request.xhr.abort()
-          yield synthetic
-          return
-        }
-
-        const chunk = JSON.parse(chunkData) as StreamChunk
-        if ('threadId' in chunk && typeof chunk.threadId === 'string') {
-          lastThreadId = chunk.threadId
-        }
-        if ('runId' in chunk && typeof chunk.runId === 'string') {
-          lastRunId = chunk.runId
-        }
-        if ('model' in chunk && typeof chunk.model === 'string') {
-          lastModel = chunk.model
-        }
-        yield chunk
-      }
+    },
+    async *joinRun(runId, abortSignal) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      const signal = abortSignal || resolvedOptions.signal
+      const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
+      yield* resumableStream(
+        xhrEventSource(joinUrl, resolvedOptions, 'GET', [], undefined, undefined, (
+          lines,
+        ) => linesToSSEEvents(lines)),
+        signal,
+        resolvedOptions.reconnect,
+      )
     },
   }
 }
 
 /**
  * Create an XMLHttpRequest-backed newline-delimited JSON stream adapter.
+ *
+ * Resumable: against a durable (envelope-tagged) server response, a dropped
+ * socket auto-reconnects with `Last-Event-ID` and de-dupes the replayed prefix,
+ * and `joinRun` attaches to an existing run from the start. A non-durable
+ * (bare-line) response is a single plain request, exactly as before.
  */
 export function xhrHttpStream(
   url: string | (() => string),
   options: XhrConnectionOptionsResolver = {},
-): ConnectConnectionAdapter {
+): ResumableConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       const signal = abortSignal || resolvedOptions.signal
-      const request = createConfiguredXhrRequest(
-        resolvedUrl,
-        resolvedOptions,
-        messages,
-        data,
-        runContext,
+      const requestUrl = runContext?.runId
+        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
+        : resolvedUrl
+      yield* resumableStream(
+        xhrEventSource(
+          requestUrl,
+          resolvedOptions,
+          'POST',
+          messages,
+          data,
+          runContext,
+          linesToNdjsonEvents,
+        ),
+        signal,
+        resolvedOptions.reconnect,
       )
-      const lines = readXhrLines(request.xhr, signal)
-      if (signal?.aborted) {
-        await lines.next()
-        return
-      }
-      request.xhr.send(request.body)
-
-      for await (const line of lines) {
-        yield JSON.parse(line) as StreamChunk
-      }
+    },
+    async *joinRun(runId, abortSignal) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      const signal = abortSignal || resolvedOptions.signal
+      const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
+      yield* resumableStream(
+        xhrEventSource(
+          joinUrl,
+          resolvedOptions,
+          'GET',
+          [],
+          undefined,
+          undefined,
+          linesToNdjsonEvents,
+        ),
+        signal,
+        resolvedOptions.reconnect,
+      )
     },
   }
 }

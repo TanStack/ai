@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryStream } from '../src/stream-durability'
-import { toServerSentEventsResponse } from '../src/stream-to-response'
+import {
+  toHttpResponse,
+  toServerSentEventsResponse,
+} from '../src/stream-to-response'
 import { EventType } from '../src/types'
 import { ev } from './test-utils'
 import type { StreamDurability } from '../src/stream-durability'
@@ -302,6 +305,127 @@ describe('toServerSentEventsResponse with durability', () => {
     expect(logged.at(-1)).toMatchObject({
       message: 'provider exploded',
     })
+  })
+})
+
+/**
+ * Parse an NDJSON body into the same `{ id?, data }` shape as `parseSseEvents`.
+ * A durable line is an `{ id, chunk }` envelope; a non-durable line is a bare
+ * chunk — both are auto-detected, mirroring the client parser.
+ */
+function parseNdjsonEvents(body: string): Array<ParsedSseEvent> {
+  return body
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const parsed = JSON.parse(line) as Record<string, unknown>
+      if ('chunk' in parsed && 'id' in parsed && typeof parsed.id === 'string') {
+        return { id: parsed.id, data: parsed.chunk }
+      }
+      return { data: parsed }
+    })
+}
+
+describe('toHttpResponse with durability', () => {
+  it('appends a fresh run and envelopes every line with its adapter offset', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=ndjson-fresh', {
+        method: 'POST',
+      }),
+    )
+    const { stream, iterated } = fiveChunkStream()
+
+    const events = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(stream, { durability: { adapter: durability } }),
+      ),
+    )
+    const eventOffsets = events.map((event) => event.id)
+
+    expect(iterated()).toBe(true)
+    expect(events).toHaveLength(5)
+    expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
+    expect(new Set(eventOffsets).size).toBe(5)
+    expect(events.map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+
+    const loggedOffsets: Array<string> = []
+    for await (const entry of durability.read('-1')) {
+      loggedOffsets.push(entry.offset)
+    }
+    expect(loggedOffsets).toEqual(eventOffsets)
+  })
+
+  it('replays opaque IDs from the log without iterating the input stream', async () => {
+    const { stream } = fiveChunkStream()
+    const produced = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(stream, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat?runId=ndjson-replay', {
+                method: 'POST',
+              }),
+            ),
+          },
+        }),
+      ),
+    )
+    const resumeOffset = produced[1]?.id
+    if (!resumeOffset) throw new Error('Expected a replay offset')
+    const exploding: AsyncIterable<StreamChunk> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            throw new Error('input stream must not be iterated on resume')
+          },
+        }
+      },
+    }
+
+    const replayed = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(exploding, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat', {
+                method: 'POST',
+                headers: { 'Last-Event-ID': resumeOffset },
+              }),
+            ),
+          },
+        }),
+      ),
+    )
+
+    expect(replayed.map((event) => event.id)).toEqual(
+      produced.slice(2).map((event) => event.id),
+    )
+    expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '3',
+      '4',
+      '5',
+    ])
+  })
+
+  it('emits bare chunk lines (no envelope) when no durability is configured', async () => {
+    const { stream } = fiveChunkStream()
+    const events = parseNdjsonEvents(await readBody(toHttpResponse(stream)))
+
+    expect(events).toHaveLength(5)
+    expect(events.every((event) => event.id === undefined)).toBe(true)
+    expect(events.map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
   })
 })
 

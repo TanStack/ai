@@ -93,6 +93,11 @@ chat client does not create, parse, or persist them. Without ids, behavior is
 identical to a plain single fetch. See
 [Resumable Streams](../resumable-streams/overview).
 
+`fetchHttpStream` and the XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
+resume the same way. For NDJSON the offset rides in an `{ id, chunk }` envelope
+(see below) rather than an SSE `id:` line. Pass a durability adapter to
+`toHttpResponse` to enable it.
+
 ## HTTP Streaming (NDJSON)
 
 For environments that don't speak SSE — some edge runtimes, certain mobile WebViews, or anywhere a proxy strips `text/event-stream` — use raw newline-delimited JSON. The wire format is one JSON `StreamChunk` per line:
@@ -105,7 +110,9 @@ const { messages } = useChat({
 });
 ```
 
-Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body. Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body (or use `toHttpResponse(stream)`). Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+
+`fetchHttpStream` is also resumable: pass a durability adapter to `toHttpResponse` and each line becomes an `{ id, chunk }` envelope. A dropped connection reconnects with `Last-Event-ID`, de-duplicates the replayed prefix, and `joinRun(runId)` attaches to an existing run. Same guarantees as [Resumable SSE](#resumable-sse), over NDJSON.
 
 ## React Native and Expo
 
@@ -141,6 +148,10 @@ const chat = useChat({
   connection: xhrHttpStream(httpUrl),
 });
 ```
+
+Mobile connections drop often, so this is where resumability pays off most.
+Both XHR adapters reconnect and `joinRun` when the server adds a durability
+adapter. See [Resumable Streams](../resumable-streams/overview).
 
 Use `xhrServerSentEvents()` when your server returns `text/event-stream` via
 `toServerSentEventsResponse()`:

@@ -102,3 +102,78 @@ test.describe('delivery durability', () => {
     expect(eventType(joined[joined.length - 1]!)).toBe('RUN_FINISHED')
   })
 })
+
+/**
+ * The same delivery-durability guarantees over the NDJSON wire encoding
+ * (`?transport=ndjson`). NDJSON has no native event-id, so each durable line is
+ * an `{ id, chunk }` envelope carrying the opaque offset. The durability layer
+ * is shared with SSE — only the parsing differs.
+ */
+function parseNdjson(body: string): Array<SseEvent> {
+  return body
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const parsed = JSON.parse(line) as Record<string, unknown>
+      if (
+        'chunk' in parsed &&
+        'id' in parsed &&
+        typeof parsed.id === 'string'
+      ) {
+        return { id: parsed.id, data: parsed.chunk }
+      }
+      return { data: parsed }
+    })
+}
+
+test.describe('delivery durability (ndjson)', () => {
+  test('disconnect → reconnect resumes the ordered stream exactly once', async ({
+    request,
+  }) => {
+    const produce = await request.post('/api/durable-delivery?transport=ndjson', {
+      data: {},
+    })
+    expect(produce.ok()).toBeTruthy()
+    const produced = parseNdjson(await produce.text())
+
+    expect(contentDeltas(produced)).toEqual(['1', '2', '3', '4', '5'])
+    expect(produced.every((e) => e.id !== undefined)).toBeTruthy()
+
+    const resumeFrom = produced[2]!.id!
+    const reconnect = await request.post(
+      '/api/durable-delivery?transport=ndjson',
+      {
+        headers: { 'Last-Event-ID': resumeFrom },
+        data: {},
+      },
+    )
+    expect(reconnect.ok()).toBeTruthy()
+    const resumed = parseNdjson(await reconnect.text())
+
+    expect(contentDeltas(resumed)).toEqual(['3', '4', '5'])
+    expect(eventType(resumed[resumed.length - 1]!)).toBe('RUN_FINISHED')
+    expect(resumed.map((event) => event.id)).not.toContain(resumeFrom)
+  })
+
+  test('a second tab joins an existing run from the start', async ({
+    request,
+  }) => {
+    const produce = await request.post('/api/durable-delivery?transport=ndjson', {
+      data: {},
+    })
+    const produced = parseNdjson(await produce.text())
+    const runId = produce.headers()['x-run-id']
+    if (!runId) throw new Error('Missing X-Run-Id response header')
+    expect(produced.length).toBeGreaterThan(0)
+
+    const join = await request.get(
+      `/api/durable-delivery?transport=ndjson&offset=-1&runId=${encodeURIComponent(runId)}`,
+    )
+    expect(join.ok()).toBeTruthy()
+    const joined = parseNdjson(await join.text())
+
+    expect(contentDeltas(joined)).toEqual(['1', '2', '3', '4', '5'])
+    expect(eventType(joined[0]!)).toBe('RUN_STARTED')
+    expect(eventType(joined[joined.length - 1]!)).toBe('RUN_FINISHED')
+  })
+})

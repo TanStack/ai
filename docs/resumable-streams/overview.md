@@ -1,11 +1,12 @@
 ---
 title: Resumable Streams
 id: overview
-description: "Reconnect to an in-flight AI response without re-running the model — durable, offset-addressed SSE delivery with replay, multi-tab join, and producer-death recovery."
+description: "Reconnect to an in-flight AI response without re-running the model. Durable, offset-addressed SSE and NDJSON delivery with replay, multi-tab join, and producer-death recovery."
 keywords:
   - resumable streams
   - resume stream
   - reconnect sse
+  - reconnect ndjson
   - delivery durability
   - durable streams
   - last-event-id
@@ -38,8 +39,17 @@ system — a Postgres-backed log via [Electric](https://electric-sql.com), Redis
 streams, a message queue — implement the four-method `StreamDurability`
 interface against it; core only round-trips the opaque offsets it returns.
 
-Resumable delivery is supported by `toServerSentEventsResponse`. NDJSON
-helpers do not accept durability and do not resume.
+Resumable delivery works over both wire encodings:
+
+- `toServerSentEventsResponse` tags each SSE event with an `id:` offset line.
+- `toHttpResponse` (NDJSON) has no native event id, so each durable line is
+  emitted as an `{ id, chunk }` envelope carrying the same opaque offset.
+
+The durability layer (logging, offsets, resume, terminalization) is identical
+for both. Only the encoding differs, and an untagged stream stays exactly what
+it was before. On the client, `fetchServerSentEvents`, `fetchHttpStream`, and
+the XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`) all reconnect with
+`Last-Event-ID`, de-dupe the replayed prefix, and expose `joinRun(runId)`.
 
 ## Server setup
 
@@ -187,6 +197,26 @@ When the server emits SSE `id:` lines, `fetchServerSentEvents` remembers the
 last id, reconnects with `Last-Event-ID`, and de-duplicates the replayed prefix.
 The id is opaque to the client.
 
+The NDJSON adapter behaves the same way. Swap the transport and keep the server
+on `toHttpResponse`:
+
+```tsx
+import { fetchHttpStream, useChat } from '@tanstack/ai-react'
+
+export function Chat() {
+  const chat = useChat({
+    connection: fetchHttpStream('/api/chat'),
+  })
+
+  return <button onClick={() => void chat.sendMessage('Hello')}>Send</button>
+}
+```
+
+`fetchHttpStream` reads the offset from each `{ id, chunk }` envelope instead of
+an SSE `id:` line. Reconnect, de-dupe, and `joinRun` are otherwise the same. The
+XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`) resume the same way, for
+runtimes without streaming `fetch`.
+
 To attach to a known run from the beginning, use the adapter's `joinRun`:
 
 ```ts
@@ -206,7 +236,8 @@ that GET, as shown above.
 ## Offset ownership
 
 `StreamDurability<TOffset>` owns its offset format. Core only passes returned
-values back to that adapter and writes them to SSE `id:` fields.
+values back to that adapter and writes them to the wire — an SSE `id:` field, or
+the `id` of an NDJSON `{ id, chunk }` envelope.
 
 For every appended batch:
 

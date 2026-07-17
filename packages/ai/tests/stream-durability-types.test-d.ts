@@ -23,8 +23,14 @@ toServerSentEventsResponse(stream, {
   durability: { adapter: durability },
 })
 
+// NDJSON delivery is durable too: the branded adapter threads through
+// `toHttpResponse` exactly as it does through the SSE helper.
+toHttpResponse(stream, {
+  durability: { adapter: durability },
+})
+
 // @ts-expect-error raw strings cannot be passed to a branded-offset adapter
 durability.read('raw-offset')
 
 type HttpResponseOptions = NonNullable<Parameters<typeof toHttpResponse>[1]>
-expectTypeOf<HttpResponseOptions>().not.toHaveProperty('durability')
+expectTypeOf<HttpResponseOptions>().toHaveProperty('durability')
