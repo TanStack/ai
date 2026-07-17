@@ -27,7 +27,18 @@ export const Route = createFileRoute('/api/mcp-status-test')({
           transport: { type: 'http', url: mcpUrl },
         })
         try {
-          const tools = (await client.tools()).map((t) => t.name)
+          const toolList = await client.tools()
+          const tools = toolList.map((tool) => tool.name)
+          const taskTool = toolList.find(
+            (tool) => tool.name === 'appraise_guitar_collection',
+          )
+          if (!taskTool?.execute) {
+            throw new Error('Task-required appraisal tool was not discovered')
+          }
+          const taskResult = await taskTool.execute(
+            { ids: ['strat', 'tele'] },
+            { toolCallId: 'task-e2e', emitCustomEvent: () => {} },
+          )
 
           const resourceList = await client.resources().catch(() => [])
           const resourceContent: Array<unknown> = []
@@ -47,6 +58,7 @@ export const Route = createFileRoute('/api/mcp-status-test')({
 
           return Response.json({
             tools,
+            taskResult,
             resources: resourceList.map((r) => r.uri),
             prompts: promptList.map((p) => p.name),
             resourceContent,

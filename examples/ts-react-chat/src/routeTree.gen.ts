@@ -37,6 +37,8 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiMcpTasksServerRouteImport } from './routes/api.mcp-tasks-server'
+import { Route as ApiMcpTasksChatRouteImport } from './routes/api.mcp-tasks-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -198,6 +200,16 @@ const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   path: '/api/sandbox-triage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpTasksServerRoute = ApiMcpTasksServerRouteImport.update({
+  id: '/api/mcp-tasks-server',
+  path: '/api/mcp-tasks-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpTasksChatRoute = ApiMcpTasksChatRouteImport.update({
+  id: '/api/mcp-tasks-chat',
+  path: '/api/mcp-tasks-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -309,6 +321,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -356,6 +370,8 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -404,6 +420,8 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -453,6 +471,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -500,6 +520,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -547,6 +569,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -595,6 +619,8 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiMcpTasksChatRoute: typeof ApiMcpTasksChatRoute
+  ApiMcpTasksServerRoute: typeof ApiMcpTasksServerRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -816,6 +842,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-tasks-server': {
+      id: '/api/mcp-tasks-server'
+      path: '/api/mcp-tasks-server'
+      fullPath: '/api/mcp-tasks-server'
+      preLoaderRoute: typeof ApiMcpTasksServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-tasks-chat': {
+      id: '/api/mcp-tasks-chat'
+      path: '/api/mcp-tasks-chat'
+      fullPath: '/api/mcp-tasks-chat'
+      preLoaderRoute: typeof ApiMcpTasksChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -963,6 +1003,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiMcpTasksChatRoute: ApiMcpTasksChatRoute,
+  ApiMcpTasksServerRoute: ApiMcpTasksServerRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

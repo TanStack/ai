@@ -124,7 +124,8 @@
         {
           "label": "MCP Server Tools",
           "to": "tools/mcp",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Managed MCP with chat()",
@@ -134,7 +135,8 @@
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "MCP Type Generation",

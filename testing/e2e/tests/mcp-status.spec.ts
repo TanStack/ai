@@ -24,6 +24,7 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
 
     const json = JSON.parse(body) as {
       tools: Array<string>
+      taskResult: unknown
       resources: Array<string>
       prompts: Array<string>
       resourceContent: Array<{ type: string; content: string }>
@@ -33,9 +34,10 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
     // Tool discovered.
     expect(json.tools).toContain('get_guitar_price')
 
-    // Task-required tool (execution.taskSupport: 'required') is excluded from
-    // discovery — plain callTool can never execute it (-32600).
-    expect(json.tools).not.toContain('appraise_guitar_collection')
+    // Task-required tools are discovered and execute through MCP's task stream.
+    expect(json.tools).toContain('appraise_guitar_collection')
+    expect(JSON.stringify(json.taskResult)).toContain('4200')
+    expect(JSON.stringify(json.taskResult)).toContain('strat')
 
     // Resource listed + read + converted to a text ContentPart carrying the
     // server's distinctive token.

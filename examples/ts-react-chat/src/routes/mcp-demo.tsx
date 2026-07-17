@@ -11,7 +11,7 @@ import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 
-type McpMode = 'manual' | 'chat' | 'pool'
+type McpMode = 'manual' | 'chat' | 'pool' | 'tasks'
 
 const MODES: Array<{
   value: McpMode
@@ -39,6 +39,13 @@ const MODES: Array<{
     endpoint: '/api/mcp-pool',
     description:
       'createMCPClients() spins up a 3-server pool with auto-prefixed tool names.',
+  },
+  {
+    value: 'tasks',
+    label: 'Tasks',
+    endpoint: '/api/mcp-tasks-chat',
+    description:
+      'Task-required tool (execution.taskSupport: "required") runs via the MCP task flow — the appraisal stays pending ~4s while the client polls, then the total arrives. Try: "Appraise my guitar collection: strat, tele, jazzmaster".',
   },
 ]
 
@@ -332,11 +339,13 @@ function McpDemoPage() {
       {/* Header / mode + provider selectors */}
       <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3 shrink-0">
         <p className="text-xs text-gray-400 mb-3">
-          These chat against keyless MCP reference servers (server-everything /
-          -memory / -sequential-thinking) spawned via stdio. The MCP servers
-          need no keys — but the selected LLM provider does (set{' '}
+          Manual / chat({'{mcp}'}) / Pool chat against keyless MCP reference
+          servers (server-everything / -memory / -sequential-thinking) spawned
+          via stdio; Tasks talks to an in-process HTTP MCP server hosting a
+          task-required tool. None of the MCP servers need keys — but the
+          selected LLM provider does (set{' '}
           <code className="text-gray-300">{selectedProvider.envKey}</code> in
-          your environment). First run downloads the servers via npx.
+          your environment). First run downloads the stdio servers via npx.
         </p>
 
         <div className="flex gap-2 flex-wrap">

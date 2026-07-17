@@ -1,3 +1,4 @@
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { Tool as McpToolDef } from '@modelcontextprotocol/sdk/types.js'
 import type { ContentPart, ServerTool } from '@tanstack/ai'
@@ -50,8 +51,57 @@ export function mcpContentToTanstack(
 }
 
 /**
- * Build the execute body that proxies a TanStack tool call to an MCP server's
- * `callTool`. Shared by auto-discovery and the definition path.
+ * Call an MCP tool through the execution mode declared by its definition.
+ * Task-required tools use the SDK's experimental stream and are drained to the
+ * terminal result. Aborting stops this client from waiting and best-effort
+ * cancels (`tasks/cancel`) a remote task the server has already created.
+ */
+export async function callMcpTool(
+  client: Client,
+  mcpName: string,
+  args: Record<string, unknown>,
+  taskRequired: boolean,
+  signal?: AbortSignal,
+): Promise<Awaited<ReturnType<Client['callTool']>>> {
+  signal?.throwIfAborted()
+  if (!taskRequired) {
+    return client.callTool(
+      { name: mcpName, arguments: args },
+      CallToolResultSchema,
+      { signal },
+    )
+  }
+
+  // `task` is passed explicitly: the SDK's auto-configuration only engages
+  // when its own metadata cache saw this tool in a prior listTools() on this
+  // Client instance, which callers of this function cannot rely on.
+  const stream = client.experimental.tasks.callToolStream(
+    { name: mcpName, arguments: args },
+    CallToolResultSchema,
+    { signal, task: {} },
+  )
+  let taskId: string | undefined
+  for await (const message of stream) {
+    if (message.type === 'taskCreated') taskId = message.task.taskId
+    if (message.type === 'result') return message.result
+    if (message.type === 'error') {
+      // On abort the SDK merely stops polling; the server-side task keeps
+      // running until its TTL. Propagate the abort as a best-effort cancel
+      // (never masking the original error with a cancel failure).
+      if (signal?.aborted && taskId !== undefined) {
+        await client.experimental.tasks.cancelTask(taskId).catch(() => {})
+      }
+      throw message.error
+    }
+  }
+  throw new Error(
+    `MCP task-required tool "${mcpName}" ended without a result or error`,
+  )
+}
+
+/**
+ * Build the execute body that proxies a TanStack tool call to an MCP server.
+ * Shared by auto-discovery and the definition path.
  *
  * @param preferStructured when true (i.e. the tool declares an outputSchema),
  *   return `result.structuredContent` if present so the existing output
@@ -62,13 +112,15 @@ export function makeMcpExecute(
   client: Client,
   mcpName: string,
   preferStructured: boolean,
+  taskRequired = false,
 ) {
   return async (args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
-    ctx?.abortSignal?.throwIfAborted()
-    const result = await client.callTool(
-      { name: mcpName, arguments: (args ?? {}) as Record<string, unknown> },
-      undefined,
-      { signal: ctx?.abortSignal },
+    const result = await callMcpTool(
+      client,
+      mcpName,
+      (args ?? {}) as Record<string, unknown>,
+      taskRequired,
+      ctx?.abortSignal,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)
@@ -95,28 +147,30 @@ export function makeMcpExecute(
   }
 }
 
-/**
- * A tool with `execution.taskSupport: 'required'` can only run through the
- * SDK's experimental task-based execution (`tasks/callToolStream`) — plain
- * `callTool` is rejected by the server with -32600. Until task execution is
- * supported, such tools must not be offered to the model.
- */
+/** A tool that must use the SDK's experimental task-based execution. */
 export function requiresTaskExecution(def: McpToolDef): boolean {
   return def.execution?.taskSupport === 'required'
 }
 
+/** The server declares task-based execution support for tools/call. */
+export function serverSupportsTaskCalls(client: Client): boolean {
+  return Boolean(client.getServerCapabilities()?.tasks?.requests?.tools?.call)
+}
+
 /**
- * Auto-discovery path: turn raw MCP tool defs into ServerTools (args typed
- * `unknown`). Task-required tools are excluded — they cannot be invoked via
- * plain `callTool` (see {@link requiresTaskExecution}).
+ * Auto-discovery path: turn raw MCP tool defs into ServerTools. Task-required
+ * tools are excluded when the server does not declare the tasks capability
+ * for tools/call — every invocation would fail, so they must not be offered
+ * to the model.
  */
 export function toServerTools(
   client: Client,
   defs: Array<McpToolDef>,
   options: ConvertOptions,
 ): Array<ServerTool> {
+  const supportsTasks = serverSupportsTaskCalls(client)
   return defs
-    .filter((def) => !requiresTaskExecution(def))
+    .filter((def) => !requiresTaskExecution(def) || supportsTasks)
     .map((def) => {
       const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
       const tool: ServerTool = {
@@ -136,7 +190,12 @@ export function toServerTools(
             uiResourceUri: extractUiResourceUri(def),
           },
         },
-        execute: makeMcpExecute(client, def.name, Boolean(def.outputSchema)),
+        execute: makeMcpExecute(
+          client,
+          def.name,
+          Boolean(def.outputSchema),
+          requiresTaskExecution(def),
+        ),
       }
       return tool
     })

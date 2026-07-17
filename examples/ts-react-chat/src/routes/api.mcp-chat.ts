@@ -18,7 +18,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
+import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import { everythingTransport, memoryTransport } from '@/lib/mcp-servers'
 
 export const Route = createFileRoute('/api/mcp-chat')({
@@ -43,6 +43,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
           )
         }
 
+        let clients
         try {
           // Connect two keyless MCP servers in parallel.
           // Prefixes disambiguate tools if both servers expose same-named tools.
@@ -73,7 +74,7 @@ export const Route = createFileRoute('/api/mcp-chat')({
             )
             throw rejected.reason
           }
-          const clients = settled.flatMap((r) =>
+          clients = settled.flatMap((r) =>
             r.status === 'fulfilled' ? [r.value] : [],
           )
 
@@ -95,6 +96,9 @@ export const Route = createFileRoute('/api/mcp-chat')({
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
+          // chat() only owns the clients once the stream is consumed — if
+          // setup throws before the response is returned, close them here.
+          if (clients) await Promise.allSettled(clients.map((c) => c.close()))
           console.error('[api.mcp-chat] Error:', {
             message: error?.message,
             name: error?.name,
