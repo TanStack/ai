@@ -105,6 +105,5 @@ Use `locks` when more than one worker can refresh or mutate the same remote MCP
 session. Use `artifacts` and `blobs` only when MCP tools produce durable files
 or media. Artifact metadata and bytes remain separate.
 
-Making MCP chat SSE replayable is a delivery concern, configured on
-`toServerSentEventsResponse`; it is not an MCP state store. See
-[Delivery Durability](./delivery-durability).
+Making MCP chat SSE replayable is a transport concern (resumable streams,
+configured on `toServerSentEventsResponse`); it is not an MCP state store.

@@ -5,16 +5,15 @@ id: overview
 
 # Persistence Overview
 
-TanStack AI separates two independent durability concerns:
+Persistence stores authoritative state — messages, runs, pending interrupts,
+metadata, locks, and generated artifacts. It is configured with persistence
+middleware.
 
-- **State persistence** stores messages, runs, pending interrupts, metadata,
-  locks, and generated artifacts. It is configured with persistence middleware.
-- **Delivery durability** stores an ordered SSE event stream so a client can
-  reconnect without re-running the provider. It is configured on the response
-  transport.
-
-Persisting state does not automatically make a live response replayable, and a
-replayable response does not replace authoritative application state.
+Reconnecting to an in-flight streaming response is a separate transport-level
+feature (resumable streams, configured on the response helpers), not part of
+this middleware. Persisting state does not automatically make a live response
+replayable, and a replayable response does not replace authoritative
+application state.
 
 ## Store contract
 

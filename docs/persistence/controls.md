@@ -6,8 +6,7 @@ id: controls
 # Persistence Controls
 
 Persistence is controlled by store presence. Supply only the state stores your
-workflow needs, compose backends per store, and configure SSE delivery
-durability independently.
+workflow needs and compose backends per store.
 
 ## Decision table
 
@@ -21,7 +20,7 @@ durability independently.
 | App or integration checkpoints | `metadata` |
 | Cross-worker coordination | `locks` |
 | Generated media or workspace files | `artifacts` and `blobs` |
-| Replay an in-flight response | SSE `durability.adapter` |
+| Replay an in-flight response | Resumable streams (transport feature, not a store) |
 
 `withChatPersistence(persistence)` and
 `withGenerationPersistence(persistence)` inspect the stores. Store presence is

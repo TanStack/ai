@@ -5,23 +5,24 @@ id: internals
 
 # Persistence Internals
 
-This page describes the contracts between middleware, state stores, browser
-storage, and SSE delivery durability.
+This page describes the contracts between middleware, state stores, and
+browser storage.
 
-## Three separate boundaries
+## Two separate boundaries
 
 ```text
-Application state        Browser hydration       Stream delivery
------------------        -----------------       ---------------
-AIPersistence stores     ChatStorageAdapter      StreamDurability
-middleware lifecycle     UIMessage/snapshot      SSE id/replay
-server authoritative     client convenience      transport concern
+Application state        Browser hydration
+-----------------        -----------------
+AIPersistence stores     ChatStorageAdapter
+middleware lifecycle     UIMessage/snapshot
+server authoritative     client convenience
 ```
 
-These boundaries intentionally do not share delivery offsets. State middleware never
-mutates chunks to add offsets. The SSE adapter returns opaque offset strings to
-the response layer, which writes them as `id:` lines. Browser chat persistence
-stores rendered messages or interrupt resume snapshots, not server event logs.
+Stream delivery (replaying an in-flight SSE response) is a third, transport-only
+boundary — resumable streams — and intentionally shares nothing with these two.
+State middleware never mutates chunks to add delivery offsets, and browser chat
+persistence stores rendered messages or interrupt resume snapshots, not server
+event logs.
 
 ## Chat middleware lifecycle
 
@@ -87,46 +88,6 @@ Middleware adds capability validation:
 
 The runtime checks are required because JavaScript, configuration loading, and
 explicitly widened types can bypass static guarantees.
-
-## Delivery durability contract
-
-```ts
-import type { StreamChunk } from '@tanstack/ai'
-
-interface StreamDurability<TOffset extends string = string> {
-  resumeFrom(): TOffset | null
-  append(chunks: Array<StreamChunk>): Promise<Array<TOffset>>
-  read(
-    offset: TOffset,
-    signal?: AbortSignal,
-  ): AsyncIterable<{ offset: TOffset; chunk: StreamChunk }>
-  close(): Promise<void>
-}
-```
-
-The adapter owns `TOffset`. Core treats it as an opaque string and validates
-only that it is non-empty and contains no CR/LF before writing an SSE id.
-
-For a fresh producer, core appends each batch before forwarding it. `append`
-must return exactly one offset per chunk in the same order. Missing or extra
-offsets fail the stream; core never invents a fallback offset.
-
-For a resume request, core reads strictly after `resumeFrom()` and never starts
-the provider iterator. Delivery durability is supported by the SSE response
-path, not the NDJSON response path.
-
-## Terminalization
-
-On normal completion, caught provider/server errors, and user cancellation,
-the producer awaits `close()`. A caught error or cancellation also attempts to
-append a terminal `RUN_ERROR`; cancellation uses an abort-shaped error payload.
-Failures while flushing, appending the terminal event, or closing are surfaced
-rather than silently discarded.
-
-A process that has already died cannot run `finally`. Backends that must
-recover from literal process death need an external lease, timeout, alarm, or
-reaper that marks abandoned streams terminal. This mechanism is outside the
-core response helper.
 
 ## Backend ownership
 

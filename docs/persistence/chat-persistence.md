@@ -7,7 +7,8 @@ id: chat-persistence
 
 Server chat persistence makes messages, run status, and interrupts
 authoritative beyond one request. Browser persistence can additionally hydrate
-rendered UI state. SSE delivery durability is a third, independent concern.
+rendered UI state. Reconnecting to an in-flight SSE response (resumable
+streams) is a third, independent transport-level feature.
 
 ## Persist state on the server
 
@@ -150,32 +151,14 @@ matches a pending interrupt before resolving or cancelling stored records.
 Normal messages on that thread are rejected until pending interrupts are
 handled. This prevents accidental conversation forks.
 
-## Add delivery durability separately
+## Resumable streams are separate
 
-To reconnect to an in-flight SSE response, add a `StreamDurability` adapter to
-the response:
-
-```ts
-import { durableStream } from '@tanstack/ai-durable-stream'
-
-declare function getDurableStreamsToken(): Promise<string>
-
-const durableOptions = {
-  server: 'https://streams.example.com',
-  headers: async () => ({
-    Authorization: `Bearer ${await getDurableStreamsToken()}`,
-  }),
-}
-
-return toServerSentEventsResponse(stream, {
-  durability: { adapter: durableStream(request, durableOptions) },
-})
-```
-
-This affects transport replay only. State middleware still owns messages,
-runs, and interrupts. The SSE adapter owns opaque event offsets; neither
-`UIMessage` nor server persistence records carry stream delivery offsets. See
-[Delivery Durability](./delivery-durability).
+Reconnecting to an in-flight SSE response without re-running the provider is a
+transport-level feature (a durability adapter on
+`toServerSentEventsResponse`), covered by the Resumable Streams guide. It
+affects transport replay only. State middleware still owns messages, runs, and
+interrupts; neither `UIMessage` nor server persistence records carry stream
+delivery offsets.
 
 ## Clear and retention
 

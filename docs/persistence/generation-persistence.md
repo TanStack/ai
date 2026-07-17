@@ -182,6 +182,5 @@ Include every input and output artifact you need when overriding extraction.
 ## Delivery remains separate
 
 State persistence makes the run and result queryable after completion. It does
-not replay an in-flight response. Add an SSE `StreamDurability` adapter for
-delivery replay, and keep the producer alive long enough to finish. See
-[Delivery Durability](./delivery-durability).
+not replay an in-flight response — that is resumable streams, a transport-level
+feature configured on the SSE response helper.

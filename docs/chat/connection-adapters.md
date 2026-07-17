@@ -17,17 +17,15 @@ keywords:
 A connection adapter owns the client-to-server transport. Pass exactly one of
 `connection` or `fetcher` to `useChat`.
 
-| Adapter | Server response | Resume support |
-| --- | --- | --- |
-| `fetchServerSentEvents` | `text/event-stream` | Yes, when SSE events carry durability-owned `id:` values |
-| `fetchHttpStream` | newline-delimited JSON | No |
-| `stream` | `ReadableStream` or `AsyncIterable` | No built-in reconnect |
-| `rpcStream` | application RPC stream | Defined by the RPC implementation |
-| custom `subscribe` / `send` | WebSocket or another persistent transport | Defined by the adapter |
+| Adapter | Server response |
+| --- | --- |
+| `fetchServerSentEvents` | `text/event-stream` |
+| `fetchHttpStream` | newline-delimited JSON |
+| `stream` | `ReadableStream` or `AsyncIterable` |
+| `rpcStream` | application RPC stream |
+| custom `subscribe` / `send` | WebSocket or another persistent transport |
 
-NDJSON is only an HTTP framing format. It is not tied to the sandbox harness
-and does not provide resumable offsets. Delivery resumability is currently an
-SSE feature.
+NDJSON is only an HTTP framing format. It is not tied to the sandbox harness.
 
 ## Server-Sent Events
 
@@ -104,17 +102,6 @@ export function AuthenticatedChat() {
 
 Static adapter `body` values form the base request data. Hook
 `forwardedProps`, then per-send data, take precedence over the same keys.
-
-### Resumable SSE
-
-`fetchServerSentEvents` watches SSE `id:` values. If a connection drops after
-receiving an id, it reconnects with `Last-Event-ID` and de-duplicates the
-replayed prefix. `joinRun(runId)` performs a read-only GET with `offset=-1` and
-the run id.
-
-The ids are opaque tokens owned by the server durability adapter. The chat
-client does not create, parse, or persist those offsets. See
-[Delivery Durability](../persistence/delivery-durability).
 
 ## NDJSON over HTTP
 
@@ -209,7 +196,4 @@ offsets.
 
 Connection adapters throw on non-successful HTTP responses and malformed
 stream data. `useChat` exposes the resulting `error` and calls `onError`.
-Calling `stop()` aborts the current client request. For durable SSE, the server
-also terminalizes the durability log during a caught cancellation or error;
-literal process death requires an external lease or reaper. See
-[Delivery Durability](../persistence/delivery-durability#process-death).
+Calling `stop()` aborts the current client request.

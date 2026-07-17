@@ -23,9 +23,10 @@ keywords:
   interrupts needed after a reload.
 
 This is client hydration, not server state durability. Persist authoritative
-messages, runs, and interrupts with `withChatPersistence(...)`; make an
-in-flight response replayable with SSE delivery durability. See
-[Chat Persistence](../persistence/chat-persistence) for the complete flow.
+messages, runs, and interrupts with `withChatPersistence(...)`. Making an
+in-flight response replayable is a separate transport feature (resumable
+streams). See [Chat Persistence](../persistence/chat-persistence) for the
+complete flow.
 
 ## Use IndexedDB for chat messages
 

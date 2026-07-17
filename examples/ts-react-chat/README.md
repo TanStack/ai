@@ -52,11 +52,8 @@ and interrupts. The client stores rendered messages and its lightweight
 interrupt resume snapshot separately. Refresh after a completed response to
 see both sides hydrate the same stable thread.
 
-SSE delivery durability is configured independently with the process-local
-`memoryStream` adapter. It can replay a transiently dropped connection while
-the dev server remains alive, but it does not survive a server restart and it
-does not store a cursor in browser persistence. Use an external delivery
-adapter for horizontally scaled production deployments.
+Replaying a transiently dropped SSE connection (resumable streams) is a
+separate transport-level feature and is not configured in this demo.
 
 ## Trying Out Lazy Tool Discovery
 

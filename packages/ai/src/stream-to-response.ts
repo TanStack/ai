@@ -1,6 +1,4 @@
 import { toRunErrorPayload } from './activities/error-payload'
-import { EventType } from './types'
-import type { StreamDurability } from './stream-durability'
 import type { StreamChunk } from './types'
 
 /**
@@ -16,7 +14,7 @@ import type { StreamChunk } from './types'
  * ```typescript
  * const stream = chat({
  *   adapter: openaiText(),
- *   model: 'gpt-5.5',
+ *   model: 'gpt-4o',
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * });
  * const text = await streamToText(stream);
@@ -37,151 +35,6 @@ export async function streamToText(
   return accumulatedContent
 }
 
-interface RecordedFailure {
-  error: unknown
-}
-
-function errorMessage(error: unknown): string {
-  return toRunErrorPayload(error).message
-}
-
-function combineFailures(
-  primary: unknown,
-  secondary: unknown,
-  phase: string,
-): unknown {
-  if (primary === secondary) return primary
-  const errors =
-    primary instanceof AggregateError
-      ? [...primary.errors, secondary]
-      : [primary, secondary]
-  return new AggregateError(
-    errors,
-    `${errorMessage(primary)}; ${phase}: ${errorMessage(secondary)}`,
-  )
-}
-
-function runErrorChunk(
-  error: unknown,
-): Extract<StreamChunk, { type: 'RUN_ERROR' }> {
-  const payload = toRunErrorPayload(error)
-  return {
-    type: EventType.RUN_ERROR,
-    timestamp: Date.now(),
-    message: payload.message,
-    ...(payload.code === undefined ? {} : { code: payload.code }),
-    error: payload,
-  }
-}
-
-function isAborted(signal: AbortSignal): boolean {
-  return signal.aborted
-}
-
-function needsTerminalPersistence(
-  terminalPersisted: boolean,
-  cancelled: boolean,
-  failed: boolean,
-): boolean {
-  return !terminalPersisted && (cancelled || failed)
-}
-
-function toEncodedStream(
-  stream: AsyncIterable<StreamChunk>,
-  abortController: AbortController | undefined,
-  encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array,
-  encodeError: (error: unknown) => Uint8Array,
-): ReadableStream<Uint8Array> {
-  const cancellation = abortController ?? new AbortController()
-  let iterator: AsyncIterator<StreamChunk> | undefined
-  let iteratorCleanup: Promise<void> | undefined
-  let pumpPromise: Promise<void> = Promise.resolve()
-  let pumpFailure: RecordedFailure | undefined
-  let cancelled = false
-
-  const recordPumpFailure = (error: unknown, phase: string): void => {
-    pumpFailure = {
-      error:
-        pumpFailure === undefined
-          ? error
-          : combineFailures(pumpFailure.error, error, phase),
-    }
-  }
-
-  const closeIterator = (): Promise<void> => {
-    iteratorCleanup ??= (async () => {
-      if (iterator?.return) await iterator.return()
-    })()
-    return iteratorCleanup
-  }
-
-  return new ReadableStream({
-    start(controller) {
-      iterator = stream[Symbol.asyncIterator]()
-      pumpPromise = (async () => {
-        let index = 0
-        let iteratorDone = false
-
-        try {
-          while (!isAborted(cancellation.signal)) {
-            const result = await iterator.next()
-            if (result.done) {
-              iteratorDone = true
-              break
-            }
-            if (isAborted(cancellation.signal)) break
-            controller.enqueue(encodeChunk(result.value, index))
-            index += 1
-          }
-        } catch (error) {
-          recordPumpFailure(error, 'stream iteration failed')
-        } finally {
-          if (!iteratorDone) {
-            try {
-              await closeIterator()
-            } catch (error) {
-              recordPumpFailure(error, 'iterator cleanup failed')
-            }
-          }
-
-          if (
-            !cancelled &&
-            !isAborted(cancellation.signal) &&
-            pumpFailure !== undefined
-          ) {
-            controller.enqueue(encodeError(pumpFailure.error))
-          }
-          if (!cancelled) controller.close()
-        }
-      })().catch((error: unknown) => {
-        recordPumpFailure(error, 'stream pump failed')
-      })
-    },
-    async cancel(reason) {
-      cancelled = true
-      if (!isAborted(cancellation.signal)) cancellation.abort(reason)
-
-      let cancellationFailure: RecordedFailure | undefined
-      try {
-        await closeIterator()
-      } catch (error) {
-        cancellationFailure = { error }
-      }
-      await pumpPromise
-
-      if (pumpFailure !== undefined && cancellationFailure !== undefined) {
-        throw combineFailures(
-          pumpFailure.error,
-          cancellationFailure.error,
-          'iterator cancellation failed',
-        )
-      }
-      if (pumpFailure !== undefined) throw pumpFailure.error
-      if (cancellationFailure !== undefined) throw cancellationFailure.error
-    },
-  })
-}
-
 /**
  * Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
  *
@@ -197,217 +50,53 @@ function toEncodedStream(
 export function toServerSentEventsStream(
   stream: AsyncIterable<StreamChunk>,
   abortController?: AbortController,
-  getId?: (chunk: StreamChunk, index: number) => string | undefined,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
-  return toEncodedStream(
-    stream,
-    abortController,
-    (chunk, index) => {
-      const id = getId?.(chunk, index)
-      const idLine = id === undefined ? '' : `id: ${id}\n`
-      return encoder.encode(`${idLine}data: ${JSON.stringify(chunk)}\n\n`)
-    },
-    (error) =>
-      encoder.encode(`data: ${JSON.stringify(runErrorChunk(error))}\n\n`),
-  )
-}
 
-/** Default number of chunks buffered before a durability `append`. */
-const DEFAULT_DURABILITY_BATCH = 32
-
-/**
- * Resolve and validate the durability batch size. A non-positive-integer (0,
- * negative, fractional, or `NaN`) is rejected rather than clamped: silently
- * `Math.max(1, …)`-ing a `NaN` used to disable size-based flushing entirely
- * (`length >= NaN` is always false), which is a subtle footgun.
- */
-function resolveBatchSize(batch: number | undefined): number {
-  if (batch === undefined) return DEFAULT_DURABILITY_BATCH
-  if (!Number.isInteger(batch) || batch <= 0) {
-    throw new Error(
-      `Invalid durability batch size: ${batch}. Must be a positive integer.`,
-    )
-  }
-  return batch
-}
-
-/**
- * Boundaries at which the batching producer flushes early, regardless of the
- * batch size — terminal events and tool-call ends. Flushing here keeps the
- * durability log promptly consistent at semantically meaningful points.
- */
-function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
-  return (
-    chunk.type === 'RUN_FINISHED' ||
-    chunk.type === 'RUN_ERROR' ||
-    chunk.type === 'TOOL_CALL_END'
-  )
-}
-
-/**
- * Build the delivery-durable source iterable for a transport helper.
- *
- * - **Resume** (`resumeFrom()` non-null): replay strictly after the offset,
- *   reading only from the durability log. The input `stream` is NEVER iterated,
- *   so `chat()`'s lazy iterator never fires the provider — the untouched
- *   generator is simply GC'd. This is what makes resume free of re-invocation.
- * - **Fresh** (`resumeFrom()` null): iterate `stream`, buffering up to `batch`
- *   chunks (flushing early at terminal / tool-call boundaries), `append` each
- *   batch to the log, then forward. Appending BEFORE forwarding guarantees a
- *   reconnecting client can always replay exactly what it already saw.
- *
- * The returned `getId` maps each forwarded chunk to the exact opaque offset
- * returned by the durability adapter for the SSE `id:` line.
- */
-function durableStreamSource<TOffset extends string>(
-  stream: AsyncIterable<StreamChunk>,
-  durability: StreamDurability<TOffset>,
-  options: { abortController: AbortController; batch?: number },
-): {
-  source: AsyncIterable<StreamChunk>
-  getId: (chunk: StreamChunk) => string | undefined
-} {
-  const resumeOffset = durability.resumeFrom()
-  const batchSize = resolveBatchSize(options.batch)
-  const abortController = options.abortController
-  const idByChunk = new WeakMap<object, string>()
-  const seenOffsets = new Set<string>()
-  const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
-
-  const validateOffset = (offset: TOffset): void => {
-    if (offset.length === 0 || /[\0\r\n]/.test(offset)) {
-      throw new Error(
-        `Invalid durability offset for SSE id: ${JSON.stringify(offset)}`,
-      )
-    }
-    if (seenOffsets.has(offset)) {
-      throw new Error(
-        `Durability adapter must return a unique offset per chunk: ${JSON.stringify(offset)}`,
-      )
-    }
-    seenOffsets.add(offset)
-  }
-
-  async function* produce(): AsyncIterable<StreamChunk> {
-    let batch: Array<StreamChunk> = []
-    let terminalPersisted = false
-    let failure: RecordedFailure | undefined
-    let terminalCause: unknown
-    let hasTerminalCause = false
-
-    const recordFailure = (error: unknown, phase: string): void => {
-      failure = {
-        error:
-          failure === undefined
-            ? error
-            : combineFailures(failure.error, error, phase),
-      }
-    }
-
-    async function* flush(): AsyncIterable<StreamChunk> {
-      if (batch.length === 0) return
-      const toForward = batch
-      batch = []
-      // Tag each chunk with the exact backend offset. Requiring one opaque
-      // token per chunk preserves exact-once resume at any batch size.
-      const offsets = await durability.append(toForward)
-      if (offsets.length !== toForward.length) {
-        throw new Error(
-          `Durability append returned ${offsets.length} offsets for ${toForward.length} chunks`,
-        )
-      }
-      toForward.forEach((chunk, i) => {
-        const offset = offsets[i]
-        if (offset === undefined) {
-          throw new Error(`Durability append omitted offset at index ${i}`)
-        }
-        validateOffset(offset)
-        idByChunk.set(chunk, offset)
-      })
-      if (
-        toForward.some(
-          (chunk) =>
-            chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR',
-        )
-      ) {
-        terminalPersisted = true
-      }
-      for (const chunk of toForward) yield chunk
-    }
-
-    try {
-      if (isAborted(abortController.signal)) return
-      for await (const chunk of stream) {
-        if (isAborted(abortController.signal)) break
-        batch.push(chunk)
-        if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
-          yield* flush()
-        }
-      }
-      if (!isAborted(abortController.signal)) yield* flush()
-    } catch (error) {
-      terminalCause = error
-      hasTerminalCause = true
-      recordFailure(error, 'producer failed')
-      // The provider stream threw. Persist a terminal RUN_ERROR to the
-      // durability log so a resumer / joiner learns the run failed (otherwise
-      // the log ends with no terminal and they wait forever). Flush any
-      // buffered chunks first, then append the terminal WITHOUT forwarding it
-      // live — the transport layer synthesizes the live RUN_ERROR on rethrow,
-      // so forwarding here too would double-emit.
-      if (!isAborted(abortController.signal)) {
-        try {
-          yield* flush()
-        } catch (flushError) {
-          recordFailure(flushError, 'flushing buffered chunks failed')
-        }
-      }
-    } finally {
-      const cancelled = isAborted(abortController.signal)
-      if (
-        needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
-      ) {
-        const cause = cancelled ? { name: 'AbortError' } : terminalCause
-        try {
-          await durability.append([runErrorChunk(cause)])
-          terminalPersisted = true
-        } catch (terminalError) {
-          recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
-        }
-      }
-
+  return new ReadableStream({
+    async start(controller) {
       try {
-        await durability.close()
-      } catch (closeError) {
-        recordFailure(closeError, 'closing durability stream failed')
+        for await (const chunk of stream) {
+          // Check if stream was cancelled/aborted
+          if (abortController?.signal.aborted) {
+            break
+          }
+
+          // Send each chunk as Server-Sent Events format
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+          )
+        }
+
+        controller.close()
+      } catch (error: unknown) {
+        // Don't send error if aborted
+        if (abortController?.signal.aborted) {
+          controller.close()
+          return
+        }
+
+        // Send error event (AG-UI RUN_ERROR)
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
+              error: toRunErrorPayload(error),
+            })}\n\n`,
+          ),
+        )
+        controller.close()
       }
-
-      // Iterator cancellation must reject when awaited terminalization fails.
-      // eslint-disable-next-line no-unsafe-finally
-      if (failure !== undefined) throw failure.error
-    }
-  }
-
-  async function* replay(offset: TOffset): AsyncIterable<StreamChunk> {
-    // Thread the consumer's abort signal into the read so a live-tailing join
-    // (a mid-stream reconnect) that is aborted — or that hit a runId with no
-    // in-process producer — stops parking and ends instead of hanging forever.
-    for await (const { offset: eventOffset, chunk } of durability.read(
-      offset,
-      abortController.signal,
-    )) {
-      if (isAborted(abortController.signal)) break
-      validateOffset(eventOffset)
-      idByChunk.set(chunk, eventOffset)
-      yield chunk
-    }
-  }
-
-  return {
-    source: resumeOffset !== null ? replay(resumeOffset) : produce(),
-    getId,
-  }
+    },
+    cancel() {
+      // When the ReadableStream is cancelled (e.g., client disconnects),
+      // abort the underlying stream
+      if (abortController) {
+        abortController.abort()
+      }
+    },
+  })
 }
 
 /**
@@ -418,30 +107,21 @@ function durableStreamSource<TOffset extends string>(
  * - Each chunk is followed by "\n\n"
  * - Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
  *
- * Pass a `durability` sink (`memoryStream(request)` / `durableStream(request)`)
- * to make the stream resumable: fresh runs are appended to the log and each SSE
- * event is tagged with an `id:` offset; a reconnect (native `Last-Event-ID`) or
- * a `?offset` join replays from the log without re-running the producer. `batch`
- * controls how many chunks are buffered per `append` (default 32).
- *
  * @param stream - AsyncIterable of StreamChunks from chat()
- * @param init - Optional Response initialization options (including `abortController`, `durability`, `batch`)
+ * @param init - Optional Response initialization options (including `abortController`)
  * @returns Response in Server-Sent Events format
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } });
+ * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
+ * return toServerSentEventsResponse(stream, { abortController });
  * ```
  */
-export function toServerSentEventsResponse<TOffset extends string = string>(
+export function toServerSentEventsResponse(
   stream: AsyncIterable<StreamChunk>,
-  init?: ResponseInit & {
-    abortController?: AbortController
-    durability?: { adapter: StreamDurability<TOffset>; batch?: number }
-  },
+  init?: ResponseInit & { abortController?: AbortController },
 ): Response {
-  const { headers, abortController, durability, ...responseInit } = init ?? {}
+  const { headers, abortController, ...responseInit } = init ?? {}
 
   // Start with default SSE headers
   const mergedHeaders = new Headers({
@@ -459,19 +139,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     })
   }
 
-  let body: ReadableStream<Uint8Array>
-  if (durability) {
-    const deliveryAbortController = abortController ?? new AbortController()
-    const { source, getId } = durableStreamSource(stream, durability.adapter, {
-      abortController: deliveryAbortController,
-      batch: durability.batch,
-    })
-    body = toServerSentEventsStream(source, deliveryAbortController, getId)
-  } else {
-    body = toServerSentEventsStream(stream, abortController)
-  }
-
-  return new Response(body, {
+  return new Response(toServerSentEventsStream(stream, abortController), {
     ...responseInit,
     headers: mergedHeaders,
   })
@@ -492,7 +160,7 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
+ * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
  * const readableStream = toHttpStream(stream);
  * // Use with Response for HTTP streaming (not SSE)
  * return new Response(readableStream, {
@@ -505,12 +173,49 @@ export function toHttpStream(
   abortController?: AbortController,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
-  return toEncodedStream(
-    stream,
-    abortController,
-    (chunk) => encoder.encode(`${JSON.stringify(chunk)}\n`),
-    (error) => encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
-  )
+
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of stream) {
+          // Check if stream was cancelled/aborted
+          if (abortController?.signal.aborted) {
+            break
+          }
+
+          // Send each chunk as newline-delimited JSON
+          controller.enqueue(encoder.encode(`${JSON.stringify(chunk)}\n`))
+        }
+
+        controller.close()
+      } catch (error: unknown) {
+        // Don't send error if aborted
+        if (abortController?.signal.aborted) {
+          controller.close()
+          return
+        }
+
+        // Send error event (AG-UI RUN_ERROR)
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
+              error: toRunErrorPayload(error),
+            })}\n`,
+          ),
+        )
+        controller.close()
+      }
+    },
+    cancel() {
+      // When the ReadableStream is cancelled (e.g., client disconnects),
+      // abort the underlying stream
+      if (abortController) {
+        abortController.abort()
+      }
+    },
+  })
 }
 
 /**
@@ -528,20 +233,15 @@ export function toHttpStream(
  *
  * @example
  * ```typescript
- * const stream = chat({ adapter: openaiText(), model: "gpt-5.5", messages: [...] });
- * return toHttpResponse(stream);
+ * const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
+ * return toHttpResponse(stream, { abortController });
  * ```
  */
 export function toHttpResponse(
   stream: AsyncIterable<StreamChunk>,
-  init?: ResponseInit & {
-    abortController?: AbortController
-  },
+  init?: ResponseInit & { abortController?: AbortController },
 ): Response {
-  const { abortController, ...responseInit } = init ?? {}
-  const body = toHttpStream(stream, abortController)
-
-  return new Response(body, {
-    ...responseInit,
+  return new Response(toHttpStream(stream, init?.abortController), {
+    ...init,
   })
 }

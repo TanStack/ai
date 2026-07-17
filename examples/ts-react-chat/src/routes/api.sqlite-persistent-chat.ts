@@ -3,7 +3,6 @@ import {
   chat,
   chatParamsFromRequestBody,
   maxIterations,
-  memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -13,8 +12,7 @@ import { createChatPersistence } from '@/lib/sqlite-persistence'
 const SYSTEM_PROMPT = `You are a concise assistant in a durable chat demo.
 
 Chat state (messages, run status, interrupts) is persisted via the state
-middleware. Delivery durability for a transiently dropped active SSE connection
-is handled by the transport helper's durability sink.
+middleware.
 Keep answers short enough that the streaming behavior is easy to inspect.`
 
 const persistence = createChatPersistence()
@@ -47,16 +45,7 @@ export const Route = createFileRoute('/api/sqlite-persistent-chat')({
           ...(params.resume ? { resume: params.resume } : {}),
         })
 
-        // Delivery durability: the sink appends each batch and tags every SSE
-        // event with an opaque adapter-owned offset. The active client can
-        // reconnect with Last-Event-ID and replay without re-invoking the
-        // provider. `memoryStream` is the zero-infra dev default; swap in
-        // `durableStream(request, { server })` for horizontally scaled
-        // deployments.
-        const durability = memoryStream(request)
-        return toServerSentEventsResponse(stream, {
-          durability: { adapter: durability, batch: 8 },
-        })
+        return toServerSentEventsResponse(stream)
       },
     },
   },

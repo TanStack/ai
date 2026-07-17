@@ -414,12 +414,6 @@
           "updatedAt": "2026-07-10"
         },
         {
-          "label": "Delivery Durability",
-          "to": "persistence/delivery-durability",
-          "addedAt": "2026-07-09",
-          "updatedAt": "2026-07-10"
-        },
-        {
           "label": "Persistence Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-08",

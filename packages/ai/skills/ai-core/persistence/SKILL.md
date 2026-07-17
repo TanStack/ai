@@ -5,8 +5,8 @@ description: >
   media generation via withGenerationPersistence. Persists thread messages, run
   records, interrupts, metadata, locks, and artifacts/blobs through optional
   composable stores. Interrupts resume with RunAgentInput.resume[].
-  Delivery durability (replaying a disconnected/reloaded stream) is a separate
-  TRANSPORT concern, not part of this middleware. Backends: memoryPersistence,
+  Resumable streams (replaying a disconnected/reloaded stream) is a separate
+  TRANSPORT feature, not part of this middleware. Backends: memoryPersistence,
   drizzlePersistence/sqlitePersistence, prismaPersistence.
 type: sub-skill
 library: tanstack-ai
@@ -25,19 +25,12 @@ sources:
   interrupts, metadata, locks, and generation artifacts/blobs. It never mutates
   the chunk stream and stamps **no** cursor. A `chat()` with no persistence
   middleware produces byte-identical chunks.
-- **Delivery durability** (a client disconnects/reloads and still receives the
-  full ordered stream) is a **transport-layer** concern, handled by a pluggable
-  `StreamDurability` sink on the transport helpers — NOT by this middleware.
-  There is no in-band `cursor` and no `chat({ cursor })` replay. Wire it by
-  passing `durability` to
-  `toServerSentEventsResponse(stream, { durability: { adapter } })`
-  (or `toHttpResponse`): `memoryStream(request)` (process-local, dev/test) or
-  `durableStream(request, { server })` from `@tanstack/ai-durable-stream`
-  (durable-streams protocol, production). Each SSE event is tagged with an
-  opaque adapter-owned offset; native `EventSource` resumes via `Last-Event-ID`
-  with zero application cursor code. Ceiling: replays what was PRODUCED, not an
-  interrupted completion — keep the producer alive past the socket
-  (`waitUntil`/durable object/queue). See `docs/persistence/delivery-durability.md`.
+- **Resumable streams** (a client disconnects/reloads and still receives the
+  full ordered stream) is a **transport-layer** feature, handled by a pluggable
+  durability sink on the SSE response helper — NOT by this middleware. There is
+  no in-band `cursor` and no `chat({ cursor })` replay; this middleware stamps
+  no delivery offsets. See the Resumable Streams guide for the transport
+  feature.
 - The persistence interface is `AIPersistence`; use
   `defineAIPersistence({ stores })` for custom stores and
   `composePersistence(base, { overrides })` to replace or disable individual

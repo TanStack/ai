@@ -6,10 +6,9 @@ import { composePersistence } from '@tanstack/ai-persistence'
  *
  * Persistence v2 ships a Node SQLite backend (Drizzle + bundled migrations)
  * through {@link sqlitePersistence}. Other SQL databases can implement the
- * persistence store interfaces over their existing database client. Delivery
- * durability (disconnect → reconnect → ordered resume) is a separate transport
- * concern handled by
- * `toServerSentEventsResponse(stream, { durability: { adapter } })`.
+ * persistence store interfaces over their existing database client.
+ * Replaying a dropped SSE connection (resumable streams) is a separate
+ * transport concern, not handled here.
  */
 type ChatPersistence = ReturnType<typeof createChatPersistenceBackend>
 

@@ -17,10 +17,8 @@ primitives:
 Pass only the bindings you need. The return type contains exactly the stores
 those bindings can provide.
 
-This package persists state. It does not provide a Cloudflare Durable Streams
-delivery adapter. SSE delivery durability remains separate and the external
-URL adapter can be added after the upstream Cloudflare protocol support is
-available.
+This package persists state. It does not provide a stream-delivery adapter;
+resumable streams remain a separate transport-level feature.
 
 ## Configure bindings
 

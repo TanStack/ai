@@ -35,8 +35,8 @@ ends with one canonical event:
 ```
 
 The canonical event stream is the only approval event stream. Server state
-persistence stores the interrupt record; SSE delivery durability separately
-assigns opaque resume offsets to delivered events.
+persistence stores the interrupt record; stream delivery replay (resumable
+streams) is a separate transport concern.
 
 ## Responsibilities
 
@@ -47,7 +47,6 @@ assigns opaque resume offsets to delivered events.
 | Chat persistence middleware | Creates pending interrupt records, marks the run interrupted, and snapshots messages. |
 | Chat client | Exposes `pendingInterrupts`, preserves `resumeState`, and sends typed resume entries. |
 | Application UI | Explains the operation and resolves or cancels each interrupt. |
-| Delivery adapter | Optionally replays SSE events by opaque adapter-owned offsets. |
 
 ## Server setup
 
@@ -234,10 +233,8 @@ When multiple workers can resume the same thread, provide a `locks` store.
 Cloudflare Durable Objects can supply that store while D1 supplies messages,
 runs, and interrupts. See [Cloudflare Persistence](../persistence/cloudflare).
 
-## State durability versus delivery durability
+## State durability versus stream delivery
 
 Persisted interrupts survive page reloads and server restarts. They do not make
-the live byte stream replayable. Delivery durability is configured on
-`toServerSentEventsResponse` and assigns one opaque SSE id per chunk. It is not
-available for NDJSON. See
-[Delivery Durability](../persistence/delivery-durability).
+the live byte stream replayable — that is resumable streams, a separate
+transport-level feature configured on the SSE response helper.

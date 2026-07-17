@@ -153,7 +153,7 @@ application database.
 
 ## Delivery is not workspace persistence
 
-Workspace checkpointing does not make chat output replayable. Add SSE delivery
-durability separately if clients must reconnect to an in-flight run. Sandbox
-file events remain canonical stream chunks; persistence does not create a
-second event stream.
+Workspace checkpointing does not make chat output replayable. Use resumable
+streams (a transport-level feature) separately if clients must reconnect to an
+in-flight run. Sandbox file events remain canonical stream chunks; persistence
+does not create a second event stream.
