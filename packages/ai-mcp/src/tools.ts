@@ -94,8 +94,8 @@ export function mcpContentToTanstack(
 /**
  * Call an MCP tool through the execution mode declared by its definition.
  * Task-required tools use the SDK's experimental stream and are drained to the
- * terminal result. Aborting stops this client from waiting, but does not cancel
- * a remote task that the server has already created.
+ * terminal result. Aborting stops this client from waiting and best-effort
+ * cancels (`tasks/cancel`) a remote task the server has already created.
  */
 export async function callMcpTool(
   client: Client,
@@ -113,14 +113,27 @@ export async function callMcpTool(
     )
   }
 
+  // `task` is passed explicitly: the SDK's auto-configuration only engages
+  // when its own metadata cache saw this tool in a prior listTools() on this
+  // Client instance, which callers of this function cannot rely on.
   const stream = client.experimental.tasks.callToolStream(
     { name: mcpName, arguments: args },
     CallToolResultSchema,
-    { signal },
+    { signal, task: {} },
   )
+  let taskId: string | undefined
   for await (const message of stream) {
+    if (message.type === 'taskCreated') taskId = message.task.taskId
     if (message.type === 'result') return message.result
-    if (message.type === 'error') throw message.error
+    if (message.type === 'error') {
+      // On abort the SDK merely stops polling; the server-side task keeps
+      // running until its TTL. Propagate the abort as a best-effort cancel
+      // (never masking the original error with a cancel failure).
+      if (signal?.aborted && taskId !== undefined) {
+        await client.experimental.tasks.cancelTask(taskId).catch(() => {})
+      }
+      throw message.error
+    }
   }
   throw new Error(
     `MCP task-required tool "${mcpName}" ended without a result or error`,
@@ -180,34 +193,47 @@ export function requiresTaskExecution(def: McpToolDef): boolean {
   return def.execution?.taskSupport === 'required'
 }
 
-/** Auto-discovery path: turn raw MCP tool defs into ServerTools. */
+/** The server declares task-based execution support for tools/call. */
+export function serverSupportsTaskCalls(client: Client): boolean {
+  return Boolean(client.getServerCapabilities()?.tasks?.requests?.tools?.call)
+}
+
+/**
+ * Auto-discovery path: turn raw MCP tool defs into ServerTools. Task-required
+ * tools are excluded when the server does not declare the tasks capability
+ * for tools/call — every invocation would fail, so they must not be offered
+ * to the model.
+ */
 export function toServerTools(
   client: Client,
   defs: Array<McpToolDef>,
   options: ConvertOptions,
 ): Array<McpServerTool> {
-  return defs.map((def) => {
-    const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
-    const tool: McpServerTool = {
-      __toolSide: 'server',
-      name,
-      description: def.description ?? '',
-      inputSchema: (def.inputSchema as any) ?? {
-        type: 'object',
-        properties: {},
-      },
-      ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
-      ...(options.lazy ? { lazy: true } : {}),
-      metadata: {
-        mcp: toolMcpMetadata(def, options.prefix),
-      },
-      execute: makeMcpExecute(
-        client,
-        def.name,
-        Boolean(def.outputSchema),
-        requiresTaskExecution(def),
-      ),
-    }
-    return tool
-  })
+  const supportsTasks = serverSupportsTaskCalls(client)
+  return defs
+    .filter((def) => !requiresTaskExecution(def) || supportsTasks)
+    .map((def) => {
+      const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
+      const tool: McpServerTool = {
+        __toolSide: 'server',
+        name,
+        description: def.description ?? '',
+        inputSchema: (def.inputSchema as any) ?? {
+          type: 'object',
+          properties: {},
+        },
+        ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
+        ...(options.lazy ? { lazy: true } : {}),
+        metadata: {
+          mcp: toolMcpMetadata(def, options.prefix),
+        },
+        execute: makeMcpExecute(
+          client,
+          def.name,
+          Boolean(def.outputSchema),
+          requiresTaskExecution(def),
+        ),
+      }
+      return tool
+    })
 }

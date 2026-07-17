@@ -52,7 +52,10 @@ function mcpToolDef(def: {
 function fakeMcpClient(
   callTool: (...args: Array<any>) => Promise<CallToolResult>,
 ): Client {
-  return { callTool } as unknown as Client
+  return {
+    callTool,
+    getServerCapabilities: () => undefined,
+  } as unknown as Client
 }
 
 describe('mcpContentToTanstack', () => {
@@ -164,7 +167,7 @@ describe('callMcpTool', () => {
     expect(callToolStream).toHaveBeenCalledWith(
       { name: 'research', arguments: { query: 'x' } },
       CallToolResultSchema,
-      { signal: controller.signal },
+      { signal: controller.signal, task: {} },
     )
   })
 

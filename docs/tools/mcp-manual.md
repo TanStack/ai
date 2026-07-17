@@ -187,7 +187,7 @@ export const Route = createFileRoute('/api/chat')({
 
 When the chat run is cancelled (e.g. the user navigates away or an `AbortController` fires), TanStack AI stops waiting for in-flight MCP tool calls. The abort signal from the chat run is threaded through `ToolExecutionContext.abortSignal` into each tool's execute function.
 
-For an ordinary `callTool` request, this aborts the request. For a task-required tool, it stops the local task stream but does not cancel a remote task the MCP server has already created.
+For an ordinary `callTool` request, this aborts the request. For a task-required tool, it stops the local task stream and sends a best-effort `tasks/cancel` for a remote task the MCP server has already created.
 
 ```ts
 import { chat } from '@tanstack/ai'
