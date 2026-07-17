@@ -98,9 +98,14 @@ reload) to work. `POST` handles fresh runs and auto-reconnects (it re-sends the
 same body with `Last-Event-ID`); `GET` replays a known run from the start:
 
 ```typescript
-import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  resumeServerSentEventsResponse,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { memoryStream } from "@tanstack/ai";
 
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
@@ -112,18 +117,14 @@ export async function POST(request: Request) {
 
 // joinRun hits GET ?offset=-1&runId=... (replay only, no messages sent).
 export async function GET(request: Request) {
-  const runId = new URL(request.url).searchParams.get("runId");
-  if (!runId) return new Response("runId is required", { status: 400 });
-  const stream = chat({ adapter: openaiText("gpt-5.5"), messages: [], threadId: `replay:${runId}`, runId });
-  return toServerSentEventsResponse(stream, {
-    durability: { adapter: memoryStream(request) },
-  });
+  return resumeServerSentEventsResponse({ adapter: memoryStream(request) });
 }
 ```
 
-The `GET` handler's `chat(...)` is never iterated on a replay: the durability
-adapter's `resumeFrom()` is non-null (from `?offset`), so the log is replayed
-and the provider is not called.
+The `GET` handler calls no provider: on a replay the durability adapter's
+`resumeFrom()` is non-null (from `?offset`), so the log is replayed instead.
+`resumeServerSentEventsResponse` returns a 400 when the request has no resume
+offset. Use `resumeHttpResponse` for the NDJSON adapters.
 
 `fetchHttpStream` and `xhrHttpStream` resume the same way over NDJSON, where the
 offset rides in an `{ id, chunk }` envelope (see below) instead of an SSE `id:`
