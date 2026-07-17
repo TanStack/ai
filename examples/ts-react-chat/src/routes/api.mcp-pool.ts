@@ -49,13 +49,14 @@ export const Route = createFileRoute('/api/mcp-pool')({
           )
         }
 
+        let pool
         try {
           // createMCPClients connects all three servers in parallel and
           // auto-prefixes tools with the config key (everything_*, memory_*,
           // thinking_*) to prevent collisions.
           // OPENAI_API_KEY is used by the LLM adapter (separate from the
           // keyless MCP server transports which need no credentials).
-          const pool = await createMCPClients({
+          pool = await createMCPClients({
             everything: { transport: everythingTransport() },
             memory: { transport: memoryTransport() },
             thinking: { transport: sequentialThinkingTransport() },
@@ -78,6 +79,9 @@ export const Route = createFileRoute('/api/mcp-pool')({
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
+          // chat() only owns the pool once the stream is consumed — if
+          // setup throws before the response is returned, close it here.
+          if (pool) await pool.close().catch(() => {})
           console.error('[api.mcp-pool] Error:', {
             message: error?.message,
             name: error?.name,
