@@ -1,4 +1,4 @@
-import { makeMistralStructuredOutputCompatible } from '../utils/schema-converter'
+import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 import type { ChatCompletionTool } from '../message-types'
 
@@ -25,10 +25,11 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       ? { ...baseSchema, properties: {} }
       : { ...baseSchema }
 
-  const jsonSchema = makeMistralStructuredOutputCompatible(
-    inputSchema,
-    inputSchema.required || [],
-  )
+  const { schema: jsonSchema, strict } =
+    makeMistralStructuredOutputCompatibleWithMap(
+      inputSchema,
+      inputSchema.required || [],
+    )
 
   return {
     type: 'function',
@@ -36,7 +37,7 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       name: tool.name,
       description: tool.description,
       parameters: jsonSchema,
-      strict: true,
+      strict,
     },
   } satisfies FunctionTool
 }

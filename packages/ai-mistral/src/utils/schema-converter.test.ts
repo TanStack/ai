@@ -81,4 +81,48 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
       },
     })
   })
+
+  it('falls back from strict mode for branch-dependent compositions', () => {
+    const input = {
+      type: 'object',
+      properties: {
+        allOfValue: { allOf: [{ type: 'string' }] },
+        oneOfValue: {
+          oneOf: [{ type: 'string' }, { type: 'number' }],
+        },
+        notNullValue: { not: { type: 'null' } },
+      },
+      required: [],
+    }
+    const result = makeMistralStructuredOutputCompatibleWithMap(input, [])
+
+    expect(result).toEqual({
+      schema: input,
+      nullWideningMap: undefined,
+      strict: false,
+    })
+  })
+
+  it('falls back when an anyOf branch needs branch-dependent widening', () => {
+    const input = {
+      anyOf: [
+        {
+          type: 'object',
+          properties: { optional: { type: 'string' } },
+          required: [],
+        },
+        {
+          type: 'object',
+          properties: { optional: { type: ['string', 'null'] } },
+          required: ['optional'],
+        },
+      ],
+    }
+
+    expect(makeMistralStructuredOutputCompatibleWithMap(input, [])).toEqual({
+      schema: input,
+      nullWideningMap: undefined,
+      strict: false,
+    })
+  })
 })

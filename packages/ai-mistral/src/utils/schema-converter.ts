@@ -20,6 +20,7 @@ export function makeMistralStructuredOutputCompatible(
 interface MistralStructuredOutputCompatibility {
   schema: Record<string, any>
   nullWideningMap: NullWideningMap | undefined
+  strict: boolean
 }
 
 /**
@@ -32,7 +33,51 @@ export function makeMistralStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): MistralStructuredOutputCompatibility {
-  return coerceMistralStrictSchema(schema, originalRequired)
+  if (containsUnsupportedStrictKeyword(schema)) {
+    return { schema, nullWideningMap: undefined, strict: false }
+  }
+
+  const converted = coerceMistralStrictSchema(schema, originalRequired)
+  if (converted.hasUntrackableAnyOfWidening) {
+    return { schema, nullWideningMap: undefined, strict: false }
+  }
+
+  return {
+    schema: converted.schema,
+    nullWideningMap: converted.nullWideningMap,
+    strict: true,
+  }
+}
+
+interface CoercedMistralStrictSchema {
+  schema: Record<string, any>
+  nullWideningMap: NullWideningMap | undefined
+  hasUntrackableAnyOfWidening: boolean
+}
+
+const UNSUPPORTED_STRICT_KEYWORDS: ReadonlyArray<string> = [
+  'oneOf',
+  'allOf',
+  'not',
+  '$ref',
+  '$defs',
+  'definitions',
+]
+
+/**
+ * Composed and referenced schemas cannot be rewritten without either changing
+ * their meaning or making inverse null normalization branch-dependent. Keep
+ * those schemas intact and let the provider handle them in non-strict mode.
+ */
+function containsUnsupportedStrictKeyword(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(containsUnsupportedStrictKeyword)
+  if (!isSchemaObject(node)) return false
+
+  return Object.entries(node).some(
+    ([key, value]) =>
+      UNSUPPORTED_STRICT_KEYWORDS.includes(key) ||
+      containsUnsupportedStrictKeyword(value),
+  )
 }
 
 function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
@@ -56,7 +101,7 @@ function acceptsNull(schema: unknown): boolean {
 
   if (
     Array.isArray(schema.anyOf) &&
-    !schema.anyOf.some((variant: Record<string, any>) => acceptsNull(variant))
+    !schema.anyOf.some((variant: unknown) => acceptsNull(variant))
   ) {
     return false
   }
@@ -67,9 +112,10 @@ function acceptsNull(schema: unknown): boolean {
 function coerceMistralStrictSchema(
   schema: Record<string, any>,
   originalRequired: Array<string>,
-): MistralStructuredOutputCompatibility {
+): CoercedMistralStrictSchema {
   const result = { ...schema }
   const nullWideningMap: NullWideningMap = {}
+  let hasUntrackableAnyOfWidening = false
 
   if (result.type === 'object') {
     if (!result.properties) {
@@ -85,14 +131,11 @@ function coerceMistralStrictSchema(
       let childMap: NullWideningMap | undefined
       let widenedHere = false
 
-      if (
-        isSchemaObject(prop) &&
-        prop.type === 'object' &&
-        prop.properties
-      ) {
+      if (isSchemaObject(prop) && prop.type === 'object' && prop.properties) {
         const converted = coerceMistralStrictSchema(prop, prop.required || [])
         prop = converted.schema
         childMap = converted.nullWideningMap
+        hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
       } else if (
         isSchemaObject(prop) &&
         prop.type === 'array' &&
@@ -109,6 +152,13 @@ function coerceMistralStrictSchema(
         if (convertedItems.nullWideningMap) {
           childMap = { items: convertedItems.nullWideningMap }
         }
+        hasUntrackableAnyOfWidening ||=
+          convertedItems.hasUntrackableAnyOfWidening
+      } else if (isSchemaObject(prop) && Array.isArray(prop.anyOf)) {
+        const converted = coerceMistralStrictSchema(prop, prop.required || [])
+        prop = converted.schema
+        childMap = converted.nullWideningMap
+        hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
       }
 
       if (wasOptional) {
@@ -125,11 +175,7 @@ function coerceMistralStrictSchema(
           prop = { ...prop, enum: [...prop.enum, null] }
         }
 
-        if (
-          isSchemaObject(prop) &&
-          prop.type &&
-          !Array.isArray(prop.type)
-        ) {
+        if (isSchemaObject(prop) && prop.type && !Array.isArray(prop.type)) {
           prop = { ...prop, type: [prop.type, 'null'] }
         } else if (
           isSchemaObject(prop) &&
@@ -174,10 +220,31 @@ function coerceMistralStrictSchema(
     if (convertedItems.nullWideningMap) {
       nullWideningMap.items = convertedItems.nullWideningMap
     }
+    hasUntrackableAnyOfWidening ||= convertedItems.hasUntrackableAnyOfWidening
+  }
+
+  if (Array.isArray(result.anyOf)) {
+    const variants = result.anyOf.map((variant: unknown) => {
+      if (!isSchemaObject(variant)) {
+        return {
+          schema: variant,
+          nullWideningMap: undefined,
+          hasUntrackableAnyOfWidening: false,
+        }
+      }
+      return coerceMistralStrictSchema(variant, variant.required || [])
+    })
+    result.anyOf = variants.map((variant) => variant.schema)
+    hasUntrackableAnyOfWidening ||= variants.some(
+      (variant) =>
+        variant.nullWideningMap !== undefined ||
+        variant.hasUntrackableAnyOfWidening,
+    )
   }
 
   return {
     schema: result,
     nullWideningMap: pruneMap(nullWideningMap),
+    hasUntrackableAnyOfWidening,
   }
 }

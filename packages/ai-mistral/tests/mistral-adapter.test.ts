@@ -200,6 +200,44 @@ describe('Mistral adapters', () => {
       )
     })
 
+    it('preserves composed structured-output schemas in non-strict mode', async () => {
+      mockComplete = vi.fn().mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ value: null }) } }],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+      const outputSchema = {
+        type: 'object',
+        properties: {
+          value: {
+            oneOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: [],
+      }
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema,
+      })
+
+      expect(result.data).toEqual({ value: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: outputSchema,
+              strict: false,
+            },
+          },
+        }),
+      )
+    })
+
     it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
       vi.stubEnv('MISTRAL_API_KEY', '')
 

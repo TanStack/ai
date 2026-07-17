@@ -245,11 +245,14 @@ export class MistralTextAdapter<
     const { stream: _stream, ...nonStreamParams } =
       this.mapTextOptionsToMistral(chatOptions)
 
-    const { schema: jsonSchema, nullWideningMap } =
-      makeMistralStructuredOutputCompatibleWithMap(
-        outputSchema,
-        outputSchema.required || [],
-      )
+    const {
+      schema: jsonSchema,
+      nullWideningMap,
+      strict,
+    } = makeMistralStructuredOutputCompatibleWithMap(
+      outputSchema,
+      outputSchema.required || [],
+    )
 
     const response = await this.client.chat.complete({
       ...nonStreamParams,
@@ -258,7 +261,7 @@ export class MistralTextAdapter<
         jsonSchema: {
           name: 'structured_output',
           schemaDefinition: jsonSchema,
-          strict: true,
+          strict,
         },
       },
     })
