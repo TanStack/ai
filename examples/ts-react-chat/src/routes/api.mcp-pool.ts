@@ -19,7 +19,7 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
+import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import { createMCPClients } from '@tanstack/ai-mcp'
 import {
   everythingTransport,
