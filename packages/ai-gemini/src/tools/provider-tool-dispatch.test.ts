@@ -7,8 +7,8 @@ import {
   googleSearchRetrievalTool,
   googleSearchTool,
   urlContextTool,
-} from '../src/tools'
-import { convertToolsToProviderFormat } from '../src/tools/tool-converter'
+} from './index'
+import { convertToolsToProviderFormat } from './tool-converter'
 import type { Tool } from '@tanstack/ai'
 
 const PROVIDER_TOOL_NAMES = [
