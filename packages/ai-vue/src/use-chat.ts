@@ -20,6 +20,8 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -31,7 +33,7 @@ import type {
 } from './types'
 
 export function useChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(
@@ -53,6 +55,7 @@ export function useChat<
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
+  const queue = shallowRef<Array<QueuedMessage>>([])
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -138,6 +141,10 @@ export function useChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating.value = isGenerating
     },
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+      queue.value = nextQueue
+    },
   })
 
   messages.value = client.getMessages()
@@ -148,14 +155,21 @@ export function useChat<
   // Conditional spread: `updateOptions` declares strict-optional fields and
   // rejects explicit `undefined` under EOPT.
   watch(
-    () => [options.body, options.forwardedProps, options.context] as const,
-    ([newBody, newForwardedProps, newContext]) => {
+    () =>
+      [
+        options.body,
+        options.forwardedProps,
+        options.context,
+        options.queue,
+      ] as const,
+    ([newBody, newForwardedProps, newContext, newQueue]) => {
       client.updateOptions({
         body: newBody,
         ...(newForwardedProps !== undefined && {
           forwardedProps: newForwardedProps,
         }),
         context: newContext,
+        ...(newQueue !== undefined && { queue: newQueue }),
       })
     },
   )
@@ -190,9 +204,14 @@ export function useChat<
   // Callback options are read through `options.xxx` at call time, so reactive
   // or mutated options propagate without recreating the client.
 
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
   }
+
+  const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client.append(message)
@@ -279,6 +298,8 @@ export function useChat<
   return {
     messages: readonly(messages),
     sendMessage,
+    queue: readonly(queue),
+    cancelQueued,
     append,
     reload,
     stop,

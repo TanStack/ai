@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as QueueingRouteImport } from './routes/queueing'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -54,6 +56,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
+  id: '/typesafe-tools',
+  path: '/typesafe-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
   path: '/threads',
@@ -72,6 +79,11 @@ const SandboxesRoute = SandboxesRouteImport.update({
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QueueingRoute = QueueingRouteImport.update({
+  id: '/queueing',
+  path: '/queueing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpDemoRoute = McpDemoRouteImport.update({
@@ -287,10 +299,12 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -333,10 +347,12 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -380,10 +396,12 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
+  '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -428,10 +446,12 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/queueing'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -474,10 +494,12 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/queueing'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -520,10 +542,12 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/queueing'
     | '/realtime'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
+    | '/typesafe-tools'
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -567,10 +591,12 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
+  QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
+  TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
@@ -607,6 +633,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/typesafe-tools': {
+      id: '/typesafe-tools'
+      path: '/typesafe-tools'
+      fullPath: '/typesafe-tools'
+      preLoaderRoute: typeof TypesafeToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/threads': {
       id: '/threads'
       path: '/threads'
@@ -633,6 +666,13 @@ declare module '@tanstack/react-router' {
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/queueing': {
+      id: '/queueing'
+      path: '/queueing'
+      fullPath: '/queueing'
+      preLoaderRoute: typeof QueueingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp-demo': {
@@ -927,10 +967,12 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
+  QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
+  TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,

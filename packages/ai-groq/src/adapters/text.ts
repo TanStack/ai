@@ -10,7 +10,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { GroqMessageMetadataByModality } from '../message-types'
-import type { GroqClientConfig } from '../utils'
+import type { GroqClientConfig } from '../utils/client'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName

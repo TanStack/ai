@@ -489,4 +489,40 @@ describe('isStrictModeCompatible', () => {
       isStrictModeCompatible({ type: 'object', properties: {}, required: [] }),
     ).toBe(true)
   })
+
+  it.each([true, {}, { type: 'string' }])(
+    'returns false for a free-form map with additionalProperties: %j',
+    (additionalProperties) => {
+      expect(
+        isStrictModeCompatible({
+          type: 'object',
+          additionalProperties,
+        }),
+      ).toBe(false)
+    },
+  )
+
+  it('returns false for a nested hybrid object with dynamic keys', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          labels: {
+            type: 'object',
+            properties: { fixed: { type: 'string' } },
+            additionalProperties: { type: 'string' },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('allows an explicitly closed empty object', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        additionalProperties: false,
+      }),
+    ).toBe(true)
+  })
 })

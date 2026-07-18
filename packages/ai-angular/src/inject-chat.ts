@@ -22,6 +22,8 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -35,7 +37,7 @@ import type {
 let nextId = 0
 
 export function injectChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(
@@ -63,6 +65,7 @@ export function injectChat<
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
+  const queue = signal<Array<QueuedMessage>>([])
 
   // Reactive option sources. Plain values become constant computeds.
   const bodySource =
@@ -119,6 +122,8 @@ export function injectChat<
     onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
     onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
     onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
   })
 
   messages.set(client.getMessages())
@@ -203,9 +208,13 @@ export function injectChat<
     return part.data as Final
   })
 
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
   }
+  const cancelQueued = (id: string) => client.cancelQueued(id)
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client.append(message)
   }
@@ -236,6 +245,8 @@ export function injectChat<
   return {
     messages: messages.asReadonly(),
     sendMessage,
+    queue: queue.asReadonly(),
+    cancelQueued,
     append,
     reload,
     stop,

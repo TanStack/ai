@@ -2,14 +2,17 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
-import { readCodeExecutionConfig, readCodeExecutionSkills } from '../tools'
+import {
+  readCodeExecutionConfig,
+  readCodeExecutionSkills,
+} from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
   getAnthropicApiKeyFromEnv,
-} from '../utils'
+} from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   getAnthropicDefaultMaxTokens,
@@ -61,7 +64,7 @@ import type {
   AnthropicMessageMetadataByModality,
   AnthropicTextMetadata,
 } from '../message-types'
-import type { AnthropicClientConfig } from '../utils'
+import type { AnthropicClientConfig } from '../utils/client'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's

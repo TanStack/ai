@@ -256,7 +256,7 @@ export default defineConfig({
 
             const stream = chat({
               adapter,
-              tools: Object.values(mergeAgentTools(serverTools, params.tools)),
+              tools: mergeAgentTools(serverTools, params.tools),
               systemPrompts: [SYSTEM_PROMPT],
               agentLoopStrategy: maxIterations(20),
               messages: params.messages,

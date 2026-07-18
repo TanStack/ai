@@ -145,6 +145,88 @@ export interface MultimodalContent {
 }
 
 /**
+ * Action taken when `sendMessage` is called while the client is busy
+ * (streaming, claiming a send, or draining the queue).
+ * - `queue`: hold the message; it auto-sends when the current run settles
+ *   **successfully**.
+ * - `drop`: ignore the send (promise still resolves; does not throw).
+ * - `interrupt`: abort the current stream and send immediately. Unlike
+ *   `stop()`, does **not** flush already-queued messages — they still drain
+ *   after the interrupting send settles successfully.
+ */
+export type WhenBusy = 'queue' | 'drop' | 'interrupt'
+
+/**
+ * Why the client is busy when a {@link QueueStrategy} runs.
+ * - `streaming` — an LLM stream is active (`isLoading`).
+ * - `sendInFlight` — a send has claimed the client but is not yet loading.
+ * - `draining` — the queue drain loop is delivering pending messages.
+ */
+export type QueueBusyReason = 'streaming' | 'sendInFlight' | 'draining'
+
+/**
+ * A user message held in the send queue while a stream is active.
+ * Rendered separately from `messages`; cancellable via `cancelQueued(id)`
+ * until it drains.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string | MultimodalContent
+  createdAt: number
+}
+
+/**
+ * Declarative queue policy.
+ */
+export interface QueueConfig {
+  /**
+   * Action when the client is busy (streaming, claiming a send, or draining).
+   * Default `'queue'`.
+   */
+  whenBusy?: WhenBusy
+  /**
+   * How queued items leave the queue.
+   * - `'fifo'`: one at a time, in order (default).
+   * - `'batch'`: merge all queued items into one send when the run settles
+   *   successfully.
+   */
+  drain?: 'fifo' | 'batch'
+  /** Max queued items. Unlimited when omitted. `0` means never queue. */
+  maxSize?: number
+  /**
+   * Behavior when `maxSize` is reached. Default `'reject'`.
+   * `'reject'` silently discards the new send (does not throw);
+   * `'drop-oldest'` evicts the oldest queued item to make room.
+   * Only meaningful when `maxSize` is set.
+   */
+  onOverflow?: 'reject' | 'drop-oldest'
+}
+
+/**
+ * Escape hatch: decide the action for a single send. Drain stays FIFO for the
+ * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
+ * overrides the strategy for that send.
+ *
+ * Actions match {@link WhenBusy}: `'queue' | 'drop' | 'interrupt'`. Concurrent
+ * streams are not supported. `pending.id` is the id that will be stored if the
+ * action is `'queue'` (safe to pass to `cancelQueued`).
+ */
+export type QueueStrategy = (ctx: {
+  pending: QueuedMessage
+  busyReason: QueueBusyReason
+  queued: ReadonlyArray<QueuedMessage>
+}) => { action: WhenBusy }
+
+/** A `WhenBusy` shorthand, a full config, or a strategy function. */
+export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
+
+/** Per-call overrides for `sendMessage`. */
+export interface SendMessageOptions {
+  /** Overrides the configured `whenBusy` for this one send. */
+  whenBusy?: WhenBusy
+}
+
+/**
  * Message parts - building blocks of UIMessage
  */
 export interface TextPart {
@@ -166,15 +248,27 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       /** Parsed tool input (typed from inputSchema) */
       input?: InferToolInput<T>
       state: ToolCallState
-      /** Approval metadata if tool requires user approval */
-      approval?: {
-        id: string // Unique approval ID
-        needsApproval: boolean // Always true if present
-        approved?: boolean // User's decision (undefined until responded)
-      }
       /** Tool execution output (for client tools or after approval) */
       output?: InferToolOutput<T>
-    }
+    } & (NonNullable<T['needsApproval']> extends true
+      ? {
+          /**
+           * Approval metadata — present only on tools defined with
+           * `needsApproval: true`. Populated once the call reaches
+           * `state: 'approval-requested'`. `needsApproval` is an optional
+           * property on the tool, so we index into it (rather than
+           * `T extends { needsApproval: true }`, which an optional property
+           * never satisfies) and strip `undefined` before comparing to `true`.
+           */
+          approval?: {
+            id: string // Unique approval ID
+            needsApproval: boolean // Always true if present
+            approved?: boolean // User's decision (undefined until responded)
+          }
+        }
+      : // Tools without `needsApproval: true` never carry an approval field.
+        // `& unknown` is a no-op intersection (adds nothing).
+        unknown)
   : never
 
 /**
@@ -479,6 +573,23 @@ export interface ChatClientBaseOptions<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Policy for messages sent while the client is busy (streaming, claiming
+   * a send, or draining the queue). Accepts a `WhenBusy` string, a
+   * `QueueConfig`, or a `QueueStrategy` function.
+   * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   * Queued items auto-send only after a **successful** settle; they are
+   * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
+   * `reload()`.
+   */
+  queue?: QueueOption
+
+  /**
+   * Callback when the pending send queue changes (enqueue, cancel, drain,
+   * or flush).
+   */
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

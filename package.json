@@ -14,8 +14,8 @@
     "clean": "pnpm --filter \"./packages/**\" run clean",
     "clean:all": "git clean -fdx --exclude=\"!.env\"",
     "test": "pnpm run test:ci",
-    "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build",
-    "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build",
+    "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build && pnpm test:dts",
+    "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build && pnpm test:dts",
     "test:eslint": "nx affected --target=test:eslint --exclude=examples/**,testing/**",
     "test:sherif": "sherif",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**,testing/**",
@@ -25,6 +25,7 @@
     "test:types": "nx affected --targets=test:types --exclude=examples/**,testing/**",
     "test:knip": "knip",
     "test:docs": "tsx scripts/verify-links.ts",
+    "test:dts": "node scripts/scan-dangling-dts.mjs",
     "test:kiira": "kiira check",
     "test:react-native": "pnpm --filter @tanstack/ai-react-native-smoke smoke",
     "test:e2e": "pnpm --filter @tanstack/ai-e2e test:e2e",
@@ -51,6 +52,7 @@
   "nx": {
     "includedScripts": [
       "test:docs",
+      "test:dts",
       "test:kiira",
       "test:knip",
       "test:sherif"

@@ -1,12 +1,14 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { convertToolsToProviderFormat } from '../tools'
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createMistralClient,
   generateId,
   getMistralApiKeyFromEnv,
+} from '../utils/client'
+import {
   makeMistralStructuredOutputCompatible,
   transformNullsToUndefined,
-} from '../utils'
+} from '../utils/schema-converter'
 import type {
   ContentPart,
   Modality,
@@ -35,7 +37,7 @@ import type {
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
-import type { MistralClientConfig } from '../utils'
+import type { MistralClientConfig } from '../utils/client'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */

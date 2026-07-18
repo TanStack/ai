@@ -5,7 +5,7 @@ title: SandboxFileDiffEvent
 
 # Interface: SandboxFileDiffEvent
 
-Defined in: [packages/ai/src/types.ts:1393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1393)
+Defined in: [packages/ai/src/types.ts:1402](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1402)
 
 Custom event for extensibility.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1307](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1307)
 
 Model identifier for multi-model support
 
@@ -46,7 +46,7 @@ Model identifier for multi-model support
 name: "sandbox.file.diff";
 ```
 
-Defined in: [packages/ai/src/types.ts:1394](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1394)
+Defined in: [packages/ai/src/types.ts:1403](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1403)
 
 #### Overrides
 
@@ -62,7 +62,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1395](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1395)
+Defined in: [packages/ai/src/types.ts:1404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1404)
 
 #### diff
 

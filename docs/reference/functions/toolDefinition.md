@@ -6,10 +6,10 @@ title: toolDefinition
 # Function: toolDefinition()
 
 ```ts
-function toolDefinition<TInput, TOutput, TName>(config): ToolDefinition<TInput, TOutput, TName>;
+function toolDefinition<TInput, TOutput, TName, TNeedsApproval>(config): ToolDefinition<TInput, TOutput, TName, TNeedsApproval>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:191](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L191)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L209)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 
@@ -35,15 +35,19 @@ or plain JSON Schema objects.
 
 `TName` *extends* `string` = `string`
 
+### TNeedsApproval
+
+`TNeedsApproval` *extends* `boolean` = `false`
+
 ## Parameters
 
 ### config
 
-[`ToolDefinitionConfig`](../interfaces/ToolDefinitionConfig.md)\<`TInput`, `TOutput`, `TName`\>
+[`ToolDefinitionConfig`](../interfaces/ToolDefinitionConfig.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`\>
 
 ## Returns
 
-[`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`\>
+[`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`\>
 
 ## Example
 
