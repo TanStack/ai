@@ -177,7 +177,7 @@ import type { StreamChunk } from '@tanstack/ai'
 
 declare function callRpc(input: {
   messages: unknown
-  signal: AbortSignal
+  signal?: AbortSignal
 }): AsyncIterable<StreamChunk>
 
 const connection: ConnectConnectionAdapter = {

@@ -20,7 +20,7 @@ workflow needs and compose backends per store.
 | App or integration checkpoints | `metadata` |
 | Cross-worker coordination | `locks` |
 | Generated media or workspace files | `artifacts` and `blobs` |
-| Replay an in-flight response | Resumable streams (transport feature, not a store) |
+| Replay an in-flight response | Stream re-attach / delivery durability (separate transport feature, landing in PR #955 — not a store) |
 
 `withChatPersistence(persistence)` and
 `withGenerationPersistence(persistence)` inspect the stores. Store presence is
@@ -31,7 +31,8 @@ the complete capability selection mechanism.
 `composePersistence` takes the base backend first and a configuration object
 second:
 
-```ts
+```ts group=controls
+/// <reference types="@cloudflare/workers-types" />
 import {
   composePersistence,
   defineAIPersistence,
@@ -75,7 +76,7 @@ Each override is independent:
 | a store object | Replace that store only. |
 | `false` | Remove that store. |
 
-```ts
+```ts group=controls
 const withoutGeneratedMedia = composePersistence(base, {
   overrides: {
     artifacts: false,
@@ -100,7 +101,7 @@ Some capabilities require related stores:
 Known-invalid static compositions fail to type-check at the middleware call.
 Runtime validation covers dynamically typed inputs.
 
-```ts
+```ts group=controls
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
 
 // Valid: both stores remain present.

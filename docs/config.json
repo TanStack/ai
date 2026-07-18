@@ -167,7 +167,7 @@
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Thinking & Reasoning",
@@ -178,7 +178,7 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-17"
         }
       ]
     },
@@ -277,7 +277,7 @@
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Audio Recording",
@@ -307,7 +307,7 @@
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-17"
         }
       ]
     },
@@ -340,7 +340,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Quick Start",
@@ -459,13 +459,13 @@
           "label": "Prisma",
           "to": "persistence/prisma",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-15"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Drizzle",
           "to": "persistence/drizzle",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "SQL Backends",
@@ -578,13 +578,13 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "@tanstack/ai-preact",
@@ -596,19 +596,19 @@
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-17"
         }
       ]
     },

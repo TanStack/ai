@@ -24,9 +24,9 @@ keywords:
 
 This is client hydration, not server state durability. Persist authoritative
 messages, runs, and interrupts with `withChatPersistence(...)`. Making an
-in-flight response replayable is a separate transport feature (resumable
-streams). See [Chat Persistence](../persistence/chat-persistence) for the
-complete flow.
+in-flight response replayable is a separate transport feature (stream re-attach
+/ delivery durability, landing in PR #955). See
+[Chat Persistence](../persistence/chat-persistence) for the complete flow.
 
 ## Use IndexedDB for chat messages
 
@@ -122,11 +122,9 @@ const messages = localStoragePersistence<Array<UIMessage>>({
   serialize: serializeJson,
   deserialize(value) {
     const stored: Array<StoredMessage> = JSON.parse(value)
-    return stored.map((message) => ({
+    return stored.map(({ createdAt, ...message }) => ({
       ...message,
-      ...(message.createdAt
-        ? { createdAt: new Date(message.createdAt) }
-        : {}),
+      ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
     }))
   },
 })

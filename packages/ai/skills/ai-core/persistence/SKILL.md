@@ -5,12 +5,13 @@ description: >
   media generation via withGenerationPersistence. Persists thread messages, run
   records, interrupts, metadata, locks, and artifacts/blobs through optional
   composable stores. Interrupts resume with RunAgentInput.resume[].
-  Resumable streams (replaying a disconnected/reloaded stream) is a separate
-  TRANSPORT feature, not part of this middleware. Backends: memoryPersistence,
+  Stream re-attach/delivery durability (replaying a disconnected/reloaded
+  stream) is a separate TRANSPORT feature (lands in PR #955), not part of this
+  middleware. Backends: memoryPersistence,
   drizzlePersistence/sqlitePersistence, prismaPersistence.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.30.0'
+library_version: '0.10.0'
 sources:
   - 'TanStack/ai:docs/persistence/overview.md'
 ---
@@ -25,12 +26,11 @@ sources:
   interrupts, metadata, locks, and generation artifacts/blobs. It never mutates
   the chunk stream and stamps **no** cursor. A `chat()` with no persistence
   middleware produces byte-identical chunks.
-- **Resumable streams** (a client disconnects/reloads and still receives the
-  full ordered stream) is a **transport-layer** feature, handled by a pluggable
-  durability sink on the SSE response helper — NOT by this middleware. There is
-  no in-band `cursor` and no `chat({ cursor })` replay; this middleware stamps
-  no delivery offsets. See the Resumable Streams guide for the transport
-  feature.
+- **Stream re-attach / delivery durability** (a client disconnects or reloads
+  and still receives the full ordered stream) is a separate **transport-layer**
+  feature, not part of this middleware — it lands in PR #955. This middleware
+  stamps no delivery offsets: there is no in-band `cursor` and no
+  `chat({ cursor })` replay.
 - The persistence interface is `AIPersistence`; use
   `defineAIPersistence({ stores })` for custom stores and
   `composePersistence(base, { overrides })` to replace or disable individual
@@ -124,8 +124,8 @@ fail-loud:
 | `interrupts` | `runs`, `interrupts`            |
 | `metadata`   | `metadata`                      |
 | `locks`      | `locks`                         |
-| `artifacts`  | `artifacts`                     |
-| `blobs`      | `blobs` (pair with `artifacts`) |
+| `artifacts`  | `artifacts` **and** `blobs` (both required together) |
+| `blobs`      | `artifacts` **and** `blobs` (both required together) |
 
 ## Backends
 

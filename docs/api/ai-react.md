@@ -101,6 +101,11 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ```typescript
 import type { UIMessage } from "@tanstack/ai-react";
 import type { ModelMessage } from "@tanstack/ai";
+import type {
+  ChatResumeState,
+  ChatPendingInterrupt,
+  RunAgentResumeItem,
+} from "@tanstack/ai-client";
 
 interface UseChatReturn {
   messages: UIMessage[];
@@ -123,6 +128,15 @@ interface UseChatReturn {
   error: Error | undefined;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  // Correlation ids `{ threadId, runId }` for the interrupted run, or null.
+  resumeState: ChatResumeState | null;
+  // Interrupts currently awaiting a resume response.
+  pendingInterrupts: ChatPendingInterrupt[];
+  // Resolve pending interrupts by sending AG-UI resume entries.
+  resumeInterrupts: (
+    resume: RunAgentResumeItem[],
+    state?: ChatResumeState,
+  ) => Promise<boolean>;
 }
 ```
 
@@ -165,11 +179,11 @@ React also exports `useGeneration`, `useGenerateImage`, `useGenerateAudio`,
 `useGenerateVideo`.
 
 Generation hook options include `connection` or `fetcher`, `id`, `body`,
-`persistence`, `autoResume`, `initialResumeSnapshot`, `resumeState`,
-`devtools`, `onResult`, `onError`, `onProgress`, and `onChunk`.
+`persistence`, `initialResumeSnapshot`, `devtools`, `onResult`, `onError`,
+`onProgress`, and `onChunk`.
 
 Generation hook returns include `generate`, `result`, `isLoading`, `error`,
-`status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`,
+`status`, `stop`, `reset`, `resumeSnapshot`, `resumeState`,
 `pendingArtifacts`, and `resultArtifacts`. Video generation also returns
 `jobId` and `videoStatus`.
 

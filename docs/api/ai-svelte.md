@@ -90,7 +90,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 ### Returns
 
 ```typescript
-import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus, ChatResumeState, ChatPendingInterrupt, RunAgentResumeItem } from "@tanstack/ai-client";
 import type { ModelMessage } from "@tanstack/ai";
 
 interface CreateChatReturn<TContext = unknown> {
@@ -118,6 +118,15 @@ interface CreateChatReturn<TContext = unknown> {
   readonly sessionGenerating: boolean;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  // Correlation ids `{ threadId, runId }` for the interrupted run, or null.
+  readonly resumeState: ChatResumeState | null;
+  // Interrupts currently awaiting a resume response.
+  readonly pendingInterrupts: ChatPendingInterrupt[];
+  // Resolve pending interrupts by sending AG-UI resume entries.
+  resumeInterrupts: (
+    resume: RunAgentResumeItem[],
+    state?: ChatResumeState,
+  ) => Promise<boolean>;
   /** @deprecated Use `updateForwardedProps` instead. */
   updateBody: (body: Record<string, any>) => void;
   updateForwardedProps: (forwardedProps: Record<string, any>) => void;
@@ -297,9 +306,9 @@ const gen = createGeneration({
 // gen.result, gen.isLoading, gen.error, gen.status
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `initialResumeSnapshot?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody`, `dispose`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all state properties are reactive getters.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody`, `dispose`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all state properties are reactive getters.
 
 For the end-to-end persistence setup, see
 [Generation Persistence](../persistence/generation-persistence).

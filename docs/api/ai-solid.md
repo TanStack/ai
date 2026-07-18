@@ -93,6 +93,11 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 import type { Accessor } from "solid-js";
 import type { UIMessage } from "@tanstack/ai-solid";
 import type { ModelMessage } from "@tanstack/ai/client";
+import type {
+  ChatResumeState,
+  ChatPendingInterrupt,
+  RunAgentResumeItem,
+} from "@tanstack/ai-client";
 
 interface UseChatReturn {
   messages: Accessor<UIMessage[]>;
@@ -115,6 +120,15 @@ interface UseChatReturn {
   error: Accessor<Error | undefined>;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  // Correlation ids `{ threadId, runId }` for the interrupted run, or null.
+  resumeState: Accessor<ChatResumeState | null>;
+  // Interrupts currently awaiting a resume response.
+  pendingInterrupts: Accessor<ChatPendingInterrupt[]>;
+  // Resolve pending interrupts by sending AG-UI resume entries.
+  resumeInterrupts: (
+    resume: RunAgentResumeItem[],
+    state?: ChatResumeState,
+  ) => Promise<boolean>;
 }
 ```
 
@@ -127,11 +141,11 @@ Solid also exports `useGeneration`, `useGenerateImage`, `useGenerateAudio`,
 `useGenerateVideo`.
 
 Generation hook options include `connection` or `fetcher`, `id`, `body`,
-`persistence`, `autoResume`, `initialResumeSnapshot`, `resumeState`,
-`devtools`, `onResult`, `onError`, `onProgress`, and `onChunk`.
+`persistence`, `initialResumeSnapshot`, `devtools`, `onResult`, `onError`,
+`onProgress`, and `onChunk`.
 
 Generation hook returns include `generate`, `result`, `isLoading`, `error`,
-`status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`,
+`status`, `stop`, `reset`, `resumeSnapshot`, `resumeState`,
 `pendingArtifacts`, and `resultArtifacts`. Reactive values are Solid accessors,
 so read `resumeState()` and `pendingArtifacts()`. Video generation also returns
 `jobId` and `videoStatus`.

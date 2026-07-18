@@ -95,6 +95,9 @@ import type {
   MultimodalContent,
   ChatClientState,
   ConnectionStatus,
+  ChatResumeState,
+  ChatPendingInterrupt,
+  RunAgentResumeItem,
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
@@ -122,6 +125,15 @@ interface UseChatReturn {
   sessionGenerating: DeepReadonly<ShallowRef<boolean>>;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  // Correlation ids `{ threadId, runId }` for the interrupted run, or null.
+  resumeState: DeepReadonly<ShallowRef<ChatResumeState | null>>;
+  // Interrupts currently awaiting a resume response.
+  pendingInterrupts: DeepReadonly<ShallowRef<ChatPendingInterrupt[]>>;
+  // Resolve pending interrupts by sending AG-UI resume entries.
+  resumeInterrupts: (
+    resume: RunAgentResumeItem[],
+    state?: ChatResumeState,
+  ) => Promise<boolean>;
 }
 ```
 
@@ -314,9 +326,9 @@ const { generate, result, isLoading, error, status, stop, reset } =
   });
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `initialResumeSnapshot?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all reactive state is `DeepReadonly<ShallowRef<T>>`. Read refs with `.value` in `<script setup>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all reactive state is `DeepReadonly<ShallowRef<T>>`. Read refs with `.value` in `<script setup>`.
 
 For the end-to-end persistence setup, see
 [Generation Persistence](../persistence/generation-persistence).

@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker", "@aws-sdk/client-bedrock"],
+  "ignoreDependencies": [
+    "@faker-js/faker",
+    "@aws-sdk/client-bedrock",
+    "@cloudflare/workers-types"
+  ],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",

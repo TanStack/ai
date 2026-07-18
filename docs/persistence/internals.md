@@ -19,10 +19,10 @@ server authoritative     client convenience
 ```
 
 Stream delivery (replaying an in-flight SSE response) is a third, transport-only
-boundary — resumable streams — and intentionally shares nothing with these two.
-State middleware never mutates chunks to add delivery offsets, and browser chat
-persistence stores rendered messages or interrupt resume snapshots, not server
-event logs.
+boundary — stream re-attach / delivery durability, a separate feature landing in
+PR #955 — and intentionally shares nothing with these two. State middleware
+never mutates chunks to add delivery offsets, and browser chat persistence
+stores rendered messages or interrupt resume snapshots, not server event logs.
 
 ## Chat middleware lifecycle
 

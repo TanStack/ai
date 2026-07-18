@@ -16,7 +16,7 @@ Tool approval is an interrupt-and-resume protocol. A run that needs user input
 ends with one canonical event:
 
 ```ts
-{
+const event = {
   type: 'RUN_FINISHED',
   runId: 'run-1',
   threadId: 'thread-1',
@@ -133,7 +133,7 @@ Use the values returned by `useChat`. Rendering the actual
 `pendingInterrupts` array keeps ids and types connected to the hook that owns
 the run.
 
-```tsx
+```tsx group=approval-flow-processing
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 export function ApprovalQueue() {
@@ -179,7 +179,7 @@ export function ApprovalQueue() {
 
 For a batch, send one entry per pending interrupt in one call:
 
-```tsx
+```tsx group=approval-flow-processing
 import type { RunAgentResumeItem } from '@tanstack/ai/client'
 
 function resolveInterrupt(
@@ -236,5 +236,5 @@ runs, and interrupts. See [Cloudflare Persistence](../persistence/cloudflare).
 ## State durability versus stream delivery
 
 Persisted interrupts survive page reloads and server restarts. They do not make
-the live byte stream replayable — that is resumable streams, a separate
-transport-level feature configured on the SSE response helper.
+the live byte stream replayable — that is stream re-attach / delivery
+durability, a separate transport-layer feature landing in PR #955.

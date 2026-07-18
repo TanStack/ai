@@ -9,10 +9,10 @@ Persistence stores authoritative state — messages, runs, pending interrupts,
 metadata, locks, and generated artifacts. It is configured with persistence
 middleware.
 
-Reconnecting to an in-flight streaming response is a separate transport-level
-feature (resumable streams, configured on the response helpers), not part of
-this middleware. Persisting state does not automatically make a live response
-replayable, and a replayable response does not replace authoritative
+Reconnecting to an in-flight streaming response is a separate transport-layer
+feature (stream re-attach / delivery durability, landing in PR #955), not part
+of this middleware. Persisting state does not automatically make a live
+response replayable, and a replayable response does not replace authoritative
 application state.
 
 ## Store contract
@@ -75,6 +75,7 @@ Use one backend as the first argument and replace only selected stores through
 the second argument:
 
 ```ts
+/// <reference types="@cloudflare/workers-types" />
 import { composePersistence } from '@tanstack/ai-persistence'
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 import { defineAIPersistence } from '@tanstack/ai-persistence'

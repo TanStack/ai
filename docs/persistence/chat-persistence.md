@@ -151,14 +151,14 @@ matches a pending interrupt before resolving or cancelling stored records.
 Normal messages on that thread are rejected until pending interrupts are
 handled. This prevents accidental conversation forks.
 
-## Resumable streams are separate
+## Stream re-attach is separate
 
 Reconnecting to an in-flight SSE response without re-running the provider is a
-transport-level feature (a durability adapter on
-`toServerSentEventsResponse`), covered by the Resumable Streams guide. It
-affects transport replay only. State middleware still owns messages, runs, and
-interrupts; neither `UIMessage` nor server persistence records carry stream
-delivery offsets.
+separate transport-layer feature (stream re-attach / delivery durability),
+landing in PR #955 — not part of the state middleware. It affects transport
+replay only. State middleware still owns messages, runs, and interrupts;
+neither `UIMessage` nor server persistence records carry stream delivery
+offsets.
 
 ## Clear and retention
 

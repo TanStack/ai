@@ -18,7 +18,8 @@ Pass only the bindings you need. The return type contains exactly the stores
 those bindings can provide.
 
 This package persists state. It does not provide a stream-delivery adapter;
-resumable streams remain a separate transport-level feature.
+stream re-attach / delivery durability is a separate transport-layer feature,
+landing in PR #955.
 
 ## Configure bindings
 
@@ -64,7 +65,8 @@ export { CloudflareLockDurableObject } from '@tanstack/ai-persistence-cloudflare
 
 ## Create persistence
 
-```ts
+```ts group=cloudflare
+/// <reference types="@cloudflare/workers-types" />
 import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 
 interface Env {
@@ -88,13 +90,17 @@ export function createPersistence(env: Env) {
 }
 ```
 
+`artifactPrefix` and `blobPrefix` are optional overrides shown here for
+illustration. Omit them and they default to `tanstack-ai/artifacts/` and
+`tanstack-ai/blobs/` respectively.
+
 D1 stores structured records in SQLite tables. R2 keeps artifact metadata
 indexes and blob bodies. Each lock key is routed to a Durable Object, which
 serializes owners and uses leases/alarms for recovery.
 
 ## Use it with chat
 
-```ts
+```ts group=cloudflare
 import {
   chat,
   chatParamsFromRequest,
@@ -155,19 +161,21 @@ for (const migration of d1Migrations) {
 
 Use Cloudflare as the base and replace only application-owned stores:
 
-```ts
+```ts group=cloudflare
 import { composePersistence } from '@tanstack/ai-persistence'
 import type { InterruptStore, RunStore } from '@tanstack/ai-persistence'
 
 declare const customInterrupts: InterruptStore
 declare const customRuns: RunStore
 
-const persistence = composePersistence(createPersistence(env), {
-  overrides: {
-    interrupts: customInterrupts,
-    runs: customRuns,
-  },
-})
+export function createComposedPersistence(env: Env) {
+  return composePersistence(createPersistence(env), {
+    overrides: {
+      interrupts: customInterrupts,
+      runs: customRuns,
+    },
+  })
+}
 ```
 
 D1 continues to own messages and metadata, R2 owns artifacts and blobs, and

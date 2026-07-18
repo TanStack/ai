@@ -8,7 +8,7 @@ id: drizzle
 `@tanstack/ai-persistence-drizzle` supports SQLite-family Drizzle databases.
 It has two entry points:
 
-- the package root accepts an already-created, migrated `DrizzleDb` and is
+- the package root accepts an already-created, migrated `DrizzleSqliteDb` and is
   safe to import in edge runtimes;
 - `/sqlite` is a Node-only convenience factory built on `node:sqlite`.
 
@@ -33,7 +33,8 @@ deployment-time migrations in production.
 
 ## Bring your own SQLite Drizzle database
 
-```ts
+```ts group=drizzle-d1
+/// <reference types="@cloudflare/workers-types" />
 import { drizzle } from 'drizzle-orm/d1'
 import {
   drizzlePersistence,
@@ -52,7 +53,7 @@ lifecycle and migration timing.
 
 ## Use the middleware
 
-```ts
+```ts group=drizzle-d1
 import {
   chat,
   chatParamsFromRequest,
@@ -76,9 +77,11 @@ export async function POST(request: Request) {
 }
 ```
 
-`drizzlePersistence` provides all state stores. Its lock store is in-process;
-use `composePersistence` to replace `locks` when multiple workers need a shared
-lock service.
+`drizzlePersistence` provides all state stores except `locks`: this backend has
+no distributed lock, so consumers that need one (such as `withSandbox`) fall
+back to an in-process lock. When multiple workers must share a lock service, use
+`composePersistence` to add a distributed `locks` implementation — for example
+the Cloudflare Durable Object lock from `@tanstack/ai-persistence-cloudflare`.
 
 ## Get the migrations
 
@@ -156,7 +159,7 @@ yours to shape:
   scope threads to users. Keep added columns nullable or defaulted so the
   store inserts succeed; the TanStack AI stores never read or write them.
 - **Keep the contract columns** with their data shapes. The
-  `TanstackAiSchema` type enforces the shapes at compile time, and
+  `TanstackAiSqliteSchema` type enforces the shapes at compile time, and
   `drizzlePersistence` validates the tables and columns exist at construction.
 
 When you own the schema this way, migrations flow entirely through your

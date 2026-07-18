@@ -93,9 +93,12 @@ export async function POST(request: Request) {
 }
 ```
 
-Use `composePersistence` to replace `locks` with a distributed implementation
-or to route selected stores to another system. Composition does not add a
-transaction across multiple backends.
+`prismaPersistence` provides no `locks` store: this backend has no distributed
+lock, so consumers that need one (such as `withSandbox`) fall back to an
+in-process lock. Use `composePersistence` to add a distributed `locks`
+implementation — for example the Cloudflare Durable Object lock from
+`@tanstack/ai-persistence-cloudflare` — or to route selected stores to another
+system. Composition does not add a transaction across multiple backends.
 
 ## Model layout
 

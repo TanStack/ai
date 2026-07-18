@@ -31,6 +31,7 @@ export const persistence = sqlitePersistence({
 ## Existing SQLite or D1 Drizzle database
 
 ```ts
+/// <reference types="@cloudflare/workers-types" />
 import {
   drizzlePersistence,
   schema,
@@ -47,7 +48,7 @@ The package root is edge-safe; `/sqlite` is Node-only.
 
 ## Prisma
 
-```ts
+```ts group=sql-backends
 import { PrismaClient } from '@prisma/client'
 import { prismaPersistence } from '@tanstack/ai-persistence-prisma'
 
@@ -64,7 +65,7 @@ Both adapters provide messages, runs, interrupts, metadata, artifacts, blobs,
 and an in-process lock store. Replace `locks` with a distributed store when
 multiple processes can mutate the same run:
 
-```ts
+```ts group=sql-backends
 import { composePersistence } from '@tanstack/ai-persistence'
 import type { LockStore } from '@tanstack/ai'
 

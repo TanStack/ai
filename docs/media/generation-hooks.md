@@ -272,6 +272,13 @@ export function TrailerGenerator() {
 }
 ```
 
+The `server` slot names the **server-authoritative** resume snapshot — the
+observed run identity keyed by the hook `id` — not a requirement that the store
+physically run on a server. Any `getItem`/`setItem`/`removeItem` adapter
+satisfies it, so backing it with `localStoragePersistence` is valid: a browser
+reload re-hydrates the run identity for display. In production you would
+typically point the same slot at a real server-side store.
+
 The snapshot contains no delivery offset, does not store media bytes, and does
 not auto-resume a run. Persist bytes on the server with
 `withGenerationPersistence(...)`; see

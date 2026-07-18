@@ -90,7 +90,13 @@ import type {
   DeepPartial,
 } from "@tanstack/ai-angular";
 import type { ModelMessage, InferSchemaType } from "@tanstack/ai/client";
-import type { ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  ChatResumeState,
+  ChatPendingInterrupt,
+  RunAgentResumeItem,
+} from "@tanstack/ai-client";
 type TSchema = any;
 
 interface InjectChatResult {
@@ -118,6 +124,15 @@ interface InjectChatResult {
   isSubscribed: Signal<boolean>;
   connectionStatus: Signal<ConnectionStatus>;
   sessionGenerating: Signal<boolean>;
+  // Correlation ids `{ threadId, runId }` for the interrupted run, or null.
+  resumeState: Signal<ChatResumeState | null>;
+  // Interrupts currently awaiting a resume response.
+  pendingInterrupts: Signal<ChatPendingInterrupt[]>;
+  // Resolve pending interrupts by sending AG-UI resume entries.
+  resumeInterrupts: (
+    resume: RunAgentResumeItem[],
+    state?: ChatResumeState,
+  ) => Promise<boolean>;
   // Only present when outputSchema is supplied:
   partial: Signal<DeepPartial<InferSchemaType<TSchema>>>;
   final: Signal<InferSchemaType<TSchema> | null>;
@@ -380,9 +395,9 @@ export class CustomGenerationComponent {
 }
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `persistence?`, `initialResumeSnapshot?`, `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` — all reactive state is a read-only `Signal<T>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `resumeSnapshot`, `resumeState` (reactive), `pendingArtifacts`, `resultArtifacts` — all reactive state is a read-only `Signal<T>`.
 
 For the end-to-end persistence setup, see
 [Generation Persistence](../persistence/generation-persistence).
