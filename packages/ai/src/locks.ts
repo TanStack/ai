@@ -5,10 +5,12 @@
  * `LocksCapability` lives in core (rather than in `@tanstack/ai-sandbox` or
  * `@tanstack/ai-persistence`) so there is exactly ONE `'locks'` token: capability
  * names must be globally unique, and both `withSandbox` (which optionally
- * requires it) and `withChatPersistence` (which provides a durable implementation)
- * must reference the same handle. The in-memory default here is correct within a
- * single process; the persistence layer provides a distributed lock (e.g. a
- * Durable Object) for multi-instance deployments.
+ * requires it) and `withChatPersistence` (which provides an implementation from
+ * its backend) must reference the same handle. The in-memory default here is
+ * correct within a single process; whether the provided store is actually
+ * distributed depends on the backend — only a lock store backed by shared
+ * infrastructure (e.g. Cloudflare's Durable Object store) is safe across
+ * instances; most backends' stores are not.
  */
 import { createCapability } from './activities/chat/middleware/capabilities'
 
@@ -28,9 +30,10 @@ export interface LockStore {
 }
 
 /**
- * The lock capability. PROVIDED by `withChatPersistence` (durable) and OPTIONALLY
- * required by `withSandbox`. Falls back to {@link InMemoryLockStore} when no
- * middleware provides it.
+ * The lock capability. PROVIDED by `withChatPersistence` (backed by its lock
+ * store, which is only distributed for backends like Cloudflare's Durable
+ * Object store) and OPTIONALLY required by `withSandbox`. Falls back to
+ * {@link InMemoryLockStore} when no middleware provides it.
  */
 export const LocksCapability = createCapability<LockStore>()('locks')
 

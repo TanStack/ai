@@ -6,6 +6,7 @@ export type {
   RunRecord,
   RunStore,
   InterruptRecord,
+  InterruptStatus,
   InterruptStore,
   MetadataStore,
   ArtifactRecord,

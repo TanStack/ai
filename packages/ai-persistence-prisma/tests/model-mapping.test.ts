@@ -119,8 +119,12 @@ afterAll(async () => {
 
 // The full store contract must hold when every model is reached through a
 // renamed delegate.
-runPersistenceConformance('prisma (renamed models)', async () =>
-  prismaPersistence(await makeRenamedClient(), { models: renamedModels }),
+runPersistenceConformance(
+  'prisma (renamed models)',
+  async () =>
+    prismaPersistence(await makeRenamedClient(), { models: renamedModels }),
+  // This backend has no distributed lock primitive.
+  { skip: ['locks'] },
 )
 
 describe('prismaPersistence model mapping', () => {

@@ -1,12 +1,69 @@
 import type { LockStore, ModelMessage, TokenUsage } from '@tanstack/ai'
 
+// ===========================================================================
+// Store contracts
+// ===========================================================================
+//
+// EVOLUTION POLICY
+// ----------------
+// These store interfaces are the compatibility surface between the core
+// middleware and every backend (memory, drizzle, prisma, cloudflare, …).
+// To avoid breaking existing adapters:
+//
+//   - New store methods are added as OPTIONAL (`method?: (...) => ...`). The
+//     middleware feature-detects them (`store.method?.(...)`) and degrades
+//     gracefully when a backend has not implemented them yet.
+//   - Never tighten an existing method's required arguments or widen its
+//     required return shape in a breaking way.
+//
+// The shared conformance testkit (`./testkit/conformance.ts`) is the
+// authoritative compatibility gate: every invariant documented on the methods
+// below is asserted there, and every backend runs the identical suite. If an
+// invariant is not encoded in the testkit, adapters cannot discover it — so
+// promote new invariants into both the JSDoc here AND the testkit.
+//
+// TIMESTAMP CONVENTION
+// --------------------
+// Store *records* (`RunRecord`, `InterruptRecord`, `ArtifactRecord`,
+// `BlobRecord`) speak **epoch milliseconds** (`number`), the native unit for
+// SQL/`BIGINT` columns and `Date.now()`. Wire/result references that leave the
+// persistence layer (e.g. core's `PersistedArtifactRef.createdAt`) speak
+// **ISO-8601 strings**. The middleware performs the number→ISO conversion at
+// the boundary; do not mix the two on a single field.
+
+/**
+ * Durable store for a thread's full message transcript.
+ *
+ * A "thread" is the unit of conversation history. `saveThread` always receives
+ * and persists the **complete, authoritative** message list — it is an
+ * overwrite, never an append. The middleware snapshots `ctx.messages` (the full
+ * running transcript) into it.
+ */
 export interface MessageStore {
+  /**
+   * Return the full stored transcript for `threadId`, in insertion order.
+   *
+   * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
+   * that was never saved. Callers treat `[]` as "no history".
+   */
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
+  /**
+   * Overwrite the stored transcript for `threadId` with `messages`.
+   *
+   * INVARIANT: this is a full replace. `messages` is the complete authoritative
+   * history; the previous contents are discarded (not merged or appended).
+   */
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
+/**
+ * A single generation/chat run.
+ *
+ * @property startedAt - Epoch ms when the run was first created.
+ * @property finishedAt - Epoch ms when the run reached a terminal status.
+ */
 export interface RunRecord {
   runId: string
   threadId: string
@@ -17,50 +74,138 @@ export interface RunRecord {
   usage?: TokenUsage
 }
 
+/** Durable store for run lifecycle records. */
 export interface RunStore {
+  /**
+   * Create a run record, or return the existing one if `runId` is already
+   * present (resume).
+   *
+   * INVARIANT (idempotency): if a record for `runId` already exists it is
+   * returned **unchanged** and the passed `threadId`/`startedAt`/`status` are
+   * ignored. This is what makes resuming a run safe — the second call for a
+   * `runId` must not mutate `startedAt`, `threadId`, or status. `status`
+   * defaults to `'running'` on first creation.
+   */
   createOrResume: (
-    input: Pick<RunRecord, 'runId' | 'threadId'> & {
+    input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
       status?: RunStatus
-      startedAt: number
     },
   ) => Promise<RunRecord>
+  /**
+   * Patch a run record's mutable fields.
+   *
+   * INVARIANT: updating a `runId` that does not exist is a **no-op** — it must
+   * not throw and must not create a record.
+   */
   update: (
     runId: string,
     patch: Partial<
       Pick<RunRecord, 'status' | 'finishedAt' | 'error' | 'usage'>
     >,
   ) => Promise<void>
+  /** Return the run record for `runId`, or `null` if none exists. */
   get: (runId: string) => Promise<RunRecord | null>
 }
 
+/** Lifecycle status of a human-in-the-loop interrupt. */
+export type InterruptStatus = 'pending' | 'resolved' | 'cancelled'
+
+/**
+ * A human-in-the-loop interrupt (tool approval, client-tool input request, …).
+ *
+ * @property requestedAt - Epoch ms when the interrupt was created.
+ * @property resolvedAt - Epoch ms when the interrupt was resolved/cancelled;
+ *   absent while pending.
+ */
 export interface InterruptRecord {
   interruptId: string
   runId: string
   threadId: string
-  status: 'pending' | 'resolved' | 'cancelled'
+  status: InterruptStatus
   requestedAt: number
   resolvedAt?: number
   payload: Record<string, unknown>
   response?: unknown
 }
 
+/** Durable store for human-in-the-loop interrupts. */
 export interface InterruptStore {
-  create: (record: Omit<InterruptRecord, 'resolvedAt'>) => Promise<void>
+  /**
+   * Persist a new interrupt in the `'pending'` state.
+   *
+   * The record is accepted without `status`/`resolvedAt` so a "born resolved"
+   * interrupt is unrepresentable — every interrupt begins pending and only
+   * `resolve`/`cancel` may move it to a terminal state.
+   *
+   * INVARIANT (insert-if-absent): if an interrupt with the same `interruptId`
+   * already exists, `create` is a **no-op** — it must NOT overwrite the
+   * existing record. This is the canonical behaviour (SQL backends implement it
+   * via `ON CONFLICT DO NOTHING` / upsert-with-empty-update), so a duplicate
+   * create can never clobber a resolved interrupt back to pending.
+   */
+  create: (
+    record: Omit<InterruptRecord, 'status' | 'resolvedAt'>,
+  ) => Promise<void>
+  /**
+   * Move an interrupt to `'resolved'`, stamping `resolvedAt` and storing
+   * `response`. A no-op if `interruptId` does not exist.
+   */
   resolve: (interruptId: string, response?: unknown) => Promise<void>
+  /**
+   * Move an interrupt to `'cancelled'`, stamping `resolvedAt`. A no-op if
+   * `interruptId` does not exist.
+   */
   cancel: (interruptId: string) => Promise<void>
+  /** Return the interrupt for `interruptId`, or `null` if none exists. */
   get: (interruptId: string) => Promise<InterruptRecord | null>
+  /**
+   * All interrupts for a thread.
+   *
+   * INVARIANT: ordered by insertion (equivalently `requestedAt` ascending). SQL
+   * backends MUST `ORDER BY requested_at` — the middleware and testkit rely on
+   * this stable ordering.
+   */
   list: (threadId: string) => Promise<Array<InterruptRecord>>
+  /** Pending interrupts for a thread, ordered by `requestedAt` ascending. */
   listPending: (threadId: string) => Promise<Array<InterruptRecord>>
+  /** All interrupts for a run, ordered by `requestedAt` ascending. */
   listByRun: (runId: string) => Promise<Array<InterruptRecord>>
+  /** Pending interrupts for a run, ordered by `requestedAt` ascending. */
   listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
 }
 
+/**
+ * Scoped key/value store for arbitrary JSON metadata.
+ *
+ * `(scope, key)` is the composite identity; the same `key` under different
+ * scopes is independent.
+ */
 export interface MetadataStore {
+  /**
+   * Return the stored value for `(scope, key)`, or `null` if absent.
+   *
+   * CAVEAT: the return type is `unknown | null`, where `| null` collapses into
+   * `unknown` — a stored value of `null` is therefore **indistinguishable from
+   * absence** at the type level. Callers that must persist a real `null`
+   * distinctly from "not set" should wrap it (e.g. store `{ value: null }`).
+   */
   get: (scope: string, key: string) => Promise<unknown | null>
+  /** Insert or overwrite the value for `(scope, key)`. */
   set: (scope: string, key: string, value: unknown) => Promise<void>
+  /** Remove `(scope, key)`. A no-op if absent. Does not affect other scopes. */
   delete: (scope: string, key: string) => Promise<void>
 }
 
+/**
+ * Metadata row describing a persisted artifact (generated media, tool output).
+ *
+ * The bytes themselves live in a {@link BlobStore}; this record holds the
+ * descriptive metadata and an optional `externalUrl` for reference-only
+ * backends.
+ *
+ * @property createdAt - Epoch ms. (Core's wire-facing `PersistedArtifactRef`
+ *   exposes the same instant as an ISO string; see the timestamp convention.)
+ */
 export interface ArtifactRecord {
   artifactId: string
   runId: string
@@ -72,22 +217,39 @@ export interface ArtifactRecord {
   createdAt: number
 }
 
+/** Durable store for artifact metadata records. */
 export interface ArtifactStore {
+  /** Insert or overwrite the artifact metadata record. */
   save: (record: ArtifactRecord) => Promise<void>
+  /** Return the artifact for `artifactId`, or `null` if none exists. */
   get: (artifactId: string) => Promise<ArtifactRecord | null>
+  /** All artifacts for a run. Returns `[]` when the run has none. */
   list: (runId: string) => Promise<Array<ArtifactRecord>>
+  /** OPTIONAL: delete a single artifact by id. */
   delete?: (artifactId: string) => Promise<void>
+  /** OPTIONAL: delete every artifact belonging to `runId`. */
   deleteForRun?: (runId: string) => Promise<void>
 }
 
+/**
+ * Accepted body shapes for {@link BlobStore.put}. `ArrayBufferView` already
+ * covers `Uint8Array` and every other typed-array/`DataView`, so no separate
+ * `Uint8Array` member is needed.
+ */
 export type BlobBody =
   | ReadableStream<Uint8Array>
   | ArrayBuffer
   | ArrayBufferView
   | string
   | Blob
-  | Uint8Array
 
+/**
+ * Metadata for a stored blob.
+ *
+ * @property size - Byte length, when known.
+ * @property createdAt - Epoch ms first written.
+ * @property updatedAt - Epoch ms last overwritten.
+ */
 export interface BlobRecord {
   key: string
   size?: number
@@ -98,12 +260,19 @@ export interface BlobRecord {
   updatedAt?: number
 }
 
+/** A stored blob's metadata plus lazy accessors for its bytes. */
 export interface BlobObject extends BlobRecord {
   arrayBuffer: () => Promise<ArrayBuffer>
   text: () => Promise<string>
   body?: ReadableStream<Uint8Array>
 }
 
+/**
+ * One page of a {@link BlobStore.list} scan.
+ *
+ * @property cursor - Opaque continuation token; present only when `truncated`.
+ * @property truncated - `true` when more objects match beyond this page.
+ */
 export interface BlobListPage {
   objects: Array<BlobRecord>
   cursor?: string
@@ -121,15 +290,32 @@ export interface BlobListOptions {
   limit?: number
 }
 
+/** Durable object/blob store (byte-storing or reference-only backends). */
 export interface BlobStore {
+  /** Insert or overwrite the object at `key`, returning its metadata. */
   put: (
     key: string,
     body: BlobBody,
     options?: BlobPutOptions,
   ) => Promise<BlobRecord>
+  /** Return the object at `key` (metadata + byte accessors), or `null`. */
   get: (key: string) => Promise<BlobObject | null>
+  /** Return only the metadata for `key`, or `null`. */
   head: (key: string) => Promise<BlobRecord | null>
+  /** Remove the object at `key`. A no-op if absent. */
   delete: (key: string) => Promise<void>
+  /**
+   * List objects, optionally filtered by `prefix`, in ascending key order.
+   *
+   * CURSOR SEMANTICS: `prefix` matches literally and case-sensitively (SQL
+   * backends must escape LIKE metacharacters, so `run_` matches only the exact
+   * bytes `run_`, not `_` as a wildcard). When `limit` is given and more keys
+   * match, the page is `truncated: true` with a `cursor`; passing that `cursor`
+   * back returns the strictly-following keys (keys `> cursor`). Cursor ordering
+   * is the same byte ordering as the sort, so paging visits every key exactly
+   * once with no gaps or repeats. `limit: 0` yields an empty, untruncated page
+   * with no cursor.
+   */
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 

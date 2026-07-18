@@ -58,6 +58,7 @@ function createController(options: {
   const applyMessages = vi.fn<(messages: Array<UIMessage>) => void>()
   const applyResumeSnapshot = vi.fn<(snapshot: ChatResumeSnapshot) => void>()
   const reportResumeError = vi.fn<(error: unknown) => void>()
+  const reportPersistenceError = vi.fn<(error: unknown) => void>()
   const controller = new ChatPersistenceController({
     chatId: 'chat-1',
     threadId: 'thread-1',
@@ -67,12 +68,14 @@ function createController(options: {
     applyResumeSnapshot,
     canHydrateResume: options.canHydrateResume ?? (() => true),
     reportResumeError,
+    reportPersistenceError,
   })
   return {
     applyMessages,
     applyResumeSnapshot,
     controller,
     reportResumeError,
+    reportPersistenceError,
   }
 }
 
@@ -273,5 +276,129 @@ describe('ChatPersistenceController', () => {
     await Promise.resolve()
 
     expect(reportResumeError).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a synchronous message read failure and refuses to overwrite the stored copy', () => {
+    const readError = new Error('corrupt stored JSON')
+    const messagesStore: ChatClientPersistence = {
+      getItem: vi.fn(() => {
+        throw readError
+      }),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { controller, reportPersistenceError } = createController({
+      messages: messagesStore,
+    })
+
+    // Simulate ChatClient's constructor sequence: read, then a message change.
+    expect(controller.readInitialMessages()).toBeUndefined()
+    expect(reportPersistenceError).toHaveBeenCalledTimes(1)
+    expect(reportPersistenceError).toHaveBeenCalledWith(readError)
+
+    controller.messagesChanged([createUIMessage('fresh')])
+
+    // The failed read must not lead to clobbering the (possibly recoverable)
+    // stored history with the fresh, empty-ish session.
+    expect(messagesStore.setItem).not.toHaveBeenCalled()
+  })
+
+  it('reports an asynchronous message read rejection and suspends writes', async () => {
+    const readError = new Error('async read failed')
+    const messagesRead = deferred<Array<UIMessage>>()
+    const messagesStore: ChatClientPersistence = {
+      getItem: vi.fn(() => messagesRead.promise),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { controller, reportPersistenceError } = createController({
+      messages: messagesStore,
+    })
+
+    controller.hydrateMessages(controller.readInitialMessages())
+    messagesRead.reject(readError)
+    await messagesRead.promise.catch(() => {})
+    await Promise.resolve()
+
+    expect(reportPersistenceError).toHaveBeenCalledTimes(1)
+    expect(reportPersistenceError).toHaveBeenCalledWith(readError)
+
+    controller.messagesChanged([createUIMessage('fresh')])
+    expect(messagesStore.setItem).not.toHaveBeenCalled()
+  })
+
+  it('persists normally when the initial read succeeds', () => {
+    const messagesStore = messageAdapter([createUIMessage('stored')])
+    const { controller, reportPersistenceError } = createController({
+      messages: messagesStore,
+    })
+
+    expect(controller.readInitialMessages()).toEqual([createUIMessage('stored')])
+    controller.messagesChanged([createUIMessage('next')])
+
+    expect(reportPersistenceError).not.toHaveBeenCalled()
+    expect(messagesStore.setItem).toHaveBeenCalledTimes(1)
+    expect(messagesStore.setItem).toHaveBeenCalledWith('chat-1', [
+      createUIMessage('next'),
+    ])
+  })
+
+  it('resumes persistence after an explicit clear (removeMessages) despite a prior read failure', () => {
+    const messagesStore: ChatClientPersistence = {
+      getItem: vi.fn(() => {
+        throw new Error('corrupt stored JSON')
+      }),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { controller } = createController({ messages: messagesStore })
+
+    controller.readInitialMessages()
+    controller.messagesChanged([createUIMessage('suppressed')])
+    expect(messagesStore.setItem).not.toHaveBeenCalled()
+
+    // Explicit user reset deletes the stored copy, so new writes are safe again.
+    controller.removeMessages()
+    expect(messagesStore.removeItem).toHaveBeenCalledWith('chat-1')
+    controller.messagesChanged([createUIMessage('fresh-after-clear')])
+    expect(messagesStore.setItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports synchronous write failures instead of swallowing them', () => {
+    const writeError = new Error('quota exceeded')
+    const messagesStore: ChatClientPersistence = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(() => {
+        throw writeError
+      }),
+      removeItem: vi.fn(),
+    }
+    const { controller, reportPersistenceError } = createController({
+      messages: messagesStore,
+    })
+
+    controller.messagesChanged([createUIMessage('message')])
+
+    expect(reportPersistenceError).toHaveBeenCalledTimes(1)
+    expect(reportPersistenceError).toHaveBeenCalledWith(writeError)
+  })
+
+  it('reports asynchronous write rejections instead of swallowing them', async () => {
+    const writeError = new Error('async write failed')
+    const messagesStore: ChatClientPersistence = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(() => Promise.reject(writeError)),
+      removeItem: vi.fn(),
+    }
+    const { controller, reportPersistenceError } = createController({
+      messages: messagesStore,
+    })
+
+    controller.messagesChanged([createUIMessage('message')])
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(reportPersistenceError).toHaveBeenCalledTimes(1)
+    expect(reportPersistenceError).toHaveBeenCalledWith(writeError)
   })
 })

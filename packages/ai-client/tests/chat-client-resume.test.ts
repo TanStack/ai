@@ -216,7 +216,7 @@ describe('ChatClient resume', () => {
     expect(client.getResumeState()).toBeNull()
   })
 
-  it('resumeInterrupts reconnects without re-sending message history', async () => {
+  it('resumeInterrupts reconnects without re-sending message history when server persistence is configured', async () => {
     const resumeItems: Array<RunAgentResumeItem> = [
       {
         interruptId: 'interrupt-1',
@@ -246,7 +246,14 @@ describe('ChatClient resume', () => {
       ],
       [],
     ])
-    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+    // A server-persistence resume adapter declares that run state is durable
+    // server-side, so the server rebuilds the interrupted run's transcript and
+    // the client can omit it on resume.
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: createResumePersistence() },
+    })
 
     await client.sendMessage('hi')
     expect(sentMessages[0]).toHaveLength(1)
@@ -255,6 +262,60 @@ describe('ChatClient resume', () => {
 
     expect(contexts[1]?.resume).toEqual(resumeItems)
     expect(sentMessages[1]).toEqual([])
+  })
+
+  it('resumeInterrupts re-sends message history when server persistence is absent', async () => {
+    // Without server persistence the server is stateless across requests, so a
+    // resume with an empty transcript would strand the run (no history, no way
+    // to apply the decision). The client must re-send its own transcript — whose
+    // tool-call parts now carry the approval-responded decision — so a stateless
+    // server can continue the run. Regression coverage for the broken plain
+    // (non-persistence) approval path.
+    const resumeItems: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+    const { adapter, contexts, sentMessages } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'approval_required',
+                metadata: { kind: 'approval' },
+              },
+            ],
+          },
+        },
+      ],
+      [],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(sentMessages[0]).toHaveLength(1)
+
+    await client.resumeInterrupts(resumeItems)
+
+    expect(contexts[1]?.resume).toEqual(resumeItems)
+    // The transcript (user turn + the interrupted assistant turn) is re-sent.
+    expect(sentMessages[1]?.length).toBeGreaterThan(0)
   })
 
   it('clears resume state and pending interrupts on a runless RUN_ERROR', async () => {
@@ -1392,5 +1453,180 @@ describe('ChatClient resume', () => {
         payload: { answer: 43 },
       },
     ])
+  })
+
+  it('restores resume state and stays retryable when the resume connection fails', async () => {
+    let failNext = true
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    const adapter: ConnectConnectionAdapter = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+        if (failNext) {
+          failNext = false
+          throw new Error('network down')
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: runContext?.runId ?? 'run-1',
+          threadId: runContext?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+    }
+    const onError = vi.fn()
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      onError,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [
+          {
+            id: 'approval-1',
+            reason: 'approval_required',
+            toolCallId: 'tool-1',
+            metadata: { kind: 'approval' },
+          },
+        ],
+      },
+    })
+
+    const resume: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'approval-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+
+    // First attempt fails at the connection layer.
+    await expect(client.resumeInterrupts(resume)).resolves.toBe(false)
+    // Let the synthetic RUN_ERROR the connect-wrapper pushed drain through the
+    // subscription loop; the interrupt state must survive it.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    expect(onError).toHaveBeenCalled()
+    // The interrupt is still pending server-side — not stranded.
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'run-1',
+    })
+    expect(client.getPendingInterrupts()).toEqual([
+      expect.objectContaining({ id: 'approval-1' }),
+    ])
+
+    // Retrying the same resume now succeeds and clears the state.
+    await expect(client.resumeInterrupts(resume)).resolves.toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    expect(contexts).toHaveLength(2)
+    expect(contexts[1]?.runId).toBe('run-1')
+    expect(contexts[1]?.resume).toEqual(resume)
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+  })
+
+  it('clears resume state and removes the snapshot when the run finished server-side before remount', async () => {
+    const persistence = createResumePersistence({
+      resumeState: { threadId: 'thread-1', runId: 'run-1' },
+      pendingInterrupts: [
+        {
+          id: 'approval-1',
+          reason: 'approval_required',
+          toolCallId: 'tool-1',
+          metadata: { kind: 'approval' },
+        },
+      ],
+    })
+    // The run already completed server-side while the client was unloaded, so
+    // the resume request comes back finished with no interrupt.
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    // Remount seeded the interrupt from the persisted snapshot.
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: 'run-1',
+    })
+
+    await client.addToolApprovalResponse({ id: 'approval-1', approved: true })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+    expect(persistence.removeItem).toHaveBeenCalledWith('thread-1')
+  })
+
+  it('ignores a malformed synchronous resume snapshot and reports it', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const persistence: ChatServerPersistence = {
+      // Parseable but structurally invalid — no resumeState.
+      getItem: vi.fn(() => ({ foo: 'bar' }) as unknown as ChatResumeSnapshot),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter } = recordingAdapter([[]])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+    })
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TanStack AI] Server persistence adapter error (non-fatal):',
+      expect.any(Error),
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('ignores a malformed async-hydrated resume snapshot and reports it to onError', async () => {
+    let resolveHydrate: (snapshot: ChatResumeSnapshot) => void = () => {}
+    const persistence: ChatServerPersistence = {
+      getItem: vi.fn(
+        () =>
+          new Promise<ChatResumeSnapshot>((resolve) => {
+            resolveHydrate = resolve
+          }),
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+    const { adapter } = recordingAdapter([[]])
+    const onError = vi.fn()
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      persistence: { server: persistence },
+      onError,
+    })
+
+    // resumeState is present but missing the required runId.
+    resolveHydrate({
+      resumeState: { threadId: 'thread-1' },
+    } as unknown as ChatResumeSnapshot)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getPendingInterrupts()).toEqual([])
+    expect(onError).toHaveBeenCalledWith(expect.any(Error))
   })
 })

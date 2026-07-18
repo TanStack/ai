@@ -34,17 +34,26 @@ export interface ChatResumeSnapshot {
 }
 
 /**
- * `messages` is the full UIMessage history (not a delta). `data` is the
- * merged body — `ChatClientOptions.body` plus any per-call data passed to
- * `sendMessage(...)`. `threadId` / `runId` are the AG-UI correlation ids
- * the chat client uses to track this turn — forward them to your server
- * if it needs to correlate requests.
+ * `messages` is the full UIMessage history (not a delta) for a normal turn.
+ * On a **resume** request (see `resume` below) it is deliberately an **empty
+ * array** — the server continues the interrupted run from its own persisted
+ * state, so the client sends the resume decisions rather than re-sending the
+ * conversation. `data` is the merged body — `ChatClientOptions.body` plus any
+ * per-call data passed to `sendMessage(...)`. `threadId` / `runId` are the
+ * AG-UI correlation ids the chat client uses to track this turn — forward them
+ * to your server if it needs to correlate requests.
  */
 export interface ChatFetcherInput {
   messages: Array<UIMessage>
   data?: Record<string, unknown>
   threadId: string
   runId: string
+  /**
+   * Present only when continuing an interrupted run (an approval response or a
+   * client-tool result). Each item resolves one pending interrupt via the AG-UI
+   * `RunAgentInput.resume[]` contract; forward it to `chat()` on the server.
+   * When set, `messages` is empty and `runId` reuses the interrupted run's id.
+   */
   resume?: Array<RunAgentResumeItem>
 }
 
@@ -523,7 +532,13 @@ export interface ChatClientBaseOptions<
   onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
-   * Callback when resumable run state or pending interrupts change.
+   * Callback for the current resumable run state and pending interrupts.
+   *
+   * Note: this fires on **every** terminal stream chunk (RUN_FINISHED /
+   * RUN_ERROR), not only when the values actually change — a run that finishes
+   * with no interrupt still invokes it with `(null, [])`. Treat it as a
+   * "resume state may have changed" signal and diff against your own last
+   * value if you need change-only semantics.
    */
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,

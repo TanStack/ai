@@ -3202,15 +3202,17 @@ function runStreamingStructuredOutput<
 
 /**
  * Internal generator return type — broader than the public
- * `StructuredOutputStream<T>`. The structured-output completion event remains
- * the pinned public CUSTOM event for this stream; approval and client-tool
- * waits now surface as RUN_FINISHED interrupt outcomes. At runtime, tools can
- * still emit arbitrary user-defined `CustomEvent`s through the
- * `emitCustomEvent` context API; those flow
- * through this generator with `name: string` and are widened out at the
- * public boundary because keeping them would collapse the typed narrow back
- * to `any`. The cast inside `runStreamingStructuredOutput` is where that
- * widening happens.
+ * `StructuredOutputStream<T>`. On this path core emits the structured-output
+ * CUSTOM events (`structured-output.start`/`.complete`); approval and
+ * client-tool waits now surface as RUN_FINISHED interrupt outcomes, not CUSTOM
+ * events. The public `StructuredOutputStream` union still carries the legacy
+ * `ApprovalRequestedEvent`/`ToolInputAvailableEvent` for replay/back-compat,
+ * but core no longer emits them here. At runtime, tools can still emit
+ * arbitrary user-defined `CustomEvent`s through the `emitCustomEvent` context
+ * API; those flow through this generator with `name: string` and are widened
+ * out at the public boundary because keeping them would collapse the typed
+ * narrow back to `any`. The cast inside `runStreamingStructuredOutput` is where
+ * that widening happens.
  */
 type StructuredOutputStreamInternal<T> = AsyncIterable<
   StreamChunk | StructuredOutputCompleteEvent<T>

@@ -260,6 +260,60 @@ describe('ChatClient', () => {
       expect(onMessagesChange).not.toHaveBeenCalled()
     })
 
+    it('reports a throwing message getItem and refuses to overwrite stored history', async () => {
+      const readError = new Error('corrupt stored JSON')
+      const persistence: ChatClientPersistence = {
+        getItem: vi.fn(() => {
+          throw readError
+        }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const onError = vi.fn()
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Hi'),
+      })
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        onError,
+        persistence: { client: persistence },
+      })
+
+      // The failed read is reported, not swallowed.
+      expect(onError).toHaveBeenCalledWith(readError)
+
+      await client.sendMessage('hello')
+
+      // ...and the fresh session must not clobber the (recoverable) stored copy.
+      expect(persistence.setItem).not.toHaveBeenCalled()
+    })
+
+    it('warns on a throwing message getItem when no onError is provided', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const readError = new Error('corrupt stored JSON')
+      const persistence: ChatClientPersistence = {
+        getItem: vi.fn(() => {
+          throw readError
+        }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: { client: persistence },
+      })
+
+      expect(client.getMessages()).toEqual([])
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[TanStack AI] Message persistence adapter error (non-fatal):',
+        readError,
+      )
+      warnSpy.mockRestore()
+    })
+
     it('should keep current constructor behavior when persistence is omitted', () => {
       const adapter = createMockConnectionAdapter()
 

@@ -1,6 +1,7 @@
 import type {
   ArtifactRecord,
   ArtifactStore,
+  BlobBody,
   BlobListOptions,
   BlobListPage,
   BlobObject,
@@ -23,6 +24,45 @@ const defaultBlobPrefix = 'tanstack-ai/blobs/'
 
 function normalizedPrefix(prefix: string): string {
   return prefix === '' || prefix.endsWith('/') ? prefix : `${prefix}/`
+}
+
+async function collectStream(
+  stream: ReadableStream<Uint8Array>,
+): Promise<Uint8Array> {
+  const reader = stream.getReader()
+  const chunks: Array<Uint8Array> = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      total += value.byteLength
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
+
+/**
+ * R2 rejects a `ReadableStream` body without a known length ("must have a known
+ * length"). Read such streams fully into bytes — matching the
+ * memory/drizzle/prisma backends, which also collect the stream — so R2
+ * receives a fixed-length body. Every other `BlobBody` variant already carries a
+ * length and passes straight through.
+ */
+async function r2PutBody(body: BlobBody): Promise<BlobBody> {
+  if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
+    return collectStream(body)
+  }
+  return body
 }
 
 function encoded(value: string): string {
@@ -256,6 +296,15 @@ function blobRecord(
 function blobObject(object: R2ObjectBodyBinding, prefix: string): BlobObject {
   return {
     ...blobRecord(object, prefix),
+    // Expose `body` for parity with the memory/drizzle/prisma backends, but as a
+    // LAZY getter: R2's `body`/`arrayBuffer`/`text` all read the SAME single-use
+    // stream and are mutually exclusive, so a consumer must pick ONE per `get`
+    // (unlike the buffering backends, which can be read repeatedly). Eagerly
+    // touching `object.body` here would lock the stream and break the far more
+    // common `arrayBuffer()`/`text()` path, so we only reach for it on demand.
+    get body() {
+      return object.body
+    },
     arrayBuffer: () => object.arrayBuffer(),
     text: () => object.text(),
   }
@@ -270,7 +319,7 @@ export function createR2BlobStore(
   const storageKey = (key: string) => `${prefix}${key}`
   return {
     async put(key, body, putOptions?: BlobPutOptions) {
-      const object = await bucket.put(storageKey(key), body, {
+      const object = await bucket.put(storageKey(key), await r2PutBody(body), {
         ...(putOptions?.contentType
           ? { httpMetadata: { contentType: putOptions.contentType } }
           : {}),

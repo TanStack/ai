@@ -67,8 +67,9 @@ export interface ProcessOptions {
  * A live background process. `stdout`/`stderr` are async-iterables of decoded
  * chunks; `stdin.write` feeds the process (duplex — required for ACP harness
  * protocols such as Codex / Gemini CLI). There is intentionally NO
- * reconnect-to-a-running-process in v1 — that belongs to the durable-stream /
- * persistence layer.
+ * reconnect-to-a-running-process here — that is the durable-stream half, which
+ * moved to PR #955. (The persistence layer that lands in this PR persists the
+ * workspace tree, not a live process attachment.)
  */
 export interface SpawnHandle {
   readonly pid: number

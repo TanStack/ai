@@ -19,8 +19,14 @@ export const CUSTOM_EVENT = {
   PROCESS_STDOUT: 'process.stdout',
   PROCESS_STDERR: 'process.stderr',
   PORT_OPENED: 'port.opened',
-  APPROVAL_REQUESTED: 'approval.requested',
-  APPROVAL_RESOLVED: 'approval.resolved',
+  // Approval events use a hyphen (not the dot convention of the other names):
+  // `approval-requested` is the frozen legacy CUSTOM wire name that the chat
+  // stream processor still consumes for replay/back-compat (see
+  // `activities/chat/stream/processor.ts`) and that the sandbox harness emits
+  // (`@tanstack/ai-sandbox` `APPROVAL_REQUESTED_EVENT`, derived from this
+  // constant). Renaming it would break replay of persisted logs.
+  APPROVAL_REQUESTED: 'approval-requested',
+  APPROVAL_RESOLVED: 'approval-resolved',
   ARTIFACT_CREATED: 'artifact.created',
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_RESUMED: 'sandbox.resumed',

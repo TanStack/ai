@@ -63,6 +63,54 @@ for (const provider of providersFor('tool-approval')) {
       await waitForAssistantText(page, 'added')
     })
 
+    test('approval interrupt survives reload and denial completes the run without executing the tool', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(
+        `${featureUrl(provider, 'tool-approval', testId, aimockPort)}&serverPersistence=1`,
+      )
+
+      await sendMessage(page, '[approval-deny] add the stratocaster to my cart')
+
+      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
+        timeout: 20_000,
+      })
+      await expect(page.getByTestId('pending-interrupt-count')).toHaveAttribute(
+        'data-count',
+        '1',
+      )
+      await expect(page.getByTestId('send-button')).toBeDisabled()
+
+      await page.reload()
+
+      // The persisted approval interrupt is restored after reload.
+      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
+        timeout: 20_000,
+      })
+      await expect(page.getByTestId('pending-interrupt-count')).toHaveAttribute(
+        'data-count',
+        '1',
+      )
+
+      await denyToolCall(page, 'addToCart')
+
+      // The run resumes and completes with the denial reflected in the reply.
+      // The addToCart client tool is never executed (its result would read
+      // "added to your cart"); the assistant instead acknowledges the denial.
+      await waitForAssistantText(page, "won't add")
+
+      // The interrupt is resolved and gone: prompt hidden, count back to zero.
+      await expect(
+        page.getByTestId('approval-prompt-addToCart'),
+      ).not.toBeVisible({ timeout: 10_000 })
+      await expect(page.getByTestId('pending-interrupt-count')).toHaveAttribute(
+        'data-count',
+        '0',
+      )
+    })
+
     test('follow-up message after approval does not produce empty tool_use.name (issue #532)', async ({
       page,
       testId,

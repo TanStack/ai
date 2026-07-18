@@ -3,7 +3,8 @@
  *
  * `withChatPersistence` PROVIDES these so later middleware (and harness adapters)
  * can read durable state. `LocksCapability` is re-exported from core
- * (`@tanstack/ai`) — a shared, single-owner token owned with the sandbox layer.
+ * (`@tanstack/ai`): the `'locks'` token lives in core so there is exactly one of
+ * it, shared by both the sandbox and persistence layers — neither layer owns it.
  */
 import { createCapability } from '@tanstack/ai'
 import type { AIPersistence, InterruptStore } from './types'

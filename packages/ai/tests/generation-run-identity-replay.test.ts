@@ -291,6 +291,102 @@ describe('generation run identity and replay', () => {
     expect(chunks).toEqual(replayEvents)
   })
 
+  it('emits a RUN_ERROR terminal when replaying events throws mid-iteration', async () => {
+    const adapter: ImageAdapter<string> = {
+      kind: 'image',
+      name: 'test-image',
+      model: 'test-model',
+      '~types': imageAdapterTypes,
+      generateImages: vi.fn(async () => {
+        throw new Error('provider should not be called')
+      }),
+    }
+    const firstEvent: StreamChunk = {
+      type: EventType.CUSTOM,
+      name: 'generation:result',
+      value: { id: 'persisted-image', model: 'test-model', images: [] },
+      runId: 'run-throw',
+      threadId: 'thread-throw',
+    }
+    async function* throwingEvents(): AsyncIterable<StreamChunk> {
+      yield firstEvent
+      // Simulate a persistence store failing partway through the log read.
+      throw new Error('store exploded')
+    }
+
+    const chunks = await collect(
+      generateImage({
+        adapter,
+        prompt: 'ignored',
+        stream: true,
+        replay: { events: throwingEvents() },
+      }),
+    )
+
+    expect(adapter.generateImages).not.toHaveBeenCalled()
+    // The already-yielded event is preserved, then a RUN_ERROR terminal is
+    // synthesized instead of the raw error escaping the stream.
+    expect(chunks[0]).toEqual(firstEvent)
+    const terminal = chunks[chunks.length - 1]!
+    expect(terminal.type).toBe(EventType.RUN_ERROR)
+    expect((terminal as { message?: string }).message).toContain(
+      'store exploded',
+    )
+    // Identity is carried from the last replayed event so consumers correlate.
+    expect((terminal as { runId?: string }).runId).toBe('run-throw')
+    expect((terminal as { threadId?: string }).threadId).toBe('thread-throw')
+  })
+
+  it('synthesizes a RUN_ERROR terminal when a replayed log ends before a terminal event', async () => {
+    const adapter: ImageAdapter<string> = {
+      kind: 'image',
+      name: 'test-image',
+      model: 'test-model',
+      '~types': imageAdapterTypes,
+      generateImages: vi.fn(async () => {
+        throw new Error('provider should not be called')
+      }),
+    }
+    // A run interrupted mid-persist leaves a log with no RUN_FINISHED/RUN_ERROR.
+    const truncatedEvents = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'run-trunc',
+        threadId: 'thread-trunc',
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:result',
+        value: { id: 'persisted-image', model: 'test-model', images: [] },
+        runId: 'run-trunc',
+        threadId: 'thread-trunc',
+      },
+    ] satisfies Array<StreamChunk>
+
+    const chunks = await collect(
+      generateImage({
+        adapter,
+        prompt: 'ignored',
+        stream: true,
+        replay: { events: truncatedEvents },
+      }),
+    )
+
+    expect(adapter.generateImages).not.toHaveBeenCalled()
+    // Persisted events are re-emitted verbatim...
+    expect(chunks.slice(0, truncatedEvents.length)).toEqual(truncatedEvents)
+    // ...then a synthesized RUN_ERROR terminal completes the stream so the
+    // StreamProcessor doesn't hang waiting for a terminal that never persisted.
+    expect(chunks).toHaveLength(truncatedEvents.length + 1)
+    const terminal = chunks[chunks.length - 1]!
+    expect(terminal.type).toBe(EventType.RUN_ERROR)
+    expect((terminal as { message?: string }).message).toMatch(
+      /ended before a terminal/i,
+    )
+    expect((terminal as { runId?: string }).runId).toBe('run-trunc')
+    expect((terminal as { threadId?: string }).threadId).toBe('thread-trunc')
+  })
+
   it('returns a replayed final result without running transforms or the adapter', async () => {
     const adapter: AudioAdapter<string> = {
       kind: 'audio',

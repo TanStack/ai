@@ -107,6 +107,17 @@ export class ChatClient<
   private readonly uniqueId: string
   private readonly threadId: string
   private readonly persistenceController: ChatPersistenceController<TTools>
+  // Whether a server-persistence resume adapter is configured. A resume that
+  // sends an EMPTY `messages` array relies on the server reconstructing the
+  // interrupted run's transcript (and translating the raw `resume` entries into
+  // approvals / client-tool results) from its own state store — which only
+  // happens when server-side persistence is active. When it is NOT, the server
+  // is stateless across requests, so the client must re-send its own transcript
+  // (with the approval-responded tool-call parts) on resume; otherwise the run
+  // continues with no history and no way to apply the decision. The presence of
+  // a `persistence.server` adapter is the app's declaration that run state is
+  // durable server-side, so it gates the no-history optimization.
+  private readonly hasServerResumePersistence: boolean
   private readonly clearedStreamTracker = new ClearedStreamTracker()
   // Whether the consumer supplied an `onError` callback. Server-persistence is
   // best-effort and must never break chat, but its failures should still be
@@ -129,6 +140,12 @@ export class ChatClient<
   private pendingResumeRunId: string | null = null
   private pendingResumeThreadId: string | null = null
   private pendingResumeItems: Array<RunAgentResumeItem> | null = null
+  // Set when a resume request fails at the connection layer. The connect-wrapper
+  // synthesizes a RUN_ERROR for that runId which the subscription loop would
+  // otherwise use to clear interrupt state — but a connection failure leaves the
+  // interrupt pending server-side, so this run's terminal RUN_ERROR must not
+  // clear it. Consumed once by observeInterruptState.
+  private connectFailureResumeRunId: string | null = null
   private activeResumeThreadId: string | null = null
   private activeResumeRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
@@ -247,6 +264,8 @@ export class ChatClient<
       },
     }
 
+    this.hasServerResumePersistence = Boolean(options.persistence?.server)
+
     this.persistenceController = new ChatPersistenceController({
       chatId: this.uniqueId,
       threadId: this.threadId,
@@ -254,11 +273,19 @@ export class ChatClient<
       resumeAdapter: options.persistence?.server,
       applyMessages: (messages) => this.processor.setMessages(messages),
       applyResumeSnapshot: (snapshot) => {
+        if (!this.isValidResumeSnapshot(snapshot)) {
+          this.reportServerPersistenceError(
+            new Error('Ignored malformed resume snapshot from persistence.'),
+          )
+          return
+        }
         this.applyResumeSnapshot(snapshot)
         this.notifyResumeStateChange()
       },
       canHydrateResume: () => this.lastResume === null,
       reportResumeError: (error) => this.reportServerPersistenceError(error),
+      reportPersistenceError: (error) =>
+        this.reportClientPersistenceError(error),
     })
 
     const storedResumeSnapshot = options.initialResumeSnapshot
@@ -266,7 +293,13 @@ export class ChatClient<
       : this.persistenceController.readInitialResumeSnapshot()
     const resumeSnapshot = options.initialResumeSnapshot ?? storedResumeSnapshot
     if (resumeSnapshot && !(resumeSnapshot instanceof Promise)) {
-      this.applyResumeSnapshot(resumeSnapshot)
+      if (this.isValidResumeSnapshot(resumeSnapshot)) {
+        this.applyResumeSnapshot(resumeSnapshot)
+      } else {
+        this.reportServerPersistenceError(
+          new Error('Ignored malformed resume snapshot from persistence.'),
+        )
+      }
     }
 
     // Create StreamProcessor with event handlers.
@@ -496,14 +529,32 @@ export class ChatClient<
    * `console.warn`.
    */
   private reportServerPersistenceError(error: unknown): void {
+    this.reportPersistenceError(
+      error,
+      'Server persistence adapter error (non-fatal):',
+    )
+  }
+
+  /**
+   * Route a caught client (message) persistence error to the same observable
+   * sink as server persistence. Message persistence is best-effort — a failing
+   * message adapter (corrupt stored JSON, a quota-exceeded write, etc.) must
+   * never break chat — but the failure is no longer swallowed silently: it
+   * reaches the consumer's `onError` when provided, otherwise `console.warn`.
+   */
+  private reportClientPersistenceError(error: unknown): void {
+    this.reportPersistenceError(
+      error,
+      'Message persistence adapter error (non-fatal):',
+    )
+  }
+
+  private reportPersistenceError(error: unknown, warning: string): void {
     const normalized = error instanceof Error ? error : new Error(String(error))
     if (this.hasUserOnError) {
       this.callbacksRef.current.onError(normalized)
     } else {
-      console.warn(
-        '[TanStack AI] Server persistence adapter error (non-fatal):',
-        normalized,
-      )
+      console.warn(`[TanStack AI] ${warning}`, normalized)
     }
   }
 
@@ -512,6 +563,33 @@ export class ChatClient<
     this.pendingInterrupts = [...(snapshot.pendingInterrupts ?? [])]
     this.pendingInterruptRunId =
       this.pendingInterrupts.length > 0 ? this.lastResume.runId : null
+  }
+
+  /**
+   * Structural guard for a persisted resume snapshot. A parseable-but-garbage
+   * blob (e.g. `{}` or a snapshot missing `resumeState`) must not flow into
+   * `applyResumeSnapshot`, where `{ ...undefined }` would seed a bogus
+   * `lastResume` of `{ threadId: undefined, runId: undefined }` and strand the
+   * client on an unanswerable resume. Anything that fails this check is treated
+   * as "no snapshot" and reported via the resume error sink.
+   */
+  private isValidResumeSnapshot(
+    snapshot: unknown,
+  ): snapshot is ChatResumeSnapshot {
+    if (typeof snapshot !== 'object' || snapshot === null) {
+      return false
+    }
+    const record = snapshot as Record<string, unknown>
+    const resumeState = record.resumeState
+    if (typeof resumeState !== 'object' || resumeState === null) {
+      return false
+    }
+    const state = resumeState as Record<string, unknown>
+    if (typeof state.threadId !== 'string' || typeof state.runId !== 'string') {
+      return false
+    }
+    const { pendingInterrupts } = record
+    return pendingInterrupts === undefined || Array.isArray(pendingInterrupts)
   }
 
   mountDevtools(): void {
@@ -607,6 +685,20 @@ export class ChatClient<
       return
     }
 
+    // A connection failure during a resume produced this run's synthetic
+    // RUN_ERROR. The run is not actually terminal server-side (we never reached
+    // it), so leave interrupt state intact and let the user retry. Consume the
+    // marker so a later genuine terminal event can still clear the state.
+    if (
+      chunk.type === 'RUN_ERROR' &&
+      runId &&
+      this.connectFailureResumeRunId === runId
+    ) {
+      this.connectFailureResumeRunId = null
+      this.notifyResumeStateChange()
+      return
+    }
+
     const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
     const isTrackedRunTerminal = Boolean(
       runId && this.lastResume?.runId === runId,
@@ -644,10 +736,26 @@ export class ChatClient<
     return this.lastResume ? { ...this.lastResume } : null
   }
 
+  /**
+   * The interrupts (approval requests / client-tool input requests) the current
+   * run is waiting on, or an empty array when nothing is pending. Pair each with
+   * a `RunAgentResumeItem` and hand them to `resumeInterrupts()` to continue.
+   */
   getPendingInterrupts(): Array<ChatPendingInterrupt> {
     return [...this.pendingInterrupts]
   }
 
+  /**
+   * Continue an interrupted run by sending resume decisions for its pending
+   * interrupts. `resume` is one `RunAgentResumeItem` per interrupt; `state`
+   * targets a specific run (defaults to the tracked `getResumeState()`, e.g.
+   * after a reload seeded from persistence).
+   *
+   * Resolves to `true` when a resume stream was started, `false` when there is
+   * nothing to resume (no target run) or a request is already in flight. Most
+   * apps never call this directly — `addToolResult` / `addToolApprovalResponse`
+   * drive it automatically once every pending interrupt has been answered.
+   */
   resumeInterrupts(
     resume: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
@@ -1059,6 +1167,19 @@ export class ChatClient<
     const isResumeRequest = Boolean(
       resumeThreadId || resumeRunId || resumeItems,
     )
+    // Snapshot the interrupt state before sending. A connection failure during
+    // a resume synthesizes a RUN_ERROR (see the connect-wrapper) that the
+    // subscription loop treats as a terminal event and uses to CLEAR
+    // lastResume/pendingInterrupts — even though the interrupt is still pending
+    // server-side. Capture it here so the connect-failure catch can restore it
+    // and keep the user able to retry.
+    const resumeInterruptSnapshot = isResumeRequest
+      ? {
+          lastResume: this.lastResume ? { ...this.lastResume } : null,
+          pendingInterrupts: [...this.pendingInterrupts],
+          pendingInterruptRunId: this.pendingInterruptRunId,
+        }
+      : null
     this.pendingResumeThreadId = null
     this.pendingResumeRunId = null
     this.pendingResumeItems = null
@@ -1085,8 +1206,14 @@ export class ChatClient<
     let runTerminalEventEmitted = false
 
     try {
-      // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = isResumeRequest ? [] : this.processor.getMessages()
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // On resume we omit the transcript ONLY when server persistence can rebuild
+      // it; a stateless server needs the client's transcript (whose tool-call
+      // parts now carry the approval-responded decision) to continue the run.
+      const messages =
+        isResumeRequest && this.hasServerResumePersistence
+          ? []
+          : this.processor.getMessages()
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -1227,6 +1354,26 @@ export class ChatClient<
           return false
         }
         if (generation === this.streamGeneration) {
+          if (isResumeRequest && resumeInterruptSnapshot) {
+            // A connection failure means the resume never reached the server,
+            // so the interrupt is still pending there. Restore both the
+            // pending-resume slots (consumed at the top of this method) and the
+            // interrupt state (which the synthetic RUN_ERROR just cleared via
+            // the subscription loop) so the user isn't stranded and a follow-up
+            // `resumeInterrupts()` retries the same run.
+            this.lastResume = resumeInterruptSnapshot.lastResume
+            this.pendingInterrupts = resumeInterruptSnapshot.pendingInterrupts
+            this.pendingInterruptRunId =
+              resumeInterruptSnapshot.pendingInterruptRunId
+            this.pendingResumeThreadId = resumeThreadId
+            this.pendingResumeRunId = resumeRunId
+            this.pendingResumeItems = resumeItems
+            // Mark this run so the synthetic RUN_ERROR the connect-wrapper
+            // pushed can't clear the interrupt state we just restored, whether
+            // the subscription loop processes it before or after this catch.
+            this.connectFailureResumeRunId = runId
+            this.notifyResumeStateChange()
+          }
           this.reportStreamError(err)
           if (activeDevtoolsRunId) {
             this.devtoolsBridge.emitRunLifecycle(
@@ -1379,7 +1526,11 @@ export class ChatClient<
   }
 
   /**
-   * Clear all messages
+   * Reset the chat to an empty state. Beyond clearing all messages this also
+   * cancels any in-flight stream, stops shared session-generating tracking,
+   * discards resume state (pending interrupts / tracked run) and deletes the
+   * persisted message and resume snapshots, and clears the current error. Use
+   * it to start a fresh conversation, not merely to hide the transcript.
    */
   clear(): void {
     const hadLocalStream = this.abortController !== null

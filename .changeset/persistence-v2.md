@@ -48,3 +48,28 @@ work), so no npm tombstone release is needed.
 
 Generation events no longer expose transport cursors; they retain their thread
 and run identifiers for correlation.
+
+**Breaking (`@tanstack/ai-client` and every framework binding):** the
+`persistence` option changed shape. It was a single flat message-storage adapter
+and is now a `{ client?, server? }` object — `client` stores the rendered
+`UIMessage[]` (keyed by the chat `id`) and `server` stores the resume snapshot
+`{ resumeState, pendingInterrupts }` (keyed by `threadId`). This is a hard
+rename with no bridging union, so a flat adapter no longer type-checks. Migrate
+by moving your existing message adapter under `client`:
+
+```ts
+// Before
+useChat({
+  connection,
+  persistence: localStoragePersistence(),
+})
+
+// After
+useChat({
+  connection,
+  persistence: {
+    client: localStoragePersistence(), // messages (chat id)
+    // server: localStoragePersistence(), // optional: resume snapshot (threadId)
+  },
+})
+```

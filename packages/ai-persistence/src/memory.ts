@@ -64,8 +64,13 @@ class MemoryRunStore implements RunStore {
 
 class MemoryInterruptStore implements InterruptStore {
   private readonly interrupts = new Map<string, InterruptRecord>()
-  create(record: Omit<InterruptRecord, 'resolvedAt'>): Promise<void> {
-    this.interrupts.set(record.interruptId, { ...record })
+  create(record: Omit<InterruptRecord, 'status' | 'resolvedAt'>): Promise<void> {
+    // Insert-if-absent (canonical semantics, matching the SQL backends'
+    // ON CONFLICT DO NOTHING): a duplicate id must never clobber an existing —
+    // possibly already resolved — interrupt back to pending.
+    if (!this.interrupts.has(record.interruptId)) {
+      this.interrupts.set(record.interruptId, { ...record, status: 'pending' })
+    }
     return Promise.resolve()
   }
   resolve(interruptId: string, response?: unknown): Promise<void> {

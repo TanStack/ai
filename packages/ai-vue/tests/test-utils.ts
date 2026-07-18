@@ -54,6 +54,9 @@ export function renderUseChat(options?: UseChatOptions) {
       setMessages: hook.setMessages,
       addToolResult: hook.addToolResult,
       addToolApprovalResponse: hook.addToolApprovalResponse,
+      resumeState: hook.resumeState,
+      pendingInterrupts: hook.pendingInterrupts,
+      resumeInterrupts: hook.resumeInterrupts,
     }
   }
 

@@ -196,10 +196,11 @@ interface BlobWrite {
 
 export interface BlobDelegate {
   findUnique: (args: { where: { key: string } }) => Promise<BlobRow | null>
+  // `list` pushes only a coarse `startsWith` prefilter (or no filter, for an
+  // empty prefix); membership, ordering, and cursor pagination happen in JS so
+  // results stay correct under any provider collation. See `createBlobStore`.
   findMany: (args: {
-    where: { key: { gte: string; lt?: string; gt?: string } }
-    orderBy: { key: 'asc' }
-    take?: number
+    where?: { key: { startsWith: string } }
   }) => Promise<Array<BlobRow>>
   upsert: (args: {
     where: { key: string }

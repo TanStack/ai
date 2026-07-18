@@ -8,7 +8,6 @@ import type {
   MetadataStore,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai'
 import { prismaPersistence } from '../src/index'
 import type {
   ArtifactDelegate,
@@ -43,4 +42,5 @@ expectTypeOf(persistence.stores.interrupts).toEqualTypeOf<InterruptStore>()
 expectTypeOf(persistence.stores.metadata).toEqualTypeOf<MetadataStore>()
 expectTypeOf(persistence.stores.artifacts).toEqualTypeOf<ArtifactStore>()
 expectTypeOf(persistence.stores.blobs).toEqualTypeOf<BlobStore>()
-expectTypeOf(persistence.stores.locks).toEqualTypeOf<LockStore>()
+// No `locks` store: this backend has no distributed lock (see prismaPersistence).
+expectTypeOf(persistence.stores).not.toHaveProperty('locks')

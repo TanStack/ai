@@ -19,6 +19,7 @@ interface ChatPersistenceControllerOptions<
   applyResumeSnapshot: (snapshot: ChatResumeSnapshot) => void
   canHydrateResume: () => boolean
   reportResumeError: (error: unknown) => void
+  reportPersistenceError: (error: unknown) => void
 }
 
 function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
@@ -41,6 +42,13 @@ export class ChatPersistenceController<
   > = []
   private messageOperationPending = false
   private skipNextMessagePersist = false
+  // Set when the initial message read fails (sync throw or async rejection).
+  // While set, no `setItem` is attempted so a transient read failure — e.g. a
+  // corrupt stored JSON blob that throws inside `getItem`/`deserialize` — can't
+  // clobber the on-disk history with the fresh (empty) session. Cleared only by
+  // an explicit user reset (`removeMessages`, i.e. `clear()`), which deletes the
+  // stored copy outright and makes subsequent writes safe again.
+  private messageWritesSuspended = false
 
   private resumeGeneration = 0
   private desiredResumeSnapshot: ChatResumeSnapshot | null = null
@@ -58,7 +66,12 @@ export class ChatPersistenceController<
     | Promise<Array<UIMessage<TTools>> | null | undefined> {
     try {
       return this.options.messageAdapter?.getItem(this.options.chatId)
-    } catch {
+    } catch (error) {
+      // A failed read must not silently start an empty chat AND then let the
+      // next `messagesChanged` overwrite the stored history. Report it and
+      // suspend writes until an explicit reset.
+      this.options.reportPersistenceError(error)
+      this.messageWritesSuspended = true
       return undefined
     }
   }
@@ -85,8 +98,13 @@ export class ChatPersistenceController<
           this.options.applyMessages(messages)
         }
       })
-      .catch(() => {
-        // Message persistence is intentionally best-effort.
+      .catch((error: unknown) => {
+        // An async read that rejects (e.g. IndexedDB open failure, or a
+        // deserialize throw in a Promise-returning adapter) is the same hazard
+        // as a sync throw: report it and suspend writes so we don't overwrite
+        // the stored history with the fresh session.
+        this.options.reportPersistenceError(error)
+        this.messageWritesSuspended = true
       })
   }
 
@@ -97,6 +115,11 @@ export class ChatPersistenceController<
     }
     if (this.skipNextMessagePersist) {
       this.skipNextMessagePersist = false
+      return
+    }
+    if (this.messageWritesSuspended) {
+      // Initial read failed; refuse to persist so we can't destroy the stored
+      // copy. A later reload with working storage can still recover it.
       return
     }
 
@@ -118,6 +141,9 @@ export class ChatPersistenceController<
     if (this.disposed || !this.options.messageAdapter) {
       return
     }
+    // An explicit reset (clear()) deletes the stored copy outright, so there is
+    // nothing left to protect — resume normal persistence for the fresh chat.
+    this.messageWritesSuspended = false
 
     const generation = ++this.messageOperationGeneration
     this.runMessageOperation(() => {
@@ -206,8 +232,10 @@ export class ChatPersistenceController<
         const result = operation()
         if (isPromiseLike(result)) {
           void Promise.resolve(result)
-            .catch(() => {
-              // Message persistence is intentionally best-effort.
+            .catch((error: unknown) => {
+              // Best-effort: a write failure must not break chat, but it must
+              // not vanish either.
+              this.options.reportPersistenceError(error)
             })
             .then(() => {
               this.messageOperationPending = false
@@ -216,9 +244,9 @@ export class ChatPersistenceController<
           return
         }
         this.messageOperationPending = false
-      } catch {
+      } catch (error) {
         this.messageOperationPending = false
-        // Message persistence is intentionally best-effort.
+        this.options.reportPersistenceError(error)
       }
     }
   }

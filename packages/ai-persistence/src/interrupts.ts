@@ -17,11 +17,7 @@ export function createInterruptController(opts: {
   return {
     resolve: (interruptId, response) => store.resolve(interruptId, response),
     cancel: (interruptId) => store.cancel(interruptId),
-    request: (record) =>
-      store.create({
-        ...record,
-        status: 'pending',
-      }),
+    request: (record) => store.create(record),
     listPending: (threadId) => store.listPending(threadId),
     listPendingByRun: (runId) => store.listPendingByRun(runId),
   }

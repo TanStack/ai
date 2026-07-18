@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   composePersistence,
   memoryPersistence,
@@ -18,6 +19,7 @@ import {
   workspacePersistenceManifestKey,
 } from '../src/workspace-persistence'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { Logger } from '@tanstack/ai/adapter-internals'
 import type { AIPersistence } from '@tanstack/ai-persistence'
 import type { SandboxHandle, SandboxProvider } from '../src/contracts'
 
@@ -324,6 +326,57 @@ describe('managed workspace persistence', () => {
     ).rejects.toThrow(
       'Workspace persistence requires AIPersistence stores.metadata, stores.artifacts with delete(), and stores.blobs',
     )
+  })
+
+  it('logs a warning and continues when a best-effort restore fails', async () => {
+    const warnings: Array<{
+      message: string
+      meta?: Record<string, unknown>
+    }> = []
+    const captureLogger: Logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (message, meta) => warnings.push({ message, meta }),
+      error: () => {},
+    }
+    const logger = resolveDebugOption({ logger: captureLogger })
+
+    const handle = fakeWorkspaceHandle()
+    const failing = composePersistence(memoryPersistence(), {
+      overrides: {
+        metadata: {
+          get: () => Promise.reject(new Error('metadata store offline')),
+          set: () => Promise.resolve(),
+          delete: () => Promise.resolve(),
+        },
+      },
+    })
+    const options = resolveWorkspacePersistenceOptions({
+      workspacePersistence: { key: 'project-123', consistency: 'best-effort' },
+      workspace: undefined,
+      defaultKey: 'unused',
+    })
+    if (!options) throw new Error('Expected workspace persistence options')
+
+    // Best-effort mode must swallow the failing store error so the run
+    // continues, but still surface it through the threaded logger.
+    await expect(
+      restoreWorkspacePersistence({
+        handle,
+        persistence: requireWorkspacePersistence(failing),
+        options,
+        runId: 'run-1',
+        threadId: 'thread-1',
+        logger,
+      }),
+    ).resolves.toBeUndefined()
+
+    const warned = warnings.find((w) => w.message.includes('best-effort'))
+    expect(warned).toBeDefined()
+    expect(warned?.meta).toMatchObject({
+      operation: 'restore',
+      workspace: 'project-123',
+    })
   })
 
   it('persists changed workspace files through artifacts and metadata', async () => {

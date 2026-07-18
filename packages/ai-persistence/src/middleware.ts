@@ -83,10 +83,22 @@ export interface GenerationArtifactNameInput {
   index: number
 }
 
-const runState = new WeakMap<
-  object,
-  { merged: boolean; interrupted: boolean }
->()
+interface RunStateEntry {
+  merged: boolean
+  interrupted: boolean
+  /**
+   * Resumes accepted in `onConfig` but not yet committed to the interrupt
+   * store. They are applied (resolve/cancel) only once the run reaches a
+   * successful boundary — see {@link commitPendingResumes}. Left uncommitted
+   * (still pending in the store) if the run fails or aborts first.
+   */
+  pendingResumes?: {
+    pending: Array<InterruptRecord>
+    resumeByInterruptId: Map<string, RunAgentResumeItem>
+  }
+}
+
+const runState = new WeakMap<object, RunStateEntry>()
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
 
@@ -154,6 +166,24 @@ async function applyPendingResumes(
   }
 }
 
+/**
+ * Commit the resumes stashed in `onConfig`, marking each resumed interrupt
+ * resolved/cancelled. Called only from success boundaries (`onFinish`, and the
+ * `onChunk` interrupt boundary) so a provider failure or abort between accepting
+ * the resume and reaching a boundary leaves the interrupts pending — the
+ * approval is not consumed and a retry with the same resume succeeds. Idempotent
+ * and a no-op when nothing is stashed.
+ */
+async function commitPendingResumes(
+  state: RunStateEntry | undefined,
+  interrupts: AIPersistence['stores']['interrupts'],
+): Promise<void> {
+  if (!state?.pendingResumes || !interrupts) return
+  const { pending, resumeByInterruptId } = state.pendingResumes
+  state.pendingResumes = undefined
+  await applyPendingResumes(pending, resumeByInterruptId, interrupts)
+}
+
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object'
     ? (value as Record<string, unknown>)
@@ -175,7 +205,9 @@ function interruptKind(interrupt: InterruptRecord): string | undefined {
 function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
   if (entry.status === 'cancelled') return false
   const payload = objectValue(entry.payload)
-  return typeof payload?.approved === 'boolean' ? payload.approved : true
+  // Fail closed: persisted resume payloads may be malformed or truncated, so a
+  // missing/non-boolean `approved` denies the tool rather than running it.
+  return typeof payload?.approved === 'boolean' ? payload.approved : false
 }
 
 function resumeToolStateFromPending(
@@ -534,14 +566,27 @@ async function descriptorBody(
         `Failed to persist artifact from ${descriptor.url}: HTTP ${response.status}`,
       )
     }
+    const mimeType =
+      descriptor.mimeType ??
+      response.headers.get('content-type') ??
+      'application/octet-stream'
+    // Stream the body straight into the blob store instead of buffering the
+    // whole artifact in memory. `size` is left 0 (unknown up front); the store
+    // records the actual byte length as it drains the stream. Fall back to
+    // buffering only when the response has no body to stream.
+    if (response.body) {
+      return {
+        body: response.body,
+        size: 0,
+        mimeType,
+        externalUrl: descriptor.url,
+      }
+    }
     const body = await response.arrayBuffer()
     return {
       body,
       size: body.byteLength,
-      mimeType:
-        descriptor.mimeType ??
-        response.headers.get('content-type') ??
-        'application/octet-stream',
+      mimeType,
       externalUrl: descriptor.url,
     }
   }
@@ -596,7 +641,7 @@ async function persistGenerationArtifacts(
     const { body, size, mimeType, externalUrl } =
       await descriptorBody(descriptor)
     const key = `artifacts/${runId}/${artifactId}`
-    await persistence.stores.blobs.put(key, body, {
+    const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
       customMetadata: {
         runId,
@@ -606,6 +651,9 @@ async function persistGenerationArtifacts(
         path: descriptor.path,
       },
     })
+    // For streamed downloads the descriptor size is unknown (0); the store
+    // reports the real byte length once it has drained the stream.
+    const resolvedSize = size || stored.size || 0
     const createdAtMs = Date.now()
     const name =
       opts?.nameArtifact?.({
@@ -625,7 +673,7 @@ async function persistGenerationArtifacts(
       threadId,
       name,
       mimeType,
-      size,
+      size: resolvedSize,
       externalUrl,
       createdAt: createdAtMs,
     }
@@ -637,7 +685,7 @@ async function persistGenerationArtifacts(
       runId,
       name,
       mimeType,
-      size,
+      size: resolvedSize,
       createdAt: new Date(createdAtMs).toISOString(),
       ...(externalUrl ? { externalUrl } : {}),
       source: {
@@ -777,9 +825,18 @@ async function interruptRun(
 
 /**
  * Chat-only persistence middleware. Provides durable **state** for `chat()`:
- * thread messages, run records, interrupts, and locks. Delivery durability
- * (replaying a disconnected/reloaded stream) lives on the transport layer via
- * `StreamDurability`, not here — this middleware never mutates the chunk stream.
+ * thread messages, run records, interrupts, and locks. This middleware never
+ * mutates the chunk stream; delivery durability (replaying a
+ * disconnected/reloaded stream) is a separate transport-layer concern tracked
+ * in PR #955.
+ *
+ * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
+ * `messages` array it is treated as the FULL conversation history and, on
+ * finish, **overwrites** the entire stored thread. Post only the complete
+ * transcript, never a delta — sending just the newest message(s) will replace
+ * (and thereby destroy) the stored thread. To continue a stored thread without
+ * resending history, pass an empty `messages` array and the stored transcript
+ * is loaded and used.
  */
 export function withChatPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
@@ -833,11 +890,13 @@ export function withChatPersistence(
           pending,
           resumeByInterruptId,
         )
-        await applyPendingResumes(
-          pending,
-          resumeByInterruptId,
-          persistence.stores.interrupts,
-        )
+        // Defer marking these interrupts resolved/cancelled until the run
+        // succeeds (see commitPendingResumes). Committing here would consume the
+        // approval even if the run then failed, breaking a retry.
+        const state = runState.get(ctx)
+        if (state && pending.length > 0) {
+          state.pendingResumes = { pending, resumeByInterruptId }
+        }
       }
 
       await createOrResumeRun(runs, ctx.runId, ctx.threadId)
@@ -873,12 +932,14 @@ export function withChatPersistence(
       if (!state) return
 
       if (wantsInterrupts && persistence.stores.interrupts) {
+        // The run reached a new interrupt boundary, so the resumes it consumed
+        // are committed before the fresh interrupts are recorded.
+        await commitPendingResumes(state, persistence.stores.interrupts)
         for (const interrupt of chunk.outcome.interrupts) {
           await persistence.stores.interrupts.create({
             interruptId: interrupt.id,
             runId: ctx.runId,
             threadId: ctx.threadId,
-            status: 'pending',
             requestedAt: Date.now(),
             payload: interruptPayload(interrupt),
           })
@@ -894,7 +955,10 @@ export function withChatPersistence(
     },
 
     async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
-      if (runState.get(ctx)?.interrupted) return
+      const state = runState.get(ctx)
+      if (state?.interrupted) return
+      // The run completed successfully, so commit the resumes it consumed.
+      await commitPendingResumes(state, persistence.stores.interrupts)
       await completeRun(runs, ctx.runId, info.usage)
       if (wantsMessages && persistence.stores.messages) {
         await persistence.stores.messages.saveThread(ctx.threadId, [

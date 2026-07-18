@@ -5,6 +5,7 @@ import {
   workspacePersistenceManifestKey,
 } from './workspace-persistence-types'
 import type { LockStore, SandboxFileEvent } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -36,6 +37,12 @@ export interface WorkspacePersistenceRunContext {
   options: ResolvedWorkspacePersistenceOptions
   runId: string
   threadId: string
+  /**
+   * Middleware logger, threaded through so best-effort failures (which are
+   * swallowed rather than re-thrown) are still observable. See
+   * {@link runWorkspacePersistence}.
+   */
+  logger?: InternalLogger
 }
 
 type DeletableArtifactStore = ArtifactStore & {
@@ -84,7 +91,7 @@ export function requireWorkspacePersistence(
 export async function restoreWorkspacePersistence(
   context: WorkspacePersistenceRunContext,
 ): Promise<void> {
-  await runWorkspacePersistence(context.options, async () => {
+  await runWorkspacePersistence(context, 'restore', async () => {
     const stores = context.persistence.stores
     const manifest = await readManifest(stores.metadata, context.options.key)
     for (const path of Object.keys(manifest.deleted)) {
@@ -113,7 +120,7 @@ export function checkpointWorkspacePersistenceEvent(
   context: WorkspacePersistenceRunContext,
   event: SandboxFileEvent,
 ): Promise<void> {
-  return runWorkspacePersistence(context.options, async () => {
+  return runWorkspacePersistence(context, 'checkpoint', async () => {
     const stores = context.persistence.stores
     if (!shouldPersistPath(event.path, context.options)) return
 
@@ -152,7 +159,7 @@ export function checkpointWorkspacePersistenceEvent(
         }
         if (bytes.byteLength > context.options.maxFileBytes) {
           throw new Error(
-            `Workspace persistence skipped "${event.path}" because it is ${bytes.byteLength} bytes, exceeding maxFileBytes ${context.options.maxFileBytes}`,
+            `Workspace persistence failed for "${event.path}" because it is ${bytes.byteLength} bytes, exceeding maxFileBytes ${context.options.maxFileBytes} (in strict mode this fails the run; in best-effort mode the checkpoint is dropped and logged)`,
           )
         }
 
@@ -224,17 +231,26 @@ export function checkpointWorkspacePersistenceEvent(
 }
 
 async function runWorkspacePersistence(
-  options: ResolvedWorkspacePersistenceOptions,
+  context: WorkspacePersistenceRunContext,
+  operation: 'restore' | 'checkpoint',
   fn: () => Promise<void>,
 ): Promise<void> {
-  if (options.consistency === 'strict') {
+  if (context.options.consistency === 'strict') {
     await fn()
     return
   }
   try {
     await fn()
-  } catch {
-    // best-effort persistence must not fail the sandbox run
+  } catch (error) {
+    // best-effort persistence must not fail the sandbox run — but the failure
+    // must still be observable, or a silently-failed restore leaves the agent
+    // running against an empty workspace and later checkpoints overwrite
+    // manifest entries with no trace of why.
+    context.logger?.warn('sandbox workspace persistence best-effort failure', {
+      operation,
+      workspace: context.options.key,
+      error,
+    })
   }
 }
 

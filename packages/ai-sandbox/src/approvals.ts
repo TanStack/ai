@@ -15,13 +15,17 @@
  * `approvalId` is stable for a given (provider, kind, target) so a client grant
  * matches the same action on the resumed run.
  */
-import { EventType } from '@tanstack/ai'
+import { CUSTOM_EVENT, EventType } from '@tanstack/ai'
 import { evaluateCommand } from './policy'
 import type { SandboxPolicy } from './policy'
 import type { StreamChunk } from '@tanstack/ai'
 
-/** CUSTOM event name emitted when a harness action needs client approval. */
-export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
+/**
+ * CUSTOM event name emitted when a harness action needs client approval.
+ * Sourced from the core catalog so the emitter can never drift from the name
+ * consumers match against (see `@tanstack/ai` `CUSTOM_EVENT.APPROVAL_REQUESTED`).
+ */
+export const APPROVAL_REQUESTED_EVENT = CUSTOM_EVENT.APPROVAL_REQUESTED
 
 /** A stable, opaque approval id for a harness action. */
 export function approvalId(input: {

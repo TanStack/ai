@@ -4,12 +4,49 @@ import type { WorkspaceDefinition } from './workspace'
 export const WORKSPACE_PERSISTENCE_METADATA_SCOPE =
   'tanstack.ai.sandbox.workspace'
 
+/**
+ * Options for persisting a sandbox workspace tree across runs.
+ */
 export interface WorkspacePersistenceOptions {
+  /**
+   * Stable identifier for the persisted workspace snapshot. Defaults to the
+   * sandbox definition's computed key, so the same thread/workspace resumes the
+   * same tree.
+   */
   key?: string
+  /**
+   * Absolute workspace root to persist. Defaults to the workspace definition's
+   * root, or the sandbox's default workspace root.
+   */
   root?: string
+  /**
+   * Glob patterns to include. When set, a path must match at least one pattern
+   * (and not match any {@link exclude} pattern) to be persisted. When unset,
+   * everything under {@link root} is persisted except {@link exclude} matches.
+   */
   include?: Array<string>
+  /**
+   * Glob patterns to exclude. These are appended to a built-in default list
+   * (`node_modules`, `.git`, `dist`, `build`, `.cache`, `.env*`) — they do not
+   * replace it. A path matching any exclude pattern is never persisted, even if
+   * it also matches an {@link include} pattern.
+   */
   exclude?: Array<string>
+  /**
+   * Maximum size (bytes) of a single file to persist. Defaults to 10 MiB
+   * (`10 * 1024 * 1024`). A file exceeding this errors rather than being
+   * silently skipped: under `consistency:'strict'` it fails the run; under
+   * `'best-effort'` the checkpoint is dropped and the error is logged.
+   */
   maxFileBytes?: number
+  /**
+   * How persistence failures affect the run. Defaults to `'strict'`.
+   *
+   * - `'strict'` — a restore or checkpoint failure is re-thrown from the
+   *   terminal middleware hook and fails the whole run.
+   * - `'best-effort'` — failures are swallowed so the run continues, and logged
+   *   at `warn` level for observability.
+   */
   consistency?: 'strict' | 'best-effort'
 }
 

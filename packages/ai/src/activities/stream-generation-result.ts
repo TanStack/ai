@@ -23,9 +23,17 @@ function createId(prefix: string): string {
  * This allows non-streaming activities (image, speech, transcription, summarize)
  * to be sent over the same streaming transport as chat.
  *
- * @param generator - An async function that performs the generation and returns the result
- * @param options - Optional configuration (runId, threadId)
- * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
+ * @param generator - Performs the generation. Receives the resolved run
+ *   options — the caller's `options` plus concrete `{ runId, threadId }` — and
+ *   returns the result. Not called on the replay path.
+ * @param options - Optional run configuration: `runId`/`threadId` identity and
+ *   an optional `replay` (persisted `events` to re-emit, or a persisted
+ *   `result` to re-wrap without calling the generator).
+ * @returns An AsyncIterable of StreamChunks. Live success yields RUN_STARTED,
+ *   an optional CUSTOM(generation:artifacts), CUSTOM(generation:result), then
+ *   RUN_FINISHED; live failure yields RUN_STARTED then RUN_ERROR. Events-based
+ *   replay re-emits the persisted events, guaranteeing a terminal RUN_ERROR if
+ *   the log throws mid-read or ends before a terminal event.
  */
 export async function* streamGenerationResult<TResult>(
   generator: (

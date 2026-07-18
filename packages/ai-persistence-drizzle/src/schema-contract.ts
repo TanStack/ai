@@ -28,9 +28,10 @@ type AiTable<TColumns> = SQLiteTable & TColumns
 /**
  * The schema shape `drizzlePersistence` can operate over. `schema` exported
  * from this package satisfies it, as does the file emitted by the
- * `tanstack-ai-drizzle-schema` CLI.
+ * `tanstack-ai-drizzle-schema` CLI. SQLite-only (the columns are Drizzle
+ * SQLite columns), which the name makes explicit.
  */
-export interface TanstackAiSchema {
+export interface TanstackAiSqliteSchema {
   messages: AiTable<{
     threadId: AiColumn<string>
     messagesJson: AiColumn<Array<ModelMessage>>
@@ -81,8 +82,14 @@ export interface TanstackAiSchema {
   }>
 }
 
+/**
+ * @deprecated Renamed to {@link TanstackAiSqliteSchema} — the contract is
+ * SQLite-only, which the old name did not signal.
+ */
+export type TanstackAiSchema = TanstackAiSqliteSchema
+
 const requiredColumns: {
-  [K in keyof TanstackAiSchema]: ReadonlyArray<string>
+  [K in keyof TanstackAiSqliteSchema]: ReadonlyArray<string>
 } = {
   messages: ['threadId', 'messagesJson'],
   runs: [
@@ -127,9 +134,11 @@ const requiredColumns: {
   ],
 }
 
-const tableKeys = Object.keys(requiredColumns) as Array<keyof TanstackAiSchema>
+const tableKeys = Object.keys(requiredColumns) as Array<
+  keyof TanstackAiSqliteSchema
+>
 
-/** A user-supplied schema failed the {@link TanstackAiSchema} contract. */
+/** A user-supplied schema failed the {@link TanstackAiSqliteSchema} contract. */
 export class DrizzleSchemaError extends Error {
   constructor(problems: ReadonlyArray<string>) {
     super(
@@ -145,9 +154,9 @@ export class DrizzleSchemaError extends Error {
  * Assert `input` structurally satisfies the store contract at runtime: every
  * table is a Drizzle SQLite table and carries every column property the
  * stores reference. Column data shapes are enforced by the
- * {@link TanstackAiSchema} type at compile time and are not re-checked here.
+ * {@link TanstackAiSqliteSchema} type at compile time and are not re-checked here.
  */
-export function assertTanstackAiSchema(input: TanstackAiSchema): void {
+export function assertTanstackAiSchema(input: TanstackAiSqliteSchema): void {
   const problems: Array<string> = []
   for (const tableKey of tableKeys) {
     const table: unknown = input[tableKey]

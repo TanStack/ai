@@ -181,9 +181,7 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
+      threadId: 't1',      requestedAt: 1,
       payload: {},
     })
     const { adapter } = mockAdapter([[interruptFinished()]])
@@ -449,9 +447,7 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
+      threadId: 't1',      requestedAt: 1,
       payload: {},
     })
     const bad = mockAdapter([[runStarted(), interruptFinished()]])
@@ -491,9 +487,7 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
+      threadId: 't1',      requestedAt: 1,
       payload: {},
     })
     const run = mockAdapter([[text('SHOULD NOT RUN')]])
@@ -525,17 +519,13 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'resolve-me',
       runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
+      threadId: 't1',      requestedAt: 1,
       payload: {},
     })
     await persistence.stores.interrupts!.create({
       interruptId: 'cancel-me',
       runId: 'old-run',
-      threadId: 't1',
-      status: 'pending',
-      requestedAt: 1,
+      threadId: 't1',      requestedAt: 1,
       payload: {},
     })
 
@@ -606,5 +596,262 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
       1,
     )
+  })
+
+  it('keeps the interrupt pending when a resume run fails, and a retry succeeds', async () => {
+    const persistence = memoryPersistence()
+
+    // Run 1 pauses on an interrupt.
+    const first = mockAdapter([[runStarted(), interruptFinished()]])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      1,
+    )
+
+    // Run 2 (the resume) accepts the approval, then the provider fails
+    // mid-stream (e.g. HTTP 500) before reaching any success boundary.
+    const failing = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield runStarted()
+          throw new Error('provider 500')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter: failing,
+          messages: [],
+          runId: 'r1',
+          threadId: 't1',
+          resume: [
+            {
+              interruptId: 'interrupt-1',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+          ],
+          middleware: [withChatPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('provider 500')
+
+    // The approval was NOT consumed: the interrupt is pending again and the run
+    // is marked failed.
+    expect(
+      (await persistence.stores.interrupts!.get('interrupt-1'))?.status,
+    ).toBe('pending')
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      1,
+    )
+    expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
+
+    // Retrying with the same resume now succeeds and consumes the approval.
+    const retry = mockAdapter([
+      [runStarted(), text('continued'), runFinished('r1')],
+    ])
+    const chunks = await collect(
+      chat({
+        adapter: retry.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'interrupt-1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ delta: 'continued' }),
+    )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+    expect(
+      (await persistence.stores.interrupts!.get('interrupt-1'))?.status,
+    ).toBe('resolved')
+  })
+
+  it('fails closed: an approval resume without an `approved` flag denies the tool', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'approval-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
+    })
+
+    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: run.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        // Malformed/truncated persisted payload: no `approved` field.
+        resume: [{ interruptId: 'approval-1', status: 'resolved', payload: {} }],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
+      .approvals
+    expect(approvals?.get('approval-1')).toBe(false)
+  })
+
+  it('honors an explicit approved:true resume payload', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'approval-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
+    })
+
+    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: run.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval-1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
+      .approvals
+    expect(approvals?.get('approval-1')).toBe(true)
+  })
+
+  it('denies the tool when an approval is cancelled', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'approval-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
+    })
+
+    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: run.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [{ interruptId: 'approval-1', status: 'cancelled' }],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
+      .approvals
+    expect(approvals?.get('approval-1')).toBe(false)
+    expect(
+      (await persistence.stores.interrupts!.get('approval-1'))?.status,
+    ).toBe('cancelled')
+  })
+
+  it('drops the result of a cancelled client-tool interrupt', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'client-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'client_tool' } },
+    })
+
+    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: run.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client-1',
+            status: 'cancelled',
+            payload: { answer: 99 },
+          },
+        ],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // A cancelled client tool never surfaces its payload as a tool result: the
+    // resume state carries no entry for the tool call.
+    const clientToolResults = (
+      run.calls[0] as { clientToolResults?: ReadonlyMap<string, unknown> }
+    ).clientToolResults
+    expect(clientToolResults?.get('tc1')).toBeUndefined()
+    expect(
+      (await persistence.stores.interrupts!.get('client-1'))?.status,
+    ).toBe('cancelled')
+  })
+
+  it('tolerates malformed persisted interrupt payloads without crashing', async () => {
+    const persistence = memoryPersistence()
+    // Payload with the wrong shapes for the defensive parsers: metadata is a
+    // string (not an object), toolCallId is a number.
+    await persistence.stores.interrupts!.create({
+      interruptId: 'weird-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { metadata: 'not-an-object', toolCallId: 123 },
+    })
+
+    const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: run.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [{ interruptId: 'weird-1', status: 'resolved', payload: {} }],
+        middleware: [withChatPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // The run is unaffected (no approval/client-tool detected) and the resume is
+    // still committed on success.
+    expect(run.calls).toHaveLength(1)
+    expect(
+      (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }).approvals
+        ?.size ?? 0,
+    ).toBe(0)
+    expect(
+      (await persistence.stores.interrupts!.get('weird-1'))?.status,
+    ).toBe('resolved')
   })
 })

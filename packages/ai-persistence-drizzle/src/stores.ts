@@ -1,9 +1,12 @@
 /**
  * AIPersistence store implementations over a Drizzle sqlite database.
  *
- * Each method mirrors the semantics of the reference in-memory backend
- * (`@tanstack/ai-persistence`'s `memory.ts`). JSON columns are handled by
- * Drizzle's `text({ mode: 'json' })`; blob bytes by `blob({ mode: 'buffer' })`.
+ * Each method mirrors the reference in-memory backend
+ * (`@tanstack/ai-persistence`'s `memory.ts`), including the insert-if-absent
+ * `InterruptStore.create` and `RunStore.createOrResume` semantics
+ * (`onConflictDoNothing`). JSON columns are handled by Drizzle's
+ * `text({ mode: 'json' })`; blob bytes by a custom `bytes` column type
+ * (see `schema.ts`) that decodes to `Uint8Array`.
  */
 import { and, asc, eq, gt, gte, lt } from 'drizzle-orm'
 import type { artifacts, blobs, interrupts, runs, schema } from './schema'
@@ -34,10 +37,16 @@ import type {
  * BYO `db` constructed with any `{ schema }` is assignable regardless of its
  * `TFullSchema` (which is invariant on the full `BaseSQLiteDatabase`).
  */
-export type DrizzleDb = Pick<
+export type DrizzleSqliteDb = Pick<
   BaseSQLiteDatabase<'sync' | 'async', unknown>,
   'select' | 'insert' | 'update' | 'delete'
 >
+
+/**
+ * @deprecated Renamed to {@link DrizzleSqliteDb} — this backend is SQLite-only
+ * (better-sqlite3, libsql, node:sqlite, D1). The old name did not signal that.
+ */
+export type DrizzleDb = DrizzleSqliteDb
 
 /**
  * The concrete table set the stores are written against. A user-supplied
@@ -124,7 +133,7 @@ async function bytesFromBlobBody(
 }
 
 export function createMessageStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { messages }: TanstackAiTables,
 ): MessageStore {
   return {
@@ -160,7 +169,7 @@ function mapRun(row: typeof runs.$inferSelect): RunRecord {
 }
 
 export function createRunStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { runs }: TanstackAiTables,
 ): RunStore {
   const store: RunStore = {
@@ -216,7 +225,7 @@ function mapInterrupt(row: typeof interrupts.$inferSelect): InterruptRecord {
 }
 
 export function createInterruptStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { interrupts }: TanstackAiTables,
 ): InterruptStore {
   return {
@@ -227,7 +236,7 @@ export function createInterruptStore(
           interruptId: record.interruptId,
           runId: record.runId,
           threadId: record.threadId,
-          status: record.status,
+          status: 'pending',
           requestedAt: record.requestedAt,
           payloadJson: record.payload,
           responseJson: record.response ?? null,
@@ -300,8 +309,18 @@ export function createInterruptStore(
   }
 }
 
+function assertStorableMetadata(value: unknown): void {
+  if (value == null) {
+    throw new TypeError(
+      `TanStack AI metadata values must be defined, non-null JSON; received ${
+        value === undefined ? '`undefined`' : '`null`'
+      }. Use \`delete(scope, key)\` to clear a value.`,
+    )
+  }
+}
+
 export function createMetadataStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { metadata }: TanstackAiTables,
 ): MetadataStore {
   return {
@@ -314,6 +333,14 @@ export function createMetadataStore(
       return row ? row.valueJson : null
     },
     async set(scope, key, value) {
+      // SQL backends store JSON text in a NOT NULL column and cannot persist a
+      // nullish value: `text({ mode: 'json' })` binds a JS `null` as SQL NULL
+      // (it never serializes it to the text `"null"`), and `undefined` has no
+      // JSON at all — both violate NOT NULL. Reject nullish with a clear error
+      // (consistent with the sibling Prisma backend) instead of a cryptic
+      // driver failure. Unlike the in-memory reference, which round-trips
+      // nullish; use `delete` to clear.
+      assertStorableMetadata(value)
       await db
         .insert(metadata)
         .values({ scope, key, valueJson: value })
@@ -344,7 +371,7 @@ function mapArtifact(row: typeof artifacts.$inferSelect): ArtifactRecord {
 }
 
 export function createArtifactStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { artifacts }: TanstackAiTables,
 ): ArtifactStore {
   return {
@@ -432,7 +459,7 @@ function blobObject(row: typeof blobs.$inferSelect): BlobObject {
 }
 
 export function createBlobStore(
-  db: DrizzleDb,
+  db: DrizzleSqliteDb,
   { blobs }: TanstackAiTables,
 ): BlobStore {
   const readRow = async (key: string) => {

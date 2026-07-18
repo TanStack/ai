@@ -5,10 +5,19 @@
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
  *   algorithm), provide the handle, using the optional SandboxStore/Locks
  *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise). If `fileEvents` is not false, starts a watcher
- *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
- * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
- *   and/or destroy per lifecycle.
+ *   fallback otherwise). When `persistence.workspace` is configured, restores
+ *   the persisted workspace tree BEFORE `onReady` runs. If `fileEvents` is not
+ *   false, starts a watcher that dispatches to sandbox-scoped hooks and
+ *   forwards to the runtime sink; workspace persistence checkpoints piggyback
+ *   on that watcher when it covers the persistence root, otherwise a SECOND
+ *   watcher is started for the persistence root — including when
+ *   `fileEvents:false`.
+ * - `onFinish`/`onAbort`/`onError`: stop the watcher(s), drain in-flight
+ *   persistence checkpoints, snapshot (`after-run`) and/or destroy per
+ *   lifecycle. Under the default `consistency:'strict'`, a restore or
+ *   checkpoint failure is re-thrown from the terminal hook, failing the run
+ *   (after teardown on abort/destroyOnComplete); `best-effort` swallows and
+ *   logs it instead.
  *
  * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
@@ -343,6 +352,7 @@ export function withSandbox(
           options: workspacePersistenceOptions,
           runId: ctx.runId,
           threadId: ctx.threadId,
+          ...(logger !== undefined ? { logger } : {}),
         })
       }
       await hooks?.onReady?.(handle)
@@ -362,6 +372,7 @@ export function withSandbox(
               options: workspacePersistenceOptions,
               runId: ctx.runId,
               threadId: ctx.threadId,
+              ...(logger !== undefined ? { logger } : {}),
             },
             event,
           ).catch((error) => {

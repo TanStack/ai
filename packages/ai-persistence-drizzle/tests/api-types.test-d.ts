@@ -8,12 +8,11 @@ import type {
   MetadataStore,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai'
 import { drizzlePersistence, schema } from '../src/index'
 import { sqlitePersistence } from '../src/sqlite'
 import { schema as emittedSchema } from '../src/assets/tanstack-ai-schema'
 import { variantSchema } from './variant-schema'
-import type { TanstackAiSchema } from '../src/index'
+import type { TanstackAiSqliteSchema } from '../src/index'
 
 declare const d1Database: DrizzleD1Database
 const d1Persistence = drizzlePersistence(d1Database)
@@ -23,7 +22,8 @@ expectTypeOf(d1Persistence.stores.interrupts).toEqualTypeOf<InterruptStore>()
 expectTypeOf(d1Persistence.stores.metadata).toEqualTypeOf<MetadataStore>()
 expectTypeOf(d1Persistence.stores.artifacts).toEqualTypeOf<ArtifactStore>()
 expectTypeOf(d1Persistence.stores.blobs).toEqualTypeOf<BlobStore>()
-expectTypeOf(d1Persistence.stores.locks).toEqualTypeOf<LockStore>()
+// No `locks` store: this backend has no distributed lock (see drizzlePersistence).
+expectTypeOf(d1Persistence.stores).not.toHaveProperty('locks')
 
 const sqlite = sqlitePersistence({ url: ':memory:', migrate: true })
 expectTypeOf(sqlite.stores).toEqualTypeOf<typeof d1Persistence.stores>()
@@ -31,9 +31,9 @@ expectTypeOf(sqlite.close).toEqualTypeOf<() => void>()
 
 // The bundled schema, the emitted schema asset, and a renamed/extended variant
 // must all satisfy the injectable schema contract.
-expectTypeOf(schema).toExtend<TanstackAiSchema>()
-expectTypeOf(emittedSchema).toExtend<TanstackAiSchema>()
-expectTypeOf(variantSchema).toExtend<TanstackAiSchema>()
+expectTypeOf(schema).toExtend<TanstackAiSqliteSchema>()
+expectTypeOf(emittedSchema).toExtend<TanstackAiSqliteSchema>()
+expectTypeOf(variantSchema).toExtend<TanstackAiSqliteSchema>()
 
 const customPersistence = drizzlePersistence(d1Database, {
   schema: variantSchema,

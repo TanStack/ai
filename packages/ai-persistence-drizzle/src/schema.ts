@@ -11,8 +11,15 @@
  * from the package so bring-your-own-drizzle users can drive their own
  * migration workflow against it.
  *
- * NOTE: keep this in sync with the sibling Prisma schema fragment
- * (`@tanstack/ai-persistence-prisma`). See coupling `persistence-schema-dual-source`.
+ * PROVENANCE: `db:generate` emits DDL into `drizzle/`, but the runtime's
+ * `sqliteMigrations` (and the D1 sibling) load the DUPLICATE at
+ * `src/assets/0000_tanstack_ai_initial.sql`. `db:generate` alone does NOT touch
+ * that asset — copy the regenerated `drizzle/0000_tanstack_ai_initial.sql` over
+ * it, or the shipped migration goes stale. The package-contract test "keeps the
+ * shipped drizzle-kit migration equal to the embedded asset" fails on drift.
+ *
+ * Also keep this in sync with the sibling Prisma schema fragment
+ * (`@tanstack/ai-persistence-prisma`'s `src/assets/tanstack-ai.prisma`).
  */
 import {
   customType,

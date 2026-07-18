@@ -9,11 +9,29 @@ describe('CUSTOM_EVENT catalog', () => {
     expect(CUSTOM_EVENT.PROCESS_STDOUT).toBe('process.stdout')
     expect(CUSTOM_EVENT.PROCESS_STDERR).toBe('process.stderr')
     expect(CUSTOM_EVENT.PORT_OPENED).toBe('port.opened')
-    expect(CUSTOM_EVENT.APPROVAL_REQUESTED).toBe('approval.requested')
-    expect(CUSTOM_EVENT.APPROVAL_RESOLVED).toBe('approval.resolved')
+    expect(CUSTOM_EVENT.APPROVAL_REQUESTED).toBe('approval-requested')
+    expect(CUSTOM_EVENT.APPROVAL_RESOLVED).toBe('approval-resolved')
     expect(CUSTOM_EVENT.ARTIFACT_CREATED).toBe('artifact.created')
     expect(CUSTOM_EVENT.SANDBOX_CREATED).toBe('sandbox.created')
     expect(CUSTOM_EVENT.SANDBOX_RESUMED).toBe('sandbox.resumed')
+  })
+
+  it('pins APPROVAL_REQUESTED to the wire name the chat stream processor consumes', () => {
+    // The processor's legacy/replay branch matches this exact string
+    // (activities/chat/stream/processor.ts). If the catalog drifts from the
+    // wire name, `isCustomEvent(chunk, CUSTOM_EVENT.APPROVAL_REQUESTED)` and
+    // replay of persisted approval logs both silently stop matching.
+    expect(CUSTOM_EVENT.APPROVAL_REQUESTED).toBe('approval-requested')
+
+    // A CUSTOM chunk carrying the wire name is recognized via the catalog
+    // constant — the emitter/consumer agreement the catalog exists to enforce.
+    const emitted: StreamChunk = {
+      type: EventType.CUSTOM,
+      name: 'approval-requested',
+      value: { approvalId: 'a1', title: 'Run build' },
+      timestamp: 1,
+    }
+    expect(isCustomEvent(emitted, CUSTOM_EVENT.APPROVAL_REQUESTED)).toBe(true)
   })
 })
 

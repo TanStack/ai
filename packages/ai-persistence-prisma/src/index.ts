@@ -5,7 +5,6 @@
  * schema, run Prisma's normal migration workflow for your selected provider,
  * then pass the generated client to {@link prismaPersistence}.
  */
-import { InMemoryLockStore } from '@tanstack/ai'
 import { resolveDelegates } from './model-contract'
 import {
   createArtifactStore,
@@ -16,7 +15,6 @@ import {
   createRunStore,
 } from './stores'
 import type { PrismaModelMap } from './model-contract'
-import type { LockStore } from '@tanstack/ai'
 import type { PrismaClient } from '@prisma/client'
 
 export { prismaModels, prismaModelsFilename } from './models'
@@ -35,13 +33,21 @@ export interface PrismaPersistenceOptions {
   models?: PrismaModelMap
 }
 
-/** Wire TanStack AI persistence stores over a migrated Prisma client. */
+/**
+ * Wire TanStack AI persistence stores over a migrated Prisma client.
+ *
+ * No `locks` store is returned: this backend has no distributed lock primitive,
+ * and bundling an `InMemoryLockStore` would silently hand multi-instance
+ * deployments a lock that does not lock across instances. Consumers that need a
+ * lock (e.g. `withSandbox`) transparently fall back to an in-process
+ * `InMemoryLockStore`; for cross-instance locking use a distributed backend such
+ * as the Cloudflare Durable Object lock (`@tanstack/ai-persistence-cloudflare`).
+ */
 export function prismaPersistence(
   prisma: PrismaClient,
   options?: PrismaPersistenceOptions,
 ) {
   const delegates = resolveDelegates(prisma, options?.models)
-  const locks: LockStore = new InMemoryLockStore()
   return {
     stores: {
       messages: createMessageStore(delegates),
@@ -50,7 +56,6 @@ export function prismaPersistence(
       metadata: createMetadataStore(delegates),
       artifacts: createArtifactStore(delegates),
       blobs: createBlobStore(delegates),
-      locks,
     },
   }
 }

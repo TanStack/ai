@@ -56,7 +56,8 @@ export interface GenerationReplayInput<TResult = unknown> {
   /**
    * Previously persisted terminal result. Non-streaming replay returns this
    * value as-is; streaming replay wraps it in the standard generation event
-   * envelope. Result transforms are intentionally skipped for replay.
+   * envelope. Replay is a pure re-emission: ALL middleware hooks are skipped
+   * (not just result transforms) and the provider is never called.
    */
   result?: TResult
 }

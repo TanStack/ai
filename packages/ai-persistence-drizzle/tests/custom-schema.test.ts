@@ -6,10 +6,10 @@ import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { DrizzleSchemaError, drizzlePersistence, schema } from '../src/index'
 import { variantDdl, variantSchema } from './variant-schema'
-import type { TanstackAiSchema } from '../src/index'
-import type { DrizzleDb } from '../src/index'
+import type { TanstackAiSqliteSchema } from '../src/index'
+import type { DrizzleSqliteDb } from '../src/index'
 
-function createVariantDb(): { db: DrizzleDb; sqlite: DatabaseSync } {
+function createVariantDb(): { db: DrizzleSqliteDb; sqlite: DatabaseSync } {
   const sqlite = new DatabaseSync(':memory:')
   for (const statement of variantDdl) sqlite.exec(statement)
   const db = drizzle((sql, params, method) => {
@@ -30,8 +30,11 @@ function createVariantDb(): { db: DrizzleDb; sqlite: DatabaseSync } {
 
 // The full store contract must hold when the runtime operates over a schema
 // whose table and column database names all differ from the bundled ones.
-runPersistenceConformance('drizzle-sqlite (injected variant schema)', () =>
-  drizzlePersistence(createVariantDb().db, { schema: variantSchema }),
+runPersistenceConformance(
+  'drizzle-sqlite (injected variant schema)',
+  () => drizzlePersistence(createVariantDb().db, { schema: variantSchema }),
+  // This backend has no distributed lock primitive.
+  { skip: ['locks'] },
 )
 
 describe('drizzlePersistence with an injected schema', () => {
@@ -86,12 +89,12 @@ describe('drizzlePersistence with an injected schema', () => {
     const { blobs: _dropped, ...withoutBlobs } = schema
     expect(() =>
       drizzlePersistence(db, {
-        schema: withoutBlobs as unknown as TanstackAiSchema,
+        schema: withoutBlobs as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(DrizzleSchemaError)
     expect(() =>
       drizzlePersistence(db, {
-        schema: withoutBlobs as unknown as TanstackAiSchema,
+        schema: withoutBlobs as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(/`blobs` is not a Drizzle SQLite table/)
 
@@ -103,7 +106,7 @@ describe('drizzlePersistence with an injected schema', () => {
         schema: {
           ...schema,
           messages: incompleteMessages,
-        } as unknown as TanstackAiSchema,
+        } as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(/`messages\.messagesJson` is missing/)
   })

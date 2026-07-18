@@ -872,6 +872,130 @@ describe('chat()', () => {
   })
 
   // ==========================================================================
+  // Deferred tool-call RUN_FINISHED flush
+  // ==========================================================================
+  describe('deferred tool-call RUN_FINISHED flush', () => {
+    it('flushes the deferred RUN_FINISHED(tool_calls) into the output stream', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          // First iteration ends with RUN_FINISHED(tool_calls). The engine
+          // defers this terminal so tool results can be interleaved, then
+          // flushes it before continuing the agent loop.
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'getWeather'),
+            ev.toolArgs('call_1', '{"city":"NYC"}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('72F in NYC.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [serverTool('getWeather', executeSpy)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The deferred RUN_FINISHED(tool_calls) must be FLUSHED, not discarded.
+      // If the engine discarded it, only the final RUN_FINISHED(stop) would
+      // appear and this expectation would fail.
+      const toolCallsFinished = chunks.filter(
+        (c) =>
+          c.type === 'RUN_FINISHED' && (c as any).finishReason === 'tool_calls',
+      )
+      expect(toolCallsFinished).toHaveLength(1)
+
+      // The final terminal is still present.
+      const stopFinished = chunks.filter(
+        (c) => c.type === 'RUN_FINISHED' && (c as any).finishReason === 'stop',
+      )
+      expect(stopFinished).toHaveLength(1)
+
+      // The flushed tool_calls terminal precedes the final stop terminal.
+      const toolCallsIndex = chunks.findIndex(
+        (c) =>
+          c.type === 'RUN_FINISHED' && (c as any).finishReason === 'tool_calls',
+      )
+      const stopIndex = chunks.findIndex(
+        (c) => c.type === 'RUN_FINISHED' && (c as any).finishReason === 'stop',
+      )
+      expect(toolCallsIndex).toBeLessThan(stopIndex)
+    })
+  })
+
+  // ==========================================================================
+  // resumeToolState merge (middleware-injected approvals)
+  // ==========================================================================
+  describe('resumeToolState merge', () => {
+    it('merges middleware-injected resumeToolState.approvals into tool execution', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'dangerousTool'),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('done'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [
+          { ...serverTool('dangerousTool', executeSpy), needsApproval: true },
+        ],
+        // Middleware reconstructs an approval decision (as persistence
+        // middleware does from resume entries) and injects it via onConfig.
+        // The approvals map is keyed by `approval_${toolCallId}`.
+        middleware: [
+          {
+            onConfig: () => ({
+              resumeToolState: {
+                approvals: new Map([['approval_call_1', true]]),
+              },
+            }),
+          },
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The injected approval must flow through applyMiddlewareConfig →
+      // resumeApprovals → collectClientState so the needsApproval tool
+      // executes instead of interrupting for approval.
+      expect(executeSpy).toHaveBeenCalledTimes(1)
+
+      // The run completes normally — no approval interrupt outcome.
+      const interrupts = chunks.filter(
+        (c) =>
+          c.type === 'RUN_FINISHED' && (c as any).outcome?.type === 'interrupt',
+      )
+      expect(interrupts).toHaveLength(0)
+    })
+  })
+
+  // ==========================================================================
   // Pending tool calls from messages
   // ==========================================================================
   describe('pending tool calls from messages', () => {

@@ -10,8 +10,35 @@ import {
   createTextChunks,
   renderInjectChat,
 } from './test-utils'
+import type { StreamChunk } from '@tanstack/ai/client'
+import type {
+  ConnectConnectionAdapter,
+  RunAgentInputContext,
+} from '@tanstack/ai-client'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
+
+/**
+ * A connect adapter that records the `runContext` of each connect and echoes a
+ * success terminal for the interrupted run so a resume clears cleanly.
+ */
+function recordingResumeAdapter() {
+  const contexts: Array<RunAgentInputContext | undefined> = []
+  const adapter: ConnectConnectionAdapter = {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async *connect(_messages, _data, _signal, runContext) {
+      contexts.push(runContext)
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: runContext?.runId ?? 'run-1',
+        threadId: runContext?.threadId ?? 'thread-1',
+        timestamp: Date.now(),
+        outcome: { type: 'success' },
+      } as StreamChunk
+    },
+  }
+  return { adapter, contexts }
+}
 
 describe('injectChat', () => {
   it('initializes with default state', () => {
@@ -167,6 +194,71 @@ describe('injectChat — resume', () => {
       }),
       expect.arrayContaining([expect.objectContaining({ id: 'interrupt-1' })]),
     )
+  })
+
+  it('hydrates pending interrupts from initialResumeSnapshot and blocks fresh input', async () => {
+    const adapter = createMockConnectionAdapter()
+    const { result } = renderInjectChat({
+      connection: adapter,
+      threadId: 'thread-1',
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [
+          {
+            id: 'interrupt-tool-1',
+            reason: 'client_tool_input',
+            toolCallId: 'tool-call-1',
+          },
+        ],
+      },
+    })
+
+    // The hydrated interrupt is live: a normal send is rejected until it is
+    // resolved. This is the observable proof that the snapshot hydrated.
+    await expect(result.sendMessage('blocked')).rejects.toThrow(
+      'pending interrupts',
+    )
+  })
+
+  it('resolves an interrupt hydrated from initialResumeSnapshot using its run context', async () => {
+    const { adapter, contexts } = recordingResumeAdapter()
+    const onResumeStateChange = vi.fn()
+    const { result } = renderInjectChat({
+      connection: adapter,
+      threadId: 'thread-1',
+      onResumeStateChange,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [
+          {
+            id: 'interrupt-tool-1',
+            reason: 'client_tool_input',
+            toolCallId: 'tool-call-1',
+          },
+        ],
+      },
+    })
+
+    await result.addToolResult({
+      toolCallId: 'tool-call-1',
+      tool: 'lookup',
+      output: { answer: 42 },
+    })
+
+    // The reconnect reuses the hydrated thread/run ids and forwards the
+    // resolved interrupt as a resume entry — only possible if the snapshot's
+    // resumeState + pending interrupt hydrated into the client.
+    expect(contexts[0]?.threadId).toBe('thread-1')
+    expect(contexts[0]?.runId).toBe('run-1')
+    expect(contexts[0]?.resume).toEqual([
+      {
+        interruptId: 'interrupt-tool-1',
+        status: 'resolved',
+        payload: { answer: 42 },
+      },
+    ])
+    // Resolution clears the resume state, forwarded to onResumeStateChange.
+    expect(onResumeStateChange).toHaveBeenLastCalledWith(null, [])
   })
 })
 

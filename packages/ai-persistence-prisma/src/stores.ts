@@ -1,9 +1,11 @@
 /**
  * AIPersistence store implementations over a Prisma `PrismaClient`.
  *
- * Each method mirrors the semantics of the reference in-memory backend
+ * Each method mirrors the reference in-memory backend
  * (`@tanstack/ai-persistence`'s `memory.ts`) and the sibling Drizzle backend
- * (`@tanstack/ai-persistence-drizzle`'s `stores.ts`). JSON-valued columns use
+ * (`@tanstack/ai-persistence-drizzle`'s `stores.ts`), including the
+ * insert-if-absent `InterruptStore.create` and `RunStore.createOrResume`
+ * semantics (`upsert` with an empty `update`). JSON-valued columns use
  * provider-neutral Prisma `String` fields, so they are serialized with
  * `JSON.stringify`/`JSON.parse` here; blob bytes use Prisma's `Bytes`.
  */
@@ -35,20 +37,6 @@ import type {
 
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
-
-/**
- * Smallest string strictly greater than every string that starts with `prefix`,
- * used as the exclusive upper bound of a literal prefix range scan. Increments
- * the last non-`U+FFFF` UTF-16 code unit (carrying over trailing `U+FFFF`s).
- * Returns `undefined` when no finite bound exists — an empty prefix, or a prefix
- * consisting solely of `U+FFFF` — in which case the caller omits the upper bound.
- */
-function prefixUpperBound(prefix: string): string | undefined {
-  let i = prefix.length - 1
-  while (i >= 0 && prefix.charCodeAt(i) === 0xffff) i--
-  if (i < 0) return undefined
-  return prefix.slice(0, i) + String.fromCharCode(prefix.charCodeAt(i) + 1)
-}
 
 function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength))
@@ -217,7 +205,7 @@ export function createInterruptStore({
           interruptId: record.interruptId,
           runId: record.runId,
           threadId: record.threadId,
-          status: record.status,
+          status: 'pending',
           requestedAt: BigInt(record.requestedAt),
           payloadJson: JSON.stringify(record.payload),
           responseJson:
@@ -277,6 +265,16 @@ export function createInterruptStore({
   }
 }
 
+function assertStorableMetadata(value: unknown): void {
+  if (value == null) {
+    throw new TypeError(
+      `TanStack AI metadata values must be defined, non-null JSON; received ${
+        value === undefined ? '`undefined`' : '`null`'
+      }. Use \`delete(scope, key)\` to clear a value.`,
+    )
+  }
+}
+
 export function createMetadataStore({
   metadata,
 }: TanstackAiDelegates): MetadataStore {
@@ -288,6 +286,13 @@ export function createMetadataStore({
       return row ? (JSON.parse(row.valueJson) as unknown) : null
     },
     async set(scope, key, value) {
+      // SQL backends store JSON text in a NOT NULL column and cannot persist a
+      // nullish value: `JSON.stringify(undefined)` is `undefined` (no string),
+      // and the sibling Drizzle backend binds a JS `null` as SQL NULL — both
+      // violate NOT NULL. Reject nullish with a clear error (consistent across
+      // the SQL backends) instead of a cryptic driver failure. Unlike the
+      // in-memory reference, which round-trips nullish; use `delete` to clear.
+      assertStorableMetadata(value)
       const valueJson = JSON.stringify(value)
       await metadata.upsert({
         where: { scope_key: { scope, key } },
@@ -443,28 +448,29 @@ export function createBlobStore({ blob }: TanstackAiDelegates): BlobStore {
       const limit = options?.limit
       if (limit === 0) return { objects: [], truncated: false }
       const prefix = options?.prefix ?? ''
-      // Match the prefix LITERALLY and case-sensitively to mirror the reference
-      // in-memory backend's `key.startsWith(prefix)`. Prisma's `startsWith`
-      // compiles to a SQL `LIKE` on sqlite, which treats `_`/`%` in the prefix
-      // as wildcards and matches case-insensitively for ASCII. Instead use a
-      // half-open range on the (BINARY-collated) key column — `key >= prefix AND
-      // key < upperBound` — which contains no LIKE metacharacters and relies on
-      // binary/byte ordering, giving literal, case-sensitive matching.
-      const upperBound = prefixUpperBound(prefix)
-      const rows = await blob.findMany({
-        where: {
-          key: {
-            gte: prefix,
-            ...(upperBound !== undefined ? { lt: upperBound } : {}),
-            ...(options?.cursor !== undefined ? { gt: options.cursor } : {}),
-          },
-        },
-        orderBy: { key: 'asc' },
-        ...(limit === undefined ? {} : { take: limit + 1 }),
-      })
-      const pageRows = limit === undefined ? rows : rows.slice(0, limit)
+      // Prefix matching, ordering, and cursor pagination are all done in JS to
+      // stay CORRECT under any provider collation. A half-open range + `ORDER
+      // BY key` would rely on the key column's collation matching JS byte/code-
+      // unit order — false on Postgres locale collations and MySQL
+      // `utf8mb4_0900_ai_ci` (case/accent-insensitive), where range bounds
+      // include/exclude the wrong keys and `key > cursor` keyset paging skips
+      // collation-equal rows. Prisma exposes no per-column `COLLATE`, so we push
+      // only a coarse, index-usable `startsWith` (SQL `LIKE 'prefix%'`) as a
+      // superset prefilter — LIKE is more permissive than byte equality, so
+      // every byte-literal match is contained — then filter/sort/paginate in JS
+      // exactly like the in-memory reference (`key.startsWith`, `key > cursor`,
+      // code-unit sort). An empty prefix scans, matching the reference.
+      const rows = await blob.findMany(
+        prefix === '' ? {} : { where: { key: { startsWith: prefix } } },
+      )
+      const cursor = options?.cursor
+      const matched = rows
+        .filter((row) => row.key.startsWith(prefix))
+        .filter((row) => cursor === undefined || row.key > cursor)
+        .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      const pageRows = limit === undefined ? matched : matched.slice(0, limit)
       const objects = pageRows.map(blobRecordSnapshot)
-      const truncated = limit !== undefined && rows.length > limit
+      const truncated = limit !== undefined && matched.length > limit
       return {
         objects,
         ...(truncated ? { cursor: pageRows.at(-1)?.key, truncated } : {}),

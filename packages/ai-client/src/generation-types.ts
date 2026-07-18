@@ -198,8 +198,12 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
 
   /**
    * Initial lightweight resume snapshot restored by framework hooks. Contains
-   * only observed run metadata, errors, and persisted artifact refs. This is
-   * read-only state for display; it does not trigger any generation.
+   * only observed run metadata, errors, and persisted artifact refs. It does
+   * not trigger any generation, but it is **not** inert: it seeds the client's
+   * live resume snapshot, which subsequent run events merge into and which
+   * `getResumeSnapshot()` returns and the client re-persists. Later reads
+   * therefore reflect this seed merged with observed activity, not the original
+   * value verbatim.
    */
   initialResumeSnapshot?: GenerationResumeSnapshot
 

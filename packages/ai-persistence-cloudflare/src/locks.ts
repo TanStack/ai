@@ -76,6 +76,13 @@ function response(status: number): Response {
  *
  * Bind this class in Wrangler and pass the resulting namespace to
  * `cloudflarePersistence({ durableObjects })`.
+ *
+ * SECURITY: this DO must ONLY be reachable through its namespace binding (via
+ * `createDurableObjectLockStore`). Its `fetch` handler trusts the caller's
+ * `ownerId` and performs no authentication, so routing public HTTP straight to
+ * this class exposes an unauthenticated lock-manipulation surface — anyone
+ * could acquire, renew, or release any lock key. Never wire it into a public
+ * Worker route; reach it only by `namespace.get(namespace.idFromName(key))`.
  */
 export class CloudflareLockDurableObject {
   private operationChain: Promise<void> = Promise.resolve()
@@ -338,6 +345,13 @@ export function createDurableObjectLockStore<TId>(
       const workResult = await workResultPromise
       workFinished.abort()
       const renewalResult = await renewalResultPromise
+      // A 409 from `release` means the lease was no longer ours (it expired, or
+      // another owner acquired it) by the time the critical section finished.
+      // We surface that as a thrown error and let `withLock` reject even though
+      // the work itself may have completed: a lost lease means mutual exclusion
+      // could have been violated mid-section, so the caller must NOT treat the
+      // result as if it ran under the lock. `leaseOwned` is aborted when renewal
+      // fails, so a well-behaved critical section will already have stopped.
       const releaseResult = await settle(
         lockOperation(stub, 'release', ownerId, options.leaseDurationMs).then(
           (result) => {

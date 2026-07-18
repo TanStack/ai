@@ -984,8 +984,11 @@ export interface TextOptions<
 
   /**
    * AG-UI interrupt resume responses supplied by the client on a follow-up run.
-   * Threaded through request parsing now so later runtime behavior can resolve
-   * upstream-native interrupts.
+   * Parsed from the request and threaded into the middleware config as `resume`.
+   * Persistence middleware consumes it (via `onConfig`) to reconstruct the run's
+   * tool state (`resumeToolState`: approvals + client tool results) from the
+   * pending interrupts, so an interrupted run can continue even when the
+   * follow-up request carries no prior message history.
    */
   resume?: Array<RunAgentResumeItem>
 
@@ -1473,9 +1476,14 @@ export interface SkillRegisteredEvent extends CustomEvent {
 }
 
 /**
- * Every CUSTOM event TanStack AI itself emits, as a discriminated union on
- * `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)
- * are intentionally absent — they still flow at runtime.
+ * The typed CUSTOM events in TanStack AI's own vocabulary, as a discriminated
+ * union on `name`. Most are emitted by core today, but `ApprovalRequestedEvent`
+ * and `ToolInputAvailableEvent` are NOT — core no longer emits them; user-
+ * actionable waits now surface as `RUN_FINISHED` with `outcome.type ===
+ * 'interrupt'`. They remain in this union so they can still be consumed when
+ * replaying persisted legacy logs. User-emitted custom events (via
+ * `emitCustomEvent` with a custom name) are intentionally absent — they still
+ * flow at runtime.
  */
 export type KnownCustomEvent =
   | SandboxFileCustomEvent
@@ -1509,14 +1517,16 @@ export type ChatStream = AsyncIterable<
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
  * Yields all standard `StreamChunk` lifecycle events plus the typed
- * structured-output `CUSTOM` event emitted through this path:
+ * structured-output `CUSTOM` events emitted through this path:
+ * - `structured-output.start` — emitted before the schema-constrained turn
  * - `structured-output.complete` — terminal event with typed `value.object: T`
  *
- * User-actionable waits, such as tool approval and client tool input, are
- * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
- * streams. Legacy `approval-requested` and `tool-input-available` custom
- * events may still be consumed for replay and backward compatibility, but
- * they are not the current source of truth for waits.
+ * The union also includes `ApprovalRequestedEvent | ToolInputAvailableEvent`,
+ * but core NO LONGER emits those: user-actionable waits (tool approval, client
+ * tool input) surface as `RUN_FINISHED.outcome.type === 'interrupt'`. The two
+ * legacy custom events stay in the type only so they can be consumed when
+ * replaying persisted legacy logs — they are not the current source of truth
+ * for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:

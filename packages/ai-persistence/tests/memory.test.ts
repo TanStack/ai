@@ -71,9 +71,7 @@ describe('memoryPersistence', () => {
       await interrupts!.create({
         interruptId: 'i1',
         runId: 'r1',
-        threadId: 't1',
-        status: 'pending',
-        requestedAt: 1,
+        threadId: 't1',        requestedAt: 1,
         payload: { kind: 'approval' },
       })
       expect((await interrupts!.get('i1'))?.status).toBe('pending')
@@ -88,25 +86,19 @@ describe('memoryPersistence', () => {
       await interrupts!.create({
         interruptId: 'i1',
         runId: 'r1',
-        threadId: 't1',
-        status: 'pending',
-        requestedAt: 1,
+        threadId: 't1',        requestedAt: 1,
         payload: { kind: 'approval' },
       })
       await interrupts!.create({
         interruptId: 'i2',
         runId: 'r1',
-        threadId: 't2',
-        status: 'pending',
-        requestedAt: 2,
+        threadId: 't2',        requestedAt: 2,
         payload: { kind: 'input' },
       })
       await interrupts!.create({
         interruptId: 'i3',
         runId: 'r2',
-        threadId: 't1',
-        status: 'pending',
-        requestedAt: 3,
+        threadId: 't1',        requestedAt: 3,
         payload: { kind: 'other' },
       })
 
