@@ -8,7 +8,6 @@ import type { AIPersistence, InterruptStore } from '@tanstack/ai-persistence'
 
 interface RuntimeBindings {
   AI_DB: D1Database
-  AI_BUCKET: R2Bucket
 }
 
 describe('Cloudflare persistence on Miniflare bindings', () => {
@@ -20,7 +19,6 @@ describe('Cloudflare persistence on Miniflare bindings', () => {
       compatibilityDate: '2026-06-24',
       d1Databases: ['AI_DB'],
       modules: true,
-      r2Buckets: ['AI_BUCKET'],
       script: 'export default { fetch() { return new Response("ok") } }',
     })
     const bindings = await miniflare.getBindings<RuntimeBindings>()
@@ -35,7 +33,6 @@ describe('Cloudflare persistence on Miniflare bindings', () => {
     }
     persistence = cloudflarePersistence({
       d1: bindings.AI_DB,
-      r2: bindings.AI_BUCKET,
     })
   })
 
@@ -43,8 +40,8 @@ describe('Cloudflare persistence on Miniflare bindings', () => {
     await miniflare.dispose()
   })
 
-  runPersistenceConformance('cloudflare-d1-r2', () => persistence, {
-    // This composition supplies only D1 + R2 bindings (no Durable Object), so
+  runPersistenceConformance('cloudflare-d1', () => persistence, {
+    // This composition supplies only a D1 binding (no Durable Object), so
     // there is no lock store.
     skip: ['locks'],
   })

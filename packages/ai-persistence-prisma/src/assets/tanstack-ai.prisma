@@ -48,31 +48,3 @@ model Metadata {
   @@id([scope, key])
   @@map("metadata")
 }
-
-/// Generation artifact references (`ArtifactStore`). Bytes live in the blob store.
-model Artifact {
-  artifactId  String  @id @map("artifact_id")
-  runId       String  @map("run_id")
-  threadId    String  @map("thread_id")
-  name        String
-  mimeType    String  @map("mime_type")
-  size        BigInt
-  externalUrl String? @map("external_url")
-  createdAt   BigInt  @map("created_at")
-
-  @@map("artifacts")
-}
-
-/// Generic blob objects (`BlobStore`).
-model Blob {
-  key                String  @id
-  contentType        String? @map("content_type")
-  size               BigInt?
-  etag               String?
-  customMetadataJson String? @map("custom_metadata_json")
-  createdAt          BigInt? @map("created_at")
-  updatedAt          BigInt? @map("updated_at")
-  body               Bytes?
-
-  @@map("blobs")
-}

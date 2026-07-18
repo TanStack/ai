@@ -102,8 +102,7 @@ backend and retention policy are designed for secrets.
 ## Coordinate concurrent session changes
 
 Use `locks` when more than one worker can refresh or mutate the same remote MCP
-session. Use `artifacts` and `blobs` only when MCP tools produce durable files
-or media. Artifact metadata and bytes remain separate.
+session.
 
 Making MCP chat SSE replayable is a separate transport-layer concern (stream
 re-attach / delivery durability, landing in PR #955); it is not an MCP state

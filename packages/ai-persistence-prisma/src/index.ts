@@ -7,8 +7,6 @@
  */
 import { resolveDelegates } from './model-contract'
 import {
-  createArtifactStore,
-  createBlobStore,
   createInterruptStore,
   createMessageStore,
   createMetadataStore,
@@ -54,8 +52,6 @@ export function prismaPersistence(
       runs: createRunStore(delegates),
       interrupts: createInterruptStore(delegates),
       metadata: createMetadataStore(delegates),
-      artifacts: createArtifactStore(delegates),
-      blobs: createBlobStore(delegates),
     },
   }
 }

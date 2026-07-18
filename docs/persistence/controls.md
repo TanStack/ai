@@ -19,7 +19,6 @@ workflow needs and compose backends per store.
 | Durable approvals or human input | `interrupts` and `runs` |
 | App or integration checkpoints | `metadata` |
 | Cross-worker coordination | `locks` |
-| Generated media or workspace files | `artifacts` and `blobs` |
 | Replay an in-flight response | Stream re-attach / delivery durability (separate transport feature, landing in PR #955 — not a store) |
 
 `withChatPersistence(persistence)` and
@@ -45,7 +44,6 @@ import type {
 
 declare const env: {
   AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
   AI_LOCKS: DurableObjectNamespace
 }
 declare const interrupts: InterruptStore
@@ -53,7 +51,6 @@ declare const runs: RunStore
 
 const base = cloudflarePersistence({
   d1: env.AI_STATE,
-  r2: env.AI_MEDIA,
   durableObjects: env.AI_LOCKS,
 })
 
@@ -77,26 +74,22 @@ Each override is independent:
 | `false` | Remove that store. |
 
 ```ts group=controls
-const withoutGeneratedMedia = composePersistence(base, {
+const withoutLocks = composePersistence(base, {
   overrides: {
-    artifacts: false,
-    blobs: false,
+    locks: false,
   },
 })
 ```
 
-The type of `withoutGeneratedMedia.stores` no longer contains required
-`artifacts` or `blobs` keys. Unknown store names fail type checking and are
-also rejected at runtime when values arrive from untyped JavaScript.
+The type of `withoutLocks.stores` no longer contains a required `locks` key.
+Unknown store names fail type checking and are also rejected at runtime when
+values arrive from untyped JavaScript.
 
 ## Valid store combinations
 
 Some capabilities require related stores:
 
 - `interrupts` requires `runs` for chat persistence.
-- Generation artifact persistence requires both `artifacts` and `blobs`.
-- Sandbox workspace persistence requires `metadata`, `artifacts`, and `blobs`;
-  `locks` is optional.
 
 Known-invalid static compositions fail to type-check at the middleware call.
 Runtime validation covers dynamically typed inputs.
@@ -104,12 +97,11 @@ Runtime validation covers dynamically typed inputs.
 ```ts group=controls
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
 
-// Valid: both stores remain present.
-const mediaPersistence = composePersistence(base, {
+const generationPersistence = composePersistence(base, {
   overrides: {},
 })
 
-const middleware = withGenerationPersistence(mediaPersistence)
+const middleware = withGenerationPersistence(generationPersistence)
 ```
 
 ## Consistency across backends
@@ -118,7 +110,7 @@ Composition routes each method call to its selected store. It does not add a
 distributed transaction across stores. When related state spans services:
 
 - make writes idempotent;
-- use stable run, interrupt, artifact, and blob keys;
+- use stable run and interrupt keys;
 - decide which store is authoritative;
 - handle a successful write followed by a failed related write;
 - use a lock when concurrent workers can mutate the same logical record.

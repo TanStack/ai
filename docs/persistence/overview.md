@@ -6,8 +6,7 @@ id: overview
 # Persistence Overview
 
 Persistence stores authoritative state — messages, runs, pending interrupts,
-metadata, locks, and generated artifacts. It is configured with persistence
-middleware.
+metadata, and locks. It is configured with persistence middleware.
 
 Reconnecting to an in-flight streaming response is a separate transport-layer
 feature (stream re-attach / delivery durability, landing in PR #955), not part
@@ -26,8 +25,6 @@ An `AIPersistence` object can expose these stores:
 | `interrupts` | Pending, resolved, or cancelled human/tool waits. |
 | `metadata` | App and integration key/value state. |
 | `locks` | Cross-worker coordination. |
-| `artifacts` | Generated file/media metadata. |
-| `blobs` | Generated file/media bytes. |
 
 Middleware activates behavior from the stores that are present; there is no
 separate enablement list.
@@ -83,7 +80,6 @@ import type { AIPersistenceStores } from '@tanstack/ai-persistence'
 
 declare const env: {
   AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
   AI_LOCKS: DurableObjectNamespace
 }
 declare const myInterruptStore: NonNullable<
@@ -93,7 +89,6 @@ declare const myRunStore: NonNullable<AIPersistenceStores['runs']>
 
 const base = cloudflarePersistence({
   d1: env.AI_STATE,
-  r2: env.AI_MEDIA,
   durableObjects: env.AI_LOCKS,
 })
 
@@ -122,8 +117,7 @@ Cross-store consistency remains your responsibility. If `runs` and
 
 ## Choose a backend
 
-- [Cloudflare](./cloudflare): D1 structured state, R2 artifacts/blobs, Durable
-  Object locks.
+- [Cloudflare](./cloudflare): D1 structured state and Durable Object locks.
 - [Drizzle](./drizzle): SQLite-family Drizzle databases and a Node SQLite
   convenience factory.
 - [Prisma](./prisma): provider-neutral Prisma models with your migrated client.

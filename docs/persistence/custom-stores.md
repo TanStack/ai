@@ -103,28 +103,6 @@ interface MetadataStore {
 
 Namespaces and value schemas are application-owned.
 
-### Artifacts and blobs
-
-`ArtifactStore` contains searchable metadata only:
-
-```ts
-interface ArtifactRecord {
-  artifactId: string
-  runId: string
-  threadId: string
-  name: string
-  mimeType: string
-  size: number
-  externalUrl?: string
-  createdAt: number
-}
-```
-
-Bytes live in `BlobStore`, keyed separately. Generation and sandbox workspace
-persistence require both stores. Blob listing may use its own pagination
-`cursor`; that cursor belongs to the blob store and is unrelated to SSE resume
-offsets.
-
 ### Locks
 
 `LockStore` comes from `@tanstack/ai`. Use it to serialize work that may run on
@@ -168,18 +146,17 @@ import type { InterruptStore, RunStore } from '@tanstack/ai-persistence'
 
 declare const env: {
   AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
 }
 declare const interrupts: InterruptStore
 declare const runs: RunStore
 
-const base = cloudflarePersistence({ d1: env.AI_STATE, r2: env.AI_MEDIA })
+const base = cloudflarePersistence({ d1: env.AI_STATE })
 
 export const persistence = composePersistence(base, {
   overrides: { interrupts, runs },
 })
 ```
 
-Only those two stores move to the custom database. D1 still owns messages and
-metadata, while R2 still owns artifacts and blobs. Composition does not create
-a transaction across those systems; design related writes accordingly.
+Only those two stores move to the custom database; D1 still owns messages and
+metadata. Composition does not create a transaction across those systems;
+design related writes accordingly.

@@ -62,9 +62,8 @@ const prisma = new PrismaClient()
 export const persistence = prismaPersistence(prisma)
 ```
 
-The adapter provides messages, runs, interrupts, metadata, artifacts, blobs,
-and an in-process lock store. The application owns client connection and
-shutdown lifecycle.
+The adapter provides messages, runs, interrupts, and metadata. The application
+owns client connection and shutdown lifecycle.
 
 ## Use it with chat
 
@@ -102,9 +101,8 @@ system. Composition does not add a transaction across multiple backends.
 
 ## Model layout
 
-The fragment maps six persisted store contracts to `Message`, `Run`, `Interrupt`,
-`Metadata`, `Artifact`, and `Blob` models. Artifact rows contain metadata;
-binary bodies live on `Blob.body`. IDs and timestamps use portable Prisma
+The fragment maps four persisted store contracts to `Message`, `Run`,
+`Interrupt`, and `Metadata` models. IDs and timestamps use portable Prisma
 types so the application can generate migrations for its chosen provider.
 
 ## Rename the models
@@ -136,9 +134,8 @@ export const persistence = prismaPersistence(prisma, {
 
 Map values are the camelCase client accessor names (`prisma.chatMessage`), not
 the PascalCase model names. Unmapped stores keep their default names
-(`message`, `run`, `interrupt`, `metadata`, `artifact`, `blob`), and
-`prismaPersistence` throws a `PrismaModelError` naming every store whose
-delegate cannot be found.
+(`message`, `run`, `interrupt`, `metadata`), and `prismaPersistence` throws a
+`PrismaModelError` naming every store whose delegate cannot be found.
 
 What stays fixed is the client-level field surface: keep the fragment's field
 names and types, and the default composite unique alias `scope_key` on the

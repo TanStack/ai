@@ -9,8 +9,6 @@ import {
 import type { LockStore } from '@tanstack/ai'
 import type {
   AIPersistence,
-  ArtifactStore,
-  BlobStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -27,8 +25,6 @@ declare const replacementRuns: RunStore & {
 }
 declare const interrupts: InterruptStore
 declare const metadata: MetadataStore
-declare const artifacts: ArtifactStore
-declare const blobs: BlobStore
 declare const locks: LockStore
 
 const messagesOnly = defineAIPersistence({ stores: { messages } })
@@ -122,11 +118,6 @@ withChatPersistence(
 withChatPersistence(defineAIPersistence({ stores: { interrupts } }))
 
 withGenerationPersistence(defineAIPersistence({ stores: { runs } }))
-withGenerationPersistence(defineAIPersistence({ stores: { artifacts, blobs } }))
-// @ts-expect-error a known artifact store requires a known blob store
-withGenerationPersistence(defineAIPersistence({ stores: { artifacts } }))
-// @ts-expect-error a known blob store requires a known artifact store
-withGenerationPersistence(defineAIPersistence({ stores: { blobs } }))
 
 const chatWithRemovedRuns = composePersistence(base, {
   overrides: { runs: false },
@@ -134,26 +125,14 @@ const chatWithRemovedRuns = composePersistence(base, {
 // @ts-expect-error composition carries the missing run dependency into chat
 withChatPersistence(chatWithRemovedRuns)
 
-const generationBase = defineAIPersistence({ stores: { artifacts, blobs } })
-const generationWithRemovedBlobs = composePersistence(generationBase, {
-  overrides: { blobs: false },
-})
-// @ts-expect-error composition carries the missing blob dependency into generation
-withGenerationPersistence(generationWithRemovedBlobs)
-
 declare const broadPersistence: AIPersistence
 declare const dynamicChatPersistence: AIPersistence<{
   runs?: RunStore
   interrupts?: InterruptStore
 }>
-declare const dynamicGenerationPersistence: AIPersistence<{
-  artifacts?: ArtifactStore
-  blobs?: BlobStore
-}>
 withChatPersistence(broadPersistence)
 withChatPersistence(dynamicChatPersistence)
 withGenerationPersistence(broadPersistence)
-withGenerationPersistence(dynamicGenerationPersistence)
 
 const memoryWithCustomLocks = composePersistence(memoryPersistence(), {
   overrides: { locks },

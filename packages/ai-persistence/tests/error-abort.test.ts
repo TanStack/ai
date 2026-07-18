@@ -9,7 +9,10 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
-import { withChatPersistence, withGenerationPersistence } from '../src/middleware'
+import {
+  withChatPersistence,
+  withGenerationPersistence,
+} from '../src/middleware'
 import { composePersistence } from '../src/types'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {

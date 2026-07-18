@@ -24,10 +24,9 @@ import type { LockStore, ModelMessage, TokenUsage } from '@tanstack/ai'
 //
 // TIMESTAMP CONVENTION
 // --------------------
-// Store *records* (`RunRecord`, `InterruptRecord`, `ArtifactRecord`,
-// `BlobRecord`) speak **epoch milliseconds** (`number`), the native unit for
-// SQL/`BIGINT` columns and `Date.now()`. Wire/result references that leave the
-// persistence layer (e.g. core's `PersistedArtifactRef.createdAt`) speak
+// Store *records* (`RunRecord`, `InterruptRecord`) speak **epoch
+// milliseconds** (`number`), the native unit for SQL/`BIGINT` columns and
+// `Date.now()`. Wire/result references that leave the persistence layer speak
 // **ISO-8601 strings**. The middleware performs the number→ISO conversion at
 // the boundary; do not mix the two on a single field.
 
@@ -196,137 +195,12 @@ export interface MetadataStore {
   delete: (scope: string, key: string) => Promise<void>
 }
 
-/**
- * Metadata row describing a persisted artifact (generated media, tool output).
- *
- * The bytes themselves live in a {@link BlobStore}; this record holds the
- * descriptive metadata and an optional `externalUrl` for reference-only
- * backends.
- *
- * @property createdAt - Epoch ms. (Core's wire-facing `PersistedArtifactRef`
- *   exposes the same instant as an ISO string; see the timestamp convention.)
- */
-export interface ArtifactRecord {
-  artifactId: string
-  runId: string
-  threadId: string
-  name: string
-  mimeType: string
-  size: number
-  externalUrl?: string
-  createdAt: number
-}
-
-/** Durable store for artifact metadata records. */
-export interface ArtifactStore {
-  /** Insert or overwrite the artifact metadata record. */
-  save: (record: ArtifactRecord) => Promise<void>
-  /** Return the artifact for `artifactId`, or `null` if none exists. */
-  get: (artifactId: string) => Promise<ArtifactRecord | null>
-  /** All artifacts for a run. Returns `[]` when the run has none. */
-  list: (runId: string) => Promise<Array<ArtifactRecord>>
-  /** OPTIONAL: delete a single artifact by id. */
-  delete?: (artifactId: string) => Promise<void>
-  /** OPTIONAL: delete every artifact belonging to `runId`. */
-  deleteForRun?: (runId: string) => Promise<void>
-}
-
-/**
- * Accepted body shapes for {@link BlobStore.put}. `ArrayBufferView` already
- * covers `Uint8Array` and every other typed-array/`DataView`, so no separate
- * `Uint8Array` member is needed.
- */
-export type BlobBody =
-  | ReadableStream<Uint8Array>
-  | ArrayBuffer
-  | ArrayBufferView
-  | string
-  | Blob
-
-/**
- * Metadata for a stored blob.
- *
- * @property size - Byte length, when known.
- * @property createdAt - Epoch ms first written.
- * @property updatedAt - Epoch ms last overwritten.
- */
-export interface BlobRecord {
-  key: string
-  size?: number
-  etag?: string
-  contentType?: string
-  customMetadata?: Record<string, string>
-  createdAt?: number
-  updatedAt?: number
-}
-
-/** A stored blob's metadata plus lazy accessors for its bytes. */
-export interface BlobObject extends BlobRecord {
-  arrayBuffer: () => Promise<ArrayBuffer>
-  text: () => Promise<string>
-  body?: ReadableStream<Uint8Array>
-}
-
-/**
- * One page of a {@link BlobStore.list} scan.
- *
- * @property cursor - Opaque continuation token; present only when `truncated`.
- * @property truncated - `true` when more objects match beyond this page.
- */
-export interface BlobListPage {
-  objects: Array<BlobRecord>
-  cursor?: string
-  truncated?: boolean
-}
-
-export interface BlobPutOptions {
-  contentType?: string
-  customMetadata?: Record<string, string>
-}
-
-export interface BlobListOptions {
-  prefix?: string
-  cursor?: string
-  limit?: number
-}
-
-/** Durable object/blob store (byte-storing or reference-only backends). */
-export interface BlobStore {
-  /** Insert or overwrite the object at `key`, returning its metadata. */
-  put: (
-    key: string,
-    body: BlobBody,
-    options?: BlobPutOptions,
-  ) => Promise<BlobRecord>
-  /** Return the object at `key` (metadata + byte accessors), or `null`. */
-  get: (key: string) => Promise<BlobObject | null>
-  /** Return only the metadata for `key`, or `null`. */
-  head: (key: string) => Promise<BlobRecord | null>
-  /** Remove the object at `key`. A no-op if absent. */
-  delete: (key: string) => Promise<void>
-  /**
-   * List objects, optionally filtered by `prefix`, in ascending key order.
-   *
-   * CURSOR SEMANTICS: `prefix` matches literally and case-sensitively (SQL
-   * backends must escape LIKE metacharacters, so `run_` matches only the exact
-   * bytes `run_`, not `_` as a wildcard). When `limit` is given and more keys
-   * match, the page is `truncated: true` with a `cursor`; passing that `cursor`
-   * back returns the strictly-following keys (keys `> cursor`). Cursor ordering
-   * is the same byte ordering as the sort, so paging visits every key exactly
-   * once with no gaps or repeats. `limit: 0` yields an empty, untruncated page
-   * with no cursor.
-   */
-  list: (options?: BlobListOptions) => Promise<BlobListPage>
-}
-
 export interface AIPersistenceStores {
   messages?: MessageStore
   runs?: RunStore
   interrupts?: InterruptStore
   metadata?: MetadataStore
   locks?: LockStore
-  artifacts?: ArtifactStore
-  blobs?: BlobStore
 }
 
 export interface AIPersistence<
@@ -441,8 +315,6 @@ const storeKeys = [
   'interrupts',
   'metadata',
   'locks',
-  'artifacts',
-  'blobs',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)
@@ -465,19 +337,6 @@ export function validateChatPersistenceStores(
   validatePersistenceStoreKeys(persistence)
   if (persistence.stores.interrupts && !persistence.stores.runs) {
     throw new Error('Chat persistence stores.interrupts requires stores.runs.')
-  }
-}
-
-export function validateGenerationPersistenceStores(
-  persistence: AIPersistence,
-): void {
-  validatePersistenceStoreKeys(persistence)
-  const hasArtifacts = persistence.stores.artifacts !== undefined
-  const hasBlobs = persistence.stores.blobs !== undefined
-  if (hasArtifacts !== hasBlobs) {
-    throw new Error(
-      'Generation artifact persistence requires both stores.artifacts and stores.blobs.',
-    )
   }
 }
 

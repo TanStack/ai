@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-cloudflare",
   "version": "0.0.0",
-  "description": "Cloudflare D1, R2, and Durable Object state persistence for TanStack AI.",
+  "description": "Cloudflare D1 and Durable Object state persistence for TanStack AI.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,6 @@
     "persistence",
     "cloudflare",
     "d1",
-    "r2",
     "durable-objects"
   ],
   "type": "module",

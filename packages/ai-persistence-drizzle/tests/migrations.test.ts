@@ -34,8 +34,6 @@ describe('sqlite migrations', () => {
     expect(tableNames).toEqual(
       expect.arrayContaining([
         '__tanstack_ai_migrations',
-        'artifacts',
-        'blobs',
         'interrupts',
         'messages',
         'metadata',

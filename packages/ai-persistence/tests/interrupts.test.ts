@@ -181,7 +181,8 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',      requestedAt: 1,
+      threadId: 't1',
+      requestedAt: 1,
       payload: {},
     })
     const { adapter } = mockAdapter([[interruptFinished()]])
@@ -447,7 +448,8 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',      requestedAt: 1,
+      threadId: 't1',
+      requestedAt: 1,
       payload: {},
     })
     const bad = mockAdapter([[runStarted(), interruptFinished()]])
@@ -487,7 +489,8 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'interrupt-1',
       runId: 'old-run',
-      threadId: 't1',      requestedAt: 1,
+      threadId: 't1',
+      requestedAt: 1,
       payload: {},
     })
     const run = mockAdapter([[text('SHOULD NOT RUN')]])
@@ -519,13 +522,15 @@ describe('interrupt persistence', () => {
     await persistence.stores.interrupts!.create({
       interruptId: 'resolve-me',
       runId: 'old-run',
-      threadId: 't1',      requestedAt: 1,
+      threadId: 't1',
+      requestedAt: 1,
       payload: {},
     })
     await persistence.stores.interrupts!.create({
       interruptId: 'cancel-me',
       runId: 'old-run',
-      threadId: 't1',      requestedAt: 1,
+      threadId: 't1',
+      requestedAt: 1,
       payload: {},
     })
 
@@ -707,13 +712,16 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         // Malformed/truncated persisted payload: no `approved` field.
-        resume: [{ interruptId: 'approval-1', status: 'resolved', payload: {} }],
+        resume: [
+          { interruptId: 'approval-1', status: 'resolved', payload: {} },
+        ],
         middleware: [withChatPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
-      .approvals
+    const approvals = (
+      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
+    ).approvals
     expect(approvals?.get('approval-1')).toBe(false)
   })
 
@@ -745,8 +753,9 @@ describe('interrupt persistence', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
-      .approvals
+    const approvals = (
+      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
+    ).approvals
     expect(approvals?.get('approval-1')).toBe(true)
   })
 
@@ -772,8 +781,9 @@ describe('interrupt persistence', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const approvals = (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> })
-      .approvals
+    const approvals = (
+      run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
+    ).approvals
     expect(approvals?.get('approval-1')).toBe(false)
     expect(
       (await persistence.stores.interrupts!.get('approval-1'))?.status,
@@ -814,9 +824,9 @@ describe('interrupt persistence', () => {
       run.calls[0] as { clientToolResults?: ReadonlyMap<string, unknown> }
     ).clientToolResults
     expect(clientToolResults?.get('tc1')).toBeUndefined()
-    expect(
-      (await persistence.stores.interrupts!.get('client-1'))?.status,
-    ).toBe('cancelled')
+    expect((await persistence.stores.interrupts!.get('client-1'))?.status).toBe(
+      'cancelled',
+    )
   })
 
   it('tolerates malformed persisted interrupt payloads without crashing', async () => {
@@ -850,8 +860,8 @@ describe('interrupt persistence', () => {
       (run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }).approvals
         ?.size ?? 0,
     ).toBe(0)
-    expect(
-      (await persistence.stores.interrupts!.get('weird-1'))?.status,
-    ).toBe('resolved')
+    expect((await persistence.stores.interrupts!.get('weird-1'))?.status).toBe(
+      'resolved',
+    )
   })
 })

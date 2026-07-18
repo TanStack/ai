@@ -16,7 +16,6 @@ import type { SandboxKeyInput } from './key'
 import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
-import type { WorkspacePersistenceOptions } from './workspace-persistence-types'
 
 /**
  * Sandbox-scoped hooks declared on `defineSandbox`. File hooks fire for every
@@ -56,9 +55,6 @@ export interface SandboxConfig {
   id: string
   provider: SandboxProvider
   workspace?: WorkspaceDefinition
-  persistence?: {
-    workspace?: boolean | WorkspacePersistenceOptions
-  }
   policy?: SandboxPolicy
   lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
@@ -84,9 +80,6 @@ export interface SandboxDefinition {
   readonly id: string
   readonly provider: SandboxProvider
   readonly workspace?: WorkspaceDefinition
-  readonly persistence?: {
-    workspace?: boolean | WorkspacePersistenceOptions
-  }
   readonly policy?: SandboxPolicy
   readonly lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
@@ -279,7 +272,6 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     id: config.id,
     provider: config.provider,
     workspace: config.workspace,
-    persistence: config.persistence,
     policy: config.policy,
     lifecycle: config.lifecycle,
     hooks: config.hooks,

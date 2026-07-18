@@ -86,17 +86,17 @@ describe('drizzlePersistence with an injected schema', () => {
   it('rejects a schema with missing tables or columns', () => {
     const { db } = createVariantDb()
 
-    const { blobs: _dropped, ...withoutBlobs } = schema
+    const { metadata: _dropped, ...withoutMetadata } = schema
     expect(() =>
       drizzlePersistence(db, {
-        schema: withoutBlobs as unknown as TanstackAiSqliteSchema,
+        schema: withoutMetadata as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(DrizzleSchemaError)
     expect(() =>
       drizzlePersistence(db, {
-        schema: withoutBlobs as unknown as TanstackAiSqliteSchema,
+        schema: withoutMetadata as unknown as TanstackAiSqliteSchema,
       }),
-    ).toThrow(/`blobs` is not a Drizzle SQLite table/)
+    ).toThrow(/`metadata` is not a Drizzle SQLite table/)
 
     const incompleteMessages = sqliteTable('messages', {
       threadId: text('thread_id').primaryKey(),

@@ -26,8 +26,6 @@ function createTestPersistence() {
     overrides: {
       metadata: false,
       locks: false,
-      artifacts: false,
-      blobs: false,
     },
   })
 }

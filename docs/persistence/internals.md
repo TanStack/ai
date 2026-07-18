@@ -42,15 +42,10 @@ a second event stream.
 
 ## Generation middleware lifecycle
 
-`withGenerationPersistence(persistence, options?)` records the run and, when
-both `artifacts` and `blobs` exist, extracts durable media:
-
-1. Blob bytes are written under a stable blob key.
-2. `ArtifactRecord` metadata is written separately.
-3. A lightweight `PersistedArtifactRef` is attached to the generation result.
-
-`ArtifactRecord` does not contain bytes. This keeps searchable metadata
-separate from potentially large binary bodies.
+`withGenerationPersistence(persistence)` records the run: `onStart` creates or
+resumes the run record, and `onFinish`, `onError`, and `onAbort` terminalize
+it. Durable media storage (artifact metadata plus blob bytes) is a follow-up
+feature.
 
 ## Composition semantics
 
@@ -83,8 +78,7 @@ removed. Unknown store keys are rejected statically and by runtime validation.
 
 Middleware adds capability validation:
 
-- chat rejects `interrupts` without `runs`;
-- generation rejects an unpaired `artifacts` or `blobs` store.
+- chat rejects `interrupts` without `runs`.
 
 The runtime checks are required because JavaScript, configuration loading, and
 explicitly widened types can bypass static guarantees.
@@ -96,8 +90,7 @@ Packaged backends own resources differently:
 - Drizzle accepts a migrated SQLite-family database; its root import is
   edge-safe. The `/sqlite` entry creates a Node SQLite connection.
 - Prisma accepts the application's generated and migrated client.
-- Cloudflare maps D1 to structured stores, R2 to artifacts/blobs, and Durable
-  Objects to locks.
+- Cloudflare maps D1 to structured stores and Durable Objects to locks.
 
 `composePersistence` does not add distributed transactions. When related
 stores use different systems, adapter authors must define retry,

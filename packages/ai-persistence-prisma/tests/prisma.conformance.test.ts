@@ -41,26 +41,6 @@ const sqliteTestSchema = `
     value_json TEXT NOT NULL,
     PRIMARY KEY (scope, key)
   );
-  CREATE TABLE artifacts (
-    artifact_id TEXT NOT NULL PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    mime_type TEXT NOT NULL,
-    size BIGINT NOT NULL,
-    external_url TEXT,
-    created_at BIGINT NOT NULL
-  );
-  CREATE TABLE blobs (
-    key TEXT NOT NULL PRIMARY KEY,
-    content_type TEXT,
-    size BIGINT,
-    etag TEXT,
-    custom_metadata_json TEXT,
-    created_at BIGINT,
-    updated_at BIGINT,
-    body BLOB
-  );
 `
 
 function initializeSqliteTestDatabase(path: string): void {

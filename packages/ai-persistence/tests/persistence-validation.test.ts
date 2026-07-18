@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  withChatPersistence,
-  withGenerationPersistence,
-} from '../src/middleware'
+import { withChatPersistence } from '../src/middleware'
 import type { AIPersistence } from '../src'
 import {
-  createArtifactStore,
-  createBlobStore,
   createInterruptStore,
   createMessageStore,
   createRunStore,
@@ -42,30 +37,5 @@ describe('persistence store dependency validation', () => {
     }
 
     expect(() => withChatPersistence(persistence)).not.toThrow()
-  })
-
-  it.each([
-    ['artifacts', { artifacts: createArtifactStore() }],
-    ['blobs', { blobs: createBlobStore() }],
-  ])(
-    'rejects dynamic generation persistence with only the %s store',
-    (_name, stores) => {
-      const persistence: AIPersistence = { stores }
-
-      expect(() => withGenerationPersistence(persistence)).toThrow(
-        /requires both stores\.artifacts and stores\.blobs/i,
-      )
-    },
-  )
-
-  it('allows dynamic generation persistence with paired artifact and blob stores', () => {
-    const persistence: AIPersistence = {
-      stores: {
-        artifacts: createArtifactStore(),
-        blobs: createBlobStore(),
-      },
-    }
-
-    expect(() => withGenerationPersistence(persistence)).not.toThrow()
   })
 })

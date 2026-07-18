@@ -1984,10 +1984,6 @@ importers:
         version: 4.3.6
 
   packages/ai-persistence:
-    dependencies:
-      '@tanstack/ai-utils':
-        specifier: workspace:*
-        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*

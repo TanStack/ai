@@ -41,26 +41,6 @@ const sqliteTestSchema = `
     value_json TEXT NOT NULL,
     PRIMARY KEY (scope, key)
   );
-  CREATE TABLE artifacts (
-    artifact_id TEXT NOT NULL PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    mime_type TEXT NOT NULL,
-    size BIGINT NOT NULL,
-    external_url TEXT,
-    created_at BIGINT NOT NULL
-  );
-  CREATE TABLE blobs (
-    key TEXT NOT NULL PRIMARY KEY,
-    content_type TEXT,
-    size BIGINT,
-    etag TEXT,
-    custom_metadata_json TEXT,
-    created_at BIGINT,
-    updated_at BIGINT,
-    body BLOB
-  );
 `
 
 async function makeTestClient(): Promise<PrismaClient> {
@@ -93,8 +73,6 @@ async function makeRenamedClient(): Promise<PrismaClient> {
     chatRun: prisma.run,
     chatInterrupt: prisma.interrupt,
     chatMetadata: prisma.metadata,
-    chatArtifact: prisma.artifact,
-    chatBlob: prisma.blob,
   }
   return renamed as unknown as PrismaClient
 }
@@ -104,8 +82,6 @@ const renamedModels = {
   runs: 'chatRun',
   interrupts: 'chatInterrupt',
   metadata: 'chatMetadata',
-  artifacts: 'chatArtifact',
-  blobs: 'chatBlob',
 }
 
 afterAll(async () => {
@@ -142,7 +118,7 @@ describe('prismaPersistence model mapping', () => {
     const prisma = await makeRenamedClient()
     // Default names resolve nothing on a fully renamed client.
     expect(() => prismaPersistence(prisma)).toThrow(
-      /messages[\s\S]*runs[\s\S]*interrupts[\s\S]*metadata[\s\S]*artifacts[\s\S]*blobs/,
+      /messages[\s\S]*runs[\s\S]*interrupts[\s\S]*metadata/,
     )
   })
 

@@ -11,7 +11,6 @@ primitives:
 | Binding | Stores |
 | --- | --- |
 | D1 | `messages`, `runs`, `interrupts`, `metadata` |
-| R2 | `artifacts`, `blobs` |
 | Durable Objects | `locks` |
 
 Pass only the bindings you need. The return type contains exactly the stores
@@ -32,12 +31,6 @@ landing in PR #955.
       "database_name": "tanstack-ai-state",
       "database_id": "<database-id>",
       "migrations_dir": "migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "AI_MEDIA",
-      "bucket_name": "tanstack-ai-media"
     }
   ],
   "durable_objects": {
@@ -71,17 +64,13 @@ import { cloudflarePersistence } from '@tanstack/ai-persistence-cloudflare'
 
 interface Env {
   AI_STATE: D1Database
-  AI_MEDIA: R2Bucket
   AI_LOCKS: DurableObjectNamespace
 }
 
 export function createPersistence(env: Env) {
   return cloudflarePersistence({
     d1: env.AI_STATE,
-    r2: env.AI_MEDIA,
     durableObjects: env.AI_LOCKS,
-    artifactPrefix: 'artifacts/',
-    blobPrefix: 'blobs/',
     lockOptions: {
       leaseDurationMs: 30_000,
       retryDelayMs: 50,
@@ -90,13 +79,8 @@ export function createPersistence(env: Env) {
 }
 ```
 
-`artifactPrefix` and `blobPrefix` are optional overrides shown here for
-illustration. Omit them and they default to `tanstack-ai/artifacts/` and
-`tanstack-ai/blobs/` respectively.
-
-D1 stores structured records in SQLite tables. R2 keeps artifact metadata
-indexes and blob bodies. Each lock key is routed to a Durable Object, which
-serializes owners and uses leases/alarms for recovery.
+D1 stores structured records in SQLite tables. Each lock key is routed to a
+Durable Object, which serializes owners and uses leases/alarms for recovery.
 
 ## Use it with chat
 
@@ -178,6 +162,6 @@ export function createComposedPersistence(env: Env) {
 }
 ```
 
-D1 continues to own messages and metadata, R2 owns artifacts and blobs, and
-Durable Objects own locks. Cross-backend transactions are not added by
-composition; design retries and consistency explicitly.
+D1 continues to own messages and metadata, and Durable Objects own locks.
+Cross-backend transactions are not added by composition; design retries and
+consistency explicitly.

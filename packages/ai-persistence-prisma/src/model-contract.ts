@@ -50,28 +50,6 @@ export interface MetadataRow {
   valueJson: string
 }
 
-export interface ArtifactRow {
-  artifactId: string
-  runId: string
-  threadId: string
-  name: string
-  mimeType: string
-  size: bigint
-  externalUrl: string | null
-  createdAt: bigint
-}
-
-export interface BlobRow {
-  key: string
-  contentType: string | null
-  size: bigint | null
-  etag: string | null
-  customMetadataJson: string | null
-  createdAt: bigint | null
-  updatedAt: bigint | null
-  body: Uint8Array | null
-}
-
 export interface MessageDelegate {
   findUnique: (args: {
     where: { threadId: string }
@@ -147,77 +125,12 @@ export interface MetadataDelegate {
   }) => Promise<unknown>
 }
 
-export interface ArtifactDelegate {
-  findUnique: (args: {
-    where: { artifactId: string }
-  }) => Promise<ArtifactRow | null>
-  findMany: (args: {
-    where: { runId: string }
-    orderBy: Array<{ createdAt: 'asc' } | { artifactId: 'asc' }>
-  }) => Promise<Array<ArtifactRow>>
-  upsert: (args: {
-    where: { artifactId: string }
-    create: {
-      artifactId: string
-      runId: string
-      threadId: string
-      name: string
-      mimeType: string
-      size: bigint
-      externalUrl: string | null
-      createdAt: bigint
-    }
-    update: {
-      runId: string
-      threadId: string
-      name: string
-      mimeType: string
-      size: bigint
-      externalUrl: string | null
-      createdAt: bigint
-    }
-  }) => Promise<unknown>
-  deleteMany: (args: {
-    where: { artifactId?: string; runId?: string }
-  }) => Promise<unknown>
-}
-
-interface BlobWrite {
-  contentType: string | null
-  size: bigint
-  etag: string
-  customMetadataJson: string | null
-  createdAt: bigint
-  updatedAt: bigint
-  // Prisma generates `Bytes` inputs as `Uint8Array<ArrayBuffer>` — a plain
-  // `Uint8Array` (over ArrayBufferLike) is not assignable to it.
-  body: Uint8Array<ArrayBuffer>
-}
-
-export interface BlobDelegate {
-  findUnique: (args: { where: { key: string } }) => Promise<BlobRow | null>
-  // `list` pushes only a coarse `startsWith` prefilter (or no filter, for an
-  // empty prefix); membership, ordering, and cursor pagination happen in JS so
-  // results stay correct under any provider collation. See `createBlobStore`.
-  findMany: (args: {
-    where?: { key: { startsWith: string } }
-  }) => Promise<Array<BlobRow>>
-  upsert: (args: {
-    where: { key: string }
-    create: BlobWrite & { key: string }
-    update: BlobWrite
-  }) => Promise<unknown>
-  deleteMany: (args: { where: { key: string } }) => Promise<unknown>
-}
-
 /** The delegate set the stores operate over. */
 export interface TanstackAiDelegates {
   message: MessageDelegate
   run: RunDelegate
   interrupt: InterruptDelegate
   metadata: MetadataDelegate
-  artifact: ArtifactDelegate
-  blob: BlobDelegate
 }
 
 /**
@@ -230,8 +143,6 @@ export interface PrismaModelMap {
   runs?: string
   interrupts?: string
   metadata?: string
-  artifacts?: string
-  blobs?: string
 }
 
 const defaultModelNames: Required<PrismaModelMap> = {
@@ -239,8 +150,6 @@ const defaultModelNames: Required<PrismaModelMap> = {
   runs: 'run',
   interrupts: 'interrupt',
   metadata: 'metadata',
-  artifacts: 'artifact',
-  blobs: 'blob',
 }
 
 const storeKeys = Object.keys(defaultModelNames) as Array<
@@ -254,8 +163,6 @@ const delegateKeyByStoreKey: {
   runs: 'run',
   interrupts: 'interrupt',
   metadata: 'metadata',
-  artifacts: 'artifact',
-  blobs: 'blob',
 }
 
 /** A model map pointed `prismaPersistence` at missing or invalid delegates. */
@@ -280,7 +187,7 @@ function isDelegate(value: unknown): boolean {
 }
 
 /**
- * Resolve the six store delegates off the client, applying any model-name
+ * Resolve the four store delegates off the client, applying any model-name
  * overrides and verifying each resolved delegate looks like a Prisma model
  * delegate. Field shapes are enforced at compile time by the delegate
  * interfaces and are not re-checked here.

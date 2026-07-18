@@ -29,7 +29,7 @@ describe('Prisma models asset', () => {
   it('is a models-only fragment with no provider or client generator', () => {
     expect(prismaModelsFilename).toBe('tanstack-ai.prisma')
     expect(prismaModels).toContain('model Message')
-    expect(prismaModels).toContain('model Blob')
+    expect(prismaModels).toContain('model Metadata')
     expect(prismaModels).not.toMatch(/\bgenerator\s+\w+\s*{/)
     expect(prismaModels).not.toMatch(/\bdatasource\s+\w+\s*{/)
   })

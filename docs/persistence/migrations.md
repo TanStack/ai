@@ -55,9 +55,9 @@ pnpm exec tanstack-ai-cloudflare-migrations --out migrations
 wrangler d1 migrations apply tanstack-ai-state --remote
 ```
 
-It also exports `d1Migrations` for programmatic tooling. R2 and Durable Object
-locks do not use the D1 table migration set; configure their bindings and
-Durable Object migration tags in Wrangler.
+It also exports `d1Migrations` for programmatic tooling. Durable Object locks
+do not use the D1 table migration set; configure their bindings and Durable
+Object migration tags in Wrangler.
 
 ## Prisma
 

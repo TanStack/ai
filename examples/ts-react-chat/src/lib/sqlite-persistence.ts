@@ -25,8 +25,6 @@ function createChatPersistenceBackend() {
       overrides: {
         metadata: false,
         locks: false,
-        artifacts: false,
-        blobs: false,
       },
     },
   )

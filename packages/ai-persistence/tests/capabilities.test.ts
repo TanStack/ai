@@ -50,11 +50,7 @@ describe('persistence capabilities', () => {
 
     const consumer = defineChatMiddleware({
       name: 'capability-consumer',
-      requires: [
-        PersistenceCapability,
-        InterruptsCapability,
-        LocksCapability,
-      ],
+      requires: [PersistenceCapability, InterruptsCapability, LocksCapability],
       setup(ctx: ChatMiddlewareContext) {
         seen.persistence = getPersistence(ctx)
         seen.interrupts = getInterrupts(ctx)
@@ -65,7 +61,12 @@ describe('persistence capabilities', () => {
     await collect(
       chat({
         adapter: mockAdapter([
-          { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't1', timestamp: 1 },
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r1',
+            threadId: 't1',
+            timestamp: 1,
+          },
           {
             type: EventType.RUN_FINISHED,
             runId: 'r1',
@@ -105,12 +106,12 @@ describe('createInterruptController', () => {
     expect(await controller.listPendingByRun('run-c')).toHaveLength(1)
 
     await controller.resolve('c1', { approved: true })
-    expect(
-      (await persistence.stores.interrupts!.get('c1'))?.status,
-    ).toBe('resolved')
-    expect(
-      (await persistence.stores.interrupts!.get('c1'))?.response,
-    ).toEqual({ approved: true })
+    expect((await persistence.stores.interrupts!.get('c1'))?.status).toBe(
+      'resolved',
+    )
+    expect((await persistence.stores.interrupts!.get('c1'))?.response).toEqual({
+      approved: true,
+    })
     expect(await controller.listPending('thread-c')).toHaveLength(0)
 
     await controller.request({
@@ -121,9 +122,9 @@ describe('createInterruptController', () => {
       payload: {},
     })
     await controller.cancel('c2')
-    expect(
-      (await persistence.stores.interrupts!.get('c2'))?.status,
-    ).toBe('cancelled')
+    expect((await persistence.stores.interrupts!.get('c2'))?.status).toBe(
+      'cancelled',
+    )
   })
 
   it('creates interrupts in the pending state', async () => {

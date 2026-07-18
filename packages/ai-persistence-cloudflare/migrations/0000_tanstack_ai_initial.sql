@@ -30,4 +30,3 @@ CREATE TABLE `runs` (
 	`error` text,
 	`usage_json` text
 );
-

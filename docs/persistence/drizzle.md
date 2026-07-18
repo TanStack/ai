@@ -107,10 +107,9 @@ normal SQLite, D1, or Drizzle deployment workflow.
 
 ## Schema ownership
 
-The exported `schema` contains `messages`, `runs`, `interrupts`, `metadata`,
-`artifacts`, and `blobs`. Artifact rows contain metadata; blob bodies are stored
-in the separate blob table. Application tables may live beside these tables in
-the same database.
+The exported `schema` contains `messages`, `runs`, `interrupts`, and
+`metadata`. Application tables may live beside these tables in the same
+database.
 
 ## Own the schema
 

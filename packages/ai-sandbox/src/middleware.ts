@@ -5,19 +5,10 @@
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
  *   algorithm), provide the handle, using the optional SandboxStore/Locks
  *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise). When `persistence.workspace` is configured, restores
- *   the persisted workspace tree BEFORE `onReady` runs. If `fileEvents` is not
- *   false, starts a watcher that dispatches to sandbox-scoped hooks and
- *   forwards to the runtime sink; workspace persistence checkpoints piggyback
- *   on that watcher when it covers the persistence root, otherwise a SECOND
- *   watcher is started for the persistence root — including when
- *   `fileEvents:false`.
- * - `onFinish`/`onAbort`/`onError`: stop the watcher(s), drain in-flight
- *   persistence checkpoints, snapshot (`after-run`) and/or destroy per
- *   lifecycle. Under the default `consistency:'strict'`, a restore or
- *   checkpoint failure is re-thrown from the terminal hook, failing the run
- *   (after teardown on abort/destroyOnComplete); `best-effort` swallows and
- *   logs it instead.
+ *   fallback otherwise). If `fileEvents` is not false, starts a watcher that
+ *   dispatches to sandbox-scoped hooks and forwards to the runtime sink.
+ * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
+ *   and/or destroy per lifecycle.
  *
  * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
@@ -38,12 +29,6 @@ import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
-import {
-  checkpointWorkspacePersistenceEvent,
-  requireWorkspacePersistence,
-  restoreWorkspacePersistence,
-} from './workspace-persistence'
-import { resolveWorkspacePersistenceOptions } from './workspace-persistence-types'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   AbortInfo,
@@ -61,7 +46,6 @@ import type {
 } from './sandbox'
 import type { SandboxRecord, SandboxStore } from './store'
 import type { SandboxWatchHandle } from './watch'
-import type { ResolvedWorkspacePersistenceOptions } from './workspace-persistence-types'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
 interface SandboxRunState {
@@ -72,10 +56,6 @@ interface SandboxRunState {
    * watcher callback, awaited before teardown so a pending diff isn't
    * dropped when the run finishes/aborts/errors mid-computation. */
   pendingDiffs: Array<Promise<void>>
-  /** In-flight workspace persistence checkpoints queued by file events. */
-  pendingWorkspacePersistence: Array<Promise<void>>
-  workspacePersistenceErrors: Array<unknown>
-  workspacePersistenceOptions?: ResolvedWorkspacePersistenceOptions
   /** Logger captured at setup, so terminal hooks can log watcher teardown. */
   logger?: InternalLogger
 }
@@ -238,19 +218,6 @@ async function dispatchDefinitionHooks(
   }
 }
 
-async function workspacePersistenceError(
-  state: SandboxRunState,
-): Promise<unknown | undefined> {
-  await Promise.allSettled(state.pendingWorkspacePersistence)
-  if (
-    state.workspacePersistenceOptions?.consistency === 'strict' &&
-    state.workspacePersistenceErrors.length > 0
-  ) {
-    return state.workspacePersistenceErrors[0]
-  }
-  return undefined
-}
-
 export function withSandbox(
   definition: SandboxDefinition,
 ): DefinedChatMiddleware<
@@ -273,14 +240,6 @@ export function withSandbox(
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
-      const workspacePersistenceOptions = resolveWorkspacePersistenceOptions({
-        workspacePersistence: definition.persistence?.workspace,
-        workspace: definition.workspace,
-        defaultKey: definition.key(ensureCtx),
-      })
-      const workspacePersistence = workspacePersistenceOptions
-        ? requireWorkspacePersistence(persistence)
-        : undefined
       // Pull the runtime (and its logger) up front so `baseSha` capture and
       // hook dispatch below can log through the same `sandbox`/`errors`
       // categories the engine uses.
@@ -345,48 +304,12 @@ export function withSandbox(
       }
 
       const hooks = definition.hooks
-      if (workspacePersistenceOptions && workspacePersistence) {
-        await restoreWorkspacePersistence({
-          handle,
-          persistence: workspacePersistence,
-          options: workspacePersistenceOptions,
-          runId: ctx.runId,
-          threadId: ctx.threadId,
-          ...(logger !== undefined ? { logger } : {}),
-        })
-      }
       await hooks?.onReady?.(handle)
 
       const fe = resolveFileEvents(definition.fileEvents)
       const pendingDiffs: Array<Promise<void>> = []
-      const pendingWorkspacePersistence: Array<Promise<void>> = []
-      const workspacePersistenceErrors: Array<unknown> = []
       const watchers: Array<SandboxWatchHandle> = []
-      const enqueueWorkspacePersistence = (event: SandboxFileEvent): void => {
-        if (!workspacePersistenceOptions || !workspacePersistence) return
-        pendingWorkspacePersistence.push(
-          checkpointWorkspacePersistenceEvent(
-            {
-              handle,
-              persistence: workspacePersistence,
-              options: workspacePersistenceOptions,
-              runId: ctx.runId,
-              threadId: ctx.threadId,
-              ...(logger !== undefined ? { logger } : {}),
-            },
-            event,
-          ).catch((error) => {
-            workspacePersistenceErrors.push(error)
-            logger?.warn('sandbox workspace persistence checkpoint failed', {
-              path: event.path,
-              error,
-            })
-          }),
-        )
-      }
       if (fe.enabled) {
-        const persistenceSharesPublicRoot =
-          workspacePersistenceOptions?.root === watchRoot
         watchers.push(
           await watchWorkspace(handle, {
             root: watchRoot,
@@ -400,9 +323,6 @@ export function withSandbox(
               )
               void dispatchDefinitionHooks(hooks, enriched, logger)
               runtime?.emit(enriched)
-              if (persistenceSharesPublicRoot) {
-                enqueueWorkspacePersistence(event)
-              }
               if (fe.diff) {
                 pendingDiffs.push(
                   enriched
@@ -428,33 +348,11 @@ export function withSandbox(
           diff: fe.diff,
         })
       }
-      if (
-        workspacePersistenceOptions &&
-        (!fe.enabled || workspacePersistenceOptions.root !== watchRoot)
-      ) {
-        watchers.push(
-          await watchWorkspace(handle, {
-            root: workspacePersistenceOptions.root,
-            onEvent: enqueueWorkspacePersistence,
-            ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
-            ...(logger !== undefined ? { logger } : {}),
-          }),
-        )
-        logger?.sandbox('sandbox watcher started', {
-          root: workspacePersistenceOptions.root,
-          diff: false,
-          persistence: true,
-        })
-      }
-
       runState.set(ctx, {
         handle,
         ensureCtx,
         pendingDiffs,
-        pendingWorkspacePersistence,
-        workspacePersistenceErrors,
         watchers,
-        ...(workspacePersistenceOptions ? { workspacePersistenceOptions } : {}),
         ...(logger !== undefined ? { logger } : {}),
       })
     },
@@ -465,17 +363,8 @@ export function withSandbox(
       const { handle, ensureCtx } = state
 
       await drainWatcher(state, 'finish')
-      const persistenceError = await workspacePersistenceError(state)
 
       const lifecycle = definition.lifecycle
-      if (persistenceError) {
-        if (lifecycle?.destroyOnComplete) {
-          await definition.destroy(ensureCtx)
-          await definition.hooks?.onDestroy?.()
-        }
-        throw persistenceError
-      }
-
       if (
         lifecycle?.snapshot === 'after-run' &&
         handle.capabilities.snapshots &&
@@ -507,7 +396,6 @@ export function withSandbox(
       if (!state) return
 
       await drainWatcher(state, 'abort')
-      const persistenceError = await workspacePersistenceError(state)
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
@@ -517,7 +405,6 @@ export function withSandbox(
       // `destroyOnComplete:false` governs *successful completion*, never cancel.
       await definition.destroy(state.ensureCtx)
       await definition.hooks?.onDestroy?.()
-      if (persistenceError) throw persistenceError
     },
 
     async onError(ctx, info) {
@@ -525,7 +412,6 @@ export function withSandbox(
       if (!state) return
 
       await drainWatcher(state, 'error')
-      const persistenceError = await workspacePersistenceError(state)
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave
@@ -534,7 +420,6 @@ export function withSandbox(
         await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
       }
-      if (persistenceError) throw persistenceError
     },
   })
 }

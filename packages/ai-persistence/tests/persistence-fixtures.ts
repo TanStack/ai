@@ -1,6 +1,4 @@
 import type {
-  ArtifactStore,
-  BlobStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -62,23 +60,5 @@ export function createMetadataStore(): MetadataStore {
     get: () => Promise.resolve(null),
     set: () => Promise.resolve(),
     delete: () => Promise.resolve(),
-  }
-}
-
-export function createArtifactStore(): ArtifactStore {
-  return {
-    save: () => Promise.resolve(),
-    get: () => Promise.resolve(null),
-    list: () => Promise.resolve([]),
-  }
-}
-
-export function createBlobStore(): BlobStore {
-  return {
-    put: (key) => Promise.resolve({ key }),
-    get: () => Promise.resolve(null),
-    head: () => Promise.resolve(null),
-    delete: () => Promise.resolve(),
-    list: () => Promise.resolve({ objects: [] }),
   }
 }

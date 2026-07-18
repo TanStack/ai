@@ -60,26 +60,6 @@ export interface TanstackAiSqliteSchema {
     key: AiColumn<string>
     valueJson: AiColumn<unknown>
   }>
-  artifacts: AiTable<{
-    artifactId: AiColumn<string>
-    runId: AiColumn<string>
-    threadId: AiColumn<string>
-    name: AiColumn<string>
-    mimeType: AiColumn<string>
-    size: AiColumn<number>
-    externalUrl: AiColumn<string>
-    createdAt: AiColumn<number>
-  }>
-  blobs: AiTable<{
-    key: AiColumn<string>
-    contentType: AiColumn<string>
-    size: AiColumn<number>
-    etag: AiColumn<string>
-    customMetadataJson: AiColumn<Record<string, string>>
-    createdAt: AiColumn<number>
-    updatedAt: AiColumn<number>
-    body: AiColumn<Uint8Array<ArrayBuffer>>
-  }>
 }
 
 /**
@@ -112,26 +92,6 @@ const requiredColumns: {
     'responseJson',
   ],
   metadata: ['scope', 'key', 'valueJson'],
-  artifacts: [
-    'artifactId',
-    'runId',
-    'threadId',
-    'name',
-    'mimeType',
-    'size',
-    'externalUrl',
-    'createdAt',
-  ],
-  blobs: [
-    'key',
-    'contentType',
-    'size',
-    'etag',
-    'customMetadataJson',
-    'createdAt',
-    'updatedAt',
-    'body',
-  ],
 }
 
 const tableKeys = Object.keys(requiredColumns) as Array<

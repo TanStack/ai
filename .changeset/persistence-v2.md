@@ -19,12 +19,16 @@ Persistence v2: durable state via middleware and a pluggable store contract.
 
 State durability lives on the middleware layer as `withChatPersistence` /
 `withGenerationPersistence`, backed by a store contract (messages, runs,
-interrupts, metadata, locks, artifacts, blobs). The `@tanstack/ai-persistence`
-package ships a state-only middleware, an in-core memory backend, and a
-shared conformance suite; `@tanstack/ai-persistence-drizzle` and
-`@tanstack/ai-persistence-prisma` provide ORM state backends, while
-`@tanstack/ai-persistence-cloudflare` provides first-class D1, Durable Object,
-and R2-backed stores.
+interrupts, metadata, locks). The `@tanstack/ai-persistence` package ships a
+state-only middleware, an in-core memory backend, and a shared conformance
+suite; `@tanstack/ai-persistence-drizzle` and `@tanstack/ai-persistence-prisma`
+provide ORM state backends, while `@tanstack/ai-persistence-cloudflare`
+provides first-class D1 and Durable Object backed stores.
+
+Durable media artifact/blob storage (artifact metadata plus blob bytes, and
+the sandbox workspace-file checkpoints built on it) is split out to a
+follow-up release; persisted generation results reference provider media URLs,
+which may expire.
 
 Replaying a disconnected/reloaded stream (resumable streams) is a separate
 transport-level feature and ships independently — the persistence middleware

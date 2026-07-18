@@ -1,8 +1,6 @@
 import { expectTypeOf } from 'vitest'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import type {
-  ArtifactStore,
-  BlobStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -20,8 +18,6 @@ expectTypeOf(d1Persistence.stores.messages).toEqualTypeOf<MessageStore>()
 expectTypeOf(d1Persistence.stores.runs).toEqualTypeOf<RunStore>()
 expectTypeOf(d1Persistence.stores.interrupts).toEqualTypeOf<InterruptStore>()
 expectTypeOf(d1Persistence.stores.metadata).toEqualTypeOf<MetadataStore>()
-expectTypeOf(d1Persistence.stores.artifacts).toEqualTypeOf<ArtifactStore>()
-expectTypeOf(d1Persistence.stores.blobs).toEqualTypeOf<BlobStore>()
 // No `locks` store: this backend has no distributed lock (see drizzlePersistence).
 expectTypeOf(d1Persistence.stores).not.toHaveProperty('locks')
 

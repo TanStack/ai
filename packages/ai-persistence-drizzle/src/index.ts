@@ -9,8 +9,6 @@
 import { schema } from './schema'
 import { assertTanstackAiSchema } from './schema-contract'
 import {
-  createArtifactStore,
-  createBlobStore,
   createInterruptStore,
   createMessageStore,
   createMetadataStore,
@@ -63,8 +61,6 @@ export function drizzlePersistence(
       runs: createRunStore(db, tables),
       interrupts: createInterruptStore(db, tables),
       metadata: createMetadataStore(db, tables),
-      artifacts: createArtifactStore(db, tables),
-      blobs: createBlobStore(db, tables),
     },
   }
 }

@@ -1,25 +1,3 @@
-CREATE TABLE `artifacts` (
-	`artifact_id` text PRIMARY KEY NOT NULL,
-	`run_id` text NOT NULL,
-	`thread_id` text NOT NULL,
-	`name` text NOT NULL,
-	`mime_type` text NOT NULL,
-	`size` integer NOT NULL,
-	`external_url` text,
-	`created_at` integer NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `blobs` (
-	`key` text PRIMARY KEY NOT NULL,
-	`content_type` text,
-	`size` integer,
-	`etag` text,
-	`custom_metadata_json` text,
-	`created_at` integer,
-	`updated_at` integer,
-	`body` blob
-);
---> statement-breakpoint
 CREATE TABLE `interrupts` (
 	`interrupt_id` text PRIMARY KEY NOT NULL,
 	`run_id` text NOT NULL,

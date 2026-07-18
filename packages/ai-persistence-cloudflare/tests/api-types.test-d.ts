@@ -6,8 +6,6 @@ import {
   cloudflarePersistence,
 } from '../src/index'
 import type {
-  ArtifactStore,
-  BlobStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -16,7 +14,6 @@ import type {
 import type { LockStore } from '@tanstack/ai'
 
 declare const d1: D1Database
-declare const r2: R2Bucket
 declare const durableObjects: DurableObjectNamespace
 declare const durableObjectState: DurableObjectState
 
@@ -29,22 +26,16 @@ expectTypeOf(cloudflarePersistence({ d1 }).stores).toEqualTypeOf<{
   interrupts: InterruptStore
   metadata: MetadataStore
 }>()
-expectTypeOf(cloudflarePersistence({ r2 }).stores).toEqualTypeOf<{
-  artifacts: ArtifactStore
-  blobs: BlobStore
-}>()
 expectTypeOf(cloudflarePersistence({ durableObjects }).stores).toEqualTypeOf<{
   locks: LockStore
 }>()
 expectTypeOf(
-  cloudflarePersistence({ d1, r2, durableObjects }).stores,
+  cloudflarePersistence({ d1, durableObjects }).stores,
 ).toEqualTypeOf<{
   messages: MessageStore
   runs: RunStore
   interrupts: InterruptStore
   metadata: MetadataStore
-  artifacts: ArtifactStore
-  blobs: BlobStore
   locks: LockStore
 }>()
 

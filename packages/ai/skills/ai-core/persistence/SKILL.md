@@ -3,8 +3,8 @@ name: ai-core/persistence
 description: >
   Durable STATE for chat() via withChatPersistence middleware and AIPersistence;
   media generation via withGenerationPersistence. Persists thread messages, run
-  records, interrupts, metadata, locks, and artifacts/blobs through optional
-  composable stores. Interrupts resume with RunAgentInput.resume[].
+  records, interrupts, metadata, and locks through optional composable stores.
+  Interrupts resume with RunAgentInput.resume[].
   Stream re-attach/delivery durability (replaying a disconnected/reloaded
   stream) is a separate TRANSPORT feature (lands in PR #955), not part of this
   middleware. Backends: memoryPersistence,
@@ -23,9 +23,9 @@ sources:
 ## Core rules
 
 - Persistence middleware persists **state only**: thread messages, run records,
-  interrupts, metadata, locks, and generation artifacts/blobs. It never mutates
-  the chunk stream and stamps **no** cursor. A `chat()` with no persistence
-  middleware produces byte-identical chunks.
+  interrupts, metadata, and locks. It never mutates the chunk stream and stamps
+  **no** cursor. A `chat()` with no persistence middleware produces
+  byte-identical chunks.
 - **Stream re-attach / delivery durability** (a client disconnects or reloads
   and still receives the full ordered stream) is a separate **transport-layer**
   feature, not part of this middleware — it lands in PR #955. This middleware
@@ -43,7 +43,8 @@ sources:
   (run status + usage + transcript save).
 - Use **`withGenerationPersistence(persistence)`** for media
   generation (`generateImage`, `generateAudio`, TTS, video, transcription):
-  run status updates and optional artifact/blob persistence.
+  run status updates. Durable media artifact/blob storage is a follow-up
+  feature; persisted results reference provider media URLs, which may expire.
 - Pending user-actionable interrupts are represented by
   `RUN_FINISHED.outcome.type === 'interrupt'`, persisted in `InterruptStore`,
   and resumed with AG-UI `RunAgentInput.resume[]`. Normal new input on the same
@@ -118,14 +119,12 @@ the interrupt resume can be reissued across a full page reload (persist it via
 `AIPersistence` stores are optional, but dependent store pairs are validated
 fail-loud:
 
-| Capability   | Required stores                 |
-| ------------ | ------------------------------- |
-| `messages`   | `messages`                      |
-| `interrupts` | `runs`, `interrupts`            |
-| `metadata`   | `metadata`                      |
-| `locks`      | `locks`                         |
-| `artifacts`  | `artifacts` **and** `blobs` (both required together) |
-| `blobs`      | `artifacts` **and** `blobs` (both required together) |
+| Capability   | Required stores      |
+| ------------ | -------------------- |
+| `messages`   | `messages`           |
+| `interrupts` | `runs`, `interrupts` |
+| `metadata`   | `metadata`           |
+| `locks`      | `locks`              |
 
 ## Backends
 
@@ -142,8 +141,7 @@ import { prismaPersistence } from '@tanstack/ai-persistence-prisma' // BYO Prism
 The Drizzle package exports `sqliteMigrations` and a migration-copy CLI. The
 Prisma package exports `prismaModels` and a model-copy CLI so applications can
 incorporate the models into their own provider-specific migration workflow.
-The state tables are `messages`, `runs`, `interrupts`, `metadata`, `artifacts`,
-and `blobs`.
+The state tables are `messages`, `runs`, `interrupts`, and `metadata`.
 
 Projects that run their own drizzle-kit journal can own the schema instead of
 applying the bundled SQL: emit it with the `tanstack-ai-drizzle-schema` CLI

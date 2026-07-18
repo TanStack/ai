@@ -61,9 +61,9 @@ constructing the adapter. See [Prisma](./prisma).
 
 ## Store coverage
 
-Both adapters provide messages, runs, interrupts, metadata, artifacts, blobs,
-and an in-process lock store. Replace `locks` with a distributed store when
-multiple processes can mutate the same run:
+Both adapters provide messages, runs, interrupts, and metadata. Neither
+provides a `locks` store; add a distributed store when multiple processes can
+mutate the same run:
 
 ```ts group=sql-backends
 import { composePersistence } from '@tanstack/ai-persistence'
@@ -76,6 +76,6 @@ const coordinated = composePersistence(persistence, {
 })
 ```
 
-For Cloudflare-native state, [Cloudflare Persistence](./cloudflare) combines D1,
-R2, and Durable Object locks. For another SQL library, start with
+For Cloudflare-native state, [Cloudflare Persistence](./cloudflare) combines
+D1 and Durable Object locks. For another SQL library, start with
 [Custom Stores](./custom-stores).

@@ -411,19 +411,19 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-06-18",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Persistence Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Migrations",
           "to": "persistence/migrations",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Chat Persistence",
@@ -435,55 +435,55 @@
           "label": "Sandbox Persistence",
           "to": "persistence/sandbox-persistence",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Generation Persistence",
           "to": "persistence/generation-persistence",
           "addedAt": "2026-07-07",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "MCP Persistence",
           "to": "persistence/mcp-persistence",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Prisma",
           "to": "persistence/prisma",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Drizzle",
           "to": "persistence/drizzle",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "SQL Backends",
           "to": "persistence/sql-backends",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Custom Stores",
           "to": "persistence/custom-stores",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         },
         {
           "label": "Persistence Internals",
           "to": "persistence/internals",
           "addedAt": "2026-07-08",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-18"
         }
       ]
     },
@@ -554,7 +554,7 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Sampling \u2192 modelOptions",
+          "label": "Sampling → modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }

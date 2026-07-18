@@ -16,33 +16,9 @@
  * columns — keep added columns nullable or defaulted so the runtime's inserts
  * succeed, and keep the columns below with these data shapes.
  */
-import {
-  customType,
-  integer,
-  primaryKey,
-  sqliteTable,
-  text,
-} from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
-
-const bytes = customType<{
-  data: Uint8Array<ArrayBuffer>
-  driverData: ArrayBuffer | Uint8Array
-}>({
-  dataType() {
-    return 'blob'
-  },
-  fromDriver(value) {
-    const source = value instanceof Uint8Array ? value : new Uint8Array(value)
-    const owned = new Uint8Array(new ArrayBuffer(source.byteLength))
-    owned.set(source)
-    return owned
-  },
-  toDriver(value) {
-    return value
-  },
-})
 
 /** Thread message history (`MessageStore`). */
 export const messages = sqliteTable('messages', {
@@ -88,38 +64,10 @@ export const metadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.scope, table.key] })],
 )
 
-/** Generation artifact references (`ArtifactStore`). Bytes live in the blob store. */
-export const artifacts = sqliteTable('artifacts', {
-  artifactId: text('artifact_id').primaryKey(),
-  runId: text('run_id').notNull(),
-  threadId: text('thread_id').notNull(),
-  name: text('name').notNull(),
-  mimeType: text('mime_type').notNull(),
-  size: integer('size').notNull(),
-  externalUrl: text('external_url'),
-  createdAt: integer('created_at').notNull(),
-})
-
-/** Generic blob objects (`BlobStore`). */
-export const blobs = sqliteTable('blobs', {
-  key: text('key').primaryKey(),
-  contentType: text('content_type'),
-  size: integer('size'),
-  etag: text('etag'),
-  customMetadataJson: text('custom_metadata_json', { mode: 'json' }).$type<
-    Record<string, string>
-  >(),
-  createdAt: integer('created_at'),
-  updatedAt: integer('updated_at'),
-  body: bytes('body'),
-})
-
 /** The full state schema, for `drizzlePersistence(db, { schema })` and drizzle-kit. */
 export const schema = {
   messages,
   runs,
   interrupts,
   metadata,
-  artifacts,
-  blobs,
 }

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence",
   "version": "0.0.0",
-  "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, locks, artifacts, and blobs.",
+  "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -45,9 +45,6 @@
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
-  },
-  "dependencies": {
-    "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

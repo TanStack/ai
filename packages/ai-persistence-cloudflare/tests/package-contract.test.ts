@@ -27,7 +27,6 @@ describe('Cloudflare package contract', () => {
       'index.ts',
       'locks.ts',
       'migrations.ts',
-      'r2.ts',
     ]
     for (const filename of rootFiles) {
       const contents = await readFile(

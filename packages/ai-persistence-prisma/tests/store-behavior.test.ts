@@ -19,16 +19,6 @@ const schema = `
     value_json TEXT NOT NULL,
     PRIMARY KEY (scope, key)
   );
-  CREATE TABLE blobs (
-    key TEXT NOT NULL PRIMARY KEY,
-    content_type TEXT,
-    size BIGINT,
-    etag TEXT,
-    custom_metadata_json TEXT,
-    created_at BIGINT,
-    updated_at BIGINT,
-    body BLOB
-  );
 `
 
 function makePersistence(): ReturnType<typeof prismaPersistence> {
@@ -78,59 +68,5 @@ describe('prisma metadata nullish values', () => {
     expect(await stores.metadata.get('scope', 'empty')).toBe('')
     await stores.metadata.set('scope', 'obj', { a: 1 })
     expect(await stores.metadata.get('scope', 'obj')).toEqual({ a: 1 })
-  })
-})
-
-describe('prisma blob list — collation-agnostic prefix matching', () => {
-  it('matches mixed-case and non-ASCII prefixes literally', async () => {
-    const { stores } = makePersistence()
-    const store = stores.blobs
-    const keys = [
-      'Café/1',
-      'Café/2',
-      'café/3',
-      'CAFE/4',
-      'Zürich/5',
-      'zürich/6',
-    ]
-    for (const key of keys) await store.put(key, key)
-
-    expect(
-      (await store.list({ prefix: 'Café/' })).objects
-        .map((object) => object.key)
-        .sort(),
-    ).toEqual(['Café/1', 'Café/2'])
-    expect(
-      (await store.list({ prefix: 'café/' })).objects.map(
-        (object) => object.key,
-      ),
-    ).toEqual(['café/3'])
-    expect(
-      (await store.list({ prefix: 'Zürich/' })).objects.map(
-        (object) => object.key,
-      ),
-    ).toEqual(['Zürich/5'])
-  })
-
-  it('paginates by byte order with a stable cursor (no skips or dupes)', async () => {
-    const { stores } = makePersistence()
-    const store = stores.blobs
-    const keys = ['k/1', 'k/2', 'k/3', 'k/4', 'k/5']
-    for (const key of keys) await store.put(key, key)
-
-    const seen: Array<string> = []
-    let cursor: string | undefined
-    do {
-      const page = await store.list({
-        prefix: 'k/',
-        limit: 2,
-        ...(cursor !== undefined ? { cursor } : {}),
-      })
-      seen.push(...page.objects.map((object) => object.key))
-      cursor = page.truncated ? page.cursor : undefined
-    } while (cursor !== undefined)
-
-    expect(seen).toEqual(keys)
-    expect(new Set(seen).size).toBe(keys.length)
   })
 })
