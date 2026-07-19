@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
 
 /**
  * Regression test for issue #929: `@tanstack/ai-bedrock` used to load its AWS

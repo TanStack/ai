@@ -97,8 +97,9 @@ export class BedrockConverseTextAdapter<
    * include the AWS SDK in self-contained server bundles (#929). The SDK is
    * Node/server-only and is only reached on a real request, so the dynamic
    * import also keeps it out of the module-load graph until first use.
-   * `typeof import(...)` is a type-only reference (erased at emit) so the
-   * imported members keep full typing — no cast is needed on the return.
+   * `typeof BedrockRuntime` (from the type-only namespace import above) is
+   * erased at emit, so the imported members keep full typing — no value-level
+   * `as` cast is needed on the return.
    *
    * Vite's dev-time optimizeDeps pre-bundler may try to scan this import for
    * the browser and fail on the SDK's Node-only exports. Browser-side use of
