@@ -16,7 +16,7 @@ export class ChatNotifier extends RpcTarget {
     }
     set.add(handler)
     return () => {
-      set?.delete(handler)
+      set.delete(handler)
     }
   }
 

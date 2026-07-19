@@ -24,8 +24,8 @@ export interface ChatNotification {
   username?: string
   timestamp?: string
   id?: string
-  onlineUsers?: string[]
-  todos?: TodoItem[]
+  onlineUsers?: Array<string>
+  todos?: Array<TodoItem>
   claudeMode?: ClaudeMode
 }
 
@@ -38,20 +38,20 @@ export interface ChatMessage {
 }
 
 export interface ChatRoomState {
-  onlineUsers: string[]
-  messages: ChatMessage[]
+  onlineUsers: Array<string>
+  messages: Array<ChatMessage>
 }
 
 export interface ChatState extends ChatRoomState {
-  todos: TodoItem[]
+  todos: Array<TodoItem>
   claudeMode: ClaudeMode
 }
 
 export interface JoinResult {
   message: string
-  onlineUsers: string[]
-  recentMessages: ChatMessage[]
-  todos: TodoItem[]
+  onlineUsers: Array<string>
+  recentMessages: Array<ChatMessage>
+  todos: Array<TodoItem>
   claudeMode: ClaudeMode
 }
 
@@ -62,25 +62,25 @@ export interface SendResult {
 
 export interface ClaudeQueueStatus {
   current: string | null
-  queue: string[]
+  queue: Array<string>
   isProcessing: boolean
   /** False for active-mode watches that may silently NO_REPLY */
   showResponding: boolean
 }
 
 export interface ChatNotifierApi {
-  notify(notification: ChatNotification): void | Promise<void>
+  notify: (notification: ChatNotification) => void | Promise<void>
 }
 
 export interface ChatApi {
-  joinChat(username: string): JoinResult
-  leaveChat(): { message: string }
-  getChatState(): ChatState
-  sendMessage(message: string): SendResult
-  getClaudeQueueStatus(): ClaudeQueueStatus
-  getTodos(): TodoItem[]
-  addTodo(text: string): { todo: TodoItem; todos: TodoItem[] }
-  removeTodo(id: string): { success: boolean; todos: TodoItem[] }
-  getClaudeMode(): ClaudeMode
-  setClaudeMode(mode: ClaudeMode): { mode: ClaudeMode }
+  joinChat: (username: string) => JoinResult
+  leaveChat: () => { message: string }
+  getChatState: () => ChatState
+  sendMessage: (message: string) => SendResult
+  getClaudeQueueStatus: () => ClaudeQueueStatus
+  getTodos: () => Array<TodoItem>
+  addTodo: (text: string) => { todo: TodoItem; todos: Array<TodoItem> }
+  removeTodo: (id: string) => { success: boolean; todos: Array<TodoItem> }
+  getClaudeMode: () => ClaudeMode
+  setClaudeMode: (mode: ClaudeMode) => { mode: ClaudeMode }
 }

@@ -1,16 +1,16 @@
 import type { TodoItem } from './chat-api.js'
 
 export class TodoLogic {
-  private todos: TodoItem[] = []
-  private onTodosChanged?: (todos: TodoItem[]) => Promise<void>
+  private todos: Array<TodoItem> = []
+  private onTodosChanged?: (todos: Array<TodoItem>) => Promise<void>
 
   constructor(callbacks?: {
-    onTodosChanged?: (todos: TodoItem[]) => Promise<void>
+    onTodosChanged?: (todos: Array<TodoItem>) => Promise<void>
   }) {
     this.onTodosChanged = callbacks?.onTodosChanged
   }
 
-  getTodos(): TodoItem[] {
+  getTodos(): Array<TodoItem> {
     return this.todos.map((todo) => ({ ...todo }))
   }
 

@@ -1,8 +1,8 @@
 // Vite WebSocket plugin for handling Cap'n Web RPC connections
-import type { Plugin } from 'vite'
 import { WebSocketServer } from 'ws'
 import { newWebSocketRpcSession } from 'capnweb'
 import { ChatServer } from './capnweb-rpc.js'
+import type { Plugin } from 'vite'
 import type { ChatNotifierApi } from './chat-api.js'
 
 export function websocketRpcPlugin(): Plugin {
@@ -17,7 +17,7 @@ export function websocketRpcPlugin(): Plugin {
       })
 
       server.httpServer.on('upgrade', (request, socket, head) => {
-        const pathname = new URL(request.url!, `http://${request.headers.host}`)
+        const pathname = new URL(request.url, `http://${request.headers.host}`)
           .pathname
 
         if (pathname === '/api/websocket') {

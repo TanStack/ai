@@ -3,7 +3,7 @@ import type { ChatMessage } from '../hooks/useChatMessages'
 import type { ClaudeQueueStatus } from '../hooks/useClaude'
 
 interface ChatInterfaceProps {
-  messages: ChatMessage[]
+  messages: Array<ChatMessage>
   onSendMessage: (
     message: string,
   ) => Promise<{ success: boolean; error?: string }>
@@ -101,8 +101,7 @@ export function ChatInterface({
         ) : (
           messages
             .map((msg) => {
-              // Ensure we have proper message data
-              if (!msg || !msg.id) {
+              if (!msg.id) {
                 console.warn('Invalid message:', msg)
                 return null
               }

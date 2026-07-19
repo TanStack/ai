@@ -1,7 +1,7 @@
 import type { ClaudeMode } from '../../chat-server/chat-api'
 
 interface OnlineUsersProps {
-  onlineUsers: string[]
+  onlineUsers: Array<string>
   currentUsername: string | null
   claudeMode?: ClaudeMode
 }

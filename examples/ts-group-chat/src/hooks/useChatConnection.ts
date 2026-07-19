@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { newWebSocketRpcSession } from 'capnweb'
 import type { RpcStub } from 'capnweb'
 import type { ChatApi } from '../../chat-server/chat-api'
@@ -80,7 +80,7 @@ export function useChatConnection() {
             stub[Symbol.dispose]()
             return
           }
-          if (!chatState || !Array.isArray(chatState.onlineUsers)) {
+          if (!Array.isArray(chatState.onlineUsers)) {
             throw new Error('Invalid chat state from server')
           }
 

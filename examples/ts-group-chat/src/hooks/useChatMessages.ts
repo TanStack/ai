@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, type RefObject } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { RefObject } from 'react'
 import type { RpcStub } from 'capnweb'
 import type {
   ChatApi,
@@ -23,7 +24,7 @@ function notificationToMessage(notification: ChatNotification): ChatMessage {
 function formatError(error: unknown) {
   if (error instanceof Error) return error.message
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String((error as { message: unknown }).message)
+    return String(error.message)
   }
   return String(error)
 }
@@ -141,7 +142,8 @@ export function useChatMessages(
     const activeApi = getApi()
     if (!activeApi || !isConnected) return
 
-    let cancelled = false
+    // Object flag so cancellation stays visible across sync RpcStub awaits.
+    const cancelled: { current: boolean } = { current: false }
 
     const switchPersona = async () => {
       setIsJoined(false)
@@ -149,15 +151,16 @@ export function useChatMessages(
       try {
         // Always leave first so the previous persona is removed from the room.
         await activeApi.leaveChat()
-        if (cancelled) return
 
         if (!username) {
-          setChatState({ onlineUsers: [], messages: [] })
+          if (!cancelled.current) {
+            setChatState({ onlineUsers: [], messages: [] })
+          }
           return
         }
 
         const result = await activeApi.joinChat(username)
-        if (cancelled) return
+        if (cancelled.current) return
 
         setChatState({
           onlineUsers: result.onlineUsers,
@@ -165,7 +168,7 @@ export function useChatMessages(
         })
         setIsJoined(true)
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled.current) {
           console.error(
             'Error switching chat persona:',
             formatError(error),
@@ -178,7 +181,7 @@ export function useChatMessages(
     void switchPersona()
 
     return () => {
-      cancelled = true
+      cancelled.current = true
     }
   }, [api, getApi, isConnected, username])
 

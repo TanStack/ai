@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useChatConnection } from '@/hooks/useChatConnection'
 import { useChatMessages } from '@/hooks/useChatMessages'

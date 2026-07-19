@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { RefObject } from 'react'
 import type { RpcStub } from 'capnweb'
 import type {
   ChatApi,
@@ -11,7 +12,7 @@ import type { ChatNotifier } from '@/lib/chat-notifier'
 function formatError(error: unknown) {
   if (error instanceof Error) return error.message
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String((error as { message: unknown }).message)
+    return String(error.message)
   }
   return String(error)
 }
@@ -24,7 +25,7 @@ export function useTodos(
   isJoined: boolean,
 ) {
   const getApi = useCallback(() => apiRef.current ?? api, [api, apiRef])
-  const [todos, setTodos] = useState<TodoItem[]>([])
+  const [todos, setTodos] = useState<Array<TodoItem>>([])
   const [claudeMode, setClaudeMode] = useState<ClaudeMode>('passive')
   const [error, setError] = useState<string | null>(null)
 

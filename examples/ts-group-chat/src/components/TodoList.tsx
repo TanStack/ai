@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ClaudeMode, TodoItem } from '../../chat-server/chat-api'
 
 interface TodoListProps {
-  todos: TodoItem[]
+  todos: Array<TodoItem>
   claudeMode: ClaudeMode
   isJoined: boolean
   onAddTodo: (text: string) => Promise<{ success: boolean; error?: string }>

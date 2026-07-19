@@ -142,12 +142,12 @@ export class ChatServer extends RpcTarget implements ChatApi {
     })
   }
 
-  static async broadcastToAll(
+  static broadcastToAll(
     notification: ChatNotification,
     excludeUser?: string,
   ) {
     const payload = normalizeNotification(notification)
-    const msgPreview = payload.message?.substring(0, 50) || ''
+    const msgPreview = payload.message.substring(0, 50)
     console.log(
       `\n📬 broadcastToAll() - type: ${payload.type}, from: ${payload.username}, message: "${msgPreview}..."`,
     )
@@ -155,7 +155,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
     console.log(`📬 Exclude user: ${excludeUser || 'none'}`)
 
     let successCount = 0
-    const successful: string[] = []
+    const successful: Array<string> = []
 
     for (const [username, callback] of clients.entries()) {
       if (excludeUser && username === excludeUser) {
@@ -266,7 +266,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
     }
   }
 
-  getTodos(): TodoItem[] {
+  getTodos(): Array<TodoItem> {
     return globalTodos.getTodos()
   }
 
@@ -299,10 +299,6 @@ export class ChatServer extends RpcTarget implements ChatApi {
   }
 
   setClaudeMode(mode: ClaudeMode) {
-    if (mode !== 'active' && mode !== 'passive') {
-      throw new Error('Claude mode must be "active" or "passive"')
-    }
-
     claudeMode = mode
     console.log(`🤖 Claude mode set to ${mode}`)
 
