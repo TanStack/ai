@@ -194,25 +194,23 @@ export function ChatInterface({
           {!isJoined && (
             <p className="text-yellow-400 text-sm">Joining chat room…</p>
           )}
-          {sendError && (
-            <p className="text-red-400 text-sm">{sendError}</p>
-          )}
+          {sendError && <p className="text-red-400 text-sm">{sendError}</p>}
           <div className="flex space-x-2">
-          <input
-            type="text"
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-            disabled={isSending || !isJoined}
-          />
-          <button
-            type="submit"
-            disabled={!messageText.trim() || isSending || !isJoined}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
-          >
-            {isSending ? 'Sending...' : 'Send'}
-          </button>
+            <input
+              type="text"
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+              disabled={isSending || !isJoined}
+            />
+            <button
+              type="submit"
+              disabled={!messageText.trim() || isSending || !isJoined}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
+            >
+              {isSending ? 'Sending...' : 'Send'}
+            </button>
           </div>
         </form>
       ) : (

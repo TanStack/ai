@@ -35,10 +35,7 @@ export function useChatMessages(
   isConnected: boolean,
   username: string | null,
 ) {
-  const getApi = useCallback(
-    () => apiRef.current ?? api,
-    [api, apiRef],
-  )
+  const getApi = useCallback(() => apiRef.current ?? api, [api, apiRef])
   const [chatState, setChatState] = useState<ChatRoomState>({
     onlineUsers: [],
     messages: [],

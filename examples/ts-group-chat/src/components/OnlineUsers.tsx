@@ -46,9 +46,7 @@ export function OnlineUsers({
       <div className="mt-4 pt-4 border-t border-gray-600">
         <h3 className="text-sm font-semibold text-white mb-2">How to use</h3>
         <div className="text-xs text-gray-400 space-y-1">
-          <p>
-            • Add/remove todos in the panel, or ask Claude to manage them
-          </p>
+          <p>• Add/remove todos in the panel, or ask Claude to manage them</p>
           {claudeMode === 'passive' ? (
             <p>
               • Type <span className="text-purple-400">@Claude</span> to add,

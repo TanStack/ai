@@ -73,9 +73,7 @@ export function useClaude(
         const message =
           error instanceof Error
             ? error.message
-            : typeof error === 'object' &&
-                error !== null &&
-                'message' in error
+            : typeof error === 'object' && error !== null && 'message' in error
               ? String((error as { message: unknown }).message)
               : 'Unknown error'
         console.error('Error polling Claude status:', message, error)

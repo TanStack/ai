@@ -99,9 +99,8 @@ export function TodoList({
         <p className="text-xs text-gray-400 leading-relaxed">
           {claudeMode === 'passive' ? (
             <>
-              Claude waits for{' '}
-              <span className="text-purple-400">@Claude</span> before
-              adding/removing todos or answering todo questions.
+              Claude waits for <span className="text-purple-400">@Claude</span>{' '}
+              before adding/removing todos or answering todo questions.
             </>
           ) : (
             <>

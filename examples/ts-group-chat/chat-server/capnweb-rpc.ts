@@ -332,7 +332,8 @@ export class ChatServer extends RpcTarget implements ChatApi {
     const trimmedMessage = messageText.trim()
     const mentioned = isClaudeMention(trimmedMessage)
     const shouldAskClaude =
-      mentioned || (claudeMode === 'active' && this.currentUsername !== 'Claude')
+      mentioned ||
+      (claudeMode === 'active' && this.currentUsername !== 'Claude')
 
     const message = globalChat.sendMessageSync(
       this.currentUsername,
@@ -386,8 +387,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
     const currentRequest = claudeService.getCurrentRequest()
     const requestMode = currentRequest?.mode ?? claudeMode
     const mentioned = currentRequest?.mentioned ?? false
-    const showResponding =
-      claudeService.getQueueStatus().showResponding
+    const showResponding = claudeService.getQueueStatus().showResponding
 
     try {
       // Only announce when a visible reply is expected (not active silent watches).

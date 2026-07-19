@@ -62,7 +62,9 @@ Open [http://localhost:3000](http://localhost:3000) in multiple browser tabs, pi
 ```typescript
 // Client: export ChatNotifier as localMain, call typed ChatApi methods
 const notifier = new ChatNotifier()
-notifier.onNotification = (n) => { /* update UI */ }
+notifier.onNotification = (n) => {
+  /* update UI */
+}
 const api = newWebSocketRpcSession<ChatApi>(wsUrl, notifier)
 await api.joinChat(username)
 
@@ -73,21 +75,21 @@ chatServer.setClientNotifier(clientNotifier)
 
 ## Scripts
 
-| Script | Description |
-|--------|-------------|
-| `pnpm dev` | Start dev server with Cap'n Web WebSocket (port 3000) |
-| `pnpm build` | Build TanStack Start app |
-| `pnpm serve` | Preview production build |
-| `pnpm test:types` | Typecheck |
+| Script            | Description                                           |
+| ----------------- | ----------------------------------------------------- |
+| `pnpm dev`        | Start dev server with Cap'n Web WebSocket (port 3000) |
+| `pnpm build`      | Build TanStack Start app                              |
+| `pnpm serve`      | Preview production build                              |
+| `pnpm test:types` | Typecheck                                             |
 
 ## Todo List + Claude Modes
 
 The room shares one in-memory todo list. Anyone can add/remove items from the UI. Claude has `listTodos`, `addTodo`, and `removeTodo` tools.
 
-| Mode | Behavior |
-|------|----------|
-| **Passive** (default) | Claude only runs when a message mentions `@Claude` (or starts with `Claude`). Use that to add/remove todos or ask what's on the list. |
-| **Active** | Claude reviews every chat message. If it detects todo add/remove intent or a todo question, it uses tools and replies. Unrelated messages get no reply. |
+| Mode                  | Behavior                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Passive** (default) | Claude only runs when a message mentions `@Claude` (or starts with `Claude`). Use that to add/remove todos or ask what's on the list.                   |
+| **Active**            | Claude reviews every chat message. If it detects todo add/remove intent or a todo question, it uses tools and replies. Unrelated messages get no reply. |
 
 Mode is shared for the whole room and syncs live via Cap'n Web push.
 
