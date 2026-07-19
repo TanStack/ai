@@ -52,7 +52,9 @@ export class BedrockTextAdapter<
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
-    super(model, 'bedrock', new OpenAI(withBedrockDefaults(config)))
+    // `model` reaches `buildBaseURL` so the mantle path matches the model family
+    // (e.g. Gemma needs `/openai/v1` instead of the `/v1` default) — see #925.
+    super(model, 'bedrock', new OpenAI(withBedrockDefaults(config, undefined, model)))
   }
 
   /**

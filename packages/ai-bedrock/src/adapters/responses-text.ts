@@ -52,11 +52,13 @@ export class BedrockResponsesTextAdapter<
 
   constructor(config: BedrockResponsesConfig, model: TModel) {
     // Responses is mantle-only — force the mantle base URL (an explicit
-    // config.baseURL still wins, e.g. E2E pointing at aimock).
+    // config.baseURL still wins, e.g. E2E pointing at aimock). `model` reaches
+    // `buildBaseURL` so the mantle path matches the model family (Gemma needs
+    // `/openai/v1` instead of the `/v1` default) — see #925.
     super(
       model,
       'bedrock-responses',
-      new OpenAI(withBedrockDefaults(config, 'mantle')),
+      new OpenAI(withBedrockDefaults(config, 'mantle', model)),
     )
   }
 }
