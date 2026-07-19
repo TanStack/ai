@@ -222,6 +222,103 @@ export class GeminiTextAdapter<
     }
   }
 
+  /** Stream Gemini's native JSON response and emit the parsed object before completion. */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const { chatOptions, outputSchema } = options
+    const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=gemini model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: 'gemini', model: this.model },
+      )
+      const result = await this.client.models.generateContentStream({
+        ...mappedOptions,
+        config: {
+          ...mappedOptions.config,
+          responseMimeType: 'application/json',
+          responseSchema: outputSchema,
+        },
+      })
+
+      let rawText = ''
+      let finished:
+        | Extract<StreamChunk, { type: typeof EventType.RUN_FINISHED }>
+        | undefined
+      let failed = false
+      for await (const chunk of this.processStreamChunks(
+        result,
+        chatOptions,
+        chatOptions.logger,
+      )) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          rawText += chunk.delta
+        }
+        if (chunk.type === EventType.RUN_ERROR) failed = true
+        if (chunk.type === EventType.RUN_FINISHED) {
+          finished = chunk
+        } else {
+          yield chunk
+        }
+      }
+
+      if (failed) return
+      if (!finished) {
+        yield structuredStreamError(
+          chatOptions,
+          'Gemini structured-output stream ended without a terminal event',
+          'truncated-stream',
+        )
+        return
+      }
+      if (!rawText) {
+        yield structuredStreamError(
+          chatOptions,
+          'Gemini structured-output stream contained no content',
+          'empty-response',
+        )
+        return
+      }
+
+      let object: unknown
+      try {
+        object = JSON.parse(rawText)
+      } catch {
+        yield structuredStreamError(
+          chatOptions,
+          'Failed to parse Gemini structured-output stream as JSON',
+          'parse-error',
+        )
+        return
+      }
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: { object, raw: rawText },
+        model: chatOptions.model,
+        timestamp: Date.now(),
+      }
+      yield finished
+    } catch (error) {
+      const rawEvent = toRunErrorRawEvent(error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during structured output streaming.'
+      chatOptions.logger.errors('gemini.structuredOutputStream fatal', {
+        error,
+        source: 'gemini.structuredOutputStream',
+      })
+      yield {
+        ...structuredStreamError(chatOptions, message, 'provider-error'),
+        ...(rawEvent !== undefined && { rawEvent }),
+      }
+    }
+  }
+
   /**
    * Extract text content from a non-streaming response
    */
@@ -949,6 +1046,22 @@ export class GeminiTextAdapter<
    */
   supportsCombinedToolsAndSchema(): boolean {
     return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
+  }
+}
+
+function structuredStreamError(
+  options: TextOptions<GeminiTextProviderOptions>,
+  message: string,
+  code: string,
+): Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> {
+  return {
+    type: EventType.RUN_ERROR,
+    runId: options.runId,
+    model: options.model,
+    timestamp: Date.now(),
+    message,
+    code,
+    error: { message, code },
   }
 }
 

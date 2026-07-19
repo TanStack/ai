@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
-import { chat, summarize } from '@tanstack/ai'
+import { chat, EventType, summarize } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
   Type,
@@ -961,6 +961,67 @@ describe('GeminiAdapter through AI', () => {
       'gemini-2.5-pro',
     )
     expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+  })
+
+  it('streams structured output natively and completes before RUN_FINISHED', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [{ content: { parts: [{ text: '{"city":' }] } }],
+        },
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: '"Madrid"}' }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 4 },
+        },
+      ]),
+    )
+
+    const events: Array<StreamChunk> = []
+    for await (const event of createTextAdapter().structuredOutputStream({
+      chatOptions: {
+        model: 'gemini-2.5-pro',
+        messages: [{ role: 'user', content: 'Return a city' }],
+        logger: {
+          request: vi.fn(),
+          provider: vi.fn(),
+          errors: vi.fn(),
+        } as any,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+      },
+    })) {
+      events.push(event)
+    }
+
+    const payload = mocks.generateContentStreamSpy.mock.calls[0]![0]
+    expect(payload.config).toMatchObject({
+      responseMimeType: 'application/json',
+      responseSchema: expect.objectContaining({ type: 'object' }),
+    })
+    expect(
+      events.filter((event) => event.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toHaveLength(2)
+    const completeIndex = events.findIndex(
+      (event) =>
+        event.type === EventType.CUSTOM &&
+        event.name === 'structured-output.complete',
+    )
+    const finishedIndex = events.findIndex(
+      (event) => event.type === EventType.RUN_FINISHED,
+    )
+    expect(completeIndex).toBeGreaterThan(-1)
+    expect(completeIndex).toBeLessThan(finishedIndex)
+    expect((events[completeIndex] as any).value).toEqual({
+      object: { city: 'Madrid' },
+      raw: '{"city":"Madrid"}',
+    })
   })
 
   it('routes summarize() through the gemini chat-stream path', async () => {
