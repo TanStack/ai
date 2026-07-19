@@ -818,7 +818,7 @@ export class GeminiTextAdapter<
    * user messages in multi-turn conversations.
    *
    * Also filters out empty model messages (e.g., from a previous failed request)
-   * and deduplicates functionResponse parts with the same name (tool call ID).
+   * and deduplicates functionResponse parts with the same id (tool call ID).
    */
   private mergeConsecutiveSameRoleMessages(
     messages: Array<Content>,
@@ -849,16 +849,21 @@ export class GeminiTextAdapter<
       }
     }
 
-    // Deduplicate functionResponse parts with the same name (tool call ID)
+    // Deduplicate functionResponse parts with the same id (tool call ID)
     for (const msg of merged) {
       if (!msg.parts) continue
-      const seenFunctionResponseNames = new Set<string>()
+      // Each `functionResponse` carries a unique `id` (set to the originating
+      // `toolCallId` above), so keying on `id` keeps parallel calls to the same
+      // tool distinct (different ids → both kept) while still collapsing a
+      // genuine duplicate (same id → second one dropped). Keying on `.name`
+      // would drop the second of two parallel calls to the same tool — #894.
+      const seenFunctionResponseIds = new Set<string>()
       msg.parts = msg.parts.filter((part) => {
-        if ('functionResponse' in part && part.functionResponse?.name) {
-          if (seenFunctionResponseNames.has(part.functionResponse.name)) {
+        if ('functionResponse' in part && part.functionResponse?.id) {
+          if (seenFunctionResponseIds.has(part.functionResponse.id)) {
             return false
           }
-          seenFunctionResponseNames.add(part.functionResponse.name)
+          seenFunctionResponseIds.add(part.functionResponse.id)
         }
         return true
       })
