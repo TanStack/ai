@@ -142,10 +142,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
     })
   }
 
-  static broadcastToAll(
-    notification: ChatNotification,
-    excludeUser?: string,
-  ) {
+  static broadcastToAll(notification: ChatNotification, excludeUser?: string) {
     const payload = normalizeNotification(notification)
     const msgPreview = payload.message.substring(0, 50)
     console.log(
