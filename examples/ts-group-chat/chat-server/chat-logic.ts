@@ -1,11 +1,11 @@
 // Core chat business logic and data structures
-import type { ChatMessage, ChatState } from './chat-api.js'
+import type { ChatMessage, ChatRoomState } from './chat-api.js'
 
-export type { ChatMessage, ChatState }
+export type { ChatMessage, ChatRoomState }
 
 // Core chat business logic class
 export class ChatLogic {
-  private chatState: ChatState = {
+  private chatState: ChatRoomState = {
     onlineUsers: [],
     messages: [],
   }
@@ -134,7 +134,7 @@ export class ChatLogic {
     return message
   }
 
-  getChatState(): ChatState {
+  getChatState(): ChatRoomState {
     return {
       onlineUsers: [...this.chatState.onlineUsers],
       messages: [...this.chatState.messages],

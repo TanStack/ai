@@ -1,11 +1,13 @@
 # Cap'n Web Group Chat
 
-A real-time multi-user chat demonstrating **Cap'n Web RPC** bidirectional push with **TanStack Start**. Mention `@Claude` in a message to queue an Anthropic response (requires `ANTHROPIC_API_KEY`).
+A real-time multi-user chat demonstrating **Cap'n Web RPC** bidirectional push with **TanStack Start**. Includes a shared in-memory todo list that users and Claude can manage. Mention `@Claude` in passive mode, or switch to active mode so Claude watches the chat for todo intent.
 
 ## Features
 
 - Real-time messaging via Cap'n Web server→client push (no polling)
 - Online presence updates when users join or leave
+- Shared in-memory todo list (manual add/remove + Claude tools)
+- Claude **passive / active** mode toggle for todo help
 - Auto-connect on page load
 - Optional `@Claude` AI responses via `@tanstack/ai`
 - TanStack Start SSR shell + file-based routing
@@ -21,6 +23,8 @@ A real-time multi-user chat demonstrating **Cap'n Web RPC** bidirectional push w
 chat-server/
 ├── chat-api.ts        # Shared ChatApi interface and types
 ├── chat-logic.ts      # In-memory chat state
+├── todo-logic.ts      # In-memory shared todo list
+├── claude-service.ts  # Claude queue + todo tools
 ├── capnweb-rpc.ts     # ChatServer RpcTarget + push broadcasts
 └── vite-plugin.ts     # Dev-server WebSocket upgrade handler
 
@@ -28,6 +32,7 @@ src/
 ├── hooks/
 │   ├── useChatConnection.ts  # RpcStub session + Symbol.dispose
 │   ├── useChatMessages.ts    # joinChat onNotify push handler
+│   ├── useTodos.ts           # Todo list + Claude mode sync
 │   └── useClaude.ts          # Claude queue status
 └── routes/index.tsx          # Main chat page
 ```
@@ -75,12 +80,23 @@ chatServer.setClientNotifier(clientNotifier)
 | `pnpm serve` | Preview production build |
 | `pnpm test:types` | Typecheck |
 
+## Todo List + Claude Modes
+
+The room shares one in-memory todo list. Anyone can add/remove items from the UI. Claude has `listTodos`, `addTodo`, and `removeTodo` tools.
+
+| Mode | Behavior |
+|------|----------|
+| **Passive** (default) | Claude only runs when a message mentions `@Claude` (or starts with `Claude`). Use that to add/remove todos or ask what's on the list. |
+| **Active** | Claude reviews every chat message. If it detects todo add/remove intent or a todo question, it uses tools and replies. Unrelated messages get no reply. |
+
+Mode is shared for the whole room and syncs live via Cap'n Web push.
+
 ## @Claude Integration
 
-Set `ANTHROPIC_API_KEY` in `.env`. Messages containing `@Claude` (or starting with `Claude`) queue a response from `claude-sonnet-4-5`. Only one Claude request runs at a time; others wait in queue.
+Set `ANTHROPIC_API_KEY` in `.env`. Responses use `claude-sonnet-4-5`. Only one Claude request runs at a time; others wait in queue.
 
 ## Key Technologies
 
 - **Cap'n Web 0.10** — bidirectional RPC, pass-by-reference callbacks, `RpcStub` + `[Symbol.dispose]()`
 - **TanStack Start 1.159** — `tanstackStart()` + Nitro 3
-- **TanStack AI** — Anthropic adapter for Claude mentions
+- **TanStack AI** — Anthropic adapter + server tools for the shared todo list

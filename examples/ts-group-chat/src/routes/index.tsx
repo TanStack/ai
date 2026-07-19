@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react'
 import { useChatConnection } from '@/hooks/useChatConnection'
 import { useChatMessages } from '@/hooks/useChatMessages'
 import { useClaude } from '@/hooks/useClaude'
+import { useTodos } from '@/hooks/useTodos'
 import { UserSelector } from '@/components/UserSelector'
 import { ChatInterface } from '@/components/ChatInterface'
 import { OnlineUsers } from '@/components/OnlineUsers'
+import { TodoList } from '@/components/TodoList'
 
 export const Route = createFileRoute('/')({
   component: ChatApp,
@@ -26,7 +28,21 @@ function ChatApp() {
     username || null,
   )
 
-  const { queueStatus } = useClaude(api, apiRef, isConnected, isJoined)
+  const { queueStatus } = useClaude(
+    api,
+    apiRef,
+    notifier,
+    isConnected,
+    isJoined,
+  )
+
+  const { todos, claudeMode, addTodo, removeTodo, setClaudeMode } = useTodos(
+    api,
+    apiRef,
+    notifier,
+    isConnected,
+    isJoined,
+  )
 
   useEffect(() => {
     if (!isConnected && !isConnecting && !error) {
@@ -50,7 +66,6 @@ function ChatApp() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
-          {/* Left Column - Main Chat Interface */}
           <div className="md:col-span-2 flex flex-col min-h-0 space-y-4">
             <UserSelector
               username={username}
@@ -67,11 +82,20 @@ function ChatApp() {
             />
           </div>
 
-          {/* Right Column - Online Users & Info */}
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-4 min-h-0 overflow-y-auto">
+            <TodoList
+              todos={todos}
+              claudeMode={claudeMode}
+              isJoined={isJoined}
+              onAddTodo={addTodo}
+              onRemoveTodo={removeTodo}
+              onClaudeModeChange={setClaudeMode}
+            />
+
             <OnlineUsers
               onlineUsers={chatState.onlineUsers}
               currentUsername={username || null}
+              claudeMode={claudeMode}
             />
           </div>
         </div>

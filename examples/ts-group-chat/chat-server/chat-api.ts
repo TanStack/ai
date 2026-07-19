@@ -4,7 +4,19 @@ export type ChatNotificationType =
   | 'user_left'
   | 'welcome'
   | 'claude_responding'
+  | 'claude_idle'
   | 'claude_error'
+  | 'todos_updated'
+  | 'claude_mode_changed'
+
+export type ClaudeMode = 'active' | 'passive'
+
+export interface TodoItem {
+  id: string
+  text: string
+  createdAt: string
+  createdBy: string
+}
 
 export interface ChatNotification {
   type: ChatNotificationType
@@ -13,6 +25,8 @@ export interface ChatNotification {
   timestamp?: string
   id?: string
   onlineUsers?: string[]
+  todos?: TodoItem[]
+  claudeMode?: ClaudeMode
 }
 
 export interface ChatMessage {
@@ -23,15 +37,22 @@ export interface ChatMessage {
   type?: ChatNotificationType
 }
 
-export interface ChatState {
+export interface ChatRoomState {
   onlineUsers: string[]
   messages: ChatMessage[]
+}
+
+export interface ChatState extends ChatRoomState {
+  todos: TodoItem[]
+  claudeMode: ClaudeMode
 }
 
 export interface JoinResult {
   message: string
   onlineUsers: string[]
   recentMessages: ChatMessage[]
+  todos: TodoItem[]
+  claudeMode: ClaudeMode
 }
 
 export interface SendResult {
@@ -43,6 +64,8 @@ export interface ClaudeQueueStatus {
   current: string | null
   queue: string[]
   isProcessing: boolean
+  /** False for active-mode watches that may silently NO_REPLY */
+  showResponding: boolean
 }
 
 export interface ChatNotifierApi {
@@ -55,4 +78,9 @@ export interface ChatApi {
   getChatState(): ChatState
   sendMessage(message: string): SendResult
   getClaudeQueueStatus(): ClaudeQueueStatus
+  getTodos(): TodoItem[]
+  addTodo(text: string): { todo: TodoItem; todos: TodoItem[] }
+  removeTodo(id: string): { success: boolean; todos: TodoItem[] }
+  getClaudeMode(): ClaudeMode
+  setClaudeMode(mode: ClaudeMode): { mode: ClaudeMode }
 }

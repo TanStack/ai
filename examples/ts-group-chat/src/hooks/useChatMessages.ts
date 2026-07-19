@@ -4,11 +4,11 @@ import type {
   ChatApi,
   ChatMessage,
   ChatNotification,
-  ChatState,
+  ChatRoomState,
 } from '../../chat-server/chat-api'
 import type { ChatNotifier } from '@/lib/chat-notifier'
 
-export type { ChatMessage, ChatState }
+export type { ChatMessage, ChatRoomState }
 
 function notificationToMessage(notification: ChatNotification): ChatMessage {
   return {
@@ -39,7 +39,7 @@ export function useChatMessages(
     () => apiRef.current ?? api,
     [api, apiRef],
   )
-  const [chatState, setChatState] = useState<ChatState>({
+  const [chatState, setChatState] = useState<ChatRoomState>({
     onlineUsers: [],
     messages: [],
   })
@@ -49,7 +49,17 @@ export function useChatMessages(
   useEffect(() => {
     if (!notifier) return
 
-    notifier.setHandler((notification: ChatNotification) => {
+    return notifier.addHandler((notification: ChatNotification) => {
+      // Status / sync events — not chat lines
+      if (
+        notification.type === 'todos_updated' ||
+        notification.type === 'claude_mode_changed' ||
+        notification.type === 'claude_responding' ||
+        notification.type === 'claude_idle'
+      ) {
+        return
+      }
+
       setChatState((prev) => {
         const nextMessages = [
           ...prev.messages,
@@ -95,16 +105,19 @@ export function useChatMessages(
       if (!activeApi) return { success: false, error: 'Not connected' }
 
       try {
+        await activeApi.leaveChat()
         const result = await activeApi.joinChat(chatUsername)
 
         setChatState({
           onlineUsers: result.onlineUsers,
           messages: result.recentMessages,
         })
+        setIsJoined(true)
 
         return { success: true }
       } catch (error) {
         console.error('Error joining chat:', formatError(error), error)
+        setIsJoined(false)
         return {
           success: false,
           error: formatError(error) || 'Failed to join chat',
@@ -129,13 +142,23 @@ export function useChatMessages(
 
   useEffect(() => {
     const activeApi = getApi()
-    if (!activeApi || !isConnected || !username) return
+    if (!activeApi || !isConnected) return
 
     let cancelled = false
 
-    const autoJoin = async () => {
+    const switchPersona = async () => {
       setIsJoined(false)
+
       try {
+        // Always leave first so the previous persona is removed from the room.
+        await activeApi.leaveChat()
+        if (cancelled) return
+
+        if (!username) {
+          setChatState({ onlineUsers: [], messages: [] })
+          return
+        }
+
         const result = await activeApi.joinChat(username)
         if (cancelled) return
 
@@ -146,23 +169,21 @@ export function useChatMessages(
         setIsJoined(true)
       } catch (error) {
         if (!cancelled) {
-          console.error('Error auto-joining chat:', formatError(error), error)
+          console.error(
+            'Error switching chat persona:',
+            formatError(error),
+            error,
+          )
         }
       }
     }
 
-    void autoJoin()
+    void switchPersona()
 
     return () => {
       cancelled = true
     }
   }, [api, getApi, isConnected, username])
-
-  useEffect(() => {
-    if (!username && isJoined && getApi()) {
-      void leaveChat()
-    }
-  }, [username, isJoined, getApi, leaveChat])
 
   return {
     chatState,

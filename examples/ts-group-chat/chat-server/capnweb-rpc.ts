@@ -1,13 +1,16 @@
 // Cap'n Web RPC server implementation for chat
 import { RpcTarget } from 'capnweb'
 import { ChatLogic } from './chat-logic.js'
+import { TodoLogic } from './todo-logic.js'
 import type {
   ChatApi,
   ChatNotification,
   ChatNotifierApi,
+  ClaudeMode,
   ClaudeQueueStatus,
   JoinResult,
   SendResult,
+  TodoItem,
 } from './chat-api.js'
 import type { ClaudeService } from './claude-service.js'
 import type { WebSocket } from 'ws'
@@ -17,12 +20,14 @@ type NotifyTarget = ChatNotifierApi
 // Global registry of client notification targets (Cap'n Web RpcTarget stubs)
 export const clients = new Map<string, NotifyTarget>()
 
+let claudeMode: ClaudeMode = 'passive'
+
 // Lazy-load claude service to avoid importing AI packages at module parse time
 let globalClaudeService: ClaudeService | null = null
 async function getClaudeService(): Promise<ClaudeService> {
   if (!globalClaudeService) {
-    const { globalClaudeService: service } = await import('./claude-service.js')
-    globalClaudeService = service
+    const { ClaudeService } = await import('./claude-service.js')
+    globalClaudeService = new ClaudeService(globalTodos)
   }
   return globalClaudeService
 }
@@ -49,6 +54,31 @@ function normalizeNotification(
     id: notification.id || Math.random().toString(36).slice(2, 11),
   }
 }
+
+function isClaudeMention(messageText: string): boolean {
+  const trimmedMessage = messageText.trim()
+  return (
+    /@Claude/i.test(messageText) ||
+    /^Claude/i.test(trimmedMessage) ||
+    /^@Claude/i.test(trimmedMessage)
+  )
+}
+
+function isNoReply(response: string): boolean {
+  return response.trim().toUpperCase() === 'NO_REPLY'
+}
+
+// Global shared todo list
+export const globalTodos = new TodoLogic({
+  async onTodosChanged(todos) {
+    await ChatServer.broadcastToAll({
+      type: 'todos_updated',
+      message: 'Todo list updated',
+      username: 'System',
+      todos,
+    })
+  },
+})
 
 // Global shared chat instance
 export const globalChat = new ChatLogic({
@@ -166,14 +196,38 @@ export class ChatServer extends RpcTarget implements ChatApi {
       throw new Error('Client notifier not available on this connection')
     }
 
-    this.currentUsername = username
-    clients.set(username, this.clientNotifier)
+    const trimmed = username.trim()
+    if (!trimmed) {
+      throw new Error('Username cannot be empty')
+    }
 
-    globalChat.addUserSync(username)
+    // Same connection switching personas: leave the previous identity first
+    // so it is not left registered in `clients` (which double-delivers pushes).
+    if (this.currentUsername && this.currentUsername !== trimmed) {
+      console.log(
+        `🔄 Switching identity on connection: ${this.currentUsername} → ${trimmed}`,
+      )
+      this.leaveChat()
+    }
+
+    if (this.currentUsername === trimmed) {
+      return {
+        message: 'Already joined the chat',
+        onlineUsers: globalChat.getOnlineUsers(),
+        recentMessages: globalChat.getMessages().slice(-20),
+        todos: globalTodos.getTodos(),
+        claudeMode,
+      }
+    }
+
+    this.currentUsername = trimmed
+    clients.set(trimmed, this.clientNotifier)
+
+    globalChat.addUserSync(trimmed)
 
     const welcomeMessage = normalizeNotification({
       type: 'welcome',
-      message: `Welcome to the chat, ${username}! 👋`,
+      message: `Welcome to the chat, ${trimmed}! 👋`,
       username: 'System',
     })
 
@@ -183,6 +237,8 @@ export class ChatServer extends RpcTarget implements ChatApi {
       message: 'Successfully joined the chat',
       onlineUsers: globalChat.getOnlineUsers(),
       recentMessages: globalChat.getMessages().slice(-20),
+      todos: globalTodos.getTodos(),
+      claudeMode,
     }
   }
 
@@ -203,7 +259,61 @@ export class ChatServer extends RpcTarget implements ChatApi {
   }
 
   getChatState() {
-    return globalChat.getChatState()
+    return {
+      ...globalChat.getChatState(),
+      todos: globalTodos.getTodos(),
+      claudeMode,
+    }
+  }
+
+  getTodos(): TodoItem[] {
+    return globalTodos.getTodos()
+  }
+
+  addTodo(text: string) {
+    if (!this.currentUsername) {
+      throw new Error('You must join the chat first')
+    }
+
+    const todo = globalTodos.addTodo(text, this.currentUsername)
+    return {
+      todo,
+      todos: globalTodos.getTodos(),
+    }
+  }
+
+  removeTodo(id: string) {
+    if (!this.currentUsername) {
+      throw new Error('You must join the chat first')
+    }
+
+    const success = globalTodos.removeTodo(id)
+    return {
+      success,
+      todos: globalTodos.getTodos(),
+    }
+  }
+
+  getClaudeMode(): ClaudeMode {
+    return claudeMode
+  }
+
+  setClaudeMode(mode: ClaudeMode) {
+    if (mode !== 'active' && mode !== 'passive') {
+      throw new Error('Claude mode must be "active" or "passive"')
+    }
+
+    claudeMode = mode
+    console.log(`🤖 Claude mode set to ${mode}`)
+
+    void ChatServer.broadcastToAll({
+      type: 'claude_mode_changed',
+      message: `Claude is now in ${mode} mode`,
+      username: 'System',
+      claudeMode: mode,
+    })
+
+    return { mode: claudeMode }
   }
 
   sendMessage(messageText: string): SendResult {
@@ -220,29 +330,24 @@ export class ChatServer extends RpcTarget implements ChatApi {
     }
 
     const trimmedMessage = messageText.trim()
-    const isClaudeMention =
-      /@Claude/i.test(messageText) ||
-      /^Claude/i.test(trimmedMessage) ||
-      /^@Claude/i.test(trimmedMessage)
-
-    if (isClaudeMention) {
-      const message = globalChat.sendMessageSync(
-        this.currentUsername,
-        messageText.trim(),
-      )
-
-      void this.enqueueClaudeRequest(messageText)
-
-      return {
-        message: 'Claude request queued',
-        chatMessage: message,
-      }
-    }
+    const mentioned = isClaudeMention(trimmedMessage)
+    const shouldAskClaude =
+      mentioned || (claudeMode === 'active' && this.currentUsername !== 'Claude')
 
     const message = globalChat.sendMessageSync(
       this.currentUsername,
-      messageText.trim(),
+      trimmedMessage,
     )
+
+    if (shouldAskClaude) {
+      void this.enqueueClaudeRequest(trimmedMessage, mentioned)
+      return {
+        message: mentioned
+          ? 'Claude request queued'
+          : 'Message sent; Claude is watching in active mode',
+        chatMessage: message,
+      }
+    }
 
     return {
       message: 'Message sent successfully',
@@ -250,7 +355,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
     }
   }
 
-  private async enqueueClaudeRequest(messageText: string) {
+  private async enqueueClaudeRequest(messageText: string, mentioned: boolean) {
     const conversationHistory = globalChat.getMessages().map((msg) => ({
       role: 'user' as const,
       content: `${msg.username}: ${msg.message}`,
@@ -262,6 +367,8 @@ export class ChatServer extends RpcTarget implements ChatApi {
       username: this.currentUsername!,
       message: messageText,
       conversationHistory,
+      mode: claudeMode,
+      mentioned,
     })
 
     void this.processClaudeQueue()
@@ -276,15 +383,21 @@ export class ChatServer extends RpcTarget implements ChatApi {
     }
 
     claudeService.startProcessing()
+    const currentRequest = claudeService.getCurrentRequest()
+    const requestMode = currentRequest?.mode ?? claudeMode
+    const mentioned = currentRequest?.mentioned ?? false
+    const showResponding =
+      claudeService.getQueueStatus().showResponding
 
     try {
-      const currentStatus = claudeService.getQueueStatus()
-
-      await ChatServer.broadcastToAll({
-        type: 'claude_responding',
-        message: `Claude is responding to ${currentStatus.current}...`,
-        username: 'System',
-      })
+      // Only announce when a visible reply is expected (not active silent watches).
+      if (showResponding) {
+        await ChatServer.broadcastToAll({
+          type: 'claude_responding',
+          message: 'Claude is responding',
+          username: currentRequest?.username ?? 'System',
+        })
+      }
 
       const conversationHistory = globalChat.getMessages().map((msg) => ({
         role: 'user' as const,
@@ -294,13 +407,19 @@ export class ChatServer extends RpcTarget implements ChatApi {
       let accumulatedResponse = ''
       for await (const chunk of claudeService.streamResponse(
         conversationHistory,
+        requestMode,
+        mentioned,
       )) {
         if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
           accumulatedResponse += chunk.delta
         }
       }
 
-      await globalChat.sendMessage('Claude', accumulatedResponse)
+      if (!isNoReply(accumulatedResponse) && accumulatedResponse.trim()) {
+        await globalChat.sendMessage('Claude', accumulatedResponse.trim())
+      } else {
+        console.log('🤖 Claude: Skipping empty / NO_REPLY response')
+      }
     } catch (error) {
       console.error('Error in processClaudeQueue:', error)
 
@@ -311,6 +430,12 @@ export class ChatServer extends RpcTarget implements ChatApi {
       })
     } finally {
       claudeService.finishProcessing()
+      // Clear any "responding" UI state (not shown as a chat line).
+      await ChatServer.broadcastToAll({
+        type: 'claude_idle',
+        message: 'Claude finished',
+        username: 'System',
+      })
       void this.processClaudeQueue()
     }
   }
@@ -321,6 +446,7 @@ export class ChatServer extends RpcTarget implements ChatApi {
         current: null,
         queue: [],
         isProcessing: false,
+        showResponding: false,
       }
     }
 
