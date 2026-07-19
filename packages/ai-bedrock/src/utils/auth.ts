@@ -62,17 +62,23 @@ export function resolveBedrockAuth(
     kind: 'sigv4',
     region,
     service: sigv4Service(endpoint),
-    // Lazy credential provider: the AWS SDK is Node/server-only, so we defer the
-    // dynamic import until SigV4 actually needs to resolve credentials. The
-    // specifier is held in a variable (not a string literal) so bundler dep
-    // scanners (e.g. Vite/esbuild optimizeDeps) cannot statically discover the
-    // AWS SDK and try to pre-bundle it for the browser — it would fail on the
-    // SDK's Node-only `fromTokenFile` export chain. `typeof import(...)` is a
-    // type-only reference (erased at emit) so we keep full typing.
+    // Lazy credential provider: the AWS SDK is Node/server-only, so we defer
+    // the dynamic import until SigV4 actually needs to resolve credentials.
+    // A string-literal specifier (rather than a variable) lets static bundlers
+    // — esbuild, bun build, Rollup — resolve and include the SDK in
+    // self-contained server bundles (#929). The SDK still stays out of the
+    // module-load graph until first use because the import is dynamic.
+    //
+    // Vite's dev-time optimizeDeps pre-bundler may try to scan this import
+    // for the browser and fail on the SDK's Node-only `fromTokenFile` export
+    // chain. Browser-side use of this server-only adapter is unsupported; if
+    // Vite flags the SDK during a server build, add `@aws-sdk/credential-providers`
+    // (and `@aws-sdk/client-bedrock-runtime`) to `optimizeDeps.exclude` — see
+    // `docs/adapters/bedrock.md` and the matching pattern in
+    // `examples/ts-react-chat/vite.config.ts`.
     credentials: async (...args) => {
-      const mod = '@aws-sdk/credential-providers'
       const { fromNodeProviderChain } = (await import(
-        /* @vite-ignore */ mod
+        '@aws-sdk/credential-providers'
       )) as typeof CredentialProviders
       return fromNodeProviderChain()(...args)
     },

@@ -92,17 +92,24 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is held
-   * in a variable (not a string literal) so bundler dep scanners (e.g. Vite/
-   * esbuild optimizeDeps) cannot statically discover the AWS SDK and try to
-   * pre-bundle it for the browser — it would fail on the SDK's Node-only
-   * `fromTokenFile` export chain. The SDK is Node/server-only and is only
-   * reached on a real request. `typeof import(...)` is a type-only reference
-   * (erased at emit) so the imported members keep full typing.
+   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The string-literal
+   * specifier lets static bundlers — esbuild, bun build, Rollup — resolve and
+   * include the AWS SDK in self-contained server bundles (#929). The SDK is
+   * Node/server-only and is only reached on a real request, so the dynamic
+   * import also keeps it out of the module-load graph until first use.
+   * `typeof import(...)` is a type-only reference (erased at emit) so the
+   * imported members keep full typing — no cast is needed on the return.
+   *
+   * Vite's dev-time optimizeDeps pre-bundler may try to scan this import for
+   * the browser and fail on the SDK's Node-only exports. Browser-side use of
+   * this server-only adapter is unsupported; if Vite flags the SDK during a
+   * server build, add `@aws-sdk/client-bedrock-runtime` (and
+   * `@aws-sdk/credential-providers`) to `optimizeDeps.exclude` — see
+   * `docs/adapters/bedrock.md` and the matching pattern in
+   * `examples/ts-react-chat/vite.config.ts`.
    */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
-    const mod = '@aws-sdk/client-bedrock-runtime'
-    return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
+    return import('@aws-sdk/client-bedrock-runtime')
   }
 
   /**
