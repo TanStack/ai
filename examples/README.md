@@ -9,6 +9,7 @@ Choose an example based on your use case:
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
+- **Polyglot AG-UI backends (Go/Rust)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
 
@@ -119,6 +120,39 @@ pnpm start
 ```
 
 📖 [Full Documentation](vanilla-chat/README.md)
+
+---
+
+### AG-UI Polyglot Echo (ag-ui)
+
+A React SPA that connects to **Go and Rust chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions.
+
+**Tech Stack:**
+
+- React + Vite (SPA)
+- `@tanstack/ai-react` + `@tanstack/ai-react-ui`
+- Go chat server (`net/http`, `:8001`)
+- Rust chat server (Axum, `:8002`)
+
+**Features:**
+
+- ✅ Backend picker (Go | Rust)
+- ✅ Provider picker (OpenAI | Anthropic)
+- ✅ Hand-rolled AG-UI SSE in two languages
+- ✅ Streaming LLM responses via env API keys
+
+**Getting Started:**
+
+```bash
+cd examples/ag-ui
+pnpm install
+cp .env.example .env
+pnpm dev:all
+```
+
+Requires Go 1.22+, Rust stable, and provider API keys.
+
+📖 [Full Documentation](ag-ui/README.md)
 
 ---
 
