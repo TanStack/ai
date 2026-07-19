@@ -331,6 +331,85 @@ describe('otelMiddleware — duration histogram and rollup', () => {
     expect(root.attributes['tanstack.ai.iterations']).toBe(1)
     expect(root.ended).toBe(true)
   })
+
+  it('rolls up usage across iterations onto the root span (issue #916)', async () => {
+    // Regression for the documented contract in docs/advanced/otel.md:
+    // "The root span rolls up `gen_ai.usage.input_tokens` and
+    // `gen_ai.usage.output_tokens` across all iterations."
+    //
+    // Two-iteration scripted flow (tool_calls → stop), iteration 1 reports
+    // 500/50 and iteration 2 reports 700/80. The root `chat` span must
+    // carry the roll-up: 1200/130 — not just the final iteration's 700/80.
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    // --- Iteration 1 (tool_calls) ---
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, {
+      ...ev.runFinished('tool_calls'),
+      model: 'scripted-model',
+      usage: { promptTokens: 500, completionTokens: 50, totalTokens: 550 },
+    })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 500,
+      completionTokens: 50,
+      totalTokens: 550,
+    })
+
+    // --- Iteration 2 (stop) ---
+    ctx.iteration = 1
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onChunk?.(ctx, {
+      ...ev.runFinished('stop'),
+      model: 'scripted-model',
+      usage: { promptTokens: 700, completionTokens: 80, totalTokens: 780 },
+    })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 700,
+      completionTokens: 80,
+      totalTokens: 780,
+    })
+
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1250,
+      content: 'done',
+      // The engine now hands the cross-iteration roll-up here (1200/130).
+      usage: { promptTokens: 1200, completionTokens: 130, totalTokens: 1330 },
+    })
+
+    const root = spans[0]!
+    expect(root.attributes['gen_ai.usage.input_tokens']).toBe(1200)
+    expect(root.attributes['gen_ai.usage.output_tokens']).toBe(130)
+    expect(root.attributes['gen_ai.usage.total_tokens']).toBe(1330)
+    expect(root.attributes['tanstack.ai.iterations']).toBe(2)
+
+    // Per-iteration span attributes remain the per-iteration (incremental)
+    // values — the roll-up lives on the root span only.
+    const iter1 = spans[1]!
+    expect(iter1.attributes['gen_ai.usage.input_tokens']).toBe(500)
+    expect(iter1.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    const iter2 = spans[2]!
+    expect(iter2.attributes['gen_ai.usage.input_tokens']).toBe(700)
+    expect(iter2.attributes['gen_ai.usage.output_tokens']).toBe(80)
+
+    // The token histogram records each iteration's tokens (4 records: 2
+    // iterations × input+output). Sum equals the roll-up.
+    const tokenRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.token.usage',
+    )
+    expect(tokenRecords).toHaveLength(4)
+    const totalInput = tokenRecords
+      .filter((r) => r.attributes!['gen_ai.token.type'] === 'input')
+      .reduce((sum, r) => sum + r.value, 0)
+    const totalOutput = tokenRecords
+      .filter((r) => r.attributes!['gen_ai.token.type'] === 'output')
+      .reduce((sum, r) => sum + r.value, 0)
+    expect(totalInput).toBe(1200)
+    expect(totalOutput).toBe(130)
+  })
 })
 
 describe('otelMiddleware — full usage emission', () => {

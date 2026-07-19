@@ -11,6 +11,7 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
+import { accumulateTokenUsage } from '../../utilities/usage'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -59,6 +60,7 @@ import type {
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
+  TokenUsage,
   ToolCall,
   ToolCallArgsEvent,
   ToolCallEndEvent,
@@ -531,6 +533,16 @@ class TextEngine<
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  /**
+   * Cross-iteration roll-up of `RUN_FINISHED.usage` from every iteration of
+   * the agent loop. `finishedEvent` (above) is overwritten each iteration to
+   * carry the latest `finishReason` / lazy-tool chunk context, so it can't
+   * hold the roll-up. `accumulatedUsage` is the running total passed to
+   * `onFinish` — the documented contract for the root `chat` span's
+   * `gen_ai.usage.*` attributes (docs/advanced/otel.md). Not reset by
+   * `beginIteration()`; reset only at run start.
+   */
+  private accumulatedUsage: TokenUsage | null = null
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
@@ -909,7 +921,11 @@ class TextEngine<
             finishReason: this.lastFinishReason,
             duration: Date.now() - this.streamStartTime,
             content: this.accumulatedContent,
-            usage: this.finishedEvent?.usage,
+            // Cross-iteration roll-up — see `handleRunFinishedEvent`. Falls
+            // back to `finishedEvent?.usage` only when no RUN_FINISHED chunk
+            // carried usage at all (preserves the prior undefined behavior
+            // for adapters that never report usage).
+            usage: this.accumulatedUsage ?? this.finishedEvent?.usage,
           })
         }
       }
@@ -1237,6 +1253,18 @@ class TextEngine<
   private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
     this.finishedEvent = chunk
     this.lastFinishReason = chunk.finishReason ?? null
+    // Accumulate per-iteration usage into the cross-iteration roll-up that
+    // `onFinish` will hand to middleware. `finishedEvent` is overwritten per
+    // iteration, so the usage must live in a separate field that survives
+    // `beginIteration()`'s reset. Per-iteration `onUsage` is still fired
+    // separately by `streamModelResponse` (with that iteration's incremental
+    // usage), so histograms and per-iteration span attributes are unaffected.
+    if (chunk.usage) {
+      this.accumulatedUsage = accumulateTokenUsage(
+        this.accumulatedUsage,
+        chunk.usage,
+      )
+    }
   }
 
   private handleRunErrorEvent(

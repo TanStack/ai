@@ -1723,6 +1723,161 @@ describe('chat() middleware', () => {
       expect(info.usage).toEqual(usage)
     })
 
+    it('rolls up usage across iterations in FinishInfo (root span contract)', async () => {
+      // Regression guard for issue #916: the root `chat` span's
+      // `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` are
+      // documented to roll up across all iterations (docs/advanced/otel.md).
+      // The chat engine previously passed only the final iteration's usage
+      // to `onFinish` (overwriting `finishedEvent` per iteration), so the
+      // root span under-reported any multi-iteration run.
+      const onFinish = vi.fn()
+      const onUsage = vi.fn()
+
+      // Iteration 1: 500/50 (tool call → tool_calls finishReason)
+      // Iteration 2: 700/80 (final answer → stop finishReason)
+      // Expected roll-up on root: 1200/130
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'status'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'status', { input: {} }),
+            ev.runFinished('tool_calls', 'run-1', {
+              promptTokens: 500,
+              completionTokens: 50,
+              totalTokens: 550,
+            }),
+          ],
+          [
+            ev.runStarted(),
+            ev.textContent('done'),
+            ev.runFinished('stop', 'run-1', {
+              promptTokens: 700,
+              completionTokens: 80,
+              totalTokens: 780,
+            }),
+          ],
+        ],
+      })
+
+      const tool = serverTool('status', () => ({ ok: true }))
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [tool],
+        middleware: [{ name: 'capture', onFinish, onUsage }],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(onFinish).toHaveBeenCalledOnce()
+      const info = onFinish.mock.calls[0]![1]
+      expect(info.usage).toBeDefined()
+      expect(info.usage!.promptTokens).toBe(1200)
+      expect(info.usage!.completionTokens).toBe(130)
+      expect(info.usage!.totalTokens).toBe(1330)
+
+      // Per-iteration onUsage is unchanged — each call carries that
+      // iteration's incremental usage (not the roll-up).
+      expect(onUsage).toHaveBeenCalledTimes(2)
+      expect(onUsage.mock.calls[0]![1]).toEqual({
+        promptTokens: 500,
+        completionTokens: 50,
+        totalTokens: 550,
+      })
+      expect(onUsage.mock.calls[1]![1]).toEqual({
+        promptTokens: 700,
+        completionTokens: 80,
+        totalTokens: 780,
+      })
+    })
+
+    it('rolls up cost and detail breakdowns across iterations', async () => {
+      // Companion to the input/output roll-up test: the optional numeric
+      // fields (cost, cache/reasoning breakdowns, upstream cost split) must
+      // also accumulate so backends relying on `FinishInfo.usage` see full
+      // run totals — not just the final iteration's slice.
+      const onFinish = vi.fn()
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'status'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'status', { input: {} }),
+            {
+              ...ev.runFinished('tool_calls', 'run-1', {
+                promptTokens: 500,
+                completionTokens: 50,
+                totalTokens: 550,
+              }),
+              usage: {
+                promptTokens: 500,
+                completionTokens: 50,
+                totalTokens: 550,
+                promptTokensDetails: {
+                  cachedTokens: 80,
+                  cacheWriteTokens: 10,
+                },
+                completionTokensDetails: { reasoningTokens: 15 },
+                cost: 0.01,
+                costDetails: {
+                  upstreamCost: 0.008,
+                  upstreamInputCost: 0.006,
+                  upstreamOutputCost: 0.002,
+                },
+              },
+            },
+          ],
+          [
+            ev.runStarted(),
+            ev.textContent('done'),
+            {
+              ...ev.runFinished('stop', 'run-1', {
+                promptTokens: 700,
+                completionTokens: 80,
+                totalTokens: 780,
+              }),
+              usage: {
+                promptTokens: 700,
+                completionTokens: 80,
+                totalTokens: 780,
+                promptTokensDetails: { cachedTokens: 200 },
+                completionTokensDetails: { reasoningTokens: 30 },
+                cost: 0.02,
+                costDetails: { upstreamCost: 0.015 },
+              },
+            },
+          ],
+        ],
+      })
+
+      const tool = serverTool('status', () => ({ ok: true }))
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [tool],
+        middleware: [{ name: 'capture', onFinish }],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const usage = onFinish.mock.calls[0]![1].usage!
+      expect(usage.promptTokens).toBe(1200)
+      expect(usage.completionTokens).toBe(130)
+      expect(usage.totalTokens).toBe(1330)
+      // Detail fields sum when both iterations report them.
+      expect(usage.promptTokensDetails?.cachedTokens).toBe(280)
+      expect(usage.promptTokensDetails?.cacheWriteTokens).toBe(10)
+      expect(usage.completionTokensDetails?.reasoningTokens).toBe(45)
+      expect(usage.cost).toBeCloseTo(0.03, 10)
+      expect(usage.costDetails?.upstreamCost).toBeCloseTo(0.023, 10)
+      expect(usage.costDetails?.upstreamInputCost).toBe(0.006)
+      expect(usage.costDetails?.upstreamOutputCost).toBe(0.002)
+    })
+
     it('should accumulate content across multiple text chunks', async () => {
       const onFinish = vi.fn()
 

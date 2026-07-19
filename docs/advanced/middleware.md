@@ -433,11 +433,9 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 > **`onFinish` info fields and structured-output runs:** the `info` object reflects the **agent loop's** terminal state — finalization state is intentionally segregated to keep agent-loop semantics clean.
 >
 > - `info.content` — the agent loop's accumulated text. Finalization JSON deltas are **not** included here. The structured-output result is delivered via the `structured-output.complete` CUSTOM event, which middleware observes via `onChunk` (with `ctx.phase === 'structuredOutput'`).
-> - `info.usage` — the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
+> - `info.usage` — usage rolled up across all agent-loop iterations' `RUN_FINISHED` chunks. Every numeric field on `TokenUsage` (input/output tokens, cost, cache/reasoning breakdowns, upstream cost split, etc.) is summed across iterations, so this carries the full-run total — the documented contract for the root `chat` span's `gen_ai.usage.*` attributes. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens separately, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call, with each iteration's incremental values.
 > - `info.finishReason` — the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
 > - `info.duration` — wall-clock duration of the entire `chat()` invocation, including finalization.
->
-> To aggregate usage across the whole run, accumulate from `onUsage` callbacks rather than relying on `info.usage`.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";

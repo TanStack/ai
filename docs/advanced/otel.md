@@ -90,6 +90,8 @@ Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the sam
 | tool | `gen_ai.tool.type` | `function` |
 | tool | `tanstack.ai.tool.outcome` | `success` / `error` |
 
+**Usage accumulation.** The root span rolls up `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` across all iterations — every numeric field on `TokenUsage` (cost, total tokens, cache/reasoning breakdowns, upstream cost split, duration-based billing, units billed) is summed the same way. Per-iteration span attributes and the `gen_ai.client.token.usage` histogram are unaffected; they still carry each iteration's incremental values. The roll-up is what `onFinish`'s `info.usage` carries, so any middleware reading `FinishInfo.usage` sees the full-run total.
+
 Usage attributes beyond input/output tokens are emitted only when the provider reports them, so spans stay clean otherwise. Cache and reasoning breakdowns use the official GenAI semconv names; `gen_ai.usage.cost` and `gen_ai.usage.total_tokens` are de-facto extensions consumed directly by backends like PostHog — without them, backends re-derive cost from their own price tables and lose cache discounts and gateway markup. Fields with no established convention (duration-based billing, the upstream cost split) are TanStack-namespaced.
 
 ### Metrics
