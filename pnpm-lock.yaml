@@ -516,12 +516,6 @@ importers:
       '@tanstack/ai-anthropic':
         specifier: workspace:*
         version: link:../../packages/ai-anthropic
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../../packages/ai-client
-      '@tanstack/ai-react':
-        specifier: workspace:*
-        version: link:../../packages/ai-react
       '@tanstack/react-devtools':
         specifier: ^0.9.10
         version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -531,9 +525,6 @@ importers:
       '@tanstack/react-router-devtools':
         specifier: ^1.158.4
         version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.159.4)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@tanstack/react-router-ssr-query':
-        specifier: ^1.158.4
-        version: 1.159.5(@tanstack/query-core@5.90.12)(@tanstack/react-query@5.90.12(react@19.2.3))(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.159.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-start':
         specifier: ^1.159.0
         version: 1.159.5(crossws@0.4.6(srvx@0.11.17))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -541,8 +532,11 @@ importers:
         specifier: ^1.158.4
         version: 1.159.5(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       capnweb:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.10.0
+        version: 0.10.0
+      nitro:
+        specifier: 3.0.1-alpha.2
+        version: 3.0.1-alpha.2(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(aws4fetch@1.0.20)(chokidar@5.0.0)(rolldown@1.1.3)(rollup@4.60.1)(vite@7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -10061,8 +10055,8 @@ packages:
   caniuse-lite@1.0.30001760:
     resolution: {integrity: sha512-7AAMPcueWELt1p3mi13HR/LHH0TJLT11cnwDJEs3xA4+CK/PLKeO9Kl1oru24htkyUKtkGCvAx4ohB0Ttry8Dw==}
 
-  capnweb@0.1.0:
-    resolution: {integrity: sha512-+pygKx1JFTZTRdd1hHgaBRg5BwULEDZq8ZoHXkYP2GXNV3lrjXLj5qzlGz+SgBCJjWUmNBtlh7JPWdr0wIbY8w==}
+  capnweb@0.10.0:
+    resolution: {integrity: sha512-lQ2nlzaifkqBeNfs8RLErn7NZ8FNf3vn1W7J3nSH73edWG+0B5nHZGR51S2S9HMZEuZcEypOO469dZRY/BluFA==}
 
   capnweb@0.8.0:
     resolution: {integrity: sha512-BK/TuXUiyfLSKsmjojn70yN7oYG/JJzoURZ3tckjg5Zj2KcygPm0A5jyOlswK7SYB4f0Gh9tt+RZ132b80iLfA==}
@@ -24708,7 +24702,7 @@ snapshots:
 
   caniuse-lite@1.0.30001760: {}
 
-  capnweb@0.1.0: {}
+  capnweb@0.10.0: {}
 
   capnweb@0.8.0: {}
 

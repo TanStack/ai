@@ -15,15 +15,18 @@ export const Route = createFileRoute('/')({
 function ChatApp() {
   const [username, setUsername] = useState('')
 
-  const { isConnected, isConnecting, error, api, connect } = useChatConnection()
+  const { isConnected, isConnecting, error, api, apiRef, notifier, connect } =
+    useChatConnection()
 
-  const { chatState, sendMessage } = useChatMessages(
+  const { chatState, sendMessage, isJoined } = useChatMessages(
     api,
+    apiRef,
+    notifier,
     isConnected,
     username || null,
   )
 
-  const { queueStatus } = useClaude(api, isConnected)
+  const { queueStatus } = useClaude(api, apiRef, isConnected, isJoined)
 
   useEffect(() => {
     if (!isConnected && !isConnecting && !error) {
@@ -59,6 +62,7 @@ function ChatApp() {
               messages={chatState.messages}
               onSendMessage={sendMessage}
               username={username}
+              isJoined={isJoined}
               claudeQueueStatus={queueStatus}
             />
           </div>

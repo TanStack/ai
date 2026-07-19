@@ -1,18 +1,8 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { newWebSocketRpcSession } from 'capnweb'
-
-export interface ChatAPI {
-  joinChat(username: string, notificationCallback: Function): Promise<any>
-  sendMessage(message: string): Promise<any>
-  getChatState(): Promise<any>
-  pollMessages(): Promise<any[]>
-  leaveChat(): Promise<any>
-  getClaudeQueueStatus(): Promise<{
-    current: string | null
-    queue: string[]
-    isProcessing: boolean
-  }>
-}
+import type { RpcStub } from 'capnweb'
+import type { ChatApi } from '../../chat-server/chat-api'
+import { ChatNotifier } from '@/lib/chat-notifier'
 
 export interface ConnectionState {
   isConnected: boolean
@@ -29,9 +19,38 @@ export function useChatConnection() {
     error: null,
   })
 
-  const apiRef = useRef<ChatAPI | null>(null)
+  const [api, setApi] = useState<RpcStub<ChatApi> | null>(null)
+  const [notifier, setNotifier] = useState<ChatNotifier | null>(null)
+  const apiRef = useRef<RpcStub<ChatApi> | null>(null)
+  const connectingRef = useRef(false)
+  const connectionIdRef = useRef(0)
+
+  const disconnect = useCallback(() => {
+    connectionIdRef.current += 1
+    connectingRef.current = false
+    if (apiRef.current) {
+      apiRef.current[Symbol.dispose]()
+      apiRef.current = null
+    }
+    setApi(null)
+    setNotifier(null)
+    setState({
+      isConnected: false,
+      isConnecting: false,
+      connectionStatus: 'Disconnected',
+      error: null,
+    })
+  }, [])
 
   const connect = useCallback(() => {
+    if (connectingRef.current || apiRef.current) {
+      return
+    }
+
+    connectingRef.current = true
+    const connectionId = ++connectionIdRef.current
+    const sessionNotifier = new ChatNotifier()
+
     setState((prev) => ({
       ...prev,
       isConnecting: true,
@@ -51,31 +70,51 @@ export function useChatConnection() {
 
       console.log('Connecting to chat:', wsUrl)
 
-      const api = newWebSocketRpcSession(wsUrl) as any as ChatAPI
-      apiRef.current = api
+      const stub = newWebSocketRpcSession<ChatApi>(wsUrl, sessionNotifier)
+      apiRef.current = stub
 
-      // Test connection
-      api
-        .getChatState()
-        .then(() => {
+      void (async () => {
+        try {
+          const chatState = await stub.getChatState()
+          if (connectionId !== connectionIdRef.current) {
+            stub[Symbol.dispose]()
+            return
+          }
+          if (!chatState || !Array.isArray(chatState.onlineUsers)) {
+            throw new Error('Invalid chat state from server')
+          }
+
           console.log('Chat RPC connection established')
+          setNotifier(sessionNotifier)
+          setApi(stub)
+          connectingRef.current = false
           setState({
             isConnected: true,
             isConnecting: false,
             connectionStatus: 'Connected',
             error: null,
           })
-        })
-        .catch((error) => {
+        } catch (error) {
+          if (connectionId !== connectionIdRef.current) {
+            stub[Symbol.dispose]()
+            return
+          }
           console.error('Chat connection failed:', error)
+          stub[Symbol.dispose]()
+          apiRef.current = null
+          setApi(null)
+          setNotifier(null)
+          connectingRef.current = false
           setState({
             isConnected: false,
             isConnecting: false,
             connectionStatus: 'Failed to connect',
-            error: error.message,
+            error: error instanceof Error ? error.message : 'Unknown error',
           })
-        })
+        }
+      })()
     } catch (error) {
+      connectingRef.current = false
       console.error('Failed to create chat session:', error)
       setState({
         isConnected: false,
@@ -86,21 +125,17 @@ export function useChatConnection() {
     }
   }, [])
 
-  const disconnect = useCallback(() => {
-    if (apiRef.current) {
-      apiRef.current = null
+  useEffect(() => {
+    return () => {
+      disconnect()
     }
-    setState({
-      isConnected: false,
-      isConnecting: false,
-      connectionStatus: 'Disconnected',
-      error: null,
-    })
-  }, [])
+  }, [disconnect])
 
   return {
     ...state,
-    api: apiRef.current,
+    api,
+    apiRef,
+    notifier,
     connect,
     disconnect,
   }

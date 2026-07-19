@@ -1,25 +1,53 @@
 // Cap'n Web RPC server implementation for chat
 import { RpcTarget } from 'capnweb'
 import { ChatLogic } from './chat-logic.js'
-
+import type {
+  ChatApi,
+  ChatNotification,
+  ChatNotifierApi,
+  ClaudeQueueStatus,
+  JoinResult,
+  SendResult,
+} from './chat-api.js'
+import type { ClaudeService } from './claude-service.js'
 import type { WebSocket } from 'ws'
 
-// Local type definition to avoid importing from @tanstack/ai at module parse time
-interface ModelMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool'
-  content?: string
-  toolCallId?: string
-  toolCalls?: Array<any>
-}
+type NotifyTarget = ChatNotifierApi
+
+// Global registry of client notification targets (Cap'n Web RpcTarget stubs)
+export const clients = new Map<string, NotifyTarget>()
 
 // Lazy-load claude service to avoid importing AI packages at module parse time
-let globalClaudeService: any = null
-async function getClaudeService() {
+let globalClaudeService: ClaudeService | null = null
+async function getClaudeService(): Promise<ClaudeService> {
   if (!globalClaudeService) {
     const { globalClaudeService: service } = await import('./claude-service.js')
     globalClaudeService = service
   }
   return globalClaudeService
+}
+
+function pushNotification(
+  notifier: ChatNotifierApi,
+  notification: ChatNotification,
+) {
+  // Defer server→client RPC so we never nest calls inside an in-flight handler
+  // (Cap'n Web 0.10 throws "' is not a function" in the browser otherwise).
+  queueMicrotask(() => {
+    void Promise.resolve(notifier.notify(notification)).catch((error) => {
+      console.error('Failed to push notification to client:', error)
+    })
+  })
+}
+
+function normalizeNotification(
+  notification: ChatNotification,
+): ChatNotification {
+  return {
+    ...notification,
+    timestamp: notification.timestamp || new Date().toISOString(),
+    id: notification.id || Math.random().toString(36).slice(2, 11),
+  }
 }
 
 // Global shared chat instance
@@ -29,15 +57,20 @@ export const globalChat = new ChatLogic({
       type: 'user_joined',
       message: `${username} joined the chat`,
       username,
+      onlineUsers: globalChat.getOnlineUsers(),
     })
   },
 
   async onUserLeft(username) {
-    await ChatServer.broadcastToAll({
-      type: 'user_left',
-      message: `${username} left the chat`,
+    await ChatServer.broadcastToAll(
+      {
+        type: 'user_left',
+        message: `${username} left the chat`,
+        username,
+        onlineUsers: globalChat.getOnlineUsers(),
+      },
       username,
-    })
+    )
   },
 
   async onMessageSent(message) {
@@ -54,26 +87,22 @@ export const globalChat = new ChatLogic({
 // Global registry of active RPC server instances
 export const activeServers = new Set<ChatServer>()
 
-// Message queue system for each user
-export const userMessageQueues = new Map<string, Array<any>>()
-
-// Global registry of client callbacks
-export const clients = new Map<string, (...args: Array<any>) => void>()
-
 // Chat Server Implementation (one per connection)
-export class ChatServer extends RpcTarget {
+export class ChatServer extends RpcTarget implements ChatApi {
   public currentUsername: string | null = null
+  private clientNotifier: ChatNotifierApi | null = null
 
   constructor() {
     super()
-    // Register this server instance
     activeServers.add(this)
     console.log(`📡 Registered new chat server. Total: ${activeServers.size}`)
   }
 
-  // Set the WebSocket connection for this server instance
+  setClientNotifier(notifier: ChatNotifierApi) {
+    this.clientNotifier = notifier
+  }
+
   setWebSocket(ws: WebSocket) {
-    // Handle WebSocket disconnection
     ws.on('close', () => {
       if (this.currentUsername) {
         this.leaveChat()
@@ -83,50 +112,35 @@ export class ChatServer extends RpcTarget {
     })
   }
 
-  // Broadcast to all connected users
-  static async broadcastToAll(notification: any, excludeUser?: string) {
-    const msgPreview = notification.message?.substring(0, 50) || ''
+  static async broadcastToAll(
+    notification: ChatNotification,
+    excludeUser?: string,
+  ) {
+    const payload = normalizeNotification(notification)
+    const msgPreview = payload.message?.substring(0, 50) || ''
     console.log(
-      `\n📬 broadcastToAll() - type: ${notification.type}, from: ${notification.username}, message: "${msgPreview}..."`,
+      `\n📬 broadcastToAll() - type: ${payload.type}, from: ${payload.username}, message: "${msgPreview}..."`,
     )
     console.log(`📬 Connected users: ${Array.from(clients.keys()).join(', ')}`)
     console.log(`📬 Exclude user: ${excludeUser || 'none'}`)
 
     let successCount = 0
-    const successful: Array<string> = []
+    const successful: string[] = []
 
-    for (const username of clients.keys()) {
+    for (const [username, callback] of clients.entries()) {
       if (excludeUser && username === excludeUser) {
         console.log(`📬 Skipping excluded user: ${username}`)
         continue
       }
 
-      // Add notification to user's message queue
-      if (!userMessageQueues.has(username)) {
-        userMessageQueues.set(username, [])
+      try {
+        pushNotification(callback, payload)
+        successCount++
+        successful.push(username)
+        console.log(`📬 Queued push to ${username}`)
+      } catch (error) {
+        console.error(`📬 Failed to notify ${username}:`, error)
       }
-
-      const queue = userMessageQueues.get(username)!
-      const messageId =
-        notification.id || Math.random().toString(36).substr(2, 9)
-
-      queue.push({
-        ...notification,
-        timestamp: notification.timestamp || new Date().toISOString(),
-        id: messageId,
-      })
-
-      console.log(
-        `📬 Added to ${username}'s queue (queue size: ${queue.length}, messageId: ${messageId})`,
-      )
-
-      // Keep queue size manageable (last 50 messages)
-      if (queue.length > 50) {
-        queue.splice(0, queue.length - 50)
-      }
-
-      successCount++
-      successful.push(username)
     }
 
     console.log(
@@ -137,57 +151,50 @@ export class ChatServer extends RpcTarget {
     return { successful, successCount }
   }
 
-  // Cleanup when connection closes
   dispose() {
     activeServers.delete(this)
     if (this.currentUsername) {
       clients.delete(this.currentUsername)
-      userMessageQueues.delete(this.currentUsername)
     }
     console.log(`📡 Unregistered chat server. Total: ${activeServers.size}`)
   }
 
-  // Client joins the chat
-  async joinChat(
-    username: string,
-    notificationCallback: (...args: Array<any>) => void,
-  ) {
+  joinChat(username: string): JoinResult {
     console.log(`${username} is joining the chat`)
-    this.currentUsername = username
 
-    // Register in global state
-    clients.set(username, notificationCallback)
-
-    // Add user to chat logic
-    await globalChat.addUser(username)
-
-    // Send welcome notification
-    if (!userMessageQueues.has(username)) {
-      userMessageQueues.set(username, [])
+    if (!this.clientNotifier) {
+      throw new Error('Client notifier not available on this connection')
     }
 
-    const welcomeMessage = {
+    this.currentUsername = username
+    clients.set(username, this.clientNotifier)
+
+    globalChat.addUserSync(username)
+
+    const welcomeMessage = normalizeNotification({
       type: 'welcome',
       message: `Welcome to the chat, ${username}! 👋`,
-      timestamp: new Date().toISOString(),
-      id: Math.random().toString(36).substr(2, 9),
-    }
+      username: 'System',
+    })
 
-    userMessageQueues.get(username)!.push(welcomeMessage)
+    pushNotification(this.clientNotifier, welcomeMessage)
 
     return {
       message: 'Successfully joined the chat',
       onlineUsers: globalChat.getOnlineUsers(),
-      recentMessages: globalChat.getMessages().slice(-20), // Last 20 messages
+      recentMessages: globalChat.getMessages().slice(-20),
     }
   }
 
-  // Client leaves the chat
-  async leaveChat() {
-    if (!this.currentUsername) return
+  leaveChat() {
+    if (!this.currentUsername) {
+      return { message: 'Not in chat' }
+    }
 
-    console.log(`${this.currentUsername} is leaving the chat`)
-    await globalChat.removeUser(this.currentUsername)
+    const username = this.currentUsername
+    console.log(`${username} is leaving the chat`)
+    globalChat.removeUserSync(username)
+    clients.delete(username)
     this.currentUsername = null
 
     return {
@@ -195,34 +202,11 @@ export class ChatServer extends RpcTarget {
     }
   }
 
-  // Get current chat state
   getChatState() {
     return globalChat.getChatState()
   }
 
-  // Poll for new messages from the queue
-  async pollMessages() {
-    if (!this.currentUsername) {
-      return []
-    }
-
-    const queue = userMessageQueues.get(this.currentUsername) || []
-    const messages = [...queue] // Return copy
-
-    // Clear the queue after reading
-    userMessageQueues.set(this.currentUsername, [])
-
-    if (messages.length > 0) {
-      console.log(
-        `📨 ${this.currentUsername} polling: returning ${messages.length} messages`,
-      )
-    }
-
-    return messages
-  }
-
-  // Send a chat message
-  async sendMessage(messageText: string) {
+  sendMessage(messageText: string): SendResult {
     console.log(
       `\n📨 [${this.currentUsername}] sendMessage called: "${messageText}"`,
     )
@@ -235,59 +219,19 @@ export class ChatServer extends RpcTarget {
       throw new Error('Message cannot be empty')
     }
 
-    // Check for Claude trigger pattern - matches @Claude anywhere in message or Claude at start
     const trimmedMessage = messageText.trim()
     const isClaudeMention =
-      /@Claude/i.test(messageText) || // @Claude anywhere in message
-      /^Claude/i.test(trimmedMessage) || // Claude at start
-      /^@Claude/i.test(trimmedMessage) // @Claude at start
-    console.log(
-      `📨 [${this.currentUsername}] Checking for Claude mention in: "${messageText.substring(0, 50)}..."`,
-    )
-    console.log(
-      `📨 [${this.currentUsername}] isClaudeMention: ${
-        isClaudeMention ? 'YES' : 'NO'
-      }`,
-    )
+      /@Claude/i.test(messageText) ||
+      /^Claude/i.test(trimmedMessage) ||
+      /^@Claude/i.test(trimmedMessage)
 
     if (isClaudeMention) {
-      console.log(
-        `📨 [${this.currentUsername}] Claude mention detected, sending user message first`,
-      )
-
-      // First, send the user's message to chat
-      const message = await globalChat.sendMessage(
+      const message = globalChat.sendMessageSync(
         this.currentUsername,
         messageText.trim(),
       )
-      console.log(
-        `📨 [${this.currentUsername}] User message sent, ID: ${message.id}`,
-      )
 
-      // Build conversation history for Claude
-      const conversationHistory: Array<ModelMessage> = globalChat
-        .getMessages()
-        .map((msg) => ({
-          role: 'user' as const,
-          content: `${msg.username}: ${msg.message}`,
-        }))
-      console.log(
-        `📨 [${this.currentUsername}] Built history with ${conversationHistory.length} messages`,
-      )
-
-      // Enqueue Claude request
-      const claudeService = await getClaudeService()
-      claudeService.enqueue({
-        id: Math.random().toString(36).substr(2, 9),
-        username: this.currentUsername,
-        message: messageText,
-        conversationHistory,
-      })
-      console.log(`📨 [${this.currentUsername}] Claude request enqueued`)
-
-      // Start processing immediately (will check queue internally)
-      console.log(`📨 [${this.currentUsername}] Starting processClaudeQueue()`)
-      this.processClaudeQueue()
+      void this.enqueueClaudeRequest(messageText)
 
       return {
         message: 'Claude request queued',
@@ -295,13 +239,10 @@ export class ChatServer extends RpcTarget {
       }
     }
 
-    // Regular message handling
-    console.log(`📨 [${this.currentUsername}] Regular message, sending to chat`)
-    const message = await globalChat.sendMessage(
+    const message = globalChat.sendMessageSync(
       this.currentUsername,
       messageText.trim(),
     )
-    console.log(`📨 [${this.currentUsername}] Message sent, ID: ${message.id}`)
 
     return {
       message: 'Message sent successfully',
@@ -309,109 +250,80 @@ export class ChatServer extends RpcTarget {
     }
   }
 
-  // Process Claude queue and stream response
-  private async processClaudeQueue() {
-    console.log(`\n🎯 processClaudeQueue() called`)
+  private async enqueueClaudeRequest(messageText: string) {
+    const conversationHistory = globalChat.getMessages().map((msg) => ({
+      role: 'user' as const,
+      content: `${msg.username}: ${msg.message}`,
+    }))
 
     const claudeService = await getClaudeService()
-    const status = claudeService.getQueueStatus()
-    console.log(
-      `🎯 Queue status: processing=${status.isProcessing}, queue length=${status.queue.length}, current=${status.current}`,
-    )
+    claudeService.enqueue({
+      id: Math.random().toString(36).slice(2, 11),
+      username: this.currentUsername!,
+      message: messageText,
+      conversationHistory,
+    })
 
-    // If already processing or queue is empty, return
+    void this.processClaudeQueue()
+  }
+
+  private async processClaudeQueue() {
+    const claudeService = await getClaudeService()
+    const status = claudeService.getQueueStatus()
+
     if (status.isProcessing || status.queue.length === 0) {
-      console.log(
-        `🎯 Skipping: ${
-          status.isProcessing ? 'already processing' : 'queue empty'
-        }`,
-      )
       return
     }
 
-    // Start processing
-    console.log(`🎯 Starting to process queue`)
     claudeService.startProcessing()
 
     try {
       const currentStatus = claudeService.getQueueStatus()
-      console.log(`🎯 Current user: ${currentStatus.current}`)
 
-      // Broadcast that Claude is responding
-      console.log(`🎯 Broadcasting claude_responding...`)
       await ChatServer.broadcastToAll({
         type: 'claude_responding',
         message: `Claude is responding to ${currentStatus.current}...`,
         username: 'System',
       })
 
-      // Get conversation history from the current request
-      const conversationHistory: Array<ModelMessage> = globalChat
-        .getMessages()
-        .map((msg) => ({
-          role: 'user' as const,
-          content: `${msg.username}: ${msg.message}`,
-        }))
-      console.log(
-        `🎯 Built conversation history: ${conversationHistory.length} messages`,
-      )
+      const conversationHistory = globalChat.getMessages().map((msg) => ({
+        role: 'user' as const,
+        content: `${msg.username}: ${msg.message}`,
+      }))
 
-      // Stream Claude response and accumulate text
-      console.log(`🎯 Starting to stream Claude response...`)
       let accumulatedResponse = ''
       for await (const chunk of claudeService.streamResponse(
         conversationHistory,
       )) {
-        if (chunk.type === 'content' && chunk.delta) {
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
           accumulatedResponse += chunk.delta
         }
       }
-      console.log(
-        `🎯 Accumulated response (${
-          accumulatedResponse.length
-        } chars): "${accumulatedResponse.substring(0, 100)}..."`,
-      )
 
-      // Add Claude's response to chat history
-      // Note: globalChat.sendMessage will automatically broadcast via onMessageSent callback
-      console.log(
-        `🎯 Adding Claude message to globalChat (this will auto-broadcast)...`,
-      )
-      const claudeMessage = await globalChat.sendMessage(
-        'Claude',
-        accumulatedResponse,
-      )
-      console.log(
-        `🎯 Claude message added to globalChat and broadcast automatically, ID: ${claudeMessage.id}`,
-      )
+      await globalChat.sendMessage('Claude', accumulatedResponse)
     } catch (error) {
-      console.error('🎯 ERROR in processClaudeQueue:', error)
+      console.error('Error in processClaudeQueue:', error)
 
-      // Broadcast error
       await ChatServer.broadcastToAll({
         type: 'claude_error',
         message: 'Claude encountered an error responding',
         username: 'System',
       })
     } finally {
-      console.log(`🎯 Finishing processing...`)
       claudeService.finishProcessing()
-
-      // Process next in queue if any
-      console.log(`🎯 Checking for next in queue...`)
-      this.processClaudeQueue()
+      void this.processClaudeQueue()
     }
   }
 
-  // Get Claude queue status
-  async getClaudeQueueStatus() {
-    const claudeService = await getClaudeService()
-    return claudeService.getQueueStatus()
-  }
+  getClaudeQueueStatus(): ClaudeQueueStatus {
+    if (!globalClaudeService) {
+      return {
+        current: null,
+        queue: [],
+        isProcessing: false,
+      }
+    }
 
-  // Stream Claude response (for future use if needed)
-  async *streamClaudeResponse(conversationHistory: Array<ModelMessage>) {
-    const claudeService = await getClaudeService()
-    yield* claudeService.streamResponse(conversationHistory)
+    return globalClaudeService.getQueueStatus()
   }
 }

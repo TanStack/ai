@@ -8,6 +8,7 @@ interface ChatInterfaceProps {
     message: string,
   ) => Promise<{ success: boolean; error?: string }>
   username: string | null
+  isJoined?: boolean
   claudeQueueStatus?: ClaudeQueueStatus
 }
 
@@ -15,26 +16,31 @@ export function ChatInterface({
   messages,
   onSendMessage,
   username,
+  isJoined = false,
   claudeQueueStatus,
 }: ChatInterfaceProps) {
   const [messageText, setMessageText] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!messageText.trim() || !username || isSending) return
+    if (!messageText.trim() || !username || isSending || !isJoined) return
 
     setIsSending(true)
+    setSendError(null)
     try {
       const result = await onSendMessage(messageText)
       if (result.success) {
         setMessageText('')
       } else {
-        console.error('Failed to send message:', result.error)
+        setSendError(result.error || 'Failed to send message')
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      setSendError(
+        error instanceof Error ? error.message : 'Failed to send message',
+      )
     } finally {
       setIsSending(false)
     }
@@ -184,22 +190,30 @@ export function ChatInterface({
 
       {/* Message Input */}
       {username ? (
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
+        <form onSubmit={handleSendMessage} className="flex flex-col gap-2">
+          {!isJoined && (
+            <p className="text-yellow-400 text-sm">Joining chat room…</p>
+          )}
+          {sendError && (
+            <p className="text-red-400 text-sm">{sendError}</p>
+          )}
+          <div className="flex space-x-2">
           <input
             type="text"
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             placeholder="Type your message..."
             className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-            disabled={isSending}
+            disabled={isSending || !isJoined}
           />
           <button
             type="submit"
-            disabled={!messageText.trim() || isSending}
+            disabled={!messageText.trim() || isSending || !isJoined}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
           >
             {isSending ? 'Sending...' : 'Send'}
           </button>
+          </div>
         </form>
       ) : (
         <div className="text-gray-400 text-center py-2">
