@@ -27,9 +27,9 @@ Supports simple `user` / `assistant` / `system` messages with string `content` o
 
 ## Environment
 
-| Variable | Required when |
-| --- | --- |
-| `OPENAI_API_KEY` | `provider: openai` |
+| Variable            | Required when         |
+| ------------------- | --------------------- |
+| `OPENAI_API_KEY`    | `provider: openai`    |
 | `ANTHROPIC_API_KEY` | `provider: anthropic` |
 
 Default models: `gpt-4o`, `claude-sonnet-4-6`.

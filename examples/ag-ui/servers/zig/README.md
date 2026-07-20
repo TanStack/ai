@@ -19,10 +19,10 @@ Requires Zig with stdlib HTTP client support (tested with Zig 0.16).
 
 ## Endpoints
 
-| Method | Path | Description |
-| --- | --- | --- |
-| POST | `/` | AG-UI chat (SSE) |
-| GET | `/health` | Health check (`ok`) |
-| OPTIONS | `/` | CORS preflight |
+| Method  | Path      | Description         |
+| ------- | --------- | ------------------- |
+| POST    | `/`       | AG-UI chat (SSE)    |
+| GET     | `/health` | Health check (`ok`) |
+| OPTIONS | `/`       | CORS preflight      |
 
 The client sends `forwardedProps: { provider, model }` in the AG-UI `RunAgentInput` body.
