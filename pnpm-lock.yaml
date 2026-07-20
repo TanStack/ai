@@ -1924,6 +1924,9 @@ importers:
       '@mistralai/mistralai':
         specifier: 2.2.0
         version: 2.2.0
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
       zod:
         specifier: ^4.0.0
         version: 4.3.6
