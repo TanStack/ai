@@ -157,10 +157,18 @@ The loop continues only while the model's finish reason is `tool_calls` (with pe
 
 ### Controlling the loop
 
-By default the loop is bounded by `maxIterations(5)` — after five iterations it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option:
+By default the loop is bounded by `maxIterations(5)` — after five **model turns** it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option.
+
+> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds turns. Use `maxToolCalls(n)` for a cumulative **emitted**-call budget (stops further turns once the count is reached; the crossing turn is not truncated), and `maxToolCallsPerTurn` to cap how many of those parallel calls **execute** in a single turn or pending/resume batch (strategies only run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded). Skipped calls still count toward `maxToolCalls`.
 
 ```typescript
-import { chat, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  combineStrategies,
+  maxIterations,
+  maxToolCalls,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { getWeather, getClothingAdvice } from "./tools";
 
@@ -170,7 +178,11 @@ export async function POST(request: Request) {
     adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather, getClothingAdvice],
-    agentLoopStrategy: maxIterations(3), // default is 5
+    maxToolCallsPerTurn: 10, // cap parallel fan-out inside one turn
+    agentLoopStrategy: combineStrategies([
+      maxIterations(20), // max model turns
+      maxToolCalls(20), // max tool calls across the run
+    ]),
   });
   return toServerSentEventsResponse(stream);
 }
@@ -178,10 +190,11 @@ export async function POST(request: Request) {
 
 Other built-in strategies:
 
+- **`maxToolCalls(n)`** — continue while cumulative emitted tool calls are below `n` (including per-turn skips; not model turns).
 - **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
 - **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
 
-A strategy is just a function that receives `{ iterationCount, finishReason, messages }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
+A strategy is just a function that receives `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
 
 ```typescript
 import { chat, combineStrategies, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";

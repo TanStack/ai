@@ -3,11 +3,12 @@ import type { ChatMessage } from '../hooks/useChatMessages'
 import type { ClaudeQueueStatus } from '../hooks/useClaude'
 
 interface ChatInterfaceProps {
-  messages: ChatMessage[]
+  messages: Array<ChatMessage>
   onSendMessage: (
     message: string,
   ) => Promise<{ success: boolean; error?: string }>
   username: string | null
+  isJoined?: boolean
   claudeQueueStatus?: ClaudeQueueStatus
 }
 
@@ -15,26 +16,31 @@ export function ChatInterface({
   messages,
   onSendMessage,
   username,
+  isJoined = false,
   claudeQueueStatus,
 }: ChatInterfaceProps) {
   const [messageText, setMessageText] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!messageText.trim() || !username || isSending) return
+    if (!messageText.trim() || !username || isSending || !isJoined) return
 
     setIsSending(true)
+    setSendError(null)
     try {
       const result = await onSendMessage(messageText)
       if (result.success) {
         setMessageText('')
       } else {
-        console.error('Failed to send message:', result.error)
+        setSendError(result.error || 'Failed to send message')
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      setSendError(
+        error instanceof Error ? error.message : 'Failed to send message',
+      )
     } finally {
       setIsSending(false)
     }
@@ -64,14 +70,14 @@ export function ChatInterface({
   const userQueuePosition =
     claudeQueueStatus?.queue.indexOf(username || '') ?? -1
   const isUserWaitingForClaude = userQueuePosition >= 0
-  const isClaudeResponding = claudeQueueStatus?.isProcessing || false
+  const isClaudeResponding = claudeQueueStatus?.showResponding || false
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg border border-gray-600 flex-1 flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-white">💬 Chat Messages</h2>
 
-        {/* Claude Status Indicator */}
+        {/* Claude Status Indicator (hidden for active-mode silent NO_REPLY watches) */}
         {isClaudeResponding && claudeQueueStatus?.current && (
           <div className="flex items-center text-purple-400 text-sm">
             <span className="animate-pulse mr-2">🤖</span>
@@ -95,8 +101,7 @@ export function ChatInterface({
         ) : (
           messages
             .map((msg) => {
-              // Ensure we have proper message data
-              if (!msg || !msg.id) {
+              if (!msg.id) {
                 console.warn('Invalid message:', msg)
                 return null
               }
@@ -184,22 +189,28 @@ export function ChatInterface({
 
       {/* Message Input */}
       {username ? (
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-            disabled={isSending}
-          />
-          <button
-            type="submit"
-            disabled={!messageText.trim() || isSending}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
-          >
-            {isSending ? 'Sending...' : 'Send'}
-          </button>
+        <form onSubmit={handleSendMessage} className="flex flex-col gap-2">
+          {!isJoined && (
+            <p className="text-yellow-400 text-sm">Joining chat room…</p>
+          )}
+          {sendError && <p className="text-red-400 text-sm">{sendError}</p>}
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+              disabled={isSending || !isJoined}
+            />
+            <button
+              type="submit"
+              disabled={!messageText.trim() || isSending || !isJoined}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-medium transition-colors"
+            >
+              {isSending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
         </form>
       ) : (
         <div className="text-gray-400 text-center py-2">

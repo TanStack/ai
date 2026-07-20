@@ -155,13 +155,14 @@
         {
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Connection Adapters",
@@ -479,7 +480,8 @@
         {
           "label": "@tanstack/ai",
           "to": "api/ai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "@tanstack/ai-client",
@@ -586,7 +588,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-06-20"
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "Claude Code",

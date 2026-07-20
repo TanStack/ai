@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue-ui",
-  "version": "0.2.31",
+  "version": "0.2.34",
   "description": "Headless Vue components for building TanStack AI chat interfaces with streamed message parts.",
   "author": "Tanner Linsley",
   "license": "MIT",

@@ -2,95 +2,183 @@
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { chat, toolDefinition } from '@tanstack/ai'
 import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { ClaudeMode } from './chat-api.js'
+import type { TodoLogic } from './todo-logic.js'
 
-// Define input schema for getWeather tool using JSONSchema
-const getWeatherInputSchema: JSONSchema = {
+const listTodosInputSchema: JSONSchema = {
   type: 'object',
-  properties: {
-    location: {
-      type: 'string',
-      description: 'The city or location to get weather for',
-    },
-    unit: {
-      type: 'string',
-      enum: ['celsius', 'fahrenheit'],
-      description: 'Temperature unit (defaults to celsius)',
-    },
-  },
-  required: ['location'],
+  properties: {},
 }
 
-// Define output schema for getWeather tool using JSONSchema
-const getWeatherOutputSchema: JSONSchema = {
+const listTodosOutputSchema: JSONSchema = {
   type: 'object',
   properties: {
-    location: { type: 'string' },
-    temperature: { type: 'number' },
-    unit: { type: 'string' },
-    conditions: { type: 'string' },
-    humidity: { type: 'number' },
+    todos: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          text: { type: 'string' },
+          createdBy: { type: 'string' },
+          createdAt: { type: 'string' },
+        },
+        required: ['id', 'text', 'createdBy', 'createdAt'],
+      },
+    },
   },
-  required: ['location', 'temperature', 'unit', 'conditions'],
+  required: ['todos'],
 }
 
-// Create the getWeather tool using JSONSchema instead of Zod
-const getWeatherTool = toolDefinition({
-  name: 'getWeather',
-  description:
-    'Get the current weather for a location. Returns temperature, conditions, and humidity.',
-  inputSchema: getWeatherInputSchema,
-  outputSchema: getWeatherOutputSchema,
-}).server((rawArgs) => {
-  // JSONSchema doesn't carry compile-time types, so `rawArgs` is `unknown`.
-  const args = rawArgs as { location: string; unit?: string }
-  // Mock weather data - in a real app this would call a weather API
-  const mockWeatherData: Record<
-    string,
-    { temp: number; conditions: string; humidity: number }
-  > = {
-    'new york': { temp: 72, conditions: 'Partly cloudy', humidity: 65 },
-    london: { temp: 58, conditions: 'Overcast', humidity: 80 },
-    tokyo: { temp: 68, conditions: 'Sunny', humidity: 55 },
-    paris: { temp: 62, conditions: 'Light rain', humidity: 75 },
-    sydney: { temp: 78, conditions: 'Clear skies', humidity: 45 },
+const addTodoInputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    text: {
+      type: 'string',
+      description: 'The todo item text to add',
+    },
+  },
+  required: ['text'],
+}
+
+const addTodoOutputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    todo: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        text: { type: 'string' },
+        createdBy: { type: 'string' },
+        createdAt: { type: 'string' },
+      },
+      required: ['id', 'text', 'createdBy', 'createdAt'],
+    },
+    message: { type: 'string' },
+  },
+  required: ['success', 'todo', 'message'],
+}
+
+const removeTodoInputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      description: 'The id of the todo item to remove (from listTodos)',
+    },
+  },
+  required: ['id'],
+}
+
+const removeTodoOutputSchema: JSONSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    message: { type: 'string' },
+  },
+  required: ['success', 'message'],
+}
+
+export const NO_REPLY_TOKEN = 'NO_REPLY'
+
+function createTodoTools(todoLogic: TodoLogic) {
+  const listTodosTool = toolDefinition({
+    name: 'listTodos',
+    description:
+      'List all items on the shared group todo list. Use this when asked what todos exist or before removing an item.',
+    inputSchema: listTodosInputSchema,
+    outputSchema: listTodosOutputSchema,
+  }).server(() => {
+    const todos = todoLogic.getTodos()
+    console.log(`📋 listTodos tool called (${todos.length} items)`)
+    return { todos }
+  })
+
+  const addTodoTool = toolDefinition({
+    name: 'addTodo',
+    description: 'Add an item to the shared group todo list.',
+    inputSchema: addTodoInputSchema,
+    outputSchema: addTodoOutputSchema,
+  }).server((rawArgs) => {
+    const args = rawArgs as { text: string }
+    const todo = todoLogic.addTodo(args.text, 'Claude')
+    console.log(`📋 addTodo tool called: ${todo.text}`)
+    return {
+      success: true,
+      todo,
+      message: `Added "${todo.text}" to the todo list`,
+    }
+  })
+
+  const removeTodoTool = toolDefinition({
+    name: 'removeTodo',
+    description:
+      'Remove an item from the shared group todo list by id. Call listTodos first if you do not know the id.',
+    inputSchema: removeTodoInputSchema,
+    outputSchema: removeTodoOutputSchema,
+  }).server((rawArgs) => {
+    const args = rawArgs as { id: string }
+    const existing = todoLogic.getTodos().find((todo) => todo.id === args.id)
+    const success = todoLogic.removeTodo(args.id)
+    console.log(`📋 removeTodo tool called: ${args.id} success=${success}`)
+    return {
+      success,
+      message: success
+        ? `Removed "${existing?.text ?? args.id}" from the todo list`
+        : `No todo found with id ${args.id}`,
+    }
+  })
+
+  return [listTodosTool, addTodoTool, removeTodoTool]
+}
+
+function buildSystemPrompt(mode: ClaudeMode, mentioned: boolean): string {
+  const shared = `You are Claude, a friendly AI assistant in a group chat with a shared in-memory todo list.
+Keep responses conversational and concise (1-3 sentences unless more detail is needed).
+Use the todo tools (listTodos, addTodo, removeTodo) to inspect or change the list — do not invent what is on the list.
+When answering questions about the items (including rough estimates like cost), call listTodos first and base your answer on those items.
+When removing a todo, call listTodos first if you need the item id.`
+
+  // Explicit @Claude / "Claude, ..." always gets a real reply, even in active mode.
+  if (mentioned || mode === 'passive') {
+    return `${shared}
+
+Users are talking to you directly. Always reply helpfully — never respond with ${NO_REPLY_TOKEN}.
+Help with todo add/remove, questions about the list or its items, and other chat questions they ask you.`
   }
 
-  const location = args.location.toLowerCase()
-  const unit = args.unit ?? 'celsius'
-  const weather = mockWeatherData[location] ?? {
-    temp: 65,
-    conditions: 'Unknown',
-    humidity: 50,
-  }
+  return `${shared}
 
-  // Convert temperature if needed
-  let temperature = weather.temp
-  if (unit === 'celsius') {
-    temperature = Math.round(((temperature - 32) * 5) / 9)
-  }
-
-  console.log(`🌤️ Weather tool called for: ${args.location}`)
-
-  return {
-    location: args.location,
-    temperature,
-    unit,
-    conditions: weather.conditions,
-    humidity: weather.humidity,
-  }
-})
+You are in ACTIVE mode (watching the chat, not necessarily addressed by name).
+Reply and use tools when the message relates to the shared todo list, including:
+- adding or removing todos
+- listing or summarizing the list
+- questions about the items themselves (cost estimates, quantities, planning, substitutions, etc.)
+Only when the message has nothing to do with the todo list, respond with exactly: ${NO_REPLY_TOKEN}
+Do not use ${NO_REPLY_TOKEN} for questions about items that are on (or being added to) the list.`
+}
 
 export interface ClaudeRequest {
   id: string
   username: string
   message: string
   conversationHistory: Array<ModelMessage>
+  mode: ClaudeMode
+  mentioned: boolean
 }
 
 export interface ClaudeQueueStatus {
   current: string | null
   queue: Array<string>
   isProcessing: boolean
+  showResponding: boolean
+}
+
+function shouldShowResponding(request: ClaudeRequest | null): boolean {
+  if (!request) return false
+  // Active-mode watches may end in NO_REPLY — don't flash "responding" for those.
+  return request.mentioned || request.mode === 'passive'
 }
 
 export class ClaudeService {
@@ -98,9 +186,16 @@ export class ClaudeService {
   private queue: Array<ClaudeRequest> = []
   private currentRequest: ClaudeRequest | null = null
   private isProcessing = false
+  private todoTools: ReturnType<typeof createTodoTools>
+
+  constructor(todoLogic: TodoLogic) {
+    this.todoTools = createTodoTools(todoLogic)
+  }
 
   enqueue(request: ClaudeRequest): void {
-    console.log(`🤖 Claude: Enqueuing request from ${request.username}`)
+    console.log(
+      `🤖 Claude: Enqueuing request from ${request.username} (mode=${request.mode}, mentioned=${request.mentioned})`,
+    )
     this.queue.push(request)
   }
 
@@ -109,7 +204,13 @@ export class ClaudeService {
       current: this.currentRequest?.username || null,
       queue: this.queue.map((r) => r.username),
       isProcessing: this.isProcessing,
+      showResponding:
+        this.isProcessing && shouldShowResponding(this.currentRequest),
     }
+  }
+
+  getCurrentRequest(): ClaudeRequest | null {
+    return this.currentRequest
   }
 
   startProcessing(): void {
@@ -132,13 +233,14 @@ export class ClaudeService {
 
   async *streamResponse(
     conversationHistory: Array<ModelMessage>,
+    mode: ClaudeMode,
+    mentioned: boolean,
   ): AsyncIterable<StreamChunk> {
-    const systemMessage = `You are Claude, a friendly AI assistant participating in a group chat.
-    Keep responses conversational, concise (2-3 sentences max unless asked for more detail), and helpful.
-    You can see the entire conversation history with all participants.`
+    const systemMessage = buildSystemPrompt(mode, mentioned)
 
     try {
       console.log(`🤖 Claude: ========== STARTING STREAM RESPONSE ==========`)
+      console.log(`🤖 Claude: Mode: ${mode}, mentioned: ${mentioned}`)
       console.log(
         `🤖 Claude: Conversation history (${conversationHistory.length} messages):`,
       )
@@ -155,7 +257,7 @@ export class ClaudeService {
         adapter: this.adapter,
         systemPrompts: [systemMessage],
         messages: [...conversationHistory] as any,
-        tools: [getWeatherTool],
+        tools: this.todoTools,
       })) {
         chunkCount++
 
@@ -185,6 +287,3 @@ export class ClaudeService {
     }
   }
 }
-
-// Global singleton instance
-export const globalClaudeService = new ClaudeService()

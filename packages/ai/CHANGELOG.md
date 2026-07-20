@@ -1,5 +1,98 @@
 # @tanstack/ai
 
+## 0.42.0
+
+### Minor Changes
+
+- [#965](https://github.com/TanStack/ai/pull/965) [`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e) - Bound tool-call fan-out in agent loops: `AgentLoopState` now exposes `toolCallCount` and `lastTurnToolCallCount`, `maxToolCalls(n)` strategy caps cumulative tool calls, and `chat({ maxToolCallsPerTurn })` caps how many parallel calls execute in a single turn.
+
+## 0.41.0
+
+### Minor Changes
+
+- [#405](https://github.com/TanStack/ai/pull/405) [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1) - Added Gemini Realtime Adapter
+
+- [#918](https://github.com/TanStack/ai/pull/918) [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589) - Gate the tool-call part's `approval` field on the tool's `needsApproval` flag.
+  Previously `approval?` was declared on every typed tool-call part regardless of
+  whether the tool could ever request approval. Now the flag is captured as a
+  literal type (`toolDefinition({ needsApproval: true })` → `true`) and threaded
+  through `ClientTool` / `ToolDefinitionInstance` / `ToolDefinition`, and
+  `ToolCallPartForTool` only includes `approval` for tools defined with
+  `needsApproval: true`:
+
+  ```ts
+  const { messages } = useChat({ tools: [getGuitars, addToCart] }) // addToCart: needsApproval: true
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') continue
+    if (part.name === 'addToCart') part.approval?.id // ✅ typed
+    if (part.name === 'getGuitars') part.approval // ✅ compile error — no such field
+  }
+  ```
+
+  ## ⚠️ Breaking change (types only)
+
+  **This is the primary migration surface for this release.** When you pass a typed
+  `tools` array to `useChat` / `createChat` / `injectChat`, reading `part.approval`
+  on a mixed tool-call union **without first narrowing by `part.name`** no longer
+  compiles. Code that previously did `part.approval?.id` in a generic handler over
+  all tool-call parts must be updated:
+
+  ```ts
+  // ❌ No longer compiles on a typed mixed union
+  part.approval?.id
+
+  // ✅ Narrow to an approval-required tool first
+  if (part.name === 'deleteAccount') part.approval?.id
+
+  // ✅ Or guard with `in`
+  if ('approval' in part) part.approval?.id
+
+  // ✅ Or type the handler against the base (untyped) ToolCallPart
+  function handleApproval(part: ToolCallPart) {
+    return part.approval?.id
+  }
+  ```
+
+  Untyped `useChat()` (no inferred `tools` generic) and the base `ToolCallPart`
+  type are unaffected: `approval` stays available on every tool-call part there.
+  **Runtime behavior is unchanged** — only TypeScript narrowing is stricter.
+
+  Adds a `TNeedsApproval extends boolean` type parameter (defaulting to `false`)
+  to the client tool types; existing explicit type arguments keep working via the
+  default. Literal capture requires `toolDefinition({ needsApproval: true })` at
+  the call site — a dynamic `needsApproval: boolean` variable will not gate the
+  type.
+
+- [#918](https://github.com/TanStack/ai/pull/918) [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589) - Populate the parsed `input` on tool-call message parts. `ToolCallPart` already
+  declared a typed `input?` field, but it was never written at runtime — only the
+  raw `arguments` string (and `output`) were set, so `part.input` was always
+  `undefined` and consumers had to fall back to `part.input ?? JSON.parse(part.arguments)`.
+
+  `input` is now set from the parsed arguments once they are complete
+  (`state: 'input-complete'` and later, including `approval-requested`), in the
+  streaming processor, the `TOOL_CALL_END`-with-parsed-input path, and when
+  hydrating history via `modelMessagesToUIMessages`. While arguments are still
+  streaming, `input` stays `undefined` and the raw `arguments` string remains the
+  live source. A tool call that terminates in an error state may also keep `input`
+  unset. `arguments` is unchanged, always present, and not deprecated.
+
+  With typed tools (`useChat({ tools })`), `part.input` is fully typed per tool
+  via the `part.name` discriminant — matching `part.output`.
+
+### Patch Changes
+
+- [#924](https://github.com/TanStack/ai/pull/924) [`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5) - fix: resolve directory-barrel imports in published `.d.ts` files. Bare imports of `utils`/`tools`/`middleware` barrels were emitted as `../utils.js` (etc.), which do not resolve under bundler/node16/nodenext (no `/index` fallback for explicit `.js`). With consumer `skipLibCheck: true` those symbols silently became `any`. Imports now target concrete modules (e.g. `utils/client`, `middleware/types`) or explicit `/index` paths so public types resolve correctly.
+
+- [#922](https://github.com/TanStack/ai/pull/922) [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669) - fix: resolve dangling relative imports in published declaration files
+
+  Switch directory-barrel imports (`../utils`, `../tools`, `../middleware`) to
+  concrete module paths so emitted `.d.ts` specifiers resolve under
+  `bundler`/`node16`/`nodenext` resolution. Adds a `test:dts` scanner guardrail.
+
+  Fixes [#920](https://github.com/TanStack/ai/issues/920)
+
+- [#886](https://github.com/TanStack/ai/pull/886) [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4) - Fix `generateVideo` / `getVideoJobStatus` rejecting video adapters that declare a narrowed per-model duration union (e.g. Gemini's `4 | 6 | 8` for Veo or `10` for Omni Flash) at the type level. The activity's `TAdapter extends VideoAdapter<string, any, any, any>` constraints left the input-modality and duration generics at their defaults, so `duration?: number` failed contravariance against the adapter's literal union. All video-activity constraints and helper conditionals now span all six `VideoAdapter` generics.
+
 ## 0.40.0
 
 ### Minor Changes

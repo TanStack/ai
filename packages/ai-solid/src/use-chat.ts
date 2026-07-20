@@ -13,6 +13,8 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -54,6 +56,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
+  const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -135,6 +138,10 @@ export function useChat<
       onSessionGeneratingChange: (isGenerating: boolean) => {
         setSessionGenerating(isGenerating)
       },
+      ...(options.queue !== undefined && { queue: options.queue }),
+      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+        setQueue(nextQueue)
+      },
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
@@ -154,6 +161,7 @@ export function useChat<
         forwardedProps: options.forwardedProps,
       }),
       context: options.context,
+      ...(options.queue !== undefined && { queue: options.queue }),
     })
   })
 
@@ -189,8 +197,11 @@ export function useChat<
   // Callback options are read through `options.xxx` at call time, so reactive
   // or mutated options propagate without recreating the client.
 
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client().sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client().sendMessage(content, undefined, sendOptions)
   }
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
@@ -229,6 +240,8 @@ export function useChat<
   }) => {
     await client().addToolApprovalResponse(response)
   }
+
+  const cancelQueued = (id: string) => client().cancelQueued(id)
 
   // The "active" structured-output part is on the assistant message after
   // the latest user message. When no user message exists yet, return null
@@ -273,6 +286,7 @@ export function useChat<
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- primitive return shape diverges from generic UseChatReturn<TTools, TSchema>; TS can't structurally narrow the conditional partial/final fields
   return {
     messages,
+    queue,
     sendMessage,
     append,
     reload,
@@ -287,6 +301,7 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    cancelQueued,
     partial,
     final,
   } as unknown as UseChatReturn<TTools, TSchema>
