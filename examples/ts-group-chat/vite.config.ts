@@ -1,22 +1,27 @@
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { nitro } from 'nitro/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
-import { websocketRpcPlugin } from './chat-server/vite-plugin.js'
 import { devtools } from '@tanstack/devtools-vite'
+import { websocketRpcPlugin } from './chat-server/vite-plugin.js'
 
-const config = defineConfig({
+export default defineConfig({
   plugins: [
+    websocketRpcPlugin(),
     devtools(),
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
     tailwindcss(),
     tanstackStart(),
+    nitro(),
     viteReact(),
-    websocketRpcPlugin(),
   ],
+  resolve: {
+    dedupe: ['capnweb'],
+  },
   server: {
     port: 3000,
     host: true,
@@ -33,18 +38,13 @@ const config = defineConfig({
     target: 'es2022',
   },
   optimizeDeps: {
+    exclude: ['capnweb'],
     esbuildOptions: {
       target: 'es2022',
     },
   },
   ssr: {
-    noExternal: [
-      '@tanstack/ai',
-      '@tanstack/ai-anthropic',
-      '@tanstack/ai-client',
-      '@tanstack/ai-react',
-    ],
+    noExternal: ['@tanstack/ai', '@tanstack/ai-anthropic'],
   },
+  nitro: {},
 })
-
-export default config

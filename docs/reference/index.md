@@ -294,6 +294,7 @@ title: "@tanstack/ai"
 - [isProviderExecutedToolCall](functions/isProviderExecutedToolCall.md)
 - [isStandardSchema](functions/isStandardSchema.md)
 - [maxIterations](functions/maxIterations.md)
+- [maxToolCalls](functions/maxToolCalls.md)
 - [mergeAgentTools](functions/mergeAgentTools.md)
 - [modelMessagesToUIMessages](functions/modelMessagesToUIMessages.md)
 - [modelMessageToUIMessage](functions/modelMessageToUIMessage.md)

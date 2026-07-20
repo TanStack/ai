@@ -1120,6 +1120,321 @@ describe('chat()', () => {
       // Each iteration has processText + executeToolCalls phases
       expect(calls.length).toBe(2)
     })
+
+    it('should respect maxToolCalls strategy (counts tools, not turns)', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+
+      let callCount = 0
+      const { adapter, calls } = createMockAdapter({
+        chatStreamFn: () => {
+          callCount++
+          // Each turn emits 2 parallel tool calls → 3 turns would be 6 tools
+          return (async function* () {
+            yield ev.runStarted()
+            yield ev.toolStart(`call_${callCount}_a`, 'repeater', 0)
+            yield ev.toolArgs(`call_${callCount}_a`, '{}')
+            yield ev.toolStart(`call_${callCount}_b`, 'repeater', 1)
+            yield ev.toolArgs(`call_${callCount}_b`, '{}')
+            yield ev.runFinished('tool_calls')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Repeat' }],
+        tools: [serverTool('repeater', executeSpy)],
+        // Allow only 3 cumulative tool calls — stops after turn 2 (4 tools emitted)
+        agentLoopStrategy: (state) => state.toolCallCount < 3,
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Turn 0: 2 tools (count=2 < 3) → continue
+      // Turn 1: 2 tools (count=4 >= 3) → stop further turns
+      expect(calls.length).toBe(2)
+      expect(executeSpy).toHaveBeenCalledTimes(4)
+    })
+
+    it('should expose lastTurnToolCallCount on strategy state', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+      const seenLastTurn: Array<number> = []
+
+      let callCount = 0
+      const { adapter } = createMockAdapter({
+        chatStreamFn: () => {
+          callCount++
+          if (callCount === 1) {
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_a', 'repeater', 0)
+              yield ev.toolArgs('call_a', '{}')
+              yield ev.toolStart('call_b', 'repeater', 1)
+              yield ev.toolArgs('call_b', '{}')
+              yield ev.toolStart('call_c', 'repeater', 2)
+              yield ev.toolArgs('call_c', '{}')
+              yield ev.runFinished('tool_calls')
+            })()
+          }
+          return (async function* () {
+            yield ev.runStarted()
+            yield ev.textContent('done')
+            yield ev.runFinished('stop')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        tools: [serverTool('repeater', executeSpy)],
+        agentLoopStrategy: (state) => {
+          seenLastTurn.push(state.lastTurnToolCallCount)
+          return state.iterationCount < 2
+        },
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // After tool turn: lastTurnToolCallCount = 3; after text turn: 0
+      expect(seenLastTurn).toContain(3)
+      expect(seenLastTurn[seenLastTurn.length - 1]).toBe(0)
+    })
+
+    it('should cap parallel fan-out with maxToolCallsPerTurn', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_0', 'repeater', 0),
+            ev.toolArgs('call_0', '{}'),
+            ev.toolStart('call_1', 'repeater', 1),
+            ev.toolArgs('call_1', '{}'),
+            ev.toolStart('call_2', 'repeater', 2),
+            ev.toolArgs('call_2', '{}'),
+            ev.toolStart('call_3', 'repeater', 3),
+            ev.toolArgs('call_3', '{}'),
+            ev.toolStart('call_4', 'repeater', 4),
+            ev.toolArgs('call_4', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Fan out' }],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 2,
+        // Allow a follow-up turn so we can inspect tool results on the adapter
+        agentLoopStrategy: (state) => state.iterationCount < 2,
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Only first 2 of 5 tool calls execute
+      expect(executeSpy).toHaveBeenCalledTimes(2)
+
+      // Skipped calls still get error tool results in the stream
+      // (TOOL_CALL_RESULT.content is the wire form; END.result is stripped by middleware)
+      const toolResults = chunks.filter((c) => c.type === 'TOOL_CALL_RESULT')
+      const skipped = toolResults.filter((c) => {
+        const content = (c as { content?: unknown }).content
+        return (
+          typeof content === 'string' &&
+          content.includes('exceeded maxToolCallsPerTurn')
+        )
+      })
+      expect(skipped.length).toBe(3)
+
+      // Follow-up model call sees all 5 tool results (2 real + 3 skipped)
+      expect(calls.length).toBe(2)
+      const followUpMessages = calls[1]!.messages as Array<{
+        role: string
+        toolCallId?: string
+      }>
+      const toolMessages = followUpMessages.filter((m) => m.role === 'tool')
+      expect(toolMessages).toHaveLength(5)
+    })
+
+    it('counts skipped emissions toward maxToolCalls and stops further turns', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+      const seenCounts: Array<number> = []
+
+      const { adapter, calls } = createMockAdapter({
+        chatStreamFn: () => {
+          // Fat turn: 8 parallel tools. If we only counted executed (3),
+          // maxToolCalls(5) would allow another model turn.
+          return (async function* () {
+            yield ev.runStarted()
+            for (let i = 0; i < 8; i++) {
+              yield ev.toolStart(`call_${i}`, 'repeater', i)
+              yield ev.toolArgs(`call_${i}`, '{}')
+            }
+            yield ev.runFinished('tool_calls')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Fan out' }],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 3,
+        agentLoopStrategy: (state) => {
+          seenCounts.push(state.toolCallCount)
+          return state.toolCallCount < 5
+        },
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeSpy).toHaveBeenCalledTimes(3)
+      // All 8 emissions counted (not just 3 executed)
+      expect(seenCounts).toContain(8)
+      // Strategy stops further model turns once count >= 5
+      expect(calls.length).toBe(1)
+    })
+
+    it('maxToolCallsPerTurn: 0 skips all tool execution', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_0', 'repeater', 0),
+            ev.toolArgs('call_0', '{}'),
+            ev.toolStart('call_1', 'repeater', 1),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'None' }],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 0,
+        agentLoopStrategy: (state) => state.iterationCount < 2,
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeSpy).toHaveBeenCalledTimes(0)
+      const skipped = chunks.filter((c) => {
+        if (c.type !== 'TOOL_CALL_RESULT') return false
+        const content = (c as { content?: unknown }).content
+        return (
+          typeof content === 'string' &&
+          content.includes('exceeded maxToolCallsPerTurn')
+        )
+      })
+      expect(skipped.length).toBe(2)
+      // Follow-up still sees tool results for both calls
+      expect(calls.length).toBe(2)
+    })
+
+    it('rejects negative maxToolCallsPerTurn', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.textContent('x'), ev.runFinished()]],
+      })
+
+      // TextEngine is constructed when the stream is consumed, not at chat() call.
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxToolCallsPerTurn: -1,
+      })
+
+      await expect(
+        collectChunks(stream as AsyncIterable<StreamChunk>),
+      ).rejects.toThrow(
+        /maxToolCallsPerTurn must be a non-negative finite number/,
+      )
+    })
+
+    it('applies maxToolCallsPerTurn to pending tool calls on resume', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+      let strategyToolCount = 0
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          // After pending tools are budgeted, loop may continue once if strategy allows
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Resume with many pending tools' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'pending_0',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_1',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_2',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_3',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_4',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 2,
+        agentLoopStrategy: (state) => {
+          strategyToolCount = state.toolCallCount
+          return state.iterationCount < 1
+        },
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Only first 2 of 5 pending tools execute
+      expect(executeSpy).toHaveBeenCalledTimes(2)
+
+      const skipped = chunks.filter((c) => {
+        if (c.type !== 'TOOL_CALL_RESULT') return false
+        const content = (c as { content?: unknown }).content
+        return (
+          typeof content === 'string' &&
+          content.includes('exceeded maxToolCallsPerTurn')
+        )
+      })
+      expect(skipped.length).toBe(3)
+
+      // Seeded pending tools are counted toward the strategy budget
+      expect(strategyToolCount).toBe(5)
+
+      // Strategy may allow one model turn after pending tools complete
+      expect(calls.length).toBeLessThanOrEqual(1)
+    })
   })
 
   // ==========================================================================

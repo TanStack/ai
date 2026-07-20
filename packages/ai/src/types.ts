@@ -831,12 +831,24 @@ export interface ResponseFormat<TData = any> {
  * State passed to agent loop strategy for determining whether to continue
  */
 export interface AgentLoopState {
-  /** Current iteration count (0-indexed) */
+  /** Current iteration count (0-indexed). One iteration = one model turn. */
   iterationCount: number
   /** Current messages array */
   messages: Array<ModelMessage>
   /** Finish reason from the last response */
   finishReason: string | null
+  /**
+   * Cumulative tool calls counted so far in this run (model-emitted during the
+   * agent loop, including ones skipped by `maxToolCallsPerTurn`, and pending
+   * tools from the inbound message list when resumed). Not a recount of full
+   * message history; not model turns.
+   */
+  toolCallCount: number
+  /**
+   * Tool calls in the most recent budgeted batch — a live model turn or a
+   * pending/resume batch (0 when the last phase produced no tool calls).
+   */
+  lastTurnToolCallCount: number
 }
 
 /**
@@ -847,8 +859,10 @@ export interface AgentLoopState {
  *
  * @example
  * ```typescript
- * // Continue for up to 5 iterations
+ * // Continue for up to 5 iterations (model turns, not tool calls)
  * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
+ * // Cap total tool calls across the run
+ * const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
  * ```
  */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
@@ -885,6 +899,24 @@ export interface TextOptions<
    */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * Maximum number of tool calls to **execute** from a single model turn (or
+   * pending/resume batch). `0` skips all execution for that batch.
+   *
+   * Models can emit many parallel tool calls in one turn. `agentLoopStrategy`
+   * (including `maxIterations` / `maxToolCalls`) is only evaluated between
+   * turns, so without this cap a single runaway turn can still execute an
+   * unbounded fan-out.
+   *
+   * When set, only the first `maxToolCallsPerTurn` calls are executed; the
+   * remainder receive error tool results so the message history stays
+   * consistent. Unset means no per-turn execution cap. Must be a non-negative
+   * finite number when set.
+   *
+   * Pair with the `maxToolCalls(n)` strategy for a cumulative **emitted**-call
+   * budget across the run (skipped calls still count toward that budget).
+   */
+  maxToolCallsPerTurn?: number
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
