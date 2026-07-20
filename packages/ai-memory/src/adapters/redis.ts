@@ -181,16 +181,29 @@ function hasAnyScopeKey(scope: MemoryScope): boolean {
   return false
 }
 
-// Module-level flag so we only emit the malformed-row warning once per
-// process. The adapter still skips malformed rows; this just surfaces a
-// hint to developers who happen to be watching the console.
-let warnedMalformedRow = false
-function warnMalformedRowOnce(id: string, err: unknown): void {
-  if (warnedMalformedRow) return
-  warnedMalformedRow = true
+// Track which record ids we've already warned about so ongoing corruption of
+// DIFFERENT ids keeps surfacing (a single process-global flag would let the
+// first transient bad row consume the only warning and hide everything after).
+// Bounded so a pathological store can't grow this set without limit; once the
+// cap is hit we stop warning entirely to avoid per-read console spam.
+const warnedMalformedIds = new Set<string>()
+const MALFORMED_WARN_CAP = 100
+function warnMalformedRow(id: string, err: unknown): void {
+  if (
+    warnedMalformedIds.has(id) ||
+    warnedMalformedIds.size >= MALFORMED_WARN_CAP
+  ) {
+    return
+  }
+  warnedMalformedIds.add(id)
+  const capNote =
+    warnedMalformedIds.size >= MALFORMED_WARN_CAP
+      ? ' Further malformed-row warnings will be suppressed.'
+      : ''
   console.warn(
     `[tanstack-ai-memory] redisMemoryAdapter: skipped malformed record JSON (id=${id}). ` +
-      `Subsequent malformed rows will be skipped silently. Reason: ${String(err)}`,
+      `The row is left in place (not deleted) in case it is recoverable.${capNote} ` +
+      `Reason: ${String(err)}`,
   )
 }
 
@@ -307,7 +320,7 @@ export function redisMemoryAdapter(
     try {
       return JSON.parse(raw) as MemoryRecord
     } catch (err) {
-      warnMalformedRowOnce(id, err)
+      warnMalformedRow(id, err)
       return undefined
     }
   }
@@ -371,13 +384,14 @@ export function redisMemoryAdapter(
         if (!scopeMatches(r.scope, scope)) continue
         out.push(r)
       } catch (err) {
-        warnMalformedRowOnce(id, err)
-        // Sweep malformed payloads from BOTH the index bucket and the record
-        // key — without this, the bad row stays at recordKey(id) and the id
-        // stays in the index, causing every subsequent loadAllForScope to
-        // re-parse and re-warn forever. Reuse `markExpired` so the expired/
-        // missing/malformed paths share one cleanup pass per index bucket.
-        markExpired(id)
+        // Malformed JSON is NOT swept. A parse failure is not proof the data
+        // is unrecoverable (a truncated read, a concurrent partial write, or a
+        // third-party writer using an older schema all land here), so deleting
+        // the row + index entry would be silent, irreversible data loss gated
+        // behind a single console.warn. Instead we leave the row in place and
+        // skip it for this read. The `warnMalformedRow` id-set keeps the warn
+        // from spamming on every subsequent read of the same bad id.
+        warnMalformedRow(id, err)
       }
     }
     if (expiredByIndex.size > 0) {

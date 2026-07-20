@@ -74,18 +74,23 @@ export function memoryMiddleware(
       state.lastUserText = getMessageText(lastUser)
       if (!state.lastUserText) return
 
-      const scope = await resolveScope(ctx, state)
-
-      if (options.shouldRetrieve) {
-        const ok = await options.shouldRetrieve({
-          userText: state.lastUserText,
-          scope,
-        })
-        if (!ok) return
-      }
-
+      // Scope resolution and the `shouldRetrieve` gate run user-supplied
+      // callbacks, so they live INSIDE the guarded region below. If either
+      // throws, the failure routes through `memory:error` + `events.onError`
+      // and honours `strict` — rather than escaping `onConfig` uncaught and
+      // breaking the chat request even in non-strict mode.
       const startedAt = Date.now()
       try {
+        const scope = await resolveScope(ctx, state)
+
+        if (options.shouldRetrieve) {
+          const ok = await options.shouldRetrieve({
+            userText: state.lastUserText,
+            scope,
+          })
+          if (!ok) return
+        }
+
         safeEmit('memory:retrieve:started', {
           scope,
           query: preview(state.lastUserText),
@@ -136,13 +141,16 @@ export function memoryMiddleware(
           hits: state.retrievedHits,
         })
       } catch (error) {
+        // `resolveScope` may have thrown before assigning, so fall back to the
+        // partially-resolved scope (or `{}`) for the error payload.
+        const errScope = state.resolvedScope ?? {}
         safeEmit('memory:error', {
-          scope,
+          scope: errScope,
           phase: 'retrieve',
           error: errorInfo(error),
           timestamp: Date.now(),
         })
-        await emitError(options, scope, 'retrieve', error)
+        await emitError(options, errScope, 'retrieve', error)
         if (options.strict) throw error
         return
       }
@@ -162,8 +170,12 @@ export function memoryMiddleware(
       if (!options.onToolResult || !info.ok) return
       const state = stateByCtx.get(ctx)
       if (!state) return
-      const scope = await resolveScope(ctx, state)
+      // `scope` is resolved INSIDE the try so a throwing scope resolver routes
+      // through the same plumbing as an `onToolResult` failure instead of
+      // escaping the hook and breaking chat in non-strict mode.
+      let scope: MemoryScope
       try {
+        scope = await resolveScope(ctx, state)
         let parsedArgs: unknown = {}
         try {
           const raw = info.toolCall.function.arguments
@@ -210,15 +222,17 @@ export function memoryMiddleware(
         // alongside base records and `extractMemories` output.
         state.pendingToolOps.push(...normalizeOps(out))
       } catch (error) {
-        // Errors from `onToolResult` itself (synchronous extraction failure)
-        // — the persist phase is wrapped separately above.
+        // Errors from the scope resolver or `onToolResult` itself (synchronous
+        // extraction failure) — the persist phase is wrapped separately above.
+        // `scope` may be unassigned if `resolveScope` threw, so fall back.
+        const errScope = state.resolvedScope ?? {}
         safeEmit('memory:error', {
-          scope,
+          scope: errScope,
           phase: 'extract',
           error: errorInfo(error),
           timestamp: Date.now(),
         })
-        await emitError(options, scope, 'extract', error)
+        await emitError(options, errScope, 'extract', error)
         if (options.strict) throw error
       }
     },
@@ -231,7 +245,27 @@ export function memoryMiddleware(
         stateByCtx.delete(ctx)
         return
       }
-      const scope = await resolveScope(ctx, state)
+      // Resolve scope defensively: a throwing scope resolver here would
+      // otherwise escape the terminal `onFinish` hook. Route it through the
+      // persist error plumbing and skip persistence for the turn instead.
+      let scope: MemoryScope
+      try {
+        scope = await resolveScope(ctx, state)
+      } catch (error) {
+        const errScope = state.resolvedScope ?? {}
+        safeEmit('memory:error', {
+          scope: errScope,
+          phase: 'persist',
+          error: errorInfo(error),
+          timestamp: Date.now(),
+        })
+        await emitError(options, errScope, 'persist', error)
+        stateByCtx.delete(ctx)
+        // Mirror the deferred strict-mode semantics of `persistTurn`: reject a
+        // deferred promise (collected by the engine's `Promise.allSettled`).
+        if (options.strict) ctx.defer(Promise.reject(error))
+        return
+      }
       const userText = state.lastUserText
       const userEmbedding = state.lastUserEmbedding
       const retrievedMemoryIds = state.retrievedHits.map((h) => h.record.id)
@@ -359,9 +393,17 @@ async function applyOps(
  * paths — `afterPersist` and the persist devtools events fire for every
  * `adapter.add` commit, not just the finish-turn one.
  *
- * Adapter failures surface via `memory:error` + `events.onError` and (in
- * strict mode) re-throw so a deferred persist promise rejects rather than
- * being silently swallowed by the chat engine's `Promise.allSettled`.
+ * Adapter failures always surface via `memory:error` + `events.onError`.
+ * In strict mode they additionally re-throw, which short-circuits the rest of
+ * this persist batch and rejects the enclosing deferred promise.
+ *
+ * NOTE: because persistence runs via `ctx.defer`, the chat engine awaits the
+ * deferred promise with `Promise.allSettled` and discards the settled results
+ * (see `activities/chat/index.ts`). A strict-mode rejection therefore does NOT
+ * abort the already-finished run or propagate to the `chat()` caller — the
+ * `memory:error` event / `events.onError` callback is the observable failure
+ * signal in BOTH modes. Strict mode only aborts the run on the synchronously-
+ * awaited paths (`onConfig` retrieval, `onAfterToolCall`).
  */
 async function runObservedPersist(
   options: MemoryMiddlewareOptions,
@@ -462,8 +504,11 @@ async function persistTurn(args: {
   let extractError: unknown
   let extractFailed = false
   // OUTERMOST try/catch so any throw — extract, persist, afterPersist —
-  // routes through the same error plumbing and (in strict mode) rejects the
-  // deferred promise via the engine's `Promise.allSettled` collector.
+  // routes through the same error plumbing. In strict mode it re-throws to
+  // reject the deferred promise; note that the engine collects deferred
+  // rejections via `Promise.allSettled` and discards them, so this rejection
+  // does not abort the run (see the `runObservedPersist` JSDoc). The
+  // observable failure signal is the `memory:error` event either way.
   try {
     const now = Date.now()
 
@@ -471,18 +516,37 @@ async function persistTurn(args: {
     // short-circuits `extractMemories` and the persist path for the current
     // turn." We evaluate ONCE here with the user message + responseText —
     // returning `false` skips both the base records and `extractMemories`.
+    // The call is wrapped so a throwing `shouldRemember` emits `memory:error`
+    // at the source (the outer catch assumes the event already fired).
     if (options.shouldRemember) {
-      const keep = await options.shouldRemember({
-        message: { role: 'user', content: args.userText },
-        responseText: args.responseText,
-      })
+      let keep: boolean
+      try {
+        keep = await options.shouldRemember({
+          message: { role: 'user', content: args.userText },
+          responseText: args.responseText,
+        })
+      } catch (error) {
+        // A throwing `shouldRemember` is a persist-arc failure. Emit here so
+        // the outer catch's "already emitted at the source" invariant holds;
+        // in non-strict mode skip persistence for the turn rather than
+        // breaking anything downstream.
+        safeEmit('memory:error', {
+          scope,
+          phase: 'persist',
+          error: errorInfo(error),
+          timestamp: Date.now(),
+        })
+        await emitError(options, scope, 'persist', error)
+        if (options.strict) throw error
+        return
+      }
       if (!keep) return
     }
 
     const baseRecords: Array<MemoryRecord> = []
     if (args.userText) {
       baseRecords.push({
-        id: crypto.randomUUID(),
+        id: newRecordId(),
         scope,
         text: args.userText,
         kind: 'message',
@@ -518,7 +582,7 @@ async function persistTurn(args: {
         }
       }
       baseRecords.push({
-        id: crypto.randomUUID(),
+        id: newRecordId(),
         scope,
         text: args.responseText,
         kind: 'message',
@@ -615,6 +679,8 @@ async function persistTurn(args: {
     //   (c) Strict-mode assistant-side embedder rethrow: the local
     //       try/catch around the assistant embedder call above emitted
     //       `phase: 'persist'` before rethrowing.
+    //   (d) Strict-mode `shouldRemember` rethrow: the gate's own try/catch
+    //       above emitted `phase: 'persist'` before rethrowing.
     // Either way the event already fired with the correct phase; re-
     // emitting here would produce a duplicate event for the same failure.
     // So this catch is intentionally a pass-through in non-strict mode
@@ -629,7 +695,14 @@ async function emitError(
   phase: 'retrieve' | 'persist' | 'extract',
   error: unknown,
 ): Promise<void> {
-  await options.events?.onError?.({ scope, phase, error })
+  // Defensive like `safeEmit`: a throwing `onError` handler must never break
+  // chat (non-strict) or mask the original failure by replacing the in-flight
+  // error with its own. `onError` is telemetry — swallow anything it throws.
+  try {
+    await options.events?.onError?.({ scope, phase, error })
+  } catch {
+    // ignored — an observability callback must not affect chat behaviour
+  }
 }
 
 /**
@@ -667,6 +740,29 @@ function findLastUserMessage(
 
 function preview(text: string, max = 200): string {
   return text.length > max ? text.slice(0, max) + '…' : text
+}
+
+/**
+ * Portable memory-record id. `crypto.randomUUID()` is NOT a bare global on the
+ * package's declared Node 18 floor (Web Crypto became an unflagged global only
+ * in Node 19+), so calling it directly would throw `ReferenceError` there —
+ * and because id minting happens inside the persist path, that throw would
+ * silently drop the whole turn's memory in non-strict mode. Prefer the real
+ * UUID when the global exists (Node 19+, browsers, edge runtimes) and fall
+ * back to the same `Date.now()`+`Math.random()` pattern used by every other id
+ * generator in this package.
+ */
+function newRecordId(): string {
+  // `try`/`catch` rather than `globalThis.crypto?.randomUUID?.()`: the DOM/Node
+  // lib types `crypto` as always-present, so optional chaining reads as dead
+  // code to the linter — but the whole point is that the global genuinely can
+  // be absent at runtime on Node 18, where the bare access throws
+  // `ReferenceError`. Catch it and fall back to the package's portable pattern.
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `mem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
 }
 
 /**

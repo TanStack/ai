@@ -168,4 +168,4 @@ import type {
 - [Memory Quickstart](./quickstart) — wire the middleware into a real `chat()` call in five steps
 - [Custom Adapter](./custom-adapter) — implement `MemoryAdapter` for an unsupported backend
 - [Middleware](../advanced/middleware) — the underlying `chat()` middleware lifecycle and hooks
-- [Observability](../advanced/observability) — subscribe to `memory:*` events for tracing
+- [Devtools](../getting-started/devtools) — subscribe to `memory:*` events for tracing

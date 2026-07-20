@@ -285,6 +285,56 @@ describe('memoryMiddleware — persistence', () => {
     expect(texts).toEqual(['Ping', 'Pong.'])
   })
 
+  it('round trip: a turn persisted on one chat() surfaces in retrieval on the next', async () => {
+    // The headline behaviour of the whole feature — memory written in one
+    // turn is retrieved and injected in a LATER turn — exercised end to end
+    // through two sequential chat() calls sharing one adapter + scope. Unlike
+    // the retrieval tests (which seed the adapter directly), this drives the
+    // real persist path in turn 1 and the real retrieval path in turn 2, so a
+    // mismatch between the persisted record shape and the search contract
+    // (scope serialization, kind, embedding handling) would fail here.
+    const memory = fakeAdapter()
+
+    // Turn 1 — persist a distinctive assistant answer.
+    const turn1 = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textContent('Paris is the capital of France.'),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    await collectChunks(
+      chat({
+        adapter: turn1.adapter,
+        messages: [{ role: 'user', content: 'What is the capital of France?' }],
+        middleware: [memoryMiddleware({ adapter: memory, scope: baseScope })],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    // Deferred persistence has completed by the time collectChunks returns.
+    expect(memory.store.size).toBeGreaterThan(0)
+
+    // Turn 2 — brand-new chat(), same adapter + scope. Memory from turn 1
+    // must be retrieved and injected as a system prompt.
+    const turn2 = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('Sure.'), ev.runFinished('stop')],
+      ],
+    })
+    await collectChunks(
+      chat({
+        adapter: turn2.adapter,
+        messages: [{ role: 'user', content: 'remind me what you said' }],
+        middleware: [memoryMiddleware({ adapter: memory, scope: baseScope })],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const injected = (
+      turn2.calls[0] as { systemPrompts?: Array<string> }
+    ).systemPrompts?.join('\n')
+    expect(injected).toContain('Paris is the capital of France.')
+  })
+
   it('shouldRemember=false skips the entire turn (base records and extractMemories)', async () => {
     // Per-turn semantics: shouldRemember is evaluated ONCE per turn and
     // gates the whole persist path. The user message is short ("hi", 2
@@ -930,6 +980,103 @@ describe('memoryMiddleware — error-path observability', () => {
       const persistErrors = errorEvents.filter((e) => e.phase === 'persist')
       expect(persistErrors.length).toBe(1)
       expect(persistErrors[0]?.message).toContain('boom')
+    } finally {
+      off()
+    }
+  })
+
+  it('a throwing scope resolver does not break chat and emits memory:error (non-strict)', async () => {
+    // Scope resolution runs a user-supplied callback. If it throws it must
+    // route through memory:error/onError and be swallowed in non-strict mode
+    // rather than escaping onConfig/onFinish and breaking the chat request.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
+    })
+    const errorEvents: Array<{ phase: string; message: string }> = []
+    const opts = { withEventTarget: true } as const
+    const off = aiEventClient.on(
+      'memory:error',
+      (e) =>
+        errorEvents.push({
+          phase: e.payload.phase,
+          message: e.payload.error.message,
+        }),
+      opts,
+    )
+    try {
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'U' }],
+          middleware: [
+            memoryMiddleware({
+              adapter: memory,
+              scope: () => {
+                throw new Error('scope boom')
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      // Chat still produced output — the memory failure did not break the run.
+      expect(chunks.length).toBeGreaterThan(0)
+      // The failure surfaced on the retrieve path (onConfig).
+      expect(errorEvents.some((e) => e.message.includes('scope boom'))).toBe(
+        true,
+      )
+      // Nothing was persisted (scope never resolved).
+      expect(memory.store.size).toBe(0)
+    } finally {
+      off()
+    }
+  })
+
+  it('a throwing shouldRemember does not break chat and emits memory:error (non-strict)', async () => {
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
+    })
+    const errorEvents: Array<{ phase: string; message: string }> = []
+    const opts = { withEventTarget: true } as const
+    const off = aiEventClient.on(
+      'memory:error',
+      (e) =>
+        errorEvents.push({
+          phase: e.payload.phase,
+          message: e.payload.error.message,
+        }),
+      opts,
+    )
+    try {
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'U' }],
+          middleware: [
+            memoryMiddleware({
+              adapter: memory,
+              scope: baseScope,
+              shouldRemember: () => {
+                throw new Error('remember boom')
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect(chunks.length).toBeGreaterThan(0)
+      const persistErrors = errorEvents.filter((e) => e.phase === 'persist')
+      expect(
+        persistErrors.some((e) => e.message.includes('remember boom')),
+      ).toBe(true)
+      // The gate threw before any record was committed.
+      expect(memory.store.size).toBe(0)
     } finally {
       off()
     }

@@ -2,7 +2,7 @@
 //   here; the contract test only exercises the RedisLike subset that
 //   redisMemoryAdapter consumes (cast to `never` below).
 import RedisMock from 'ioredis-mock'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { nodeRedisAsRedisLike, redisMemoryAdapter } from '../src/adapters/redis'
 import { runMemoryAdapterContract } from './contract'
 
@@ -11,6 +11,50 @@ runMemoryAdapterContract('redisMemoryAdapter', async () => {
   return redisMemoryAdapter({
     redis: client as never,
     prefix: `test:${crypto.randomUUID()}`,
+  })
+})
+
+describe('redisMemoryAdapter malformed rows', () => {
+  it('skips a malformed record on read but does NOT delete it', async () => {
+    const prefix = `test:${crypto.randomUUID()}`
+    const client = new RedisMock()
+    const adapter = redisMemoryAdapter({ redis: client as never, prefix })
+    const scope = { tenantId: 't1', userId: 'u1' }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      await adapter.add({
+        id: 'good',
+        scope,
+        text: 'ok',
+        kind: 'fact',
+        createdAt: Date.now(),
+      })
+      await adapter.add({
+        id: 'bad',
+        scope,
+        text: 'will be corrupted',
+        kind: 'fact',
+        createdAt: Date.now(),
+      })
+      // Corrupt the stored payload directly, simulating a truncated write or a
+      // third-party writer using an incompatible schema.
+      const badKey = `${prefix}:record:bad`
+      await client.set(badKey, '{ not valid json')
+
+      // The malformed row is skipped, the good one still returned.
+      const listed = await adapter.list(scope)
+      const ids = listed.items.map((r) => r.id)
+      expect(ids).toContain('good')
+      expect(ids).not.toContain('bad')
+
+      // Load-bearing: the malformed row is LEFT IN PLACE, not deleted — a
+      // parse failure is not proof the data is unrecoverable.
+      expect(await client.get(badKey)).toBe('{ not valid json')
+      // And the developer was warned about it.
+      expect(warn).toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 
