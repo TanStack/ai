@@ -50,7 +50,7 @@
     "test:lib:dev": "vitest",
     "test:types": "tsc",
     "test:build": "publint --strict",
-    "build": "ng-packagr -p ng-package.json -c tsconfig.build.json && rm -rf ./dist/package.json"
+    "build": "ng-packagr -p ng-package.json -c tsconfig.build.json && premove ./dist/package.json"
   },
   "dependencies": {
     "@tanstack/ai-client": "workspace:*",

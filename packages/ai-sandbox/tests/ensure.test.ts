@@ -3,6 +3,7 @@ import { defineSandbox } from '../src/sandbox'
 import { defineWorkspace, githubRepo } from '../src/workspace'
 import { InMemoryLockStore, InMemorySandboxStore } from '../src/store'
 import { FULL_CAPS, makeFakeProvider } from './fakes'
+import type { LockStore } from '@tanstack/ai'
 import type { SandboxCapabilities } from '../src/contracts'
 
 const baseCtx = () => ({
@@ -28,7 +29,10 @@ describe('ensureSandbox algorithm', () => {
     expect(provider.calls.create).toBe(1)
     expect(provider.calls.resume).toBe(0)
     // bootstrap cloned the repo + can run setup (fake handle tracks files)
-    const files = (handle as unknown as { files: Map<string, string> }).files
+    if (!('files' in handle) || !(handle.files instanceof Map)) {
+      throw new Error('Expected the fake sandbox file map')
+    }
+    const files = handle.files
     expect(files.has('/workspace/.git')).toBe(true)
     // recorded in the store under the compound key
     const rec = await ctx.store.get(def.key(ctx))
@@ -153,6 +157,31 @@ describe('ensureSandbox algorithm', () => {
     expect(provider.calls.create).toBe(1)
     expect(provider.calls.resume).toBe(1)
     expect(a.id).toBe(b.id)
+  })
+
+  it('destroys an unrecorded sandbox when the lease is lost after creation', async () => {
+    const lease = new AbortController()
+    const locks: LockStore = {
+      withLock: (_key, fn) => fn(lease.signal),
+    }
+    const provider = makeFakeProvider()
+    const create = provider.create.bind(provider)
+    provider.create = async (input) => {
+      const handle = await create(input)
+      lease.abort(new Error('lease lost'))
+      return handle
+    }
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = { ...baseCtx(), locks }
+
+    await expect(def.ensure(ctx)).rejects.toThrow('lease lost')
+
+    const created = provider.created[0]
+    if (!created || !('destroyed' in created)) {
+      throw new Error('Expected a created fake sandbox')
+    }
+    expect(created.destroyed).toBe(true)
+    expect(await ctx.store.get(def.key(ctx))).toBeNull()
   })
 
   it('defaults to snapshot after-setup when provider supports snapshots and no lifecycle.snapshot set', async () => {

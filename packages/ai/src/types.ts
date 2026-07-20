@@ -5,6 +5,10 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type {
+  InterruptRecoveryStateV1,
+  InterruptSubmissionError,
+} from './interrupts'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -18,6 +22,7 @@ import type {
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
+  Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
@@ -25,8 +30,10 @@ import type {
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
   ReasoningStartEvent as AGUIReasoningStartEvent,
+  ResumeEntry as AGUIResumeEntry,
   RunErrorEvent as AGUIRunErrorEvent,
   RunFinishedEvent as AGUIRunFinishedEvent,
+  RunFinishedOutcome as AGUIRunFinishedOutcome,
   RunStartedEvent as AGUIRunStartedEvent,
   StateDeltaEvent as AGUIStateDeltaEvent,
   StateSnapshotEvent as AGUIStateSnapshotEvent,
@@ -569,8 +576,8 @@ export type ToolExecutionContext<TContext = unknown> =
   }
 
 export type ToolExecuteFunction<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TContext = unknown,
 > = undefined extends TContext
   ? (
@@ -596,8 +603,8 @@ export type ToolExecuteFunction<
  * @see https://standardschema.dev/json-schema
  */
 export interface Tool<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
 > {
@@ -1011,6 +1018,16 @@ export interface TextOptions<
    */
   parentRunId?: string
 
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: unknown
+
+  /**
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * Threaded through request parsing now so later runtime behavior can resolve
+   * upstream-native interrupts.
+   */
+  resume?: Array<RunAgentResumeItem>
+
   /**
    * Middleware capability context for this run. The engine populates it with
    * the live middleware context so harness adapters that declare
@@ -1100,6 +1117,12 @@ export type {
  */
 export type UsageTotals = TokenUsage
 
+export type Interrupt = AGUIInterrupt
+
+export type RunFinishedOutcome = AGUIRunFinishedOutcome
+
+export type RunAgentResumeItem = AGUIResumeEntry
+
 /**
  * Emitted when a run completes successfully.
  *
@@ -1124,6 +1147,10 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
 export interface RunErrorEvent extends AGUIRunErrorEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Exhaustive TanStack interrupt submission failures for this run. */
+  'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
+  /** Authoritative interrupt state returned with stale/conflicting submissions. */
+  'tanstack:interruptRecovery'?: InterruptRecoveryStateV1
   /**
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
@@ -1384,6 +1411,10 @@ export interface StructuredOutputStartEvent extends CustomEvent {
  * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
  * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
+ */
 export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
@@ -1399,6 +1430,10 @@ export interface ApprovalRequestedEvent extends CustomEvent {
  * pauses to let the caller run the tool client-side — `structured-output.complete`
  * will not fire for that run. Shape fixed by the agent-loop forwarding in
  * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
+ */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
  */
 export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
@@ -1524,11 +1559,15 @@ export type ChatStream = AsyncIterable<
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
- * Yields all standard `StreamChunk` lifecycle events plus the three tagged
- * `CUSTOM` events the orchestrator can emit through this path:
+ * Yields all standard `StreamChunk` lifecycle events plus the typed
+ * structured-output `CUSTOM` event emitted through this path:
  * - `structured-output.complete` — terminal event with typed `value.object: T`
- * - `approval-requested` — server tool needs approval (pauses the run)
- * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * User-actionable waits, such as tool approval and client tool input, are
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
+ * streams. Legacy `approval-requested` and `tool-input-available` custom
+ * events may still be consumed for replay and backward compatibility, but
+ * they are not the current source of truth for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1537,8 +1576,6 @@ export type ChatStream = AsyncIterable<
  * for await (const chunk of stream) {
  *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
  *     chunk.value.object // typed as T
- *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *     chunk.value.toolCallId // typed as string
  *   }
  * }
  * ```
@@ -1849,6 +1886,36 @@ export type GeneratedMediaSource =
       url?: never
     }
 
+export type PersistedArtifactRole = 'input' | 'output'
+
+export type PersistedArtifactActivity =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+export interface PersistedArtifactRef {
+  role: PersistedArtifactRole
+  artifactId: string
+  threadId: string
+  runId: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+  externalUrl?: string
+  source: {
+    activity: PersistedArtifactActivity
+    path: string
+    provider: string
+    model: string
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    jobId?: string
+    expiresAt?: string
+  }
+}
+
 /**
  * A single generated image
  */
@@ -1869,6 +1936,8 @@ export interface ImageGenerationResult {
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1920,6 +1989,8 @@ export interface AudioGenerationResult {
   audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2011,6 +2082,8 @@ export interface VideoUrlResult {
    * real billed quantity — so consumers can compute exact cost.
    */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2060,6 +2133,8 @@ export interface TTSResult {
   contentType?: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2150,6 +2225,8 @@ export interface TranscriptionResult {
   words?: Array<TranscriptionWord>
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

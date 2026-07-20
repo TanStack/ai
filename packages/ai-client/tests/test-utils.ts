@@ -1,7 +1,6 @@
-import { vi } from 'vitest'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
-import type { ChatClientPersistence, UIMessage } from '../src/types'
+import type { UIMessage } from '../src/types'
 
 /**
  * Build a minimal text {@link UIMessage} for tests.
@@ -14,20 +13,6 @@ export function createUIMessage(
   return { id, role, parts: [{ type: 'text', content: text }] }
 }
 
-/**
- * Create a persistence adapter whose three methods are vitest spies. `getItem`
- * synchronously returns `initial` (defaults to `undefined`); override individual
- * methods via the returned object's `.mock*` helpers for async/error scenarios.
- */
-export function createMockPersistence(
-  initial?: Array<UIMessage> | null,
-): ChatClientPersistence {
-  return {
-    getItem: vi.fn(() => initial),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-  }
-}
 /**
  * Options for creating a mock connection adapter
  */

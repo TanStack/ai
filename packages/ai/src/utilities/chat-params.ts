@@ -3,6 +3,7 @@ import type { Context as AGUIContext } from '@ag-ui/core'
 import type {
   JSONSchema,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   Tool,
   UIMessage,
@@ -38,7 +39,7 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
  * reasoning/activity/developer-role normalization internally.
  *
  * @throws An error with a migration-pointing message when the body does
- *   not conform to AG-UI 0.0.52 `RunAgentInputSchema`. Surface this as a
+ *   not conform to AG-UI `RunAgentInputSchema`. Surface this as a
  *   400 Bad Request to the client.
  */
 export function chatParamsFromRequestBody(body: unknown): Promise<{
@@ -49,6 +50,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
+  resume?: Array<RunAgentResumeItem>
   /**
    * @deprecated Use `aguiContext` instead. This alias will be removed in a
    * future release.
@@ -101,6 +103,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
+    resume: parsed.resume,
     context: aguiContext,
     aguiContext,
   })

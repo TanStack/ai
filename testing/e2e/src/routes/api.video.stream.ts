@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateVideo, toHttpResponse } from '@tanstack/ai'
-import { createVideoAdapter } from '@/lib/media-providers'
+import { createVideoOptions, generateVideo, toHttpResponse } from '@tanstack/ai'
 import type { MediaPrompt } from '@tanstack/ai'
+import { createVideoAdapter } from '@/lib/media-providers'
 import type { Feature, Provider } from '@/lib/types'
 
 export const Route = createFileRoute('/api/video/stream')({
@@ -28,15 +28,19 @@ export const Route = createFileRoute('/api/video/stream')({
         )
 
         try {
-          const stream = generateVideo({
-            adapter,
-            prompt,
-            stream: true,
-            pollingInterval: 500,
-          })
+          const stream = generateVideo<typeof adapter, true>(
+            createVideoOptions({
+              adapter,
+              prompt,
+              stream: true,
+              pollingInterval: 500,
+            }),
+          )
           return toHttpResponse(stream, { abortController })
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Video generation failed'
+          return new Response(JSON.stringify({ error: message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })

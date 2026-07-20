@@ -62,7 +62,7 @@ export function createImageAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiImage('gpt-image-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -89,7 +89,7 @@ export function createTTSAdapter(
   testId?: string,
 ) {
   const headers = testHeaders(testId)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiSpeech('tts-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -123,7 +123,7 @@ export function createTranscriptionAdapter(
 ) {
   const headers = testHeaders(testId)
   const openaiTranscriptionModel = getOpenaiTranscriptionModel(options)
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiTranscription(openaiTranscriptionModel, DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -158,6 +158,10 @@ export function createVideoAdapter(
   feature: Feature = 'video-gen',
 ) {
   const headers = testHeaders(testId)
+  const geminiConfig = (baseUrl: string) => ({
+    allowUrlFetch: false,
+    httpOptions: { baseUrl, headers },
+  })
   // Gemini Omni Flash only serves the Interactions API; its background
   // video jobs run through a dedicated aimock mount (see geminiOmniVideoMount
   // in global-setup.ts) addressed via a distinct baseUrl prefix so aimock's
@@ -166,25 +170,24 @@ export function createVideoAdapter(
     if (provider !== 'gemini') {
       throw new Error(`No interactions-video adapter for provider: ${provider}`)
     }
-    return createGeminiVideo('gemini-omni-flash-preview', DUMMY_KEY, {
-      httpOptions: { baseUrl: `${llmockBase(aimockPort)}/omni-video`, headers },
-    })
+    return createGeminiVideo(
+      'gemini-omni-flash-preview',
+      DUMMY_KEY,
+      geminiConfig(`${llmockBase(aimockPort)}/omni-video`),
+    )
   }
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     openai: () =>
       createOpenaiVideo('sora-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
     gemini: () =>
-      // `httpOptions` is a valid inherited `GoogleGenAIOptions` key (image/audio
-      // pass it the same way), but `GeminiVideoConfig`'s own `allowUrlFetch`
-      // member makes tsc drop the inherited keys from `Omit<…, 'apiKey'>`, so
-      // the literal is rejected here only. Cast to the param type — the mock
-      // base URL is required at runtime.
-      createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
-      } as unknown as Parameters<typeof createGeminiVideo>[2]),
+      createGeminiVideo(
+        'veo-3.1-generate-preview',
+        DUMMY_KEY,
+        geminiConfig(llmockBase(aimockPort)),
+      ),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No video adapter for provider: ${provider}`)
@@ -211,7 +214,7 @@ export function createAudioAdapter(
       headers,
     })
   }
-  const factories: Record<string, () => any> = {
+  const factories: Partial<Record<Provider, () => any>> = {
     gemini: () =>
       createGeminiAudio('lyria-3-clip-preview', DUMMY_KEY, {
         httpOptions: { baseUrl: base, headers },

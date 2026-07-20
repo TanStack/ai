@@ -16,6 +16,7 @@ import type { SandboxKeyInput } from './key'
 import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
+import type { WorkspacePersistenceOptions } from './workspace-persistence-types'
 
 /**
  * Sandbox-scoped hooks declared on `defineSandbox`. File hooks fire for every
@@ -55,6 +56,9 @@ export interface SandboxConfig {
   id: string
   provider: SandboxProvider
   workspace?: WorkspaceDefinition
+  persistence?: {
+    workspace?: boolean | WorkspacePersistenceOptions
+  }
   policy?: SandboxPolicy
   lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
@@ -80,6 +84,9 @@ export interface SandboxDefinition {
   readonly id: string
   readonly provider: SandboxProvider
   readonly workspace?: WorkspaceDefinition
+  readonly persistence?: {
+    workspace?: boolean | WorkspacePersistenceOptions
+  }
   readonly policy?: SandboxPolicy
   readonly lifecycle?: SandboxLifecycle
   /** Sandbox-scoped file/lifecycle hooks. */
@@ -132,108 +139,127 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const key = computeSandboxKey(keyInputFor(ctx))
     const caps = config.provider.capabilities()
 
-    return locks.withLock(`sandbox:${key}`, async () => {
-      const effectiveSnapshot: SnapshotStrategy =
-        config.lifecycle?.snapshot ?? (caps.snapshots ? 'after-setup' : 'none')
-      const maxAgeMs = parseMaxAgeMs(config.lifecycle?.snapshotMaxAge)
+    return locks.withLock(`sandbox:${key}`, async (lockSignal) => {
+      const combined = combineAbortSignals(lockSignal, ctx.signal)
+      const signal = combined.signal
+      try {
+        const effectiveSnapshot: SnapshotStrategy =
+          config.lifecycle?.snapshot ??
+          (caps.snapshots ? 'after-setup' : 'none')
+        const maxAgeMs = parseMaxAgeMs(config.lifecycle?.snapshotMaxAge)
 
-      const existing = await store.get(key)
-      if (existing) {
-        // Check whether the record has exceeded snapshotMaxAge; if so,
-        // discard and fall through to a fresh create.
-        const tooOld =
-          maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs
+        const existing = await store.get(key)
+        signal.throwIfAborted()
+        if (existing) {
+          // Check whether the record has exceeded snapshotMaxAge; if so,
+          // discard and fall through to a fresh create.
+          const tooOld =
+            maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs
 
-        if (!tooOld) {
-          // 1) Try to reconnect to the still-running sandbox.
-          const resumed = await config.provider.resume({
-            id: existing.providerSandboxId,
-            signal: ctx.signal,
-          })
-          if (resumed) {
-            await store.upsert({
-              ...existing,
-              latestRunId: ctx.runId,
-              updatedAt: Date.now(),
+          if (!tooOld) {
+            // 1) Try to reconnect to the still-running sandbox.
+            const resumed = await config.provider.resume({
+              id: existing.providerSandboxId,
+              signal,
             })
-            return resumed
+            if (resumed) {
+              signal.throwIfAborted()
+              await store.upsert({
+                ...existing,
+                latestRunId: ctx.runId,
+                updatedAt: Date.now(),
+              })
+              return resumed
+            }
+            // 2) Else restore from the latest snapshot, if supported.
+            if (
+              existing.latestSnapshotId &&
+              caps.snapshots &&
+              config.provider.restoreSnapshot
+            ) {
+              const restored = await config.provider.restoreSnapshot({
+                snapshotId: existing.latestSnapshotId,
+                workspace: config.workspace,
+                policy: config.policy,
+                env:
+                  config.workspace?.secrets !== undefined
+                    ? resolveAllSecrets(config.workspace.secrets)
+                    : undefined,
+                signal,
+              })
+              signal.throwIfAborted()
+              await store.upsert({
+                ...existing,
+                providerSandboxId: restored.id,
+                latestRunId: ctx.runId,
+                updatedAt: Date.now(),
+              })
+              return restored
+            }
           }
-          // 2) Else restore from the latest snapshot, if supported.
-          if (
-            existing.latestSnapshotId &&
-            caps.snapshots &&
-            config.provider.restoreSnapshot
-          ) {
-            const restored = await config.provider.restoreSnapshot({
-              snapshotId: existing.latestSnapshotId,
-              workspace: config.workspace,
-              policy: config.policy,
-              env:
-                config.workspace?.secrets !== undefined
-                  ? resolveAllSecrets(config.workspace.secrets)
-                  : undefined,
-              signal: ctx.signal,
+          // 3) Else fall through and re-create under the same identity
+          //    (capability-aware degradation for ephemeral-disk providers, or
+          //    snapshotMaxAge TTL exceeded).
+        }
+
+        const created = await config.provider.create({
+          // Deterministic id so consumers can reconstruct the provider sandbox
+          // address from run context (not just from the store record).
+          id: key,
+          workspace: config.workspace,
+          policy: config.policy,
+          env:
+            config.workspace?.secrets !== undefined
+              ? resolveAllSecrets(config.workspace.secrets)
+              : undefined,
+          signal,
+        })
+        await assertLeaseOwnedOrDestroy(signal, created)
+
+        if (config.workspace) {
+          try {
+            await bootstrapWorkspace(created, config.workspace, {
+              signal,
             })
-            await store.upsert({
-              ...existing,
-              providerSandboxId: restored.id,
-              latestRunId: ctx.runId,
-              updatedAt: Date.now(),
-            })
-            return restored
+          } catch (error) {
+            // Bootstrap failed after the sandbox was created but before it was
+            // recorded — destroy the orphan so a failed/retried run doesn't leak
+            // a (billed) sandbox, then surface the original error.
+            try {
+              await created.destroy()
+            } catch (cleanupError) {
+              throw new AggregateError(
+                [error, cleanupError],
+                'Sandbox bootstrap and orphan cleanup failed',
+              )
+            }
+            throw error
           }
         }
-        // 3) Else fall through and re-create under the same identity
-        //    (capability-aware degradation for ephemeral-disk providers, or
-        //    snapshotMaxAge TTL exceeded).
-      }
 
-      const created = await config.provider.create({
-        // Deterministic id so consumers can reconstruct the provider sandbox
-        // address from run context (not just from the store record).
-        id: key,
-        workspace: config.workspace,
-        policy: config.policy,
-        env:
-          config.workspace?.secrets !== undefined
-            ? resolveAllSecrets(config.workspace.secrets)
-            : undefined,
-        signal: ctx.signal,
-      })
-
-      if (config.workspace) {
-        try {
-          await bootstrapWorkspace(created, config.workspace, {
-            signal: ctx.signal,
-          })
-        } catch (error) {
-          // Bootstrap failed after the sandbox was created but before it was
-          // recorded — destroy the orphan so a failed/retried run doesn't leak
-          // a (billed) sandbox, then surface the original error.
-          await created.destroy().catch(() => {})
-          throw error
+        let latestSnapshotId: string | undefined
+        if (
+          effectiveSnapshot === 'after-setup' &&
+          caps.snapshots &&
+          created.snapshot
+        ) {
+          latestSnapshotId = (await created.snapshot('after-setup')).id
         }
-      }
 
-      let latestSnapshotId: string | undefined
-      if (
-        effectiveSnapshot === 'after-setup' &&
-        caps.snapshots &&
-        created.snapshot
-      ) {
-        latestSnapshotId = (await created.snapshot('after-setup')).id
+        await assertLeaseOwnedOrDestroy(signal, created)
+        await store.upsert({
+          key,
+          provider: config.provider.name,
+          providerSandboxId: created.id,
+          latestSnapshotId,
+          threadId: ctx.threadId,
+          latestRunId: ctx.runId,
+          updatedAt: Date.now(),
+        })
+        return created
+      } finally {
+        combined.dispose()
       }
-
-      await store.upsert({
-        key,
-        provider: config.provider.name,
-        providerSandboxId: created.id,
-        latestSnapshotId,
-        threadId: ctx.threadId,
-        latestRunId: ctx.runId,
-        updatedAt: Date.now(),
-      })
-      return created
     })
   }
 
@@ -253,6 +279,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     id: config.id,
     provider: config.provider,
     workspace: config.workspace,
+    persistence: config.persistence,
     policy: config.policy,
     lifecycle: config.lifecycle,
     hooks: config.hooks,
@@ -260,5 +287,52 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     key: (ctx) => computeSandboxKey(keyInputFor(ctx)),
     ensure,
     destroy,
+  }
+}
+
+function combineAbortSignals(
+  leaseSignal: AbortSignal,
+  callerSignal: AbortSignal | undefined,
+): { signal: AbortSignal; dispose: () => void } {
+  const controller = new AbortController()
+  const signals = callerSignal ? [leaseSignal, callerSignal] : [leaseSignal]
+  const listeners = new Map<AbortSignal, () => void>()
+
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      break
+    }
+    const onAbort = () => controller.abort(signal.reason)
+    listeners.set(signal, onAbort)
+    signal.addEventListener('abort', onAbort, { once: true })
+  }
+
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      for (const [signal, listener] of listeners) {
+        signal.removeEventListener('abort', listener)
+      }
+    },
+  }
+}
+
+async function assertLeaseOwnedOrDestroy(
+  signal: AbortSignal,
+  handle: SandboxHandle,
+): Promise<void> {
+  try {
+    signal.throwIfAborted()
+  } catch (error) {
+    try {
+      await handle.destroy()
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Sandbox lease loss and orphan cleanup failed',
+      )
+    }
+    throw error
   }
 }

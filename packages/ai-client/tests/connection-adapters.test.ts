@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
+  fetcherToConnectionAdapter,
   fetchServerSentEvents,
   normalizeConnectionAdapter,
   rpcStream,
@@ -9,6 +10,7 @@ import {
 } from '../src/connection-adapters'
 import { UnsupportedResponseStreamError } from '../src'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { ChatFetcher } from '../src/types'
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -465,6 +467,62 @@ describe('connection-adapters', () => {
       expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
+    it('should include resume in the AG-UI request body', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          parentRunId: 'interrupted-run',
+          resume: [
+            {
+              interruptId: 'interrupt-1',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+            {
+              interruptId: 'interrupt-2',
+              status: 'cancelled',
+            },
+          ],
+        },
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.resume).toEqual([
+        {
+          interruptId: 'interrupt-1',
+          status: 'resolved',
+          payload: { approved: true },
+        },
+        {
+          interruptId: 'interrupt-2',
+          status: 'cancelled',
+        },
+      ])
+    })
+
     it('should mirror forwardedProps under legacy `data` field for backward-compat', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
@@ -480,7 +538,7 @@ describe('connection-adapters', () => {
 
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
-        { provider: 'openai', model: 'gpt-4o' },
+        { provider: 'openai', model: 'gpt-5.5' },
       )) {
         // Consume
       }
@@ -491,7 +549,7 @@ describe('connection-adapters', () => {
       // `body.forwardedProps.X`. Both must contain the same content
       // until the legacy `body` client option is removed.
       expect(body.data).toEqual(body.forwardedProps)
-      expect(body.data).toMatchObject({ provider: 'openai', model: 'gpt-4o' })
+      expect(body.data).toMatchObject({ provider: 'openai', model: 'gpt-5.5' })
     })
 
     it('should use custom fetchClient when provided', async () => {
@@ -612,7 +670,7 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat', {
-        body: { model: 'gpt-4o', provider: 'openai' },
+        body: { model: 'gpt-5.5', provider: 'openai' },
       })
 
       for await (const _ of adapter.connect(
@@ -625,7 +683,7 @@ describe('connection-adapters', () => {
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
       expect(body.forwardedProps).toMatchObject({
-        model: 'gpt-4o',
+        model: 'gpt-5.5',
         provider: 'openai',
         key: 'value',
       })
@@ -1038,6 +1096,49 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        undefined,
+      )
+    })
+
+    it('should pass run context to stream factory', async () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      })
+
+      const adapter = stream(streamFactory)
+      const runContext = {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume: [
+          {
+            interruptId: 'interrupt-1',
+            status: 'resolved' as const,
+            payload: { approved: true },
+          },
+        ],
+      }
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+        undefined,
+        runContext,
+      )) {
+        // Consume
+      }
+
+      expect(streamFactory).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        { key: 'value' },
+        undefined,
+        runContext,
       )
     })
   })
@@ -1181,6 +1282,60 @@ describe('connection-adapters', () => {
         expect(received[0].error?.message).toBe('already failed')
       }
     })
+
+    it('preserves read-only join and explicit interrupt recovery operations', async () => {
+      const recovery = {
+        schemaVersion: 1 as const,
+        state: 'pending' as const,
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 2,
+        pendingInterrupts: [],
+      }
+      const loadInterruptState = vi.fn(async () => recovery)
+      const base = {
+        async *connect() {
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 'thread-1',
+            runId: 'run-new',
+            timestamp: Date.now(),
+          } as const
+        },
+        async *joinRun(runId: string) {
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 'thread-1',
+            runId,
+            timestamp: Date.now(),
+          } as const
+        },
+        loadInterruptState,
+      }
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const received = (async () => {
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          abortController.abort()
+          return chunk
+        }
+        return undefined
+      })()
+
+      await adapter.joinRun?.('winner-run')
+      expect(await received).toMatchObject({
+        type: EventType.RUN_FINISHED,
+        runId: 'winner-run',
+      })
+      await expect(
+        adapter.loadInterruptState?.({
+          threadId: 'thread-1',
+          interruptedRunId: 'run-1',
+          knownGeneration: 1,
+        }),
+      ).resolves.toBe(recovery)
+      expect(loadInterruptState).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('rpcStream', () => {
@@ -1226,7 +1381,7 @@ describe('connection-adapters', () => {
       })
 
       const adapter = rpcStream(rpcCall)
-      const data = { model: 'gpt-4o' }
+      const data = { model: 'gpt-5.5' }
 
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
@@ -1239,7 +1394,94 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
         undefined,
+        undefined,
       )
+    })
+
+    it('should pass run context to RPC call', async () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      })
+
+      const adapter = rpcStream(rpcCall)
+      const runContext = {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume: [
+          {
+            interruptId: 'interrupt-1',
+            status: 'cancelled' as const,
+          },
+        ],
+      }
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        runContext,
+      )) {
+        // Consume
+      }
+
+      expect(rpcCall).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        { model: 'gpt-5.5' },
+        undefined,
+        runContext,
+      )
+    })
+  })
+
+  describe('fetcherToConnectionAdapter', () => {
+    it('should forward resume to custom fetchers', async () => {
+      const fetcher = vi.fn<ChatFetcher>(async function* () {
+        yield {
+          type: EventType.RUN_FINISHED,
+          threadId: 'thread-1',
+          runId: 'run-1',
+          timestamp: Date.now(),
+        } as StreamChunk
+      })
+      const adapter = fetcherToConnectionAdapter(fetcher)
+      const abortController = new AbortController()
+
+      for await (const _ of adapter.connect(
+        [],
+        undefined,
+        abortController.signal,
+        {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          parentRunId: 'interrupted-run',
+          resume: [
+            {
+              interruptId: 'interrupt-1',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+          ],
+        },
+      )) {
+        // Consume
+      }
+
+      const [input] = fetcher.mock.calls[0]!
+      expect(input.resume).toEqual([
+        {
+          interruptId: 'interrupt-1',
+          status: 'resolved',
+          payload: { approved: true },
+        },
+      ])
+      expect(input.parentRunId).toBe('interrupted-run')
     })
   })
 })

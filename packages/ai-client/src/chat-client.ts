@@ -12,11 +12,19 @@ import {
   getChunkRunId,
   normalizeConnectionAdapter,
 } from './connection-adapters'
-import { ChatPersistor } from './client-persistor'
+import { parseInterruptRecoveryState } from './interrupt-recovery-parse'
+import { ChatPersistenceController } from './chat-persistence-controller'
+import { ClearedStreamTracker } from './cleared-stream-tracker'
+import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
+  InterruptCommitResult,
+  InterruptRecoveryQuery,
+  InterruptRecoveryStateV1,
+  InterruptSubmissionError,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
@@ -33,9 +41,16 @@ import type {
   ChatDevtoolsBridgeOptions,
 } from './devtools'
 import type {
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatContinuationLoader,
   ChatFetcher,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatPendingInterrupt,
+  ChatResumeSnapshot,
+  ChatResumeState,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
@@ -44,10 +59,12 @@ import type {
   QueueStrategy,
   QueuedMessage,
   SendMessageOptions,
+  PersistedInterruptDraft,
   ToolCallPart,
   UIMessage,
   WhenBusy,
 } from './types'
+import type { InterruptManagerSubmission } from './interrupt-manager'
 
 /** Internal queue entry — public {@link QueuedMessage} plus optional per-send body. */
 interface InternalQueuedMessage extends QueuedMessage {
@@ -72,6 +89,11 @@ type ChatClientUpdateOptionsWithoutContext<
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
   onQueueChange?: (queue: Array<QueuedMessage>) => void
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools>,
+  ) => void
+  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
   onCustomEvent?: (
     eventType: string,
     data: unknown,
@@ -178,6 +200,110 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
   }
 }
 
+function replayContinuationRunId(chunk: StreamChunk): string | undefined {
+  if (chunk.type !== 'RUN_FINISHED' || !('result' in chunk)) return undefined
+  const result: unknown = chunk.result
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    return undefined
+  }
+  if (!('replayed' in result) || result.replayed !== true) return undefined
+  return 'continuationRunId' in result &&
+    typeof result.continuationRunId === 'string'
+    ? result.continuationRunId
+    : undefined
+}
+
+interface ParsedPersistedInterruptState {
+  recoveryState: InterruptRecoveryStateV1
+  drafts: ReadonlyArray<PersistedInterruptDraft>
+}
+
+interface PersistedRecoveryRequest {
+  query: InterruptRecoveryQuery
+  drafts: ReadonlyArray<PersistedInterruptDraft>
+  expectedGeneration?: number
+  expectedInterruptIds: ReadonlyArray<string>
+}
+
+function readResumeState(
+  snapshot: ChatResumeSnapshot,
+): ChatResumeState | undefined {
+  const value: unknown = snapshot
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('resumeState' in value)
+  ) {
+    return undefined
+  }
+  const resumeState = value.resumeState
+  if (
+    resumeState === null ||
+    typeof resumeState !== 'object' ||
+    !('threadId' in resumeState) ||
+    typeof resumeState.threadId !== 'string' ||
+    resumeState.threadId.length === 0 ||
+    !('runId' in resumeState) ||
+    typeof resumeState.runId !== 'string' ||
+    resumeState.runId.length === 0
+  ) {
+    return undefined
+  }
+  return { threadId: resumeState.threadId, runId: resumeState.runId }
+}
+
+function readPersistedInterruptState(
+  snapshot: ChatResumeSnapshot,
+): ParsedPersistedInterruptState | undefined {
+  if (snapshot.schemaVersion !== 2) {
+    return undefined
+  }
+  const interruptStateValue: unknown = snapshot.interruptState
+  if (
+    interruptStateValue === undefined ||
+    interruptStateValue === null ||
+    typeof interruptStateValue !== 'object' ||
+    Array.isArray(interruptStateValue)
+  ) {
+    return undefined
+  }
+  const interruptState = interruptStateValue as Record<string, unknown>
+  let recoveryState: InterruptRecoveryStateV1
+  try {
+    recoveryState = parseInterruptRecoveryState(interruptState.recoveryState)
+  } catch {
+    return undefined
+  }
+  const drafts = interruptState.drafts
+  if (
+    recoveryState.threadId !== snapshot.resumeState.threadId ||
+    recoveryState.interruptedRunId !== snapshot.resumeState.runId ||
+    !Array.isArray(drafts)
+  ) {
+    return undefined
+  }
+  if (
+    !drafts.every(
+      (draft) =>
+        draft !== null &&
+        typeof draft === 'object' &&
+        typeof draft.interruptId === 'string' &&
+        ['pending', 'validating', 'staged', 'submitting', 'error'].includes(
+          draft.status,
+        ) &&
+        'response' in draft &&
+        (draft.error === undefined ||
+          (draft.error !== null && typeof draft.error === 'object')),
+    )
+  ) {
+    return undefined
+  }
+  return {
+    recoveryState,
+    drafts: drafts as ReadonlyArray<PersistedInterruptDraft>,
+  }
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -186,11 +312,39 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
-  // All persistence concerns (hydrate / save / clear, plus suppression of late
-  // chunks after a mid-stream clear) live in ChatPersistor so this class stays
-  // focused on streaming. Undefined when no `persistence` adapter is configured.
-  private readonly persistor?: ChatPersistor
+  private readonly persistenceController: ChatPersistenceController<TTools>
+  private readonly clearedStreamTracker = new ClearedStreamTracker()
+  // Whether the consumer supplied an `onError` callback. Server-persistence is
+  // best-effort and must never break chat, but its failures should still be
+  // observable: they are routed to the consumer's `onError` when one exists,
+  // otherwise surfaced via `console.warn`.
+  private hasUserOnError = false
   private currentRunId: string | null = null
+  // Interrupt-resume tracking: the run/thread of the most recent interrupted
+  // run, so approvals/client-tool results can be sent back. Cleared when the
+  // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
+  private lastResume: ChatResumeState | null = null
+  private readonly interruptManager: InterruptManager<TTools>
+  private readonly continuationLoader: ChatContinuationLoader | undefined
+  private activeInterruptSubmission: InterruptManagerSubmission | undefined
+  private pendingInterruptReplayRunId: string | undefined
+  private interruptSubmissionFailure:
+    | {
+        errors: ReadonlyArray<InterruptSubmissionError>
+        recovery?: InterruptRecoveryStateV1
+      }
+    | undefined
+  private readonly joinedRunWaiters = new Map<string, () => void>()
+  private readonly recoveryReady: boolean
+  private pendingInitialRecovery: InterruptRecoveryStateV1 | undefined
+  private pendingPersistedRecovery: PersistedRecoveryRequest | undefined
+  // When set, the next streamResponse() continues this interrupted run instead
+  // of starting a fresh run (consumed once).
+  private pendingResumeParentRunId: string | null = null
+  private pendingResumeThreadId: string | null = null
+  private pendingResumeItems: Array<RunAgentResumeItem> | null = null
+  private activeResumeThreadId: string | null = null
+  private activeResumeRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -274,6 +428,11 @@ export class ChatClient<
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
       onQueueChange: (queue: Array<QueuedMessage>) => void
+      onResumeStateChange: (
+        resumeState: ChatResumeState | null,
+        pendingInterrupts: BoundInterrupts<TTools>,
+      ) => void
+      onInterruptStateChange: (state: ChatInterruptState<TTools>) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -285,13 +444,7 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    if (options.persistence) {
-      this.persistor = new ChatPersistor(
-        options.persistence,
-        this.uniqueId,
-        (messages) => this.processor.setMessages(messages),
-      )
-    }
+    this.hasUserOnError = typeof options.onError === 'function'
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -332,14 +485,46 @@ export class ChatClient<
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
         onQueueChange: options.onQueueChange || (() => {}),
+        onResumeStateChange: options.onResumeStateChange || (() => {}),
+        onInterruptStateChange: options.onInterruptStateChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
+    }
+
+    this.interruptManager = new InterruptManager({
+      ...(options.tools !== undefined ? { tools: options.tools } : {}),
+      submit: (submission) => this.submitInterruptBatch(submission),
+      recover: (state) => this.recoverInterrupts(state),
+      onChange: () => this.notifyResumeStateChange(),
+    })
+    this.continuationLoader = options.continuationLoader
+
+    this.persistenceController = new ChatPersistenceController({
+      chatId: this.uniqueId,
+      threadId: this.threadId,
+      messageAdapter: options.persistence?.client,
+      resumeAdapter: options.persistence?.server,
+      applyMessages: (messages) => this.processor.setMessages(messages),
+      applyResumeSnapshot: (snapshot) => {
+        this.applyResumeSnapshot(snapshot)
+        this.notifyResumeStateChange()
+      },
+      canHydrateResume: () => this.lastResume === null,
+      reportResumeError: (error) => this.reportServerPersistenceError(error),
+    })
+
+    const storedResumeSnapshot = options.initialResumeSnapshot
+      ? undefined
+      : this.persistenceController.readInitialResumeSnapshot()
+    const resumeSnapshot = options.initialResumeSnapshot ?? storedResumeSnapshot
+    if (resumeSnapshot && !(resumeSnapshot instanceof Promise)) {
+      this.applyResumeSnapshot(resumeSnapshot)
     }
 
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
-    const persistedMessages = this.persistor?.readInitial()
+    const persistedMessages = this.persistenceController.readInitialMessages()
     const initialMessages = Array.isArray(persistedMessages)
       ? persistedMessages
       : options.initialMessages
@@ -351,7 +536,7 @@ export class ChatClient<
       ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
-          this.persistor?.notifyMessagesChanged(messages)
+          this.persistenceController.messagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -549,7 +734,117 @@ export class ChatClient<
       },
     })
 
-    this.persistor?.hydrateAsync(persistedMessages)
+    this.persistenceController.hydrateMessages(persistedMessages)
+    if (!options.initialResumeSnapshot) {
+      this.persistenceController.hydrateResumeSnapshot(storedResumeSnapshot)
+    }
+    this.recoveryReady = true
+    if (this.pendingInitialRecovery !== undefined) {
+      const recovery = this.pendingInitialRecovery
+      this.pendingInitialRecovery = undefined
+      this.startInitialRecovery(recovery)
+    }
+    if (this.pendingPersistedRecovery !== undefined) {
+      const recovery = this.pendingPersistedRecovery
+      this.pendingPersistedRecovery = undefined
+      this.startPersistedRecovery(recovery)
+    }
+  }
+
+  /**
+   * Route a caught server-persistence error to an observable sink. Server
+   * persistence is best-effort and must never break chat, so callers still
+   * swallow the failure — but it is no longer silent: it goes to the
+   * consumer's `onError` callback when one was provided, otherwise to
+   * `console.warn`.
+   */
+  private reportServerPersistenceError(error: unknown): void {
+    const normalized = error instanceof Error ? error : new Error(String(error))
+    if (this.hasUserOnError) {
+      this.callbacksRef.current.onError(normalized)
+    } else {
+      console.warn(
+        '[TanStack AI] Server persistence adapter error (non-fatal):',
+        normalized,
+      )
+    }
+  }
+
+  private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
+    const resumeState = readResumeState(snapshot)
+    if (resumeState === undefined) {
+      this.interruptManager.reset()
+      return
+    }
+    this.lastResume = resumeState
+    const persistedState = readPersistedInterruptState(snapshot)
+    if (persistedState !== undefined) {
+      const { recoveryState, drafts } = persistedState
+      if (recoveryState.state === 'pending') {
+        this.interruptManager.hydrate({
+          threadId: recoveryState.threadId,
+          interruptedRunId: recoveryState.interruptedRunId,
+          generation: recoveryState.generation,
+          interrupts: recoveryState.pendingInterrupts,
+        })
+        this.interruptManager.restorePersistedDrafts(drafts)
+        this.schedulePersistedRecovery({
+          query: {
+            threadId: recoveryState.threadId,
+            interruptedRunId: recoveryState.interruptedRunId,
+            knownGeneration: recoveryState.generation,
+          },
+          drafts,
+          expectedGeneration: recoveryState.generation,
+          expectedInterruptIds: recoveryState.pendingInterrupts.map(
+            (interrupt) => interrupt.id,
+          ),
+        })
+        return
+      }
+      this.interruptManager.reset()
+      if (this.recoveryReady) {
+        this.startInitialRecovery(recoveryState)
+      } else {
+        this.pendingInitialRecovery = recoveryState
+      }
+      return
+    }
+    const pendingInterrupts = Array.isArray(snapshot.pendingInterrupts)
+      ? snapshot.pendingInterrupts
+      : []
+    if (pendingInterrupts.length === 0) {
+      this.interruptManager.reset()
+      return
+    }
+    const generation = this.interruptGeneration(pendingInterrupts)
+    this.interruptManager.hydrate({
+      threadId: resumeState.threadId,
+      interruptedRunId: resumeState.runId,
+      generation,
+      interrupts: pendingInterrupts,
+    })
+    this.schedulePersistedRecovery({
+      query: {
+        threadId: resumeState.threadId,
+        interruptedRunId: resumeState.runId,
+        knownGeneration: generation,
+      },
+      drafts: [],
+      expectedGeneration: generation,
+      expectedInterruptIds: pendingInterrupts.map((interrupt) => interrupt.id),
+    })
+  }
+
+  private schedulePersistedRecovery(request: PersistedRecoveryRequest): void {
+    if (this.connection.loadInterruptState === undefined) {
+      return
+    }
+    if (this.recoveryReady) {
+      this.startPersistedRecovery(request)
+    } else {
+      this.pendingPersistedRecovery = request
+    }
   }
 
   mountDevtools(): void {
@@ -562,17 +857,19 @@ export class ChatClient<
   }
 
   /**
-   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
-   * still tracking. The persistor owns the cleared-run bookkeeping; the client
-   * owns the active-run / session / processing state.
+   * Retire cleared-run tracking for ignored terminal chunks without processing
+   * their stale message or resume payloads.
    */
-  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
-    if (chunk.type !== 'RUN_ERROR') return
-    const runId = this.persistor?.takeRunlessRunId()
+  private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId =
+      getChunkRunId(chunk) ?? this.clearedStreamTracker.takeRunlessRunId()
     if (!runId) return
     this.activeRunIds.delete(runId)
     this.setSessionGenerating(this.activeRunIds.size > 0)
-    this.resolveProcessing()
+    if (!getChunkRunId(chunk)) {
+      this.resolveProcessing()
+    }
   }
 
   private updateRunLifecycle(
@@ -581,8 +878,13 @@ export class ChatClient<
   ): void {
     if (chunk.type === 'RUN_STARTED') {
       const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      this.activeResumeThreadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      this.activeResumeRunId = chunkRunId
       this.activeRunIds.add(chunkRunId)
-      this.persistor?.onRunStarted(chunkRunId)
+      this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
       return
     }
@@ -594,16 +896,421 @@ export class ChatClient<
     const runId = getChunkRunId(chunk)
     if (runId) {
       this.activeRunIds.delete(runId)
-      this.persistor?.onRunSettled(runId)
+      this.clearedStreamTracker.onRunSettled(runId)
     } else if (chunk.type === 'RUN_ERROR') {
       // RUN_ERROR without runId is a session-level error; clear all runs.
       this.activeRunIds.clear()
-      this.persistor?.onSessionRunError()
+      this.clearedStreamTracker.onSessionRunError()
     }
     this.setSessionGenerating(this.activeRunIds.size > 0)
     if (options?.resolveProcessing !== false) {
       this.resolveProcessing()
     }
+  }
+
+  /**
+   * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
+   * an interrupt outcome records the pending interrupts + the run/thread to
+   * resume; any other terminal event for the tracked/current run clears that
+   * state. This is interrupt (state) resume — there is no delivery cursor.
+   */
+  private observeInterruptState(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    if (this.activeInterruptSubmission) {
+      const continuationRunId = replayContinuationRunId(chunk)
+      if (continuationRunId !== undefined) {
+        this.pendingInterruptReplayRunId = continuationRunId
+        return
+      }
+      if (chunk.type === 'RUN_ERROR') return
+    }
+    const runId = getChunkRunId(chunk)
+    const threadId =
+      'threadId' in chunk && typeof chunk.threadId === 'string'
+        ? chunk.threadId
+        : this.activeResumeThreadId
+
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      // Track the REQUEST run id (what the client sent) so a resume targets the
+      // same run even when provider events carry their own run id.
+      const interruptedRunId =
+        this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      this.lastResume = {
+        threadId: threadId ?? this.threadId,
+        runId: interruptedRunId,
+      }
+      this.interruptManager.hydrate({
+        threadId: this.lastResume.threadId,
+        interruptedRunId,
+        generation: this.interruptGeneration(chunk.outcome.interrupts),
+        interrupts: chunk.outcome.interrupts,
+      })
+      return
+    }
+
+    const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
+    const isTrackedRunTerminal = Boolean(
+      runId && this.lastResume?.runId === runId,
+    )
+    const isCurrentRunTerminal = Boolean(
+      (runId && this.currentRunId === runId) ||
+      (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+    )
+    const isCurrentStreamTerminal =
+      this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+    if (
+      isRunlessSessionError ||
+      isTrackedRunTerminal ||
+      isCurrentRunTerminal ||
+      isCurrentStreamTerminal
+    ) {
+      this.lastResume = null
+      this.interruptManager.reset()
+      return
+    }
+    this.notifyResumeStateChange()
+  }
+
+  /**
+   * The interrupt-resume state for the active/interrupted run (its run/thread
+   * ids), or null when there is nothing to resume. Apps can persist this to
+   * resume interrupts across a full reload.
+   */
+  getResumeState(): ChatResumeState | null {
+    return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  getInterruptState(): ChatInterruptState<TTools> {
+    return this.interruptManager.getState()
+  }
+
+  getInterrupts(): BoundInterrupts<TTools> {
+    return this.interruptManager.getInterrupts()
+  }
+
+  /** @deprecated Use getInterrupts(). */
+  getPendingInterrupts(): BoundInterrupts<TTools> {
+    return this.interruptManager.getInterrupts()
+  }
+
+  resolveInterrupts(approved: boolean): void
+  resolveInterrupts(
+    resolver: (interrupt: ChatInterrupt<TTools>) => undefined,
+  ): void
+  resolveInterrupts(
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ): void {
+    if (typeof resolution === 'boolean') {
+      this.interruptManager.resolve(resolution)
+    } else {
+      this.interruptManager.resolve(resolution)
+    }
+  }
+
+  cancelInterrupts(): void {
+    this.interruptManager.cancel()
+  }
+
+  retryInterrupts(): void {
+    this.interruptManager.retry()
+  }
+
+  /** Unsafe low-level resume escape hatch. Prefer bound interrupt methods. */
+  resumeInterruptsUnsafe(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    const target = state ?? this.lastResume
+    if (!target || this.isLoading) return Promise.resolve(false)
+    this.pendingResumeThreadId = target.threadId
+    this.pendingResumeParentRunId = target.runId
+    this.pendingResumeItems = [...resume]
+    return this.streamResponse()
+  }
+
+  /** @deprecated Use bound interrupt methods or resumeInterruptsUnsafe(). */
+  resumeInterrupts(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    return this.resumeInterruptsUnsafe(resume, state)
+  }
+
+  private async submitInterruptBatch(
+    submission: InterruptManagerSubmission,
+  ): Promise<InterruptCommitResult | void> {
+    this.activeInterruptSubmission = submission
+    this.pendingInterruptReplayRunId = undefined
+    this.interruptSubmissionFailure = undefined
+    const resumed = await this.resumeInterruptsUnsafe(
+      [...submission.resolutions],
+      {
+        threadId: submission.threadId,
+        runId: submission.interruptedRunId,
+      },
+    ).finally(() => {
+      this.activeInterruptSubmission = undefined
+    })
+    const replayRunId = this.takeInterruptReplayRunId()
+    const failure = this.takeInterruptSubmissionFailure()
+    if (failure?.recovery !== undefined) {
+      return { status: 'conflict', authoritativeState: failure.recovery }
+    }
+    if (failure !== undefined) {
+      throw { errors: failure.errors }
+    }
+    if (replayRunId !== undefined) {
+      await this.joinContinuationRun(replayRunId, {
+        schemaVersion: 1,
+        state: 'committed',
+        threadId: submission.threadId,
+        interruptedRunId: submission.interruptedRunId,
+        generation: submission.generation,
+        pendingInterrupts: [],
+        committed: {
+          fingerprint: submission.fingerprint,
+          continuationRunId: replayRunId,
+          committedAt: new Date().toISOString(),
+        },
+      })
+      return { status: 'replayed', continuationRunId: replayRunId }
+    }
+    if (!resumed) {
+      throw new Error('Interrupt continuation could not be started.')
+    }
+  }
+
+  private takeInterruptSubmissionFailure():
+    | {
+        errors: ReadonlyArray<InterruptSubmissionError>
+        recovery?: InterruptRecoveryStateV1
+      }
+    | undefined {
+    const failure = this.interruptSubmissionFailure
+    this.interruptSubmissionFailure = undefined
+    return failure
+  }
+
+  private takeInterruptReplayRunId(): string | undefined {
+    const runId = this.pendingInterruptReplayRunId
+    this.pendingInterruptReplayRunId = undefined
+    return runId
+  }
+
+  private async recoverInterrupts(
+    authoritativeState?: InterruptRecoveryStateV1,
+  ): Promise<void> {
+    let state = authoritativeState
+    if (state === undefined) {
+      const current = this.interruptManager.getRecoveryState()
+      if (
+        current === undefined ||
+        this.connection.loadInterruptState === undefined
+      ) {
+        this.interruptManager.reportRecoveryError(
+          'recovery-unavailable',
+          'Authoritative interrupt recovery is unavailable for this connection.',
+          current,
+        )
+        return
+      }
+      try {
+        state = await this.connection.loadInterruptState({
+          threadId: current.threadId,
+          interruptedRunId: current.interruptedRunId,
+          knownGeneration: current.generation,
+        })
+      } catch {
+        this.interruptManager.reportRecoveryError(
+          'recovery-unavailable',
+          'Authoritative interrupt recovery failed.',
+          current,
+        )
+        return
+      }
+    }
+
+    if (state.state === 'pending') {
+      this.lastResume = {
+        threadId: state.threadId,
+        runId: state.interruptedRunId,
+      }
+      this.interruptManager.hydrate({
+        threadId: state.threadId,
+        interruptedRunId: state.interruptedRunId,
+        generation: state.generation,
+        interrupts: state.pendingInterrupts,
+      })
+      return
+    }
+
+    if (state.state === 'committed' || state.state === 'legacy-committed') {
+      const continuationRunId = state.committed?.continuationRunId
+      if (continuationRunId === undefined) {
+        this.interruptManager.reportRecoveryError(
+          'recovery-unavailable',
+          'The committed interrupt state has no continuation run to join.',
+          state,
+        )
+        return
+      }
+      await this.joinContinuationRun(continuationRunId, state, {
+        preserveRootErrors: this.interruptManager
+          .getInterruptErrors()
+          .some((error) => error.code === 'conflict'),
+      })
+      return
+    }
+
+    this.interruptManager.reportRecoveryError(
+      state.state === 'expired' ? 'expired' : 'stale',
+      state.state === 'expired'
+        ? 'The interrupt batch has expired.'
+        : 'The interrupt batch no longer exists.',
+      state,
+    )
+  }
+
+  private startInitialRecovery(recoveryState: InterruptRecoveryStateV1): void {
+    // Constructors cannot await replay. The structured manager error keeps an
+    // unexpected async failure observable without turning hydration into an
+    // unhandled promise rejection.
+    void this.recoverInterrupts(recoveryState).catch(() => {
+      this.interruptManager.reportRecoveryError(
+        'recovery-unavailable',
+        'Initial interrupt recovery failed.',
+        recoveryState,
+      )
+    })
+  }
+
+  private startPersistedRecovery(request: PersistedRecoveryRequest): void {
+    void this.recoverPersistedInterrupts(request).catch(() => {
+      this.interruptManager.reportRecoveryError(
+        'recovery-unavailable',
+        'Persisted interrupt recovery failed.',
+        this.persistedRecoveryErrorState(request.query),
+      )
+    })
+  }
+
+  private async recoverPersistedInterrupts(
+    request: PersistedRecoveryRequest,
+  ): Promise<void> {
+    if (this.connection.loadInterruptState === undefined) {
+      this.interruptManager.reportRecoveryError(
+        'recovery-unavailable',
+        'Authoritative interrupt recovery is unavailable for this connection.',
+        this.persistedRecoveryErrorState(request.query),
+      )
+      return
+    }
+
+    let state: InterruptRecoveryStateV1
+    try {
+      state = parseInterruptRecoveryState(
+        await this.connection.loadInterruptState(request.query),
+      )
+      if (
+        state.threadId !== request.query.threadId ||
+        state.interruptedRunId !== request.query.interruptedRunId
+      ) {
+        throw new TypeError('Interrupt recovery correlation did not match.')
+      }
+    } catch {
+      this.interruptManager.reportRecoveryError(
+        'recovery-unavailable',
+        'Authoritative interrupt recovery failed.',
+        this.persistedRecoveryErrorState(request.query),
+      )
+      return
+    }
+
+    await this.recoverInterrupts(state)
+    if (
+      state.state === 'pending' &&
+      request.expectedGeneration === state.generation &&
+      request.expectedInterruptIds.length === state.pendingInterrupts.length &&
+      request.expectedInterruptIds.every(
+        (id, index) => state.pendingInterrupts[index]?.id === id,
+      )
+    ) {
+      this.interruptManager.restorePersistedDrafts(request.drafts)
+    }
+  }
+
+  private persistedRecoveryErrorState(
+    query: InterruptRecoveryQuery,
+  ): InterruptRecoveryStateV1 {
+    return {
+      schemaVersion: 1,
+      state: 'missing',
+      threadId: query.threadId,
+      interruptedRunId: query.interruptedRunId,
+      generation: query.knownGeneration,
+      pendingInterrupts: [],
+    }
+  }
+
+  private async joinContinuationRun(
+    continuationRunId: string,
+    recoveryState: InterruptRecoveryStateV1,
+    options?: { preserveRootErrors?: boolean },
+  ): Promise<void> {
+    try {
+      if (this.continuationLoader !== undefined) {
+        for await (const chunk of this.continuationLoader(continuationRunId)) {
+          await this.processIncomingChunk(chunk)
+        }
+      } else {
+        this.interruptManager.reportRecoveryError(
+          'recovery-unavailable',
+          'A continuation loader is required to replay a committed continuation.',
+          recoveryState,
+        )
+        return
+      }
+    } catch {
+      this.joinedRunWaiters.delete(continuationRunId)
+      this.interruptManager.reportRecoveryError(
+        'recovery-unavailable',
+        'The committed continuation run could not be replayed.',
+        recoveryState,
+      )
+      return
+    }
+    this.lastResume = null
+    this.interruptManager.reset({
+      preserveRootErrors: options?.preserveRootErrors === true,
+    })
+  }
+
+  private interruptGeneration(
+    interrupts: ReadonlyArray<ChatPendingInterrupt>,
+  ): number {
+    let generation: number | undefined
+    for (const interrupt of interrupts) {
+      const candidate: unknown =
+        interrupt.metadata?.['tanstack:interruptBinding']
+      if (
+        candidate === null ||
+        typeof candidate !== 'object' ||
+        !('generation' in candidate) ||
+        typeof candidate.generation !== 'number' ||
+        !Number.isInteger(candidate.generation) ||
+        candidate.generation < 0
+      ) {
+        return 0
+      }
+      if (generation !== undefined && generation !== candidate.generation) {
+        return 0
+      }
+      generation = candidate.generation
+    }
+    return generation ?? 0
   }
 
   private generateUniqueId(prefix: string): string {
@@ -641,9 +1348,43 @@ export class ChatClient<
     this.devtoolsBridge.emitSnapshot()
   }
 
-  private resetSessionGenerating(): void {
+  private notifyResumeStateChange(): void {
+    const resumeState = this.getResumeState()
+    const pendingInterrupts = [...this.interruptManager.getDescriptors()]
+    const recoveryState = this.interruptManager.getRecoveryState()
+    this.persistenceController.persistResumeSnapshot(
+      resumeState
+        ? {
+            schemaVersion: 2,
+            resumeState,
+            pendingInterrupts,
+            ...(recoveryState !== undefined
+              ? {
+                  interruptState: {
+                    recoveryState,
+                    drafts: this.interruptManager.getPersistedDrafts(),
+                  },
+                }
+              : {}),
+          }
+        : null,
+    )
+    this.callbacksRef.current.onResumeStateChange(
+      resumeState,
+      this.interruptManager.getInterrupts(),
+    )
+    this.callbacksRef.current.onInterruptStateChange(
+      this.interruptManager.getState(),
+    )
+  }
+
+  private resetSessionGenerating(options?: {
+    preserveClearedStreamTracking?: boolean
+  }): void {
     this.activeRunIds.clear()
-    this.persistor?.resetIgnored()
+    if (!options?.preserveClearedStreamTracking) {
+      this.clearedStreamTracker.resetActiveRuns()
+    }
     this.setSessionGenerating(false)
   }
 
@@ -793,33 +1534,75 @@ export class ChatClient<
     const stream = this.connection.subscribe(signal)
     for await (const chunk of stream) {
       if (signal.aborted) break
-      if (this.connectionStatus === 'connecting') {
-        this.setConnectionStatus('connected')
-      }
-      const shouldIgnore = this.persistor?.shouldIgnoreChunk(chunk) ?? false
-      if (shouldIgnore) {
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-          if (getChunkRunId(chunk)) {
-            this.updateRunLifecycle(chunk, { resolveProcessing: false })
-          } else {
-            this.drainIgnoredRunlessChunk(chunk)
-          }
-        }
-        continue
-      }
-      this.callbacksRef.current.onChunk(chunk)
-      this.devtoolsBridge.observeChunk(chunk)
-      this.processor.processChunk(chunk)
-      // Run lifecycle (active-run tracking, session-generating state, and
-      // processing resolution for RUN_FINISHED / RUN_ERROR) is handled in a
-      // single place so the ignored-chunk path above and this path can't
-      // diverge. RUN_ERROR carries its runId via the AG-UI passthrough so a
-      // per-run error only clears that run, while a runId-less RUN_ERROR is
-      // treated as a session-level error that clears every active run.
-      this.updateRunLifecycle(chunk)
-      // Yield control back to event loop for UI updates
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await this.processIncomingChunk(chunk)
     }
+  }
+
+  private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
+    if (
+      chunk.type === 'RUN_ERROR' &&
+      this.isActiveInterruptSubmissionFailure(chunk)
+    ) {
+      this.interruptSubmissionFailure = {
+        errors: chunk['tanstack:interruptErrors'] ?? [],
+        ...(chunk['tanstack:interruptRecovery'] !== undefined
+          ? { recovery: chunk['tanstack:interruptRecovery'] }
+          : {}),
+      }
+    }
+    if (this.connectionStatus === 'connecting') {
+      this.setConnectionStatus('connected')
+    }
+    const shouldIgnore = this.clearedStreamTracker.shouldIgnoreChunk(chunk)
+    if (shouldIgnore) {
+      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (getChunkRunId(chunk)) {
+          this.updateRunLifecycle(chunk, { resolveProcessing: false })
+        }
+        this.retireIgnoredClearedTerminalChunk(chunk)
+        this.resolveJoinedRun(chunk)
+      }
+      return
+    }
+    this.callbacksRef.current.onChunk(chunk)
+    this.devtoolsBridge.observeChunk(chunk)
+    this.processor.processChunk(chunk)
+    this.updateRunLifecycle(chunk)
+    this.observeInterruptState(chunk)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    this.resolveJoinedRun(chunk)
+  }
+
+  private isActiveInterruptSubmissionFailure(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): boolean {
+    const submission = this.activeInterruptSubmission
+    const errors = chunk['tanstack:interruptErrors']
+    if (!submission || !errors || errors.length === 0) return false
+    const runId = getChunkRunId(chunk)
+    if (runId !== undefined && runId !== this.currentRunId) return false
+    if (
+      typeof chunk.threadId === 'string' &&
+      chunk.threadId !== submission.threadId
+    ) {
+      return false
+    }
+    return errors.every(
+      (error) =>
+        error.threadId === submission.threadId &&
+        error.interruptedRunId === submission.interruptedRunId &&
+        error.generation === submission.generation,
+    )
+  }
+
+  private resolveJoinedRun(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId = getChunkRunId(chunk)
+    if (runId === undefined) return
+    const resolve = this.joinedRunWaiters.get(runId)
+    if (resolve === undefined) return
+    this.joinedRunWaiters.delete(runId)
+    resolve()
   }
 
   /**
@@ -890,7 +1673,7 @@ export class ChatClient<
    *     ],
    *     id: 'custom-message-id'
    *   },
-   *   { model: 'gpt-4-audio' }
+   *   { model: 'gpt-5.5' }
    * )
    * ```
    */
@@ -903,6 +1686,11 @@ export class ChatClient<
     const emptyMessage = typeof content === 'string' && !content.trim()
     if (emptyMessage) {
       return
+    }
+    if (this.interruptManager.getInterrupts().length > 0 && this.lastResume) {
+      throw new Error(
+        'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
     }
 
     if (this.isSendBusy()) {
@@ -1043,6 +1831,11 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
+    if (this.interruptManager.getInterrupts().length > 0 && this.lastResume) {
+      throw new Error(
+        'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
+    }
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
@@ -1085,8 +1878,18 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    // Native interrupt continuation is a fresh child run. The interrupted run
+    // is carried as parentRunId and the complete resolution batch as resume.
+    const resumeThreadId = this.pendingResumeThreadId
+    const resumeParentRunId = this.pendingResumeParentRunId
+    const resumeItems = this.pendingResumeItems
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     this.currentRunId = runId
+    this.activeResumeThreadId = resumeThreadId ?? this.threadId
+    this.activeResumeRunId = runId
 
     this.setIsLoading(true)
     // Hand off from deliverClaim to isLoading so nested drain can call
@@ -1170,8 +1973,11 @@ export class ChatClient<
       // JSON Schema; sending a Standard Schema instance directly would
       // serialize to an unusable shape.
       const runContext = {
-        threadId: this.threadId,
+        threadId: resumeThreadId ?? this.threadId,
         runId,
+        ...(resumeParentRunId !== null
+          ? { parentRunId: resumeParentRunId }
+          : {}),
         clientTools: Array.from(clientTools.values()).map((t) => ({
           name: t.name,
           description: t.description,
@@ -1180,8 +1986,9 @@ export class ChatClient<
             : { type: 'object' },
         })),
         forwardedProps: { ...mergedBody },
+        ...(resumeItems ? { resume: resumeItems } : {}),
       }
-      this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
+      this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
       this.devtoolsBridge.emitRunLifecycle(
         'run:created',
@@ -1197,6 +2004,11 @@ export class ChatClient<
 
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
+
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (generation !== this.streamGeneration || signal.aborted) {
+        return false
+      }
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
@@ -1424,25 +2236,29 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
-    if (this.persistor) {
-      this.persistor.snapshotClear({
-        messages: this.processor.getMessages(),
-        activeRunIds: this.activeRunIds,
-        currentRunId: this.currentRunId,
-      })
-      if (this.isLoading) {
-        this.cancelInFlightStream({ setReadyStatus: true })
-        this.resetSessionGenerating()
-      } else if (this.activeRunIds.size > 0) {
-        this.resetSessionGenerating()
-      }
-      // Suppress persisting the empty snapshot that clearMessages emits, then
-      // remove the stored conversation outright.
-      this.persistor.beginClear()
+    const hadLocalStream = this.abortController !== null
+    this.clearedStreamTracker.snapshotClear({
+      messages: this.processor.getMessages(),
+      activeRunIds: this.activeRunIds,
+      currentRunId: this.currentRunId,
+    })
+    // Suppress persisting the empty snapshot that clearMessages emits, then
+    // remove the stored conversation outright.
+    this.persistenceController.prepareMessagesClear()
+    if (this.isLoading || hadLocalStream) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
+    } else if (this.activeRunIds.size > 0) {
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
     }
     this.processor.clearMessages()
     this.discardPendingSends()
-    this.persistor?.remove()
+    this.persistenceController.removeMessages()
+    this.lastResume = null
+    this.interruptManager.reset()
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -1460,6 +2276,17 @@ export class ChatClient<
     clientTool: AnyClientTool | undefined,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
+    if (
+      this.interruptManager.resolveClientToolOutput(
+        result.toolCallId,
+        result.state === 'output-error'
+          ? { error: result.errorText || 'Tool execution failed' }
+          : result.output,
+      )
+    ) {
+      return
+    }
+
     if (clientTool && result.state !== 'output-error') {
       try {
         result = {
@@ -1522,6 +2349,14 @@ export class ChatClient<
     id: string // approval.id, not toolCallId
     approved: boolean
   }): Promise<void> {
+    if (
+      this.interruptManager.resolveToolApprovalDecision(
+        response.id,
+        response.approved,
+      )
+    ) {
+      return
+    }
     // Find the tool call ID from the approval ID
     const messages = this.processor.getMessages()
     let foundToolCallId: string | undefined
@@ -1866,6 +2701,7 @@ export class ChatClient<
       this.context = options.context
     }
     if (options.tools !== undefined) {
+      this.interruptManager.updateTools(options.tools)
       this.clientToolsRef.current = new Map()
       for (const tool of options.tools) {
         this.clientToolsRef.current.set(tool.name, tool)
@@ -1886,6 +2722,7 @@ export class ChatClient<
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
+      this.hasUserOnError = true
     }
     if (options.onSubscriptionChange !== undefined) {
       this.callbacksRef.current.onSubscriptionChange =
@@ -1902,12 +2739,21 @@ export class ChatClient<
     if (options.onQueueChange !== undefined) {
       this.callbacksRef.current.onQueueChange = options.onQueueChange
     }
+    if (options.onResumeStateChange !== undefined) {
+      this.callbacksRef.current.onResumeStateChange =
+        options.onResumeStateChange
+    }
+    if (options.onInterruptStateChange !== undefined) {
+      this.callbacksRef.current.onInterruptStateChange =
+        options.onInterruptStateChange
+    }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent
     }
   }
 
   dispose(): void {
+    this.persistenceController.dispose()
     this.unsubscribe()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false

@@ -67,7 +67,7 @@ describe('ToolCallManager', () => {
   const mockFinishedEvent = {
     type: 'RUN_FINISHED',
     runId: 'test-run-id',
-    model: 'gpt-4',
+    model: 'gpt-5.5',
     timestamp: Date.now(),
     finishReason: 'tool_calls',
   } as unknown as RunFinishedEvent
@@ -544,6 +544,8 @@ describe('executeToolCalls', () => {
 
       expect(result.needsApproval).toHaveLength(1)
       expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsApproval[0]?.toolName).toBe('delete_local_data')
+      expect(result.needsApproval[0]?.input).toEqual({ key: 'myKey' })
       expect(result.needsApproval[0]?.approvalId).toBe('approval_call_1')
       expect(result.results).toHaveLength(0)
       expect(result.needsClientExecution).toHaveLength(0)
@@ -799,6 +801,9 @@ describe('executeToolCalls', () => {
 
       expect(result.needsApproval).toHaveLength(1)
       expect(result.needsApproval[0]?.approvalId).toBe('approval_call_1')
+      expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsApproval[0]?.toolName).toBe('delete_record')
+      expect(result.needsApproval[0]?.input).toEqual({ id: 'rec_123' })
       expect(result.results).toHaveLength(0)
     })
 
@@ -825,6 +830,39 @@ describe('executeToolCalls', () => {
   })
 
   describe('mixed approval batch gating', () => {
+    it('should batch plain client execution requests with pending approvals', async () => {
+      vi.mocked(serverToolWithApproval.execute!).mockClear()
+      const plainClientTool: Tool = {
+        name: 'show_notification',
+        description: 'Show a notification in the client',
+        inputSchema: z.object({ message: z.string() }),
+      }
+
+      const toolCalls = [
+        makeToolCall('call_1', 'delete_record', '{"id":"rec_123"}'),
+        makeToolCall('call_2', 'show_notification', '{"message":"done"}'),
+      ]
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [serverToolWithApproval, plainClientTool],
+        new Map(),
+        new Map(),
+      )
+
+      expect(result.needsApproval).toHaveLength(1)
+      expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsClientExecution).toEqual([
+        {
+          toolCallId: 'call_2',
+          toolName: 'show_notification',
+          input: { message: 'done' },
+        },
+      ])
+      expect(result.results).toHaveLength(0)
+      expect(serverToolWithApproval.execute).not.toHaveBeenCalled()
+    })
+
     it('should not execute non-approval tools when the same batch contains unapproved tools', async () => {
       // Non-approval tools should wait until all approvals in the batch are resolved,
       // otherwise side effects happen before the user has a chance to deny.

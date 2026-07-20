@@ -15,11 +15,15 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   QueuedMessage,
@@ -33,6 +37,9 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 let nextId = 0
 
@@ -66,6 +73,12 @@ export function injectChat<
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
   const queue = signal<Array<QueuedMessage>>([])
+  const interruptState = signal<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Reactive option sources. Plain values become constant computeds.
   const bodySource =
@@ -93,6 +106,9 @@ export function injectChat<
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
     ...(bodySource !== undefined && { body: bodySource() }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(forwardedPropsSource !== undefined && {
@@ -109,6 +125,13 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
+    onResumeStateChange: (resumeState, pendingInterrupts) => {
+      options.onResumeStateChange?.(resumeState, pendingInterrupts)
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState.set(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState)
+    },
     tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
@@ -127,6 +150,7 @@ export function injectChat<
   })
 
   messages.set(client.getMessages())
+  interruptState.set(client.getInterruptState())
 
   // Sync reactive body / forwardedProps / context to the client.
   if (bodySource || forwardedPropsSource || contextSource) {
@@ -161,7 +185,15 @@ export function injectChat<
     )
   }
 
-  afterNextRender(() => client.mountDevtools(), { injector })
+  afterNextRender(
+    () => {
+      client.mountDevtools()
+      // Delivery-durability resume is transparent: the resumable SSE
+      // connection adapter reattaches via the browser's native Last-Event-ID
+      // on reconnect. No client-side auto-resume wiring is needed.
+    },
+    { injector },
+  )
 
   destroyRef.onDestroy(() => {
     if (liveSource?.()) {
@@ -240,6 +272,25 @@ export function injectChat<
   }) => {
     await client.addToolApprovalResponse(response)
   }
+  const interrupts = computed(() => interruptState().interrupts)
+  const pendingInterrupts = computed(() => interruptState().interrupts)
+  const interruptErrors = computed(() => interruptState().interruptErrors)
+  const resuming = computed(() => interruptState().resuming)
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+  const cancelInterrupts = () => client.cancelInterrupts()
+  const retryInterrupts = () => client.retryInterrupts()
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
   // eslint-disable-next-line no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
   return {
@@ -260,6 +311,14 @@ export function injectChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    interrupts,
+    pendingInterrupts,
+    interruptErrors,
+    resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     partial,
     final,
   } as unknown as InjectChatResult<TTools, TSchema>

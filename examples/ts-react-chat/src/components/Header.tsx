@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Mic,
   Music,
+  PawPrint,
   Plug,
   RefreshCw,
   Server,
@@ -245,6 +246,19 @@ export default function Header() {
           >
             <MessageSquare size={20} />
             <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/interrupts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 transition-colors mb-1',
+            }}
+          >
+            <PawPrint size={20} />
+            <span className="font-medium">Interrupt Lab</span>
           </Link>
 
           <Link

@@ -1,15 +1,97 @@
-import { waitFor } from '@solidjs/testing-library'
+import { renderHook, waitFor } from '@solidjs/testing-library'
 import type { ModelMessage } from '@tanstack/ai'
+import { ChatClient } from '@tanstack/ai-client'
 import { describe, expect, it, vi } from 'vitest'
 import type { UIMessage } from '../src/types'
+import { useChat } from '../src/use-chat'
 import {
   createMockConnectionAdapter,
+  createInterruptResumeSnapshot,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
 
 describe('useChat', () => {
+  describe('interrupt state', () => {
+    it('projects one immutable reactive snapshot with the deprecated pending alias', async () => {
+      const onInterruptStateChange = vi.fn()
+      const rendered = renderHook(() =>
+        useChat({
+          connection: createMockConnectionAdapter(),
+          initialResumeSnapshot: createInterruptResumeSnapshot(),
+          onInterruptStateChange,
+        }),
+      )
+      const chat = rendered.result
+
+      expect(Object.isFrozen(chat.interrupts())).toBe(true)
+      expect(chat.pendingInterrupts()).toBe(chat.interrupts())
+      expect(chat.interrupts()[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'staged',
+      })
+      expect(chat.interrupts()[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'error',
+        error: { code: 'invalid-payload' },
+      })
+      expect(chat.interruptErrors()).toEqual([])
+      expect(chat.resuming()).toBe(false)
+      expect(chat.interrupts()[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      chat.resolveInterrupts(false)
+      await waitFor(() => {
+        expect(chat.interruptErrors()[0]?.code).toBe(
+          'unsupported-bulk-operation',
+        )
+      })
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: chat.interrupts(),
+          interruptErrors: chat.interruptErrors(),
+        }),
+      )
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const rendered = renderHook(() =>
+        useChat({ connection: createMockConnectionAdapter() }),
+      )
+      const chat = rendered.result
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      chat.resolveInterrupts(resolver)
+      chat.cancelInterrupts()
+      chat.retryInterrupts()
+      await expect(chat.resumeInterruptsUnsafe(resume)).resolves.toBe(true)
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
+  })
+
   describe('initialization', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
@@ -74,7 +156,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {
@@ -103,7 +185,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: { client: persistence },
       })
 
       await waitFor(() => {

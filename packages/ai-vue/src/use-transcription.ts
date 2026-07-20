@@ -1,4 +1,8 @@
 import { useGeneration } from './use-generation'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -15,7 +19,16 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  *
  * @template TOutput - The output type after optional transform (defaults to TranscriptionResult)
  */
-export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
+export interface UseTranscriptionOptions<
+  TOutput = TranscriptionResult,
+> extends Pick<
+  UseGenerationOptions<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TOutput
+  >,
+  'persistence' | 'initialResumeSnapshot'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
@@ -47,7 +60,9 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
+export interface UseTranscriptionReturn<
+  TOutput = TranscriptionResult,
+> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
   /** Trigger transcription */
   generate: (input: TranscriptionGenerateInput) => Promise<void>
   /** The transcription result, or null */
@@ -58,10 +73,6 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
   error: DeepReadonly<ShallowRef<Error | undefined>>
   /** Current state of the generation */
   status: DeepReadonly<ShallowRef<GenerationClientState>>
-  /** Abort the current transcription */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -111,20 +122,16 @@ export function useTranscription<TTransformed = void>(
     hookName: 'useTranscription',
     outputKind: 'text' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<
-      TranscriptionGenerateInput,
-      TranscriptionResult,
-      TTransformed
-    >({ ...options, devtools })
+  const generation = useGeneration<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TTransformed
+  >({ ...options, devtools })
 
   return {
-    generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: TranscriptionGenerateInput,
+    ) => Promise<void>,
   }
 }

@@ -6,6 +6,12 @@ export type {
   InferAudioRecordingOutput,
 } from './audio-recorder'
 export { ChatClient } from './chat-client'
+export { InterruptManager } from './interrupt-manager'
+export type {
+  InterruptManagerHydration,
+  InterruptManagerOptions,
+  InterruptManagerSubmission,
+} from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
 export { RealtimeClient } from './realtime-client'
@@ -21,9 +27,26 @@ export type {
   ThinkingPart,
   StructuredOutputPart,
   // Client configuration types
+  ChatStorageAdapter,
   ChatClientPersistence,
+  ChatServerPersistence,
+  ChatPersistenceOptions,
   ChatClientOptions,
+  ChatPendingInterrupt,
+  BoundInterruptBase,
+  BoundInterrupts,
+  ChatInterrupt,
+  ChatInterruptState,
+  GenericAGUIInterrupt,
+  InterruptItemStatus,
+  ToolApprovalInterrupt,
   ClientContextOptionFromTools,
+  ChatResumeState,
+  ChatResumeSnapshot,
+  ChatResumeSnapshotV1,
+  ChatResumeSnapshotV2,
+  ChatContinuationLoader,
+  PersistedInterruptDraft,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -43,11 +66,33 @@ export type {
   QueueOption,
   SendMessageOptions,
 } from './types'
+export {
+  StorageUnavailableError,
+  indexedDBPersistence,
+  localStoragePersistence,
+  sessionStoragePersistence,
+} from './storage-adapters'
+export type {
+  IndexedDBPersistenceOptions,
+  JsonPrimitive,
+  JsonValue,
+  StorageCodec,
+  WebStoragePersistenceOptions,
+} from './storage-adapters'
 // Generation client types
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
+  GenerationResumeState,
+  GenerationResumeStatus,
+  GenerationResumeSnapshot,
+  GenerationPendingArtifact,
+  GenerationResultSnapshot,
+  GenerationErrorSnapshot,
+  GenerationEventSnapshot,
+  GenerationServerPersistence,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,
@@ -62,7 +107,10 @@ export type {
   SummarizeGenerateInput,
   VideoGenerateInput,
 } from './generation-types'
-export { GENERATION_EVENTS } from './generation-types'
+export {
+  GENERATION_EVENTS,
+  updateGenerationResumeSnapshot,
+} from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
 export {
@@ -79,7 +127,15 @@ export type {
   ExtractToolInput,
   ExtractToolOutput,
 } from './tool-types'
-export type { AnyClientTool } from '@tanstack/ai/client'
+export type {
+  AnyClientTool,
+  Interrupt,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+  RunAgentResumeItem,
+  RunFinishedOutcome,
+} from '@tanstack/ai/client'
 export type {
   RealtimeAdapter,
   RealtimeConnection,

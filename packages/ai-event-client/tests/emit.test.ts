@@ -86,6 +86,32 @@ describe('AI devtools event emission', () => {
     expect(dispatchedEvents).toHaveLength(0)
   })
 
+  it('preserves thread and run identifiers on generation events', () => {
+    const eventClientEmit = vi
+      .spyOn(aiEventClient, 'emit')
+      .mockImplementation(() => undefined)
+    const payload = {
+      eventId: 'event-generation-1',
+      timestamp: 2,
+      requestId: 'request-generation-1',
+      provider: 'image-provider',
+      model: 'image-model',
+      prompt: 'draw a square',
+      threadId: 'thread-1',
+      runId: 'run-1',
+    } satisfies AIDevtoolsEventMap['image:request:started']
+
+    emitAIDevtoolsEvent('image:request:started', payload)
+
+    expect(eventClientEmit).toHaveBeenCalledWith(
+      'image:request:started',
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'run-1',
+      }),
+    )
+  })
+
   it('can dispatch directly to the devtools bus without using the event client', () => {
     const eventClientEmit = vi
       .spyOn(aiEventClient, 'emit')

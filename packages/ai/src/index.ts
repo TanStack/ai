@@ -45,12 +45,40 @@ export {
   type ToolDefinitionInstance,
   type ToolDefinitionConfig,
   type ServerTool,
+  type AnyServerTool,
   type ClientTool,
   type AnyClientTool,
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
+  type ApprovalCapabilityOf,
+  type ApprovalSchemaConfig,
+  type ApprovalSchemaOf,
+  type InputSchemaOf,
+  type OutputSchemaOf,
+  type NoSchema,
 } from './activities/chat/tools/tool-definition'
+export {
+  hashSchemaInput,
+  normalizeApprovalSchema,
+  type NormalizedApprovalSchema,
+  type NormalizedSchemaInput,
+} from './activities/chat/tools/approval-schema'
+export {
+  canonicalInterruptJson,
+  cloneAndDeepFreezeJson,
+  digestInterruptJson,
+} from './interrupt-serialization'
+export {
+  InterruptResumeValidationError,
+  interruptItemError,
+  readUnopenedInterruptBinding,
+  validateInterruptResumeBatch,
+  withoutInterruptBinding,
+  type PendingInterruptResumeRecord,
+  type ValidateInterruptResumeBatchInput,
+  type ValidatedInterruptResumeBatch,
+} from './interrupt-resume'
 
 // MCP chat option types
 export type {
@@ -67,8 +95,14 @@ export {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
+  validateWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
+export {
+  JsonSchemaCompilationError,
+  compileJsonSchema202012,
+  type JsonSchemaValidationIssue,
+} from './activities/chat/tools/json-schema-validator'
 
 // Stream utilities
 export {
@@ -117,6 +151,8 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -132,6 +168,8 @@ export type {
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
+export * from './interrupts'
+
 // Base, activity-agnostic middleware. The observe-only superset that media
 // activities accept via their `middleware` option; `ChatMiddleware` adds the
 // chat-only hooks on top. Pure types only — the `otelMiddleware` value lives at
@@ -140,12 +178,18 @@ export type {
 export type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
   GenerationActivity,
   GenerationUsageInfo,
   GenerationFinishInfo,
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationRunIdentity,
+  GenerationReplayInput,
+  GenerationReplayOptions,
+  GenerationRunOptions,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {
@@ -162,6 +206,19 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+
+// Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
+export { CUSTOM_EVENT, isCustomEvent } from './custom-events'
+export type {
+  WellKnownCustomEventName,
+  FileChangedPayload,
+  ProcessOutputPayload,
+  PortOpenedPayload,
+  ApprovalRequestedPayload,
+  ApprovalResolvedPayload,
+  ArtifactCreatedPayload,
+  SandboxLifecyclePayload,
+} from './custom-events'
 
 // All types
 export * from './types'
@@ -255,6 +312,8 @@ export {
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'
+
+export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'

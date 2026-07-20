@@ -32,7 +32,10 @@ function DirectImageGeneration() {
   const hookReturn = useGenerateImage({
     fetcher: (input) =>
       generateImageFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          prompt: resolveMediaPrompt(input.prompt).text,
+          numberOfImages: input.numberOfImages,
+        },
       }),
   })
 
@@ -54,7 +57,10 @@ function ServerFnImageGeneration() {
   const hookReturn = useGenerateImage({
     fetcher: (input) =>
       generateImageStreamFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          prompt: resolveMediaPrompt(input.prompt).text,
+          numberOfImages: input.numberOfImages,
+        },
       }),
   })
 
