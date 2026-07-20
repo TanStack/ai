@@ -7,15 +7,20 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { createOpenaiChat, openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { openRouterText } from '@tanstack/ai-openrouter'
-import { grokText } from '@tanstack/ai-grok'
-import { groqText } from '@tanstack/ai-groq'
+import { anthropicText, createAnthropicChat } from '@tanstack/ai-anthropic'
+import { createGeminiChat, geminiText } from '@tanstack/ai-gemini'
+import {
+  createGeminiTextInteractions,
+  geminiTextInteractions,
+} from '@tanstack/ai-gemini/experimental'
+import { createOpenRouterText, openRouterText } from '@tanstack/ai-openrouter'
+import { createGrokText, grokText } from '@tanstack/ai-grok'
+import { createGroqText, groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
+import { preferByokAdapter, requireByokOrEnv } from '@tanstack/ai-byok/server'
+import { BYOK_PROVIDER_MAP, byokIdForProvider } from '@/lib/byok-config'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -256,14 +261,20 @@ export const Route = createFileRoute('/api/tanchat')({
         > = {
           anthropic: () =>
             createChatOptions({
-              adapter: anthropicText(
+              adapter: preferByokAdapter(
+                request,
+                'anthropic',
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
+                { byok: createAnthropicChat, env: anthropicText },
               ),
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText(
+              adapter: preferByokAdapter(
+                request,
+                'openrouter',
                 (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+                { byok: createOpenRouterText, env: openRouterText },
               ),
               modelOptions: {
                 reasoning: {
@@ -273,8 +284,11 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           gemini: () =>
             createChatOptions({
-              adapter: geminiText(
+              adapter: preferByokAdapter(
+                request,
+                'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                { byok: createGeminiChat, env: geminiText },
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -285,8 +299,14 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           'gemini-interactions': () =>
             createChatOptions({
-              adapter: geminiTextInteractions(
+              adapter: preferByokAdapter(
+                request,
+                'gemini',
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                {
+                  byok: createGeminiTextInteractions,
+                  env: geminiTextInteractions,
+                },
               ),
               modelOptions: {
                 previous_interaction_id: previousInteractionId,
@@ -295,15 +315,21 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: grokText(
+              adapter: preferByokAdapter(
+                request,
+                'grok',
                 (model || 'grok-build-0.1') as 'grok-build-0.1',
+                { byok: createGrokText, env: grokText },
               ),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
-              adapter: groqText(
+              adapter: preferByokAdapter(
+                request,
+                'groq',
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
+                { byok: createGroqText, env: groqText },
               ),
             }),
           bedrock: () =>
@@ -330,7 +356,12 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
+              adapter: preferByokAdapter(
+                request,
+                'openai',
+                (model || 'gpt-5.2') as 'gpt-5.2',
+                { byok: createOpenaiChat, env: openaiText },
+              ),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',
                 prompt_cache_retention: '24h',
@@ -344,6 +375,20 @@ export const Route = createFileRoute('/api/tanchat')({
             requestedProvider in adapterConfig
               ? (requestedProvider as Provider)
               : 'openai'
+
+          // If this provider has no server env key and the request carried no
+          // BYOK key, tell the client which key to add — a typed 401 the client
+          // detects (via withByok) instead of a generic 500 from the SDK.
+          const byokId = byokIdForProvider(provider)
+          if (byokId) {
+            const blocked = requireByokOrEnv(
+              request,
+              byokId,
+              BYOK_PROVIDER_MAP[provider]?.envVars ?? [],
+            )
+            if (blocked) return blocked
+          }
+
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 

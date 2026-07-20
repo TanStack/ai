@@ -101,6 +101,15 @@ Solid hooks for TanStack AI:
 - Tool approval flow support
 - Type-safe message handling with `InferChatMessages`
 
+### `@tanstack/ai-byok`
+Bring-your-own-key toolkit for apps where users supply their own provider API keys:
+- Client-side keyring with session-only or passkey-encrypted storage
+- Per-request `x-byok-<provider>` headers (never the message body)
+- Stateless server helpers (`getByokKey`, `byokMissing`) that never persist or log keys
+- React bindings (`<ByokProvider>`, `useByok`, `<ByokKeyManager>`)
+
+See the [BYOK guide](../advanced/byok).
+
 ## Adapters
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:

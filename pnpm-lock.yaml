@@ -662,6 +662,9 @@ importers:
       '@tanstack/ai-bedrock':
         specifier: workspace:*
         version: link:../../packages/ai-bedrock
+      '@tanstack/ai-byok':
+        specifier: workspace:*
+        version: link:../../packages/ai-byok
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
@@ -1506,6 +1509,27 @@ importers:
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
+      vite:
+        specifier: ^7.3.3
+        version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/ai-byok:
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.3.0
+        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+      jsdom:
+        specifier: ^27.2.0
+        version: 27.3.0(postcss@8.5.15)
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
       vite:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@24.10.3)(jiti@2.6.1)(less@4.6.6)(lightningcss@1.30.2)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -2534,6 +2558,9 @@ importers:
       '@tanstack/ai-bedrock':
         specifier: workspace:*
         version: link:../../packages/ai-bedrock
+      '@tanstack/ai-byok':
+        specifier: workspace:*
+        version: link:../../packages/ai-byok
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code

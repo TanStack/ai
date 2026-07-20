@@ -465,6 +465,11 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25"
+        },
+        {
+          "label": "Bring Your Own Key (BYOK)",
+          "to": "advanced/byok",
+          "addedAt": "2026-07-16"
         }
       ]
     },
@@ -545,6 +550,11 @@
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
           "updatedAt": "2026-07-08"
+        },
+        {
+          "label": "@tanstack/ai-byok",
+          "to": "api/ai-byok",
+          "addedAt": "2026-07-16"
         }
       ]
     },

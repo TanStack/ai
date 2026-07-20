@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
@@ -8,6 +8,7 @@ import {
   Github,
   Image,
   ImagePlus,
+  KeyRound,
   Mic,
   Music,
   Send,
@@ -26,7 +27,17 @@ import {
   useChat,
   useTranscription,
 } from '@tanstack/ai-react'
+import {
+  ByokKeyDialog,
+  ByokProvider,
+  defaultByokStorage,
+  useByok,
+  withByok,
+} from '@tanstack/ai-byok/react'
+import { useOpenRouterPkce } from '@tanstack/ai-byok/openrouter/react'
 import { clientTools } from '@tanstack/ai-client'
+import type { ProviderId } from '@tanstack/ai-byok/react'
+import { byokIdForProvider, getEnvKeyStatus } from '@/lib/byok-config'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'
@@ -379,6 +390,50 @@ function Messages({
 function ChatPage() {
   const [selectedModel, setSelectedModel] =
     useState<ModelOption>(DEFAULT_MODEL_OPTION)
+
+  // BYOK: read the browser-held keyring and report which providers have a
+  // server-side env key, so we can warn before a keyless model is used.
+  const { keys, status, unlock } = useByok()
+  const openRouterPkce = useOpenRouterPkce()
+  const keysRef = useRef(keys)
+  keysRef.current = keys
+  const statusRef = useRef(status)
+  statusRef.current = status
+  const [envKeyStatus, setEnvKeyStatus] = useState<
+    Partial<Record<ProviderId, boolean>>
+  >({})
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvKeyStatus)
+  }, [])
+
+  // Key dialog, opened either by the toolbar icon or reactively when the relay
+  // reports a missing key.
+  const [keyDialog, setKeyDialog] = useState<{
+    open: boolean
+    provider: ProviderId | null
+  }>({ open: false, provider: null })
+
+  // The relay returned a byokMissing 401 (no server key, no BYOK key). If we
+  // already hold that key but it's locked, unlock it; otherwise prompt to add.
+  const handleMissingKey = useCallback(
+    (provider: ProviderId) => {
+      if (statusRef.current[provider]?.state === 'locked') {
+        void unlock()
+      } else {
+        setKeyDialog({ open: true, provider })
+      }
+    },
+    [unlock],
+  )
+
+  const activeByokId = byokIdForProvider(selectedModel.provider)
+  // The selected model can't run right now if its provider has no server key
+  // and no decrypted key in the browser.
+  const notUsable =
+    activeByokId != null && !envKeyStatus[activeByokId] && !keys[activeByokId]
+  // A saved-but-locked key just needs unlocking; distinguish it from "no key".
+  const activeLocked =
+    activeByokId != null && status[activeByokId]?.state === 'locked'
   const [attachedImages, setAttachedImages] = useState<
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
@@ -422,7 +477,10 @@ function ChatPage() {
     addToolApprovalResponse,
     stop,
   } = useChat({
-    connection: fetchServerSentEvents('/api/tanchat'),
+    connection: fetchServerSentEvents(
+      '/api/tanchat',
+      withByok(() => keysRef.current, { onMissingKey: handleMissingKey }),
+    ),
     tools,
     body,
     onCustomEvent: (eventType, data, context) => {
@@ -619,6 +677,44 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <ByokKeyDialog
+              providers={[
+                'openai',
+                'anthropic',
+                'gemini',
+                'grok',
+                'groq',
+                'openrouter',
+              ]}
+              envStatus={envKeyStatus}
+              activeProvider={activeByokId}
+              open={keyDialog.open}
+              onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
+              highlightProvider={keyDialog.provider}
+              openRouter={{
+                onLogin: () => void openRouterPkce.login(),
+                completing: openRouterPkce.completing,
+                error: openRouterPkce.error,
+              }}
+              trigger={
+                <button
+                  type="button"
+                  onClick={() => setKeyDialog((s) => ({ ...s, open: true }))}
+                  title="API keys"
+                  aria-label="API keys"
+                  className="relative flex items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 p-2 text-orange-400 transition-colors hover:bg-orange-500/20"
+                >
+                  <KeyRound className="h-5 w-5" />
+                  {notUsable && activeByokId ? (
+                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-gray-800" />
+                  ) : null}
+                </button>
+              }
+              overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              panelClassName="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
+              variant="dark"
+              description="Keys stay in your browser and are sent per-request in a header — never stored on the server. Providers with a server key already work without one."
+            />
             <Link
               to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
@@ -627,6 +723,25 @@ function ChatPage() {
               Image Gen
             </Link>
           </div>
+          {notUsable && activeByokId ? (
+            activeLocked ? (
+              <div className="mt-2 flex items-center gap-2 text-sm text-amber-400">
+                <span>Your {activeByokId} key is saved but locked.</span>
+                <button
+                  type="button"
+                  onClick={() => void unlock()}
+                  className="rounded border border-amber-400/40 px-2 py-0.5 font-medium hover:bg-amber-400/10"
+                >
+                  Unlock
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-amber-400">
+                No key for {activeByokId}. Add one with the key icon to use this
+                model.
+              </div>
+            )
+          ) : null}
         </div>
 
         <Messages
@@ -783,6 +898,15 @@ function ChatPage() {
   )
 }
 
+function ChatRoute() {
+  const [storage] = useState(() => defaultByokStorage())
+  return (
+    <ByokProvider storage={storage}>
+      <ChatPage />
+    </ByokProvider>
+  )
+}
+
 export const Route = createFileRoute('/')({
-  component: ChatPage,
+  component: ChatRoute,
 })

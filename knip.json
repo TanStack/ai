@@ -48,6 +48,9 @@
     "packages/ai-react": {
       "ignoreDependencies": ["@mcp-ui/client"]
     },
+    "packages/ai-byok": {
+      "ignoreDependencies": ["react", "@types/react"]
+    },
     "packages/ai-preact": {
       "ignoreDependencies": ["@mcp-ui/client"]
     },

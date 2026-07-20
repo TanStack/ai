@@ -1,0 +1,88 @@
+{
+  "name": "@tanstack/ai-byok",
+  "version": "0.1.0",
+  "description": "Bring-your-own-key toolkit for TanStack AI: client keyring, request headers, and stateless server helpers that never persist or log provider keys.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-byok"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./server": {
+      "types": "./dist/esm/server.d.ts",
+      "import": "./dist/esm/server.js"
+    },
+    "./react": {
+      "types": "./dist/esm/react.d.ts",
+      "import": "./dist/esm/react.js"
+    },
+    "./openrouter": {
+      "types": "./dist/esm/openrouter.d.ts",
+      "import": "./dist/esm/openrouter.js"
+    },
+    "./openrouter/react": {
+      "types": "./dist/esm/openrouter-react.d.ts",
+      "import": "./dist/esm/openrouter-react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "byok",
+    "api-key",
+    "react"
+  ],
+  "peerDependencies": {
+    "@types/react": ">=18.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.7",
+    "@vitest/coverage-v8": "4.0.14",
+    "jsdom": "^27.2.0",
+    "react": "^19.2.3",
+    "vite": "^7.3.3"
+  }
+}

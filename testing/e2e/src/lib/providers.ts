@@ -45,8 +45,13 @@ export function createTextAdapter(
   _aimockPort?: number,
   testId?: string,
   feature?: Feature,
+  // Per-request key override — the BYOK route passes the key read from the
+  // request header here, proving it flows client → header → adapter. aimock
+  // ignores auth, so the value only needs to be non-empty.
+  apiKeyOverride?: string,
 ): { adapter: AnyTextAdapter } {
   const model = modelOverride ?? defaultModels[provider]
+  const apiKey = apiKeyOverride ?? DUMMY_KEY
 
   // OpenAI, Grok SDKs need /v1 in baseURL. Groq SDK appends /openai/v1/ internally.
   // Anthropic, Gemini, Ollama SDKs include their path prefixes internally
@@ -77,7 +82,7 @@ export function createTextAdapter(
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
       createChatOptions({
-        adapter: createOpenaiChat(model as 'gpt-4o', DUMMY_KEY, {
+        adapter: createOpenaiChat(model as 'gpt-4o', apiKey, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),

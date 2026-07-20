@@ -52,14 +52,15 @@ Deterministic scenarios covering tool execution flows:
 
 ### Advanced feature tests
 
-| Spec file                      | What it covers                                            |
-| ------------------------------ | --------------------------------------------------------- |
-| `tests/abort.spec.ts`          | Stop button cancels in-flight generation                  |
-| `tests/lazy-tools.spec.ts`     | `__lazy__tool__discovery__` discovers and uses lazy tools |
-| `tests/custom-events.spec.ts`  | Server tool `emitCustomEvent` received by client          |
-| `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip              |
-| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
-| `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
+| Spec file                      | What it covers                                                   |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `tests/abort.spec.ts`          | Stop button cancels in-flight generation                         |
+| `tests/lazy-tools.spec.ts`     | `__lazy__tool__discovery__` discovers and uses lazy tools        |
+| `tests/custom-events.spec.ts`  | Server tool `emitCustomEvent` received by client                 |
+| `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip                     |
+| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                           |
+| `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                        |
+| `tests/byok.spec.ts`           | BYOK key rides in header (not body); missing key → `byokMissing` |
 
 ## 1. Quick Start
 
