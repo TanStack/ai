@@ -1184,13 +1184,20 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
  * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
  *
+ * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
+ * `.passthrough()` index signatures do not pollute the StreamChunk
+ * discriminated union — required for {@link TypedStreamChunk} narrowing.
+ *
  * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
  *   When the stream is returned from `chat()` with typed tools, `TypedStreamChunk`
  *   intersects a literal onto `toolCallName` and `toolName` for discrimination.
  */
-export interface ToolCallStartEvent<
-  TToolName extends string = string,
-> extends AGUIToolCallStartEvent {
+export interface ToolCallStartEvent<TToolName extends string = string>
+  extends Pick<
+    AGUIToolCallStartEvent,
+    'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
+  > {
+  type: 'TOOL_CALL_START'
   /** Model identifier for multi-model support */
   model?: string
   /**
@@ -1229,6 +1236,8 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
  * @ag-ui/core provides: `toolCallId`
  * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `output?`, `result?`
  *
+ * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ *
  * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
  * @typeParam TInput - Constrained input arguments type. Defaults to `unknown`.
  * @typeParam TOutput - Constrained output type from the tool's `outputSchema`. Defaults to `unknown`.
@@ -1237,7 +1246,8 @@ export interface ToolCallEndEvent<
   TToolName extends string = string,
   TInput = unknown,
   TOutput = unknown,
-> extends AGUIToolCallEndEvent {
+> extends Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'> {
+  type: 'TOOL_CALL_END'
   /** Model identifier for multi-model support */
   model?: string
   /** Name of the tool that completed (AG-UI-compatible optional field) */
@@ -1364,10 +1374,27 @@ export interface StateDeltaEvent extends AGUIStateDeltaEvent {
  *
  * @ag-ui/core provides: `name`, `value`
  * TanStack AI adds: `model?`
+ *
+ * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
+ * erase discriminant property access on {@link KnownCustomEvent} /
+ * {@link TypedStreamChunk} unions.
  */
-export interface CustomEvent extends AGUICustomEvent {
+export interface CustomEvent
+  extends Pick<
+    AGUICustomEvent,
+    'name' | 'value' | 'timestamp' | 'rawEvent'
+  > {
+  type: 'CUSTOM'
   /** Model identifier for multi-model support */
   model?: string
+  /**
+   * Routing metadata the TanStack engine attaches when emitting CUSTOM
+   * events that need to be correlated with a specific thread/run.
+   * Stripped by `strip-to-spec-middleware` before going on the wire so
+   * the AG-UI consumer never sees them (when that middleware is enabled).
+   */
+  threadId?: string
+  runId?: string
 }
 
 /**
@@ -1872,20 +1899,30 @@ export type TaggedCustomEvent<T = unknown> =
  * `ToolCallStartEvent` / `ToolCallEndEvent` (no per-tool name narrowing) and
  * the type is equivalent to the element type of {@link ChatStream}.
  */
+/**
+ * Replace tool-call and bare CUSTOM variants; keep every other StreamChunk
+ * arm. Matches on the string-literal `type` discriminant that TanStack tool
+ * events declare (see ToolCallStartEvent / ToolCallEndEvent). AG-UI events
+ * that still use the EventType enum are kept as-is via the final branch.
+ *
+ * Do **not** use `Exclude<StreamChunk, { type: 'TOOL_CALL_*' }>` — under
+ * @ag-ui/core passthrough index signatures that form removes *every* arm.
+ * @internal
+ */
+type RemapStreamChunkForTools<C, TTools extends ReadonlyArray<AnyTool>> =
+  C extends { type: 'TOOL_CALL_START' }
+    ? DistributedToolCallStart<TTools>
+    : C extends { type: 'TOOL_CALL_END' }
+      ? DistributedToolCallEnd<TTools>
+      : C extends { type: 'CUSTOM' }
+        ? never
+        : C
+
 export type TypedStreamChunk<
   TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
 > =
   HasTypedTools<TTools> extends true
-    ?
-        | Exclude<
-            StreamChunk,
-            | { type: 'TOOL_CALL_START' }
-            | { type: 'TOOL_CALL_END' }
-            | CustomEvent
-          >
-        | DistributedToolCallStart<TTools>
-        | DistributedToolCallEnd<TTools>
-        | KnownCustomEvent
+    ? RemapStreamChunkForTools<StreamChunk, TTools> | KnownCustomEvent
     : Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
 
 // Simple streaming format for basic text completions

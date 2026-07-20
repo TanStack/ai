@@ -106,6 +106,10 @@ const weatherTool = toolDefinition({
   }),
 });
 
+const messages = [
+  { role: "user" as const, content: "What's the weather in Paris?" },
+];
+
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
   messages,
@@ -113,7 +117,10 @@ const stream = chat({
 });
 
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_END") {
+  // `'type' in chunk` is required for control-flow narrowing across the
+  // StreamChunk union (AG-UI event types from `@ag-ui/core` use Zod
+  // passthrough, which otherwise hides the discriminant from property access).
+  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
     chunk.toolCallName; // ✅ typed as "get_weather" (not string)
     chunk.input; // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" } | undefined
   }
@@ -125,11 +132,28 @@ Without typed tools, names default to `string` and `input`/`output` default to `
 When multiple tools are provided, tool call events form a **discriminated union** — checking `toolCallName` (or `toolName`) narrows `input` / `output` to that specific tool's type:
 
 ```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const weatherTool = toolDefinition({
+  name: "get_weather",
+  description: "Get weather for a location",
+  inputSchema: z.object({
+    location: z.string(),
+    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+});
+
 const searchTool = toolDefinition({
   name: "search",
   description: "Search the web",
   inputSchema: z.object({ query: z.string() }),
 });
+
+const messages = [
+  { role: "user" as const, content: "Find the weather for Paris" },
+];
 
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
@@ -138,7 +162,7 @@ const stream = chat({
 });
 
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_END") {
+  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
     if (chunk.toolCallName === "get_weather") {
       // ✅ input is narrowed to { location: string; unit?: "celsius" | "fahrenheit" }
       console.log(`Weather in ${chunk.input?.location}`);

@@ -1129,3 +1129,11 @@ describe('TypedStreamChunk tagged custom event narrowing', () => {
     expectTypeOf<Approval['value']>().not.toBeAny()
   })
 })
+
+describe('TypedStreamChunk runtime access (kiira parity)', () => {
+  it('full union should allow reading chunk.type (common property)', () => {
+    type C = TypedStreamChunk<[typeof weatherTool]>
+    // If this line type-errors under tsc, the docs for-await pattern is broken.
+    expectTypeOf<C['type']>().not.toBeNever()
+  })
+})
