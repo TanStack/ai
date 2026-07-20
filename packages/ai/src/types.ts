@@ -234,12 +234,51 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for a provider-issued file handle (Files API).
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and referenced here by the
+ * returned handle instead of re-sending base64 or a public URL each request.
+ *
+ * A handle only routes to the provider that issued it — the `provider` field is
+ * validated at map time, and adapters throw if it doesn't match. The `value` is
+ * the provider's opaque id (OpenAI/Anthropic `file_id`) or handle URL (Gemini
+ * file URI, fal storage URL); use {@link fileSourceFromHandle} to build one from
+ * a {@link FileHandle} without worrying about the id-vs-uri distinction.
+ */
+export interface ContentPartFileSource {
+  /**
+   * Indicates this references a provider-issued file handle.
+   */
+  type: 'file'
+  /**
+   * The provider handle: an OpenAI/Anthropic `file_id`, a Gemini file URI, or a
+   * fal storage URL.
+   */
+  value: string
+  /**
+   * The provider that issued the handle. A handle is only valid for its issuer;
+   * passing (e.g.) an OpenAI `file-...` id to a Gemini adapter is an error.
+   */
+  provider: string
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: a provider-issued handle plus its issuing `provider`
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.

@@ -19,6 +19,14 @@ export {
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeModel,
 } from './adapters/summarize'
+
+// Files adapter - upload media to the Anthropic Files API (beta) by file_id
+export {
+  AnthropicFilesAdapter,
+  createAnthropicFiles,
+  anthropicFiles,
+  type AnthropicFilesConfig,
+} from './adapters/files'
 // ============================================================================
 // Type Exports
 // ============================================================================

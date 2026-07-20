@@ -258,6 +258,36 @@ const imagePart = {
 
 **Note:** Not all providers support URL-based content for all modalities. Check provider documentation for specifics.
 
+### File Handle (Files API)
+
+Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight handle instead of re-sending base64 or a public URL every request. A handle only works with the provider that issued it, so the `provider` field is required and validated at request time.
+
+```typescript
+import { openaiFiles } from '@tanstack/ai-openai'
+import { openaiText, chat, fileSourceFromHandle } from '@tanstack/ai'
+
+// Upload once...
+const handle = await openaiFiles().upload({ data: pdfBase64, mimeType: 'application/pdf' })
+
+// ...then reference the handle by id in as many requests as you like.
+for await (const chunk of chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', content: 'Summarize this document' },
+        { type: 'document', source: fileSourceFromHandle(handle) },
+      ],
+    },
+  ],
+})) {
+  // ...
+}
+```
+
+`fileSourceFromHandle(handle)` builds the `{ type: 'file', value, provider }` source for you (picking the handle URL for Gemini/fal or the opaque id for OpenAI/Anthropic). Each adapter maps it to the provider's native reference (`file_id`, `fileData.fileUri`, or storage URL). Passing a handle to a different provider — or to an endpoint that requires raw bytes (image edits, Veo) — throws a clear error. See [Files API](./files-api.md) for uploading, retrieving, and deleting handles.
+
 ## Backward Compatibility
 
 String content continues to work as before:

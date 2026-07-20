@@ -1,5 +1,10 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -1680,6 +1685,9 @@ export class OpenRouterResponsesTextAdapter<
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
+    if ('source' in part && isFileSource(part.source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
     switch (part.type) {
       case 'text':
         return {

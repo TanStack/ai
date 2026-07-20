@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  assertOwnFileSource,
+  isFileSource,
+  resolveMediaPrompt,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   createGeminiClient,
@@ -260,6 +264,11 @@ export class GeminiImageAdapter<
           data: part.source.value,
         },
       }
+    }
+    // A Gemini Files API handle from another provider is a bug — reject it
+    // before it's passed through as a fileData URI.
+    if (isFileSource(part.source)) {
+      assertOwnFileSource(part.source, this.name)
     }
     // URL sources (public HTTPS, Files API URIs, gs://) pass through as
     // `fileData` and Gemini fetches them server-side — same as the chat

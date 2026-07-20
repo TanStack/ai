@@ -1,9 +1,15 @@
 import { createServerFn } from '@tanstack/react-start'
-import { falImage, falVideo } from '@tanstack/ai-fal'
-import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
+import { falFiles, falImage, falVideo } from '@tanstack/ai-fal'
+import { geminiFiles, geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
-import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import {
+  fileSourceFromHandle,
+  generateImage,
+  generateVideo,
+  getVideoJobStatus,
+} from '@tanstack/ai'
 
+import type { FilesAdapter } from '@tanstack/ai'
 import type {
   ImagePart,
   MediaInputMetadata,
@@ -86,6 +92,31 @@ function asImageToVideoPrompt(
     throw new Error('Start image is required for image-to-video')
   }
   return narrowed
+}
+
+/**
+ * Upload each inline (base64 `data`) image input to the provider's Files API and
+ * swap in a `{ type: 'file' }` handle. A reference image / start frame is then
+ * uploaded once via the tree-shakeable files adapter (`geminiFiles()` /
+ * `falFiles()`) instead of being re-sent inline as base64 on the generation
+ * request — the memory-safe path for large inputs. URL and already-uploaded
+ * sources pass through untouched.
+ */
+async function uploadInlineImageInputs(
+  prompt: string | Array<TextPart | ImagePart<MediaInputMetadata>>,
+  files: FilesAdapter,
+): Promise<string | Array<TextPart | ImagePart<MediaInputMetadata>>> {
+  if (typeof prompt === 'string') return prompt
+  return Promise.all(
+    prompt.map(async (part) => {
+      if (part.type !== 'image' || part.source.type !== 'data') return part
+      const handle = await files.upload({
+        data: part.source.value,
+        mimeType: part.source.mimeType,
+      })
+      return { ...part, source: fileSourceFromHandle(handle) }
+    }),
+  )
 }
 
 /**
@@ -187,9 +218,14 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         })
       }
       case 'gemini-3.1-flash-image-preview': {
+        // Reference images are uploaded once via the Gemini Files API and
+        // referenced by handle (fileData.fileUri) rather than inlined as base64.
         return generateImage({
           adapter: geminiImage('gemini-3.1-flash-image-preview'),
-          prompt: asImagePrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImagePrompt(data.prompt),
+            geminiFiles(),
+          ),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -197,7 +233,10 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'gemini-3-pro-image-preview': {
         return generateImage({
           adapter: geminiImage('gemini-3-pro-image-preview'),
-          prompt: asImagePrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImagePrompt(data.prompt),
+            geminiFiles(),
+          ),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -315,11 +354,16 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           size: '16:9_2160p',
         })
       }
-      // Image-to-video models
+      // Image-to-video models. The start frame is uploaded once to fal storage
+      // via the Files API (`falFiles()`) and referenced by its storage-URL
+      // handle, instead of being inlined as a base64 data: URI on the request.
       case 'fal-ai/kling-video/v3/pro/image-to-video': {
         return generateVideo({
           adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
-          prompt: asImageToVideoPrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImageToVideoPrompt(data.prompt),
+            falFiles(),
+          ),
           modelOptions: {
             generate_audio: true,
             duration: '5',
@@ -329,7 +373,10 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'fal-ai/veo3.1/image-to-video': {
         return generateVideo({
           adapter: falVideo('fal-ai/veo3.1/image-to-video'),
-          prompt: asImageToVideoPrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImageToVideoPrompt(data.prompt),
+            falFiles(),
+          ),
           size: '16:9_1080p',
           modelOptions: {
             duration: '4s',
@@ -339,7 +386,10 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'xai/grok-imagine-video/image-to-video': {
         return generateVideo({
           adapter: falVideo('xai/grok-imagine-video/image-to-video'),
-          prompt: asImageToVideoPrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImageToVideoPrompt(data.prompt),
+            falFiles(),
+          ),
           size: '16:9_720p',
           modelOptions: {
             duration: 5,
@@ -360,7 +410,10 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       case 'fal-ai/ltx-2.3/image-to-video/fast': {
         return generateVideo({
           adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
-          prompt: asImageToVideoPrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImageToVideoPrompt(data.prompt),
+            falFiles(),
+          ),
           size: '16:9_2160p',
         })
       }

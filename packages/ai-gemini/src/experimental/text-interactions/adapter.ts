@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, assertOwnFileSource, isFileSource } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
@@ -727,6 +727,11 @@ function validateMime<T extends string>(
 function contentPartToBlock(part: ContentPart): ContentBlock {
   if (part.type === 'text') {
     return { type: 'text', text: part.content }
+  }
+  // A file handle from another provider is a bug; a Gemini handle maps to the
+  // `uri` field (isData stays false), same as a public URL.
+  if (isFileSource(part.source)) {
+    assertOwnFileSource(part.source, 'gemini')
   }
   const isData = part.source.type === 'data'
   switch (part.type) {

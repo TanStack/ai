@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  assertOwnFileSource,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -1796,6 +1801,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const imageMetadata = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_image',
+            file_id: part.source.value,
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_image',
@@ -1819,6 +1832,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
       case 'audio': {
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_file',
+            file_id: part.source.value,
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_file',
@@ -1839,8 +1859,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      case 'document': {
+        // A document uploaded via the Files API is referenced by `file_id`;
+        // inline document bytes/URLs aren't accepted on this path.
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_file',
+            file_id: part.source.value,
+          }
+        }
+        throw new Error(`Unsupported content part type: ${part.type}`)
+      }
       case 'video':
-      case 'document':
       default:
         // OpenAI Responses API doesn't accept native video/document parts on
         // this path — surface as explicit unsupported error so callers see

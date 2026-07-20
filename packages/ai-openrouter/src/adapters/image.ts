@@ -1,5 +1,9 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   getOpenRouterApiKeyFromEnv,
@@ -51,6 +55,7 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
  * base64 data URIs.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('openrouter')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }

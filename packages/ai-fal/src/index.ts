@@ -32,6 +32,16 @@ export {
 export { FalAudioAdapter, falAudio } from './adapters/audio'
 
 // ============================================================================
+// Files Adapter (storage upload)
+// ============================================================================
+
+export {
+  FalFilesAdapter,
+  falFiles,
+  type FalFilesConfig,
+} from './adapters/files'
+
+// ============================================================================
 // Model Types (from fal.ai's type system)
 // ============================================================================
 

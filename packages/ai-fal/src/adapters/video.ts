@@ -7,7 +7,10 @@ import {
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
-import { mapImageInputsToFalVideoFields } from '../image/image-inputs'
+import {
+  contentSourceToFalUrl,
+  mapImageInputsToFalVideoFields,
+} from '../image/image-inputs'
 import type {
   AudioPart,
   MediaInputMetadata,
@@ -70,17 +73,12 @@ function mapAudioInputsToFalFields(
     )
   }
   return {
-    audio_url:
-      part.source.type === 'url'
-        ? part.source.value
-        : `data:${part.source.mimeType};base64,${part.source.value}`,
+    audio_url: contentSourceToFalUrl(part.source),
   }
 }
 
 function videoPartToUrl(part: VideoPart<MediaInputMetadata>): string {
-  return part.source.type === 'url'
-    ? part.source.value
-    : `data:${part.source.mimeType};base64,${part.source.value}`
+  return contentSourceToFalUrl(part.source)
 }
 
 type FalQueueStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED'

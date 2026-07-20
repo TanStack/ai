@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  assertOwnFileSource,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -29,20 +34,25 @@ import type {
 } from '@tanstack/ai/adapters'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  Base64ImageSource,
-  Base64PDFSource,
-  ContentBlockParam,
-  DocumentBlockParam,
-  ImageBlockParam,
   ServerToolUseBlockParam,
   TextBlockParam,
   ThinkingBlockParam,
   ToolUseBlockParam,
-  URLImageSource,
-  URLPDFSource,
   WebFetchToolResultBlockParam,
   WebSearchToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages'
+import type {
+  BetaBase64ImageSource,
+  BetaBase64PDFSource,
+  BetaContentBlockParam,
+  BetaFileDocumentSource,
+  BetaFileImageSource,
+  BetaImageBlockParam,
+  BetaRequestDocumentBlock,
+  BetaTextBlockParam,
+  BetaURLImageSource,
+  BetaURLPDFSource,
+} from '@anthropic-ai/sdk/resources/beta/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
@@ -144,10 +154,25 @@ function buildServerToolResultBlock(
 }
 
 /**
+ * True when any message carries a provider file-handle source, so the request
+ * must send the Files API beta header.
+ */
+export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
+  return messages.some(
+    (message) =>
+      Array.isArray(message.content) &&
+      message.content.some(
+        (part) => 'source' in part && isFileSource(part.source),
+      ),
+  )
+}
+
+/**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
- * - `skills-2025-10-02` when that tool carries skills.
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - `files-api-2025-04-14` when a message references an uploaded file handle.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -160,8 +185,11 @@ export function computeAnthropicBetas(
         }
       }
     | undefined,
+  hasFileSource = false,
 ): Array<AnthropicBeta> | undefined {
   const betas = new Set<AnthropicBeta>()
+
+  if (hasFileSource) betas.add('files-api-2025-04-14')
 
   const useInterleavedThinking =
     modelOptions?.thinking?.type === 'enabled' &&
@@ -287,7 +315,11 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
-      const betas = computeAnthropicBetas(options.tools, options.modelOptions)
+      const betas = computeAnthropicBetas(
+        options.tools,
+        options.modelOptions,
+        messagesHaveFileSource(options.messages),
+      )
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
       // sunset path: it's a superset of `client.messages` that additionally
@@ -377,6 +409,7 @@ export class AnthropicTextAdapter<
       const betas = computeAnthropicBetas(
         chatOptions.tools,
         chatOptions.modelOptions,
+        messagesHaveFileSource(chatOptions.messages),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.beta.messages.create(
@@ -617,7 +650,7 @@ export class AnthropicTextAdapter<
 
   private convertContentPartToAnthropic(
     part: ContentPart,
-  ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
+  ): BetaTextBlockParam | BetaImageBlockParam | BetaRequestDocumentBlock {
     switch (part.type) {
       case 'text': {
         const metadata = part.metadata as AnthropicTextMetadata | undefined
@@ -630,21 +663,29 @@ export class AnthropicTextAdapter<
 
       case 'image': {
         const metadata = part.metadata as AnthropicImageMetadata | undefined
-        const imageSource: Base64ImageSource | URLImageSource =
-          part.source.type === 'data'
-            ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: part.source.mimeType as
-                  | 'image/jpeg'
-                  | 'image/png'
-                  | 'image/gif'
-                  | 'image/webp',
-              }
-            : {
-                type: 'url',
-                url: part.source.value,
-              }
+        let imageSource:
+          | BetaBase64ImageSource
+          | BetaURLImageSource
+          | BetaFileImageSource
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          imageSource = { type: 'file', file_id: part.source.value }
+        } else if (part.source.type === 'data') {
+          imageSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as
+              | 'image/jpeg'
+              | 'image/png'
+              | 'image/gif'
+              | 'image/webp',
+          }
+        } else {
+          imageSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
         return {
           type: 'image',
           source: imageSource,
@@ -653,17 +694,25 @@ export class AnthropicTextAdapter<
       }
       case 'document': {
         const metadata = part.metadata as AnthropicDocumentMetadata | undefined
-        const docSource: Base64PDFSource | URLPDFSource =
-          part.source.type === 'data'
-            ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: part.source.mimeType as 'application/pdf',
-              }
-            : {
-                type: 'url',
-                url: part.source.value,
-              }
+        let docSource:
+          | BetaBase64PDFSource
+          | BetaURLPDFSource
+          | BetaFileDocumentSource
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          docSource = { type: 'file', file_id: part.source.value }
+        } else if (part.source.type === 'data') {
+          docSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as 'application/pdf',
+          }
+        } else {
+          docSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
         return {
           type: 'document',
           source: docSource,
@@ -714,7 +763,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: Array<ContentBlockParam> = []
+        const contentBlocks: Array<BetaContentBlockParam> = []
 
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
@@ -776,7 +825,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant') {
-        const contentBlocks: Array<ContentBlockParam> = []
+        const contentBlocks: Array<BetaContentBlockParam> = []
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (Array.isArray(message.content)) {
@@ -828,7 +877,7 @@ export class AnthropicTextAdapter<
   }
 
   private appendThinkingBlocks(
-    contentBlocks: Array<ContentBlockParam>,
+    contentBlocks: Array<BetaContentBlockParam>,
     thinkingParts: ModelMessage['thinking'],
   ): void {
     if (!thinkingParts?.length) return
