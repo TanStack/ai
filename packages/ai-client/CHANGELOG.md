@@ -1,5 +1,12 @@
 # @tanstack/ai-client
 
+## 0.22.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
 ## 0.22.0
 
 ### Minor Changes

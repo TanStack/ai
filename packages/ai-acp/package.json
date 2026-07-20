@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-acp",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Shared Agent Client Protocol (ACP) transport, session, and AG-UI translation for TanStack AI harness adapters.",
   "author": "",
   "license": "MIT",

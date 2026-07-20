@@ -13,6 +13,7 @@ import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
+import { Route as ResumableRouteImport } from './routes/resumable'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as QueueingRouteImport } from './routes/queueing'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
@@ -38,6 +39,7 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -74,6 +76,11 @@ const ServerFnChatRoute = ServerFnChatRouteImport.update({
 const SandboxesRoute = SandboxesRouteImport.update({
   id: '/sandboxes',
   path: '/sandboxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResumableRoute = ResumableRouteImport.update({
+  id: '/resumable',
+  path: '/resumable',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RealtimeRoute = RealtimeRouteImport.update({
@@ -204,6 +211,11 @@ const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   path: '/api/sandbox-triage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResumableRoute = ApiResumableRouteImport.update({
+  id: '/api/resumable',
+  path: '/api/resumable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -301,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -316,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -349,6 +363,7 @@ export interface FileRoutesByTo {
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -364,6 +379,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -398,6 +414,7 @@ export interface FileRoutesById {
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -413,6 +430,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -448,6 +466,7 @@ export interface FileRouteTypes {
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -463,6 +482,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -496,6 +516,7 @@ export interface FileRouteTypes {
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -511,6 +532,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -544,6 +566,7 @@ export interface FileRouteTypes {
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -559,6 +582,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -593,6 +617,7 @@ export interface RootRouteChildren {
   McpDemoRoute: typeof McpDemoRoute
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
+  ResumableRoute: typeof ResumableRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
@@ -608,6 +633,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -659,6 +685,13 @@ declare module '@tanstack/react-router' {
       path: '/sandboxes'
       fullPath: '/sandboxes'
       preLoaderRoute: typeof SandboxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resumable': {
+      id: '/resumable'
+      path: '/resumable'
+      fullPath: '/resumable'
+      preLoaderRoute: typeof ResumableRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/realtime': {
@@ -836,6 +869,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/resumable': {
+      id: '/api/resumable'
+      path: '/api/resumable'
+      fullPath: '/api/resumable'
+      preLoaderRoute: typeof ApiResumableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -969,6 +1009,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpDemoRoute: McpDemoRoute,
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
+  ResumableRoute: ResumableRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
@@ -984,6 +1025,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiResumableRoute: ApiResumableRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode-skills",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Persistent runtime skill library for TanStack AI Code Mode agents and sandboxed tool orchestration.",
   "author": "Tanner Linsley",
   "license": "MIT",
