@@ -1192,11 +1192,12 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  *   When the stream is returned from `chat()` with typed tools, `TypedStreamChunk`
  *   intersects a literal onto `toolCallName` and `toolName` for discrimination.
  */
-export interface ToolCallStartEvent<TToolName extends string = string>
-  extends Pick<
-    AGUIToolCallStartEvent,
-    'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
-  > {
+export interface ToolCallStartEvent<
+  TToolName extends string = string,
+> extends Pick<
+  AGUIToolCallStartEvent,
+  'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
+> {
   type: 'TOOL_CALL_START'
   /** Model identifier for multi-model support */
   model?: string
@@ -1379,11 +1380,10 @@ export interface StateDeltaEvent extends AGUIStateDeltaEvent {
  * erase discriminant property access on {@link KnownCustomEvent} /
  * {@link TypedStreamChunk} unions.
  */
-export interface CustomEvent
-  extends Pick<
-    AGUICustomEvent,
-    'name' | 'value' | 'timestamp' | 'rawEvent'
-  > {
+export interface CustomEvent extends Pick<
+  AGUICustomEvent,
+  'name' | 'value' | 'timestamp' | 'rawEvent'
+> {
   type: 'CUSTOM'
   /** Model identifier for multi-model support */
   model?: string
@@ -1909,14 +1909,16 @@ export type TaggedCustomEvent<T = unknown> =
  * @ag-ui/core passthrough index signatures that form removes *every* arm.
  * @internal
  */
-type RemapStreamChunkForTools<C, TTools extends ReadonlyArray<AnyTool>> =
-  C extends { type: 'TOOL_CALL_START' }
-    ? DistributedToolCallStart<TTools>
-    : C extends { type: 'TOOL_CALL_END' }
-      ? DistributedToolCallEnd<TTools>
-      : C extends { type: 'CUSTOM' }
-        ? never
-        : C
+type RemapStreamChunkForTools<
+  C,
+  TTools extends ReadonlyArray<AnyTool>,
+> = C extends { type: 'TOOL_CALL_START' }
+  ? DistributedToolCallStart<TTools>
+  : C extends { type: 'TOOL_CALL_END' }
+    ? DistributedToolCallEnd<TTools>
+    : C extends { type: 'CUSTOM' }
+      ? never
+      : C
 
 export type TypedStreamChunk<
   TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
