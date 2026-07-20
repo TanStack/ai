@@ -1,14 +1,15 @@
 import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranscription } from '@tanstack/ai-react'
-import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { transcribeFn, transcribeStreamFn } from '../lib/server-fns'
-import {
-  TRANSCRIPTION_PROVIDERS,
-  type TranscriptionProviderConfig,
-  type TranscriptionProviderId,
+import { TRANSCRIPTION_PROVIDERS } from '../lib/audio-providers'
+import type {
+  TranscriptionProviderConfig,
+  TranscriptionProviderId,
 } from '../lib/audio-providers'
+import type { UseTranscriptionReturn } from '@tanstack/ai-react'
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
@@ -28,22 +29,26 @@ function TranscriptionForm({
     }
     if (mode === 'direct') {
       return {
-        fetcher: (input: { audio: string | Blob; language?: string }) =>
+        fetcher: (input: TranscriptionGenerateInput) =>
           transcribeFn({
             data: {
               audio: input.audio as string,
               language: input.language,
+              responseFormat: input.responseFormat,
+              modelOptions: input.modelOptions,
               provider: config.id,
             },
           }),
       }
     }
     return {
-      fetcher: (input: { audio: string | Blob; language?: string }) =>
+      fetcher: (input: TranscriptionGenerateInput) =>
         transcribeStreamFn({
           data: {
             audio: input.audio as string,
             language: input.language,
+            responseFormat: input.responseFormat,
+            modelOptions: input.modelOptions,
             provider: config.id,
           },
         }),
@@ -74,7 +79,11 @@ function TranscriptionUI({
     )
     const dataUrl = `data:${file.type};base64,${base64}`
 
-    await generate({ audio: dataUrl, language: 'en' })
+    await generate({
+      audio: dataUrl,
+      language: 'en',
+      ...config.transcriptionOptions,
+    })
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -158,6 +167,11 @@ function TranscriptionUI({
                     <span className="text-gray-500 font-mono whitespace-nowrap">
                       {seg.start.toFixed(1)}s - {seg.end.toFixed(1)}s
                     </span>
+                    {seg.speaker && (
+                      <span className="text-orange-300 font-medium whitespace-nowrap">
+                        {seg.speaker}
+                      </span>
+                    )}
                     <span className="text-white">{seg.text}</span>
                   </div>
                 ))}

@@ -5,7 +5,7 @@ title: RunFinishedEvent
 
 # Interface: RunFinishedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:824](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L824)
+Defined in: [packages/ai/src/types.ts:1077](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1077)
 
 Emitted when a run completes successfully.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `finishReason?`, `usage?`
 optional finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:828](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L828)
+Defined in: [packages/ai/src/types.ts:1081](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1081)
 
 Why the generation stopped
 
@@ -42,7 +42,7 @@ Why the generation stopped
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:826](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L826)
+Defined in: [packages/ai/src/types.ts:1079](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1079)
 
 Model identifier for multi-model support
 
@@ -51,27 +51,9 @@ Model identifier for multi-model support
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
+Defined in: [packages/ai/src/types.ts:1083](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1083)
 
-Token usage statistics
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Token usage statistics with optional detailed breakdowns and provider-reported cost.

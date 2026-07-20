@@ -29,17 +29,20 @@ type Provider = 'openai' | 'anthropic'
 
 // Define adapters with their models - autocomplete works here!
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),  // ✅ Autocomplete!
-  openai: () => openaiText('gpt-5.2'),  // ✅ Autocomplete!
+  anthropic: () => anthropicText('claude-sonnet-4-6'),  // ✅ Autocomplete!
+  openai: () => openaiText('gpt-5.5'),  // ✅ Autocomplete!
 }
 
-// In your request handler:
-const provider: Provider = request.body.provider || 'openai'
+async function handleRequest(request: Request) {
+  // In your request handler:
+  const body = await request.json()
+  const provider: Provider = body.forwardedProps?.provider || 'openai'
 
-const stream = chat({
-  adapter: adapters[provider](),
-  messages,
-})
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+}
 ```
 
 ## Why This Works
@@ -47,15 +50,17 @@ const stream = chat({
 Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
 
 ```typescript
+import { openaiText, OpenAITextAdapter } from '@tanstack/ai-openai'
+
 // These are equivalent:
-const adapter1 = openaiText('gpt-5.2')
-const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.2')
+const adapter1 = openaiText('gpt-5.5')
+const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY! }, 'gpt-5.5')
 
 // The model is stored on the adapter
-console.log(adapter1.selectedModel) // 'gpt-5.2'
+console.log(adapter1.model) // 'gpt-5.5'
 ```
 
-When you pass an adapter to `chat()`, it uses the model from `adapter.selectedModel`. This means:
+When you pass an adapter to `chat()`, it uses the model from `adapter.model`. This means:
 
 - **Full autocomplete** - When typing the model name, TypeScript knows valid options
 - **Type validation** - Invalid model names cause compile errors
@@ -65,7 +70,7 @@ When you pass an adapter to `chat()`, it uses the model from `adapter.selectedMo
 
 Here's a complete example showing a multi-provider chat API:
 
-```typescript
+```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -77,10 +82,10 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Define adapters with their models
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  gemini: () => geminiText('gemini-3-flash-preview'),
   ollama: () => ollamaText('mistral:7b'),
-  openai: () => openaiText('gpt-5.2'),
+  openai: () => openaiText('gpt-5.5'),
 }
 
 export const Route = createFileRoute('/api/chat')({
@@ -89,15 +94,16 @@ export const Route = createFileRoute('/api/chat')({
       POST: async ({ request }) => {
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
-
-        const provider: Provider = data?.provider || 'openai'
+        // `forwardedProps` is the AG-UI field set by `useChat({ forwardedProps })`.
+        // The legacy `body.data.provider` access still works (mirrored on the
+        // wire for backward compatibility) but `forwardedProps` is preferred.
+        const provider: Provider = body.forwardedProps?.provider || 'openai'
 
         const stream = chat({
           adapter: adapters[provider](),
           tools: [...],
           systemPrompts: [...],
-          messages,
+          messages: body.messages,
           abortController,
         })
 
@@ -117,17 +123,25 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
 
-const imageAdapters = {
+type ImageProvider = 'openai' | 'gemini'
+
+const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
   openai: () => openaiImage('gpt-image-1'),
-  gemini: () => geminiImage('gemini-2.0-flash-preview-image-generation'),
+  gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
 }
 
-// Usage
-const result = await generateImage({
-  adapter: imageAdapters[provider](),
-  prompt: 'A beautiful sunset over mountains',
-  size: '1024x1024',
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: ImageProvider = body.provider ?? 'openai'
+
+  const result = await generateImage({
+    adapter: imageAdapters[provider](),
+    prompt: 'A beautiful sunset over mountains',
+    size: '1024x1024',
+  })
+
+  return Response.json(result)
+}
 ```
 
 ## Using with Summarize Adapters
@@ -139,18 +153,27 @@ import { summarize } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 
-const summarizeAdapters = {
-  openai: () => openaiSummarize('gpt-5-mini'),
-  anthropic: () => anthropicSummarize('claude-sonnet-4-5'),
+type SummarizeProvider = 'openai' | 'anthropic'
+
+const summarizeAdapters: Record<SummarizeProvider, () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>> = {
+  openai: () => openaiSummarize('gpt-5.4-mini'),
+  anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
 }
 
-// Usage
-const result = await summarize({
-  adapter: summarizeAdapters[provider](),
-  text: longDocument,
-  maxLength: 100,
-  style: 'concise',
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: SummarizeProvider = body.provider ?? 'openai'
+  const longDocument: string = body.text
+
+  const result = await summarize({
+    adapter: summarizeAdapters[provider](),
+    text: longDocument,
+    maxLength: 100,
+    style: 'concise',
+  })
+
+  return Response.json(result)
+}
 ```
 
 ## Migration from Switch Statements
@@ -159,19 +182,19 @@ If you have existing code using switch statements, here's how to migrate:
 
 ### Before
 
-```typescript
+```typescript ignore
 let adapter
 let model
 
 switch (provider) {
   case 'anthropic':
     adapter = anthropicText()
-    model = 'claude-sonnet-4-5'
+    model = 'claude-sonnet-4-6'
     break
   case 'openai':
   default:
     adapter = openaiText()
-    model = 'gpt-5.2'
+    model = 'gpt-5.5'
     break
 }
 
@@ -185,15 +208,28 @@ const stream = chat({
 ### After
 
 ```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+type AfterProvider = 'openai' | 'anthropic'
+
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  openai: () => openaiText('gpt-5.2'),
+  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  openai: () => openaiText('gpt-5.5'),
 }
 
-const stream = chat({
-  adapter: adapters[provider](),
-  messages,
-})
+export async function POST(request: Request) {
+  const body = await request.json()
+  const provider: AfterProvider = body.forwardedProps?.provider ?? 'openai'
+
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: body.messages,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 The key changes:

@@ -11,9 +11,11 @@ type ToolCallState =
   | "input-streaming"
   | "input-complete"
   | "approval-requested"
-  | "approval-responded";
+  | "approval-responded"
+  | "complete"
+  | "error";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L33)
+Defined in: [packages/ai/src/types.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L48)
 
 Tool call states - track the lifecycle of a tool call

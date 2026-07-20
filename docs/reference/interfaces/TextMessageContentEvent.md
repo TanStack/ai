@@ -5,7 +5,7 @@ title: TextMessageContentEvent
 
 # Interface: TextMessageContentEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:873](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L873)
+Defined in: [packages/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1124)
 
 Emitted when text content is generated (streaming tokens).
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `content?` (accumulated)
 optional content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:877](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L877)
+Defined in: [packages/ai/src/types.ts:1128](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1128)
 
 Full accumulated content so far (TanStack AI internal, for debugging)
 
@@ -42,6 +42,6 @@ Full accumulated content so far (TanStack AI internal, for debugging)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:875](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L875)
+Defined in: [packages/ai/src/types.ts:1126](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1126)
 
 Model identifier for multi-model support

@@ -72,4 +72,14 @@ docs/superpowers
 # Only .claude.settings.json should be committed
 .claude/settings.local.json
 .claude/worktrees/*
+.claude/scheduled_tasks.lock
 solo.yml
+
+# Agent scratch output (gap-analysis reports, triage notes — generated locally)
+.agent/gap-analysis/
+.agent/triage/
+
+/OpenCode.md
+.agentsroom/
+.opencode/
+.agent/research/

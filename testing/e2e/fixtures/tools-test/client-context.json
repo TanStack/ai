@@ -1,0 +1,23 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[client-context] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I will read the client runtime context.",
+        "toolCalls": [{ "name": "read_client_context", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-context] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The client runtime context is available."
+      }
+    }
+  ]
+}

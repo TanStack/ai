@@ -13,8 +13,8 @@ interface ImageGenResult {
   model: string
   images: Array<GeneratedImage>
   usage?: {
-    inputTokens?: number
-    outputTokens?: number
+    promptTokens?: number
+    completionTokens?: number
     totalTokens?: number
   }
 }

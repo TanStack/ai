@@ -3,9 +3,15 @@ id: ToolCall
 title: ToolCall
 ---
 
-# Interface: ToolCall
+# Interface: ToolCall\<TMetadata\>
 
-Defined in: [packages/typescript/ai/src/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
+Defined in: [packages/ai/src/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L150)
+
+## Type Parameters
+
+### TMetadata
+
+`TMetadata` = `unknown`
 
 ## Properties
 
@@ -15,7 +21,7 @@ Defined in: [packages/typescript/ai/src/types.ts:114](https://github.com/TanStac
 function: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L117)
+Defined in: [packages/ai/src/types.ts:153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L153)
 
 #### arguments
 
@@ -37,19 +43,21 @@ name: string;
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L115)
+Defined in: [packages/ai/src/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L151)
 
 ***
 
-### providerMetadata?
+### metadata?
 
 ```ts
-optional providerMetadata: Record<string, unknown>;
+optional metadata: TMetadata;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:122](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L122)
+Defined in: [packages/ai/src/types.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L160)
 
-Provider-specific metadata to carry through the tool call lifecycle
+Provider-specific metadata to carry through the tool call lifecycle.
+Typed per-adapter via `TToolCallMetadata`. For example,
+`@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`.
 
 ***
 
@@ -59,4 +67,4 @@ Provider-specific metadata to carry through the tool call lifecycle
 type: "function";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L116)
+Defined in: [packages/ai/src/types.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L152)

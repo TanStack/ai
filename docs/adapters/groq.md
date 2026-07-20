@@ -2,7 +2,7 @@
 title: Groq
 id: groq-adapter
 order: 6
-description: "Use Groq's fast inference API with TanStack AI for low-latency LLM responses — Llama and other open-weight models via @tanstack/ai-groq."
+description: "Use Groq's fast inference API with TanStack AI for low-latency LLM responses and Whisper transcription — Llama and other open-weight models via @tanstack/ai-groq."
 keywords:
   - tanstack ai
   - groq
@@ -11,9 +11,11 @@ keywords:
   - low latency
   - adapter
   - llm
+  - whisper
+  - transcription
 ---
 
-The Groq adapter provides access to Groq's fast inference API, featuring the world's fastest LLM inference.
+The Groq adapter provides access to Groq's fast inference API, featuring the world's fastest LLM inference and Whisper-based audio transcription.
 
 ## Installation
 
@@ -44,7 +46,7 @@ const adapter = createGroqText("llama-3.3-70b-versatile", process.env.GROQ_API_K
 });
 
 const stream = chat({
-  adapter: adapter,
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
 ## Example: With Tools
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, toolDefinition, type ModelMessage } from "@tanstack/ai";
 import { groqText } from "@tanstack/ai-groq";
 import { z } from "zod";
 
@@ -99,7 +101,7 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
-const messages = [{ role: "user", content: "Search for something" }];
+const messages: Array<ModelMessage> = [{ role: "user", content: "Search for something" }];
 
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
@@ -108,11 +110,40 @@ const stream = chat({
 });
 ```
 
-## Model Options
+## Transcription
 
-Groq supports various provider-specific options:
+Groq exposes Whisper-based speech-to-text via `groqTranscription()` and the `generateTranscription()` activity. The `audio` input accepts a `File`, `Blob`, `ArrayBuffer`, base64 string, data URL, or an `https://` URL (forwarded directly to Groq without re-uploading).
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { groqTranscription } from "@tanstack/ai-groq";
+
+const result = await generateTranscription({
+  adapter: groqTranscription("whisper-large-v3-turbo"),
+  audio: "https://example.com/recording.mp3",
+  language: "en",
+});
+
+console.log(result.text);
+
+// verbose_json (the default) populates language, duration, and timestamped segments
+for (const segment of result.segments ?? []) {
+  console.log(`[${segment.start}s → ${segment.end}s] ${segment.text}`);
+}
+```
+
+Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`. Supported `responseFormat` values: `json`, `text`, `verbose_json` (default). `srt` and `vtt` are not supported by Groq.
+
+See [Transcription](../media/transcription) for the full API.
+
+## Model Options
+
+Groq supports various provider-specific options. Sampling parameters live here too — `temperature`, `top_p`, and `max_completion_tokens` (Groq's token-limit key) — rather than as root-level props on `chat()`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { groqText } from "@tanstack/ai-groq";
+
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
   messages: [{ role: "user", content: "Hello!" }],
@@ -124,11 +155,13 @@ const stream = chat({
 });
 ```
 
+> If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
+
 ### Reasoning
 
 Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
-```typescript
+```typescript ignore
 modelOptions: {
   reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
 }
@@ -161,57 +194,6 @@ Groq offers a diverse selection of models from multiple providers:
 
 - `moonshotai/kimi-k2-instruct-0905` - Kimi K2 with 256K context
 - `qwen/qwen3-32b` - Qwen 3 with reasoning support
-
-## Text-to-Speech
-
-Groq provides unique Text-to-Speech capabilities via Canopy Labs Orpheus models:
-
-```typescript
-import { generateSpeech } from "@tanstack/ai";
-import { groqSpeech } from "@tanstack/ai-groq";
-
-const result = await generateSpeech({
-  adapter: groqSpeech("canopylabs/orpheus-v1-english"),
-  text: "Hello, welcome to TanStack AI!",
-  voice: "autumn",
-  format: "wav",
-});
-
-// result.audio contains base64-encoded audio
-console.log(result.format); // "wav"
-```
-
-### English Voices
-
-Available voices: `autumn`, `diana`, `hannah`, `austin`, `daniel`, `troy`
-
-### Arabic Voices
-
-Available voices for Arabic model (`canopylabs/orpheus-arabic-saudi`): `fahad`, `sultan`, `lulwa`, `noura`
-
-### TTS Model Options
-
-```typescript
-const result = await generateSpeech({
-  adapter: groqSpeech("canopylabs/orpheus-v1-english"),
-  text: "High quality speech",
-  voice: "diana",
-  format: "wav",
-  modelOptions: {
-    sample_rate: 24000, // Audio sample rate in Hz
-  },
-});
-```
-
-### Supported TTS Formats
-
-- `wav` (only format currently supported for Orpheus models)
-- `mp3`
-- `flac`
-- `ogg`
-- `mulaw`
-
-> **Note:** Additional formats (`mp3`, `flac`, `ogg`, `mulaw`) are defined for future compatibility but are not yet supported by Orpheus TTS models.
 
 ## Environment Variables
 
@@ -248,31 +230,14 @@ Creates a Groq chat adapter with an explicit API key.
 
 **Returns:** A Groq chat adapter instance.
 
-### `groqSpeech(model, config?)`
+### `groqTranscription(model, config?)` / `createGroqTranscription(model, apiKey, config?)`
 
-Creates a Groq TTS adapter using environment variables.
-
-**Parameters:**
-
-- `model` - The TTS model name (e.g., `canopylabs/orpheus-v1-english`)
-
-**Returns:** A Groq speech adapter instance.
-
-### `createGroqSpeech(model, apiKey, config?)`
-
-Creates a Groq TTS adapter with an explicit API key.
-
-**Parameters:**
-
-- `model` - The TTS model name (e.g., `canopylabs/orpheus-v1-english`)
-- `apiKey` - Your Groq API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** A Groq speech adapter instance.
+Creates a Groq transcription (speech-to-text) adapter. The short form reads `GROQ_API_KEY` from the environment; the `create*` form takes an explicit API key. Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`.
 
 ## Limitations
 
-- **Image Generation**: Groq does not support image generation. Use OpenAI or Gemini for image generation.
+- **Text-to-Speech**: Groq does not currently expose a TTS adapter. Use OpenAI, Gemini, ElevenLabs, or fal for speech generation.
+- **Image Generation**: Groq does not support image generation. Use OpenAI, Gemini, or fal for image generation.
 
 ## Next Steps
 

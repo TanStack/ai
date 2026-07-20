@@ -5,7 +5,7 @@ title: ImageGenerationResult
 
 # Interface: ImageGenerationResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1256](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1256)
+Defined in: [packages/ai/src/types.ts:1831](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1831)
 
 Result of image generation
 
@@ -17,7 +17,7 @@ Result of image generation
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1258](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1258)
+Defined in: [packages/ai/src/types.ts:1833](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1833)
 
 Unique identifier for the generation
 
@@ -29,7 +29,7 @@ Unique identifier for the generation
 images: GeneratedImage[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1262](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1262)
+Defined in: [packages/ai/src/types.ts:1837](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1837)
 
 Array of generated images
 
@@ -41,7 +41,7 @@ Array of generated images
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1260](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1260)
+Defined in: [packages/ai/src/types.ts:1835](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1835)
 
 Model used for generation
 
@@ -50,27 +50,9 @@ Model used for generation
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1264](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1264)
+Defined in: [packages/ai/src/types.ts:1839](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1839)
 
 Token usage information (if available)
-
-#### inputTokens?
-
-```ts
-optional inputTokens: number;
-```
-
-#### outputTokens?
-
-```ts
-optional outputTokens: number;
-```
-
-#### totalTokens?
-
-```ts
-optional totalTokens: number;
-```

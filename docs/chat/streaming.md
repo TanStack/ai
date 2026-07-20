@@ -24,8 +24,8 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello!" }],
 });
 
 // Stream contains chunks as they arrive
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
   });
 
@@ -82,6 +82,7 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 - **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
 - **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
 - **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
+- **CUSTOM** - Namespaced extension events (sandbox file changes, Code Mode progress, structured-output completion, and your own `emitCustomEvent` calls) — see the [Custom Events Reference](../protocol/custom-events) for the full typed taxonomy and how to narrow `chunk.value` with a plain `if`
 - **RUN_FINISHED** - Run completion with finish reason and usage
 - **RUN_ERROR** - Error occurred during the run
 
@@ -89,18 +90,25 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 ### Thinking Chunks
 
-Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:
+Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
 
 ```typescript
-for await (const chunk of stream) {
-  if (chunk.type === "STEP_FINISHED") {
-    console.log("Thinking:", chunk.content); // Accumulated thinking content
-    console.log("Delta:", chunk.delta); // Incremental thinking token
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+for (const message of messages) {
+  for (const part of message.parts) {
+    if (part.type === "thinking") {
+      console.log("Thinking:", part.content); // Accumulated thinking content
+    }
   }
 }
 ```
 
-Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model.
+Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
 
 ## Connection Adapters
 
@@ -128,28 +136,30 @@ const { messages } = useChat({
 
 ### Custom Stream
 
+For a fully custom request, use the `fetcher` transport. The fetcher receives the request input plus an `AbortSignal`, and returns a `Response` (whose SSE body the client parses) or an `AsyncIterable<StreamChunk>`. It may return that value synchronously, as a `Promise`, or as an `async function*`:
+
 ```typescript
-import { stream } from "@tanstack/ai-react";
+import { useChat } from "@tanstack/ai-react";
 
 const { messages } = useChat({
-  connection: stream(async (messages, data, signal) => {
-    // Custom streaming implementation
-    const response = await fetch("/api/chat", {
+  fetcher: ({ messages, data }, { signal }) =>
+    fetch("/api/chat", {
       method: "POST",
       body: JSON.stringify({ messages, ...data }),
       signal,
-    });
-    // Return async iterable
-    return processStream(response);
-  }),
+    }),
 });
 ```
+
+> **Note:** The lower-level `stream()` connection adapter takes a factory that must return an `AsyncIterable<StreamChunk>` **synchronously** (e.g. a generator) — it does not accept an `async (...) => {...}` function that returns a `Promise`. Prefer the `fetcher` transport above unless you specifically need the connection adapter.
 
 ## Monitoring Stream Progress
 
 You can monitor stream progress with callbacks:
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
   onChunk: (chunk) => {
@@ -166,6 +176,8 @@ const { messages } = useChat({
 Cancel ongoing streams:
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { stop } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
 });
@@ -174,6 +186,77 @@ const { stop } = useChat({
 stop();
 ```
 
+Calling `stop()` aborts the underlying fetch; the resulting `AbortError` is expected and normal. This differs from a connection being cut mid-line: a truncated stream throws a `StreamTruncatedError` and moves the client into its `error` state. See [Connection Adapters](./connection-adapters) for the underlying behavior.
+
+On the server, pass an `AbortController` to `toServerSentEventsResponse(stream, { abortController })` so the chat run is cancelled when the client disconnects:
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({ adapter: openaiText("gpt-5.5"), messages });
+
+  const abortController = new AbortController();
+  return toServerSentEventsResponse(stream, { abortController });
+}
+```
+
+## Queueing Messages
+
+By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts a `QueueConfig` object, a plain shorthand string, or a strategy function:
+
+```tsx group=queueing-messages
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  queue: { whenBusy: "queue", drain: "fifo", maxSize: 5 },
+});
+```
+
+- **`whenBusy`** — what happens to a send that arrives while the client is busy (streaming, claiming a send, or draining the queue):
+  - `"queue"` (default) — hold the message; it sends once the run settles **successfully**. Clear the composer once the message appears in `queue` or `messages`.
+  - `"drop"` — ignore the send (promise still resolves; does not throw). The message never appears in `queue` or `messages` — keep the composer text and show feedback if you want the user to retry.
+  - `"interrupt"` — abort the current stream and send the new message immediately. Unlike `stop()`, this does **not** clear already-queued messages — they still drain after the interrupting send succeeds.
+- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the run settles successfully (string contents joined with `\n`, multimodal content concatenated in order; when sending via `ChatClient` with per-message `body`, the last item's `body` wins — framework hooks do not forward per-send `body`).
+- **`maxSize`** — caps how many messages can be queued (`0` means never queue).
+- **`onOverflow`** — `"reject"` (default) silently ignores a send once `maxSize` is reached (does not throw); `"drop-oldest"` evicts the oldest queued item to make room.
+
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`); actions are `'queue' | 'drop' | 'interrupt'` (no concurrent streams). Per-call `whenBusy` overrides both config and strategy.
+
+### When the queue drains vs flushes
+
+- **Drain (auto-send)** — only after a **successful** stream settle (including after tool continuations finish).
+- **Flush (discard without sending)** — on **error/abort of the active generation** (user `stop()`, real stream errors), `clear()`, `unsubscribe()`, and `reload()`. Interrupt aborts the old run without flushing; remaining items drain after a **successful** interrupting turn.
+- **`interrupt` does not flush** — existing queued items remain and drain after the interrupting turn succeeds.
+
+`useChat` exposes the pending queue as `queue` so you can render it distinctly from `messages`, along with `cancelQueued(id)` to cancel an item before it sends:
+
+```tsx group=queueing-messages
+function PendingQueue() {
+  return (
+    <>
+      {queue.map((q) => (
+        <div key={q.id} className="pending">
+          {typeof q.content === "string" ? q.content : "[attachment]"}
+          <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+        </div>
+      ))}
+    </>
+  );
+}
+```
+
+Override the configured policy for a single send with the second argument to `sendMessage`:
+
+```tsx group=queueing-messages
+sendMessage("Never mind, do this instead", { whenBusy: "interrupt" });
+```
+
+> **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `queue: "drop"` (or `{ whenBusy: "drop" }`) to restore the old behavior, or `queue: "interrupt"`.
+
 ## Best Practices
 
 1. **Handle loading states** - Use `isLoading` to show loading indicators
@@ -181,6 +264,7 @@ stop();
 3. **Cancel on unmount** - Clean up streams when components unmount
 4. **Optimize rendering** - Batch updates if needed for performance
 5. **Show progress** - Display partial content as it streams
+6. **Render queued messages distinctly** - Use `queue` to show pending sends separately from `messages`
 
 ## Next Steps
 

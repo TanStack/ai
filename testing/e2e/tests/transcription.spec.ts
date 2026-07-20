@@ -53,3 +53,43 @@ for (const provider of providersFor('transcription')) {
     })
   })
 }
+
+for (const provider of providersFor('transcription-diarization')) {
+  test.describe(`${provider} -- transcription-diarization`, () => {
+    for (const mode of ['sse', 'http-stream', 'fetcher'] as const) {
+      test(`${mode} -- transcribes diarized audio`, async ({
+        page,
+        testId,
+        aimockPort,
+      }) => {
+        await page.goto(
+          featureUrl(
+            provider,
+            'transcription-diarization',
+            testId,
+            aimockPort,
+            mode,
+          ),
+        )
+        await clickGenerate(page)
+        await waitForGenerationComplete(page)
+
+        await expect(page.getByTestId('transcription-text')).toContainText(
+          'Fender Stratocaster',
+        )
+        await expect(page.getByTestId('transcription-segments')).toContainText(
+          'Welcome to the store',
+        )
+        await expect(page.getByTestId('transcription-segments')).toContainText(
+          'I need a Fender Stratocaster',
+        )
+        await expect(page.getByTestId('transcription-speaker-0')).toHaveText(
+          'agent',
+        )
+        await expect(page.getByTestId('transcription-speaker-1')).toHaveText(
+          'customer',
+        )
+      })
+    }
+  })
+}

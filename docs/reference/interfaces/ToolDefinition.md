@@ -3,15 +3,15 @@ id: ToolDefinition
 title: ToolDefinition
 ---
 
-# Interface: ToolDefinition\<TInput, TOutput, TName\>
+# Interface: ToolDefinition\<TInput, TOutput, TName, TNeedsApproval\>
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:107](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L107)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L125)
 
 Tool definition builder that allows creating server or client tools from a shared definition
 
 ## Extends
 
-- [`ToolDefinitionInstance`](ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`\>
+- [`ToolDefinitionInstance`](ToolDefinitionInstance.md)\<`TInput`, `TOutput`, `TName`, `unknown`, `TNeedsApproval`\>
 
 ## Type Parameters
 
@@ -27,6 +27,10 @@ Tool definition builder that allows creating server or client tools from a share
 
 `TName` *extends* `string` = `string`
 
+### TNeedsApproval
+
+`TNeedsApproval` *extends* `boolean` = `false`
+
 ## Properties
 
 ### \_\_toolSide
@@ -35,7 +39,7 @@ Tool definition builder that allows creating server or client tools from a share
 __toolSide: "definition";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L50)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L60)
 
 #### Inherited from
 
@@ -46,24 +50,30 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 ### client()
 
 ```ts
-client: (execute?) => ClientTool<TInput, TOutput, TName>;
+client: <TContext>(execute?) => ClientTool<TInput, TOutput, TName, TContext, TNeedsApproval>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:125](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L125)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:149](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L149)
 
-Create a client-side tool with optional execute function
+Create a client-side tool with optional execute function.
+Carries the definition's `needsApproval` literal through to the client
+tool so the tool-call part's `approval` field stays gated on it.
+
+#### Type Parameters
+
+##### TContext
+
+`TContext` = `unknown`
 
 #### Parameters
 
 ##### execute?
 
-(`args`) => 
-  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
-  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
+[`ToolExecuteFunction`](../type-aliases/ToolExecuteFunction.md)\<`TInput`, `TOutput`, `TContext`\>
 
 #### Returns
 
-[`ClientTool`](ClientTool.md)\<`TInput`, `TOutput`, `TName`\>
+[`ClientTool`](ClientTool.md)\<`TInput`, `TOutput`, `TName`, `TContext`, `TNeedsApproval`\>
 
 ***
 
@@ -73,7 +83,7 @@ Create a client-side tool with optional execute function
 description: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L443)
+Defined in: [packages/ai/src/types.ts:622](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L622)
 
 Clear description of what the tool does.
 
@@ -95,10 +105,12 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ### execute()?
 
 ```ts
-optional execute: (args, context?) => any;
+optional execute: (args, context?) => 
+  | InferSchemaType<TOutput>
+| Promise<InferSchemaType<TOutput>>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:523](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L523)
+Defined in: [packages/ai/src/types.ts:702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L702)
 
 Optional function to execute when the model calls this tool.
 
@@ -111,17 +123,18 @@ Can return any value - will be automatically stringified if needed.
 
 ##### args
 
-`any`
+[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TInput`\>
 
 The arguments parsed from the model's tool call (validated against inputSchema)
 
 ##### context?
 
-[`ToolExecutionContext`](ToolExecutionContext.md)
+[`ToolExecutionContext`](../type-aliases/ToolExecutionContext.md)\<`unknown`\>
 
 #### Returns
 
-`any`
+  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
+  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
 
 Result to send back to the model (validated against outputSchema if provided)
 
@@ -146,7 +159,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:483](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L483)
+Defined in: [packages/ai/src/types.ts:662](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L662)
 
 Schema describing the tool's input parameters.
 
@@ -204,9 +217,9 @@ type({
 optional lazy: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L529)
+Defined in: [packages/ai/src/types.ts:708](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L708)
 
-If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
+If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
 #### Inherited from
 
@@ -220,7 +233,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L532)
+Defined in: [packages/ai/src/types.ts:711](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L711)
 
 Additional metadata for adapters or custom extensions
 
@@ -236,7 +249,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:433](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L433)
+Defined in: [packages/ai/src/types.ts:612](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L612)
 
 Unique name of the tool (used by the model to call it).
 
@@ -258,10 +271,10 @@ Must be unique within the tools array.
 ### needsApproval?
 
 ```ts
-optional needsApproval: boolean;
+optional needsApproval: TNeedsApproval;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L63)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -277,7 +290,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:504](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L504)
+Defined in: [packages/ai/src/types.ts:683](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L683)
 
 Optional schema for validating tool output.
 
@@ -309,21 +322,25 @@ z.object({
 ### server()
 
 ```ts
-server: (execute) => ServerTool<TInput, TOutput, TName>;
+server: <TContext>(execute) => ServerTool<TInput, TOutput, TName, TContext>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L115)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:140](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L140)
 
 Create a server-side tool with execute function
+
+#### Type Parameters
+
+##### TContext
+
+`TContext` = `unknown`
 
 #### Parameters
 
 ##### execute
 
-(`args`, `context?`) => 
-  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
-  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
+[`ToolExecuteFunction`](../type-aliases/ToolExecuteFunction.md)\<`TInput`, `TOutput`, `TContext`\>
 
 #### Returns
 
-[`ServerTool`](ServerTool.md)\<`TInput`, `TOutput`, `TName`\>
+[`ServerTool`](ServerTool.md)\<`TInput`, `TOutput`, `TName`, `TContext`\>

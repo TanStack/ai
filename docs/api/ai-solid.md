@@ -25,15 +25,24 @@ npm install @tanstack/ai-solid
 
 Main primitive for managing chat state in SolidJS with full type safety.
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { createSignal } from "solid-js";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string() }),
+});
 
 function ChatComponent() {
+  const [, setNotification] = createSignal<string | null>(null);
   // Create client tool implementations
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
@@ -41,7 +50,7 @@ function ChatComponent() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI);
+  const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
     connection: fetchServerSentEvents("/api/chat"),
@@ -66,7 +75,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -78,6 +90,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { Accessor } from "solid-js";
+import type { UIMessage } from "@tanstack/ai-solid";
+import type { ModelMessage } from "@tanstack/ai/client";
+
 interface UseChatReturn {
   messages: Accessor<UIMessage[]>;
   sendMessage: (content: string) => Promise<void>;
@@ -119,7 +135,7 @@ import {
 
 ## Example: Basic Chat
 
-```typescript
+```tsx
 import { createSignal, For } from "solid-js";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 
@@ -181,7 +197,7 @@ export function Chat() {
 
 ## Example: Tool Approval
 
-```typescript
+```tsx
 import { For, Show } from "solid-js";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 
@@ -195,39 +211,40 @@ export function ChatWithApproval() {
       <For each={messages()}>
         {(message) => (
           <For each={message.parts}>
-            {(part) => (
-              <Show
-                when={
-                  part.type === "tool-call" &&
-                  part.state === "approval-requested" &&
-                  part.approval
-                }
-              >
-                <div>
-                  <p>Approve: {part.name}</p>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              </Show>
-            )}
+            {(part) => {
+              if (
+                part.type === "tool-call" &&
+                part.state === "approval-requested" &&
+                part.approval
+              ) {
+                return (
+                  <div>
+                    <p>Approve: {part.name}</p>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: true,
+                        })
+                      }
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() =>
+                        addToolApprovalResponse({
+                          id: part.approval!.id,
+                          approved: false,
+                        })
+                      }
+                    >
+                      Deny
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            }}
           </For>
         )}
       </For>
@@ -238,18 +255,30 @@ export function ChatWithApproval() {
 
 ## Example: Client Tools with Type Safety
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { createSignal, For } from "solid-js";
 
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Show a notification in the UI",
+  inputSchema: z.object({ message: z.string(), type: z.string() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to localStorage",
+  inputSchema: z.object({ key: z.string(), value: z.string() }),
+});
+
 export function ChatWithClientTools() {
-  const [notification, setNotification] = createSignal(null);
+  const [notification, setNotification] = createSignal<{ message: string; type: string } | null>(null);
 
   // Create client implementations
   const updateUI = updateUIDef.client((input) => {
@@ -264,7 +293,7 @@ export function ChatWithClientTools() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToStorage);
+  const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -281,6 +310,7 @@ export function ChatWithClientTools() {
                 // ✅ part.input and part.output are fully typed!
                 return <div>Tool executed: {part.name}</div>;
               }
+              return null;
             }}
           </For>
         )}
@@ -296,13 +326,14 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-solid";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -322,7 +353,7 @@ Re-exported from `@tanstack/ai-client`:
 - `ThinkingPart` - Thinking content part
 - `ToolCallPart<TTools>` - Tool call part (discriminated union)
 - `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools>` - Chat client options
+- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
 - `ConnectionAdapter` - Connection adapter interface
 - `InferChatMessages<T>` - Extract message type from options
 - `ChatRequestBody` - Request body type

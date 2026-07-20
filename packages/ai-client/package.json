@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/ai-client",
+  "version": "0.22.0",
+  "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-client"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "headless",
+    "client",
+    "chat",
+    "streaming",
+    "realtime",
+    "generative-ai",
+    "tool-calling",
+    "structured-outputs"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./devtools": {
+      "types": "./dist/esm/devtools.d.ts",
+      "import": "./dist/esm/devtools.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:watch": "vitest --coverage --watch",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.3.3",
+    "zod": "^4.2.0"
+  }
+}

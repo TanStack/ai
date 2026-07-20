@@ -7,6 +7,7 @@ import {
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
+import type { MediaPrompt, TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import {
   createAudioAdapter,
@@ -19,13 +20,17 @@ import {
 export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       numberOfImages?: number
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -77,7 +82,10 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
     (data: {
       audio: string
       language?: string
+      responseFormat?: TranscriptionResponseFormat
+      modelOptions?: Record<string, any>
       provider: Provider
+      feature?: Feature
       aimockPort?: number
       testId?: string
     }) => {
@@ -92,11 +100,17 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      {
+        responseFormat: data.responseFormat,
+        modelOptions: data.modelOptions,
+      },
     )
     return generateTranscription({
       adapter,
       audio: data.audio,
       language: data.language,
+      responseFormat: data.responseFormat,
+      modelOptions: data.modelOptions,
     })
   })
 
@@ -133,12 +147,17 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
 export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       aimockPort?: number
       testId?: string
+      feature?: Feature
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -149,6 +168,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      data.feature,
     )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({

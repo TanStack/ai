@@ -1,0 +1,16 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[structured-output] run test" },
+      "response": {
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5}"
+      }
+    },
+    {
+      "match": { "userMessage": "[structured-output-stream] run test" },
+      "response": {
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability\",\"rating\":5}"
+      }
+    }
+  ]
+}

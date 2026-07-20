@@ -1,0 +1,39 @@
+{
+  "name": "@tanstack/ai-react-native-smoke",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "expo": {
+    "install": {
+      "exclude": [
+        "@types/react",
+        "react",
+        "typescript"
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:types": "tsc --noEmit",
+    "smoke:imports": "tsx scripts/assert-import-surface.ts",
+    "smoke:expo": "expo export --platform ios --no-bytecode --output-dir .expo-smoke-dist --max-workers 0 && tsx scripts/assert-bundle-output.ts .expo-smoke-dist",
+    "smoke:metro": "pnpm smoke:expo",
+    "smoke:esbuild": "tsx scripts/esbuild-smoke.ts && tsx scripts/assert-bundle-output.ts .esbuild-smoke-dist",
+    "smoke:bundle": "pnpm smoke:esbuild",
+    "smoke": "pnpm typecheck && pnpm smoke:imports && pnpm smoke:expo && pnpm smoke:esbuild"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "expo": "~56.0.5",
+    "react": "^19.2.3",
+    "react-native": "0.85.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "esbuild": "^0.25.12",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3"
+  }
+}

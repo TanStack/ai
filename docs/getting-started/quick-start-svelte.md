@@ -32,7 +32,7 @@ yarn add @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
 
 Create a SvelteKit API route that streams chat responses:
 
-```typescript
+```typescript ignore
 // src/routes/api/chat/+server.ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -46,13 +46,14 @@ export const POST: RequestHandler = async ({ request }) => {
     )
   }
 
-  const { messages, conversationId } = await request.json()
+  const body = await request.json()
 
   try {
+    // `chat()` uses the AG-UI `threadId` for devtools correlation
+    // when available — no need to plumb `conversationId` manually.
     const stream = chat({
       adapter: openaiText('gpt-4o'),
-      messages,
-      conversationId,
+      messages: body.messages,
     })
 
     return toServerSentEventsResponse(stream)

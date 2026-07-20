@@ -16,6 +16,6 @@ type AIAdapter =
   | AnyTranscriptionAdapter;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/index.ts:169](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/index.ts#L169)
+Defined in: [packages/ai/src/activities/index.ts:178](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L178)
 
 Union of all adapter types that can be passed to chat()

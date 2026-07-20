@@ -5,10 +5,10 @@ title: ToolConfig
 
 # Interface: ToolConfig
 
-Defined in: [packages/typescript/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L535)
+Defined in: [packages/ai/src/types.ts:734](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L734)
 
 ## Indexable
 
 ```ts
-[key: string]: Tool<SchemaInput, SchemaInput, string>
+[key: string]: Tool<SchemaInput, SchemaInput, string, unknown>
 ```

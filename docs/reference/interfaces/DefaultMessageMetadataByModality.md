@@ -5,7 +5,7 @@ title: DefaultMessageMetadataByModality
 
 # Interface: DefaultMessageMetadataByModality
 
-Defined in: [packages/typescript/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1531)
+Defined in: [packages/ai/src/types.ts:2127](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2127)
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +18,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1534](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1534)
+Defined in: [packages/ai/src/types.ts:2130](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2130)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1534](https://github.com/TanSta
 document: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1536](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1536)
+Defined in: [packages/ai/src/types.ts:2132](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2132)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1536](https://github.com/TanSta
 image: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1533](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1533)
+Defined in: [packages/ai/src/types.ts:2129](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2129)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1533](https://github.com/TanSta
 text: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1532](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1532)
+Defined in: [packages/ai/src/types.ts:2128](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2128)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [packages/typescript/ai/src/types.ts:1532](https://github.com/TanSta
 video: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1535](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1535)
+Defined in: [packages/ai/src/types.ts:2131](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2131)

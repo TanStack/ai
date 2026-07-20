@@ -1,5 +1,74 @@
 # ts-svelte-chat
 
+## 0.1.45
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai@0.19.0
+  - @tanstack/ai-client@0.11.0
+  - @tanstack/ai-svelte@0.10.0
+  - @tanstack/ai-anthropic@0.8.9
+  - @tanstack/ai-gemini@0.10.6
+  - @tanstack/ai-ollama@0.6.17
+  - @tanstack/ai-openai@0.9.2
+
+## 0.1.44
+
+### Patch Changes
+
+- Updated dependencies [[`2f6bd13`](https://github.com/TanStack/ai/commit/2f6bd139dd7404e04edfa81c0ab105f2bfb02680)]:
+  - @tanstack/ai-ollama@0.6.16
+
+## 0.1.43
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099), [`e810153`](https://github.com/TanStack/ai/commit/e810153b34e593d3f3e1bbd8050164a6ad4423ed)]:
+  - @tanstack/ai@0.18.0
+  - @tanstack/ai-client@0.10.0
+  - @tanstack/ai-svelte@0.9.0
+  - @tanstack/ai-anthropic@0.8.8
+  - @tanstack/ai-gemini@0.10.5
+  - @tanstack/ai-ollama@0.6.15
+  - @tanstack/ai-openai@0.9.1
+
+## 0.1.42
+
+### Patch Changes
+
+- Updated dependencies [[`98979f7`](https://github.com/TanStack/ai/commit/98979f7e72f4b5bfb816fb14b60a12871f8c4bec), [`02527c2`](https://github.com/TanStack/ai/commit/02527c28c3285829535cd486e529e659260b3c5d)]:
+  - @tanstack/ai@0.17.0
+  - @tanstack/ai-openai@0.9.0
+  - @tanstack/ai-svelte@0.8.0
+  - @tanstack/ai-anthropic@0.8.7
+  - @tanstack/ai-gemini@0.10.4
+  - @tanstack/ai-ollama@0.6.14
+  - @tanstack/ai-client@0.9.2
+
+## 0.1.41
+
+### Patch Changes
+
+- Updated dependencies [[`87f305c`](https://github.com/TanStack/ai/commit/87f305c9961d608fd7bea93a5100698a98aed11d)]:
+  - @tanstack/ai-gemini@0.10.3
+  - @tanstack/ai@0.16.0
+  - @tanstack/ai-anthropic@0.8.6
+  - @tanstack/ai-client@0.9.1
+  - @tanstack/ai-ollama@0.6.13
+  - @tanstack/ai-openai@0.8.5
+  - @tanstack/ai-svelte@0.7.2
+
+## 0.1.40
+
+### Patch Changes
+
+- Updated dependencies [[`27c9aeb`](https://github.com/TanStack/ai/commit/27c9aeb80993f8262e65ef623a4cc6dadf18817e)]:
+  - @tanstack/ai-openai@0.8.4
+  - @tanstack/ai-ollama@0.6.12
+  - @tanstack/ai-anthropic@0.8.5
+  - @tanstack/ai-gemini@0.10.2
+
 ## 0.1.39
 
 ### Patch Changes

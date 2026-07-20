@@ -1,7 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { toolDefinition } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai-react'
+import {
+  modelMessagesToUIMessages,
+  toolDefinition,
+  type ModelMessage,
+  type ToolCallPart,
+} from '@tanstack/ai'
 import { z } from 'zod'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
@@ -22,6 +28,18 @@ interface ToolEvent {
   details?: string
 }
 
+type ClientRuntimeContext = {
+  userId: string
+  tenantId: string
+  source: string
+}
+
+const clientRuntimeContext: ClientRuntimeContext = {
+  userId: 'client-user-context',
+  tenantId: 'client-tenant-context',
+  source: 'client-local',
+}
+
 /**
  * Client-side tool definitions with execute functions
  * These track execution for testing purposes
@@ -29,6 +47,35 @@ interface ToolEvent {
 function createTrackedTools(
   addEvent: (event: Omit<ToolEvent, 'timestamp'>) => void,
 ) {
+  const readClientContextTool = toolDefinition({
+    name: 'read_client_context',
+    description: 'Read the typed runtime context provided by the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).client<ClientRuntimeContext>(async (_args, context) => {
+    addEvent({
+      type: 'execution-start',
+      toolName: 'read_client_context',
+      details: context.context.userId,
+    })
+
+    addEvent({
+      type: 'execution-complete',
+      toolName: 'read_client_context',
+      details: `${context.context.userId}/${context.context.tenantId}`,
+    })
+
+    return {
+      userId: context.context.userId,
+      tenantId: context.context.tenantId,
+      source: context.context.source,
+    }
+  })
+
   const showNotificationTool = toolDefinition({
     name: 'show_notification',
     description: 'Show a notification to the user',
@@ -95,12 +142,47 @@ function createTrackedTools(
     }
   })
 
-  return [showNotificationTool, displayChartTool]
+  return [readClientContextTool, showNotificationTool, displayChartTool]
+}
+
+function createHistoryFixtureMessages(historyFixture?: string) {
+  if (historyFixture !== 'server-tool-result') {
+    return []
+  }
+
+  const modelMessages: Array<ModelMessage> = [
+    {
+      role: 'assistant',
+      content: 'Let me check the weather.',
+      toolCalls: [
+        {
+          id: 'history-tc-1',
+          type: 'function',
+          function: {
+            name: 'getWeather',
+            arguments: '{"city":"NYC"}',
+          },
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      content: '{"temp":72,"condition":"sunny"}',
+      toolCallId: 'history-tc-1',
+    },
+  ]
+
+  return modelMessagesToUIMessages(modelMessages)
 }
 
 function ToolsTestPage() {
-  const { testId, aimockPort } = Route.useSearch()
-  const [scenario, setScenario] = useState('text-only')
+  const {
+    testId,
+    aimockPort,
+    historyFixture,
+    scenario: initialScenario,
+  } = Route.useSearch()
+  const [scenario, setScenario] = useState(initialScenario || 'text-only')
   const [toolEvents, setToolEvents] = useState<Array<ToolEvent>>([])
   const [testStartTime, setTestStartTime] = useState<number | null>(null)
   const [testComplete, setTestComplete] = useState(false)
@@ -115,6 +197,16 @@ function ToolsTestPage() {
 
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
+  // The fixture intentionally carries a `getWeather` tool call that isn't part
+  // of `clientTools`, so the generic message type can't be narrowed to the
+  // client-tool union — cast to the message type `useChat` infers from `tools`.
+  const initialMessages = useMemo(
+    () =>
+      createHistoryFixtureMessages(historyFixture) as Array<
+        UIMessage<typeof clientTools>
+      >,
+    [historyFixture],
+  )
 
   const {
     messages,
@@ -125,9 +217,22 @@ function ToolsTestPage() {
     error,
   } = useChat({
     // Include scenario in ID so client is recreated when scenario changes
-    id: `tools-test-${scenario}`,
+    id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
     connection: fetchServerSentEvents('/api/tools-test'),
-    body: { scenario, testId, aimockPort },
+    // History fixtures are untyped model-message replays; cast to the typed
+    // message shape so they don't fight the concrete `tools` tuple inference.
+    initialMessages: initialMessages as unknown as Array<
+      UIMessage<typeof clientTools>
+    >,
+    forwardedProps: {
+      scenario,
+      testId,
+      aimockPort,
+      ...(scenario === 'client-server-context'
+        ? { runtimeUserId: 'client-forwarded-user-context' }
+        : {}),
+    },
+    context: clientRuntimeContext,
     tools: clientTools,
     onFinish: () => {
       setTestComplete(true)
@@ -178,15 +283,22 @@ function ToolsTestPage() {
     sendMessage(`[${scenario}] run test`)
   }, [sendMessage])
 
-  // Extract tool call parts from messages for display
-  const toolCalls = messages.flatMap((msg) =>
-    msg.parts
-      .filter((p) => p.type === 'tool-call')
-      .map((p) => ({
-        messageId: msg.id,
-        ...p,
-      })),
-  )
+  // Extract tool call parts from messages for display. This harness inspects
+  // `approval` across a mixed tool set, so it uses the generic (untyped)
+  // `ToolCallPart` view — the typed per-tool parts gate `approval` behind
+  // `needsApproval`, which is exactly what we don't want to narrow on here.
+  const toolCalls: Array<ToolCallPart & { messageId: string }> =
+    messages.flatMap((msg) =>
+      msg.parts
+        .filter(
+          (p): p is Extract<typeof p, { type: 'tool-call' }> =>
+            p.type === 'tool-call',
+        )
+        .map((p) => ({
+          messageId: msg.id,
+          ...p,
+        })),
+    )
 
   // Extract tool result parts (for server tools)
   const toolResultIds = new Set(
@@ -565,6 +677,7 @@ function ToolsTestPage() {
         id="test-metadata"
         style={{ display: 'none' }}
         data-scenario={scenario}
+        data-history-fixture={historyFixture || ''}
         data-is-loading={isLoading.toString()}
         data-test-complete={testComplete.toString()}
         data-tool-call-count={toolCalls.length}
@@ -595,6 +708,11 @@ function ToolsTestPage() {
         }
         data-has-error={(!!error).toString()}
         data-error-message={error?.message || ''}
+        data-error-raw-event={
+          error && 'rawEvent' in error
+            ? JSON.stringify((error as { rawEvent?: unknown }).rawEvent)
+            : ''
+        }
       />
 
       {/* Event log as JSON for easy parsing in tests */}
@@ -633,6 +751,12 @@ export const Route = createFileRoute('/tools-test')({
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
+      historyFixture:
+        typeof search.historyFixture === 'string'
+          ? search.historyFixture
+          : undefined,
+      scenario:
+        typeof search.scenario === 'string' ? search.scenario : undefined,
     }
   },
 })

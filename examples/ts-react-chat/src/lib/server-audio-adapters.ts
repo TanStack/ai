@@ -54,7 +54,7 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
     case 'grok':
       return grokSpeech(config.model as 'grok-tts')
     case 'elevenlabs':
-      return elevenlabsSpeech(config.model)
+      return elevenlabsSpeech(config.model as 'eleven_multilingual_v2')
   }
 }
 
@@ -65,12 +65,14 @@ export function buildTranscriptionAdapter(
   switch (config.id) {
     case 'openai':
       return openaiTranscription(config.model as 'whisper-1')
+    case 'openai-diarize':
+      return openaiTranscription(config.model as 'gpt-4o-transcribe-diarize')
     case 'fal':
       return falTranscription(config.model)
     case 'grok':
       return grokTranscription(config.model as 'grok-stt')
     case 'elevenlabs':
-      return elevenlabsTranscription(config.model)
+      return elevenlabsTranscription(config.model as 'scribe_v1')
   }
 }
 
@@ -90,7 +92,7 @@ export function buildAudioAdapter(
       return falAudio(model)
     case 'elevenlabs-music':
     case 'elevenlabs-sfx':
-      return elevenlabsAudio(model)
+      return elevenlabsAudio(model as 'music_v1')
   }
 }
 

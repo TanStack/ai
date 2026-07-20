@@ -3,12 +3,21 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage
+# Interface: UIMessage\<TData\>
 
-Defined in: [packages/typescript/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L357)
+Defined in: [packages/ai/src/types.ts:487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L487)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
-Contains parts that can be text, tool calls, or tool results
+Contains parts that can be text, tool calls, or tool results. Generic over
+the structured-output data type so `useChat({ outputSchema })`'s schema
+narrows `parts.find(p => p.type === 'structured-output').data` on the
+consumer side without manual casts.
+
+## Type Parameters
+
+### TData
+
+`TData` = `unknown`
 
 ## Properties
 
@@ -18,7 +27,7 @@ Contains parts that can be text, tool calls, or tool results
 optional createdAt: Date;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:361](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L361)
+Defined in: [packages/ai/src/types.ts:491](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L491)
 
 ***
 
@@ -28,17 +37,17 @@ Defined in: [packages/typescript/ai/src/types.ts:361](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L358)
+Defined in: [packages/ai/src/types.ts:488](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L488)
 
 ***
 
 ### parts
 
 ```ts
-parts: MessagePart[];
+parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L360)
+Defined in: [packages/ai/src/types.ts:490](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L490)
 
 ***
 
@@ -48,4 +57,4 @@ Defined in: [packages/typescript/ai/src/types.ts:360](https://github.com/TanStac
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:359](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L359)
+Defined in: [packages/ai/src/types.ts:489](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L489)

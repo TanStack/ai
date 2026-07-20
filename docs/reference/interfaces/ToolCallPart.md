@@ -3,9 +3,15 @@ id: ToolCallPart
 title: ToolCallPart
 ---
 
-# Interface: ToolCallPart
+# Interface: ToolCallPart\<TMetadata\>
 
-Defined in: [packages/typescript/ai/src/types.ts:312](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L312)
+Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L370)
+
+## Type Parameters
+
+### TMetadata
+
+`TMetadata` = `unknown`
 
 ## Properties
 
@@ -15,7 +21,7 @@ Defined in: [packages/typescript/ai/src/types.ts:312](https://github.com/TanStac
 optional approval: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L319)
+Defined in: [packages/ai/src/types.ts:386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L386)
 
 Approval metadata if tool requires user approval
 
@@ -45,7 +51,7 @@ needsApproval: boolean;
 arguments: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L316)
+Defined in: [packages/ai/src/types.ts:374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L374)
 
 ***
 
@@ -55,7 +61,39 @@ Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:314](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L314)
+Defined in: [packages/ai/src/types.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L372)
+
+***
+
+### input?
+
+```ts
+optional input: unknown;
+```
+
+Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+
+Parsed tool input. Set from the parsed arguments once they are complete
+(`state: 'input-complete'` and later). `undefined` while the raw
+`arguments` string is still streaming, and may stay `undefined` for a call
+that terminates in an error state — the raw `arguments` string is always
+available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+`@tanstack/ai-client`); `unknown` on this base type.
+
+***
+
+### metadata?
+
+```ts
+optional metadata: TMetadata;
+```
+
+Defined in: [packages/ai/src/types.ts:397](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L397)
+
+Provider-specific metadata that round-trips with the tool call.
+Typed per-adapter via `TToolCallMetadata`. May follow the
+[ProviderExecutedToolMetadata](ProviderExecutedToolMetadata.md) convention to mark provider-executed
+server tools (e.g. Anthropic `web_search`).
 
 ***
 
@@ -65,7 +103,7 @@ Defined in: [packages/typescript/ai/src/types.ts:314](https://github.com/TanStac
 name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:315](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L315)
+Defined in: [packages/ai/src/types.ts:373](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L373)
 
 ***
 
@@ -75,7 +113,7 @@ Defined in: [packages/typescript/ai/src/types.ts:315](https://github.com/TanStac
 optional output: any;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:325](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L325)
+Defined in: [packages/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L392)
 
 Tool execution output (for client tools or after approval)
 
@@ -87,7 +125,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:317](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L317)
+Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
 
 ***
 
@@ -97,4 +135,4 @@ Defined in: [packages/typescript/ai/src/types.ts:317](https://github.com/TanStac
 type: "tool-call";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:313](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L313)
+Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L371)

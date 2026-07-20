@@ -5,12 +5,12 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:897](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L897)
+Defined in: [packages/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1148)
 
 Emitted when a tool call starts.
 
 @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
-TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
 
 ## Extends
 
@@ -30,9 +30,24 @@ TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMe
 optional index: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:906](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L906)
+Defined in: [packages/ai/src/types.ts:1157](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1157)
 
 Index for parallel tool calls
+
+***
+
+### metadata?
+
+```ts
+optional metadata: Record<string, unknown>;
+```
+
+Defined in: [packages/ai/src/types.ts:1162](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1162)
+
+Provider-specific metadata to carry into the ToolCall.
+Untyped at the event layer because events flow through a discriminated
+union that does not survive generics; adapters cast it to their typed
+`TToolCallMetadata` shape when emitting.
 
 ***
 
@@ -42,21 +57,9 @@ Index for parallel tool calls
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:899](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L899)
+Defined in: [packages/ai/src/types.ts:1150](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1150)
 
 Model identifier for multi-model support
-
-***
-
-### providerMetadata?
-
-```ts
-optional providerMetadata: Record<string, unknown>;
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:908](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L908)
-
-Provider-specific metadata to carry into the ToolCall
 
 ***
 
@@ -66,7 +69,7 @@ Provider-specific metadata to carry into the ToolCall
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:904](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L904)
+Defined in: [packages/ai/src/types.ts:1155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1155)
 
 #### Deprecated
 

@@ -6,10 +6,11 @@ import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
+import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
 import { grokRealtime, grokRealtimeToken } from '@tanstack/ai-grok'
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
-type Provider = 'openai' | 'elevenlabs' | 'grok'
+type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { provider: Provider; language?: string }) => {
@@ -20,8 +21,14 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     if (data.provider === 'openai') {
       return realtimeToken({
         adapter: openaiRealtimeToken({
-          model: 'gpt-4o-realtime-preview',
+          model: 'gpt-realtime',
         }),
+      })
+    }
+
+    if (data.provider === 'gemini') {
+      return realtimeToken({
+        adapter: geminiRealtimeToken(),
       })
     }
 
@@ -48,6 +55,8 @@ function adapterForProvider(provider: Provider) {
       return openaiRealtime()
     case 'elevenlabs':
       return elevenlabsRealtime()
+    case 'gemini':
+      return geminiRealtime()
     case 'grok':
       return grokRealtime()
   }
@@ -91,7 +100,9 @@ Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
 If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
-    voice: voice ?? (provider === 'grok' ? 'eve' : 'alloy'),
+    voice:
+      voice ??
+      (provider === 'grok' ? 'eve' : provider === 'gemini' ? 'Puck' : 'alloy'),
     tools: realtimeClientTools,
     outputModalities,
     temperature,

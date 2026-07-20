@@ -27,6 +27,7 @@ import {
 } from '@/components'
 import { NpmDataSidebar } from '@/components/NpmDataSidebar'
 import { exportConversationToPdfTool } from '@/lib/tools/export-pdf-tool'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_npm-github-chat/npm-github-chat')({
   component: CodeModePage,
@@ -252,7 +253,7 @@ function Messages({
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
