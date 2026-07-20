@@ -1259,6 +1259,182 @@ describe('chat()', () => {
       const toolMessages = followUpMessages.filter((m) => m.role === 'tool')
       expect(toolMessages).toHaveLength(5)
     })
+
+    it('counts skipped emissions toward maxToolCalls and stops further turns', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+      const seenCounts: Array<number> = []
+
+      const { adapter, calls } = createMockAdapter({
+        chatStreamFn: () => {
+          // Fat turn: 8 parallel tools. If we only counted executed (3),
+          // maxToolCalls(5) would allow another model turn.
+          return (async function* () {
+            yield ev.runStarted()
+            for (let i = 0; i < 8; i++) {
+              yield ev.toolStart(`call_${i}`, 'repeater', i)
+              yield ev.toolArgs(`call_${i}`, '{}')
+            }
+            yield ev.runFinished('tool_calls')
+          })()
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Fan out' }],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 3,
+        agentLoopStrategy: (state) => {
+          seenCounts.push(state.toolCallCount)
+          return state.toolCallCount < 5
+        },
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeSpy).toHaveBeenCalledTimes(3)
+      // All 8 emissions counted (not just 3 executed)
+      expect(seenCounts).toContain(8)
+      // Strategy stops further model turns once count >= 5
+      expect(calls.length).toBe(1)
+    })
+
+    it('maxToolCallsPerTurn: 0 skips all tool execution', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_0', 'repeater', 0),
+            ev.toolArgs('call_0', '{}'),
+            ev.toolStart('call_1', 'repeater', 1),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'None' }],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 0,
+        agentLoopStrategy: (state) => state.iterationCount < 2,
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeSpy).toHaveBeenCalledTimes(0)
+      const skipped = chunks.filter((c) => {
+        if (c.type !== 'TOOL_CALL_RESULT') return false
+        const content = (c as { content?: unknown }).content
+        return (
+          typeof content === 'string' &&
+          content.includes('exceeded maxToolCallsPerTurn')
+        )
+      })
+      expect(skipped.length).toBe(2)
+      // Follow-up still sees tool results for both calls
+      expect(calls.length).toBe(2)
+    })
+
+    it('rejects negative maxToolCallsPerTurn', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.textContent('x'), ev.runFinished()]],
+      })
+
+      // TextEngine is constructed when the stream is consumed, not at chat() call.
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        maxToolCallsPerTurn: -1,
+      })
+
+      await expect(
+        collectChunks(stream as AsyncIterable<StreamChunk>),
+      ).rejects.toThrow(
+        /maxToolCallsPerTurn must be a non-negative finite number/,
+      )
+    })
+
+    it('applies maxToolCallsPerTurn to pending tool calls on resume', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+      let strategyToolCount = 0
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          // After pending tools are budgeted, loop may continue once if strategy allows
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Resume with many pending tools' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'pending_0',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_1',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_2',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_3',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+              {
+                id: 'pending_4',
+                type: 'function' as const,
+                function: { name: 'repeater', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [serverTool('repeater', executeSpy)],
+        maxToolCallsPerTurn: 2,
+        agentLoopStrategy: (state) => {
+          strategyToolCount = state.toolCallCount
+          return state.iterationCount < 1
+        },
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Only first 2 of 5 pending tools execute
+      expect(executeSpy).toHaveBeenCalledTimes(2)
+
+      const skipped = chunks.filter((c) => {
+        if (c.type !== 'TOOL_CALL_RESULT') return false
+        const content = (c as { content?: unknown }).content
+        return (
+          typeof content === 'string' &&
+          content.includes('exceeded maxToolCallsPerTurn')
+        )
+      })
+      expect(skipped.length).toBe(3)
+
+      // Seeded pending tools are counted toward the strategy budget
+      expect(strategyToolCount).toBe(5)
+
+      // Strategy may allow one model turn after pending tools complete
+      expect(calls.length).toBeLessThanOrEqual(1)
+    })
   })
 
   // ==========================================================================

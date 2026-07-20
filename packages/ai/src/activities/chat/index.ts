@@ -479,6 +479,23 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
 /**
+ * Validate and normalize `maxToolCallsPerTurn`.
+ * Unset → unlimited. `0` → execute none. Negatives / non-finite → throw
+ * (Array#slice treats negatives as "from end", which is not a useful cap).
+ */
+function resolveMaxToolCallsPerTurn(
+  cap: number | undefined,
+): number | undefined {
+  if (cap == null) return undefined
+  if (!Number.isFinite(cap) || cap < 0) {
+    throw new Error(
+      `maxToolCallsPerTurn must be a non-negative finite number, got ${cap}`,
+    )
+  }
+  return Math.floor(cap)
+}
+
+/**
  * Combine two optional AbortSignals into one that aborts when either does.
  * Returns the other signal directly when one is absent or already aborted.
  * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
@@ -524,10 +541,12 @@ class TextEngine<
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
-  /** Cumulative tool calls emitted by the model in this run. */
+  /** Cumulative tool calls counted in this run (emitted + pending resume). */
   private toolCallCount = 0
-  /** Tool calls emitted by the most recent model turn. */
+  /** Tool calls in the most recent budgeted batch (0 when none). */
   private lastTurnToolCallCount = 0
+  /** Tool call IDs already counted toward `toolCallCount` (avoids double-count on resume). */
+  private readonly countedToolCallIds = new Set<string>()
   private lastFinishReason: string | null = null
   private streamStartTime = 0
   private totalChunkCount = 0
@@ -609,7 +628,9 @@ class TextEngine<
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
-    this.maxToolCallsPerTurn = config.params.maxToolCallsPerTurn
+    this.maxToolCallsPerTurn = resolveMaxToolCallsPerTurn(
+      config.params.maxToolCallsPerTurn,
+    )
     this.initialMessageCount = config.params.messages.length
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
@@ -1313,9 +1334,14 @@ class TextEngine<
 
     const finishEvent = this.createSyntheticFinishedEvent()
 
+    // Same fan-out budget as live model turns (seeded history / resume).
+    // Count is deduped so wait→resume after a live turn does not double-count.
+    const { toExecute: budgetedToolCalls, skippedResults } =
+      this.applyToolCallBudget(pendingToolCalls)
+
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executablePendingCalls = pendingToolCalls.filter((tc) => {
+    const executablePendingCalls = budgetedToolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1332,16 +1358,30 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0) {
-      for (const chunk of this.buildToolResultChunks(
-        undiscoveredLazyResults,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
+    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
+    // Emitted after executed results so the stream prefers real results first.
+    const deferredErrorResults = [
+      ...undiscoveredLazyResults,
+      ...skippedResults,
+    ]
+
+    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
+    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
+    const argsMap = new Map<string, string>()
+    for (const tc of pendingToolCalls) {
+      argsMap.set(tc.id, tc.function.arguments)
     }
 
     if (executablePendingCalls.length === 0) {
+      if (deferredErrorResults.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          deferredErrorResults,
+          finishEvent,
+          argsMap,
+        )) {
+          yield* this.pipeThroughMiddleware(chunk)
+        }
+      }
       return 'continue'
     }
 
@@ -1395,28 +1435,23 @@ class TextEngine<
       return 'stop'
     }
 
+    const allResults = [...executionResult.results, ...deferredErrorResults]
+
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
     await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
       toolCalls: pendingToolCalls,
-      results: executionResult.results,
+      results: allResults,
       needsApproval: executionResult.needsApproval,
       needsClientExecution: executionResult.needsClientExecution,
     })
-
-    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
-    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
-    const argsMap = new Map<string, string>()
-    for (const tc of pendingToolCalls) {
-      argsMap.set(tc.id, tc.function.arguments)
-    }
 
     if (
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
-      if (executionResult.results.length > 0) {
+      if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
-          executionResult.results,
+          allResults,
           finishEvent,
           argsMap,
         )) {
@@ -1443,7 +1478,7 @@ class TextEngine<
     }
 
     const toolResultChunks = this.buildToolResultChunks(
-      executionResult.results,
+      allResults,
       finishEvent,
       argsMap,
     )
@@ -1498,7 +1533,7 @@ class TextEngine<
     })
 
     // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
-    // Emitted after successful results so call order stays head→tail.
+    // Emitted after executed results so the stream prefers real results first.
     const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
 
     if (executableToolCalls.length === 0) {
@@ -1972,16 +2007,27 @@ class TextEngine<
   }
 
   /**
-   * Record tool calls from the latest model turn and return the subset that
-   * should be executed after applying `maxToolCallsPerTurn`. Excess calls get
-   * synthetic error results so every tool_call still has a matching result.
+   * Record tool calls (deduped by id) and return the subset that should be
+   * executed after applying `maxToolCallsPerTurn`. Excess calls get synthetic
+   * error results so every tool_call still has a matching result.
+   *
+   * Used for both live model turns and pending/resume batches. IDs already
+   * counted in this run (e.g. wait→resume after a live turn) are not
+   * re-added to `toolCallCount`.
    */
   private applyToolCallBudget(toolCalls: Array<ToolCall>): {
     toExecute: Array<ToolCall>
     skippedResults: Array<ToolResult>
   } {
     this.lastTurnToolCallCount = toolCalls.length
-    this.toolCallCount += toolCalls.length
+    let newlyCounted = 0
+    for (const tc of toolCalls) {
+      if (!this.countedToolCallIds.has(tc.id)) {
+        this.countedToolCallIds.add(tc.id)
+        newlyCounted++
+      }
+    }
+    this.toolCallCount += newlyCounted
 
     const cap = this.maxToolCallsPerTurn
     if (cap == null || toolCalls.length <= cap) {

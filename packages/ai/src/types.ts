@@ -838,14 +838,15 @@ export interface AgentLoopState {
   /** Finish reason from the last response */
   finishReason: string | null
   /**
-   * Cumulative tool calls emitted by the model so far in this run.
-   * Counts every tool call in assistant messages (including ones skipped by
-   * `maxToolCallsPerTurn`), not model turns.
+   * Cumulative tool calls counted so far in this run (model-emitted during the
+   * agent loop, including ones skipped by `maxToolCallsPerTurn`, and pending
+   * tools from the inbound message list when resumed). Not a recount of full
+   * message history; not model turns.
    */
   toolCallCount: number
   /**
-   * Tool calls emitted by the most recent model turn (0 when the last turn
-   * produced no tool calls).
+   * Tool calls in the most recent budgeted batch — a live model turn or a
+   * pending/resume batch (0 when the last phase produced no tool calls).
    */
   lastTurnToolCallCount: number
 }
@@ -899,7 +900,8 @@ export interface TextOptions<
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-   * Maximum number of tool calls to **execute** from a single model turn.
+   * Maximum number of tool calls to **execute** from a single model turn (or
+   * pending/resume batch). `0` skips all execution for that batch.
    *
    * Models can emit many parallel tool calls in one turn. `agentLoopStrategy`
    * (including `maxIterations` / `maxToolCalls`) is only evaluated between
@@ -908,9 +910,11 @@ export interface TextOptions<
    *
    * When set, only the first `maxToolCallsPerTurn` calls are executed; the
    * remainder receive error tool results so the message history stays
-   * consistent. Unset means no per-turn execution cap.
+   * consistent. Unset means no per-turn execution cap. Must be a non-negative
+   * finite number when set.
    *
-   * Pair with the `maxToolCalls(n)` strategy for a cumulative run-wide budget.
+   * Pair with the `maxToolCalls(n)` strategy for a cumulative **emitted**-call
+   * budget across the run (skipped calls still count toward that budget).
    */
   maxToolCallsPerTurn?: number
   /**

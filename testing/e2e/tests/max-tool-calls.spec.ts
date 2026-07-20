@@ -35,10 +35,9 @@ test.describe('chat() maxToolCalls / maxToolCallsPerTurn (#964)', () => {
     })
     expect(skipped.length).toBe(5)
 
-    // maxToolCalls(5): after the fat turn toolCallCount=8, so no second tool
-    // turn should run. A follow-up text turn is still allowed (iteration may
-    // continue once) — but executeCount stays at 3 either way.
+    // maxToolCalls(5): after the fat turn toolCallCount=8 (>= 5), so no further
+    // model turn runs. executeCount stays at 3 either way.
     const runFinished = body.chunks.filter((c) => c.type === 'RUN_FINISHED')
-    expect(runFinished.length).toBeGreaterThanOrEqual(1)
+    expect(runFinished.length).toBe(1)
   })
 })

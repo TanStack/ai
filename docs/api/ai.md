@@ -46,8 +46,8 @@ const stream = chat({
 - `tools?` - Array of tools for function calling
 - `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
-- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`). Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Prefer `maxToolCalls(n)` when you need a tool-call budget — iterations are model turns, not tool calls.
-- `maxToolCallsPerTurn?` - Cap how many tool calls from a single model turn are executed. Excess calls receive error results so message history stays consistent. Unset means no per-turn execution cap. Pair with `maxToolCalls(n)` for a cumulative run-wide budget.
+- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`). Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Prefer `maxToolCalls(n)` when you need a tool-call budget — iterations are model turns, not tool calls. `maxToolCalls` stops *further* turns once cumulative **emitted** tool calls are `>= n`; the turn that crosses the limit is not truncated.
+- `maxToolCallsPerTurn?` - Cap how many tool calls from a single model turn (or pending/resume batch) are executed. Excess calls receive error results so message history stays consistent. Unset means no per-turn execution cap; `0` skips all execution for that batch. Pair with `maxToolCalls(n)` for a cumulative **emitted**-call budget (skipped calls still count).
 - `abortController?` - AbortController for cancellation
 - `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
@@ -338,9 +338,9 @@ An `AgentLoopStrategy` function.
 
 ## `maxToolCalls(count)`
 
-Creates an agent loop strategy that limits the cumulative number of tool calls the model has emitted across the run.
+Creates an agent loop strategy that continues while cumulative **emitted** tool calls are below `count` (including calls skipped by `maxToolCallsPerTurn`).
 
-Strategies only run between turns. Pair with `chat({ maxToolCallsPerTurn })` to also cap parallel fan-out inside a single turn.
+Strategies only run between turns — the turn that crosses the limit is not truncated, so the final count may exceed `count` unless you also set `maxToolCallsPerTurn`. Pair with `chat({ maxToolCallsPerTurn })` to cap parallel fan-out inside a single turn.
 
 ```typescript
 import { chat, combineStrategies, maxIterations, maxToolCalls } from "@tanstack/ai";

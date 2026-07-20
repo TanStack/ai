@@ -159,7 +159,7 @@ The loop continues only while the model's finish reason is `tool_calls` (with pe
 
 By default the loop is bounded by `maxIterations(5)` — after five **model turns** it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option.
 
-> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds turns. Use `maxToolCalls(n)` for a cumulative tool-call budget, and `maxToolCallsPerTurn` to cap how many of those parallel calls execute in a single turn (strategies only run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded).
+> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds turns. Use `maxToolCalls(n)` for a cumulative **emitted**-call budget (stops further turns once the count is reached; the crossing turn is not truncated), and `maxToolCallsPerTurn` to cap how many of those parallel calls **execute** in a single turn or pending/resume batch (strategies only run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded). Skipped calls still count toward `maxToolCalls`.
 
 ```typescript
 import {
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
 
 Other built-in strategies:
 
-- **`maxToolCalls(n)`** — continue until the cumulative tool-call count reaches `n` (counts every tool call the model emits, not turns).
+- **`maxToolCalls(n)`** — continue while cumulative emitted tool calls are below `n` (including per-turn skips; not model turns).
 - **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
 - **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
 

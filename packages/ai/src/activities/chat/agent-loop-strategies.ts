@@ -27,17 +27,18 @@ export function maxIterations(max: number): AgentLoopStrategy {
 }
 
 /**
- * Creates a strategy that continues until the cumulative tool-call count
- * reaches `max`.
+ * Creates a strategy that continues while `toolCallCount < max`.
  *
- * Unlike {@link maxIterations} (which counts model turns), this bounds the
- * number of tool calls the model has emitted across the whole run. Pair with
+ * Unlike {@link maxIterations} (which counts model turns), this bounds
+ * **emitted** tool calls counted during the run (including ones skipped by
+ * `maxToolCallsPerTurn`). Strategies only run between turns, so the turn that
+ * crosses `max` is not truncated — the final count (and executions, unless
+ * `maxToolCallsPerTurn` is set) may exceed `max`. Pair with
  * `chat({ maxToolCallsPerTurn })` to also cap parallel fan-out inside a single
- * turn — strategies only run between turns, so without a per-turn cap one
- * turn can still execute unbounded calls before this limit is checked.
+ * turn.
  *
- * @param max - Maximum cumulative tool calls to allow
- * @returns AgentLoopStrategy that stops once `toolCallCount >= max`
+ * @param max - Maximum cumulative emitted tool calls before stopping further turns
+ * @returns AgentLoopStrategy that returns true while `toolCallCount < max`
  *
  * @example
  * ```typescript
