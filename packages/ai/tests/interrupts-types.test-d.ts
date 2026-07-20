@@ -1,18 +1,17 @@
 import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
-import {
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  toolDefinition
+import { toolDefinition } from '../src'
+import type {
+  ApprovalCapabilityOf,
+  ApprovalSchemaOf,
+  ChatMiddlewareContext,
+  ChatResumeToolState,
+  InferToolInput,
+  InferToolOutput,
+  InputSchemaOf,
+  NoSchema,
+  RunErrorEvent,
 } from '../src'
-import type {ApprovalCapabilityOf, ApprovalSchemaOf, ChatMiddlewareContext, ChatResumeToolState, InferToolInput, InferToolOutput, InputSchemaOf, NoSchema, RunErrorEvent} from '../src';
 import type { InterruptSubmissionError } from '../src/interrupts'
 
 const transfer = toolDefinition({

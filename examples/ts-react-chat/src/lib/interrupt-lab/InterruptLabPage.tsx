@@ -41,10 +41,7 @@ import {
   clientOutputTool,
   interruptLabScenarios,
 } from './scenarios'
-import type {
-  ChatInterrupt,
-  UIMessage,
-} from '@tanstack/ai-client'
+import type { ChatInterrupt, UIMessage } from '@tanstack/ai-client'
 import type { InterruptEditorDraft } from './client-ui'
 import type {
   InterruptLabMode,

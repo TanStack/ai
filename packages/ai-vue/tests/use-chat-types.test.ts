@@ -4,11 +4,11 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
-import {  toolDefinition } from '@tanstack/ai'
-import {  clientTools } from '@tanstack/ai-client'
+import { toolDefinition } from '@tanstack/ai'
+import { clientTools } from '@tanstack/ai-client'
 import { useChat } from '../src/use-chat'
-import type {AnyClientTool} from '@tanstack/ai';
-import type {StructuredOutputPart} from '@tanstack/ai-client';
+import type { AnyClientTool } from '@tanstack/ai'
+import type { StructuredOutputPart } from '@tanstack/ai-client'
 import type { ShallowRef } from 'vue'
 import type {
   StandardJSONSchemaV1,

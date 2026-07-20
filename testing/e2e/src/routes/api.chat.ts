@@ -119,7 +119,9 @@ export const Route = createFileRoute('/api/chat')({
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
-                  ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                  ...(params.parentRunId && {
+                    parentRunId: params.parentRunId,
+                  }),
                   ...(params.resume && { resume: params.resume }),
                   outputSchema: guitarRecommendationSchema,
                   stream: true,
@@ -133,7 +135,9 @@ export const Route = createFileRoute('/api/chat')({
                     messages: params.messages,
                     threadId: params.threadId,
                     runId: params.runId,
-                    ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                    ...(params.parentRunId && {
+                      parentRunId: params.parentRunId,
+                    }),
                     ...(params.resume && { resume: params.resume }),
                     outputSchema: recipeSchema,
                     stream: true,
@@ -149,7 +153,9 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
-                      ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                      ...(params.parentRunId && {
+                        parentRunId: params.parentRunId,
+                      }),
                       ...(params.resume && { resume: params.resume }),
                       outputSchema: guitarRecommendationSchema,
                       stream: true,
@@ -164,7 +170,9 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
-                      ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                      ...(params.parentRunId && {
+                        parentRunId: params.parentRunId,
+                      }),
                       ...(params.resume && { resume: params.resume }),
                       ...(rootObservabilityMetadata && {
                         metadata: rootObservabilityMetadata,

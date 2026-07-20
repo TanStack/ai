@@ -281,7 +281,7 @@ describe('chat() middleware', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // Adapter should get maxTokens = 150 (100 + 50)
-      expect((calls[0]!.modelOptions).maxTokens).toBe(150)
+      expect(calls[0]!.modelOptions.maxTokens).toBe(150)
     })
   })
 
@@ -2062,7 +2062,7 @@ describe('chat() middleware', () => {
 
       // Original config should reach the adapter untouched
       expect(calls[0]!.systemPrompts).toEqual(['Be helpful'])
-      expect((calls[0]!.modelOptions).temperature).toBe(0.5)
+      expect(calls[0]!.modelOptions.temperature).toBe(0.5)
     })
   })
 
@@ -2694,12 +2694,12 @@ describe('chat() middleware', () => {
 
       // Iteration 0: mw1 adds prompt, mw2 does nothing
       expect(calls[0]!.systemPrompts).toEqual(['base', 'added-by-mw1-iter-0'])
-      expect((calls[0]!.modelOptions).maxTokens).toBe(100)
+      expect(calls[0]!.modelOptions.maxTokens).toBe(100)
 
       // Iteration 1: mw1 adds prompt, mw2 doubles maxTokens
       // Note: mw1's change from iter-0 persists since applyMiddlewareConfig updates the engine
       expect(calls[1]!.systemPrompts).toContain('added-by-mw1-iter-1')
-      expect((calls[1]!.modelOptions).maxTokens).toBe(200)
+      expect(calls[1]!.modelOptions.maxTokens).toBe(200)
     })
 
     it('should let middleware observe config changes from the previous iteration', async () => {

@@ -39,25 +39,21 @@ describe('normalizeSystemPrompts', () => {
 
   it('throws TypeError naming the offending index when object-form content is not a string', () => {
     expect(() =>
-       
       normalizeSystemPrompts(['ok', { metadata: {} } as any]),
     ).toThrow(/systemPrompts\[1\]: content must be a string, got undefined/)
 
-    expect(() =>
-       
-      normalizeSystemPrompts([{ content: 42 as any }]),
-    ).toThrow(/systemPrompts\[0\]: content must be a string, got number/)
+    expect(() => normalizeSystemPrompts([{ content: 42 as any }])).toThrow(
+      /systemPrompts\[0\]: content must be a string, got number/,
+    )
   })
 
   it('throws TypeError when entry is neither string nor object', () => {
-    expect(() =>
-       
-      normalizeSystemPrompts(['ok', 123 as any]),
-    ).toThrow(/systemPrompts\[1\]: expected a string or .* got number/)
+    expect(() => normalizeSystemPrompts(['ok', 123 as any])).toThrow(
+      /systemPrompts\[1\]: expected a string or .* got number/,
+    )
 
-    expect(() =>
-       
-      normalizeSystemPrompts([null as any]),
-    ).toThrow(/systemPrompts\[0\]: expected a string or .* got null/)
+    expect(() => normalizeSystemPrompts([null as any])).toThrow(
+      /systemPrompts\[0\]: expected a string or .* got null/,
+    )
   })
 })

@@ -156,9 +156,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // includes tagged events that TS doesn't always realise are structural
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const complete = chunks.find(
         (c) =>
@@ -194,9 +192,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       // No orchestrator-emitted schema-validation RUN_ERROR.
       const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
@@ -241,9 +237,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // includes tagged events that TS doesn't always realise are structural
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const complete = chunks.find(
         (c) =>
@@ -284,9 +278,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // includes tagged events that TS doesn't always realise are structural
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const textChunks = chunks.filter(
         (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,
@@ -319,9 +311,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // includes tagged events that TS doesn't always realise are structural
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
       const types = chunks.map((c) => c.type)
 
       // Lifecycle envelope.
@@ -362,9 +352,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
       expect(runError).toBeUndefined()
@@ -405,9 +393,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
@@ -431,9 +417,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
@@ -468,9 +452,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const startIndex = chunks.findIndex(
         (c) =>
@@ -517,9 +499,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const startIndex = chunks.findIndex(
         (c) =>
@@ -567,9 +547,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const firstContentIndex = chunks.findIndex(
         (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,

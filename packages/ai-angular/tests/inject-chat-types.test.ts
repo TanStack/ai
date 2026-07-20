@@ -6,9 +6,9 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import {  toolDefinition } from '@tanstack/ai'
+import { toolDefinition } from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
-import type {AnyClientTool} from '@tanstack/ai';
+import type { AnyClientTool } from '@tanstack/ai'
 import type { injectChat } from '../src/inject-chat'
 import type { Signal } from '@angular/core'
 import type { DeepPartial, InjectChatResult } from '../src/types'

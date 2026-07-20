@@ -251,7 +251,7 @@ function createCaptureTracer(captureId: string): Tracer {
       return span
     },
     // Minimal implementation — our middleware never calls startActiveSpan.
-     
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string
@@ -279,7 +279,6 @@ function createCaptureMeter(captureId: string): Meter {
   })
   return {
     createHistogram: histogram,
-     
   } as any as Meter
 }
 

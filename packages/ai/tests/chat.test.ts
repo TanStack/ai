@@ -753,9 +753,7 @@ describe('chat()', () => {
         middleware: [interruptPersistenceMiddleware()],
       })
 
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       expect(structuredOutputSpy).not.toHaveBeenCalled()
 

@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   EventType,
   chat,
-  chatParamsFromRequestBody, toServerSentEventsResponse 
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
 import {

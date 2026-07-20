@@ -4,13 +4,12 @@ import { otelMiddleware } from '../../src/middlewares/otel'
 import { usageAttributes } from '../../src/middlewares/usage-attributes'
 import { ev } from '../test-utils'
 import {
-  
   createFakeMeter,
   createFakeTracer,
   makeCtx,
-  makeToolCall
+  makeToolCall,
 } from './fake-otel'
-import type {FakeSpan} from './fake-otel';
+import type { FakeSpan } from './fake-otel'
 import type { TokenUsage } from '../../src/types'
 import type {
   ChatMiddleware,

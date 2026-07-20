@@ -87,7 +87,7 @@ function createLocalCaptureTracer(): {
       return span
     },
     // Minimal implementation — otelMiddleware never calls startActiveSpan.
-     
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string

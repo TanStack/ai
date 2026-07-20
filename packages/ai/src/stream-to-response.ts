@@ -405,7 +405,6 @@ function durableStreamSource<TOffset extends string>(
       // `batch` is empty for them and this is a no-op.
       if (batch.length > 0) {
         try {
-           
           for await (const _chunk of flush()) {
             // persist-only: nothing consumes these
           }

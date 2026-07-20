@@ -1727,10 +1727,7 @@ class TextEngine<
       return emitted ? 'wait' : 'stop'
     }
 
-    const toolResultChunks = this.buildToolResultChunks(
-      allResults,
-      finishEvent,
-    )
+    const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
 
     for (const chunk of toolResultChunks) {
       yield* this.pipeThroughMiddleware(chunk)

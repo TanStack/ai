@@ -19,12 +19,11 @@ import {
   useTranscription,
 } from '@tanstack/ai-react'
 import { EventType } from '@tanstack/ai'
-import {
-  
-  GENERATION_EVENTS
-  
+import { GENERATION_EVENTS } from '@tanstack/ai-client'
+import type {
+  ConnectConnectionAdapter,
+  VideoGenerateResult,
 } from '@tanstack/ai-client'
-import type {ConnectConnectionAdapter, VideoGenerateResult} from '@tanstack/ai-client';
 import type { ReactNode } from 'react'
 import type {
   AudioGenerationResult,

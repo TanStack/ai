@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import {
-  
-  
-  modelMessagesToUIMessages,
-  toolDefinition
-} from '@tanstack/ai'
+import { modelMessagesToUIMessages, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import type {ModelMessage, ToolCallPart} from '@tanstack/ai';
+import type { ModelMessage, ToolCallPart } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 

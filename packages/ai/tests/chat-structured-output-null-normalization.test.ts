@@ -127,9 +127,7 @@ describe('structured output null normalization', () => {
       })
 
       const stream = chat({ adapter, messages, outputSchema, stream: true })
-      const chunks = await collectChunks(
-        stream,
-      )
+      const chunks = await collectChunks(stream)
 
       const object = completeObject(chunks)
       // `note` (optional → synthesized null) dropped; `tag` (nullable) kept.

@@ -16,13 +16,14 @@ import {
 import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
 import {
   AUDIO_PROVIDERS,
-  
   SPEECH_PROVIDERS,
-  
-  TRANSCRIPTION_PROVIDERS
-  
+  TRANSCRIPTION_PROVIDERS,
 } from './audio-providers'
-import type {AudioProviderId, SpeechProviderId, TranscriptionProviderId} from './audio-providers';
+import type {
+  AudioProviderId,
+  SpeechProviderId,
+  TranscriptionProviderId,
+} from './audio-providers'
 import type {
   AnyAudioAdapter,
   AnyTTSAdapter,

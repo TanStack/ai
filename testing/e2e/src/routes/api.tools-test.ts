@@ -7,12 +7,9 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
-import type {TestRuntimeContext} from '@/lib/tools-test-tools';
+import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
-import {
-  
-  getToolsForScenario
-} from '@/lib/tools-test-tools'
+import { getToolsForScenario } from '@/lib/tools-test-tools'
 
 const runtimeContextScenarios = new Set([
   'server-context',
