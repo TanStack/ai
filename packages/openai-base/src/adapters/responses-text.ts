@@ -1766,7 +1766,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         throw new Error(
           `User message for ${this.name} has no content parts. ` +
             `Empty user messages would produce a paid request with no input; ` +
-            `provide at least one text/image/audio part or omit the message.`,
+            `provide at least one text/image/audio/document part or omit the message.`,
         )
       }
 
@@ -1782,7 +1782,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Converts a ContentPart to Responses API input content item.
-   * Handles text, image, and audio content parts.
+   * Handles text, image, audio, and document (PDF) content parts.
    * Override this in subclasses for additional content types or provider-specific metadata.
    */
   protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
@@ -1826,7 +1826,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
         // Wrap raw base64 in a data URL — `input_file` rejects bare base64
-        // payloads (matches the image branch above which already does this).
+        // payloads (matches the image branch above).
         // Default the MIME if missing so we never interpolate `undefined`.
         const audioValue = part.source.value
         const audioMime = part.source.mimeType || 'application/octet-stream'
@@ -1839,12 +1839,67 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      case 'document': {
+        const documentMetadata = part.metadata as
+          | { filename?: string; detail?: 'low' | 'high' }
+          | undefined
+        // `detail` is optional with no 'auto' member (unlike input_image) —
+        // spread only when provided so the API applies its own default.
+        const documentDetail =
+          documentMetadata?.detail !== undefined
+            ? { detail: documentMetadata.detail }
+            : {}
+        if (part.source.type === 'url') {
+          // The Responses API fetches the PDF itself; filename and MIME
+          // type are inferred from the response.
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+            ...documentDetail,
+          }
+        }
+        // This adapter supports only PDF documents; anything else is
+        // rejected. MIME types are case-insensitive and can carry
+        // ;parameters (RFC 2045), so the type is normalized before comparing.
+        const documentValue = part.source.value
+        const documentMime = ((part.source.mimeType || 'application/pdf').split(';')[0] ?? '')
+          .trim()
+          .toLowerCase()
+        if (documentMime !== 'application/pdf') {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received ${documentMime})`,
+          )
+        }
+        // A pre-wrapped data URL carries its own media type — validate it too.
+        if (
+          documentValue.startsWith('data:') &&
+          !/^data:application\/pdf[;,]/i.test(documentValue)
+        ) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received data URL with non-PDF media type)`,
+          )
+        }
+        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+        // payloads (matches the image and audio branches above).
+        const documentFileData = documentValue.startsWith('data:')
+          ? documentValue
+          : `data:${documentMime};base64,${documentValue}`
+        return {
+          type: 'input_file',
+          // The Responses API requires a filename alongside PDF `file_data`.
+          filename: documentMetadata?.filename || 'document.pdf',
+          file_data: documentFileData,
+          ...documentDetail,
+        }
+      }
+
       case 'video':
-      case 'document':
       default:
-        // OpenAI Responses API doesn't accept native video/document parts on
-        // this path — surface as explicit unsupported error so callers see
-        // the same message regardless of which content type leaked through.
+        // OpenAI Responses API doesn't accept native video parts on this
+        // path — surface as explicit unsupported error so callers see the
+        // same message regardless of which content type leaked through.
         throw new Error(`Unsupported content part type: ${part.type}`)
     }
   }

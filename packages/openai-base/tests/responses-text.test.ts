@@ -2239,6 +2239,327 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     })
   })
 
+  describe('document content parts (PDF input)', () => {
+    // A minimal one-page PDF.
+    const TINY_PDF_BASE64 = Buffer.from(
+      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+        '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+        '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n' +
+        'trailer<</Root 1 0 R>>\n%%EOF',
+    ).toString('base64')
+
+    const minimalStreamChunks = [
+      {
+        type: 'response.created',
+        response: { id: 'resp-doc-1', model: 'test-model', status: 'in_progress' },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 10, output_tokens: 1, total_tokens: 11 },
+        },
+      },
+    ]
+
+    async function runChat(content: Array<any>): Promise<Array<StreamChunk>> {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content }],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks
+    }
+
+    it('converts a base64 data source to input_file with a default filename', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('uses metadata.filename when provided', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { filename: 'report.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].filename).toBe('report.pdf')
+    })
+
+    it('passes an existing data URL through without double-wrapping', async () => {
+      const dataUrl = `data:application/pdf;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'application/pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('converts a URL source to input_file with file_url only', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const part = payload.input[0].content[0]
+      expect(part).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+      })
+      expect(part).not.toHaveProperty('file_data')
+      expect(part).not.toHaveProperty('filename')
+    })
+
+    it('emits RUN_ERROR for a non-PDF document MIME type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/msword',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/application\/msword/)
+      }
+    })
+
+    it('emits RUN_ERROR for a data URL with a non-PDF media type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:image/png;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('rejects a data URL whose media type merely extends application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf+xml;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('accepts case-insensitive PDF media types (RFC 2045)', async () => {
+      const dataUrl = `data:APPLICATION/PDF;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'Application/PDF' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('passes metadata.detail through on both source shapes', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'high' },
+        },
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+          metadata: { detail: 'low' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('high')
+      expect(payload.input[0].content[1]).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+        detail: 'low',
+      })
+    })
+
+    it('omits detail when metadata does not provide it', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0]).not.toHaveProperty('detail')
+    })
+
+    it('still rejects video content parts', async () => {
+      const chunks = await runChat([
+        {
+          type: 'video',
+          source: { type: 'url', value: 'https://example.com/clip.mp4' },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(
+          /Unsupported content part type: video/,
+        )
+      }
+    })
+
+    it('keeps text and document parts in order within one message', async () => {
+      await runChat([
+        { type: 'text', content: 'summarize this' },
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        { type: 'input_text', text: 'summarize this' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('converts a document part inside a tool result', async () => {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'fetch the doc' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_doc',
+                type: 'function',
+                function: { name: 'fetch_doc', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_doc',
+            content: [
+              { type: 'text', content: 'here it is' },
+              {
+                type: 'document',
+                source: {
+                  type: 'data',
+                  value: TINY_PDF_BASE64,
+                  mimeType: 'application/pdf',
+                },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'here it is' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+  })
+
   describe('subclassing', () => {
     it('allows subclassing with custom name', () => {
       class MyProviderAdapter extends OpenAIBaseResponsesTextAdapter<string> {

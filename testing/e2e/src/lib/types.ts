@@ -30,6 +30,7 @@ export type Feature =
   | 'agentic-structured'
   | 'agentic-structured-stream'
   | 'multimodal-image'
+  | 'multimodal-document'
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
@@ -76,6 +77,7 @@ export const ALL_FEATURES: Feature[] = [
   'agentic-structured',
   'agentic-structured-stream',
   'multimodal-image',
+  'multimodal-document',
   'multimodal-structured',
   'summarize',
   'summarize-stream',

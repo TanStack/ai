@@ -28,6 +28,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
 | reasoning                | 3         | `tests/reasoning.spec.ts`                |
 | multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
+| multimodal-document      | 1         | `tests/multimodal-document.spec.ts`      |
 | multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |
 | summarize                | 6         | `tests/summarize.spec.ts`                |
 | summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |

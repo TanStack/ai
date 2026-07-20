@@ -13,11 +13,13 @@ interface ChatUIProps {
   isLoading: boolean
   onSendMessage: (text: string) => void
   onSendMessageWithImage?: (text: string, file: File) => void
+  onSendMessageWithDocument?: (text: string, file: File) => void
   addToolApprovalResponse?: (response: {
     id: string
     approved: boolean
   }) => Promise<void>
   showImageInput?: boolean
+  showDocumentInput?: boolean
   onStop?: () => void
   /** When the streaming structured-output CUSTOM event lands, the page
    *  exposes the parsed object here so e2e tests can assert that the event
@@ -40,8 +42,10 @@ export function ChatUI({
   isLoading,
   onSendMessage,
   onSendMessageWithImage,
+  onSendMessageWithDocument,
   addToolApprovalResponse,
   showImageInput,
+  showDocumentInput,
   onStop,
   structuredObject,
   contentDeltaCount,
@@ -252,6 +256,23 @@ export function ChatUI({
               const text = (inputRef.current?.value ?? input).trim()
               if (file && text && onSendMessageWithImage) {
                 onSendMessageWithImage(text, file)
+                setInput('')
+              }
+            }}
+          />
+        )}
+        {showDocumentInput && (
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            data-testid="document-attachment-input"
+            className="text-xs text-gray-400"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              // Same DOM-value read as the image input above.
+              const text = (inputRef.current?.value ?? input).trim()
+              if (file && text && onSendMessageWithDocument) {
+                onSendMessageWithDocument(text, file)
                 setInput('')
               }
             }}

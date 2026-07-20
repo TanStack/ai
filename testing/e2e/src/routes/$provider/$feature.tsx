@@ -223,6 +223,7 @@ function ChatFeature({
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
     feature === 'multimodal-image' || feature === 'multimodal-structured'
+  const showDocumentInput = feature === 'multimodal-document'
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
@@ -388,10 +389,36 @@ function ChatFeature({
               }
             : undefined
         }
+        onSendMessageWithDocument={
+          showDocumentInput
+            ? (text, file) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(',')[1]
+                  sendMessage({
+                    content: [
+                      { type: 'text', content: text },
+                      {
+                        type: 'document',
+                        source: {
+                          type: 'data',
+                          value: base64,
+                          mimeType: file.type,
+                        },
+                        metadata: { filename: file.name },
+                      },
+                    ],
+                  })
+                }
+                reader.readAsDataURL(file)
+              }
+            : undefined
+        }
         addToolApprovalResponse={
           needsApproval ? addToolApprovalResponse : undefined
         }
         showImageInput={showImageInput}
+        showDocumentInput={showDocumentInput}
         onStop={stop}
       />
     </>
