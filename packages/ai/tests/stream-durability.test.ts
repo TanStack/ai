@@ -110,9 +110,12 @@ describe('memoryStream', () => {
     await producer.close()
 
     const joiner = memoryStream(
-      new Request('https://example.test/api/chat?runId=run-from-header&offset=-1', {
-        method: 'GET',
-      }),
+      new Request(
+        'https://example.test/api/chat?runId=run-from-header&offset=-1',
+        {
+          method: 'GET',
+        },
+      ),
     )
     expect(await readLabels(joiner.read('-1'))).toEqual(['h1', 'h2'])
   })

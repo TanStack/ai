@@ -144,9 +144,9 @@ describe('resumable SSE connection adapter', () => {
     expect(String(fetchClient.mock.calls[0]![0])).toBe(
       '/api/chat?provider=openai&runId=stale#response',
     )
-    expect(new Headers(fetchClient.mock.calls[0]![1]?.headers).get('X-Run-Id')).toBe(
-      'current',
-    )
+    expect(
+      new Headers(fetchClient.mock.calls[0]![1]?.headers).get('X-Run-Id'),
+    ).toBe('current')
   })
 
   it('joinRun opens the stream from the start with ?offset=-1', async () => {
