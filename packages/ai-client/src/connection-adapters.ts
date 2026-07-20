@@ -1792,14 +1792,30 @@ export function webSocket(
       return (async function* () {
         try {
           while (!abortSignal?.aborted) {
+            // Drain buffered chunks before ever awaiting a new promise — a
+            // fatal drop that lands while chunks are still queued (fail()
+            // finds no pending waiter, since the consumer hasn't caught up
+            // to its buffer yet) must not be lost.
             const buffered = queue.shift()
-            const chunk =
-              buffered ??
-              (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
-            if (chunk === null) {
-              if (failure !== undefined) throw failure
-              return
+            if (buffered !== undefined) {
+              yield buffered
+              continue
             }
+            // Buffer exhausted: surface a failure recorded while we were
+            // draining, rather than awaiting a promise that will never
+            // resolve (the connection is dead — no future push/fail).
+            if (failure !== undefined) throw failure
+            const chunk = await new Promise<StreamChunk | null>((r) =>
+              waiters.push(r),
+            )
+            // The wait resolved because fail() woke us — surface the error
+            // instead of treating the null sentinel as a clean end. TS narrows
+            // `failure` to `undefined` from the check above and doesn't know
+            // the `fail()` closure can reassign it while we were awaiting —
+            // this check is very much still reachable.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            if (failure !== undefined) throw failure
+            if (chunk === null) return
             yield chunk
           }
         } finally {
@@ -1857,13 +1873,30 @@ export function webSocket(
       return (async function* () {
         try {
           while (!abortSignal?.aborted) {
-            const c =
-              chunks.shift() ??
-              (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
-            if (c === null) {
-              if (failure !== undefined) throw failure
-              return
+            // Drain buffered chunks before ever awaiting a new promise — a
+            // fatal drop that lands while chunks are still queued (fail()
+            // finds no pending waiter, since the consumer hasn't caught up
+            // to its buffer yet) must not be lost.
+            const buffered = chunks.shift()
+            if (buffered !== undefined) {
+              yield buffered
+              continue
             }
+            // Buffer exhausted: surface a failure recorded while we were
+            // draining, rather than awaiting a promise that will never
+            // resolve (the connection is dead — no future push/fail).
+            if (failure !== undefined) throw failure
+            const c = await new Promise<StreamChunk | null>((r) =>
+              waiters.push(r),
+            )
+            // The wait resolved because fail() woke us — surface the error
+            // instead of treating the null sentinel as a clean end. TS narrows
+            // `failure` to `undefined` from the check above and doesn't know
+            // the `fail()` closure can reassign it while we were awaiting —
+            // this check is very much still reachable.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            if (failure !== undefined) throw failure
+            if (c === null) return
             yield c
           }
         } finally {

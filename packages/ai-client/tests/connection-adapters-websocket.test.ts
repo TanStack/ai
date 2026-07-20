@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { webSocket } from '../src/connection-adapters'
+import { StreamReconnectLimitError, webSocket } from '../src/connection-adapters'
 
 // Minimal fake WebSocket (constructor-compatible with the WHATWG shape).
 class FakeWebSocket {
@@ -44,6 +44,42 @@ function drain(
       sink.push(c)
     }
   })()
+}
+
+/** Let queued microtasks (and delayMs: 0 reconnect delays) settle. */
+function tick(): Promise<void> {
+  return new Promise((r) => setTimeout(r, 0))
+}
+
+/**
+ * Drain an async iterator to completion, collecting yielded values. Used
+ * (instead of `drain()`) where the test needs the returned promise to REJECT
+ * when the generator throws, rather than swallowing it.
+ */
+async function drainToEnd(
+  iter: AsyncIterator<any>,
+): Promise<Array<any>> {
+  const received: Array<any> = []
+  for (;;) {
+    const { value, done } = await iter.next()
+    if (done) return received
+    received.push(value)
+  }
+}
+
+/**
+ * Race a promise against a bounded timeout so a regression that hangs the
+ * generator (instead of rejecting it) fails the test loudly rather than
+ * hanging the whole suite.
+ */
+function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeoutId)),
+    new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(message)), 1000)
+    }),
+  ])
 }
 
 describe('webSocket() subscribe/send', () => {
@@ -217,5 +253,119 @@ describe('webSocket() reconnect', () => {
       'b',
       'RUN_FINISHED',
     ])
+  })
+})
+
+describe('webSocket() fatal drop surfacing', () => {
+  it('a non-durable drop (no offset ever seen) rejects subscribe() with StreamReadError and does not reconnect', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const ac = new AbortController()
+    // Use the raw iterator (not the `drain` helper) so the promise driving
+    // consumption REJECTS when the generator throws — `drain`'s for-await
+    // would also reject the same way, but we want an explicit iterator to
+    // control exactly when `.next()` is pulled relative to the drop below.
+    const iter = conn.subscribe(ac.signal)[Symbol.asyncIterator]()
+
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      { threadId: 't', runId: 'r' },
+    )
+    const ws = FakeWebSocket.instances[0]
+    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    await tick()
+
+    // Bare chunk — NO id envelope, so no durable offset is ever tracked.
+    // This chunk lands in the sink's buffer (queue) BEFORE the consumer has
+    // pulled anything via .next(), reproducing the real chat-client shape
+    // (chunks can arrive well before the consumer's next await).
+    ws.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 })
+    await tick()
+
+    // Fatal drop: no lastEventId was ever observed, so `onclose` fails the
+    // run immediately instead of attempting a reconnect.
+    ws.close()
+
+    const result = await withTimeout(
+      drainToEnd(iter),
+      'subscribe() hung instead of rejecting after a non-durable drop — the ' +
+        'fatal failure was recorded but never surfaced to the consumer',
+    )
+      .then((received) => ({ received, error: undefined as unknown }))
+      .catch((error: unknown) => ({ received: undefined, error }))
+
+    // The buffered chunk delivered before the drop must still be observed —
+    // the fix drains the buffer before checking for a recorded failure.
+    expect(result.error).toBeDefined()
+    expect((result.error as Error).name).toBe('StreamReadError')
+
+    // No reconnect: a non-durable stream has no offset to resume from.
+    expect(FakeWebSocket.instances.length).toBe(1)
+  })
+
+  it('exceeding the reconnect ceiling on a durable run with no forward progress rejects subscribe() with StreamReconnectLimitError', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+      reconnect: { delayMs: 0, maxAttempts: 2 },
+    })
+    const ac = new AbortController()
+    const iter = conn.subscribe(ac.signal)[Symbol.asyncIterator]()
+
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      { threadId: 't', runId: 'run-stuck' },
+    )
+    const ws1 = FakeWebSocket.instances[0]
+    if (!ws1) throw new Error('expected a FakeWebSocket instance to have been created')
+    await tick()
+
+    // One durable chunk establishes an offset (and makes progress, resetting
+    // the no-progress counter), then the socket drops — this reconnect is
+    // legitimate and does not count against the ceiling.
+    ws1.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    await tick()
+    ws1.close()
+    await tick()
+
+    // From here on, every reconnect opens a socket that drops immediately
+    // with NO new chunk — no forward progress — which is exactly what the
+    // ceiling bounds. With maxAttempts: 2, the 3rd consecutive no-progress
+    // close must exceed it.
+    const ws2 = FakeWebSocket.instances[1]
+    if (!ws2) throw new Error('expected a second FakeWebSocket instance (post-drop reconnect)')
+    ws2.close() // no-progress attempt 1 (1 <= 2, reconnects again)
+    await tick()
+
+    const ws3 = FakeWebSocket.instances[2]
+    if (!ws3) throw new Error('expected a third FakeWebSocket instance')
+    ws3.close() // no-progress attempt 2 (2 <= 2, reconnects again)
+    await tick()
+
+    const ws4 = FakeWebSocket.instances[3]
+    if (!ws4) throw new Error('expected a fourth FakeWebSocket instance')
+    ws4.close() // no-progress attempt 3 (3 > 2, ceiling exceeded)
+    await tick()
+
+    const result = await withTimeout(
+      drainToEnd(iter),
+      'subscribe() hung instead of rejecting once the reconnect ceiling was exceeded',
+    )
+      .then((received) => ({ received, error: undefined as unknown }))
+      .catch((error: unknown) => ({ received: undefined, error }))
+
+    expect(result.error).toBeDefined()
+    expect(result.error).toBeInstanceOf(StreamReconnectLimitError)
+
+    // Every reconnect attempt actually opened a fresh socket (4 total: the
+    // original send() connection plus 3 reconnects), confirming the ceiling
+    // was reached via genuine no-progress reconnects, not a shortcut.
+    expect(FakeWebSocket.instances.length).toBe(4)
   })
 })
