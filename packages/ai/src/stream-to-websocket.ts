@@ -259,3 +259,73 @@ export function resumeWebSocketStream<TOffset extends string = string>(
     }
   })
 }
+
+interface WebSocketPairCtor {
+  new (): { 0: unknown; 1: WebSocketLike & { accept?: () => void } }
+}
+
+function upgradeOrThrow(helper: string): {
+  client: unknown
+  server: WebSocketLike
+} {
+  const Pair = (globalThis as { WebSocketPair?: WebSocketPairCtor })
+    .WebSocketPair
+  if (!Pair) {
+    throw new Error(
+      `${helper} requires a runtime with WebSocketPair (Cloudflare Workers/Durable Objects). ` +
+        `On other runtimes upgrade the socket yourself and call ${helper.replace('Response', 'Stream')}.`,
+    )
+  }
+  const pair = new Pair()
+  const server = pair[1]
+  server.accept?.()
+  return { client: pair[0], server }
+}
+
+function upgradeResponse(client: unknown): Response {
+  return new Response(null, {
+    status: 101,
+    // Cloudflare-specific field; typed loosely to avoid a DOM lib dependency.
+    webSocket: client,
+  } as ResponseInit & { webSocket: unknown })
+}
+
+/**
+ * Cloudflare/Deno wrapper: creates a `WebSocketPair`, accepts the server
+ * socket, delegates to {@link toWebSocketStream}, and returns the 101
+ * upgrade `Response` carrying the client socket. Throws when the runtime has
+ * no `WebSocketPair` (e.g. Node) — upgrade the socket yourself and call
+ * {@link toWebSocketStream} directly there.
+ */
+export function toWebSocketResponse<TOffset extends string = string>(
+  request: Request,
+  init: WebSocketStreamInit<TOffset>,
+): Response {
+  const { client, server } = upgradeOrThrow('toWebSocketResponse')
+  toWebSocketStream(server, request, init)
+  return upgradeResponse(client)
+}
+
+/**
+ * Cloudflare/Deno wrapper: creates a `WebSocketPair`, accepts the server
+ * socket, delegates to {@link resumeWebSocketStream}, and returns the 101
+ * upgrade `Response` carrying the client socket. Throws when the runtime has
+ * no `WebSocketPair` (e.g. Node) — upgrade the socket yourself and call
+ * {@link resumeWebSocketStream} directly there.
+ */
+export function resumeWebSocketResponse<TOffset extends string = string>(
+  // Unused: kept so the signature mirrors `toWebSocketResponse` (both take
+  // the upgrade `Request` first) even though the resume path only needs the
+  // pre-built adapter — the caller already captured the request when
+  // constructing it (e.g. `memoryStream(request)`).
+  _request: Request,
+  options: {
+    adapter: StreamDurability<TOffset>
+    batch?: number
+    debug?: DebugOption
+  },
+): Response {
+  const { client, server } = upgradeOrThrow('resumeWebSocketResponse')
+  resumeWebSocketStream(server, options)
+  return upgradeResponse(client)
+}

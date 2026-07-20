@@ -85,6 +85,22 @@ export {
 export { memoryStream } from './stream-durability'
 export type { MemoryStreamOptions, StreamDurability } from './stream-durability'
 
+// WebSocket transport utilities
+export {
+  toWebSocketStream,
+  toWebSocketResponse,
+  resumeWebSocketStream,
+  resumeWebSocketResponse,
+  encodeWsFrame,
+  decodeWsFrame,
+} from './stream-to-websocket'
+export type {
+  WebSocketLike,
+  WsRunContext,
+  WebSocketStreamInit,
+  InboundFrame,
+} from './stream-to-websocket'
+
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 

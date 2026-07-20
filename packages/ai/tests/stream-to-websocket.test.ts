@@ -4,6 +4,7 @@ import {
   decodeWsFrame,
   encodeWsFrame,
   resumeWebSocketStream,
+  toWebSocketResponse,
   toWebSocketStream,
 } from '../src/stream-to-websocket'
 import { memoryStream } from '../src/stream-durability'
@@ -310,5 +311,15 @@ describe('resumeWebSocketStream', () => {
 
     expect(joiner.closed).toBe(true)
     expect(joiner.closeCode).toBe(1011)
+  })
+})
+
+describe('toWebSocketResponse', () => {
+  it('throws a directive error when WebSocketPair is unavailable', () => {
+    expect(() =>
+      toWebSocketResponse(new Request('https://x/api/chat'), {
+        onRun: () => (async function* () {})(),
+      }),
+    ).toThrow(/WebSocketPair/)
   })
 })
