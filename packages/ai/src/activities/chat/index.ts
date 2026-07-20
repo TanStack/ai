@@ -1815,7 +1815,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1838,7 +1838,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1874,7 +1874,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1897,7 +1897,7 @@ class TextEngine<
           ...(result.input !== undefined && { input: result.input }),
           ...(result.output !== undefined && { output: result.output }),
           ...(result.state !== undefined && { state: result.state }),
-        } as StreamChunk)
+        })
       }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
@@ -2741,7 +2741,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {

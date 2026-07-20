@@ -402,7 +402,7 @@ export class ToolCallManager<
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),
         result: toolResultContent,
         ...(toolResultState !== undefined && { state: toolResultState }),
-      } as ToolCallEndEvent
+      }
 
       // Add tool result message
       toolResults.push({

@@ -1910,15 +1910,15 @@ export type TaggedCustomEvent<T = unknown> =
  * @internal
  */
 type RemapStreamChunkForTools<
-  C,
+  TChunk,
   TTools extends ReadonlyArray<AnyTool>,
-> = C extends { type: 'TOOL_CALL_START' }
+> = TChunk extends { type: 'TOOL_CALL_START' }
   ? DistributedToolCallStart<TTools>
-  : C extends { type: 'TOOL_CALL_END' }
+  : TChunk extends { type: 'TOOL_CALL_END' }
     ? DistributedToolCallEnd<TTools>
-    : C extends { type: 'CUSTOM' }
+    : TChunk extends { type: 'CUSTOM' }
       ? never
-      : C
+      : TChunk
 
 export type TypedStreamChunk<
   TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
