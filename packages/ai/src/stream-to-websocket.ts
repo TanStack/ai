@@ -1,4 +1,4 @@
-import type { StreamChunk } from './types'
+import type { ModelMessage, StreamChunk, UIMessage } from './types'
 
 /**
  * The minimal WHATWG WebSocket surface the core needs. Cloudflare
@@ -49,4 +49,36 @@ export function decodeWsFrame(data: string): InboundFrame {
     return { kind: 'abort', runId: (parsed as { runId: string }).runId }
   }
   return { kind: 'run', input: parsed }
+}
+
+/** Per-turn context for one inbound `run` frame on a conversation-scoped socket. */
+export interface WsRunContext {
+  messages: Array<ModelMessage> | Array<UIMessage>
+  threadId: string
+  runId: string
+  forwardedProps?: Record<string, unknown>
+  /** Non-null when this socket opened as a reconnect (carried `?offset`). */
+  resumeOffset: string | null
+  /** Synthetic per-turn request carrying `?runId=` so durability keys correctly. */
+  request: Request
+  /** Aborts on socket close or an `abort` control frame for this run. */
+  signal: AbortSignal
+}
+
+/**
+ * Build the synthetic per-turn request. A conversation-scoped socket multiplexes
+ * many runs; each turn's durability adapter must key on the frame's `runId`,
+ * which we carry in the URL query (`memoryStream`/`durableStream` already read
+ * `?runId` / `?offset` there). Headers are copied from the handshake so
+ * auth/cookies survive.
+ */
+export function buildTurnRequest(
+  handshake: Request,
+  runId: string,
+  offset: string | null,
+): Request {
+  const url = new URL(handshake.url)
+  url.searchParams.set('runId', runId)
+  if (offset !== null) url.searchParams.set('offset', offset)
+  return new Request(url, { headers: handshake.headers })
 }

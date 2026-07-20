@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { decodeWsFrame, encodeWsFrame } from '../src/stream-to-websocket'
+import {
+  buildTurnRequest,
+  decodeWsFrame,
+  encodeWsFrame,
+} from '../src/stream-to-websocket'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
 
@@ -69,5 +73,27 @@ describe('FakeSocket double', () => {
     socket.emitMessage('b')
     expect(socket.sent).toEqual(['a'])
     expect(received).toEqual(['b'])
+  })
+})
+
+describe('buildTurnRequest', () => {
+  it('keys the synthetic request by runId and preserves headers', () => {
+    const handshake = new Request('https://x/api/chat', {
+      headers: { authorization: 'Bearer t' },
+    })
+    const req = buildTurnRequest(handshake, 'run-9', null)
+    const url = new URL(req.url)
+    expect(url.searchParams.get('runId')).toBe('run-9')
+    expect(url.searchParams.get('offset')).toBeNull()
+    expect(req.headers.get('authorization')).toBe('Bearer t')
+  })
+
+  it('adds ?offset on a reconnect', () => {
+    const req = buildTurnRequest(
+      new Request('https://x/api/chat'),
+      'run-9',
+      'off-3',
+    )
+    expect(new URL(req.url).searchParams.get('offset')).toBe('off-3')
   })
 })
