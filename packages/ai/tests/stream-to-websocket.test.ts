@@ -3,9 +3,11 @@ import {
   buildTurnRequest,
   decodeWsFrame,
   encodeWsFrame,
+  toWebSocketStream,
 } from '../src/stream-to-websocket'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
+import type { StreamChunk } from '../src/types'
 
 describe('ws frame codec', () => {
   it('encodes a durable frame as an { id, chunk } envelope', () => {
@@ -95,5 +97,49 @@ describe('buildTurnRequest', () => {
       'off-3',
     )
     expect(new URL(req.url).searchParams.get('offset')).toBe('off-3')
+  })
+})
+
+function inputFrame(runId: string): string {
+  return JSON.stringify({
+    threadId: 'thread-1',
+    runId,
+    messages: [{ id: 'u1', role: 'user', content: 'hi' }],
+    tools: [],
+    context: [],
+    forwardedProps: {},
+    state: {},
+  })
+}
+
+async function flush(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 0))
+  await new Promise((r) => setTimeout(r, 0))
+}
+
+describe('toWebSocketStream (non-durable)', () => {
+  it('pumps onRun chunks as bare frames and keeps the socket open', async () => {
+    const socket = new FakeSocket()
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.runStarted(runId, threadId)
+          yield ev.textContent('a')
+          yield {
+            type: 'RUN_FINISHED',
+            runId,
+            threadId,
+            model: 'm',
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          } as StreamChunk
+        })(),
+    })
+    socket.emitMessage(inputFrame('run-1'))
+    await flush()
+
+    const types = socket.sent.map((s) => JSON.parse(s).type)
+    expect(types).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+    expect(socket.closed).toBe(false) // conversation-scoped: stays open
   })
 })

@@ -1,3 +1,6 @@
+import { chatParamsFromRequestBody } from './utilities/chat-params'
+import type { StreamDurability } from './stream-durability'
+import type { DebugOption } from './logger/types'
 import type { ModelMessage, StreamChunk, UIMessage } from './types'
 
 /**
@@ -81,4 +84,59 @@ export function buildTurnRequest(
   url.searchParams.set('runId', runId)
   if (offset !== null) url.searchParams.set('offset', offset)
   return new Request(url, { headers: handshake.headers })
+}
+
+export interface WebSocketStreamInit<TOffset extends string = string> {
+  /** Build a fresh chat() stream for each inbound RunAgentInput frame. */
+  onRun: (ctx: WsRunContext) => AsyncIterable<StreamChunk>
+  /** Per-TURN durability factory, keyed by the frame's runId via ctx.request. */
+  durability?: (ctx: WsRunContext) => StreamDurability<TOffset>
+  /** Chunks buffered per durability append (default 32). */
+  batch?: number
+  /** Heartbeat ping interval in ms (default 30_000). */
+  heartbeatMs?: number
+  /** Close after this many ms without any inbound frame (default 300_000). */
+  idleTimeoutMs?: number
+  debug?: DebugOption
+}
+
+/**
+ * Run a full-duplex, conversation-scoped chat over an already-accepted server
+ * socket. Each inbound RunAgentInput frame starts one chat() turn (via onRun)
+ * whose chunks are pumped back as frames; the socket stays open across turns
+ * (pending client-tool resubmit, next user message) until close/abort/idle.
+ */
+export function toWebSocketStream<TOffset extends string = string>(
+  socket: WebSocketLike,
+  request: Request,
+  init: WebSocketStreamInit<TOffset>,
+): void {
+  socket.addEventListener('message', (event: { data: unknown }) => {
+    if (typeof event.data !== 'string') return
+    void handleInbound(String(event.data))
+  })
+
+  async function handleInbound(data: string): Promise<void> {
+    const frame = decodeWsFrame(data)
+    if (frame.kind !== 'run') return // abort handled in a later task
+    const params = await chatParamsFromRequestBody(frame.input)
+    const turnAbort = new AbortController()
+    const ctx: WsRunContext = {
+      // chatParamsFromRequestBody returns a single array that may mix
+      // UIMessage/ModelMessage per-element; WsRunContext expects one
+      // homogeneous array type. The runtime shape is already consistent
+      // (all elements come from the same parsed request), so this is a
+      // safe narrowing, matching the existing `chat/index.ts` precedent.
+      messages: params.messages as Array<ModelMessage> | Array<UIMessage>,
+      threadId: params.threadId,
+      runId: params.runId,
+      forwardedProps: params.forwardedProps,
+      resumeOffset: null,
+      request: buildTurnRequest(request, params.runId, null),
+      signal: turnAbort.signal,
+    }
+    for await (const chunk of init.onRun(ctx)) {
+      socket.send(encodeWsFrame(chunk, undefined))
+    }
+  }
 }
