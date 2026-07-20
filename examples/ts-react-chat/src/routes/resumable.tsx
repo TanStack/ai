@@ -37,8 +37,8 @@ function ResumablePage() {
         records each chunk and exposes a GET replay handler, a dropped or
         rolled-over connection reconnects and resumes the same response
         automatically, with no client code beyond <code>useChat</code>. Send a
-        message, then kill the network for a moment: the stream picks up where it
-        left off instead of restarting the model.
+        message, then kill the network for a moment: the stream picks up where
+        it left off instead of restarting the model.
       </p>
 
       <div style={{ margin: '12px 0', color: '#888', fontSize: 13 }}>
@@ -66,7 +66,10 @@ function ResumablePage() {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{ marginTop: 16, display: 'flex', gap: 8 }}
+      >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
