@@ -3,17 +3,17 @@
   "maintainers": [
     {
       "github": "tombeckenham",
-      "discord": null,
+      "discord": "1095938354018799666",
       "maxOpenAssignments": 10
     },
     {
       "github": "AlemTuzlak",
-      "discord": null,
+      "discord": "230092827684634625",
       "maxOpenAssignments": 15
     },
     {
       "github": "jherr",
-      "discord": null,
+      "discord": "501863722948624385",
       "maxOpenAssignments": 8
     }
   ],
@@ -26,6 +26,10 @@
     "maxAccountAgeDays": 30,
     "maxChangedLines": 30
   },
-  "botAllowlist": ["renovate", "dependabot", "github-actions"],
+  "botAllowlist": [
+    "renovate",
+    "dependabot",
+    "github-actions"
+  ],
   "maxCommentsPerRun": 25
 }
