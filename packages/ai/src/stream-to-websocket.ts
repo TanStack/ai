@@ -195,7 +195,59 @@ export function toWebSocketStream<TOffset extends string = string>(
         }
       }
     } finally {
-      activeTurns.delete(params.runId)
+      // Only delete if this turn still owns the entry: a duplicate in-flight
+      // runId (e.g. a client resubmitting before the first turn finished)
+      // would otherwise let the OLDER turn's cleanup delete the NEWER turn's
+      // still-active controller (TOCTOU).
+      if (activeTurns.get(params.runId) === turnAbort) {
+        activeTurns.delete(params.runId)
+      }
     }
   }
+}
+
+/**
+ * A resume is served entirely from the durability log, so there is no
+ * producer to iterate. This empty source satisfies `durableStreamSource`'s
+ * signature; on a resume it replays from the log and never touches this.
+ * Mirrors the private helper of the same name in `stream-to-response.ts`.
+ */
+function emptyDurableSource(): AsyncIterable<StreamChunk> {
+  return (async function* () {})()
+}
+
+/**
+ * Read-only replay of a run's durability log over a socket (mirrors
+ * `resumeServerSentEventsResponse`). The adapter captures the offset from the
+ * request (`?offset`/`Last-Event-ID`); no model runs. Closes 1008 when there
+ * is nothing to resume.
+ */
+export function resumeWebSocketStream<TOffset extends string = string>(
+  socket: WebSocketLike,
+  options: {
+    adapter: StreamDurability<TOffset>
+    batch?: number
+    debug?: DebugOption
+  },
+): void {
+  if (options.adapter.resumeFrom() === null) {
+    socket.close(1008, 'no resume offset')
+    return
+  }
+  const abortController = new AbortController()
+  socket.addEventListener('close', () => abortController.abort())
+  const { source, getId } = durableStreamSource(
+    emptyDurableSource(),
+    options.adapter,
+    {
+      abortController,
+      ...(options.batch === undefined ? {} : { batch: options.batch }),
+      logger: resolveDebugOption(options.debug),
+    },
+  )
+  void (async () => {
+    for await (const chunk of source) {
+      socket.send(encodeWsFrame(chunk, getId(chunk)))
+    }
+  })()
 }

@@ -3,6 +3,7 @@ import {
   buildTurnRequest,
   decodeWsFrame,
   encodeWsFrame,
+  resumeWebSocketStream,
   toWebSocketStream,
 } from '../src/stream-to-websocket'
 import { memoryStream } from '../src/stream-durability'
@@ -244,5 +245,48 @@ describe('toWebSocketStream lifecycle', () => {
     await flush()
     const types = socket.sent.map((s) => JSON.parse(s).type)
     expect(types).toEqual(['RUN_STARTED'])
+  })
+})
+
+describe('resumeWebSocketStream', () => {
+  it('replays a completed run from the log without running a model', async () => {
+    // Produce a run into the shared memory log first.
+    const producer = new FakeSocket()
+    toWebSocketStream(producer, new Request('https://x/api/chat'), {
+      durability: (ctx) => memoryStream(ctx.request),
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.textContent('a')
+          yield {
+            type: 'RUN_FINISHED',
+            runId,
+            threadId,
+            model: 'm',
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          } as StreamChunk
+        })(),
+    })
+    producer.emitMessage(inputFrame('run-join'))
+    await flush()
+
+    // Join from the start via a read-only replay socket.
+    const joiner = new FakeSocket()
+    const joinReq = new Request('https://x/api/chat?runId=run-join&offset=-1')
+    resumeWebSocketStream(joiner, { adapter: memoryStream(joinReq) })
+    await flush()
+
+    const chunkTypes = joiner.sent.map((s) => JSON.parse(s).chunk.type)
+    expect(chunkTypes).toEqual(['TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+  })
+
+  it('closes with 1008 when no offset is present', async () => {
+    const joiner = new FakeSocket()
+    resumeWebSocketStream(joiner, {
+      adapter: memoryStream(new Request('https://x/api/chat')),
+    })
+    await flush()
+    expect(joiner.closed).toBe(true)
+    expect(joiner.closeCode).toBe(1008)
   })
 })
