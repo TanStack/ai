@@ -1,5 +1,20 @@
 import type { StreamChunk } from './types'
 
+/**
+ * The minimal WHATWG WebSocket surface the core needs. Cloudflare
+ * `WebSocketPair` server sockets and Deno sockets already satisfy it; `ws`
+ * (Node) and Bun `ServerWebSocket` get a ~10-line adapter at the call site.
+ */
+export interface WebSocketLike {
+  send: (data: string) => void
+  close: (code?: number, reason?: string) => void
+  addEventListener: (
+    type: 'message' | 'close' | 'error',
+    handler: (ev: any) => void,
+  ) => void
+  readonly bufferedAmount?: number
+}
+
 /** One inbound WS text frame, after JSON parse + shape discrimination. */
 export type InboundFrame =
   | { kind: 'run'; input: unknown }
