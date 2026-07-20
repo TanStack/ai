@@ -2349,6 +2349,13 @@ export class ChatClient<
     id: string // approval.id, not toolCallId
     approved: boolean
   }): Promise<void> {
+    // Reflect the decision on the tool-call part so approval UIs that render
+    // from `part.state` (the deprecated pre-interrupt pattern) clear the prompt
+    // and show the response. The bound interrupt resolution below drives the
+    // actual continuation; this keeps the legacy message-state surface in sync.
+    this.processor.addToolApprovalResponse(response.id, response.approved)
+    this.devtoolsBridge.emitSnapshot()
+
     if (
       this.interruptManager.resolveToolApprovalDecision(
         response.id,

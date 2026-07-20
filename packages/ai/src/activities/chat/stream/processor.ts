@@ -1478,9 +1478,20 @@ export class StreamProcessor {
       const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
 
       if (kind === 'approval' || interrupt.reason === 'approval_required') {
+        // An interrupt terminal arrives after MESSAGES_SNAPSHOT, which may have
+        // rebuilt the message list without the live active-message/tool-call
+        // maps. Fall back to locating the assistant message that actually owns
+        // the tool-call part so the approval UI (part.state) still updates.
         const resolvedMessageId =
           this.getActiveAssistantMessageId() ??
-          this.toolCallToMessage.get(toolCallId)
+          this.toolCallToMessage.get(toolCallId) ??
+          this.messages.find(
+            (m) =>
+              m.role === 'assistant' &&
+              m.parts.some(
+                (p) => p.type === 'tool-call' && p.id === toolCallId,
+              ),
+          )?.id
         if (resolvedMessageId) {
           this.messages = updateToolCallApproval(
             this.messages,

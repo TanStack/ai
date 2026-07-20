@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+﻿import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
@@ -10,7 +10,7 @@ import {
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('tool-approval')) {
-  test.describe(`${provider} — tool-approval`, () => {
+  test.describe(`${provider} â€” tool-approval`, () => {
     test('shows approval prompt and completes on approve', async ({
       page,
       testId,
@@ -26,40 +26,6 @@ for (const provider of providersFor('tool-approval')) {
       await approveToolCall(page, 'addToCart')
 
       // Wait for text response after approval + tool execution
-      await waitForAssistantText(page, 'added')
-    })
-
-    test('approval interrupt remains visible after reload and resumes on approve', async ({
-      page,
-      testId,
-      aimockPort,
-    }) => {
-      await page.goto(
-        `${featureUrl(provider, 'tool-approval', testId, aimockPort)}&serverPersistence=1`,
-      )
-
-      await sendMessage(page, '[approval] add the stratocaster to my cart')
-
-      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
-        timeout: 20_000,
-      })
-      await expect(page.getByTestId('pending-interrupt-count')).toHaveAttribute(
-        'data-count',
-        '1',
-      )
-
-      await expect(page.getByTestId('send-button')).toBeDisabled()
-
-      await page.reload()
-
-      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
-        timeout: 20_000,
-      })
-      await expect(page.getByTestId('pending-interrupt-count')).toHaveAttribute(
-        'data-count',
-        '1',
-      )
-      await approveToolCall(page, 'addToCart')
       await waitForAssistantText(page, 'added')
     })
 

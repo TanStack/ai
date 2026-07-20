@@ -34,7 +34,7 @@ export const Route = createFileRoute('/api/chat')({
           )
         }
 
-        const fp = params.forwardedProps
+        const fp = params.forwardedProps as Record<string, unknown>
         const provider: Provider = (
           typeof fp.provider === 'string' ? fp.provider : 'openai'
         ) as Provider
@@ -85,7 +85,7 @@ export const Route = createFileRoute('/api/chat')({
                   // The route is provider-generic; the metadata type is
                   // adapter-narrowed and only meaningful for Anthropic, so
                   // a single bridge cast lives here at the test entry.
-                   
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any,
               ]
             : [systemPrompt]
@@ -119,6 +119,8 @@ export const Route = createFileRoute('/api/chat')({
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
+                  ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                  ...(params.resume && { resume: params.resume }),
                   outputSchema: guitarRecommendationSchema,
                   stream: true,
                   abortController,
@@ -131,6 +133,8 @@ export const Route = createFileRoute('/api/chat')({
                     messages: params.messages,
                     threadId: params.threadId,
                     runId: params.runId,
+                    ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                    ...(params.resume && { resume: params.resume }),
                     outputSchema: recipeSchema,
                     stream: true,
                     abortController,
@@ -145,6 +149,8 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
+                      ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                      ...(params.resume && { resume: params.resume }),
                       outputSchema: guitarRecommendationSchema,
                       stream: true,
                       abortController,
@@ -158,6 +164,8 @@ export const Route = createFileRoute('/api/chat')({
                       messages: params.messages,
                       threadId: params.threadId,
                       runId: params.runId,
+                      ...(params.parentRunId && { parentRunId: params.parentRunId }),
+                      ...(params.resume && { resume: params.resume }),
                       ...(rootObservabilityMetadata && {
                         metadata: rootObservabilityMetadata,
                       }),

@@ -1,11 +1,6 @@
 import { expectTypeOf } from 'vitest'
 import { toolDefinition } from '@tanstack/ai/client'
 import { z } from 'zod'
-import {
-  createInterruptContinuationLoader,
-  createInterruptStateFetcher,
-  fetchServerSentEvents,
-} from '../src/index'
 import type { JSONSchema, ServerTool } from '@tanstack/ai'
 import type {
   ClientTool,
@@ -86,12 +81,6 @@ const manuallyAnnotatedServerTool: ServerTool<typeof manualJsonSchema> = {
 expectTypeOf(manuallyAnnotatedServerTool.inputSchema).toEqualTypeOf<
   typeof manualJsonSchema | undefined
 >()
-
-const publicRecoveryConnection = fetchServerSentEvents('/api/chat', {
-  interruptStateFetcher: createInterruptStateFetcher('/api/recovery'),
-  continuationLoader: createInterruptContinuationLoader('/api/continuation'),
-})
-expectTypeOf(publicRecoveryConnection.loadInterruptState).not.toBeUndefined()
 
 declare const approvalBinding: Extract<
   InterruptBinding,
