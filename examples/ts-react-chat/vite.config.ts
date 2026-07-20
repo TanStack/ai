@@ -5,6 +5,7 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 import { devtools } from '@tanstack/devtools-vite'
+import { webSocketChatPlugin } from './src/lib/websocket-chat-plugin'
 
 // `dockerode` is a server-only dependency that pulls in optional native addons
 // (`ssh2` → `cpu-features`, a `.node` binary that this install does not compile).
@@ -47,6 +48,7 @@ const config = defineConfig({
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
   plugins: [
     devtools(),
+    webSocketChatPlugin(),
     nitroV2Plugin({
       externals: {
         external: ['@elevenlabs/elevenlabs-js', ...SERVER_ONLY_NATIVE],
