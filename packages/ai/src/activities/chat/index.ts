@@ -1360,10 +1360,7 @@ class TextEngine<
 
     // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
     // Emitted after executed results so the stream prefers real results first.
-    const deferredErrorResults = [
-      ...undiscoveredLazyResults,
-      ...skippedResults,
-    ]
+    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
 
     // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
     // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
