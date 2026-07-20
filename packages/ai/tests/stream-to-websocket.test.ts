@@ -9,6 +9,7 @@ import {
 import { memoryStream } from '../src/stream-durability'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
+import type { StreamDurability } from '../src/stream-durability'
 import type { StreamChunk } from '../src/types'
 
 describe('ws frame codec', () => {
@@ -288,5 +289,26 @@ describe('resumeWebSocketStream', () => {
     await flush()
     expect(joiner.closed).toBe(true)
     expect(joiner.closeCode).toBe(1008)
+  })
+
+  it('closes with 1011 instead of leaking an unhandled rejection when the replay log throws', async () => {
+    const failingAdapter: StreamDurability = {
+      resumeFrom: () => 'off-1',
+      append: () => Promise.resolve([]),
+      // eslint-disable-next-line require-yield
+      read: async function* () {
+        throw new Error('boom')
+      },
+      close: () => Promise.resolve(),
+    }
+    const joiner = new FakeSocket()
+
+    expect(() =>
+      resumeWebSocketStream(joiner, { adapter: failingAdapter, debug: false }),
+    ).not.toThrow()
+    await flush()
+
+    expect(joiner.closed).toBe(true)
+    expect(joiner.closeCode).toBe(1011)
   })
 })

@@ -230,6 +230,7 @@ export function resumeWebSocketStream<TOffset extends string = string>(
     debug?: DebugOption
   },
 ): void {
+  const logger = resolveDebugOption(options.debug)
   if (options.adapter.resumeFrom() === null) {
     socket.close(1008, 'no resume offset')
     return
@@ -242,12 +243,19 @@ export function resumeWebSocketStream<TOffset extends string = string>(
     {
       abortController,
       ...(options.batch === undefined ? {} : { batch: options.batch }),
-      logger: resolveDebugOption(options.debug),
+      logger,
     },
   )
   void (async () => {
     for await (const chunk of source) {
       socket.send(encodeWsFrame(chunk, getId(chunk)))
     }
-  })()
+  })().catch((error: unknown) => {
+    logger.errors('resume websocket replay failed', { error })
+    try {
+      socket.close(1011, 'resume failed')
+    } catch {
+      // socket already closing/closed — nothing to do
+    }
+  })
 }
