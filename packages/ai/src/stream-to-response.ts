@@ -263,7 +263,7 @@ function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
  * returned by the durability adapter for the SSE `id:` line.
  */
-function durableStreamSource<TOffset extends string>(
+export function durableStreamSource<TOffset extends string>(
   stream: AsyncIterable<StreamChunk>,
   durability: StreamDurability<TOffset>,
   options: {

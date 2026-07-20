@@ -1,4 +1,6 @@
 import { chatParamsFromRequestBody } from './utilities/chat-params'
+import { durableStreamSource } from './stream-to-response'
+import { resolveDebugOption } from './logger/resolve'
 import type { StreamDurability } from './stream-durability'
 import type { DebugOption } from './logger/types'
 import type { ModelMessage, StreamChunk, UIMessage } from './types'
@@ -130,8 +132,20 @@ export function toWebSocketStream<TOffset extends string = string>(
       request: buildTurnRequest(request, params.runId, null),
       signal: turnAbort.signal,
     }
-    for await (const chunk of init.onRun(ctx)) {
-      socket.send(encodeWsFrame(chunk, undefined))
+    if (init.durability) {
+      const adapter = init.durability(ctx)
+      const { source, getId } = durableStreamSource(init.onRun(ctx), adapter, {
+        abortController: turnAbort,
+        ...(init.batch === undefined ? {} : { batch: init.batch }),
+        logger: resolveDebugOption(init.debug),
+      })
+      for await (const chunk of source) {
+        socket.send(encodeWsFrame(chunk, getId(chunk)))
+      }
+    } else {
+      for await (const chunk of init.onRun(ctx)) {
+        socket.send(encodeWsFrame(chunk, undefined))
+      }
     }
   }
 }

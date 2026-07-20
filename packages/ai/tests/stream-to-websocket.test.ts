@@ -5,6 +5,7 @@ import {
   encodeWsFrame,
   toWebSocketStream,
 } from '../src/stream-to-websocket'
+import { memoryStream } from '../src/stream-durability'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
 import type { StreamChunk } from '../src/types'
@@ -141,5 +142,37 @@ describe('toWebSocketStream (non-durable)', () => {
     const types = socket.sent.map((s) => JSON.parse(s).type)
     expect(types).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
     expect(socket.closed).toBe(false) // conversation-scoped: stays open
+  })
+})
+
+describe('toWebSocketStream (durable)', () => {
+  it('tags each frame with an { id, chunk } envelope from the durability log', async () => {
+    const socket = new FakeSocket()
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      durability: (ctx) => memoryStream(ctx.request),
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.textContent('a')
+          yield {
+            type: 'RUN_FINISHED',
+            runId,
+            threadId,
+            model: 'm',
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          } as StreamChunk
+        })(),
+    })
+    socket.emitMessage(inputFrame('run-2'))
+    await flush()
+
+    const frames = socket.sent.map((s) => JSON.parse(s))
+    expect(frames.every((f) => typeof f.id === 'string' && 'chunk' in f)).toBe(
+      true,
+    )
+    expect(frames.map((f) => f.chunk.type)).toEqual([
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+    ])
   })
 })
