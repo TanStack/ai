@@ -83,7 +83,7 @@ describe('chat() return type', () => {
 
   describe('StructuredOutputStream assignability', () => {
     it('is assignable to AsyncIterable<StreamChunk> (toServerSentEventsResponse input)', () => {
-      expectTypeOf<StructuredOutputStream<Person>>().toMatchTypeOf<
+      expectTypeOf<StructuredOutputStream<Person>>().toExtend<
         AsyncIterable<StreamChunk>
       >()
     })
@@ -99,7 +99,7 @@ describe('chat() return type', () => {
       expectTypeOf<
         TextActivityResult<undefined, true>
       >().toEqualTypeOf<ChatStream>()
-      expectTypeOf<TextActivityResult<undefined, true>>().toMatchTypeOf<
+      expectTypeOf<TextActivityResult<undefined, true>>().toExtend<
         AsyncIterable<StreamChunk>
       >()
     })

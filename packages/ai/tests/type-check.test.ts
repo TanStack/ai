@@ -159,7 +159,7 @@ describe('TextActivityOptions type checking', () => {
       },
     })
 
-    expectTypeOf(options.adapter).toMatchTypeOf<MockAdapter>()
+    expectTypeOf(options.adapter).toExtend<MockAdapter>()
   })
 
   it('should reject invalid properties on createChatOptions', () => {
@@ -517,7 +517,7 @@ describe('TextActivityOptions type checking', () => {
     registry.add(tool)
 
     const [registeredTool] = registry.getTools()
-    expectTypeOf(registeredTool).toMatchTypeOf<typeof tool | undefined>()
+    expectTypeOf(registeredTool).toExtend<typeof tool | undefined>()
 
     createChatOptions({
       adapter: mockAdapter,
@@ -839,7 +839,7 @@ describe('TypedStreamChunk tool call type safety', () => {
 
       expectTypeOf<ArgsEvent>().not.toBeNever()
       expectTypeOf<ArgsEvent['delta']>().toEqualTypeOf<string>()
-      expectTypeOf<ArgsEvent>().toMatchTypeOf<ToolCallArgsEvent>()
+      expectTypeOf<ArgsEvent>().toExtend<ToolCallArgsEvent>()
     })
   })
 })
@@ -1024,15 +1024,15 @@ describe('backward compatibility', () => {
   it('should make typed events assignable to untyped events', () => {
     expectTypeOf<
       ToolCallStartEvent<'get_weather'>
-    >().toMatchTypeOf<ToolCallStartEvent>()
+    >().toExtend<ToolCallStartEvent>()
     expectTypeOf<
       ToolCallEndEvent<'get_weather', { location: string }>
-    >().toMatchTypeOf<ToolCallEndEvent>()
+    >().toExtend<ToolCallEndEvent>()
   })
 
   it('should make TypedStreamChunk assignable to StreamChunk', () => {
     type Typed = TypedStreamChunk<[typeof weatherTool]>
-    expectTypeOf<Typed>().toMatchTypeOf<StreamChunk>()
+    expectTypeOf<Typed>().toExtend<StreamChunk>()
   })
 
   it('should keep StreamChunk itself unchanged', () => {
