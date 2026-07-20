@@ -64,6 +64,27 @@ export async function sendMessageWithImage(
   }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
 }
 
+export async function sendMessageWithDocument(
+  page: Page,
+  text: string,
+  documentPath: string,
+) {
+  const input = page.getByTestId('chat-input')
+  const fileInput = page.getByTestId('document-attachment-input')
+  const userMessages = page.getByTestId('user-message')
+
+  // Same retry-to-observable-outcome pattern as sendMessageWithImage above.
+  await expect(async () => {
+    await input.click()
+    await input.fill('')
+    await input.pressSequentially(text, { delay: 15 })
+    expect(await input.inputValue()).toBe(text)
+    await fileInput.setInputFiles([])
+    await fileInput.setInputFiles(documentPath)
+    await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
+}
+
 export async function waitForResponse(page: Page, timeout = 15_000) {
   try {
     await page

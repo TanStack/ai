@@ -299,6 +299,7 @@ function ChatFeature({
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
     feature === 'multimodal-image' || feature === 'multimodal-structured'
+  const showDocumentInput = feature === 'multimodal-document'
 
   // Stable tools tuple so `useChat` / `BoundInterrupts` keep approval typing
   // (and ChatUI can accept `interrupts` without casts).
@@ -480,9 +481,38 @@ function ChatFeature({
               }
             : undefined
         }
+        onSendMessageWithDocument={
+          showDocumentInput
+            ? (text, file) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(',')[1]
+                  sendMessage({
+                    content: [
+                      { type: 'text', content: text },
+                      {
+                        type: 'document',
+                        source: {
+                          type: 'data',
+                          value: base64,
+                          mimeType: file.type,
+                        },
+                        metadata: { filename: file.name },
+                      },
+                    ],
+                  })
+                }
+                reader.readAsDataURL(file)
+              }
+            : undefined
+        }
         interrupts={needsApproval ? interrupts : undefined}
         hasPendingInterrupt={interrupts.some((i) => i.status === 'pending')}
+        addToolApprovalResponse={
+          needsApproval ? addToolApprovalResponse : undefined
+        }
         showImageInput={showImageInput}
+        showDocumentInput={showDocumentInput}
         onStop={stop}
       />
     </>

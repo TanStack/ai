@@ -620,6 +620,44 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   })
 
   describe('error handling', () => {
+    it('points document parts at the Responses adapter', async () => {
+      mockCreate = vi.fn()
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', content: 'summarize this' },
+              {
+                type: 'document',
+                source: {
+                  type: 'data',
+                  value: 'JVBERi0xLjQK',
+                  mimeType: 'application/pdf',
+                },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runErrorChunk).toBeDefined()
+      if (runErrorChunk?.type === 'RUN_ERROR') {
+        expect(runErrorChunk.message).toMatch(/Responses adapter/)
+        expect(runErrorChunk.message).toMatch(/document/)
+      }
+      // No request should have been attempted.
+      expect(mockCreate).not.toHaveBeenCalled()
+    })
+
     it('emits RUN_ERROR on stream error', async () => {
       const streamChunks = [
         {
