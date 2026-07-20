@@ -1586,14 +1586,27 @@ export function webSocket(
 } {
   const Impl = options.WebSocketImpl ?? WebSocket
   let socket: WebSocket | undefined
+  // Memoized per-socket open promise. `openOnce` sets `onopen`/`onerror`
+  // exactly ONCE, at socket-creation time, and stores the resulting promise
+  // here. Without this, `waitOpen` assigning `onopen`/`onerror` on every call
+  // would clobber a still-pending prior caller's handlers: `openOnce` reuses
+  // the same in-flight socket for concurrent callers (`readyState <= 1`), so a
+  // second `send()` issued before the handshake completes would overwrite the
+  // first call's handlers and leave its promise permanently unresolved.
+  let openPromise: Promise<void> | undefined
   const listeners = new Set<(chunk: StreamChunk) => void>()
 
   function openOnce(target: string): WebSocket {
     if (socket && socket.readyState <= 1) return socket
-    socket = options.protocols
+    const ws = options.protocols
       ? new Impl(target, options.protocols)
       : new Impl(target)
-    socket.onmessage = (event: MessageEvent) => {
+    socket = ws
+    openPromise = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = (e) => reject(new StreamReadError(e))
+    })
+    ws.onmessage = (event: MessageEvent) => {
       const parsed: unknown = JSON.parse(String(event.data))
       if (
         typeof parsed === 'object' &&
@@ -1607,15 +1620,15 @@ export function webSocket(
         : (parsed as StreamChunk)
       for (const l of listeners) l(chunk)
     }
-    return socket
+    return ws
   }
 
   function waitOpen(ws: WebSocket): Promise<void> {
     if (ws.readyState === 1) return Promise.resolve()
-    return new Promise((resolve, reject) => {
-      ws.onopen = () => resolve()
-      ws.onerror = (e) => reject(new StreamReadError(e))
-    })
+    // Concurrent callers awaiting the SAME in-flight socket share the SAME
+    // memoized promise (set once in `openOnce`), so none of them clobber
+    // another's onopen/onerror handler.
+    return openPromise ?? Promise.resolve()
   }
 
   return {
