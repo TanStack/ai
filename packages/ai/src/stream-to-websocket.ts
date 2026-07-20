@@ -56,7 +56,7 @@ export function decodeWsFrame(data: string): InboundFrame {
 
 /** Per-turn context for one inbound `run` frame on a conversation-scoped socket. */
 export interface WsRunContext {
-  messages: Array<ModelMessage> | Array<UIMessage>
+  messages: Array<UIMessage | ModelMessage>
   threadId: string
   runId: string
   forwardedProps?: Record<string, unknown>
@@ -122,12 +122,7 @@ export function toWebSocketStream<TOffset extends string = string>(
     const params = await chatParamsFromRequestBody(frame.input)
     const turnAbort = new AbortController()
     const ctx: WsRunContext = {
-      // chatParamsFromRequestBody returns a single array that may mix
-      // UIMessage/ModelMessage per-element; WsRunContext expects one
-      // homogeneous array type. The runtime shape is already consistent
-      // (all elements come from the same parsed request), so this is a
-      // safe narrowing, matching the existing `chat/index.ts` precedent.
-      messages: params.messages as Array<ModelMessage> | Array<UIMessage>,
+      messages: params.messages,
       threadId: params.threadId,
       runId: params.runId,
       forwardedProps: params.forwardedProps,
