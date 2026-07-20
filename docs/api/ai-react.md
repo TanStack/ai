@@ -85,7 +85,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
@@ -157,24 +157,6 @@ function that resolves per request.
 
 For error narrowing, import `UnsupportedResponseStreamError` and
 `StreamTruncatedError` from `@tanstack/ai-client`.
-
-## Generation Hooks
-
-React also exports `useGeneration`, `useGenerateImage`, `useGenerateAudio`,
-`useGenerateSpeech`, `useTranscription`, `useSummarize`, and
-`useGenerateVideo`.
-
-Generation hook options include `connection` or `fetcher`, `id`, `body`,
-`persistence`, `autoResume`, `initialResumeSnapshot`, `resumeState`,
-`devtools`, `onResult`, `onError`, `onProgress`, and `onChunk`.
-
-Generation hook returns include `generate`, `result`, `isLoading`, `error`,
-`status`, `stop`, `reset`, `resume`, `resumeSnapshot`, `resumeState`,
-`pendingArtifacts`, and `resultArtifacts`. Video generation also returns
-`jobId` and `videoStatus`.
-
-For the end-to-end persistence setup, see
-[Generation Persistence](../persistence/generation-persistence).
 
 ## Example: Basic Chat
 

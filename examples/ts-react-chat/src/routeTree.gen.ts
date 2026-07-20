@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
-import { Route as SqlitePersistenceRouteImport } from './routes/sqlite-persistence'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as ResumableRouteImport } from './routes/resumable'
@@ -24,7 +23,6 @@ import { Route as InterruptsRouteImport } from './routes/interrupts'
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
-import { Route as DurableInterruptsRouteImport } from './routes/durable-interrupts'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -41,7 +39,6 @@ import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
-import { Route as ApiSqlitePersistentChatRouteImport } from './routes/api.sqlite-persistent-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
@@ -55,7 +52,6 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiInterruptsRouteImport } from './routes/api.interrupts'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
-import { Route as ApiDurableInterruptsRouteImport } from './routes/api.durable-interrupts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -72,11 +68,6 @@ const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
   path: '/threads',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SqlitePersistenceRoute = SqlitePersistenceRouteImport.update({
-  id: '/sqlite-persistence',
-  path: '/sqlite-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
@@ -137,11 +128,6 @@ const ImageGenRoute = ImageGenRouteImport.update({
 const GenerationHooksRoute = GenerationHooksRouteImport.update({
   id: '/generation-hooks',
   path: '/generation-hooks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DurableInterruptsRoute = DurableInterruptsRouteImport.update({
-  id: '/durable-interrupts',
-  path: '/durable-interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
@@ -227,11 +213,6 @@ const ApiStructuredChatRoute = ApiStructuredChatRouteImport.update({
   path: '/api/structured-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSqlitePersistentChatRoute = ApiSqlitePersistentChatRouteImport.update({
-  id: '/api/sqlite-persistent-chat',
-  path: '/api/sqlite-persistent-chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   id: '/api/sandbox-triage',
   path: '/api/sandbox-triage',
@@ -297,11 +278,6 @@ const ApiImageGenRoute = ApiImageGenRouteImport.update({
   path: '/api/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiDurableInterruptsRoute = ApiDurableInterruptsRouteImport.update({
-  id: '/api/durable-interrupts',
-  path: '/api/durable-interrupts',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
   id: '/api/capability-demo',
   path: '/api/capability-demo',
@@ -341,7 +317,6 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
-  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -354,11 +329,9 @@ export interface FileRoutesByFullPath {
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
-  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
-  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -372,7 +345,6 @@ export interface FileRoutesByFullPath {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
-  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -397,7 +369,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
-  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -410,11 +381,9 @@ export interface FileRoutesByTo {
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
-  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
-  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -428,7 +397,6 @@ export interface FileRoutesByTo {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
-  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -454,7 +422,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
-  '/durable-interrupts': typeof DurableInterruptsRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
@@ -467,11 +434,9 @@ export interface FileRoutesById {
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
-  '/sqlite-persistence': typeof SqlitePersistenceRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
-  '/api/durable-interrupts': typeof ApiDurableInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -485,7 +450,6 @@ export interface FileRoutesById {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
-  '/api/sqlite-persistent-chat': typeof ApiSqlitePersistentChatRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -512,7 +476,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/capability-demo'
-    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -525,11 +488,9 @@ export interface FileRouteTypes {
     | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
-    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
-    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -543,7 +504,6 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/resumable'
     | '/api/sandbox-triage'
-    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -568,7 +528,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/capability-demo'
-    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -581,11 +540,9 @@ export interface FileRouteTypes {
     | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
-    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
-    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -599,7 +556,6 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/resumable'
     | '/api/sandbox-triage'
-    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -624,7 +580,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/capability-demo'
-    | '/durable-interrupts'
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
@@ -637,11 +592,9 @@ export interface FileRouteTypes {
     | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
-    | '/sqlite-persistence'
     | '/threads'
     | '/typesafe-tools'
     | '/api/capability-demo'
-    | '/api/durable-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -655,7 +608,6 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/resumable'
     | '/api/sandbox-triage'
-    | '/api/sqlite-persistent-chat'
     | '/api/structured-chat'
     | '/api/structured-output'
     | '/api/summarize'
@@ -681,7 +633,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
-  DurableInterruptsRoute: typeof DurableInterruptsRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
@@ -694,11 +645,9 @@ export interface RootRouteChildren {
   ResumableRoute: typeof ResumableRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
-  SqlitePersistenceRoute: typeof SqlitePersistenceRoute
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
-  ApiDurableInterruptsRoute: typeof ApiDurableInterruptsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiInterruptsRoute: typeof ApiInterruptsRoute
@@ -712,7 +661,6 @@ export interface RootRouteChildren {
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
-  ApiSqlitePersistentChatRoute: typeof ApiSqlitePersistentChatRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -749,13 +697,6 @@ declare module '@tanstack/react-router' {
       path: '/threads'
       fullPath: '/threads'
       preLoaderRoute: typeof ThreadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sqlite-persistence': {
-      id: '/sqlite-persistence'
-      path: '/sqlite-persistence'
-      fullPath: '/sqlite-persistence'
-      preLoaderRoute: typeof SqlitePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/server-fn-chat': {
@@ -840,13 +781,6 @@ declare module '@tanstack/react-router' {
       path: '/generation-hooks'
       fullPath: '/generation-hooks'
       preLoaderRoute: typeof GenerationHooksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/durable-interrupts': {
-      id: '/durable-interrupts'
-      path: '/durable-interrupts'
-      fullPath: '/durable-interrupts'
-      preLoaderRoute: typeof DurableInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/capability-demo': {
@@ -961,13 +895,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStructuredChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sqlite-persistent-chat': {
-      id: '/api/sqlite-persistent-chat'
-      path: '/api/sqlite-persistent-chat'
-      fullPath: '/api/sqlite-persistent-chat'
-      preLoaderRoute: typeof ApiSqlitePersistentChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/sandbox-triage': {
       id: '/api/sandbox-triage'
       path: '/api/sandbox-triage'
@@ -1059,13 +986,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/durable-interrupts': {
-      id: '/api/durable-interrupts'
-      path: '/api/durable-interrupts'
-      fullPath: '/api/durable-interrupts'
-      preLoaderRoute: typeof ApiDurableInterruptsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/capability-demo': {
       id: '/api/capability-demo'
       path: '/api/capability-demo'
@@ -1121,7 +1041,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
-  DurableInterruptsRoute: DurableInterruptsRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
@@ -1134,11 +1053,9 @@ const rootRouteChildren: RootRouteChildren = {
   ResumableRoute: ResumableRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
-  SqlitePersistenceRoute: SqlitePersistenceRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
-  ApiDurableInterruptsRoute: ApiDurableInterruptsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiInterruptsRoute: ApiInterruptsRoute,
@@ -1152,7 +1069,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
-  ApiSqlitePersistentChatRoute: ApiSqlitePersistentChatRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

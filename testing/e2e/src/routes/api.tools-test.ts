@@ -7,10 +7,11 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {TestRuntimeContext} from '@/lib/tools-test-tools';
 import { createTextAdapter } from '@/lib/providers'
 import {
-  getToolsForScenario,
-  type TestRuntimeContext,
+  
+  getToolsForScenario
 } from '@/lib/tools-test-tools'
 
 const runtimeContextScenarios = new Set([
@@ -166,7 +167,7 @@ export const Route = createFileRoute('/api/tools-test')({
           )
         }
 
-        const fp = params.forwardedProps as Record<string, unknown>
+        const fp = params.forwardedProps
         const scenario =
           typeof fp.scenario === 'string' ? fp.scenario : 'text-only'
         const testId: string | undefined =

@@ -1,9 +1,9 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ChatFetcher } from '@tanstack/ai-client'
-import type { StreamChunk } from '@tanstack/ai'
 import { useChat } from '../src/use-chat'
 import { createTextChunks } from './test-utils'
+import type { ChatFetcher } from '@tanstack/ai-client'
+import type { StreamChunk } from '@tanstack/ai'
 
 describe('useChat — fetcher transport', () => {
   it('streams text into messages via an AsyncIterable fetcher', async () => {

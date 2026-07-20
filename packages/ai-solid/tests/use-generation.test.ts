@@ -1,5 +1,6 @@
 import { renderHook } from '@solidjs/testing-library'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -9,7 +10,6 @@ import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
 import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
-import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,
@@ -152,7 +152,7 @@ function createErrorChunks(message: string): Array<StreamChunk> {
       // AGUIEventSchema is `passthrough` so unknown keys are allowed at runtime;
       // the strict TS union still requires a cast on this single chunk.
       error: { message },
-    } as StreamChunk,
+    },
   ]
 }
 

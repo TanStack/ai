@@ -34,7 +34,7 @@ export const Route = createFileRoute('/api/chat')({
           )
         }
 
-        const fp = params.forwardedProps as Record<string, unknown>
+        const fp = params.forwardedProps
         const provider: Provider = (
           typeof fp.provider === 'string' ? fp.provider : 'openai'
         ) as Provider
@@ -85,7 +85,7 @@ export const Route = createFileRoute('/api/chat')({
                   // The route is provider-generic; the metadata type is
                   // adapter-narrowed and only meaningful for Anthropic, so
                   // a single bridge cast lives here at the test entry.
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                   
                 } as any,
               ]
             : [systemPrompt]

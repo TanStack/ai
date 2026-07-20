@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   generateImage,
-  generateVideo,
   generateSpeech,
   generateTranscription,
+  generateVideo,
 } from '../src/index'
 import type { StreamChunk, VideoStatusResult } from '../src/types'
 
@@ -245,7 +245,7 @@ describe('generateVideo({ stream: true })', () => {
       (c) => c.type === 'CUSTOM' && c.name === 'generation:result',
     )
     if (result?.type === 'CUSTOM') {
-      const value = result.value as any
+      const value = result.value
       expect(value.url).toBe('https://example.com/video.mp4')
       expect(value.jobId).toBe('job-123')
       expect(value.status).toBe('completed')

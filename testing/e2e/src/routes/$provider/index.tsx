@@ -1,5 +1,4 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import type { Provider } from '@/lib/types'
 import { ALL_PROVIDERS } from '@/lib/types'
 import { getSupportedFeatures } from '@/lib/feature-support'
 
@@ -8,7 +7,7 @@ export const Route = createFileRoute('/$provider/')({
 })
 
 function ProviderPage() {
-  const { provider } = Route.useParams() as { provider: Provider }
+  const { provider } = Route.useParams()
   const features = getSupportedFeatures(provider)
 
   if (!ALL_PROVIDERS.includes(provider)) {

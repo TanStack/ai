@@ -1,7 +1,7 @@
 // Type-only probe — verifies that UseChatOptions's ChatTransport XOR
 // survives DistributedOmit. These assertions exercise type errors at
 // compile time; the test file body is empty.
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import type { ChatFetcher, ConnectionAdapter } from '@tanstack/ai-client'
 import type { UseChatOptions } from '../src/types'
 

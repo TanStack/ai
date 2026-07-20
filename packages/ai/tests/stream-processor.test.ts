@@ -11,11 +11,11 @@ import {
 } from '../src/interrupts'
 import { EventType } from '../src/types'
 import {
-  createMockAdapter,
-  collectChunks,
-  serverTool,
-  clientTool,
   ev as chatEv,
+  clientTool,
+  collectChunks,
+  createMockAdapter,
+  serverTool,
 } from './test-utils'
 import type { Mock } from 'vitest'
 import type { StreamProcessorEvents } from '../src/activities/chat/stream/processor'
@@ -889,14 +889,14 @@ describe('StreamProcessor', () => {
       processor.processChunk({
         ...ev.stepFinished('First thought', 'step-1'),
         signature: 'sig-step-1',
-      } as StreamChunk)
+      })
       processor.processChunk(ev.stepFinished(' continued', 'step-1'))
 
       processor.processChunk(ev.stepStarted('step-2'))
       processor.processChunk({
         ...ev.stepFinished('Second thought', 'step-2'),
         signature: 'sig-step-2',
-      } as StreamChunk)
+      })
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')

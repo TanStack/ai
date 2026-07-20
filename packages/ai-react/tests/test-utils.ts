@@ -1,14 +1,15 @@
 // Re-export test utilities from ai-client
+import {  renderHook } from '@testing-library/react'
+import { useChat } from '../src/use-chat'
+import type {RenderHookResult} from '@testing-library/react';
+import type { UseChatOptions, UseChatReturn } from '../src/types'
+import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
+
 export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
-
-import { renderHook, type RenderHookResult } from '@testing-library/react'
-import type { UseChatOptions, UseChatReturn } from '../src/types'
-import { useChat } from '../src/use-chat'
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
   const pendingInterrupts = [

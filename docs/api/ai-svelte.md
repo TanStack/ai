@@ -74,7 +74,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `live?` - Enable live subscription mode (subscribes on creation)
@@ -297,12 +297,9 @@ const gen = createGeneration({
 // gen.result, gen.isLoading, gen.error, gen.status
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `persistence?`, `autoResume?`, `initialResumeSnapshot?`, `resumeState?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody`, `dispose`, `resume`, `resumeSnapshot`, `resumeState`, `pendingArtifacts`, `resultArtifacts` -- all state properties are reactive getters.
-
-For the end-to-end persistence setup, see
-[Generation Persistence](../persistence/generation-persistence).
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody` -- all state properties are reactive getters.
 
 ### `createGenerateImage(options)`
 

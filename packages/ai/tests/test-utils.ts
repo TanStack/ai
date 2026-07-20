@@ -147,7 +147,7 @@ export const ev = {
  * `chatStreamFn` receives the options and returns an AsyncIterable of chunks.
  * Multiple invocations can be tracked via the returned `calls` array.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock adapter callbacks receive internal SDK types
+ 
 export function createMockAdapter(options: {
   chatStreamFn?: (opts: any) => AsyncIterable<StreamChunk>
   /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */

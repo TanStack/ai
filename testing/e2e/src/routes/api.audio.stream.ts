@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateAudio, toHttpResponse } from '@tanstack/ai'
-import { createAudioAdapter } from '@/lib/media-providers'
 import type { ElevenLabsAudioModel } from '@tanstack/ai-elevenlabs'
 import type { Feature, Provider } from '@/lib/types'
+import { createAudioAdapter } from '@/lib/media-providers'
 
 // Map ElevenLabs audio model name → feature so the createAudioAdapter
 // factory picks the right model variant. Music vs sound-effects diverge

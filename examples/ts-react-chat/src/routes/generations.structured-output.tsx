@@ -233,7 +233,7 @@ function StructuredOutputPage() {
       payload.value?.object
     ) {
       sawCompleteRef.current = true
-      setResult(payload.value.object as PartialResult)
+      setResult(payload.value.object)
       setHasFinalResult(true)
       if (
         typeof (payload.value as { reasoning?: string }).reasoning === 'string'

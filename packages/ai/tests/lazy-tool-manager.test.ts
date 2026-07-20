@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   DISCOVERY_TOOL_NAME,
   LazyToolManager,
@@ -360,7 +360,7 @@ describe('LazyToolManager', () => {
         },
       ]
 
-      const manager = new LazyToolManager(tools, messages as any)
+      const manager = new LazyToolManager(tools, messages)
 
       const active = manager.getActiveTools()
       const names = active.map((t) => t.name)
@@ -401,7 +401,7 @@ describe('LazyToolManager', () => {
       // Should not throw
       expect(() => new LazyToolManager(tools, messages as any)).not.toThrow()
 
-      const manager = new LazyToolManager(tools, messages as any)
+      const manager = new LazyToolManager(tools, messages)
       // lazyA should still be undiscovered
       expect(manager.isUndiscoveredLazyTool('lazyA')).toBe(true)
     })
@@ -440,7 +440,7 @@ describe('LazyToolManager', () => {
         },
       ]
 
-      const manager = new LazyToolManager(tools, messages as any)
+      const manager = new LazyToolManager(tools, messages)
 
       // removedTool should not appear in discovered set (it's not in lazyToolMap)
       expect(manager.isUndiscoveredLazyTool('removedTool')).toBe(false)

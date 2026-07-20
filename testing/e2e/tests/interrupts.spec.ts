@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+﻿import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 
 function fixtureId(label: string): string {
@@ -165,84 +165,13 @@ test('shows every item error and the root aggregate in one response', async ({
   await expect(page.getByTestId('continuation-count')).toHaveText('1')
 })
 
-test('restores partial staged drafts after a full reload', async ({ page }) => {
-  const testId = fixtureId('interrupt-reload')
-  await startScenario(page, testId, 'partial-draft-reload')
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
-  await page.getByTestId('edited-action').fill('persisted-edit')
-  await page.getByTestId('approve-first').click()
-  await page.getByTestId('generic-draft').fill('{"answer":"persisted"}')
-
-  await page.reload()
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(2)
-  await expect(page.getByTestId('staged-response-first')).toHaveText(
-    '{"approved":true,"editedArgs":{"action":"persisted-edit"}}',
-  )
-  await expect(page.getByTestId('generic-draft')).toHaveValue(
-    '{"answer":"persisted"}',
-  )
-  await expect(page.getByTestId('continuation-count')).toHaveText('0')
-})
-
-test('joins the original continuation after a committed response is truncated', async ({
-  page,
-  request,
-}) => {
-  const testId = fixtureId('interrupt-retry')
-  await startScenario(page, testId, 'commit-then-truncate')
-  await page.getByRole('button', { name: 'Approve', exact: true }).click()
-  await expect(page.getByTestId('retry-banner')).toBeVisible()
-  const committed = await readStats(request, testId)
-  expect(committed).toMatchObject({
-    continuationCount: 1,
-    continuationRunIds: [expect.any(String)],
-    truncatedResponses: 1,
-  })
-  await page.getByTestId('retry-interrupts').click()
-  await expect
-    .poll(async () => (await readStats(request, testId)).replayCount)
-    .toBe(1)
-  const replayStats = await readStats(request, testId)
-  expect(replayStats).toMatchObject({
-    continuationCount: 1,
-    replayCount: 1,
-    truncatedResponses: 1,
-  })
-  expect(replayStats.joinedContinuationRunId).toBe(
-    replayStats.continuationRunIds[0],
-  )
-})
-
-test('reports a two-tab loser as a conflict without a second continuation', async ({
-  context,
-  page,
-}) => {
-  const testId = fixtureId('interrupt-conflict')
-  const url = interruptUrl(testId, 'two-tab-conflict')
-  await page.goto(url)
-  await page.getByTestId('start-run').click()
-  await expect(page.getByTestId('interrupt-card')).toHaveCount(1)
-
-  const secondPage = await context.newPage()
-  await secondPage.goto(url)
-  await expect(secondPage.getByTestId('interrupt-card')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Approve', exact: true }).click()
-  await expect(page.getByTestId('continuation-count')).toHaveText('1')
-  await secondPage.getByRole('button', { name: 'Deny', exact: true }).click()
-  await expect(secondPage.getByTestId('interrupt-errors-root')).toContainText(
-    'conflict',
-  )
-  await expect(secondPage.getByTestId('continuation-count')).toHaveText('1')
-  await secondPage.close()
-})
-
 test('auto-executes the client tool internally and keeps it out of the public interrupts', async ({
   page,
 }) => {
   const testId = fixtureId('interrupt-client-tool')
   await startScenario(page, testId, 'client-tool-and-approval')
   // The client tool has a `.client()` implementation, so it executes
-  // automatically and never appears as a public interrupt — only the approval
+  // automatically and never appears as a public interrupt â€” only the approval
   // is surfaced.
   await expect(
     page.getByTestId('interrupt-kind-client-tool-execution'),

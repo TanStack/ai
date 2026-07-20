@@ -15,10 +15,11 @@ import {
 } from '../src/interrupt-serialization'
 import {
   InterruptPersistenceCapability,
-  canonicalizeInterruptResolutions,
-  type InterruptRecoveryStateV1,
-  type InterruptSubmissionError,
+  
+  
+  canonicalizeInterruptResolutions
 } from '../src/interrupts'
+import type {InterruptRecoveryStateV1, InterruptSubmissionError} from '../src/interrupts';
 import type {
   Interrupt,
   RunAgentResumeItem,

@@ -10,8 +10,8 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { createMCPClient } from '@tanstack/ai-mcp'
-import type { MCPClient } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
+import type { MCPClient } from '@tanstack/ai-mcp'
 import {
   SHOP_PREFIX,
   SHOP_SERVER_PATH,

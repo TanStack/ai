@@ -1,25 +1,26 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
 import { usageAttributes } from '../../src/middlewares/usage-attributes'
+import { ev } from '../test-utils'
 import {
-  createFakeTracer,
+  
   createFakeMeter,
+  createFakeTracer,
   makeCtx,
-  makeToolCall,
-  type FakeSpan,
+  makeToolCall
 } from './fake-otel'
+import type {FakeSpan} from './fake-otel';
 import type { TokenUsage } from '../../src/types'
 import type {
   ChatMiddleware,
-  ChatMiddlewareContext,
   ChatMiddlewareConfig,
+  ChatMiddlewareContext,
 } from '../../src/activities/chat/middleware/types'
 import type {
   GenerationActivity,
   GenerationMiddlewareContext,
 } from '../../src/activities/middleware/types'
-import { ev } from '../test-utils'
 
 /**
  * Build a minimal base GenerationMiddlewareContext for the media-activity unit
@@ -665,7 +666,7 @@ describe('otelMiddleware — captureContent', () => {
     })
 
     const iter = spans[1]!
-    const attr = iter.attributes!['tanstack.ai.system_prompt.metadata']
+    const attr = iter.attributes['tanstack.ai.system_prompt.metadata']
     expect(typeof attr).toBe('string')
     expect(JSON.parse(attr as string)).toEqual([
       null,
@@ -686,7 +687,7 @@ describe('otelMiddleware — captureContent', () => {
 
     const iter = spans[1]!
     expect(
-      iter.attributes!['tanstack.ai.system_prompt.metadata'],
+      iter.attributes['tanstack.ai.system_prompt.metadata'],
     ).toBeUndefined()
   })
 

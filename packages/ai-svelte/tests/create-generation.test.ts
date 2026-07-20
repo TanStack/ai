@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { EventType  } from '@tanstack/ai'
 import { createGeneration } from '../src/create-generation.svelte'
 import { createGenerateImage } from '../src/create-generate-image.svelte'
 import { createGenerateSpeech } from '../src/create-generate-speech.svelte'
@@ -6,8 +7,7 @@ import { createTranscription } from '../src/create-transcription.svelte'
 import { createSummarize } from '../src/create-summarize.svelte'
 import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
-import { EventType, type StreamChunk } from '@tanstack/ai'
-import type { TTSResult, TranscriptionResult } from '@tanstack/ai'
+import type {StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai';
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,

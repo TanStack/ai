@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateAudio } from '@tanstack/ai'
-import { createAudioAdapter } from '@/lib/media-providers'
 import type { Feature, Provider } from '@/lib/types'
+import { createAudioAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/audio')({
   server: {

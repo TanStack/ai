@@ -7,17 +7,17 @@ import {
   provideInterruptPersistence,
 } from '../src/interrupts'
 import { EventType } from '../src/types'
+import {
+  chunk,
+  clientTool,
+  collectChunks,
+  createMockAdapter,
+  ev,
+  serverTool,
+} from './test-utils'
 import type { StreamChunk, Tool, UIMessage } from '../src/types'
 import type { InterruptPersistenceGateway } from '../src/interrupts'
 import type { ChatResumeToolState } from '../src/activities/chat/middleware/types'
-import {
-  chunk,
-  ev,
-  createMockAdapter,
-  collectChunks,
-  serverTool,
-  clientTool,
-} from './test-utils'
 
 /** Lazy server tool (has execute, lazy: true). */
 function lazyServerTool(name: string, executeFn: (args: any) => any): Tool {
@@ -40,7 +40,7 @@ function expectSingleRunFinished(
   return terminals[0]!
 }
 
-function interruptPersistenceMiddleware(sequence?: string[]) {
+function interruptPersistenceMiddleware(sequence?: Array<string>) {
   const gateway: InterruptPersistenceGateway = {
     openInterruptBatch: async (input) => {
       sequence?.push('persist')
@@ -636,7 +636,7 @@ describe('chat()', () => {
     })
 
     it('persists before ordered snapshots and emits canonical bound interrupts', async () => {
-      const sequence: string[] = []
+      const sequence: Array<string> = []
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -754,7 +754,7 @@ describe('chat()', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       expect(structuredOutputSpy).not.toHaveBeenCalled()
@@ -2936,7 +2936,7 @@ describe('chat()', () => {
             {
               ...ev.stepFinished('Need inventory.', 'think-1'),
               signature: 'sig-think-1',
-            } as StreamChunk,
+            },
             ev.toolStart('call_1', 'getInventory'),
             ev.toolArgs('call_1', '{}'),
             ev.runFinished('tool_calls'),

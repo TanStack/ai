@@ -216,7 +216,7 @@ export function useChat<
         setQueue(nextQueue)
       },
       onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setResumeState(nextResumeState)
         setInterruptState((current) => ({
           ...current,
@@ -225,7 +225,7 @@ export function useChat<
         }))
       },
       onInterruptStateChange: (nextInterruptState) => {
-        if (activeClientRef.current !== instance) return
+        if (!getActiveInstance()) return
         setInterruptState(nextInterruptState)
         optionsRef.current.onInterruptStateChange?.(nextInterruptState)
       },

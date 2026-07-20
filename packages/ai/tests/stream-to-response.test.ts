@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  toServerSentEventsStream,
   toServerSentEventsResponse,
+  toServerSentEventsStream,
 } from '../src/stream-to-response'
 import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'

@@ -3,7 +3,7 @@
  * These should fail to compile if the types are incorrect
  */
 
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import {
   createChatOptions,
   createToolRegistry,
@@ -36,14 +36,14 @@ const mockAdapter = {
     providerOptions: {} as { validOption: string; anotherOption?: number },
     inputModalities: ['text', 'image'] as const,
     messageMetadataByModality: {
-      text: undefined as unknown,
-      image: undefined as unknown,
-      audio: undefined as unknown,
-      video: undefined as unknown,
-      document: undefined as unknown,
+      text: undefined,
+      image: undefined,
+      audio: undefined,
+      video: undefined,
+      document: undefined,
     },
     toolCapabilities: [] as ReadonlyArray<string>,
-    toolCallMetadata: undefined as unknown,
+    toolCallMetadata: undefined,
     systemPromptMetadata: undefined as never,
   },
   chatStream: async function* () {},

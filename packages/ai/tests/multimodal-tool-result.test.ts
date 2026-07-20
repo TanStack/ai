@@ -11,8 +11,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat/index'
+import { collectChunks, createMockAdapter, ev, serverTool } from './test-utils'
 import type { StreamChunk } from '../src/types'
-import { ev, createMockAdapter, collectChunks, serverTool } from './test-utils'
 
 // ---------------------------------------------------------------------------
 // Shared ContentPart fixture used across tests

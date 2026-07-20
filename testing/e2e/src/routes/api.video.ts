@@ -5,8 +5,8 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import type { MediaPrompt } from '@tanstack/ai'
-import { createVideoAdapter } from '@/lib/media-providers'
 import type { Feature, Provider } from '@/lib/types'
+import { createVideoAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/video')({
   server: {

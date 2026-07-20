@@ -130,14 +130,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 import { deleteProject } from './tools'
-
-const persistence = sqlitePersistence({
-  url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
-})
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request)
@@ -149,18 +142,16 @@ export async function POST(request: Request) {
     parentRunId: params.parentRunId,
     ...(params.resume ? { resume: params.resume } : {}),
     tools: [deleteProject],
-    middleware: [withChatPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
 }
 ```
 
-Persistence is not required to emit or resolve interrupts. When middleware is
-present, behavior follows the stores on the `AIPersistence` object.
-`interrupts` requires `runs` within that optional durable configuration;
-invalid store combinations fail at compile time when statically known and at
-runtime for untyped JavaScript.
+Persistence is not required to emit or resolve interrupts — the route above is
+the complete ephemeral flow. Durable interrupt persistence is a separate opt-in
+layer added with the persistence middleware and documented with the persistence
+guides.
 
 ## Client state machine
 
@@ -267,17 +258,15 @@ When configured, `withChatPersistence` performs these state transitions:
 | Provider/server error | `failed` | Save the error. |
 | Abort | `interrupted` | Mark the run interrupted. |
 
-Within durable mode, the interrupt store's compare-and-swap is required even
-when a `locks` store is present. Locks reduce contention; they do not replace
-idempotent receipts or database conflict detection. Cloudflare Durable Objects
-can supply locks while D1 supplies messages, runs, and interrupts. See
-[Cloudflare Persistence](../persistence/cloudflare) and
-[Custom stores](../persistence/custom-stores).
+Durable interrupt persistence — atomic compare-and-swap, idempotent receipts,
+and multi-instance coordination — is a separate opt-in layer documented with
+the persistence guides. This page covers the ephemeral interrupt lifecycle,
+which resumes from full client history and requires no persistence.
 
 ## State durability versus delivery durability
 
-Persisted interrupts survive page reloads and server restarts. They do not make
-the live byte stream replayable. Delivery durability is configured on
-`toServerSentEventsResponse` and assigns one opaque SSE id per chunk. It is not
-available for NDJSON. See
-[Delivery Durability](../persistence/delivery-durability).
+Interrupts run ephemerally by default. A separate persistence layer can make
+interrupts survive page reloads and server restarts, but it does not make the
+live byte stream replayable. Delivery durability is configured on
+`toServerSentEventsResponse` and assigns one opaque SSE id per chunk (it is not
+available for NDJSON).

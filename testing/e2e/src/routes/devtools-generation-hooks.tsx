@@ -8,13 +8,13 @@ import {
   useSummarize,
   useTranscription,
 } from '@tanstack/ai-react'
-import { DevtoolsHarness } from '@/components/DevtoolsHarness'
-import { parseDevtoolsRouteSearch } from '@/lib/devtools-test'
 import type {
   AudioGenerationResult,
   ImageGenerationResult,
   TTSResult,
 } from '@tanstack/ai'
+import { DevtoolsHarness } from '@/components/DevtoolsHarness'
+import { parseDevtoolsRouteSearch } from '@/lib/devtools-test'
 
 export const Route = createFileRoute('/devtools-generation-hooks')({
   component: DevtoolsGenerationHooksRoute,

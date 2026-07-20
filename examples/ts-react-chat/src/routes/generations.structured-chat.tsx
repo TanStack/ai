@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {  RecipeSchema } from './api.structured-chat'
+import type {Recipe} from './api.structured-chat';
 import type { StructuredOutputPart } from '@tanstack/ai-client'
-import { RecipeSchema, type Recipe } from './api.structured-chat'
 
 // Structured-output part typed by the schema we passed to `useChat`. Pulled
 // out of the loop's lambda to keep the find() predicate readable.
@@ -239,7 +240,7 @@ function RecipeCard({ part }: { part: RecipePart }) {
   // Read whichever is freshest — they converge once `status === 'complete'`.
   // Both fields are typed via the schema, so `recipe.title` etc. accesses
   // below are checked at compile time.
-  const recipe = part.data ?? part.partial ?? ({} as Partial<Recipe>)
+  const recipe = part.data ?? part.partial ?? ({})
   const streaming = part.status === 'streaming'
   const errored = part.status === 'error'
 

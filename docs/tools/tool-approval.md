@@ -28,10 +28,9 @@ see [Migrate to AG-UI interrupts](../interrupts/migration).
 
 After `approval-responded` the call executes (if approved). Although `complete` exists in the `ToolCallState` union, the runtime never transitions the tool-call part to it — the result surfaces as a populated `part.output` plus a sibling `tool-result` part whose own state is `complete` or `error`.
 
-For approval flows that must survive disconnects, reloads, or process restarts,
-pair approvals with server persistence. See
-[Chat Persistence](../persistence/chat-persistence) for the
-durable `withChatPersistence` path.
+Approvals run ephemerally by default, resuming from the full client message
+history. Making approval flows survive disconnects, reloads, or process
+restarts is a separate opt-in persistence layer.
 
 When a tool requires approval, the typical flow is:
 

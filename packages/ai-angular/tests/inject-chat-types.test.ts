@@ -6,10 +6,11 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import type { Signal } from '@angular/core'
-import { toolDefinition, type AnyClientTool } from '@tanstack/ai'
+import {  toolDefinition } from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
-import { injectChat } from '../src/inject-chat'
+import type {AnyClientTool} from '@tanstack/ai';
+import type { injectChat } from '../src/inject-chat'
+import type { Signal } from '@angular/core'
 import type { DeepPartial, InjectChatResult } from '../src/types'
 
 type Person = { name: string; age: number; email: string }

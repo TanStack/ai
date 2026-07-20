@@ -116,7 +116,7 @@ describe('null tool input normalization', () => {
         type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
         timestamp: Date.now(),
-        input: null as unknown,
+        input: null,
       })
 
       const toolCalls = manager.getToolCalls()

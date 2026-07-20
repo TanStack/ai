@@ -1,15 +1,15 @@
-import type { ModelMessage } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
 import {
-  createMockConnectionAdapter,
   createInterruptResumeSnapshot,
+  createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import type { UIMessage } from '../src/types'
+import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   afterEach(() => {

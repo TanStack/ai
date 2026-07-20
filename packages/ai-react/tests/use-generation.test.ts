@@ -1,5 +1,6 @@
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -14,7 +15,6 @@ import type {
   TTSResult,
   TranscriptionResult,
 } from '@tanstack/ai'
-import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,
@@ -184,7 +184,7 @@ function createErrorChunks(message: string): Array<StreamChunk> {
       // AGUIEventSchema is `passthrough` so unknown keys are allowed at runtime;
       // the strict TS union still requires a cast on this single chunk.
       error: { message },
-    } as StreamChunk,
+    },
   ]
 }
 

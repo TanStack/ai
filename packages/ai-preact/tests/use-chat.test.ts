@@ -1,22 +1,23 @@
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import {
-  ChatClient,
-  type SubscribeConnectionAdapter,
+  ChatClient
+  
 } from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/preact'
 import { StrictMode } from 'preact/compat'
 import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
-  createMockConnectionAdapter,
   createInterruptResumeSnapshot,
+  createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import type {SubscribeConnectionAdapter} from '@tanstack/ai-client';
+import type { UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
 describe('useChat', () => {
   afterEach(() => {

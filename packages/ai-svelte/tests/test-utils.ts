@@ -1,11 +1,11 @@
 // Re-export test utilities from ai-client
+import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
+
 export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
-
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
   const pendingInterrupts = [

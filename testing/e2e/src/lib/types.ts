@@ -45,7 +45,7 @@ export type Feature =
   | 'interactions-video'
   | 'stateful-interactions'
 
-export const ALL_PROVIDERS: Provider[] = [
+export const ALL_PROVIDERS: Array<Provider> = [
   'openai',
   'anthropic',
   'gemini',
@@ -61,7 +61,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'elevenlabs',
 ]
 
-export const ALL_FEATURES: Feature[] = [
+export const ALL_FEATURES: Array<Feature> = [
   'chat',
   'one-shot-text',
   'reasoning',

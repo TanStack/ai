@@ -19,8 +19,8 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
 import { createMCPClients } from '@tanstack/ai-mcp'
+import { resolveTextAdapter } from '@/lib/mcp-providers'
 import {
   everythingTransport,
   memoryTransport,

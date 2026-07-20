@@ -1,17 +1,18 @@
 import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import {
-  toolDefinition,
-  type ApprovalCapabilityOf,
-  type ApprovalSchemaOf,
-  type InferToolInput,
-  type InferToolOutput,
-  type InputSchemaOf,
-  type NoSchema,
-  type RunErrorEvent,
-  type ChatMiddlewareContext,
-  type ChatResumeToolState,
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  toolDefinition
 } from '../src'
+import type {ApprovalCapabilityOf, ApprovalSchemaOf, ChatMiddlewareContext, ChatResumeToolState, InferToolInput, InferToolOutput, InputSchemaOf, NoSchema, RunErrorEvent} from '../src';
 import type { InterruptSubmissionError } from '../src/interrupts'
 
 const transfer = toolDefinition({
@@ -64,7 +65,7 @@ expectTypeOf<InputSchemaOf<typeof noInputClient>>().toEqualTypeOf<NoSchema>()
 expectTypeOf<InputSchemaOf<typeof noInputServer>>().toEqualTypeOf<NoSchema>()
 
 expectTypeOf<RunErrorEvent['tanstack:interruptErrors']>().toEqualTypeOf<
-  readonly InterruptSubmissionError[] | undefined
+  ReadonlyArray<InterruptSubmissionError> | undefined
 >()
 expectTypeOf<ChatMiddlewareContext['parentRunId']>().toEqualTypeOf<
   string | undefined

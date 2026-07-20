@@ -10,9 +10,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createModel, extendAdapter } from '../src/extend-adapter'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
-import type { ExtendedModelDef } from '../src/extend-adapter'
 import { chat } from '../src/activities/chat'
 import { EventType } from '../src/types'
+import type { ExtendedModelDef } from '../src/extend-adapter'
 import type { StreamChunk, TextOptions } from '../src/types'
 import type {
   StructuredOutputOptions,

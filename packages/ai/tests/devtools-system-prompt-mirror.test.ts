@@ -1,4 +1,4 @@
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import type { SystemPrompt } from '../src/system-prompts'
 
 // Mirror of `DevtoolsSystemPrompt` from

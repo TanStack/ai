@@ -114,7 +114,7 @@ function RealtimePage() {
     // a sign of a corrupt file or a browser that couldn't sniff it, and
     // the OpenAI-compatible realtime API requires an explicit mime.
     if (!file.type) {
-      // eslint-disable-next-line no-console
+       
       console.error('[realtime] Cannot send image: file has no MIME type', file)
       window.alert(
         'Could not determine the image type. Please try a different file.',
@@ -125,7 +125,7 @@ function RealtimePage() {
 
     const reader = new FileReader()
     reader.onerror = () => {
-      // eslint-disable-next-line no-console
+       
       console.error('[realtime] FileReader failed', reader.error)
       window.alert(
         `Failed to read image file: ${reader.error?.message ?? 'Unknown error'}`,
@@ -137,7 +137,7 @@ function RealtimePage() {
       // `result` is null on abort/error, and is an ArrayBuffer (not a
       // string) if someone changes the readAs* method later. Guard both.
       if (result == null || typeof result !== 'string') {
-        // eslint-disable-next-line no-console
+         
         console.error('[realtime] FileReader result was not a string', result)
         window.alert('Failed to read image file: unexpected reader output.')
         resetInput()
@@ -150,7 +150,7 @@ function RealtimePage() {
       const parts = result.split(',')
       const base64 = parts[1]
       if (!base64) {
-        // eslint-disable-next-line no-console
+         
         console.error(
           '[realtime] FileReader produced a malformed data URL',
           result.slice(0, 64),

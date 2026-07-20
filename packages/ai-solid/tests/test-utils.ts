@@ -1,16 +1,16 @@
 // Re-export test utilities from ai-client
+import { renderHook } from '@solidjs/testing-library'
+import { useChat } from '../src/use-chat'
+import type { UseChatOptions } from '../src/types'
+
+import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
+
 export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   type MockConnectionAdapterOptions,
 } from '../../ai-client/tests/test-utils'
-
-import { renderHook } from '@solidjs/testing-library'
-import type { UseChatOptions } from '../src/types'
-import { useChat } from '../src/use-chat'
-
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
   const pendingInterrupts = [

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateSpeech, toHttpResponse } from '@tanstack/ai'
-import { createTTSAdapter } from '@/lib/media-providers'
 import type { Provider } from '@/lib/types'
+import { createTTSAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/tts/stream')({
   server: {

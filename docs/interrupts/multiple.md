@@ -116,4 +116,5 @@ expired, submitting, or quarantined for recovery.
 A failed candidate doesn't erase the last valid staged response — fix the form
 and call `resolveInterrupt` again, `clearResolution()` to start that item over,
 or `retryInterrupts()` after a *retryable* submission failure. Stale and
-conflict errors are non-retryable and need [authoritative recovery](./persistence).
+conflict errors are non-retryable and need authoritative recovery (an optional
+persistence-layer capability).

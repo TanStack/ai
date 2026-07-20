@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
-import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
+import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')

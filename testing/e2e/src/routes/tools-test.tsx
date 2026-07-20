@@ -1,14 +1,15 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
+  
+  
   modelMessagesToUIMessages,
-  toolDefinition,
-  type ModelMessage,
-  type ToolCallPart,
+  toolDefinition
 } from '@tanstack/ai'
 import { z } from 'zod'
+import type {ModelMessage, ToolCallPart} from '@tanstack/ai';
+import type { UIMessage } from '@tanstack/ai-react'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
 /**
@@ -221,9 +222,7 @@ function ToolsTestPage() {
     connection: fetchServerSentEvents('/api/tools-test'),
     // History fixtures are untyped model-message replays; cast to the typed
     // message shape so they don't fight the concrete `tools` tuple inference.
-    initialMessages: initialMessages as unknown as Array<
-      UIMessage<typeof clientTools>
-    >,
+    initialMessages: initialMessages,
     forwardedProps: {
       scenario,
       testId,

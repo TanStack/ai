@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ChatStreamSummarizeAdapter } from '../src/activities/summarize/chat-stream-summarize'
 import { resolveDebugOption } from '../src/logger/resolve'
 import { ev } from './test-utils'

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { AudioGenerationResult } from '@tanstack/ai'
-import { generateAudioFn } from '@/lib/server-functions'
 import type { Feature, Mode, Provider } from '@/lib/types'
+import { generateAudioFn } from '@/lib/server-functions'
 
 interface AudioGenUIProps {
   provider: Provider
@@ -52,7 +52,7 @@ export function AudioGenUI({
         mode === 'fetcher'
           ? await generateAudioFn({ data: payload })
           : await fetchAudioViaRoute(payload)
-      setResult(next as AudioGenerationResult)
+      setResult(next)
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
     } finally {

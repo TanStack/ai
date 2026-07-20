@@ -1,8 +1,8 @@
-import type { ChatResumeSnapshotV2, UIMessage } from '@tanstack/ai-client'
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import type { UseChatOptions } from '../src/types'
 import { useChat } from '../src/use-chat'
+import type { UseChatOptions } from '../src/types'
+import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 // Re-export test utilities from ai-client
 export {
@@ -113,7 +113,7 @@ export function renderUseChat(options?: UseChatOptions) {
     const hook = wrapper.vm
     return {
       // Asserting to fix "cannot be named without a reference" error
-      messages: hook.messages as Array<UIMessage>,
+      messages: hook.messages,
       isLoading: hook.isLoading,
       error: hook.error,
       status: hook.status,

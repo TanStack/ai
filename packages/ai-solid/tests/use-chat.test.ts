@@ -1,16 +1,16 @@
 import { renderHook, waitFor } from '@solidjs/testing-library'
-import type { ModelMessage } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
 import { describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
-  createMockConnectionAdapter,
   createInterruptResumeSnapshot,
+  createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import type { UIMessage } from '../src/types'
+import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('interrupt state', () => {
@@ -120,7 +120,7 @@ describe('useChat', () => {
 
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
-      const initialMessages: UIMessage[] = [
+      const initialMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -139,7 +139,7 @@ describe('useChat', () => {
 
     it('should initialize with persisted messages', async () => {
       const adapter = createMockConnectionAdapter()
-      const persistedMessages: UIMessage[] = [
+      const persistedMessages: Array<UIMessage> = [
         {
           id: 'persisted-1',
           role: 'user',
@@ -167,7 +167,7 @@ describe('useChat', () => {
 
     it('should preserve persisted empty messages over provided initial messages', async () => {
       const adapter = createMockConnectionAdapter()
-      const initialMessages: UIMessage[] = [
+      const initialMessages: Array<UIMessage> = [
         {
           id: 'initial-1',
           role: 'user',
@@ -716,7 +716,7 @@ describe('useChat', () => {
     })
 
     it('should reset to initial state', async () => {
-      const initialMessages: UIMessage[] = [
+      const initialMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -770,7 +770,7 @@ describe('useChat', () => {
       const adapter = createMockConnectionAdapter()
       const { result } = renderUseChat({ connection: adapter })
 
-      const newMessages: UIMessage[] = [
+      const newMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -790,7 +790,7 @@ describe('useChat', () => {
 
       expect(result.current.messages).toEqual([])
 
-      const newMessages: UIMessage[] = [
+      const newMessages: Array<UIMessage> = [
         {
           id: 'msg-1',
           role: 'user',
@@ -817,7 +817,7 @@ describe('useChat', () => {
 
       const originalCount = result.current.messages.length
 
-      const newMessages: UIMessage[] = [
+      const newMessages: Array<UIMessage> = [
         {
           id: 'msg-new',
           role: 'user',

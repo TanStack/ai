@@ -4,13 +4,15 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
+import {  toolDefinition } from '@tanstack/ai'
+import {  clientTools } from '@tanstack/ai-client'
+import { createChat } from '../src/create-chat.svelte'
+import type {AnyClientTool} from '@tanstack/ai';
+import type {StructuredOutputPart} from '@tanstack/ai-client';
 import type {
   StandardJSONSchemaV1,
   StandardSchemaV1,
 } from '@standard-schema/spec'
-import { toolDefinition, type AnyClientTool } from '@tanstack/ai'
-import { clientTools, type StructuredOutputPart } from '@tanstack/ai-client'
-import { createChat } from '../src/create-chat.svelte'
 import type {
   CreateChatOptions,
   CreateChatReturn,

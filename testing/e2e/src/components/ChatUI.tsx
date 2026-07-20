@@ -33,6 +33,8 @@ interface ChatUIProps {
   queue?: Array<QueuedMessage>
   /** Remove a queued message before it drains. */
   cancelQueued?: (id: string) => void
+  /** Block new input while pending interrupts await resolution. */
+  hasPendingInterrupt?: boolean
 }
 
 export function ChatUI({
@@ -47,6 +49,7 @@ export function ChatUI({
   contentDeltaCount,
   queue,
   cancelQueued,
+  hasPendingInterrupt = false,
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -59,6 +62,7 @@ export function ChatUI({
   }, [messages])
 
   const handleSubmit = () => {
+    if (hasPendingInterrupt) return
     if (!input.trim()) return
     onSendMessage(input.trim())
     setInput('')

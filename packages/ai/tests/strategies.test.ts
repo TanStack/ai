@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
+  BatchStrategy,
+  CompositeStrategy,
   ImmediateStrategy,
   PunctuationStrategy,
-  BatchStrategy,
   WordBoundaryStrategy,
-  CompositeStrategy,
 } from '../src/activities/chat/stream/strategies'
 
 describe('Chunk Strategies', () => {

@@ -117,35 +117,19 @@ as `parentRunId`, with every pending ID present exactly once.
 
 Persistence is optional. Without it, the batch is reconstructed and validated
 from the submitted history (client-provided input — no authoritative recovery,
-exactly-once, replay protection, restart recovery, or CAS). With it, stored
-schema hashes, expiry, and generation are validated before one compare-and-swap
-commit, and exact retries attach to the winning continuation. Upgrade your
-persistence schema (batch/binding/generation/fingerprint/continuation/tombstone
-storage and run correlation) before deploying — see
-[Persistence & Recovery](./persistence),
-[Persistence migrations](../persistence/migrations), and
-[Custom stores](../persistence/custom-stores).
+exactly-once, replay protection, restart recovery, or CAS). Durable interrupt
+persistence — stored schema hashes, expiry, and generation validated before one
+compare-and-swap commit, with exact retries attaching to the winning
+continuation — is a separate opt-in layer shipped with the persistence guides.
 
 ## Explicit recovery
 
 Browser persistence writes a V2 envelope of raw JSON-safe drafts only; after
-reload the client fetches authoritative recovery before rebinding descriptors.
-Configure application-owned URLs — none is inferred from `/api/chat`:
-
-```ts
-import {
-  createInterruptContinuationLoader,
-  createInterruptStateFetcher,
-  fetchServerSentEvents,
-} from '@tanstack/ai-client'
-
-const connection = fetchServerSentEvents('/api/chat', {
-  interruptStateFetcher: createInterruptStateFetcher('/api/interrupts/recovery'),
-  continuationLoader: createInterruptContinuationLoader(
-    '/api/interrupts/continuation',
-  ),
-})
-```
+reload the client can fetch authoritative recovery before rebinding
+descriptors. Authoritative reload recovery — application-owned recovery and
+continuation endpoints wired onto the connection — is a separate opt-in layer
+shipped with the persistence guides. The ephemeral flow needs none of it: it
+resumes from the full client message history.
 
 `resumeInterruptsUnsafe` is only for low-level recovery integrations with
 validated raw resume entries — not the normal target for approval UI.

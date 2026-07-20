@@ -1,5 +1,5 @@
 import type { Feature, Provider } from '@/lib/types'
-import { getGuitars, compareGuitars, addToCart } from '@/lib/tools'
+import { addToCart, compareGuitars, getGuitars } from '@/lib/tools'
 
 interface FeatureConfig {
   tools: Array<any>

@@ -29,8 +29,8 @@ methods that validate, stage, and atomically submit its resolution.
 
 This works **without persistence**. In the default ephemeral mode the server
 reconstructs and validates the expected batch from the submitted history and its
-current tool definitions. Persistence is an optional durability layer — see
-[Persistence & Recovery](./persistence).
+current tool definitions. Durable persistence and authoritative recovery are an
+optional layer shipped separately with the persistence guides.
 
 ## Kinds you resolve
 
@@ -62,7 +62,6 @@ approved.
 | Render and resolve several pending interrupts at once | [Multiple Interrupts](./multiple) |
 | Validate a schema-driven application pause | [Generic Interrupts](./generic) |
 | Run a tool in the browser and return its result | [Client Tools](../tools/client-tools) |
-| Survive reloads, retries, and multi-tab conflicts | [Persistence & Recovery](./persistence) |
 | Move off legacy `approval-requested` events | [Migration](./migration) |
 
 > This replaced the native `approval-requested` and `tool-input-available`

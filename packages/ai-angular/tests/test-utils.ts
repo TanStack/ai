@@ -1,12 +1,11 @@
 import { Component } from '@angular/core'
-import { getTestBed, TestBed } from '@angular/core/testing'
+import { TestBed, getTestBed } from '@angular/core/testing'
 import {
   BrowserDynamicTestingModule,
   platformBrowserDynamicTesting,
 } from '@angular/platform-browser-dynamic/testing'
 import { injectChat } from '../src/inject-chat'
-import type { InjectChatOptions } from '../src/types'
-import type { InjectChatResult } from '../src/types'
+import type { InjectChatOptions, InjectChatResult  } from '../src/types'
 import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 export {

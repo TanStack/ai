@@ -115,8 +115,3 @@ Providers without durable disk or snapshots (e.g. ephemeral containers)
 re-create and re-bootstrap under the same identity: the `sandboxInstanceKey`
 stays stable, but every run pays the bootstrap cost because there is nothing
 durable to resume.
-
-To make sandbox resume records and ensure-locking durable across processes,
-place `withChatPersistence(...)` before `withSandbox(...)`. The sandbox middleware
-reads persistence metadata and locks directly when those stores are configured.
-See [Sandbox Persistence](../persistence/sandbox-persistence).

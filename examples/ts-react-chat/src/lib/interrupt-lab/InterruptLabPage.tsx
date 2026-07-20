@@ -16,8 +16,8 @@ import {
 import {
   buildGenericResolution,
   createDurableDraftEnvelope,
-  createInterruptLabDebugFetch,
   createIncompleteBulkResolver,
+  createInterruptLabDebugFetch,
   describeInterruptErrors,
   durableCapabilityStatuses,
   durableDraftStorageKey,
@@ -607,20 +607,10 @@ function InterruptRunner({
       resolveApproval(interrupt, approved)
       return
     }
-    const output = buildGenericResolution(getDraft(interrupt).output)
     if (interrupt.kind === 'generic') {
+      const output = buildGenericResolution(getDraft(interrupt).output)
       interrupt.resolveInterrupt(output)
       return
-    }
-    switch (interrupt.toolName) {
-      case 'interrupt_lab_client_output':
-        interrupt.resolveInterrupt(clientOutputTool.outputSchema.parse(output))
-        return
-      case 'interrupt_lab_approval_client':
-        interrupt.resolveInterrupt(
-          approvalClientTool.outputSchema.parse(output),
-        )
-        return
     }
   }
 

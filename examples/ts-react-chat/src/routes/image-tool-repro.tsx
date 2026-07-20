@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { REPRO_SECRET } from '@/lib/image-tool-repro'
 import type { UIMessage } from '@tanstack/ai-react'
+import { REPRO_SECRET } from '@/lib/image-tool-repro'
 
 /**
  * Repro UI for https://github.com/TanStack/ai/issues/363

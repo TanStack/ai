@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import { webSearchTool, webFetchTool } from '@tanstack/ai-openrouter/tools'
+import { webFetchTool, webSearchTool } from '@tanstack/ai-openrouter/tools'
 import { HTTPClient } from '@openrouter/sdk'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'

@@ -4,10 +4,11 @@ import {
   MCPManager,
 } from '../src/activities/chat/mcp/manager'
 import {
-  executeServerTool,
-  type ToolResult,
+  
+  executeServerTool
 } from '../src/activities/chat/tools/tool-calls'
 import { EventType } from '../src/types'
+import type {ToolResult} from '../src/activities/chat/tools/tool-calls';
 import type { JSONSchema, ServerTool } from '../src'
 import type {
   CustomEvent,

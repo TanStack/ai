@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { shellTool } from '@tanstack/ai-openai/tools'
+import type { Tool } from '@tanstack/ai'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 

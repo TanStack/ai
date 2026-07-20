@@ -7,10 +7,11 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
-import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
-import { toolDefinition, type AnyClientTool } from '@tanstack/ai'
+import {  toolDefinition } from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
 import { useChat } from '../src/use-chat'
+import type {AnyClientTool} from '@tanstack/ai';
+import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/types'
 
 type Person = { name: string; age: number; email: string }

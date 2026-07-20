@@ -128,7 +128,7 @@ describe('structured output null normalization', () => {
 
       const stream = chat({ adapter, messages, outputSchema, stream: true })
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const object = completeObject(chunks)
@@ -175,7 +175,7 @@ describe('structured output null normalization', () => {
           messages,
           outputSchema,
           stream: true,
-        }) as unknown as AsyncIterable<StreamChunk>,
+        }),
       )
 
       const value = completeValue(chunks)
@@ -224,7 +224,7 @@ describe('structured output null normalization', () => {
           messages,
           outputSchema,
           stream: true,
-        }) as unknown as AsyncIterable<StreamChunk>,
+        }),
       )
 
       const object = completeObject(chunks)

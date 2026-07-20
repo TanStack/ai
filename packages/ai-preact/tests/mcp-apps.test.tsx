@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/preact'
 import { describe, expect, it, vi } from 'vitest'
+import { MCPAppResource } from '../src/mcp-apps'
 import type { McpAppBridge } from '@tanstack/ai-client'
 import type { UIResourcePart } from '@tanstack/ai'
 import type { AppRendererProps } from '@mcp-ui/client'
+
+// Import AFTER mock is registered.
 
 // Mock @mcp-ui/client so we can capture props without a real React/iframe setup.
 // The real AppRenderer is a React forwardRef component; under preact/compat it
@@ -16,9 +19,6 @@ vi.mock('@mcp-ui/client', () => ({
     return null
   },
 }))
-
-// Import AFTER mock is registered.
-import { MCPAppResource } from '../src/mcp-apps'
 
 // ---------------------------------------------------------------------------
 // Shared fixtures

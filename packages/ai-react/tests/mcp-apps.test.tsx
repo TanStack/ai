@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import type { UIResourcePart } from '@tanstack/ai'
-import type { McpAppBridge } from '@tanstack/ai-client'
-import type { AppRendererProps } from '@mcp-ui/client'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MCPAppResource } from '../src/mcp-apps'
+import type { UIResourcePart } from '@tanstack/ai'
+import type { McpAppBridge } from '@tanstack/ai-client'
+import type { AppRendererProps } from '@mcp-ui/client'
 
 // The handler return type, derived from AppRenderer's own prop type so the
 // test depends on `@mcp-ui/client` only (not the MCP SDK directly).

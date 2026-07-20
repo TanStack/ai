@@ -18,9 +18,9 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
-import type { RunFinishedEvent, StreamChunk, TokenUsage } from '../src/types'
-import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import { collectChunks } from './test-utils'
+import type { StreamChunk, TokenUsage } from '../src/types'
+import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 
 const PersonSchema = z.object({
   name: z.string(),
@@ -92,24 +92,24 @@ function structuredStreamChunks(
       runId: 'run-1',
       threadId: 'thread-1',
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
     {
       type: EventType.TEXT_MESSAGE_START,
       messageId: 'msg-1',
       role: 'assistant',
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
     {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'msg-1',
       delta: fullJson,
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
     {
       type: EventType.TEXT_MESSAGE_END,
       messageId: 'msg-1',
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
     {
       type: EventType.CUSTOM,
       name: 'structured-output.complete',
@@ -119,14 +119,14 @@ function structuredStreamChunks(
         ...(reasoning ? { reasoning } : {}),
       },
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
     {
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
       threadId: 'thread-1',
       finishReason: 'stop',
       timestamp: Date.now(),
-    } as StreamChunk,
+    },
   ]
 }
 
@@ -157,7 +157,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const complete = chunks.find(
@@ -195,7 +195,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       // No orchestrator-emitted schema-validation RUN_ERROR.
@@ -242,7 +242,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const complete = chunks.find(
@@ -285,7 +285,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const textChunks = chunks.filter(
@@ -320,7 +320,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       // subtypes of `CustomEvent` (and thus of `StreamChunk`) — cast through
       // the wider iterable type for the test boundary.
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
       const types = chunks.map((c) => c.type)
 
@@ -363,7 +363,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
@@ -406,12 +406,10 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
-      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED) as
-        | RunFinishedEvent
-        | undefined
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
       expect(finished!.usage).toEqual(usage)
     })
@@ -434,12 +432,10 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
-      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED) as
-        | RunFinishedEvent
-        | undefined
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
       expect('usage' in finished!).toBe(false)
     })
@@ -473,7 +469,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const startIndex = chunks.findIndex(
@@ -522,7 +518,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const startIndex = chunks.findIndex(
@@ -572,7 +568,7 @@ describe('chat({ outputSchema, stream: true })', () => {
       })
 
       const chunks = await collectChunks(
-        stream as unknown as AsyncIterable<StreamChunk>,
+        stream,
       )
 
       const firstContentIndex = chunks.findIndex(
@@ -619,7 +615,7 @@ describe('chat({ outputSchema, stream: true })', () => {
         stream: true,
       })
 
-      await collectChunks(stream as unknown as AsyncIterable<StreamChunk>)
+      await collectChunks(stream)
 
       expect(chatStreamCalls).toBe(0)
       expect(structuredStreamCalls).toBe(1)

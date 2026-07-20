@@ -365,10 +365,6 @@ const handler = createMcpAppCallHandler({ clients: mcp, store })
 
 > **Current limitation:** `inMemoryMcpSessionStore` is single-instance (one Node.js process). It does not survive serverless restarts or scale across replicas. The `McpSessionStore` interface is the persistence extension point — persistent backends (database, KV store) can be dropped in without any API changes.
 
-For broader app-owned persistence primitives such as metadata, public replay
-events, internal checkpoints, and custom SQL/KV stores, see
-[Custom Stores](../persistence/custom-stores).
-
 ## API Reference
 
 ### `createMcpAppCallHandler` (`@tanstack/ai-mcp/apps`)

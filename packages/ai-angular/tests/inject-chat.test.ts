@@ -6,8 +6,8 @@ import { TestBed } from '@angular/core/testing'
 import { ChatClient } from '@tanstack/ai-client'
 import { injectChat } from '../src/inject-chat'
 import {
-  createMockConnectionAdapter,
   createInterruptResumeSnapshot,
+  createMockConnectionAdapter,
   createTextChunks,
   renderInjectChat,
 } from './test-utils'

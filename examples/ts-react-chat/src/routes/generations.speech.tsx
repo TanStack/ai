@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
-import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { generateSpeechFn, generateSpeechStreamFn } from '../lib/server-fns'
 import {
-  SPEECH_PROVIDERS,
-  type SpeechProviderConfig,
-  type SpeechProviderId,
+  SPEECH_PROVIDERS
+  
+  
 } from '../lib/audio-providers'
+import type {SpeechProviderConfig, SpeechProviderId} from '../lib/audio-providers';
+import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 
 type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
 
