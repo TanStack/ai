@@ -3,5 +3,6 @@ node_modules
 servers/rust/target
 servers/zig/.zig-cache
 servers/zig/zig-out
+servers/python/__pycache__
 
 servers/go/go
