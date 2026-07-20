@@ -28,7 +28,10 @@ import type { StreamChunk } from '@tanstack/ai'
 // bracketing: this harness deliberately exercises raw chunk delivery + resume,
 // not UIMessage reassembly. The durability layer terminalizes on RUN_FINISHED
 // (emitted below), which is all resume/join needs.
-function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+export function fixedRun(
+  threadId: string,
+  runId: string,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
       type: 'RUN_STARTED',

@@ -4,6 +4,7 @@ import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
+import { durableDeliveryWebSocketPlugin } from './src/lib/durable-delivery-ws-plugin'
 
 const config = defineConfig({
   // Server-side only fix. @elevenlabs/elevenlabs-js ships a top-level
@@ -17,6 +18,7 @@ const config = defineConfig({
     external: ['@elevenlabs/elevenlabs-js'],
   },
   plugins: [
+    durableDeliveryWebSocketPlugin(),
     nitroV2Plugin({
       externals: {
         external: ['@elevenlabs/elevenlabs-js'],
