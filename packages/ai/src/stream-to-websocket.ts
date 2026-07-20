@@ -312,13 +312,13 @@ export function toWebSocketResponse<TOffset extends string = string>(
  * upgrade `Response` carrying the client socket. Throws when the runtime has
  * no `WebSocketPair` (e.g. Node) — upgrade the socket yourself and call
  * {@link resumeWebSocketStream} directly there.
+ *
+ * @example
+ * ```ts
+ * resumeWebSocketResponse({ adapter: memoryStream(request) })
+ * ```
  */
 export function resumeWebSocketResponse<TOffset extends string = string>(
-  // Unused: kept so the signature mirrors `toWebSocketResponse` (both take
-  // the upgrade `Request` first) even though the resume path only needs the
-  // pre-built adapter — the caller already captured the request when
-  // constructing it (e.g. `memoryStream(request)`).
-  _request: Request,
   options: {
     adapter: StreamDurability<TOffset>
     batch?: number

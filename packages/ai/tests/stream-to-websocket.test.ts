@@ -3,6 +3,7 @@ import {
   buildTurnRequest,
   decodeWsFrame,
   encodeWsFrame,
+  resumeWebSocketResponse,
   resumeWebSocketStream,
   toWebSocketResponse,
   toWebSocketStream,
@@ -319,6 +320,18 @@ describe('toWebSocketResponse', () => {
     expect(() =>
       toWebSocketResponse(new Request('https://x/api/chat'), {
         onRun: () => (async function* () {})(),
+      }),
+    ).toThrow(/WebSocketPair/)
+  })
+})
+
+describe('resumeWebSocketResponse', () => {
+  it('throws a directive error when WebSocketPair is unavailable', () => {
+    expect(() =>
+      resumeWebSocketResponse({
+        adapter: memoryStream(
+          new Request('https://x/api/chat?runId=r&offset=-1'),
+        ),
       }),
     ).toThrow(/WebSocketPair/)
   })
