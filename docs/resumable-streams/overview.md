@@ -138,6 +138,45 @@ For NDJSON, swap `fetchServerSentEvents` for `fetchHttpStream` (with the server
 on `toHttpResponse`). The XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
 work the same way, for runtimes without streaming `fetch`.
 
+## Or go full-duplex: WebSockets
+
+SSE and NDJSON open one connection per turn. If you want a single persistent
+socket that carries the whole conversation instead, wrap it with
+`toWebSocketStream` (or `toWebSocketResponse` on Cloudflare) and pair it with
+the client's `webSocket()` adapter:
+
+```ts
+import { chat, memoryStream, toWebSocketStream } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import type { WebSocketLike } from '@tanstack/ai'
+
+// `socket` is a server socket you already accepted (see WebSockets for how,
+// on Node vs Cloudflare) and `request` is the handshake request.
+function handleChatSocket(socket: WebSocketLike, request: Request) {
+  toWebSocketStream(socket, request, {
+    durability: (ctx) => memoryStream(ctx.request),
+    onRun: ({ messages, threadId, runId }) =>
+      chat({ adapter: openaiText('gpt-5.5'), messages, threadId, runId }),
+  })
+}
+```
+
+```tsx
+import { useChat, webSocket } from '@tanstack/ai-react'
+
+const connection = webSocket('/api/chat-ws')
+
+export function Chat() {
+  const { messages, sendMessage } = useChat({ connection })
+  return <button onClick={() => void sendMessage('Hello')}>Send</button>
+}
+```
+
+The socket resumes the same way SSE and NDJSON do: a dropped connection
+reopens with the last offset and replays only what's missing. See
+[WebSockets](./websockets) for the wire protocol, reconnect details, and
+hosting on Node vs Cloudflare.
+
 That covers the common case. For the durability contract, terminal and error
 handling, reconnect tuning, attaching to a run by id, Cloudflare deployment, and
 production process-death concerns, see [Advanced](./advanced).

@@ -165,6 +165,50 @@ read failure it retries from the last valid position, capping consecutive
 failures (`reconnect: { maxReadFailures: 10, delayMs: 250 }`). Normal long-poll
 advancement is never throttled.
 
+## WebSocket transport
+
+Everything above describes SSE and NDJSON: one connection per turn. A
+WebSocket instead stays open for the whole conversation, so a few things work
+differently. See [WebSockets](./websockets) for the full protocol and code;
+this section covers only what changes relative to the rest of this page.
+
+**Reconnect rides in the URL, not a header.** SSE and NDJSON resume with
+`Last-Event-ID` because `fetch`/XHR can set arbitrary headers before opening a
+request. A browser's `WebSocket` constructor can't set custom headers on the
+handshake, so the offset instead rides in the URL: `?runId=<id>&offset=<lastId>`.
+`webSocket()` reopens at that URL automatically on a durable run's drop, the
+same de-dupe guarantee as `fetchServerSentEvents`, just carried differently on
+the wire.
+
+**The socket is conversation-scoped, not run-scoped.** One socket carries many
+turns. `toWebSocketStream`'s `durability` option is therefore a factory keyed
+by each turn's `runId` (via a synthetic per-turn request), not a single value
+built once. The socket itself closes on client close, an idle timeout, or
+process shutdown, not when one turn's `RUN_FINISHED` arrives.
+
+**Heartbeat and idle timeout replace the transport-level keepalive SSE gets
+for free.** `toWebSocketStream` pings every `heartbeatMs` (default 30s) and
+closes the socket after `idleTimeoutMs` (default 5 minutes) with no inbound
+frame.
+
+**An abort frame targets one turn, not the socket.** `{ type: 'abort', runId }`
+aborts only that turn's `onRun` iteration; the socket stays open for the next
+turn. Closing the socket aborts every turn still in flight on it.
+
+**Hosting differs by runtime.** On Cloudflare Workers or Durable Objects,
+`toWebSocketResponse` uses the global `WebSocketPair` and needs no manual
+upgrade. On Node (or anywhere without `WebSocketPair`), you upgrade the
+connection yourself, typically with `ws`'s `WebSocketServer({ noServer: true })`
+hooked into the HTTP server's `upgrade` event, and hand the resulting socket to
+`toWebSocketStream` / `resumeWebSocketStream` directly.
+
+**The producer-vs-socket caveat from [memoryStream in
+production](#memorystream-in-production) applies unchanged.** With
+`memoryStream`, a dropped WebSocket aborts the `chat()` call backing it just
+like a dropped SSE connection does; reconnecting replays the log rather than
+resuming a still-running model call. `durableStream` decouples the two exactly
+as it does for SSE and NDJSON.
+
 ## Offset ownership
 
 `StreamDurability<TOffset>` owns its offset format. Core only passes returned
