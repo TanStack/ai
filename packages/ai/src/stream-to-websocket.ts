@@ -120,11 +120,25 @@ export function toWebSocketStream<TOffset extends string = string>(
   let lastActivity = Date.now()
 
   const heartbeat = setInterval(() => {
-    socket.send(JSON.stringify({ type: 'ping' }))
+    try {
+      socket.send(JSON.stringify({ type: 'ping' }))
+    } catch {
+      // Socket is CLOSING/CLOSED between ticks — the close handler below
+      // clears this interval; swallow so the timer callback doesn't throw
+      // uncaught in the meantime.
+    }
   }, heartbeatMs)
   const idle = setInterval(
     () => {
-      if (Date.now() - lastActivity > idleTimeoutMs) socket.close(1000, 'idle')
+      // Never idle-reap while a turn is in flight: a long single onRun
+      // iteration (agentic loop / >5-min generation) sends no INBOUND
+      // frames, so idle would otherwise fire and kill live work.
+      if (
+        activeTurns.size === 0 &&
+        Date.now() - lastActivity > idleTimeoutMs
+      ) {
+        socket.close(1000, 'idle')
+      }
     },
     Math.min(idleTimeoutMs, 30_000),
   )
@@ -249,6 +263,18 @@ export function resumeWebSocketStream<TOffset extends string = string>(
   void (async () => {
     for await (const chunk of source) {
       socket.send(encodeWsFrame(chunk, getId(chunk)))
+    }
+    // Source exhausted = the durability log is complete/terminal; nothing more
+    // will arrive on this read-only socket. Close so the client's reconnect
+    // loop sees onclose and terminates (bounded) instead of awaiting a chunk
+    // that never comes. Safe across durability models: a live decoupled
+    // producer (e.g. durableStream) keeps `read` parked until the terminal,
+    // so the source doesn't exhaust until the run truly ends; a completed
+    // in-process log closes immediately.
+    try {
+      socket.close(1000)
+    } catch {
+      // socket already closing/closed — nothing to do
     }
   })().catch((error: unknown) => {
     logger.errors('resume websocket replay failed', { error })

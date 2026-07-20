@@ -281,6 +281,38 @@ describe('resumeWebSocketStream', () => {
 
     const chunkTypes = joiner.sent.map((s) => JSON.parse(s).chunk.type)
     expect(chunkTypes).toEqual(['TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+    // Regression: the replay pump must close the socket once the durability
+    // log is exhausted, even on the success path (terminal already present).
+    // Otherwise a client that auto-reconnects to `?runId&offset` after a
+    // drop would see no terminal frame, no close, no error — just a hang.
+    expect(joiner.closed).toBe(true)
+    expect(joiner.closeCode).toBe(1000)
+  })
+
+  it('closes the socket (1000) after replaying a complete log that has NO terminal event', async () => {
+    // Simulates a mid-generation drop: the durability log terminalized
+    // (log.complete === true) but the producer's turn was aborted by the
+    // socket closing before RUN_FINISHED was ever appended. `read` yields
+    // whatever was produced and returns with no terminal chunk.
+    const noTerminalAdapter: StreamDurability = {
+      resumeFrom: () => '-1',
+      append: () => Promise.resolve([]),
+      read: async function* () {
+        yield { offset: 'off-1', chunk: ev.textContent('partial') }
+      },
+      close: () => Promise.resolve(),
+    }
+    const joiner = new FakeSocket()
+
+    resumeWebSocketStream(joiner, { adapter: noTerminalAdapter })
+    await flush()
+
+    const chunkTypes = joiner.sent.map((s) => JSON.parse(s).chunk.type)
+    expect(chunkTypes).toEqual(['TEXT_MESSAGE_CONTENT'])
+    // The proof: no terminal event was ever produced, yet the socket still
+    // closes once the log exhausts — no consumer hang, no leaked socket.
+    expect(joiner.closed).toBe(true)
+    expect(joiner.closeCode).toBe(1000)
   })
 
   it('closes with 1008 when no offset is present', async () => {

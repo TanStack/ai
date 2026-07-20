@@ -1785,10 +1785,11 @@ export function webSocket(
       }
       const sink: WebSocketChunkSink = { push, fail }
       listeners.add(sink)
-      abortSignal?.addEventListener('abort', () => {
+      const onAbort = () => {
         const w = waiters.shift()
         if (w) w(null)
-      })
+      }
+      abortSignal?.addEventListener('abort', onAbort)
       return (async function* () {
         try {
           while (!abortSignal?.aborted) {
@@ -1820,6 +1821,7 @@ export function webSocket(
           }
         } finally {
           listeners.delete(sink)
+          abortSignal?.removeEventListener('abort', onAbort)
         }
       })()
     },
@@ -1869,7 +1871,8 @@ export function webSocket(
       }
       const sink: WebSocketChunkSink = { push, fail }
       listeners.add(sink)
-      abortSignal?.addEventListener('abort', () => waiters.shift()?.(null))
+      const onAbort = () => waiters.shift()?.(null)
+      abortSignal?.addEventListener('abort', onAbort)
       return (async function* () {
         try {
           while (!abortSignal?.aborted) {
@@ -1901,6 +1904,7 @@ export function webSocket(
           }
         } finally {
           listeners.delete(sink)
+          abortSignal?.removeEventListener('abort', onAbort)
         }
       })()
     },
