@@ -1606,6 +1606,9 @@ export function webSocket(
       ws.onopen = () => resolve()
       ws.onerror = (e) => reject(new StreamReadError(e))
     })
+    // Attach a no-op handler so a socket nobody awaits (e.g. joinRun) can't raise
+    // an unhandled rejection if it errors. Awaiters of openPromise still see the rejection.
+    openPromise.catch(() => {})
     ws.onmessage = (event: MessageEvent) => {
       const parsed: unknown = JSON.parse(String(event.data))
       if (

@@ -148,18 +148,27 @@ describe('webSocket() subscribe/send', () => {
       { threadId: 't2', runId: 'r2' },
     )
 
-    await Promise.race([
-      Promise.all([send1, send2]),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('send() calls hung')), 1000),
-      ),
-    ])
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.all([send1, send2]),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('send() calls hung')), 1000)
+        }),
+      ])
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     expect(FakeWebSocket.instances.length).toBe(1)
     const ws = FakeWebSocket.instances[0]
     if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
     expect(ws.sent.length).toBe(2)
-    expect(JSON.parse(ws.sent[0]!).runId).toBe('r1')
-    expect(JSON.parse(ws.sent[1]!).runId).toBe('r2')
+    const sent0 = ws.sent[0]
+    if (sent0 === undefined) throw new Error('expected a sent frame')
+    const sent1 = ws.sent[1]
+    if (sent1 === undefined) throw new Error('expected a sent frame')
+    expect(JSON.parse(sent0).runId).toBe('r1')
+    expect(JSON.parse(sent1).runId).toBe('r2')
   })
 })
