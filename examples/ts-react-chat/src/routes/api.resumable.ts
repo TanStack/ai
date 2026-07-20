@@ -13,8 +13,9 @@ import { openaiText } from '@tanstack/ai-openai'
  *
  * The `memoryStream(request)` durability sink records every chunk to an ordered
  * log before delivery and tags each SSE event with an opaque `id:` offset, so a
- * client can reconnect (`Last-Event-ID`) or a second tab can join (`?offset=-1`)
- * without re-running the model.
+ * dropped connection reconnects (`Last-Event-ID`) and resumes from the log
+ * without re-running the model. The `useChat` client on /resumable needs no
+ * extra code for this; it just uses this route's connection.
  *
  * `memoryStream` is process-local, which is fine for a single-process demo. In
  * production, swap it for `durableStream(request, { server })` from
@@ -47,9 +48,11 @@ export const Route = createFileRoute('/api/resumable')({
         })
       },
 
-      // Join an in-flight or finished run from the start (`?offset=-1&runId=…`),
-      // replaying the ordered log. Read-only, no messages are sent and no model
-      // is called.
+      // Replay a run from the start (`?offset=-1&runId=…`) for an explicit
+      // `joinRun` (a second tab or a full reload). Read-only: no messages are
+      // sent and no model is called. This demo relies on automatic POST
+      // reconnect and does not call joinRun, but a durable route should expose
+      // this so an attach-by-id resume is possible.
       GET: ({ request }) => {
         return resumeServerSentEventsResponse({
           adapter: memoryStream(request),

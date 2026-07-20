@@ -75,11 +75,47 @@ For production, swap `memoryStream(request)` for
 `durableStream(request, options)`. Everything else stays the same.
 
 > **One gotcha:** on a dropped connection the client reconnects by re-sending
-> the same `POST`. The model is not re-run, but any side effects your handler
-> does around the stream (saving the user's message, creating a run row,
-> counting usage) run again. Guard them behind a resume check
-> (`durability.resumeFrom()` is non-null, or a `Last-Event-ID` header is present)
-> so they only run on a fresh request.
+> the same `POST`. The model is not re-run (the log is replayed), but any side
+> effects your handler runs around the stream (saving the user's message,
+> creating a run row, counting usage) would fire a second time. Guard them
+> behind a resume check so they only run on a fresh request.
+
+The adapter already knows whether this is a resume: `resumeFrom()` returns the
+offset on a reconnect and `null` on a fresh request. Build the adapter once,
+check it, then reuse it for the response:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+// Your own one-time side effects.
+import { countUsage, saveUserMessage } from './db'
+
+export async function POST(request: Request) {
+  const durability = memoryStream(request)
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  // null on a fresh request, non-null on a reconnect. Do one-time work once.
+  if (durability.resumeFrom() === null) {
+    await saveUserMessage(threadId, messages)
+    await countUsage(runId)
+  }
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    threadId,
+    runId,
+  })
+  return toServerSentEventsResponse(stream, {
+    durability: { adapter: durability },
+  })
+}
+```
 
 ## 3. Client: nothing to wire
 
