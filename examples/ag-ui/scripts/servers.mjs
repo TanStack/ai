@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,7 +12,7 @@ export const SERVER_CATALOG = [
     id: 'go',
     label: 'Go',
     port: 8001,
-    detect: ['go', 'version'],
+    detect: [['go', 'version']],
     devScript: 'dev:go',
     setup: {
       summary: 'Install Go 1.22+ and ensure `go` is on PATH.',
@@ -25,7 +25,7 @@ export const SERVER_CATALOG = [
     id: 'rust',
     label: 'Rust',
     port: 8002,
-    detect: ['cargo', '--version'],
+    detect: [['cargo', '--version']],
     devScript: 'dev:rust',
     setup: {
       summary: 'Install Rust stable via rustup and ensure `cargo` is on PATH.',
@@ -38,7 +38,7 @@ export const SERVER_CATALOG = [
     id: 'php',
     label: 'PHP',
     port: 8003,
-    detect: ['php', '-v'],
+    detect: [['php', '-v']],
     devScript: 'dev:php',
     setup: {
       summary: 'Install PHP 8.2+ CLI and ensure `php` is on PATH.',
@@ -51,7 +51,7 @@ export const SERVER_CATALOG = [
     id: 'zig',
     label: 'Zig',
     port: 8004,
-    detect: ['zig', 'version'],
+    detect: [['zig', 'version']],
     devScript: 'dev:zig',
     setup: {
       summary: 'Install Zig and ensure `zig` is on PATH.',
@@ -60,10 +60,42 @@ export const SERVER_CATALOG = [
       run: 'pnpm dev:zig',
     },
   },
+  {
+    id: 'bash',
+    label: 'Bash',
+    port: 8005,
+    detect: [
+      ['bash', '-c', '(( BASH_VERSINFO[0] >= 4 ))'],
+      ['curl', '--version'],
+      ['jq', '--version'],
+      ['socat', '-V'],
+    ],
+    devScript: 'dev:bash',
+    setup: {
+      summary:
+        'Install Bash 4+, curl, jq, and socat and ensure they are on PATH.',
+      installUrl: 'https://brew.sh/',
+      verify: 'bash --version && curl --version && jq --version && socat -V',
+      run: 'pnpm dev:bash',
+    },
+  },
+  {
+    id: 'python',
+    label: 'Python',
+    port: 8006,
+    detect: [['python3', '--version']],
+    devScript: 'dev:python',
+    setup: {
+      summary: 'Install Python 3.9+ and ensure `python3` is on PATH.',
+      installUrl: 'https://www.python.org/downloads/',
+      verify: 'python3 --version',
+      run: 'pnpm dev:python',
+    },
+  },
 ]
 
-function parseDisabledServers() {
-  const raw = process.env.AGUI_DISABLE_SERVERS ?? ''
+function parseDisabledServers(env) {
+  const raw = env.AGUI_DISABLE_SERVERS ?? ''
   return new Set(
     raw
       .split(',')
@@ -72,17 +104,19 @@ function parseDisabledServers() {
   )
 }
 
-function hasToolchain(detect) {
-  try {
-    execSync(detect.join(' '), { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
+function hasToolchain(detectCommands) {
+  return detectCommands.every(([command, ...args]) => {
+    try {
+      execFileSync(command, args, { stdio: 'ignore' })
+      return true
+    } catch {
+      return false
+    }
+  })
 }
 
 export function detectServers(env = process.env) {
-  const disabled = parseDisabledServers()
+  const disabled = parseDisabledServers(env)
 
   return SERVER_CATALOG.map((server) => {
     const disabledByEnv = disabled.has(server.id)

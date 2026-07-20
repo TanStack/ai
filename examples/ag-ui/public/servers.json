@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-19T23:53:50.649Z",
+  "generatedAt": "2026-07-20T00:20:05.964Z",
   "servers": [
     {
       "id": "go",
@@ -51,6 +51,32 @@
         "installUrl": "https://ziglang.org/download/",
         "verify": "zig version",
         "run": "pnpm dev:zig"
+      }
+    },
+    {
+      "id": "bash",
+      "label": "Bash",
+      "port": 8005,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install Bash 4+, curl, jq, and socat and ensure they are on PATH.",
+        "installUrl": "https://brew.sh/",
+        "verify": "bash --version && curl --version && jq --version && socat -V",
+        "run": "pnpm dev:bash"
+      }
+    },
+    {
+      "id": "python",
+      "label": "Python",
+      "port": 8006,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install Python 3.9+ and ensure `python3` is on PATH.",
+        "installUrl": "https://www.python.org/downloads/",
+        "verify": "python3 --version",
+        "run": "pnpm dev:python"
       }
     }
   ]

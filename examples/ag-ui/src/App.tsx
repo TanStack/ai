@@ -8,7 +8,7 @@ import {
   ChatMessages,
 } from '@tanstack/ai-react-ui'
 
-type Backend = 'go' | 'rust' | 'php' | 'zig'
+type Backend = 'go' | 'rust' | 'php' | 'zig' | 'bash' | 'python'
 type Provider = 'openai' | 'anthropic'
 
 type ServerSetup = {
@@ -63,8 +63,15 @@ function SetupInstructions({ server }: { server: ServerInfo }) {
               <code className="rounded bg-slate-950 px-1 py-0.5 text-amber-200">
                 AGUI_DISABLE_SERVERS
               </code>
-              . Remove <code className="rounded bg-slate-950 px-1 py-0.5 text-amber-200">{server.id}</code>{' '}
-              from that variable and restart <code className="rounded bg-slate-950 px-1 py-0.5 text-amber-200">pnpm dev:all</code>.
+              . Remove{' '}
+              <code className="rounded bg-slate-950 px-1 py-0.5 text-amber-200">
+                {server.id}
+              </code>{' '}
+              from that variable and restart{' '}
+              <code className="rounded bg-slate-950 px-1 py-0.5 text-amber-200">
+                pnpm dev:all
+              </code>
+              .
             </p>
           ) : null}
         </div>

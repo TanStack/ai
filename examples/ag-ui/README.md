@@ -1,18 +1,20 @@
 # AG-UI Polyglot Chat
 
-A React SPA that talks to **Go, Rust, PHP, and Zig AG-UI backends** over Server-Sent Events (SSE). Each backend streams simple chat completions from **OpenAI** or **Anthropic** — no TanStack packages on the server, just the AG-UI wire protocol.
+A React SPA that talks to **Go, Rust, PHP, Zig, Bash, and Python AG-UI backends** over Server-Sent Events (SSE). Each backend streams simple chat completions from **OpenAI** or **Anthropic** — no TanStack packages on the server, just the AG-UI wire protocol.
 
 This example shows that any backend can serve `@tanstack/ai-react` clients as long as it speaks [AG-UI](https://docs.ag-ui.com/): accept `RunAgentInput` via POST, stream AG-UI events as SSE.
 
 ## Tech stack
 
-| Layer | Stack |
-| --- | --- |
-| Client | React, Vite, `@tanstack/ai-react`, `@tanstack/ai-react-ui` |
-| Go server | `net/http`, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8001` |
-| Rust server | Axum, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8002` |
-| PHP server | Built-in PHP server + curl, hand-rolled AG-UI SSE on `:8003` |
-| Zig server | Stdlib HTTP + HTTPS client, hand-rolled AG-UI SSE on `:8004` |
+| Layer         | Stack                                                                    |
+| ------------- | ------------------------------------------------------------------------ |
+| Client        | React, Vite, `@tanstack/ai-react`, `@tanstack/ai-react-ui`               |
+| Go server     | `net/http`, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8001` |
+| Rust server   | Axum, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8002`       |
+| PHP server    | Built-in PHP server + curl, hand-rolled AG-UI SSE on `:8003`             |
+| Zig server    | Stdlib HTTP + HTTPS client, hand-rolled AG-UI SSE on `:8004`             |
+| Bash server   | Bash + socat + curl + jq, hand-rolled AG-UI SSE on `:8005`               |
+| Python server | Stdlib HTTP + urllib, hand-rolled AG-UI SSE on `:8006`                   |
 
 ## Prerequisites
 
@@ -21,6 +23,8 @@ This example shows that any backend can serve `@tanstack/ai-react` clients as lo
 - [Rust stable](https://rustup.rs/) (optional)
 - [PHP 8.2+ CLI with curl](https://www.php.net/downloads) (optional)
 - [Zig](https://ziglang.org/download/) (optional)
+- Bash 4+, curl, jq, and socat (`brew install bash jq socat`) (optional)
+- [Python 3.9+](https://www.python.org/downloads/) (optional)
 - OpenAI and/or Anthropic API keys
 
 Only backends whose toolchains are detected on PATH are started by `pnpm dev:all`. The UI reads `public/servers.json` to show which servers are available and displays setup instructions for missing ones.
@@ -60,6 +64,8 @@ pnpm dev:go
 pnpm dev:rust
 pnpm dev:php
 pnpm dev:zig
+pnpm dev:bash
+pnpm dev:python
 ```
 
 `pnpm dev:all` loads `.env`, writes `public/servers.json`, and starts the client plus every detected backend.
@@ -79,6 +85,8 @@ React SPA (useChat + fetchServerSentEvents)
   POST /api/rust ──► Vite proxy ──► Rust :8002 ──► OpenAI / Anthropic
   POST /api/php  ──► Vite proxy ──► PHP  :8003 ──► OpenAI / Anthropic
   POST /api/zig  ──► Vite proxy ──► Zig  :8004 ──► OpenAI / Anthropic
+  POST /api/bash ──► Vite proxy ──► Bash :8005 ──► OpenAI / Anthropic
+  POST /api/python ──► Vite proxy ──► Python :8006 ──► OpenAI / Anthropic
 ```
 
 The client sends AG-UI `RunAgentInput` with `forwardedProps: { provider, model }`. Each server converts simple text messages, streams the provider response, and emits:
@@ -102,7 +110,9 @@ examples/ag-ui/
 ├── servers/go/           Go AG-UI + LLM server
 ├── servers/rust/         Rust AG-UI + LLM server
 ├── servers/php/          PHP AG-UI + LLM server
-└── servers/zig/          Zig AG-UI + LLM server
+├── servers/zig/          Zig AG-UI + LLM server
+├── servers/bash/         Bash AG-UI + LLM server
+└── servers/python/       Python AG-UI + LLM server
 ```
 
 ## Related docs

@@ -11,6 +11,8 @@
     "dev:rust": "cargo run --manifest-path servers/rust/Cargo.toml",
     "dev:php": "php -S 127.0.0.1:8003 -t servers/php servers/php/router.php",
     "dev:zig": "zig build run --build-file servers/zig/build.zig",
+    "dev:bash": "bash servers/bash/server.sh",
+    "dev:python": "python3 servers/python/server.py",
     "dev:all": "node scripts/dev-all.mjs",
     "build": "vite build",
     "preview": "vite preview",

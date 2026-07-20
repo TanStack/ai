@@ -7,6 +7,8 @@ const backendProxies = [
   { id: 'rust', port: 8002 },
   { id: 'php', port: 8003 },
   { id: 'zig', port: 8004 },
+  { id: 'bash', port: 8005 },
+  { id: 'python', port: 8006 },
 ] as const
 
 export default defineConfig({
@@ -19,7 +21,8 @@ export default defineConfig({
         {
           target: `http://127.0.0.1:${port}`,
           changeOrigin: true,
-          rewrite: (path) => path.replace(new RegExp(`^/api/${id}/?$`), '/') || '/',
+          rewrite: (path) =>
+            path.replace(new RegExp(`^/api/${id}/?$`), '/') || '/',
         },
       ]),
     ),
