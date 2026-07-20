@@ -95,13 +95,15 @@ describe('xhr connection adapters', () => {
       await nextTick()
 
       expect(xhr.method).toBe('POST')
-      // The run id is threaded into the URL so a durable server can correlate
-      // a reconnect/join to the same run (matches the fetch SSE adapter).
-      expect(xhr.url).toBe('/api/chat?runId=run-1')
+      // The run id is sent in the X-Run-Id header so a durable server can
+      // correlate a reconnect/join to the same run, while the POST URL stays
+      // byte-identical to a plain request (matches the fetch SSE adapter).
+      expect(xhr.url).toBe('/api/chat')
       expect(xhr.withCredentials).toBe(true)
       expect(xhr.requestHeaders).toMatchObject({
         'Content-Type': 'application/json',
         Authorization: 'Bearer token',
+        'X-Run-Id': 'run-1',
       })
       const body = JSON.parse(xhr.requestBody ?? '{}')
       expect(body).toMatchObject({

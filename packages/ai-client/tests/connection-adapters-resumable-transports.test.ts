@@ -63,7 +63,9 @@ function deltasOf(chunks: Array<StreamChunk>): Array<string> {
 describe('resumable NDJSON (fetchHttpStream)', () => {
   it('reconnects with Last-Event-ID and de-dupes already-seen chunks', async () => {
     const fetchClient = vi.fn<typeof fetch>(async (url, init) => {
-      expect(String(url)).toBe('/api/chat?runId=r')
+      // Run id rides in the X-Run-Id header; the POST URL is unchanged.
+      expect(String(url)).toBe('/api/chat')
+      expect(new Headers(init?.headers).get('X-Run-Id')).toBe('r')
       if (fetchClient.mock.calls.length === 1) {
         // First response: 3 enveloped lines, then a clean end with no terminal.
         return ndjsonResponse(
@@ -238,7 +240,8 @@ describe('resumable XHR transports', () => {
 
     await flush()
     const first = queue.xhrs[0]!
-    expect(first.url).toBe('/api/chat?runId=r')
+    expect(first.url).toBe('/api/chat')
+    expect(first.requestHeaders['X-Run-Id']).toBe('r')
     first.progress(
       envelopeLine('run@1', contentChunk('1')) +
         envelopeLine('run@2', contentChunk('2')),

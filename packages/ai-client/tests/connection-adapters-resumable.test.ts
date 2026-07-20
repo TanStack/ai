@@ -74,7 +74,9 @@ function emptyIdEvent(delta: string): string {
 describe('resumable SSE connection adapter', () => {
   it('reconnects with Last-Event-ID and de-dupes already-seen chunks', async () => {
     const fetchClient = vi.fn<typeof fetch>(async (url, init) => {
-      expect(String(url)).toBe('/api/chat?runId=r')
+      // The run id rides in the X-Run-Id header; the POST URL is unchanged.
+      expect(String(url)).toBe('/api/chat')
+      expect(new Headers(init?.headers).get('X-Run-Id')).toBe('r')
       if (fetchClient.mock.calls.length === 1) {
         // First response: 3 tagged chunks, then the connection closes with no
         // terminal event (a mid-stream drop).
@@ -117,7 +119,7 @@ describe('resumable SSE connection adapter', () => {
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 
-  it('preserves query parameters while replacing a stale runId', async () => {
+  it('leaves the request URL untouched and sends the run id as a header', async () => {
     const fetchClient = vi.fn<typeof fetch>(async () =>
       sseResponse(finishedEvent('run@1')),
     )
@@ -135,8 +137,15 @@ describe('resumable SSE connection adapter', () => {
       // drain
     }
 
+    // The caller's URL — query params and hash included — is passed through
+    // verbatim; the run id is carried in the X-Run-Id header instead of being
+    // injected into the query, so an existing client's request URL is never
+    // rewritten.
     expect(String(fetchClient.mock.calls[0]![0])).toBe(
-      '/api/chat?provider=openai&runId=current#response',
+      '/api/chat?provider=openai&runId=stale#response',
+    )
+    expect(new Headers(fetchClient.mock.calls[0]![1]?.headers).get('X-Run-Id')).toBe(
+      'current',
     )
   })
 

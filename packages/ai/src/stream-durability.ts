@@ -66,6 +66,12 @@ function readResumeOffset(request: Request): string | null {
 }
 
 function readRunId(request: Request): string | null {
+  // A POST producer carries its client-chosen run id in the X-Run-Id header so
+  // the request URL stays byte-identical to a plain, non-durable request; the
+  // GET join path carries it in the ?runId query instead. Prefer the header,
+  // fall back to the query.
+  const header = request.headers.get('X-Run-Id')
+  if (header) return header
   try {
     return new URL(request.url).searchParams.get('runId')
   } catch {

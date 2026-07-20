@@ -185,6 +185,21 @@ function mergeHeaders(
   return customHeaders
 }
 
+/**
+ * Request header carrying the client-chosen run id to a delivery-durability
+ * sink. The durable log is then keyed by the SAME id the client already holds,
+ * so a later join/resume can address the run without first reading back a
+ * server-generated id. Sent as a header — NOT a query param — so the POST URL
+ * stays byte-identical to a plain, non-durable request; a server that isn't
+ * durable simply ignores the header. (The GET join path keeps `?runId` in the
+ * query, since a GET has no body/handler contract to disturb.)
+ */
+const RUN_ID_HEADER = 'X-Run-Id'
+
+function runIdHeader(runId: string | undefined): Record<string, string> {
+  return runId === undefined ? {} : { [RUN_ID_HEADER]: runId }
+}
+
 function withSearchParams(url: string, values: Record<string, string>): string {
   const hashIndex = url.indexOf('#')
   const hash = hashIndex === -1 ? '' : url.slice(hashIndex)
@@ -947,6 +962,7 @@ export function fetchServerSentEvents(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...runIdHeader(runContext?.runId),
       }
 
       // Build AG-UI RunAgentInput payload.
@@ -968,9 +984,10 @@ export function fetchServerSentEvents(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
-      const requestUrl = runContext?.runId
-        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
-        : resolvedUrl
+      // POST URL is byte-identical to a plain request; the run id (when set)
+      // rides in the X-Run-Id header so durability can key the log by it
+      // without changing the request URL existing clients rely on.
+      const requestUrl = resolvedUrl
 
       // Resumable SSE: if the server tags events with `id:` offsets (delivery
       // durability), a dropped/rolled-over connection auto-reconnects with a
@@ -1092,6 +1109,7 @@ export function fetchHttpStream(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...runIdHeader(runContext?.runId),
       }
 
       // Build AG-UI RunAgentInput payload.
@@ -1113,9 +1131,10 @@ export function fetchHttpStream(
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
       const signal = abortSignal || resolvedOptions.signal
-      const requestUrl = runContext?.runId
-        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
-        : resolvedUrl
+      // POST URL is byte-identical to a plain request; the run id (when set)
+      // rides in the X-Run-Id header so durability can key the log by it
+      // without changing the request URL existing clients rely on.
+      const requestUrl = resolvedUrl
 
       // Resumable NDJSON: if the server envelopes each line with an
       // `{ id, chunk }` offset (delivery durability), a dropped/rolled-over
@@ -1344,6 +1363,9 @@ function createConfiguredXhrRequest(
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...mergeHeaders(options.headers),
+    // Client-chosen run id for durability (POST only; the GET join carries it
+    // in the query instead).
+    ...(method === 'POST' ? runIdHeader(runContext?.runId) : {}),
     // Reconnect offset (`Last-Event-ID`) wins over static headers.
     ...extraHeaders,
   }
@@ -1439,9 +1461,10 @@ export function xhrServerSentEvents(
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       const signal = abortSignal || resolvedOptions.signal
-      const requestUrl = runContext?.runId
-        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
-        : resolvedUrl
+      // POST URL is byte-identical to a plain request; the run id (when set)
+      // rides in the X-Run-Id header so durability can key the log by it
+      // without changing the request URL existing clients rely on.
+      const requestUrl = resolvedUrl
       yield* resumableStream(
         xhrEventSource(
           requestUrl,
@@ -1497,9 +1520,10 @@ export function xhrHttpStream(
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       const signal = abortSignal || resolvedOptions.signal
-      const requestUrl = runContext?.runId
-        ? withSearchParams(resolvedUrl, { runId: runContext.runId })
-        : resolvedUrl
+      // POST URL is byte-identical to a plain request; the run id (when set)
+      // rides in the X-Run-Id header so durability can key the log by it
+      // without changing the request URL existing clients rely on.
+      const requestUrl = resolvedUrl
       yield* resumableStream(
         xhrEventSource(
           requestUrl,

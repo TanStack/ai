@@ -81,8 +81,13 @@ export function customDurability(
   const resume =
     request.headers.get('Last-Event-ID') ?? url.searchParams.get('offset')
   // Your adapter owns run identity. A real backend decodes the runId from the
-  // resume offset; this example takes it from ?runId or mints a fresh one.
-  const runId = url.searchParams.get('runId') ?? crypto.randomUUID()
+  // resume offset; this example takes the client's chosen id from the
+  // X-Run-Id header (a POST producer) or the ?runId query (a GET join), and
+  // otherwise mints a fresh one.
+  const runId =
+    request.headers.get('X-Run-Id') ??
+    url.searchParams.get('runId') ??
+    crypto.randomUUID()
   const log = openLog(runId)
 
   return {

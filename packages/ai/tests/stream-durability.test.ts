@@ -96,6 +96,45 @@ describe('memoryStream', () => {
     expect(await readLabels(joiner.read(resumeOffset))).toEqual(['y'])
   })
 
+  it('reads the producer run id from the X-Run-Id header (client POST path)', async () => {
+    // The client sends its chosen run id as a header so the POST URL is
+    // byte-identical to a plain request; a from-start join addresses the same
+    // run by that id in the query.
+    const producer = memoryStream(
+      new Request('https://example.test/api/chat', {
+        method: 'POST',
+        headers: { 'X-Run-Id': 'run-from-header' },
+      }),
+    )
+    await producer.append([ev.textContent('h1'), ev.textContent('h2')])
+    await producer.close()
+
+    const joiner = memoryStream(
+      new Request('https://example.test/api/chat?runId=run-from-header&offset=-1', {
+        method: 'GET',
+      }),
+    )
+    expect(await readLabels(joiner.read('-1'))).toEqual(['h1', 'h2'])
+  })
+
+  it('prefers the X-Run-Id header over a ?runId query param', async () => {
+    const producer = memoryStream(
+      new Request('https://example.test/api/chat?runId=from-query', {
+        method: 'POST',
+        headers: { 'X-Run-Id': 'from-header' },
+      }),
+    )
+    await producer.append([ev.textContent('z')])
+    await producer.close()
+
+    const byHeaderId = memoryStream(
+      new Request('https://example.test/api/chat?runId=from-header&offset=-1', {
+        method: 'GET',
+      }),
+    )
+    expect(await readLabels(byHeaderId.read('-1'))).toEqual(['z'])
+  })
+
   it('live-tails a from-start join through the producer terminal', async () => {
     const producer = memoryStream(
       new Request('https://example.test/api/chat?runId=run-live', {
