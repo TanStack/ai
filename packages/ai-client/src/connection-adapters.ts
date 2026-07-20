@@ -128,6 +128,84 @@ function resolveReconnectOptions(
   return { maxAttempts, delayMs }
 }
 
+/**
+ * Reconnect bookkeeping shared by every resumable-stream driver: de-dupes
+ * offsets, tracks the last acknowledged offset, honors the SSE empty-id reset
+ * convention, and bounds consecutive no-progress reconnects behind a
+ * throttling delay. Extracted out of {@link resumableStream} so a WebSocket
+ * reconnect driver can reuse the exact same semantics.
+ */
+export interface ReconnectTracker {
+  /** The most recently accepted (non-duplicate, non-empty) offset, if any. */
+  readonly lastEventId: string | undefined
+  /**
+   * Record an incoming offset. Returns `'reset'` for an empty id (SSE's
+   * resume-cursor reset — clears the de-dupe set and `lastEventId`),
+   * `'duplicate'` for an already-seen id, and `'new'` otherwise (including
+   * `undefined`, which is untracked — no offset to remember).
+   */
+  note: (id: string | undefined) => 'new' | 'duplicate' | 'reset'
+  /**
+   * Throttle before a reconnect attempt. Resets the no-progress counter when
+   * `madeProgress` is true; otherwise increments it and throws
+   * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
+   */
+  waitBeforeReconnect: (
+    madeProgress: boolean,
+    signal?: AbortSignal,
+  ) => Promise<void>
+}
+
+/** Create a {@link ReconnectTracker} bound to the given reconnect bounds. */
+export function createReconnectTracker(
+  options?: ReconnectOptions,
+): ReconnectTracker {
+  const reconnect = resolveReconnectOptions(options)
+  // Retains every delivered offset for the run's lifetime. Intentionally
+  // bounded by run length (not evicted): a conforming server replays strictly
+  // after the acknowledged offset, so this only needs to catch the single
+  // boundary event on reconnect, but keeping the full set keeps de-dup
+  // correct even if a server replays a wider overlap.
+  const seen = new Set<string>()
+  let lastEventId: string | undefined
+  let reconnectAttempts = 0
+  return {
+    get lastEventId() {
+      return lastEventId
+    },
+    note(id) {
+      if (id === undefined) return 'new'
+      if (id === '') {
+        // SSE spec: an empty `id:` resets the resume cursor. Drop the last
+        // offset and clear the de-dupe set; the chunk itself still delivers.
+        lastEventId = undefined
+        seen.clear()
+        return 'reset'
+      }
+      if (seen.has(id)) return 'duplicate'
+      seen.add(id)
+      lastEventId = id
+      return 'new'
+    },
+    // Bound only CONSECUTIVE no-progress reconnects. A reconnect that made
+    // forward progress resets the counter, so a healthy long run (even one
+    // whose socket rolls after every event) never approaches the ceiling; it
+    // fires only when the run is genuinely stuck — reconnecting repeatedly
+    // with nothing new.
+    async waitBeforeReconnect(madeProgress, signal) {
+      if (madeProgress) {
+        reconnectAttempts = 0
+      } else {
+        reconnectAttempts += 1
+        if (reconnectAttempts > reconnect.maxAttempts) {
+          throw new StreamReconnectLimitError(reconnect.maxAttempts)
+        }
+      }
+      await abortableDelay(reconnect.delayMs, signal)
+    },
+  }
+}
+
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0 || signal?.aborted) return Promise.resolve()
@@ -495,39 +573,14 @@ async function* resumableStream(
   abortSignal?: AbortSignal,
   reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
-  // Retains every delivered offset for the run's lifetime. Intentionally bounded
-  // by run length (not evicted): a conforming server replays strictly after the
-  // acknowledged offset, so this only needs to catch the single boundary event
-  // on reconnect, but keeping the full set keeps de-dup correct even if a server
-  // replays a wider overlap.
-  const seen = new Set<string>()
-  let lastEventId: string | undefined
-  const reconnect = resolveReconnectOptions(reconnectOptions)
-  let reconnectAttempts = 0
-
-  // Throttle before re-issuing the request, and enforce the total ceiling so a
-  // producer that keeps dropping after each event is bounded rather than
-  // reconnecting forever.
-  // Bound only CONSECUTIVE no-progress reconnects. A reconnect that made forward
-  // progress resets the counter, so a healthy long run (even one whose socket
-  // rolls after every event) never approaches the ceiling; it fires only when
-  // the run is genuinely stuck — reconnecting repeatedly with nothing new.
-  async function waitBeforeReconnect(madeProgress: boolean): Promise<void> {
-    if (madeProgress) {
-      reconnectAttempts = 0
-    } else {
-      reconnectAttempts += 1
-      if (reconnectAttempts > reconnect.maxAttempts) {
-        throw new StreamReconnectLimitError(reconnect.maxAttempts)
-      }
-    }
-    await abortableDelay(reconnect.delayMs, abortSignal)
-  }
+  const tracker = createReconnectTracker(reconnectOptions)
 
   for (;;) {
     if (abortSignal?.aborted) return
     const extraHeaders: Record<string, string> =
-      lastEventId !== undefined ? { 'Last-Event-ID': lastEventId } : {}
+      tracker.lastEventId !== undefined
+        ? { 'Last-Event-ID': tracker.lastEventId }
+        : {}
 
     let sawTerminal = false
     let progressed = false
@@ -536,18 +589,7 @@ async function* resumableStream(
         extraHeaders,
         abortSignal,
       )) {
-        if (id !== undefined) {
-          if (id === '') {
-            // SSE spec: an empty `id:` resets the resume cursor. Drop the last
-            // offset and clear the de-dupe set; the chunk itself still delivers.
-            lastEventId = undefined
-            seen.clear()
-          } else {
-            if (seen.has(id)) continue
-            seen.add(id)
-            lastEventId = id
-          }
-        }
+        if (tracker.note(id) === 'duplicate') continue
         progressed = true
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
           sawTerminal = true
@@ -574,9 +616,9 @@ async function* resumableStream(
       if (
         (error instanceof StreamTruncatedError ||
           error instanceof StreamReadError) &&
-        lastEventId !== undefined
+        tracker.lastEventId !== undefined
       ) {
-        await waitBeforeReconnect(progressed)
+        await tracker.waitBeforeReconnect(progressed, abortSignal)
         continue
       }
       throw error
@@ -590,14 +632,14 @@ async function* resumableStream(
     // would re-open past the final offset and see an empty window.
     if (sawTerminal) return
 
-    if (lastEventId !== undefined) {
+    if (tracker.lastEventId !== undefined) {
       // A durable (id-tagged) run.
       if (progressed) {
         // Clean end WITHOUT a terminal event but we advanced — the producer is
         // still going (or the socket rolled over). Reconnect from the last
         // offset (backing off to avoid a hot loop against the origin). Progress
         // resets the no-progress ceiling.
-        await waitBeforeReconnect(true)
+        await tracker.waitBeforeReconnect(true, abortSignal)
         continue
       }
       // Ended without a terminal event AND made no forward progress on this
