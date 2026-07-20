@@ -19,7 +19,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   'one-shot-text': new Set([
@@ -33,7 +32,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral']),
@@ -48,7 +46,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   'tool-calling': new Set([
@@ -62,7 +59,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   'parallel-tool-calls': new Set([
@@ -75,7 +71,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
@@ -89,7 +84,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
@@ -103,7 +97,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   'structured-output': new Set([
@@ -117,7 +110,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   // Streaming structured output: only providers with native streaming JSON
@@ -132,7 +124,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -162,7 +153,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -175,7 +165,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openai-compatible',
-    'litellm',
     'mistral',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model

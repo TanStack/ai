@@ -12,7 +12,6 @@ export type Provider =
   | 'openrouter'
   | 'openrouter-responses'
   | 'openai-compatible'
-  | 'litellm'
   | 'mistral'
   | 'elevenlabs'
 
@@ -58,7 +57,6 @@ export const ALL_PROVIDERS: Provider[] = [
   'openrouter',
   'openrouter-responses',
   'openai-compatible',
-  'litellm',
   'mistral',
   'elevenlabs',
 ]
