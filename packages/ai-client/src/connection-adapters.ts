@@ -1614,11 +1614,39 @@ function runIdQuery(url: string, runId: string | undefined): string {
   return runId ? withSearchParams(url, { runId }) : url
 }
 
+/** A subscribe()/joinRun() consumer's registration: receives chunks or a fatal error. */
+interface WebSocketChunkSink {
+  push: (chunk: StreamChunk) => void
+  fail: (error: unknown) => void
+}
+
+/**
+ * The send()-driven run currently owning auto-reconnect for a `webSocket()`
+ * connection. `undefined` when no `send()` has established a run yet (e.g. a
+ * `joinRun()`-only connection), so a drop there is never auto-resumed — Task
+ * 11 scopes reconnect to the run `subscribe()`/`send()` are driving.
+ */
+interface WebSocketRunSession {
+  runId: string | undefined
+  readonly tracker: ReconnectTracker
+  sawTerminal: boolean
+  /** Made forward progress (a new, non-duplicate chunk) since the last (re)connect. */
+  progressed: boolean
+  signal: AbortSignal | undefined
+}
+
 /**
  * Full-duplex, conversation-scoped WebSocket connection adapter. Pairs with the
  * server `toWebSocketResponse` / `toWebSocketStream`. `send()` writes a
- * RunAgentInput frame; `subscribe()` yields inbound chunks. Durable runs are
- * offset-tagged (`{ id, chunk }`); reconnect is added in a later task.
+ * RunAgentInput frame; `subscribe()` yields inbound chunks.
+ *
+ * Resumable: `send()` establishes a run session backed by a
+ * {@link createReconnectTracker}. If the socket closes before a terminal
+ * (`RUN_FINISHED`/`RUN_ERROR`) chunk is seen and the run is durable
+ * (offset-tagged `{ id, chunk }` envelopes), the socket is reopened at
+ * `?runId=&offset=<lastEventId>`, de-duping the replayed boundary. A drop with
+ * no offset ever observed (non-durable) surfaces {@link StreamReadError}
+ * instead of reconnecting — there is nothing to resume from.
  */
 export function webSocket(
   url: string | (() => string),
@@ -1636,7 +1664,12 @@ export function webSocket(
   // second `send()` issued before the handshake completes would overwrite the
   // first call's handlers and leave its promise permanently unresolved.
   let openPromise: Promise<void> | undefined
-  const listeners = new Set<(chunk: StreamChunk) => void>()
+  const listeners = new Set<WebSocketChunkSink>()
+  let currentSession: WebSocketRunSession | undefined
+
+  function failAll(error: unknown): void {
+    for (const l of listeners) l.fail(error)
+  }
 
   function openOnce(target: string): WebSocket {
     if (socket && socket.readyState <= 1) return socket
@@ -1660,12 +1693,71 @@ export function webSocket(
       ) {
         return
       }
+      const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
       const chunk = isNdjsonEnvelope(parsed)
         ? parsed.chunk
         : (parsed as StreamChunk)
-      for (const l of listeners) l(chunk)
+
+      // Thread durable chunks through the active run session's tracker (if
+      // any) so a later reconnect knows the last offset and can skip a
+      // replayed boundary. A socket with no active session (e.g. joinRun()
+      // only) dispatches chunks as-is, exactly as before Task 11.
+      const session = currentSession
+      if (session) {
+        if (session.tracker.note(envelopeId) === 'duplicate') return
+        session.progressed = true
+        if (session.runId === undefined) {
+          session.runId = getChunkRunId(chunk)
+        }
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          session.sawTerminal = true
+        }
+      }
+      for (const l of listeners) l.push(chunk)
+    }
+    ws.onclose = () => {
+      const session = currentSession
+      if (!session || session.signal?.aborted || session.sawTerminal) return
+      const lastEventId = session.tracker.lastEventId
+      if (lastEventId === undefined) {
+        // Non-durable run (no offset ever observed) — nothing to resume
+        // from. Surface a hard failure rather than silently reconnecting
+        // forever against a server that never tags its events.
+        currentSession = undefined
+        failAll(
+          new StreamReadError(new Error('WebSocket connection closed')),
+        )
+        return
+      }
+      void reconnect(session, lastEventId)
     }
     return ws
+  }
+
+  async function reconnect(
+    session: WebSocketRunSession,
+    offset: string,
+  ): Promise<void> {
+    try {
+      // Bounded by the shared tracker's consecutive-no-progress ceiling —
+      // mirrors resumableStream so a flapping server can't reconnect forever.
+      await session.tracker.waitBeforeReconnect(
+        session.progressed,
+        session.signal,
+      )
+    } catch (error) {
+      currentSession = undefined
+      failAll(error)
+      return
+    }
+    if (session.signal?.aborted) return
+    session.progressed = false
+    const base = typeof url === 'function' ? url() : url
+    const target = withSearchParams(base, {
+      ...(session.runId !== undefined ? { runId: session.runId } : {}),
+      offset,
+    })
+    openOnce(target)
   }
 
   function waitOpen(ws: WebSocket): Promise<void> {
@@ -1680,12 +1772,19 @@ export function webSocket(
     subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
       const queue: Array<StreamChunk> = []
       const waiters: Array<(c: StreamChunk | null) => void> = []
+      let failure: unknown
       const push = (c: StreamChunk) => {
         const w = waiters.shift()
         if (w) w(c)
         else queue.push(c)
       }
-      listeners.add(push)
+      const fail = (e: unknown) => {
+        failure = e
+        const w = waiters.shift()
+        if (w) w(null)
+      }
+      const sink: WebSocketChunkSink = { push, fail }
+      listeners.add(sink)
       abortSignal?.addEventListener('abort', () => {
         const w = waiters.shift()
         if (w) w(null)
@@ -1697,18 +1796,37 @@ export function webSocket(
             const chunk =
               buffered ??
               (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
-            if (chunk === null) return
+            if (chunk === null) {
+              if (failure !== undefined) throw failure
+              return
+            }
             yield chunk
           }
         } finally {
-          listeners.delete(push)
+          listeners.delete(sink)
         }
       })()
     },
-    async send(messages, data, _abortSignal, runContext) {
+    async send(messages, data, abortSignal, runContext) {
       const target = typeof url === 'function' ? url() : url
       const ws = openOnce(runIdQuery(target, runContext?.runId))
       await waitOpen(ws)
+      // Establish (or continue) the run session this socket is driving, so
+      // an unterminated drop can auto-resume it. A distinct runId starts a
+      // fresh tracker (a new run's offsets are unrelated to the last one's);
+      // the same runId reuses the tracker so a repeat send() on an
+      // already-tracked run doesn't lose its de-dupe/offset state.
+      if (!currentSession || currentSession.runId !== runContext?.runId) {
+        currentSession = {
+          runId: runContext?.runId,
+          tracker: createReconnectTracker(options.reconnect),
+          sawTerminal: false,
+          progressed: false,
+          signal: abortSignal,
+        }
+      } else {
+        currentSession.signal = abortSignal
+      }
       const body = buildRunAgentInputBody(messages, data, runContext, {
         body: options.body,
       })
@@ -1722,12 +1840,19 @@ export function webSocket(
       openOnce(target)
       const chunks: Array<StreamChunk> = []
       const waiters: Array<(c: StreamChunk | null) => void> = []
+      let failure: unknown
       const push = (c: StreamChunk) => {
         const w = waiters.shift()
         if (w) w(c)
         else chunks.push(c)
       }
-      listeners.add(push)
+      const fail = (e: unknown) => {
+        failure = e
+        const w = waiters.shift()
+        if (w) w(null)
+      }
+      const sink: WebSocketChunkSink = { push, fail }
+      listeners.add(sink)
       abortSignal?.addEventListener('abort', () => waiters.shift()?.(null))
       return (async function* () {
         try {
@@ -1735,11 +1860,14 @@ export function webSocket(
             const c =
               chunks.shift() ??
               (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
-            if (c === null) return
+            if (c === null) {
+              if (failure !== undefined) throw failure
+              return
+            }
             yield c
           }
         } finally {
-          listeners.delete(push)
+          listeners.delete(sink)
         }
       })()
     },

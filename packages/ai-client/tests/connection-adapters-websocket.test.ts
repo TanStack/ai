@@ -172,3 +172,50 @@ describe('webSocket() subscribe/send', () => {
     expect(JSON.parse(sent1).runId).toBe('r2')
   })
 })
+
+describe('webSocket() reconnect', () => {
+  it('reopens with ?runId&offset after a drop and de-dupes the overlap', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+      reconnect: { delayMs: 0, maxAttempts: 5 },
+    })
+    const ac = new AbortController()
+    const received: Array<any> = []
+    const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
+    await conn.send([{ role: 'user', content: 'hi' } as any], undefined, ac.signal, {
+      threadId: 't',
+      runId: 'run-x',
+    })
+    const ws1 = FakeWebSocket.instances[0]
+    if (!ws1) throw new Error('expected a FakeWebSocket instance to have been created')
+    await new Promise((r) => setTimeout(r, 0))
+    ws1.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    await new Promise((r) => setTimeout(r, 0))
+    ws1.close() // drop mid-run
+
+    await new Promise((r) => setTimeout(r, 5))
+    const ws2 = FakeWebSocket.instances[1]
+    expect(ws2).toBeDefined()
+    if (!ws2) throw new Error('expected a second FakeWebSocket instance to have been created')
+    const url2 = new URL(ws2.url)
+    expect(url2.searchParams.get('runId')).toBe('run-x')
+    expect(url2.searchParams.get('offset')).toBe('off-1')
+
+    // Server replays the de-duped boundary + a new chunk + terminal.
+    ws2.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    ws2.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 }, 'off-2')
+    ws2.emit(
+      { type: 'RUN_FINISHED', runId: 'run-x', threadId: 't', model: 'm', finishReason: 'stop', timestamp: 0 },
+      'off-3',
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    ac.abort()
+    await sub
+    expect(received.map((c) => c.delta ?? c.type)).toEqual([
+      'a',
+      'b',
+      'RUN_FINISHED',
+    ])
+  })
+})
