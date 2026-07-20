@@ -9,7 +9,7 @@ title: generateVideo
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:231](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L231)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:312](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L312)
 
 **`Experimental`**
 
@@ -27,7 +27,7 @@ create job → poll for status → stream updates → yield final result.
 
 ### TAdapter
 
-`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TStream
 

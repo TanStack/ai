@@ -5,6 +5,12 @@ export type {
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
@@ -46,6 +52,12 @@ export type {
   UseGenerateVideoOptions,
   UseGenerateVideoReturn,
 } from './use-generate-video'
+
+export { useAudioRecorder } from './use-audio-recorder'
+export type {
+  UseAudioRecorderOptions,
+  UseAudioRecorderReturn,
+} from './use-audio-recorder'
 
 // Re-export from ai-client for convenience
 export {

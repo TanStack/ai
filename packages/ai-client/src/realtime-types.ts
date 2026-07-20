@@ -1,83 +1,18 @@
 import type {
   AnyClientTool,
-  AudioVisualization,
-  RealtimeEvent,
-  RealtimeEventHandler,
+  RealtimeAdapter,
   RealtimeMessage,
   RealtimeMode,
-  RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai/client'
+import type { UsageInfo } from '@tanstack/ai'
 
-// ============================================================================
-// Adapter Interface
-// ============================================================================
-
-/**
- * Adapter interface for connecting to realtime providers.
- * Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
- */
-export interface RealtimeAdapter {
-  /** Provider identifier */
-  provider: string
-
-  /**
-   * Create a connection using the provided token
-   * @param token - The ephemeral token from the server
-   * @param clientTools - Optional client-side tools to register with the provider
-   * @returns A connection instance
-   */
-  connect: (
-    token: RealtimeToken,
-    clientTools?: ReadonlyArray<AnyClientTool>,
-  ) => Promise<RealtimeConnection>
-}
-
-/**
- * Connection interface representing an active realtime session.
- * Handles audio I/O, events, and session management.
- */
-export interface RealtimeConnection {
-  // Lifecycle
-  /** Disconnect from the realtime session */
-  disconnect: () => Promise<void>
-
-  // Audio I/O
-  /** Start capturing audio from the microphone */
-  startAudioCapture: () => Promise<void>
-  /** Stop capturing audio */
-  stopAudioCapture: () => void
-
-  // Text input
-  /** Send a text message (fallback for when voice isn't available) */
-  sendText: (text: string) => void
-
-  // Image input
-  /** Send an image to the conversation */
-  sendImage: (imageData: string, mimeType: string) => void
-
-  // Tool results
-  /** Send a tool execution result back to the provider */
-  sendToolResult: (callId: string, result: string) => void
-
-  // Session management
-  /** Update session configuration */
-  updateSession: (config: Partial<RealtimeSessionConfig>) => void
-  /** Interrupt the current response */
-  interrupt: () => void
-
-  // Events
-  /** Subscribe to connection events */
-  on: <TEvent extends RealtimeEvent>(
-    event: TEvent,
-    handler: RealtimeEventHandler<TEvent>,
-  ) => () => void
-
-  // Audio visualization
-  /** Get audio visualization data */
-  getAudioVisualization: () => AudioVisualization
-}
+// The realtime adapter contract lives in `@tanstack/ai` (the shared layer both
+// providers and this client depend on) so provider packages don't need to
+// depend on `@tanstack/ai-client`. Re-exported here for backwards compatibility
+// — `import { RealtimeAdapter } from '@tanstack/ai-client'` keeps working.
+export type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai/client'
 
 // ============================================================================
 // Client Options
@@ -148,6 +83,11 @@ export interface RealtimeClientOptions {
    */
   semanticEagerness?: 'low' | 'medium' | 'high'
 
+  /**
+   * Provider-specific options
+   */
+  providerOptions?: Record<string, unknown>
+
   // Callbacks
   onStatusChange?: (status: RealtimeStatus) => void
   onModeChange?: (mode: RealtimeMode) => void
@@ -156,6 +96,8 @@ export interface RealtimeClientOptions {
   onConnect?: () => void
   onDisconnect?: () => void
   onInterrupted?: () => void
+  onUsage?: (usage: UsageInfo) => void
+  onGoAway?: (timeLeft?: string) => void
 }
 
 // ============================================================================

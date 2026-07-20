@@ -29,7 +29,8 @@ The source of truth is:
 This means the context value is the implementation detail you provide at runtime, while tools and middleware are the contract. TanStack AI infers the required context from every typed tool and middleware in the call, merges those requirements, and checks your `context` option against the result.
 
 ```typescript
-import { chat, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 
 type UserContext = {
   userId: string;
@@ -53,16 +54,20 @@ const tenantMiddleware: ChatMiddleware<TenantContext> = {
   },
 };
 
-chat({
-  adapter,
-  messages,
-  tools: [currentUserTool],
-  middleware: [tenantMiddleware],
-  context: {
-    userId: "user_123",
-    tenantId: "tenant_456",
-  },
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [currentUserTool],
+    middleware: [tenantMiddleware],
+    context: {
+      userId: "user_123",
+      tenantId: "tenant_456",
+    },
+  });
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 In this example, the tool requires `UserContext` and the middleware requires `TenantContext`, so the `context` value must satisfy both. If you remove `tenantId`, TypeScript reports an error because `tenantMiddleware` declared that it needs it.
@@ -74,7 +79,6 @@ This inference also works when reusable tools or middleware are declared outside
 The same rule applies on the client:
 
 ```typescript
-import { clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 
@@ -94,7 +98,7 @@ const inspectClientContext = toolDefinition({
 
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(inspectClientContext),
+  tools: [inspectClientContext],
   context: {
     currentTabId: "settings",
     mode: "debug",
@@ -117,6 +121,7 @@ import {
 } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
+import { requireUser, db } from "./auth";
 
 type AppContext = {
   userId: string;
@@ -156,7 +161,7 @@ export async function POST(request: Request) {
   const user = await requireUser(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [listNotes],
     middleware: [auditMiddleware],
@@ -178,7 +183,7 @@ When any tool or middleware in a `chat()` call declares a concrete context type,
 Client runtime context is local to `ChatClient` and framework hooks. It is passed to client tool implementations and is not serialized to the server.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 
@@ -197,7 +202,7 @@ const notifyUser = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(notifyUser),
+  tools: [notifyUser],
   context: {
     currentTabId: "settings",
     toast: (message) => window.alert(message),
@@ -214,13 +219,33 @@ Use client context for local dependencies only. Do not put values there expectin
 To send serializable client data to the server, use `forwardedProps`, validate it in your route, and explicitly map it into the server runtime context.
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
+
+type ClientContext = {
+  currentTabId: string;
+  toast(message: string): void;
+};
+
+const notifyUser = toolDefinition({
+  name: "notify_user",
+  description: "Show a notification in the current browser tab",
+}).client<ClientContext>((_input, ctx) => {
+  ctx.context.toast(`Updated tab ${ctx.context.currentTabId}`);
+  return { ok: true };
+});
+
 // Client
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
+  tools: [notifyUser],
   forwardedProps: {
-    tenantId: selectedTenantId,
+    tenantId: "tenant_456",
   },
-  context: clientRuntimeContext,
+  context: {
+    currentTabId: "settings",
+    toast: (message) => window.alert(message),
+  },
 });
 ```
 
@@ -231,6 +256,9 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { requireUser } from "./auth";
+import { serverTools } from "./tools";
 
 type AppContext = {
   userId: string;
@@ -247,9 +275,9 @@ export async function POST(request: Request) {
       : user.defaultTenantId;
 
   const stream = chat({
-    adapter,
+    adapter: openaiText("gpt-5.5"),
     messages: params.messages,
-    tools,
+    tools: serverTools,
     context: {
       userId: user.id,
       tenantId,
@@ -269,12 +297,21 @@ AG-UI also defines `RunAgentInput.context`, usually as protocol-level context en
 TanStack AI does not automatically copy AG-UI `params.aguiContext` into runtime context. If you want to use AG-UI context values, validate and map them yourself. `params.context` is a deprecated alias of `params.aguiContext` kept for backward compatibility.
 
 ```typescript
-const params = await chatParamsFromRequest(request);
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { buildRuntimeContextFrom } from "./context";
+import { serverTools } from "./tools";
 
-const stream = chat({
-  adapter,
-  messages: params.messages,
-  tools,
-  context: buildRuntimeContextFrom(params.aguiContext),
-});
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages: params.messages,
+    tools: serverTools,
+    context: buildRuntimeContextFrom(params.aguiContext),
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```

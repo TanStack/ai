@@ -33,12 +33,25 @@ Main hook for managing chat state in React with full type safety.
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+import { useState } from "react";
+
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
 
 function ChatComponent() {
+  const [notification, setNotification] = useState<string | null>(null);
+
   // Create client tool implementations
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
@@ -46,7 +59,7 @@ function ChatComponent() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI);
+  const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
     connection: fetchServerSentEvents("/api/chat"),
@@ -86,6 +99,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ### Returns
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-react";
+import type { ModelMessage } from "@tanstack/ai";
+
 interface UseChatReturn {
   messages: UIMessage[];
   sendMessage: (content: string) => Promise<void>;
@@ -258,15 +274,35 @@ export function ChatWithApproval() {
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages 
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tool-definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 import { useState } from "react";
 
+const updateUIDef = toolDefinition({
+  name: "updateUI",
+  description: "Update the UI with a notification",
+  inputSchema: z.object({
+    message: z.string(),
+    type: z.string(),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToStorageDef = toolDefinition({
+  name: "saveToStorage",
+  description: "Save a value to storage",
+  inputSchema: z.object({
+    key: z.string(),
+    value: z.string(),
+  }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
+
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState(null);
+  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
 
   // Create client implementations
   const updateUI = updateUIDef.client((input) => {
@@ -281,7 +317,7 @@ export function ChatWithClientTools() {
   });
 
   // Create typed tools array (no 'as const' needed!)
-  const tools = clientTools(updateUI, saveToStorage);
+  const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
@@ -294,8 +330,9 @@ export function ChatWithClientTools() {
         message.parts.map((part) => {
           if (part.type === "tool-call" && part.name === "updateUI") {
             // ✅ part.input and part.output are fully typed!
-            return <div>Tool executed: {part.name}</div>;
+            return <div key={part.id}>Tool executed: {part.name}</div>;
           }
+          return null;
         })
       )}
     </div>
@@ -309,13 +346,14 @@ Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import { 
-  clientTools, 
   createChatClientOptions, 
+  fetchServerSentEvents,
   type InferChatMessages 
 } from "@tanstack/ai-client";
+import { tool1, tool2 } from "./tools";
 
 // Create typed tools array (no 'as const' needed!)
-const tools = clientTools(tool1, tool2);
+const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),

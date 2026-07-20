@@ -1,6 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
-import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import {
+  EventType,
+  chat,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
 import {
   clientServerTool,
@@ -66,51 +71,91 @@ const VALID_TOOLS = new Set([
   'clientServerToolWithApproval',
 ])
 
+const MODEL = 'simulator-v1'
+
 /**
  * Simulated LLM adapter that:
  * - Echoes messages back if no tool calls detected
  * - Parses tool call syntax and generates appropriate chunks
+ *
+ * Emits the standard AG-UI lifecycle events (`RUN_STARTED`,
+ * `TEXT_MESSAGE_*` / `TOOL_CALL_*`, `RUN_FINISHED`) that the chat engine and
+ * StreamProcessor consume. The return is cast to `any` at the call site, so
+ * this only needs to be a structurally valid streaming text source.
  */
-function createSimulatorAdapter(): AIAdapter {
+function createSimulatorAdapter() {
+  // Stream a text message (start -> content deltas -> end) under one run.
+  async function* streamText(
+    text: string,
+    delayMs: number,
+  ): AsyncIterable<StreamChunk> {
+    const timestamp = Date.now()
+    const messageId = `sim-msg-${timestamp}`
+
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      model: MODEL,
+      timestamp,
+      role: 'assistant',
+    }
+
+    let accumulated = ''
+    for (const char of text) {
+      accumulated += char
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model: MODEL,
+        timestamp,
+        delta: char,
+        content: accumulated,
+      }
+      // Small delay for streaming effect
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+      model: MODEL,
+      timestamp: Date.now(),
+    }
+  }
+
   return {
     name: 'simulator',
-    models: ['simulator-v1'] as const,
-    _modelProviderOptionsByName: {},
+    model: MODEL,
 
-    async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+    async *chatStream(options: {
+      messages: Array<ModelMessage>
+    }): AsyncIterable<StreamChunk> {
       const messages = options.messages
       const lastMessage = messages[messages.length - 1]
 
+      const runId = `sim-run-${Date.now()}`
+      const threadId = `sim-thread-${Date.now()}`
+
+      yield {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        model: MODEL,
+        timestamp: Date.now(),
+      }
+
       // Check if this is a tool result - if so, acknowledge it
       if (lastMessage?.role === 'tool') {
-        const timestamp = Date.now()
-        const id = `sim-${timestamp}`
-
-        // Generate acknowledgment response
         const content =
           'Tool execution completed. The result has been processed.'
 
-        // Stream content character by character for realistic effect
-        let accumulated = ''
-        for (const char of content) {
-          accumulated += char
-          yield {
-            type: 'content',
-            id,
-            model: 'simulator-v1',
-            timestamp,
-            delta: char,
-            content: accumulated,
-            role: 'assistant',
-          }
-          // Small delay for streaming effect
-          await new Promise((resolve) => setTimeout(resolve, 10))
-        }
+        yield* streamText(content, 10)
 
         yield {
-          type: 'done',
-          id,
-          model: 'simulator-v1',
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model: MODEL,
           timestamp: Date.now(),
           finishReason: 'stop',
           usage: {
@@ -137,34 +182,17 @@ function createSimulatorAdapter(): AIAdapter {
       const toolCalls = parseToolCalls(userContent)
       const validToolCalls = toolCalls.filter((tc) => VALID_TOOLS.has(tc.name))
 
-      const timestamp = Date.now()
-      const id = `sim-${timestamp}`
-
       if (validToolCalls.length === 0) {
         // No tool calls - echo the message back
         const echoContent = `[Echo] ${userContent}`
 
-        // Stream content character by character
-        let accumulated = ''
-        for (const char of echoContent) {
-          accumulated += char
-          yield {
-            type: 'content',
-            id,
-            model: 'simulator-v1',
-            timestamp,
-            delta: char,
-            content: accumulated,
-            role: 'assistant',
-          }
-          // Small delay for streaming effect
-          await new Promise((resolve) => setTimeout(resolve, 15))
-        }
+        yield* streamText(echoContent, 15)
 
         yield {
-          type: 'done',
-          id,
-          model: 'simulator-v1',
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model: MODEL,
           timestamp: Date.now(),
           finishReason: 'stop',
           usage: {
@@ -175,51 +203,58 @@ function createSimulatorAdapter(): AIAdapter {
         }
       } else {
         // Generate tool calls
+        const timestamp = Date.now()
         for (let i = 0; i < validToolCalls.length; i++) {
           const tc = validToolCalls[i]
           const toolCallId = `call-${timestamp}-${i}`
           const argsJson = JSON.stringify(tc.arguments)
 
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId,
+            toolCallName: tc.name,
+            toolName: tc.name,
+            model: MODEL,
+            timestamp,
+            index: i,
+          }
+
           // Stream tool call arguments character by character
-          // The arguments field contains the DELTA (incremental), not accumulated
+          let argsAccumulated = ''
           for (const char of argsJson) {
+            argsAccumulated += char
             yield {
-              type: 'tool_call',
-              id,
-              model: 'simulator-v1',
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId,
+              model: MODEL,
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: tc.name,
-                  arguments: char, // Delta only, not accumulated
-                },
-              },
-              index: i,
+              delta: char,
+              args: argsAccumulated,
             }
             // Small delay for streaming effect
             await new Promise((resolve) => setTimeout(resolve, 5))
           }
+
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId,
+            toolCallName: tc.name,
+            toolName: tc.name,
+            model: MODEL,
+            timestamp: Date.now(),
+          }
         }
 
         yield {
-          type: 'done',
-          id,
-          model: 'simulator-v1',
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model: MODEL,
           timestamp: Date.now(),
           finishReason: 'tool_calls',
           usage: { promptTokens: 10, completionTokens: 50, totalTokens: 60 },
         }
       }
-    },
-
-    async summarize() {
-      throw new Error('Summarize not supported in simulator')
-    },
-
-    async createEmbeddings() {
-      throw new Error('Embeddings not supported in simulator')
     },
   }
 }
@@ -241,7 +276,6 @@ export const Route = createFileRoute('/api/simulator-chat')({
 
           const stream = chat({
             adapter: adapter as any,
-            model: 'simulator-v1',
             tools: [
               // Server tools with implementations
               serverTool,

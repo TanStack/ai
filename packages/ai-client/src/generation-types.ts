@@ -1,4 +1,5 @@
-import type { StreamChunk } from '@tanstack/ai/client'
+import type { MediaPrompt, StreamChunk } from '@tanstack/ai/client'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -11,7 +12,29 @@ import type {
 // ===========================
 
 /**
- * Infers the output type from an `onResult` callback's return type.
+ * Maps an `onResult` transform's raw return type to the stored output type.
+ *
+ * - A concrete return (excluding null/void/undefined) becomes the output type.
+ * - A return of only null/void/undefined falls back to TResult (the transform
+ *   reacted to the result or chose to keep it, rather than replacing it).
+ *
+ * Hooks infer `TReturn` directly from the `onResult` return position — a
+ * covariant inference site that works even for an optional nested property —
+ * which both contextually types the callback parameter as `TResult` and
+ * narrows `result`. See issue #848.
+ *
+ * @template TResult - The raw result type from the generation
+ * @template TReturn - The transform's return type (defaults to `void` when no
+ *   transform is provided)
+ */
+export type InferGenerationOutputFromReturn<TResult, TReturn> = [
+  Exclude<TReturn, null | void | undefined>,
+] extends [never]
+  ? TResult
+  : Exclude<TReturn, null | void | undefined>
+
+/**
+ * Infers the output type from an `onResult` callback's type.
  *
  * - If the callback returns a concrete type (excluding null/void/undefined), uses that type.
  * - If the callback only returns null/void/undefined, or is not provided, falls back to TResult.
@@ -22,9 +45,7 @@ import type {
 export type InferGenerationOutput<TResult, TFn> = TFn extends (
   result: any,
 ) => infer R
-  ? [Exclude<R, null | void | undefined>] extends [never]
-    ? TResult
-    : Exclude<R, null | void | undefined>
+  ? InferGenerationOutputFromReturn<TResult, R>
   : TResult
 
 // ===========================
@@ -216,8 +237,12 @@ export interface VideoGenerationClientOptions<
  * Input for image generation.
  */
 export interface ImageGenerateInput {
-  /** Text description of the desired image(s) */
-  prompt: string
+  /**
+   * Description of the desired image(s): plain text, or an ordered array of
+   * content parts (text + image) for image-conditioned generation
+   * (image-to-image, multi-reference, edit / inpaint).
+   */
+  prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
@@ -265,7 +290,7 @@ export interface TranscriptionGenerateInput {
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?: TranscriptionResponseFormat
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }
@@ -290,8 +315,12 @@ export interface SummarizeGenerateInput {
  * Input for video generation.
  */
 export interface VideoGenerateInput {
-  /** Text description of the desired video */
-  prompt: string
+  /**
+   * Description of the desired video: plain text, or an ordered array of
+   * content parts (text + image) for image-conditioned generation
+   * (image-to-video, start/end frames).
+   */
+  prompt: MediaPrompt
   /** Video size — format depends on provider (e.g., "16:9", "1280x720") */
   size?: string
   /** Video duration in seconds */

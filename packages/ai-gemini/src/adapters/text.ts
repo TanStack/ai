@@ -41,7 +41,7 @@ import type {
   GeminiMessageMetadataByModality,
   GeminiToolCallMetadata,
 } from '../message-types'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini text adapter
@@ -446,6 +446,7 @@ export class GeminiTextAdapter<
                 toolCallId,
                 toolCallName: toolCallData.name,
                 toolName: toolCallData.name,
+                parentMessageId: messageId,
                 model,
                 timestamp: Date.now(),
                 index: toolCallData.index,
@@ -524,6 +525,7 @@ export class GeminiTextAdapter<
                   toolCallId,
                   toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
+                  parentMessageId: messageId,
                   model,
                   timestamp: Date.now(),
                   index: nextToolIndex - 1,

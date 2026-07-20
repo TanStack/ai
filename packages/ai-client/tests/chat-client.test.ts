@@ -2137,7 +2137,7 @@ describe('ChatClient', () => {
       expect(client.getMessages().length).toBe(0)
     })
 
-    it('should not send message while loading', async () => {
+    it('should queue (not send immediately) a message sent while loading, then auto-send it once the stream settles', async () => {
       const adapter = createMockConnectionAdapter({
         chunks: createTextChunks('Response'),
         chunkDelay: 100,
@@ -2149,9 +2149,14 @@ describe('ChatClient', () => {
 
       await Promise.all([promise1, promise2])
 
-      // Should only have one user message since second was blocked
+      // The second send is queued (default `whenBusy: 'queue'`) rather than
+      // started concurrently, then auto-drains once the first stream settles
+      // — both end up sent, in order.
       const userMessages = client.getMessages().filter((m) => m.role === 'user')
-      expect(userMessages.length).toBe(1)
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+        { type: 'text', content: 'Second' },
+      ])
     })
   })
 

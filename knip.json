@@ -1,12 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker"],
+  "ignoreDependencies": ["@faker-js/faker", "@aws-sdk/client-bedrock"],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
     "packages/ai-code-mode/models-eval"
   ],
   "ignore": [
+    "kiira.config.ts",
     "scripts/**",
     "**/*.test-d.ts",
     "packages/ai-code-mode-skills/test-cli/**",
@@ -14,7 +15,6 @@
     "packages/ai-openai/live-tests/**",
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",
-    "packages/ai-openai/src/audio/transcribe-provider-options.ts",
     "packages/ai-openai/src/image/image-provider-options.ts",
     "packages/ai-devtools/src/production.ts",
     "codemods/**/__testfixtures__/**"
@@ -39,11 +39,24 @@
     "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/ai-sandbox": {
+      "ignoreDependencies": ["@ngrok/ngrok"]
+    },
+    "packages/ai-sandbox-cloudflare": {
+      "ignoreDependencies": ["cloudflare"]
+    },
+    "packages/ai-react": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
+    "packages/ai-preact": {
+      "ignoreDependencies": ["@mcp-ui/client"]
+    },
     "packages/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
-    }
+    },
+    "packages/ai-bedrock": {}
   }
 }

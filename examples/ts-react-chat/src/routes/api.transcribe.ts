@@ -8,12 +8,18 @@ import {
 } from '../lib/server-audio-adapters'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs'])
+  .optional()
+
+const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
+  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt'])
   .optional()
 
 const TRANSCRIBE_BODY_SCHEMA = z.object({
   audio: z.string().min(1),
   language: z.string().optional(),
+  responseFormat: TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA,
+  modelOptions: z.record(z.string(), z.any()).optional(),
   provider: TRANSCRIPTION_PROVIDER_SCHEMA,
 })
 
@@ -55,7 +61,8 @@ export const Route = createFileRoute('/api/transcribe')({
           })
         }
 
-        const { audio, language, provider } = parsed.data
+        const { audio, language, responseFormat, modelOptions, provider } =
+          parsed.data
 
         try {
           const adapter = buildTranscriptionAdapter(provider ?? 'openai')
@@ -64,6 +71,8 @@ export const Route = createFileRoute('/api/transcribe')({
             adapter,
             audio,
             language,
+            responseFormat,
+            modelOptions,
             stream: true,
           })
 

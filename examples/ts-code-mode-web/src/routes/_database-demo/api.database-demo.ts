@@ -17,6 +17,7 @@ import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
 import { databaseTools, getSchemaInfoTool } from '@/lib/tools/database-tools'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -284,7 +285,7 @@ export const Route = createFileRoute(
             systemPrompts,
             agentLoopStrategy: maxIterations(15),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(rawAdapter, 8192),
           })
 
           const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)

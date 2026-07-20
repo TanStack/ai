@@ -49,7 +49,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:18](https:
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:571](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L571)
+Defined in: [packages/ai/src/types.ts:622](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L622)
 
 Clear description of what the tool does.
 
@@ -74,7 +74,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:651](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L651)
+Defined in: [packages/ai/src/types.ts:702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L702)
 
 Optional function to execute when the model calls this tool.
 
@@ -112,7 +112,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:611](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L611)
+Defined in: [packages/ai/src/types.ts:662](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L662)
 
 Schema describing the tool's input parameters.
 
@@ -170,9 +170,9 @@ type({
 optional lazy: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:657](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L657)
+Defined in: [packages/ai/src/types.ts:708](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L708)
 
-If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
+If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
 #### Inherited from
 
@@ -186,7 +186,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L660)
+Defined in: [packages/ai/src/types.ts:711](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L711)
 
 Additional metadata for adapters or custom extensions
 
@@ -202,7 +202,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:561](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L561)
+Defined in: [packages/ai/src/types.ts:612](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L612)
 
 Unique name of the tool (used by the model to call it).
 
@@ -227,7 +227,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L654)
+Defined in: [packages/ai/src/types.ts:705](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L705)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -243,7 +243,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:632](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L632)
+Defined in: [packages/ai/src/types.ts:683](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L683)
 
 Optional schema for validating tool output.
 

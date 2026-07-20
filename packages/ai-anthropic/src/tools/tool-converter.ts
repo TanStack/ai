@@ -6,7 +6,7 @@ import { convertMemoryToolToAdapterFormat } from './memory-tool'
 import { convertTextEditorToolToAdapterFormat } from './text-editor-tool'
 import { convertWebFetchToolToAdapterFormat } from './web-fetch-tool'
 import { convertWebSearchToolToAdapterFormat } from './web-search-tool'
-import type { AnthropicTool } from '.'
+import type { AnthropicTool } from './index'
 import type { Tool } from '@tanstack/ai'
 
 /**

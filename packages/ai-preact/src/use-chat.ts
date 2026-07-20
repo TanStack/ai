@@ -12,6 +12,8 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
 } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
@@ -23,7 +25,7 @@ import type {
 } from './types'
 
 export function useChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
 >(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()
@@ -39,6 +41,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
+  const [queue, setQueue] = useState<Array<QueuedMessage>>([])
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -151,6 +154,13 @@ export function useChat<
         if (activeClientRef.current !== instance) return
         setSessionGenerating(isGenerating)
       },
+      ...(optionsRef.current.queue !== undefined && {
+        queue: optionsRef.current.queue,
+      }),
+      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+        if (activeClientRef.current !== instance) return
+        setQueue(nextQueue)
+      },
     })
     activeClientRef.current = instance
     return instance
@@ -175,8 +185,15 @@ export function useChat<
         forwardedProps: options.forwardedProps,
       }),
       context: options.context,
+      ...(options.queue !== undefined && { queue: options.queue }),
     })
-  }, [client, options.body, options.forwardedProps, options.context])
+  }, [
+    client,
+    options.body,
+    options.forwardedProps,
+    options.context,
+    options.queue,
+  ])
 
   useEffect(() => {
     if (options.live) {
@@ -221,8 +238,18 @@ export function useChat<
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.
   const sendMessage = useCallback(
-    async (content: string | MultimodalContent) => {
-      await client.sendMessage(content)
+    async (
+      content: string | MultimodalContent,
+      sendOptions?: SendMessageOptions,
+    ) => {
+      await client.sendMessage(content, undefined, sendOptions)
+    },
+    [client],
+  )
+
+  const cancelQueued = useCallback(
+    (id: string) => {
+      client.cancelQueued(id)
     },
     [client],
   )
@@ -291,5 +318,7 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    queue,
+    cancelQueued,
   }
 }

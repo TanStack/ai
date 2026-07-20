@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-openrouter",
-  "version": "0.13.1",
+  "version": "0.15.9",
   "description": "TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-openrouter"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -52,7 +60,7 @@
     "model-router"
   ],
   "dependencies": {
-    "@openrouter/sdk": "0.12.35",
+    "@openrouter/sdk": "0.13.20",
     "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {

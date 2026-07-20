@@ -1,4 +1,8 @@
-import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import {
+  isStrictModeCompatible,
+  makeStructuredOutputCompatible,
+  stripUnsupportedFormats,
+} from '../utils/schema-converter'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 
 /**
@@ -28,7 +32,14 @@ export interface ResponsesFunctionTool {
  * - Optional fields made nullable
  * - additionalProperties: false
  *
- * This enables strict mode for all tools automatically.
+ * This enables strict mode for tools whose schemas fit OpenAI's strict subset.
+ *
+ * Schemas using keywords outside that subset (`oneOf`/`allOf`/`not`/`$ref`/
+ * `$defs` — common with MCP servers like Notion) can't be coerced to a
+ * strict-valid shape, and `strict: true` would make the Responses API reject
+ * the ENTIRE request with a 400. Such tools are emitted with `strict: false`
+ * (their schema passed through, only unsupported `format` keywords stripped) so
+ * they stay callable.
  */
 export function convertFunctionToolToResponsesFormat(
   tool: Tool,
@@ -42,6 +53,18 @@ export function convertFunctionToolToResponsesFormat(
     properties: {},
     required: [],
   }) as JSONSchema
+
+  // Schema outside OpenAI's strict subset: send non-strict so the tool still
+  // works instead of 400-ing the whole request.
+  if (!isStrictModeCompatible(inputSchema)) {
+    return {
+      type: 'function',
+      name: tool.name,
+      description: tool.description,
+      parameters: stripUnsupportedFormats(inputSchema),
+      strict: false,
+    }
+  }
 
   // Shallow-copy the converter's result before mutating — a subclass-supplied
   // schemaConverter has no contract requirement to return a fresh object;

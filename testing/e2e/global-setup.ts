@@ -43,6 +43,34 @@ export default async function globalSetup() {
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
 
+  // Gemini TTS hits the standard Gemini generateContent endpoint
+  // (POST /v1beta/models/{model}:generateContent) with
+  // responseModalities: ['AUDIO']. aimock's native Gemini audio helper derives
+  // the mime type from the fixture's `format`/`contentType`, so it can't emit
+  // the raw `audio/L16;codec=pcm;rate=24000` PCM that real Gemini TTS returns.
+  // Mount the TTS model's generateContent path directly so we can hand back
+  // PCM and exercise the adapter's PCM→WAV normalization. The path is specific
+  // to the TTS model, so it doesn't intercept Gemini chat/summarize requests.
+  mock.mount(
+    '/v1beta/models/gemini-3.1-flash-tts-preview:generateContent',
+    geminiTTSMount(),
+  )
+  // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
+  // (Imagen) endpoint but not the long-running `:predictLongRunning` +
+  // operations-polling pair Veo uses, so mount both here. Non-Veo paths
+  // under /v1beta/models (chat, images) return false and fall through to
+  // aimock's native Gemini handlers.
+  mock.mount('/v1beta/models', geminiVeoMount())
+
+  // Gemini Omni Flash video generation (Interactions API). aimock handles
+  // synchronous text interactions natively, but not background video jobs
+  // (POST /v1beta/interactions with background:true → poll
+  // GET /v1beta/interactions/{id} → inline base64 mp4). The adapter under
+  // test points its baseUrl at this dedicated prefix so aimock's native
+  // interactions handling stays untouched for the stateful-interactions
+  // text tests.
+  mock.mount('/omni-video', geminiOmniVideoMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -66,13 +94,15 @@ export default async function globalSetup() {
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
 
-  // fal billable-units capture. aimock doesn't model fal's queue protocol
-  // (submit → poll status → fetch result) or its `x-fal-billable-units` /
-  // `x-fal-request-id` result headers, so this mount hand-rolls the three queue
-  // round-trips and stamps the billing headers on the result fetch. The
-  // companion api.fal-billable-units route redirects fal's hardcoded
-  // queue.fal.run URLs here and asserts the units reach `result.usage`.
-  mock.mount('/fal-queue', falQueueMount())
+  // Anthropic structured-output fallback usage (#758). The Anthropic text
+  // adapter has no native `structuredOutputStream`, so streaming structured
+  // output runs through the activity layer's `fallbackStructuredOutputStream`,
+  // which wraps the non-streaming `structuredOutput()`. aimock's native
+  // Anthropic helper doesn't synthesize a tool-forced `structured_output`
+  // response with usage, so this mount hand-crafts the non-streaming
+  // `/v1/messages` JSON the adapter expects. The companion spec asserts the
+  // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
+  mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
 
   await mock.start()
   console.log(`[aimock] started on port 4010`)
@@ -100,6 +130,19 @@ function registerMediaFixtures(mock: LLMock) {
     },
   })
 
+  // Image-to-video: the Sora adapter uploads the image part as
+  // `input_reference`, which makes the OpenAI SDK switch to a multipart
+  // POST /v1/videos. aimock 1.29 extracts the `prompt` form field from
+  // multipart bodies, so matching works the same as the JSON case above.
+  mock.onVideo('animate this product photo', {
+    video: {
+      url: 'https://example.com/product-animated.mp4',
+      duration: 5,
+      id: 'video-job-i2v-e2e',
+      status: 'completed',
+    },
+  })
+
   // ElevenLabs music (/v1/music/*) and SFX (/v1/sound-generation) are
   // covered natively by aimock 1.17 — fixtures live under
   // fixtures/audio-gen/ and fixtures/sound-effects/ and are loaded by the
@@ -114,6 +157,14 @@ function registerMediaFixtures(mock: LLMock) {
 const FAKE_MP3_BYTES = Buffer.from([
   0xff, 0xfb, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ])
+
+/**
+ * Raw 16-bit little-endian PCM bytes. Gemini TTS returns audio as
+ * `audio/L16;codec=pcm;rate=24000` inlineData, which the adapter wraps in a
+ * RIFF/WAV header before handing it to the browser. The samples are arbitrary
+ * silence — the spec only asserts the `<audio>` element becomes visible.
+ */
+const FAKE_PCM_BYTES = Buffer.alloc(32)
 
 function grokTTSMount(): Mountable {
   return {
@@ -130,6 +181,52 @@ function grokTTSMount(): Mountable {
       res.setHeader('Content-Type', 'audio/mpeg')
       res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
       res.end(FAKE_MP3_BYTES)
+      return true
+    },
+  }
+}
+
+function geminiTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      // Mirror the Gemini generateContent audio response shape: audio lands as
+      // a single `candidates[0].content.parts[0].inlineData` entry. The PCM
+      // mime type forces the adapter down its PCM→WAV wrapping path.
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'audio/L16;codec=pcm;rate=24000',
+                      data: FAKE_PCM_BYTES.toString('base64'),
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 15,
+            totalTokenCount: 20,
+          },
+        }),
+      )
       return true
     },
   }
@@ -258,6 +355,150 @@ function elevenLabsSTTMount(): Mountable {
         }),
       )
       return true
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Veo's long-running video generation endpoints:
+ *
+ * - `POST /v1beta/models/{model}:predictLongRunning` — starts the job and
+ *   returns the operation name.
+ * - `GET /v1beta/models/{model}/operations/{id}` — polls the operation. The
+ *   mock completes immediately with the raw MLDev wire shape
+ *   (`response.generateVideoResponse.generatedSamples[0].video.uri`), which
+ *   the `@google/genai` SDK maps to `response.generatedVideos[0].video.uri`.
+ *
+ * Mirrors the openai `onVideo` fixture: same prompt-agnostic completed job,
+ * same target video URL.
+ */
+function geminiVeoMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:predictLongRunning' or
+      // '/{model}/operations/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      const createMatch = pathname.match(/^\/([^/:]+):predictLongRunning$/)
+      if (createMatch && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${createMatch[1]}/operations/veo-job-e2e`,
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/([^/:]+)\/operations\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${pollMatch[1]}/operations/${pollMatch[2]}`,
+            done: true,
+            response: {
+              generateVideoResponse: {
+                generatedSamples: [{ video: { uri: VIDEO_URL } }],
+              },
+            },
+          }),
+        )
+        return true
+      }
+
+      // Not a Veo path — fall through to aimock's native Gemini handlers.
+      return false
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Omni Flash's Interactions-API video generation flow under a
+ * dedicated `/omni-video` prefix (the adapter under test sets its baseUrl to
+ * it, so requests land on `/omni-video/v1beta/interactions`):
+ *
+ * - `POST /v1beta/interactions` — creates the background job and returns an
+ *   `in_progress` interaction with an id.
+ * - `GET /v1beta/interactions/{id}` — polls the job. The mock completes
+ *   immediately with the raw wire shape: a `model_output` step carrying an
+ *   inline base64 `video` content block plus `output_tokens_by_modality`
+ *   usage, which the adapter maps to a `data:video/mp4;base64,…` URL.
+ */
+function geminiOmniVideoMount(): Mountable {
+  const JOB_ID = 'v1_omni-video-e2e'
+  // Minimal MP4-ish base64 payload — the spec only asserts the <video>
+  // element renders with the data: URL the adapter builds from it.
+  const VIDEO_BASE64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28y'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/omni-video') and any query
+      // string, so pathname looks like '/v1beta/interactions' or
+      // '/v1beta/interactions/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === '/v1beta/interactions' && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: JOB_ID,
+            object: 'interaction',
+            status: 'in_progress',
+            model: 'gemini-omni-flash-preview',
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/v1beta\/interactions\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: pollMatch[1],
+            object: 'interaction',
+            status: 'completed',
+            model: 'gemini-omni-flash-preview',
+            usage: {
+              total_input_tokens: 12,
+              total_output_tokens: 57920,
+              total_tokens: 57932,
+              output_tokens_by_modality: [{ modality: 'video', tokens: 57920 }],
+            },
+            steps: [
+              {
+                type: 'user_input',
+                content: [{ type: 'text', text: 'a guitar being played' }],
+              },
+              {
+                type: 'model_output',
+                content: [
+                  {
+                    type: 'video',
+                    mime_type: 'video/mp4',
+                    data: VIDEO_BASE64,
+                  },
+                ],
+              },
+            ],
+          }),
+        )
+        return true
+      }
+
+      return false
     },
   }
 }
@@ -475,78 +716,55 @@ function openaiUsageDetailsMount(): Mountable {
 }
 
 /**
- * Request id and billed quantity the fal queue mount reports. Exported-by-value
- * to the companion route/spec via the literal below — kept in one place so the
- * assertion and the mock can't drift.
+ * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
+ * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
+ * block plus a `usage` object carrying `input_tokens` / `output_tokens` /
+ * `cache_read_input_tokens`. `buildAnthropicUsage` normalizes those into
+ * `promptTokens` / `completionTokens` / `promptTokensDetails.cachedTokens`.
+ * Drives the #758 fallback-path usage regression.
  */
-const FAL_E2E_REQUEST_ID = 'fal-req-e2e'
-const FAL_E2E_BILLABLE_UNITS = '4'
-
-/**
- * Mimics fal's queue protocol for a single image generation:
- *   POST /{appId}                         → submit, returns request_id
- *   GET  /{appId}/requests/{id}/status    → poll, returns COMPLETED
- *   GET  /{appId}/requests/{id}           → result, returns the image payload
- *                                           with `x-fal-request-id` and
- *                                           `x-fal-billable-units` headers
- * The billing fetch installed by @tanstack/ai-fal reads those headers off the
- * result fetch and the adapter surfaces them as `result.usage.unitsBilled`.
- */
-function falQueueMount(): Mountable {
+function anthropicStructuredUsageMount(): Mountable {
   return {
     async handleRequest(
       req: http.IncomingMessage,
       res: http.ServerResponse,
-      // Mount prefix (/fal-queue) is stripped; pathname is `/{appId}/...`.
+      // The mount prefix (/anthropic-structured-usage) is stripped before
+      // dispatch; the Anthropic SDK posts to <baseURL>/v1/messages and aimock
+      // strips the ?beta=... query string from `pathname`.
       pathname: string,
     ): Promise<boolean> {
-      const isResultPath =
-        req.method === 'GET' && /\/requests\/[^/]+$/.test(pathname)
-      const isStatusPath = req.method === 'GET' && pathname.endsWith('/status')
-      const isSubmitPath =
-        req.method === 'POST' && !pathname.includes('/requests/')
-
-      if (isSubmitPath) {
-        await drainBody(req)
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            request_id: FAL_E2E_REQUEST_ID,
-            status: 'IN_QUEUE',
-          }),
-        )
-        return true
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+        return false
       }
-
-      if (isStatusPath) {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        res.end(
-          JSON.stringify({
-            status: 'COMPLETED',
-            request_id: FAL_E2E_REQUEST_ID,
-          }),
-        )
-        return true
-      }
-
-      if (isResultPath) {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'application/json')
-        // The two headers the feature hangs on: the billed quantity, and the
-        // request id the adapter correlates it against.
-        res.setHeader('x-fal-request-id', FAL_E2E_REQUEST_ID)
-        res.setHeader('x-fal-billable-units', FAL_E2E_BILLABLE_UNITS)
-        res.end(
-          JSON.stringify({
-            images: [{ url: 'https://fal.media/files/e2e-billed.png' }],
-          }),
-        )
-        return true
-      }
-
-      return false
+      // structuredOutput() makes a non-streaming request (stream: false), so
+      // respond with a single JSON message rather than an SSE stream.
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'msg_structured_usage_e2e',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_structured_output',
+              name: 'structured_output',
+              input: { recommendation: 'Fender Stratocaster', price: 1299 },
+            },
+          ],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 125,
+            output_tokens: 1346,
+            cache_read_input_tokens: 5760,
+          },
+        }),
+      )
+      return true
     },
   }
 }

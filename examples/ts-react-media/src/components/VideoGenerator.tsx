@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Film, Loader2, Shuffle, Upload, X } from 'lucide-react'
+import { Film, Loader2, Shuffle, Upload, Wand2, X } from 'lucide-react'
 import type { VideoMode } from '@/lib/models'
+import type { AttachedMedia } from '@/lib/media'
+import type { MediaPromptPart } from '@tanstack/ai/client'
 
 import {
   createVideoJobFn,
@@ -9,6 +11,7 @@ import {
 } from '@/lib/server-functions'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
+import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
 
 type JobState =
   | { status: 'idle' }
@@ -20,7 +23,13 @@ type JobState =
       model: string
       progress?: number | undefined
     }
-  | { status: 'completed'; url: string; unitsBilled?: number }
+  | {
+      status: 'completed'
+      url: string
+      jobId: string
+      unitsBilled?: number
+      cost?: number
+    }
   | { status: 'error'; message: string }
 
 interface VideoGeneratorProps {
@@ -36,11 +45,25 @@ export default function VideoGenerator({
   const [imagePreview, setImagePreview] = useState<string | null>(
     initialImageUrl ?? null,
   )
+  const [attachedVideo, setAttachedVideo] = useState<AttachedMedia | null>(null)
+  const [editPrompts, setEditPrompts] = useState<Record<string, string>>({})
   const [jobStates, setJobStates] = useState<Record<string, JobState>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
   const pollingRefs = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const filteredModels = VIDEO_MODELS.filter((m) => m.mode === mode)
+  const falModels = filteredModels.filter((m) => m.provider === 'fal')
+  const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
+  const geminiModels = filteredModels.filter((m) => m.provider === 'gemini')
+
+  // Gemini Omni Flash additionally accepts video prompt parts (a reference
+  // clip or a video to edit). Offer the upload whenever an Omni model is in
+  // the running — other providers never receive the video part.
+  const omniInRun =
+    selectedModel === 'all'
+      ? geminiModels.length > 0
+      : selectedModel.startsWith('gemini-omni-flash-preview')
 
   useEffect(() => {
     if (initialImageUrl) {
@@ -61,20 +84,29 @@ export default function VideoGenerator({
     }
   }, [])
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    if (fileInputRef.current) fileInputRef.current.value = ''
     if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setImagePreview(event.target?.result as string)
-    }
-    reader.readAsDataURL(file)
+    const attached = await readMediaFile(file)
+    setImagePreview(attached.dataUrl)
   }
 
   const clearImage = () => {
     setImagePreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleVideoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (videoInputRef.current) videoInputRef.current.value = ''
+    if (!file) return
+    setAttachedVideo(await readMediaFile(file))
+  }
+
+  const clearVideo = () => {
+    setAttachedVideo(null)
+    if (videoInputRef.current) videoInputRef.current.value = ''
   }
 
   const pollStatus = async (jobId: string, model: string) => {
@@ -98,7 +130,9 @@ export default function VideoGenerator({
           [model]: {
             status: 'completed',
             url: url,
+            jobId,
             unitsBilled: urlResult.usage?.unitsBilled,
+            cost: urlResult.usage?.cost,
           },
         }))
       } else if (status.status === 'processing') {
@@ -109,6 +143,19 @@ export default function VideoGenerator({
             jobId,
             model,
             progress: status.progress,
+          },
+        }))
+      } else if (status.status === 'failed') {
+        const interval = pollingRefs.current.get(model)
+        if (interval) {
+          clearInterval(interval)
+          pollingRefs.current.delete(model)
+        }
+        setJobStates((prev) => ({
+          ...prev,
+          [model]: {
+            status: 'error',
+            message: status.error ?? 'Video generation failed',
           },
         }))
       } else {
@@ -133,6 +180,16 @@ export default function VideoGenerator({
     }
   }
 
+  // Poll keyed by the UI model id, not result.model: the direct-xAI
+  // entries share one adapter model ('grok-imagine-video-1.5'),
+  // so result.model wouldn't identify the card (or the adapter) uniquely.
+  const beginPolling = (modelId: string, jobId: string) => {
+    const interval = setInterval(() => {
+      pollStatus(jobId, modelId)
+    }, 4000)
+    pollingRefs.current.set(modelId, interval)
+  }
+
   const startJobForModel = async (modelId: string) => {
     setJobStates((prev) => ({
       ...prev,
@@ -140,13 +197,25 @@ export default function VideoGenerator({
     }))
 
     try {
-      const imageUrl =
-        mode === 'image-to-video' ? (imagePreview ?? undefined) : undefined
+      const model = VIDEO_MODELS.find((m) => m.id === modelId)
+      const parts: Array<MediaPromptPart> = [{ type: 'text', content: prompt }]
+      // Image-to-video sends the start frame as a prompt part — the fal
+      // adapter routes `role: 'start_frame'` to the endpoint's start-image
+      // field (e.g. `image_url` on Kling i2v); Omni takes it as an
+      // interaction content block.
+      if (mode === 'image-to-video' && imagePreview) {
+        parts.push(imageUrlToPart(imagePreview, { role: 'start_frame' }))
+      }
+      // Video prompt parts (reference clip / video to edit) are an Omni
+      // capability only — never send them to the other providers.
+      if (attachedVideo && model?.provider === 'gemini') {
+        parts.push(toVideoPart(attachedVideo))
+      }
+      const builtPrompt = parts.length === 1 ? prompt : parts
       const result = await createVideoJobFn({
         data: {
-          prompt,
+          prompt: builtPrompt,
           model: modelId,
-          ...(imageUrl !== undefined && { imageUrl }),
         },
       })
 
@@ -159,10 +228,7 @@ export default function VideoGenerator({
         },
       }))
 
-      const interval = setInterval(() => {
-        pollStatus(result.jobId, result.model)
-      }, 4000)
-      pollingRefs.current.set(modelId, interval)
+      beginPolling(modelId, result.jobId)
     } catch (err) {
       setJobStates((prev) => ({
         ...prev,
@@ -170,6 +236,51 @@ export default function VideoGenerator({
           status: 'error',
           message:
             err instanceof Error ? err.message : 'Failed to create video job',
+        },
+      }))
+    }
+  }
+
+  /**
+   * Gemini Omni Flash conversational editing: chain a new prompt onto a
+   * completed generation via its interaction id (the jobId). The model
+   * applies the change while preserving everything else in the video.
+   */
+  const handleEditVideo = async (modelId: string, previousJobId: string) => {
+    const editPrompt = editPrompts[modelId]?.trim()
+    if (!editPrompt) return
+
+    setJobStates((prev) => ({
+      ...prev,
+      [modelId]: { status: 'submitting' },
+    }))
+
+    try {
+      const result = await createVideoJobFn({
+        data: {
+          prompt: editPrompt,
+          model: modelId,
+          previousInteractionId: previousJobId,
+        },
+      })
+
+      setJobStates((prev) => ({
+        ...prev,
+        [modelId]: {
+          status: 'pending',
+          jobId: result.jobId,
+          model: result.model,
+        },
+      }))
+      setEditPrompts((prev) => ({ ...prev, [modelId]: '' }))
+
+      beginPolling(modelId, result.jobId)
+    } catch (err) {
+      setJobStates((prev) => ({
+        ...prev,
+        [modelId]: {
+          status: 'error',
+          message: err instanceof Error ? err.message : 'Failed to edit video',
         },
       }))
     }
@@ -244,11 +355,27 @@ export default function VideoGenerator({
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
           >
             <option value="all">All Models</option>
-            {filteredModels.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
+            <optgroup label="fal.ai">
+              {falModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="xAI (direct)">
+              {xaiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Google (direct)">
+              {geminiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
@@ -286,6 +413,49 @@ export default function VideoGenerator({
               type="file"
               accept="image/*"
               onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+        )}
+
+        {omniInRun && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Reference video{' '}
+              <span className="text-gray-500 font-normal">
+                (optional — Gemini Omni Flash only, clips of 3s or less)
+              </span>
+            </label>
+            {attachedVideo ? (
+              <div className="relative">
+                <video
+                  src={attachedVideo.dataUrl}
+                  controls
+                  muted
+                  className="w-full max-h-64 rounded-lg border border-gray-700"
+                />
+                <button
+                  onClick={clearVideo}
+                  disabled={isGenerating}
+                  className="absolute top-2 right-2 p-1 bg-gray-900/80 hover:bg-gray-800 rounded-full text-white disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => videoInputRef.current?.click()}
+                className="w-full p-6 border-2 border-dashed border-gray-600 hover:border-gray-500 rounded-lg text-gray-400 hover:text-gray-300 transition-colors flex flex-col items-center gap-2"
+              >
+                <Upload className="w-6 h-6" />
+                <span>Click to attach a video clip</span>
+              </button>
+            )}
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleVideoSelect}
               className="hidden"
             />
           </div>
@@ -401,12 +571,52 @@ export default function VideoGenerator({
                         className="w-full h-auto"
                       />
                     </div>
-                    {state.unitsBilled != null && (
+                    {state.cost != null ? (
                       <p className="text-xs text-gray-500">
-                        Billed {state.unitsBilled} fal unit
-                        {state.unitsBilled === 1 ? '' : 's'} — multiply by the
-                        endpoint unit price for USD cost
+                        Billed ${state.cost.toFixed(3)}
+                        {state.unitsBilled != null
+                          ? ` for ${state.unitsBilled} second${state.unitsBilled === 1 ? '' : 's'} of video`
+                          : ''}
                       </p>
+                    ) : (
+                      state.unitsBilled != null && (
+                        <p className="text-xs text-gray-500">
+                          Billed {state.unitsBilled} fal unit
+                          {state.unitsBilled === 1 ? '' : 's'} — multiply by the
+                          endpoint unit price for USD cost
+                        </p>
+                      )
+                    )}
+                    {model?.provider === 'gemini' && (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editPrompts[modelId] ?? ''}
+                          onChange={(e) =>
+                            setEditPrompts((prev) => ({
+                              ...prev,
+                              [modelId]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter')
+                              handleEditVideo(modelId, state.jobId)
+                          }}
+                          placeholder="Describe an edit — e.g. 'make it nighttime'..."
+                          disabled={isGenerating}
+                          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                        />
+                        <button
+                          onClick={() => handleEditVideo(modelId, state.jobId)}
+                          disabled={
+                            isGenerating || !editPrompts[modelId]?.trim()
+                          }
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <Wand2 className="w-4 h-4" />
+                          Edit
+                        </button>
+                      </div>
                     )}
                   </>
                 )}

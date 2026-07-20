@@ -5,7 +5,7 @@ title: RealtimeTokenAdapter
 
 # Interface: RealtimeTokenAdapter
 
-Defined in: [packages/ai/src/realtime/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L72)
+Defined in: [packages/ai/src/realtime/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L77)
 
 Adapter interface for generating provider-specific tokens
 
@@ -17,7 +17,7 @@ Adapter interface for generating provider-specific tokens
 generateToken: () => Promise<RealtimeToken>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L76)
+Defined in: [packages/ai/src/realtime/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L81)
 
 Generate an ephemeral token for client use
 
@@ -33,6 +33,6 @@ Generate an ephemeral token for client use
 provider: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L74)
+Defined in: [packages/ai/src/realtime/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L79)
 
 Provider identifier

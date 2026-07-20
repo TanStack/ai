@@ -64,3 +64,49 @@ describe('createCodeMode', () => {
     ).toThrow('At least one tool must be provided')
   })
 })
+
+const driverStub = {
+  createContext: async () => ({
+    execute: async () => ({ success: true }),
+    dispose: async () => {},
+  }),
+}
+
+const eager = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get weather.',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async () => ({}))
+
+const lazy = toolDefinition({
+  name: 'fetchStocks',
+  description: 'Get stocks.',
+  inputSchema: z.object({ ticker: z.string() }),
+  lazy: true,
+}).server(async () => ({}))
+
+describe('createCodeMode — return shape', () => {
+  it('returns discoveryTool: null and tools: [tool] when there are no lazy tools', () => {
+    const r = createCodeMode({ driver: driverStub, tools: [eager] })
+    expect(r.tool.name).toBe('execute_typescript')
+    expect(r.discoveryTool).toBeNull()
+    expect(r.tools).toHaveLength(1)
+    expect(r.tools[0]!.name).toBe('execute_typescript')
+  })
+
+  it('returns a discover_tools tool and includes it in tools when lazy tools exist', () => {
+    const r = createCodeMode({ driver: driverStub, tools: [eager, lazy] })
+    expect(r.tool.name).toBe('execute_typescript')
+    expect(r.discoveryTool).not.toBeNull()
+    expect(r.discoveryTool!.name).toBe('discover_tools')
+    expect(r.tools.map((t) => t.name)).toEqual([
+      'execute_typescript',
+      'discover_tools',
+    ])
+  })
+
+  it('keeps the backward-compatible systemPrompt field', () => {
+    const r = createCodeMode({ driver: driverStub, tools: [eager, lazy] })
+    expect(r.systemPrompt).toContain('Code Execution Tool')
+  })
+})

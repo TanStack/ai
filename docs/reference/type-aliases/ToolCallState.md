@@ -12,9 +12,10 @@ type ToolCallState =
   | "input-complete"
   | "approval-requested"
   | "approval-responded"
-  | "complete";
+  | "complete"
+  | "error";
 ```
 
-Defined in: [packages/ai/src/types.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L47)
+Defined in: [packages/ai/src/types.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L48)
 
 Tool call states - track the lifecycle of a tool call

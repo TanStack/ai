@@ -103,7 +103,7 @@ To give the LLM access to client tools, pass the tool definitions (not implement
 // api/chat/route.ts
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
+import { updateUIDef, saveToLocalStorageDef } from "./tools/definitions";
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
@@ -118,6 +118,13 @@ export async function POST(request: Request) {
 }
 ```
 
+> **Security:** registering the definitions statically (as above) is the safe
+> default — the server alone decides which tools the model sees, so a client
+> can't advertise tools you didn't sanction. If you'd instead like the client
+> to declare its tools per request via AG-UI `RunAgentInput.tools`, use
+> [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3--optional-let-the-client-advertise-its-tools) —
+> read its security note first, since `params.tools` is client-controlled.
+
 ### Client-Side
 
 Create client implementations with automatic execution and full type safety:
@@ -126,17 +133,38 @@ Create client implementations with automatic execution and full type safety:
 // app/chat.tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages,
   type ToolCallPart,
+  type MessagePart,
 } from "@tanstack/ai-client";
-import { updateUIDef, saveToLocalStorageDef } from "@/tools/definitions";
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const updateUIDef = toolDefinition({
+  name: "update_ui",
+  description: "Update the UI with new information",
+  inputSchema: z.object({
+    message: z.string().meta({ description: "Message to display" }),
+    type: z.enum(["success", "error", "info"]).meta({ description: "Message type" }),
+  }),
+  outputSchema: z.object({ success: z.boolean() }),
+});
+
+const saveToLocalStorageDef = toolDefinition({
+  name: "save_to_local_storage",
+  description: "Save data to browser local storage",
+  inputSchema: z.object({
+    key: z.string().meta({ description: "Storage key" }),
+    value: z.string().meta({ description: "Value to store" }),
+  }),
+  outputSchema: z.object({ saved: z.boolean() }),
+});
 
 // Step 1: Create client implementations (module scope)
 const updateUI = updateUIDef.client((input) => {
   // Update UI state - fully typed!
-  showNotification({ message: input.message, type: input.type });
+  console.log(input.message, input.type);
   return { success: true };
 });
 
@@ -145,8 +173,9 @@ const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
   return { saved: true };
 });
 
-// Step 2: Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToLocalStorage);
+// Step 2: A plain array is all you need — literal tool names, inputs and
+// outputs are inferred without any wrapper or `as const`.
+const tools = [updateUI, saveToLocalStorage];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -173,7 +202,7 @@ function ChatComponent() {
 function MessageComponent({ message }: { message: ChatMessages[number] }) {
   return (
     <div>
-      {message.parts.map((part) => {
+      {message.parts.map((part: MessagePart) => {
         if (part.type === "text") {
           return <p>{part.content}</p>;
         }
@@ -191,6 +220,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
             );
           }
         }
+        return null;
       })}
     </div>
   );
@@ -212,9 +242,12 @@ Client tools are **automatically executed** when the model calls them. The flow 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
+import { toast } from "./toast";
+
+const activeProjectId = "";
 
 type ClientContext = {
   activeProjectId: string;
@@ -231,7 +264,7 @@ const showToast = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(showToast),
+  tools: [showToast],
   context: {
     activeProjectId,
     toast: (message) => toast(message),
@@ -243,11 +276,32 @@ const chat = useChat(chatOptions);
 
 Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
 
+## The `clientTools()` helper (optional)
+
+Passing a plain array — `tools: [toolA, toolB]` — is all you need: tool names, inputs and outputs are inferred without any wrapper and without `as const`. `clientTools()` is an optional identity helper that performs the same capture explicitly. Reach for it only when you want to build a shared, reusable tools tuple **outside** the hook/options call:
+
+```ts
+import { clientTools } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+
+const notify = toolDefinition({
+  name: "notify",
+  description: "Show a notification",
+}).client(() => ({ ok: true }));
+
+// Equivalent to `const tools = [notify]` — just captured explicitly.
+const tools = clientTools(notify);
+```
+
 ## Type Safety Benefits
 
 The isomorphic architecture provides complete end-to-end type safety:
 
 ```typescript
+import type { UIMessage } from "@tanstack/ai-client";
+
+const messages: UIMessage[] = [];
+
 messages.forEach((message) => {
   message.parts.forEach((part) => {
     if (part.type === "tool-call" && part.name === "update_ui") {
@@ -308,6 +362,11 @@ function ToolCallDisplay({ part }: { part: ToolCallPart }) {
 Tools can be implemented for both server and client, enabling flexible execution:
 
 ```typescript
+import { toolDefinition, chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+import { db } from "./db";
+
 // Define once
 const addToCartDef = toolDefinition({
   name: "add_to_cart",

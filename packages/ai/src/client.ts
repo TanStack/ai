@@ -97,6 +97,10 @@ export type {
   CustomEvent,
   DocumentPart,
   ImagePart,
+  MediaInputMetadata,
+  MediaInputRole,
+  MediaPrompt,
+  MediaPromptPart,
   MessagePart,
   ModelMessage,
   RunErrorEvent,
@@ -110,12 +114,15 @@ export type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourcePart,
   VideoPart,
   InferSchemaType,
 } from './types'
 
 export type {
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeError,
   RealtimeErrorCode,
   RealtimeEvent,

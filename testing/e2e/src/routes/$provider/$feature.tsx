@@ -42,9 +42,13 @@ export const Route = createFileRoute('/$provider/$feature')({
 
 const MEDIA_FEATURES = new Set<Feature>([
   'image-gen',
+  'image-to-image',
   'tts',
   'transcription',
+  'transcription-diarization',
   'video-gen',
+  'image-to-video',
+  'interactions-video',
   'audio-gen',
   'sound-effects',
 ])
@@ -132,6 +136,16 @@ function MediaFeature({
           aimockPort={aimockPort}
         />
       )
+    case 'image-to-image':
+      return (
+        <ImageGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          withImageInput
+        />
+      )
     case 'tts':
       return (
         <TTSUI
@@ -142,9 +156,11 @@ function MediaFeature({
         />
       )
     case 'transcription':
+    case 'transcription-diarization':
       return (
         <TranscriptionUI
           provider={provider}
+          feature={feature}
           mode={mode}
           testId={testId}
           aimockPort={aimockPort}
@@ -157,6 +173,26 @@ function MediaFeature({
           mode={mode}
           testId={testId}
           aimockPort={aimockPort}
+        />
+      )
+    case 'image-to-video':
+      return (
+        <VideoGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          withImageInput
+        />
+      )
+    case 'interactions-video':
+      return (
+        <VideoGenUI
+          provider={provider}
+          mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+          feature="interactions-video"
         />
       )
     case 'audio-gen':
@@ -257,6 +293,8 @@ function ChatFeature({
     addToolApprovalResponse,
     stop,
     clear,
+    queue,
+    cancelQueued,
   } = useChat({
     id: chatId,
     ...transport,
@@ -321,6 +359,8 @@ function ChatFeature({
         isLoading={isLoading}
         structuredObject={structuredObject}
         contentDeltaCount={contentDeltaCount}
+        queue={queue}
+        cancelQueued={cancelQueued}
         onSendMessage={(text) => {
           sendMessage(text)
         }}

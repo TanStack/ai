@@ -1,12 +1,15 @@
 import { OpenRouter } from '@openrouter/sdk'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
 import { buildOpenRouterUsage } from '../usage'
-import type { OpenRouterClientConfig } from '../utils'
+import { extractUsageCost } from './cost'
+import type { OpenRouterClientConfig } from '../utils/client'
 import type {
+  OpenRouterImageModelInputModalitiesByName,
   OpenRouterImageModelProviderOptionsByName,
   OpenRouterImageModelSizeByName,
   OpenRouterImageProviderOptions,
@@ -15,6 +18,8 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
+  MediaInputMetadata,
 } from '@tanstack/ai'
 import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
 import type { ChatResult } from '@openrouter/sdk/models'
@@ -40,13 +45,24 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '1536x672': '21:9',
 }
 
+/**
+ * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
+ * `image_url` content parts: public URLs pass through, data sources become
+ * base64 data URIs.
+ */
+function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (part.source.type === 'url') return part.source.value
+  return `data:${part.source.mimeType};base64,${part.source.value}`
+}
+
 export class OpenRouterImageAdapter<
   TModel extends OpenRouterImageModel,
 > extends BaseImageAdapter<
   TModel,
   OpenRouterImageProviderOptions,
   OpenRouterImageModelProviderOptionsByName,
-  OpenRouterImageModelSizeByName
+  OpenRouterImageModelSizeByName,
+  OpenRouterImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
@@ -65,10 +81,41 @@ export class OpenRouterImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions, logger } =
-      options
+    const resolved = resolveMediaPrompt(options.prompt)
+
+    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+      throw new Error(
+        `openrouter.generateImages does not support video / audio prompt parts on model ${this.model}.`,
+      )
+    }
+
+    const { model, numberOfImages, size, modelOptions, logger } = options
     // Use provided aspect_ratio or derive from size
     const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
+
+    // Image-conditioned generation: map the prompt parts 1:1 onto
+    // chat-completions content parts, preserving the interleaved order —
+    // OpenRouter forwards them to the underlying image model (e.g. Gemini
+    // image models), where position is meaningful. Role hints carry no
+    // per-field semantics on this pathway.
+    type ContentItem =
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; imageUrl: { url: string } }
+    const content =
+      resolved.images.length > 0
+        ? resolved.parts.flatMap((part): Array<ContentItem> => {
+            if (part.type === 'text') {
+              return [{ type: 'text', text: part.content }]
+            }
+            if (part.type === 'image') {
+              return [
+                { type: 'image_url', imageUrl: { url: imagePartToUrl(part) } },
+              ]
+            }
+            // Video / audio parts were rejected above.
+            return []
+          })
+        : resolved.text
 
     logger.request(
       `activity=generateImage provider=openrouter model=${this.model}`,
@@ -84,7 +131,7 @@ export class OpenRouterImageAdapter<
         messages: [
           {
             role: 'user',
-            content: prompt,
+            content,
           },
         ],
         modalities: ['image'],
@@ -157,10 +204,12 @@ export class OpenRouterImageAdapter<
 
     // OpenRouter routes image generation through the chat surface, so the
     // response carries the same `usage` shape as text. Surface it (with any
-    // detail breakdowns) when present.
-    const usage = response.usage
-      ? buildOpenRouterUsage(response.usage)
-      : undefined
+    // detail breakdowns and provider-reported cost) when present.
+    const baseUsage = buildOpenRouterUsage(response.usage)
+    const usage = baseUsage && {
+      ...baseUsage,
+      ...extractUsageCost(response.usage),
+    }
 
     return {
       id: response.id || this.generateId(),

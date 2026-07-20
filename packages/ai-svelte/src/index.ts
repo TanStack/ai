@@ -5,6 +5,12 @@ export type {
   DeepPartial,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
@@ -49,6 +55,12 @@ export type {
   CreateGenerateVideoOptions,
   CreateGenerateVideoReturn,
 } from './create-generate-video.svelte'
+
+export { createAudioRecorder } from './create-audio-recorder.svelte'
+export type {
+  CreateAudioRecorderOptions,
+  CreateAudioRecorderReturn,
+} from './create-audio-recorder.svelte'
 
 // Re-export from ai-client for convenience
 export {

@@ -1,16 +1,17 @@
 import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
-import { GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import { convertToolsToProviderFormat } from '../tools'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
-import type { Modality } from '@tanstack/ai'
+import type { Modality, TextOptions } from '@tanstack/ai'
 import type { GrokMessageMetadataByModality } from '../message-types'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
+import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
 /**
  * Resolve tool capabilities for a specific Grok model.
@@ -34,20 +35,24 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  * Grok Text (Chat) Adapter
  *
  * Tree-shakeable adapter for Grok chat/text completion functionality.
- * Uses OpenAI-compatible Chat Completions API (not Responses API).
+ * Uses xAI's OpenAI-compatible Responses API.
  *
- * Delegates implementation to {@link OpenAIBaseChatCompletionsTextAdapter}
+ * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter}
  * from `@tanstack/openai-base` and threads Grok-specific tool-capability
  * typing through the 5th generic of the base class.
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
+  // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
+  // adapter: the resolved Grok provider options are a type-alias intersection
+  // with no explicit index signature, which is assignable to
+  // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAIBaseChatCompletionsTextAdapter<
+> extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -61,36 +66,34 @@ export class GrokTextAdapter<
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))
   }
 
-  /**
-   * Surfaces xAI reasoning deltas on Grok reasoning models. The DeepSeek-style
-   * convention puts the chain-of-thought on `delta.reasoning_content`; some
-   * Grok variants also populate `delta.reasoning`. Reading both keeps
-   * reasoning flowing through the base's REASONING_* lifecycle for both
-   * `chatStream` and `structuredOutputStream`.
-   */
-  protected override extractReasoning(
-    chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
-  ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
-      | { reasoning?: unknown; reasoning_content?: unknown }
-      | undefined
-    const raw = delta?.reasoning_content ?? delta?.reasoning
-    if (typeof raw === 'string' && raw.length > 0) {
-      return { text: raw }
-    }
-    return undefined
-  }
+  protected override mapOptionsToRequest(
+    options: TextOptions<TProviderOptions>,
+  ): Omit<ResponseCreateParams, 'stream'> {
+    const { tools: _baseTools, ...request } = super.mapOptionsToRequest({
+      ...options,
+      tools: undefined,
+    })
+    void _baseTools
 
-  /**
-   * Grok's combined tools + schema support is gated to the Grok 4 family
-   * per xAI's structured-output docs; Grok 2 / 3 reject the combination.
-   * The wiring on the wire is already correct (inherits the OpenAI Chat
-   * Completions `response_format: json_schema` attach from the base
-   * adapter); this override just narrows the capability claim to the
-   * supported model family.
-   */
-  override supportsCombinedToolsAndSchema(): boolean {
-    return GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
+    if (this.model === 'grok-build-0.1' && request.reasoning !== undefined) {
+      throw new Error(
+        'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
+      )
+    }
+
+    const tools = options.tools
+      ? convertToolsToProviderFormat(options.tools)
+      : undefined
+
+    return {
+      ...request,
+      // xAI recommends encrypted reasoning for reasoning-capable Responses
+      // requests; callers can still override either field in modelOptions.
+      store: request.store ?? false,
+      include: request.include ?? ['reasoning.encrypted_content'],
+      ...(tools &&
+        tools.length > 0 && { tools: tools as ResponseCreateParams['tools'] }),
+    }
   }
 }
 
@@ -98,15 +101,15 @@ export class GrokTextAdapter<
  * Creates a Grok text adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
+ * @param model - The model name (e.g., 'grok-build-0.1')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
  * @returns Configured Grok text adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGrokText('grok-3', "xai-...");
- * // adapter has type-safe providerOptions for grok-3
+ * const adapter = createGrokText('grok-build-0.1', "xai-...");
+ * // adapter has type-safe providerOptions for grok-build-0.1
  * ```
  */
 export function createGrokText<
@@ -127,7 +130,7 @@ export function createGrokText<
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
+ * @param model - The model name (e.g., 'grok-build-0.1')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Grok text adapter instance with resolved types
  * @throws Error if XAI_API_KEY is not found in environment
@@ -135,7 +138,7 @@ export function createGrokText<
  * @example
  * ```typescript
  * // Automatically uses XAI_API_KEY from environment
- * const adapter = grokText('grok-3');
+ * const adapter = grokText('grok-build-0.1');
  *
  * const stream = chat({
  *   adapter,

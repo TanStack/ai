@@ -43,7 +43,7 @@ const logger: ChatMiddleware = {
 };
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello" }],
   middleware: [logger],
 });
@@ -113,6 +113,8 @@ Called once during `init` (startup) and once per iteration during `beforeModel` 
 Return a **partial** config object with only the fields you want to change — they are shallow-merged with the current config automatically. No need to spread the existing config.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const dynamicTemperature: ChatMiddleware = {
   name: "dynamic-temperature",
   onConfig: (ctx, config) => {
@@ -169,6 +171,9 @@ Called once at the start of the final structured-output adapter call — only wh
 Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change — they are shallow-merged with the current config. Return `void` to pass through.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+import { sharedDefs } from "./defs";
+
 const injectDefs: ChatMiddleware = {
   name: "inject-defs",
   onStructuredOutputConfig: (_ctx, config) => {
@@ -205,6 +210,8 @@ When multiple middleware define `onStructuredOutputConfig`, the config is **pipe
 Called once after the initial `onConfig` completes. Use it for setup tasks like initializing timers or logging.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const timer: ChatMiddleware = {
   name: "timer",
   onStart: (ctx) => {
@@ -217,7 +224,9 @@ const timer: ChatMiddleware = {
 
 Called for every chunk streamed from the adapter. You can observe, transform, expand, or drop chunks.
 
-```typescript
+```typescript ignore
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const redactor: ChatMiddleware = {
   name: "redactor",
   onChunk: (ctx, chunk) => {
@@ -268,7 +277,9 @@ How you distinguish them depends on which finalization path the adapter takes:
 - **Separate-finalization adapters** (the legacy path — adapters that don't declare `supportsCombinedToolsAndSchema()`): `ctx.phase === 'structuredOutput'` during the finalization call. Discriminate on the phase.
 - **Native-combined adapters** (modern OpenAI Chat Completions / Responses, Claude 4.5+, Gemini 3.x, Grok 4.x — see issue #605): the schema-constrained JSON is produced on the model's natural final turn, so **`ctx.phase` stays `'modelStream'`** — the `'structuredOutput'` phase never fires. Discriminate on the CUSTOM event name (`structured-output.start` / `structured-output.complete`) instead.
 
-```typescript
+```typescript ignore
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const redactStructuredOutput: ChatMiddleware = {
   name: "redact-structured-output",
   onChunk: (ctx, chunk) => {
@@ -306,6 +317,12 @@ const redactStructuredOutput: ChatMiddleware = {
 Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
 const guard: ChatMiddleware = {
   name: "guard",
   onBeforeToolCall: (ctx, hookCtx) => {
@@ -315,7 +332,7 @@ const guard: ChatMiddleware = {
     }
 
     // Validate and transform arguments
-    if (hookCtx.toolName === "search" && !hookCtx.args.limit) {
+    if (hookCtx.toolName === "search" && isRecord(hookCtx.args) && !hookCtx.args.limit) {
       return {
         type: "transformArgs",
         args: { ...hookCtx.args, limit: 10 },
@@ -349,6 +366,8 @@ The `hookCtx` provides:
 Called after each tool execution (or skip). All middleware run — there is no short-circuiting.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const toolLogger: ChatMiddleware = {
   name: "tool-logger",
   onAfterToolCall: (ctx, info) => {
@@ -379,6 +398,8 @@ The `info` object provides:
 Called once per model iteration when the `RUN_FINISHED` chunk includes usage data. Receives the usage object directly.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const usageTracker: ChatMiddleware = {
   name: "usage-tracker",
   onUsage: (ctx, usage) => {
@@ -419,6 +440,8 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 > To aggregate usage across the whole run, accumulate from `onUsage` callbacks rather than relying on `info.usage`.
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const terminal: ChatMiddleware = {
   name: "terminal",
   onFinish: (ctx, info) => {
@@ -470,6 +493,8 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 
 ```typescript
 import { chat, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { session, audit } from "./server";
 
 type AppContext = {
   userId: string;
@@ -491,8 +516,8 @@ export const auditMiddleware: ChatMiddleware<AppContext> = {
 };
 
 chat({
-  adapter,
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
   middleware: [auditMiddleware],
   context: {
     userId: session.user.id,
@@ -510,6 +535,8 @@ Runtime context is process-local application state. It is separate from AG-UI `R
 Call `ctx.abort()` to gracefully stop the run. This triggers the `onAbort` terminal hook:
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const timeout: ChatMiddleware = {
   name: "timeout",
   onChunk: (ctx) => {
@@ -525,6 +552,8 @@ const timeout: ChatMiddleware = {
 Use `ctx.defer()` to register promises that run after the terminal hook without blocking the stream:
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const analytics: ChatMiddleware = {
   name: "analytics",
   onFinish: (ctx, info) => {
@@ -547,9 +576,13 @@ const analytics: ChatMiddleware = {
 Middleware execute in array order. The ordering matters for hooks that pipe or short-circuit:
 
 ```typescript
+import { chat, type ChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { authMiddleware, loggingMiddleware, cachingMiddleware } from "./middleware";
+
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
-  messages,
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
   middleware: [authMiddleware, loggingMiddleware, cachingMiddleware],
 });
 ```
@@ -566,6 +599,134 @@ const stream = chat({
 | `onAfterToolCall` | Sequential | All run in order |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |
+
+## Capabilities
+
+Middleware often need to **share state**. A provider middleware sets something up (a database handle, a per-request counter, a sandbox), and a consumer middleware reads it back later in the same run. Capabilities make that hand-off **type-safe and order-checked**: the consumer declares what it needs, the provider declares what it offers, and `chat()` refuses to run (at compile time _and_ at runtime) if a required capability was never provided.
+
+### Creating a capability
+
+A capability is created with `createCapability<TValue>()('name')` — a **curried** call:
+
+```typescript
+import { createCapability } from "@tanstack/ai";
+
+const counterCapability = createCapability<{ value: number }>()("counter");
+const [getCounter, provideCounter] = counterCapability;
+```
+
+The currying is deliberate: you supply the **value type** explicitly (`<{ value: number }>`) while the **name literal** is inferred from the argument (`"counter"`). A single `createCapability<T>('name')` call can't do both — supplying `T` explicitly stops TypeScript inferring the name, collapsing it to `string` and defeating the compile-time coverage check that keys on the literal name.
+
+The returned `counterCapability` is a hybrid value:
+
+- It **destructures to `[get, provide]`** — the two accessors you use inside hooks.
+- It **is itself the identity** you list in `requires` / `provides`. There is no separate token to import.
+
+The accessors:
+
+| Accessor | Behavior |
+|----------|----------|
+| `getCounter(ctx)` | Returns the value. **Throws** if the capability was never provided. |
+| `getCounter(ctx, { optional: true })` | Returns `TValue \| undefined` — no throw when absent. |
+| `provideCounter(ctx, value)` | Sets the value for this run. Call it from `setup`. |
+
+Equivalently, the context exposes `ctx.get(capability)`, `ctx.getOptional(capability)`, and `ctx.provide(capability, value)` — pass the capability handle directly. These are typed by the handle you pass (`ctx.get(counterCapability)` returns the value type), so `getCounter(ctx)` and `ctx.get(counterCapability)` are interchangeable — use whichever reads better in your hook.
+
+> **Capability names must be unique across your app.** The compile-time coverage check keys on the name literal (runtime keys on the handle reference), so two capabilities sharing a name will conflate in the type-level check.
+
+### The `setup` hook
+
+Provisioning happens in a dedicated `setup(ctx)` hook. It **runs first** — before any `onConfig` (init), across all middleware in array order — so that by the time the rest of the lifecycle begins, every capability is in place. `setup` receives the stable `ChatMiddlewareContext` (not the mutable config), and may be async.
+
+### `requires` / `provides` / `optionalRequires`
+
+Three array fields on a middleware declare its capability contract. Each is a `ReadonlyArray<CapabilityHandle>` — you list the capability handles themselves:
+
+| Field | Meaning |
+|-------|---------|
+| `provides` | Capabilities this middleware sets up. Each one **must** be `provide`d inside `setup`, or `chat()` throws after the setup phase. |
+| `requires` | Capabilities this middleware reads. `chat()` validates (compile time + runtime) that some earlier middleware provides each one. |
+| `optionalRequires` | Capabilities used **if present** but not required. Non-gating — never causes a validation error. Read with `getX(ctx, { optional: true })`. |
+
+### Array example
+
+Author middleware with `defineChatMiddleware` — it sharpens the `requires` / `provides` tuple types so the coverage check and builder can read them precisely. Here a **provider** sets up a counter in `setup`, and a **consumer** reads it in a hook:
+
+```typescript
+import {
+  chat,
+  createCapability,
+  createChatMiddleware,
+  defineChatMiddleware,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const counterCapability = createCapability<{ value: number }>()("counter");
+const [getCounter, provideCounter] = counterCapability;
+
+// Provider: declares `provides` and provisions the value in `setup`.
+const withCounter = defineChatMiddleware({
+  name: "with-counter",
+  provides: [counterCapability],
+  setup(ctx) {
+    provideCounter(ctx, { value: 0 });
+  },
+});
+
+// Consumer: declares `requires` and reads the value via `get` in a hook.
+const countsChunks = defineChatMiddleware({
+  name: "counts-chunks",
+  requires: [counterCapability],
+  onChunk(ctx) {
+    getCounter(ctx).value++;
+  },
+  onFinish(ctx) {
+    console.log(`Saw ${getCounter(ctx).value} chunks`);
+  },
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+  // Provider must come before the consumer.
+  middleware: [withCounter, countsChunks],
+});
+```
+
+If you drop `withCounter` from the array, `chat()` reports a compile-time error at the `middleware` option naming the missing `"counter"` capability — and throws at runtime before the adapter is ever called.
+
+### Builder example
+
+`createChatMiddleware()` builds the array through chained `.use()` calls and enforces **provider-before-consumer ordering at compile time**: each `.use()` requires that the middleware's `requires` are already covered by capabilities provided by earlier `.use()` calls.
+
+```typescript
+import { chat, createChatMiddleware } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { withCounter, countsChunks } from "./counter-middleware";
+
+const middleware = createChatMiddleware()
+  .use(withCounter) // provides "counter"
+  .use(countsChunks) // requires "counter" — OK, already provided above
+  .build();
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+  middleware,
+});
+```
+
+Swap the two `.use()` calls (`.use(countsChunks).use(withCounter)`) and the builder rejects it at the `.use(countsChunks)` line — the consumer is ordered before its provider, so `"counter"` isn't in the provided set yet.
+
+### Validation guarantees
+
+The capability system fails loudly and early:
+
+- **Compile-time coverage.** A required capability that nothing provides surfaces as a type error at the `middleware` option. This is enforced two ways: an **array coverage check** on `middleware: [...]`, and the order-aware **`createChatMiddleware()` builder** (which additionally enforces ordering).
+- **Runtime coverage.** Even if types are bypassed, `chat()` validates coverage and **throws before the adapter runs** if a required capability is missing.
+- **Post-`setup` assertion.** If a middleware declares a capability in `provides` but never calls its `provide` accessor during `setup`, `chat()` throws after the setup phase — you can't silently forget to provision.
+- **Duplicate provide → last-wins + warning.** If two middleware provide the same capability, the last write wins and a development warning is emitted.
+- **Unique names.** Capability `name`s must be unique across your app; the compile-time coverage check keys on the name literal (runtime keys on the handle reference).
 
 ## Built-in Middleware
 
@@ -586,6 +747,8 @@ See [Built-in Middleware](./built-in-middleware) for full options and examples f
 Limit the number of tool calls per request:
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 function rateLimitMiddleware(maxCalls: number): ChatMiddleware {
   let toolCallCount = 0;
   return {
@@ -608,6 +771,9 @@ function rateLimitMiddleware(maxCalls: number): ChatMiddleware {
 Log every action for compliance:
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+import { db } from "./db";
+
 const auditTrail: ChatMiddleware = {
   name: "audit-trail",
   onStart: (ctx) => {
@@ -650,6 +816,8 @@ const auditTrail: ChatMiddleware = {
 Expose different tools at different stages of the agent loop:
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
 const toolSwapper: ChatMiddleware = {
   name: "tool-swapper",
   onConfig: (ctx, config) => {
@@ -670,7 +838,10 @@ const toolSwapper: ChatMiddleware = {
 
 Drop or transform chunks before they reach the consumer:
 
-```typescript
+```typescript ignore
+import { type ChatMiddleware } from "@tanstack/ai";
+import { containsProfanity } from "./filters";
+
 const contentFilter: ChatMiddleware = {
   name: "content-filter",
   onChunk: (ctx, chunk) => {
@@ -687,6 +858,9 @@ const contentFilter: ChatMiddleware = {
 ### Error Recovery with Retry Logging
 
 ```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+import { alertService } from "./services";
+
 const errorRecovery: ChatMiddleware = {
   name: "error-recovery",
   onError: (ctx, info) => {

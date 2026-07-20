@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateTranscription } from '@tanstack/ai'
 
 import { falTranscription } from '../src/adapters/transcription'
+import { recordBillableUnitsFromResponse } from '../src/utils/billing'
+
+function seedBillableUnits(requestId: string, units: string) {
+  recordBillableUnitsFromResponse(
+    new Response(null, {
+      headers: {
+        'x-fal-request-id': requestId,
+        'x-fal-billable-units': units,
+      },
+    }),
+  )
+}
 
 // Declare mocks at module level
 let mockSubscribe: any
@@ -291,5 +303,39 @@ describe('Fal Transcription Adapter', () => {
 
     expect(result.segments).toHaveLength(1)
     expect(result.segments![0]!.text).toBe('Only.')
+  })
+
+  it('surfaces fal billable units as usage', async () => {
+    seedBillableUnits('req-billed-transcription', '1.5')
+    mockSubscribe.mockResolvedValueOnce({
+      data: { text: 'Billed transcription.' },
+      requestId: 'req-billed-transcription',
+    })
+
+    const result = await generateTranscription({
+      adapter: createAdapter(),
+      audio: 'https://example.com/audio.mp3',
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 1.5,
+    })
+  })
+
+  it('omits usage when fal does not report billable units', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: { text: 'Unbilled transcription.' },
+      requestId: 'req-unbilled-transcription',
+    })
+
+    const result = await generateTranscription({
+      adapter: createAdapter(),
+      audio: 'https://example.com/audio.mp3',
+    })
+
+    expect(result.usage).toBeUndefined()
   })
 })

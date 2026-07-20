@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-isolate-node",
-  "version": "0.1.30",
+  "version": "0.1.46",
   "description": "Node.js isolated-vm sandbox driver for TanStack AI Code Mode TypeScript execution.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-isolate-node"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",

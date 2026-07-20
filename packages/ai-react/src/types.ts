@@ -14,11 +14,27 @@ import type {
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
@@ -71,6 +87,7 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
   | 'context'
   | 'devtools'
 > & {
@@ -134,8 +151,25 @@ interface BaseUseChatReturn<
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * By default, sends while busy are queued until the run settles successfully
+   * (`queue: 'drop'` restores the old drop-while-busy behavior).
+   * Pass `{ whenBusy }` to override the policy for a single send.
    */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
+
+  /**
+   * Pending messages queued while the client is busy (streaming, claiming a
+   * send, or draining). Separate from `messages` until they drain.
+   */
+  queue: Array<QueuedMessage>
+
+  /**
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
+  cancelQueued: (id: string) => void
 
   /**
    * Append a message to the conversation

@@ -1,5 +1,203 @@
 # @tanstack/ai-anthropic
 
+## 0.16.2
+
+### Patch Changes
+
+- [#924](https://github.com/TanStack/ai/pull/924) [`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5) - fix: resolve directory-barrel imports in published `.d.ts` files. Bare imports of `utils`/`tools`/`middleware` barrels were emitted as `../utils.js` (etc.), which do not resolve under bundler/node16/nodenext (no `/index` fallback for explicit `.js`). With consumer `skipLibCheck: true` those symbols silently became `any`. Imports now target concrete modules (e.g. `utils/client`, `middleware/types`) or explicit `/index` paths so public types resolve correctly.
+
+- [#922](https://github.com/TanStack/ai/pull/922) [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669) - fix: resolve dangling relative imports in published declaration files
+
+  Switch directory-barrel imports (`../utils`, `../tools`, `../middleware`) to
+  concrete module paths so emitted `.d.ts` specifiers resolve under
+  `bundler`/`node16`/`nodenext` resolution. Adds a `test:dts` scanner guardrail.
+
+  Fixes [#920](https://github.com/TanStack/ai/issues/920)
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+
+## 0.16.1
+
+### Patch Changes
+
+- [#853](https://github.com/TanStack/ai/pull/853) [`9be8fa4`](https://github.com/TanStack/ai/commit/9be8fa41c7a6f6bea8e6734a0818f02ccb309ddd) - Default Anthropic `max_tokens` to the selected model's real output ceiling
+  (`max_output_tokens` from model metadata — e.g. 64K for Sonnet, 128K for Opus)
+  when the caller doesn't pass one, instead of a hard-coded `1024` that silently
+  truncated long responses with `stop_reason: "max_tokens"` ([#849](https://github.com/TanStack/ai/issues/849)). Unknown
+  models fall back to a safe constant. `max_tokens` is a ceiling, not a
+  reservation, so this costs nothing unless the model genuinely produces more.
+
+  The adapter also now logs a warning when a response is truncated while using the
+  defaulted (caller-unspecified) cap, so the truncation isn't silently attributed
+  to the model "doing nothing". Callers that set `modelOptions.max_tokens`
+  explicitly are unaffected.
+
+  The non-streaming structured-output path (`structuredOutput()`) clamps this
+  default to the Anthropic SDK's non-streaming-safe limit (~21K tokens). The SDK
+  refuses a non-streaming request whose `max_tokens` could exceed its 10-minute
+  timeout, so without the clamp the full-ceiling default would make every
+  `chat({ outputSchema })` call on a fallback-path model throw "Streaming is
+  required for operations that may take longer than 10 minutes". The streaming
+  chat path keeps the model's full ceiling.
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.16.0
+
+### Minor Changes
+
+- [#884](https://github.com/TanStack/ai/pull/884) [`091e820`](https://github.com/TanStack/ai/commit/091e82087ac42c5ee9a5a383b123c52bf10b467a) - Add first-class support for Claude Sonnet 5 (`claude-sonnet-5`) and Claude Fable 5 (`claude-fable-5`), and clean up the model registry so every registered id resolves against the first-party Anthropic API.
+
+  **New model support.** Both 5-generation models carry accurate metadata (adaptive thinking, sticker pricing for Sonnet 5) and per-model provider-option types that match the API: adaptive-only `thinking` on Fable 5 (explicit `disabled` and `budget_tokens` are rejected), adaptive-or-disabled `thinking` on Sonnet 5, and no `temperature` / `top_p` / `top_k` on either. `output_config.effort` gains the `'xhigh'` level. Both models (plus Opus 4.8) are registered for native combined tools + output-schema requests. Closes [#880](https://github.com/TanStack/ai/issues/880).
+
+  **Corrected ids (breaking).** `claude-opus-4.8` is now `claude-opus-4-8` — the dot spelling came from an OpenRouter metadata sync and returns 404 on the Anthropic API. Opus 4.7 and 4.8 also get correct per-model types (adaptive thinking, no `budget_tokens`, no sampling parameters) and Opus/Sonnet 4.6 now accept `thinking: { type: 'adaptive' }`.
+
+  **Removed retired models (breaking).** The following ids no longer resolve on the Anthropic API (verified live) and were removed from `ANTHROPIC_MODELS`: `claude-3-7-sonnet`, `claude-3-5-haiku`, `claude-3-haiku`, `claude-opus-4`, `claude-sonnet-4`, and the `claude-opus-4-6-fast` / `claude-opus-4-7-fast` / `claude-opus-4.8-fast` variants (fast mode is requested via the `speed` parameter, not a model id). If you were pinning one of these, migrate to a current model (`claude-sonnet-5`, `claude-haiku-4-5`, `claude-opus-4-8`).
+
+### Patch Changes
+
+- [#855](https://github.com/TanStack/ai/pull/855) [`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d) - Preserve Anthropic server-tool results (`web_search` / `web_fetch`) across turns.
+
+  Previously the Anthropic adapter dropped `server_tool_use` and
+  `web_search_tool_result` / `web_fetch_tool_result` blocks while streaming, so the
+  evidence never round-tripped — a follow-up turn could no longer see the prior
+  web-search sources (issue [#839](https://github.com/TanStack/ai/issues/839)). These now stream as a **provider-executed**
+  tool call carrying the raw result, which the agent loop skips (never executed
+  client-side) and the adapter replays verbatim into the next request. Adds the
+  `ProviderExecutedToolMetadata` convention plus `isProviderExecutedToolCall` /
+  `getProviderExecutedMetadata` helpers to `@tanstack/ai`.
+
+  (No e2e: aimock cannot synthesize `server_tool_use` blocks; covered by unit
+  tests and verified live against the Anthropic API.)
+
+- [#882](https://github.com/TanStack/ai/pull/882) [`f8b145f`](https://github.com/TanStack/ai/commit/f8b145ff21fd44ff37a15014e1d4bd58139d9dc6) - Added Claude Sonnet 5, Claude Fable 5, Opus 4.7 Fast, Opus 4.8, and Opus 4.8 Fast to `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS` and `AnthropicChatModelToolCapabilitiesByName`
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+
+## 0.15.13
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Update model metadata from OpenRouter API
+
+## 0.15.12
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.15.11
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.15.10
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+
+## 0.15.9
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.15.8
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.15.7
+
+### Patch Changes
+
+- [#480](https://github.com/TanStack/ai/pull/480) [`eddfbbd`](https://github.com/TanStack/ai/commit/eddfbbdfd979cad7874f0fb33695c5c41331631e) - Bind tool calls to the assistant message in tool-first streams by setting AG-UI's
+  `parentMessageId` on `TOOL_CALL_START`.
+
+  When a provider streams a tool call **before** any text, the `StreamProcessor` had no
+  active assistant message to attach it to, so it created one under a temporary local id.
+  The later `TEXT_MESSAGE_START` then carried the real provider message id, forcing a
+  mid-stream id change — which destabilizes `UIMessage.id` and can remount the message
+  subtree in `useChat` (React list keys, etc.). See [#477](https://github.com/TanStack/ai/issues/477).
+
+  Every text adapter generates one stable assistant message id per stream and already uses
+  it for `TEXT_MESSAGE_START`; they now also emit it as `parentMessageId` on
+  `TOOL_CALL_START`. The processor reads `chunk.parentMessageId` (`?? active assistant id`)
+  so the message is created with the correct id immediately and the subsequent
+  `TEXT_MESSAGE_START` matches — no rename, no remount.
+
+  Fixed across all adapters that emit `TOOL_CALL_START` (Anthropic, OpenAI Responses +
+  Chat Completions via `@tanstack/openai-base`, OpenRouter, Gemini including the
+  experimental text-interactions adapter, and Ollama).
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai-utils@0.3.0
+  - @tanstack/ai@0.34.0
+
+## 0.15.6
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
+## 0.15.5
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
+## 0.15.4
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+
+## 0.15.3
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-utils@0.2.2
+
+## 0.15.2
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+
 ## 0.15.1
 
 ### Patch Changes

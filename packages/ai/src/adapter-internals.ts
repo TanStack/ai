@@ -10,3 +10,9 @@ export {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from './activities/error-payload'
+export {
+  getSandboxRuntime,
+  provideSandboxRuntime,
+  SandboxRuntimeCapability,
+} from './activities/chat/middleware/sandbox-runtime'
+export type { SandboxRuntime } from './activities/chat/middleware/sandbox-runtime'

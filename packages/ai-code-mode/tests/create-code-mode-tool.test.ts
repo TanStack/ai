@@ -140,12 +140,66 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    // Invalid syntax that esbuild will reject — stripTypeScript now throws
+    // Invalid syntax the transpiler will reject — stripTypeScript now throws
     const result = await tool.execute!({
       typescriptCode: 'const x: = invalid{{{syntax',
     })
     expect(result.success).toBe(false)
     expect(result.error?.name).toBe('TypeScriptError')
+  })
+
+  it('uses a custom transpile hook instead of the default', async () => {
+    const { driver, mockContext } = createMockDriver()
+    const transpile = vi.fn((code: string) => `/* custom */ ${code}`)
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    await tool.execute!({ typescriptCode: 'return 1' })
+
+    expect(transpile).toHaveBeenCalledWith('return 1')
+    const executed = vi.mocked(mockContext.execute).mock.calls[0]?.[0]
+    expect(executed).toBe('/* custom */ return 1')
+  })
+
+  it('awaits an async transpile hook', async () => {
+    const { driver, mockContext } = createMockDriver()
+    const transpile = vi.fn(async (code: string) =>
+      Promise.resolve(`async:${code}`),
+    )
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    await tool.execute!({ typescriptCode: 'return 1' })
+
+    const executed = vi.mocked(mockContext.execute).mock.calls[0]?.[0]
+    expect(executed).toBe('async:return 1')
+  })
+
+  it('surfaces a custom transpile error as a TypeScriptError', async () => {
+    const { driver } = createMockDriver()
+    const transpile = vi.fn(() => {
+      throw new Error('custom transpile failed')
+    })
+
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      transpile,
+    })
+
+    const result = await tool.execute!({ typescriptCode: 'return 1' })
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('TypeScriptError')
+    expect(result.error?.message).toBe('custom transpile failed')
+    expect(driver.createContext).not.toHaveBeenCalled()
   })
 
   it('emits code_mode:execution_started event', async () => {

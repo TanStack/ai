@@ -5,7 +5,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
@@ -92,13 +92,13 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  * </template>
  * ```
  */
-export function useGenerateSpeech<
-  TOnResult extends ((result: TTSResult) => any) | undefined = undefined,
->(
+export function useGenerateSpeech<TTransformed = void>(
   options: Omit<UseGenerateSpeechOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TTSResult) => TTransformed
   },
-): UseGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
+): UseGenerateSpeechReturn<
+  InferGenerationOutputFromReturn<TTSResult, TTransformed>
+> {
   const devtools = {
     ...options.devtools,
     framework: 'vue',
@@ -106,7 +106,7 @@ export function useGenerateSpeech<
     outputKind: 'audio' as const,
   }
   const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+    useGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
       ...options,
       devtools,
     })

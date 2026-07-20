@@ -5,7 +5,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -91,20 +91,20 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> {
  * </div>
  * ```
  */
-export function createGenerateSpeech<
-  TOnResult extends ((result: TTSResult) => any) | undefined = undefined,
->(
+export function createGenerateSpeech<TTransformed = void>(
   options: Omit<CreateGenerateSpeechOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TTSResult) => TTransformed
   },
-): CreateGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
+): CreateGenerateSpeechReturn<
+  InferGenerationOutputFromReturn<TTSResult, TTransformed>
+> {
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
     hookName: 'createGenerateSpeech',
     outputKind: 'audio' as const,
   }
-  const gen = createGeneration<SpeechGenerateInput, TTSResult, TOnResult>({
+  const gen = createGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
     ...options,
     devtools,
   })

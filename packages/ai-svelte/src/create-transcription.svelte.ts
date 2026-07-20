@@ -5,7 +5,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -100,15 +100,12 @@ export interface CreateTranscriptionReturn<TOutput = TranscriptionResult> {
  * </div>
  * ```
  */
-export function createTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
+export function createTranscription<TTransformed = void>(
   options: Omit<CreateTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
+    onResult?: (result: TranscriptionResult) => TTransformed
   },
 ): CreateTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
   const devtools = {
     ...options.devtools,
@@ -119,7 +116,7 @@ export function createTranscription<
   const gen = createGeneration<
     TranscriptionGenerateInput,
     TranscriptionResult,
-    TOnResult
+    TTransformed
   >({
     ...options,
     devtools,

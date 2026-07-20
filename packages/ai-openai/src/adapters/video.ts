@@ -1,8 +1,10 @@
 import OpenAI from 'openai'
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
+import { imagePartToFile } from '../image/image-input-to-file'
 import {
   toApiSeconds,
   validateVideoSeconds,
@@ -17,6 +19,7 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { OpenAIVideoModel } from '../model-meta'
 import type {
+  OpenAIVideoModelInputModalitiesByName,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
   OpenAIVideoProviderOptions,
@@ -45,7 +48,17 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface OpenAIVideoConfig extends OpenAIClientConfig {}
+export interface OpenAIVideoConfig extends OpenAIClientConfig {
+  /**
+   * Opt into fetching HTTP(S) image URL inputs for Sora's `input_reference`.
+   * The endpoint requires uploaded file bytes (no URL passthrough), so an
+   * HTTP(S) URL has to be downloaded and buffered in memory — which can OOM
+   * constrained runtimes (e.g. Cloudflare Workers). When `false` (the
+   * default), HTTP(S) URL image inputs throw; pass a `data:` URI, or set this
+   * to `true` to opt into buffering.
+   */
+  allowUrlFetch?: boolean
+}
 
 /**
  * OpenAI Video Generation Adapter
@@ -67,7 +80,8 @@ export class OpenAIVideoAdapter<
   TModel,
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
-  OpenAIVideoModelSizeByName
+  OpenAIVideoModelSizeByName,
+  OpenAIVideoModelInputModalitiesByName
 > {
   readonly name = 'openai' as const
 
@@ -80,7 +94,8 @@ export class OpenAIVideoAdapter<
     // We hold our own typed copy on `clientConfig` and pass an empty object up.
     super({}, model)
     this.clientConfig = config
-    this.client = new OpenAI(config)
+    const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
+    this.client = new OpenAI(clientOptions)
   }
 
   async createVideoJob(
@@ -88,20 +103,47 @@ export class OpenAIVideoAdapter<
   ): Promise<VideoJobResult> {
     const { model, size, duration, modelOptions } = options
 
-    validateVideoSize(model, size)
+    const resolvedSize = size ?? modelOptions?.size
+    validateVideoSize(model, resolvedSize)
     const seconds = duration ?? modelOptions?.seconds
     validateVideoSeconds(model, seconds)
 
+    const resolved = resolveMediaPrompt(options.prompt)
+
+    if (resolved.videos.length > 0) {
+      throw new Error(
+        `${this.name}.createVideoJob does not support video prompt parts (model: ${model}).`,
+      )
+    }
+    if (resolved.audios.length > 0) {
+      throw new Error(
+        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}).`,
+      )
+    }
+    if (resolved.images.length > 1) {
+      throw new Error(
+        `${this.name}: Sora accepts at most one input_reference image; received ${resolved.images.length}.`,
+      )
+    }
+
     const request: OpenAI_SDK.Videos.VideoCreateParams = {
       model,
-      prompt: options.prompt,
+      prompt: resolved.text,
+    }
+    const [inputReference] = resolved.images
+    if (inputReference) {
+      // Sora's `input_reference` is a single Uploadable; convert TanStack
+      // ImagePart (URL or base64) → File before handing it to the SDK.
+      request.input_reference = await imagePartToFile(
+        inputReference,
+        'input-reference',
+        this.clientConfig.allowUrlFetch ?? false,
+      )
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
     // narrow before assignment instead of casting from a `T | undefined` source.
-    if (size) {
-      request.size = size
-    } else if (modelOptions?.size) {
-      request.size = modelOptions.size
+    if (resolvedSize) {
+      request.size = resolvedSize
     }
     if (seconds !== undefined) {
       // `toApiSeconds` returns `OpenAIVideoSeconds | undefined`; we already

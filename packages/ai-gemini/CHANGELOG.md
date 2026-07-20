@@ -1,5 +1,274 @@
 # @tanstack/ai-gemini
 
+## 0.20.0
+
+### Minor Changes
+
+- [#886](https://github.com/TanStack/ai/pull/886) [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4) - Add Gemini Omni Flash (`gemini-omni-flash-preview`) video generation via the Interactions API. Omni only serves the Interactions API (`generateContent` rejects it), so the video adapter now routes by model: Veo models keep the `:predictLongRunning` operations flow, while `geminiVideo('gemini-omni-flash-preview')` creates a background interaction with `response_modalities: ['video']`, polls it by id, and returns the inline base64 MP4 as a `data:` URL (Files-API URI delivery passes through). Usage is mapped from the interaction's `output_tokens_by_modality`. Image and video prompt parts are sent as interaction content blocks, and `modelOptions.previous_interaction_id` chains a new prompt onto a prior Omni generation for conversational video editing. The top-level `size` option maps onto `response_format.aspect_ratio` (`'16:9' | '9:16'`) and `duration` onto `response_format.duration` — any value in the 3–10 second range (fractional seconds included, verified against the live API), defaulting to a 10-second clip when omitted. Raises the `@google/genai` floor to `^2.10.0` for the Interactions API surface.
+
+- [#908](https://github.com/TanStack/ai/pull/908) [`dcc7407`](https://github.com/TanStack/ai/commit/dcc74077dc9f27ca3b88b0c349159728f7868fbe) - fix(ai-gemini, ai-openai): don't buffer arbitrary HTTP(S) URL image inputs by default on paths that require uploaded bytes.
+
+  Gemini **Veo** (`createGeminiVideo`), OpenAI image **edits** (`createOpenaiImage`), and OpenAI **Sora** `input_reference` (`createOpenaiVideo`) have no URL passthrough — the provider only accepts inline bytes (or, for Veo, a `gs://` reference). Previously an HTTP(S) URL image input was silently fetched and buffered in memory, which can OOM memory-constrained runtimes (e.g. Cloudflare Workers).
+
+  These paths now **throw** on an HTTP(S) URL image input by default, with an error pointing to the alternatives. `data:` URIs (and `gs://` for Veo) still work without any flag. To opt back into fetching + buffering, set `allowUrlFetch: true` on the adapter config:
+
+  ```ts
+  createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
+  createOpenaiVideo('sora-2', apiKey, { allowUrlFetch: true })
+  createGeminiVideo('veo-3.1-generate-preview', apiKey, { allowUrlFetch: true })
+  ```
+
+  Migration: if you passed HTTP(S) URL image inputs to these adapters, either fetch the bytes yourself and pass a `data:` URI, pass a `gs://` reference (Veo), or set `allowUrlFetch: true`.
+
+- [#405](https://github.com/TanStack/ai/pull/405) [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1) - Added Gemini Realtime Adapter
+
+### Patch Changes
+
+- [#924](https://github.com/TanStack/ai/pull/924) [`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5) - fix: resolve directory-barrel imports in published `.d.ts` files. Bare imports of `utils`/`tools`/`middleware` barrels were emitted as `../utils.js` (etc.), which do not resolve under bundler/node16/nodenext (no `/index` fallback for explicit `.js`). With consumer `skipLibCheck: true` those symbols silently became `any`. Imports now target concrete modules (e.g. `utils/client`, `middleware/types`) or explicit `/index` paths so public types resolve correctly.
+
+- [#919](https://github.com/TanStack/ai/pull/919) [`d453647`](https://github.com/TanStack/ai/commit/d453647500e33a1412f84a2cc91d486a11265b9b) - fix(ai-gemini): fix `GeminiClientConfig` type import in the published adapter declarations. The emitted `.d.ts` files imported `GeminiClientConfig` from a non-existent `'../utils.js'` (the barrel builds to `utils/index.js`), so under `skipLibCheck` it silently resolved to `any` in consumers — masking client-config type-checking for every adapter and producing a spurious "`httpOptions` does not exist" error on `createGeminiVideo`. Adapters now import the type from the concrete `'../utils/client'` module so the declarations resolve to the real type.
+
+- [#908](https://github.com/TanStack/ai/pull/908) [`dcc7407`](https://github.com/TanStack/ai/commit/dcc74077dc9f27ca3b88b0c349159728f7868fbe) - fix(ai-gemini): stop fetching arbitrary HTTPS image URLs in `createGeminiImage`. URL sources in multimodal image-generation prompts now pass through as `fileData.fileUri` (Gemini fetches them server-side), matching the chat adapter. This avoids fetch + base64 double-buffering that could OOM on memory-constrained runtimes such as Cloudflare Workers.
+
+- [#922](https://github.com/TanStack/ai/pull/922) [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669) - fix: resolve dangling relative imports in published declaration files
+
+  Switch directory-barrel imports (`../utils`, `../tools`, `../middleware`) to
+  concrete module paths so emitted `.d.ts` specifiers resolve under
+  `bundler`/`node16`/`nodenext` resolution. Adds a `test:dts` scanner guardrail.
+
+  Fixes [#920](https://github.com/TanStack/ai/issues/920)
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+
+## 0.19.1
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.19.0
+
+### Minor Changes
+
+- [#875](https://github.com/TanStack/ai/pull/875) [`f0c12ba`](https://github.com/TanStack/ai/commit/f0c12ba0895704156c1853c09ae41646cce9254b) - Drop retired Gemini media models and add **Veo 3.1 Lite**.
+
+  The following models return `404 NOT_FOUND` from the Gemini Developer API and have been removed from the adapter's model lists and type maps:
+  - `imagen-3.0-generate-002` (superseded by the Imagen 4 family)
+  - `veo-2.0-generate-001`
+  - `veo-3.0-generate-001`
+  - `veo-3.0-fast-generate-001`
+
+  Added `veo-3.1-lite-generate-preview` (Veo 3.1 Lite) — the lowest-cost Veo 3.1 tier ($0.05/sec, 720p, video + audio), with the same `4 | 6 | 8` second durations as the rest of the Veo 3.1 family.
+
+  If you were referencing one of the removed model ids, switch to a current model (e.g. `imagen-4.0-generate-001`, `veo-3.1-generate-preview`, or `veo-3.1-lite-generate-preview`).
+
+- [#874](https://github.com/TanStack/ai/pull/874) [`84d1225`](https://github.com/TanStack/ai/commit/84d1225046b70f67a1af5ee428893ffa96e9ab65) - Add proper support for **Nano Banana 2 Lite** (`gemini-3.1-flash-lite-image`) as a Gemini-native image model. The automated model sync had landed this model mis-classified as a text-only chat model (`output: ['text']`, in `GEMINI_MODELS`); it's now corrected and wired into the image surface — routed through the `generateContent` API with `output: ['text', 'image']`, template-literal sizes (`aspectRatio_resolution`, e.g. `"1:1_2K"`), and image-conditioned prompts, matching the other native image models. Built for ultra-low-latency, low-cost image generation and editing.
+
+  Also fixes the OpenRouter model sync (`scripts/sync-provider-models.ts`) so native image models that output both text and image are skipped for manual curation instead of being inserted as chat models.
+
+### Patch Changes
+
+- [#772](https://github.com/TanStack/ai/pull/772) [`00505fe`](https://github.com/TanStack/ai/commit/00505fe6acdbafdd490ba1c903991e067384e0c7) - Update model metadata from OpenRouter API
+
+## 0.18.4
+
+### Patch Changes
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai@0.39.0
+
+## 0.18.3
+
+### Patch Changes
+
+- Updated dependencies [[`c1a8732`](https://github.com/TanStack/ai/commit/c1a87327b4a3463d37158f32ca90184b5fd092bb)]:
+  - @tanstack/ai@0.38.0
+
+## 0.18.2
+
+### Patch Changes
+
+- [#844](https://github.com/TanStack/ai/pull/844) [`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff) - Republish all packages with their compiled `dist/` output.
+
+  Releases `0.33.0`–`0.36.0` were published without a `dist/` directory: the
+  release workflow relied on an Nx-cached `build` whose outputs were not
+  materialized to disk before `changeset publish` packed the tarballs, and
+  `files: ["dist"]` silently includes nothing when `dist/` is absent. The
+  published packages therefore contained only `src/`, so every export
+  (`./dist/esm/*.js`) resolved to a missing file and the packages were
+  uninstallable.
+
+  The publish step now runs a fresh, cache-bypassing build of all packages
+  immediately before publishing, guaranteeing compiled artifacts are present in
+  every tarball.
+
+- Updated dependencies [[`a6cceba`](https://github.com/TanStack/ai/commit/a6cceba4812e7e986183ee856112fcf5f8fa12ff)]:
+  - @tanstack/ai@0.37.0
+  - @tanstack/ai-utils@0.3.1
+
+## 0.18.1
+
+### Patch Changes
+
+- Updated dependencies [[`fbd3762`](https://github.com/TanStack/ai/commit/fbd37623b287e370aa5678e161dec19cf13ae33b)]:
+  - @tanstack/ai@0.36.0
+
+## 0.18.0
+
+### Minor Changes
+
+- [#781](https://github.com/TanStack/ai/pull/781) [`6f3b353`](https://github.com/TanStack/ai/commit/6f3b35314a287fd9fd29eecd0478cc8352f64732) - Upgrade `@google/genai` to v2 and migrate the experimental text-interactions adapter to the SDK 2.x step-based streaming API (`step.start` / `step.delta` / `step.stop`), replacing the prior `content.*` events. Streamed function-call arguments are now accumulated from `arguments_delta` fragments and parsed leniently with `partial-json`, so an incomplete or truncated buffer keeps the last good arguments instead of resetting them and no longer logs a parse error per fragment. Exported built-in-tool CUSTOM event payloads now carry `Interactions.*Step` values, and structured output uses the polymorphic `response_format` request shape.
+
+## 0.17.3
+
+### Patch Changes
+
+- Updated dependencies [[`c04abd3`](https://github.com/TanStack/ai/commit/c04abd35284d464d830bb9f15129c7a7c2533d3f)]:
+  - @tanstack/ai@0.35.0
+
+## 0.17.2
+
+### Patch Changes
+
+- [#480](https://github.com/TanStack/ai/pull/480) [`eddfbbd`](https://github.com/TanStack/ai/commit/eddfbbdfd979cad7874f0fb33695c5c41331631e) - Bind tool calls to the assistant message in tool-first streams by setting AG-UI's
+  `parentMessageId` on `TOOL_CALL_START`.
+
+  When a provider streams a tool call **before** any text, the `StreamProcessor` had no
+  active assistant message to attach it to, so it created one under a temporary local id.
+  The later `TEXT_MESSAGE_START` then carried the real provider message id, forcing a
+  mid-stream id change — which destabilizes `UIMessage.id` and can remount the message
+  subtree in `useChat` (React list keys, etc.). See [#477](https://github.com/TanStack/ai/issues/477).
+
+  Every text adapter generates one stable assistant message id per stream and already uses
+  it for `TEXT_MESSAGE_START`; they now also emit it as `parentMessageId` on
+  `TOOL_CALL_START`. The processor reads `chunk.parentMessageId` (`?? active assistant id`)
+  so the message is created with the correct id immediately and the subsequent
+  `TEXT_MESSAGE_START` matches — no rename, no remount.
+
+  Fixed across all adapters that emit `TOOL_CALL_START` (Anthropic, OpenAI Responses +
+  Chat Completions via `@tanstack/openai-base`, OpenRouter, Gemini including the
+  experimental text-interactions adapter, and Ollama).
+
+- Updated dependencies [[`31de22b`](https://github.com/TanStack/ai/commit/31de22b1ae780c53e3abbf9cf17e1db7b62de84a)]:
+  - @tanstack/ai-utils@0.3.0
+  - @tanstack/ai@0.34.0
+
+## 0.17.1
+
+### Patch Changes
+
+- Updated dependencies [[`2cb0313`](https://github.com/TanStack/ai/commit/2cb0313c1f13e1db37c5550308e36bb0b9b73b98), [`18e5f4d`](https://github.com/TanStack/ai/commit/18e5f4d9746a26c3194929ea4b49673728e8eaa5), [`21720dd`](https://github.com/TanStack/ai/commit/21720dd73524d624594a6dfb7e4669c03cc08af0), [`243b8fa`](https://github.com/TanStack/ai/commit/243b8fad7e8a48b68a1a96962ee1443cbd6a0ced)]:
+  - @tanstack/ai@0.33.0
+
+## 0.17.0
+
+### Minor Changes
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - Add a Google Veo video adapter (`geminiVideo` / `createGeminiVideo`) and the
+  per-model typed-duration video contract it is built on ([#534](https://github.com/TanStack/ai/issues/534), [#634](https://github.com/TanStack/ai/issues/634)).
+
+  **`@tanstack/ai`** (additive, non-breaking): `VideoAdapter` /
+  `BaseVideoAdapter` gain a `TModelDurationByName` generic (defaulting to
+  `Record<string, number>`, preserving today's `duration?: number` typing for
+  adapters without a map) plus two introspection methods with safe defaults:
+  - `availableDurations()` — a `DurationOptions` tagged union
+    (`discrete | range | mixed | none`) describing the durations the current
+    model accepts. Default: `{ kind: 'none' }`.
+  - `snapDuration(seconds)` — coerce raw seconds to the closest valid duration
+    (`snapToDurationOption` is exported for adapter authors). Default:
+    `undefined`.
+
+  `generateVideo({ duration })` is now typed per model via
+  `VideoDurationForAdapter<TAdapter>`.
+
+  **`@tanstack/ai-gemini`**: new Veo adapter over the long-running
+  `:predictLongRunning` operation, supporting `veo-3.1-generate-preview`,
+  `veo-3.1-fast-generate-preview`, `veo-3.0-generate-001`,
+  `veo-3.0-fast-generate-001`, and `veo-2.0-generate-001`:
+  - `geminiVideo('veo-3.0-generate-001')` → `duration?: 4 | 6 | 8`
+    (Veo 2: `5 | 6 | 8`); `adapter.snapDuration(7)` → `6`.
+  - Multimodal prompts: the first un-roled / `'start_frame'` image part
+    becomes the input image, `'end_frame'` → `lastFrame`, `'reference'` /
+    `'character'` → `referenceImages`.
+  - `size` takes Veo aspect ratios (`'16:9' | '9:16'`); everything else from
+    the SDK's `GenerateVideosConfig` (e.g. `resolution`, `generateAudio`,
+    `negativePrompt`) is available through `modelOptions`.
+  - Responsible-AI filtering is surfaced as a failed job with the filter
+    reasons.
+
+  Note: Veo result URLs are served by the Gemini Files API and require the
+  Google API key to download (`x-goog-api-key` header or `key` query
+  parameter).
+
+- [#624](https://github.com/TanStack/ai/pull/624) [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f) - `generateImage()` and `generateVideo()` now accept a multimodal `prompt`: a plain string, or an ordered array of content parts (`TextPart` / `ImagePart` / `VideoPart` / `AudioPart`) for image-conditioned generation, image-to-image, multi-reference, image-to-video, and edit / inpaint flows. Part order is meaningful — "not like this _(image)_, more like this _(image)_" — and each media part may carry a `metadata.role` hint (`'reference' | 'mask' | 'control' | 'start_frame' | 'end_frame' | 'character'`) that adapters use to route to the provider-specific field, plus an informational `metadata.tag` label for your own bookkeeping. The accepted part types are narrowed per model at compile time via each adapter's input-modality map, so passing an image part to a text-only model is a type error (with a clear runtime throw as backstop).
+
+  Prompt text is always sent **verbatim** — the SDK never injects or rewrites in-prompt referencing markers. To reference inputs from your prompt, write the provider's own convention (fal Kling / Seedance `@Image1`, OpenAI / FLUX.2 `"image 1"` prose, Gemini content descriptions); see the image-generation docs for the per-provider table.
+
+  Provider behavior in this release:
+  - **OpenAI image** — Prompts with image parts route `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` to `images.edit()` (up to 16 source images plus optional mask); `dall-e-2` routes to `images.edit()` with one source image; `dall-e-3` rejects image parts at compile time and at runtime.
+  - **OpenAI video** — Sora-2 / Sora-2-Pro accept a single image part as `input_reference`; passing more than one throws.
+  - **Gemini image** — Native models (`gemini-*-flash-image`, "nano-banana") map prompt parts 1:1 onto multimodal `contents`, preserving interleaved order. Imagen is text-only (compile-time + runtime rejection).
+  - **fal.ai** — Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (362 endpoints with nonstandard fields, e.g. nano-banana edit → `image_urls`, Kling i2v start frame → `image_url`, Veo first-last-frame → `first_frame_url` / `last_frame_url`). Defaults for endpoints not in the map: single → `image_url`, multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`; video `role: 'start_frame'` / `'end_frame'` → `start_image_url` / `end_image_url`. Per-model prompt modalities are derived at the type level from the SDK's endpoint input types. Regenerate the map after a fal SDK bump with `pnpm generate:fal-image-fields` (a unit test fails when it goes stale). In `FalImageProviderOptions` / `FalVideoProviderOptions`, media-conditioning fields the mappers can populate (`image_url`, `start_image_url`, `video_url`, `audio_url`, …) are demoted from required to optional — supply them as prompt parts, or keep passing them explicitly via `modelOptions`.
+  - **Grok** — New `grok-imagine-image` / `grok-imagine-image-quality` models. Prompts with image parts route to xAI's JSON `/v1/images/edits` endpoint (up to 3 source images, addressed by xAI in request order; the prompt is sent verbatim). `role: 'mask'` / `'control'` throw. Their `size` uses an `aspectRatio_resolution` template (`'16:9_2k'`, suffix optional) mirroring Gemini's native image models. `grok-2-image-1212` remains text-to-image only.
+  - **OpenRouter** — Prompt parts map 1:1 onto multimodal `text` / `image_url` chat content parts, preserving interleaved order, and are forwarded to the underlying image model. URL sources pass through verbatim (no fetching or re-encoding in your process); `data` sources become data URIs.
+  - **Anthropic** — Unchanged (no image generation API).
+
+  A new `resolveMediaPrompt()` utility (exported from `@tanstack/ai`) is the single downrev point from the canonical interleaved prompt shape to flattened text + per-modality part buckets, for adapter authors.
+
+  On the client side, `ImageGenerateInput.prompt` and `VideoGenerateInput.prompt` (`@tanstack/ai-client`, and the `useGenerateImage` / `useGenerateVideo` hooks built on them) are widened from `string` to the same `MediaPrompt` shape, so prompt parts can be sent from the browser through your server route to `generateImage()` / `generateVideo()`.
+
+  Closes [#618](https://github.com/TanStack/ai/issues/618).
+
+### Patch Changes
+
+- Updated dependencies [[`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f), [`8fa6cc5`](https://github.com/TanStack/ai/commit/8fa6cc56c5f36e22885c98a511dcceb2bfc0da1f)]:
+  - @tanstack/ai@0.32.0
+
+## 0.16.2
+
+### Patch Changes
+
+- Updated dependencies [[`07aaf8b`](https://github.com/TanStack/ai/commit/07aaf8b9e5a8e699be25f936cc9cd651a46c16c5)]:
+  - @tanstack/ai@0.31.0
+
+## 0.16.1
+
+### Patch Changes
+
+- [#769](https://github.com/TanStack/ai/pull/769) [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b) - Add repository metadata (`homepage`, `bugs`, `funding`), fix `repository.directory` to point at each package, and include an MIT `LICENSE` file in every published package.
+
+- Updated dependencies [[`7103348`](https://github.com/TanStack/ai/commit/71033488212bff05dcccc857e721ab9262ebc2a6), [`1d1bb52`](https://github.com/TanStack/ai/commit/1d1bb5219a38d9718cc926148e93fc27d5d2305b)]:
+  - @tanstack/ai@0.30.0
+  - @tanstack/ai-utils@0.2.2
+
+## 0.16.0
+
+### Minor Changes
+
+- [#714](https://github.com/TanStack/ai/pull/714) [`efa76c8`](https://github.com/TanStack/ai/commit/efa76c8cdac37f402a0b35d74538ed2ae477e45c) - Sync Gemini model metadata with Google's current published model list ([#620](https://github.com/TanStack/ai/issues/620), [#621](https://github.com/TanStack/ai/issues/621)).
+
+  **Added**
+  - `gemini-3.1-flash-lite` (stable GA) — joins the existing `gemini-3.1-flash-lite-preview` entry and qualifies for the native combined tools + `responseSchema` streaming path (`GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`).
+
+  **Removed (retired by Google — these ids now 404 against the Gemini API or are no longer published)**
+  - `gemini-3-pro-preview` (verified 404; superseded by `gemini-3.1-pro-preview`)
+  - `gemini-2.5-flash-preview-09-2025` (superseded by stable `gemini-2.5-flash`)
+  - `gemini-2.5-flash-lite-preview-09-2025` (superseded by stable `gemini-2.5-flash-lite`)
+  - `gemini-2.0-flash` and `gemini-2.0-flash-lite` (2.0 line retired from Google's published list)
+  - `gemini-2.0-flash-preview-image-generation` (image; superseded by `gemini-2.5-flash-image`)
+
+  **Fixed**
+  - `gemini-3.5-flash` was missing from `GeminiChatModelToolCapabilitiesByName`, leaving its provider-tool typing broken.
+
+  If you were passing a removed id to `geminiText()` / `geminiSummarize()`, switch to the listed successor (e.g. `gemini-2.0-flash` → `gemini-2.5-flash`).
+
+### Patch Changes
+
+- Updated dependencies [[`ff267a5`](https://github.com/TanStack/ai/commit/ff267a5536327b006979f9f28ce2df7cc27f6e23), [`570c08a`](https://github.com/TanStack/ai/commit/570c08a8d1a35746c3d31a63188249cba2d2475a), [`22c9b42`](https://github.com/TanStack/ai/commit/22c9b42baec74914b720e440f29bd02be04eb164), [`215b6b4`](https://github.com/TanStack/ai/commit/215b6b401aa95d1d38da342aa09603cb1d616929), [`7d44569`](https://github.com/TanStack/ai/commit/7d445693ea079d7a85498a4465179ddd5f548cb0)]:
+  - @tanstack/ai@0.29.0
+
 ## 0.15.1
 
 ### Patch Changes

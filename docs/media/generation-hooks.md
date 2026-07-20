@@ -214,7 +214,7 @@ The `generate` function accepts a `TranscriptionGenerateInput`:
 | `audio` | `string \| File \| Blob \| ArrayBuffer` | Audio data -- base64 string, File, Blob, or ArrayBuffer (required) |
 | `language` | `string` | Language in ISO-639-1 format (e.g., `"en"`) |
 | `prompt` | `string` | Optional prompt to guide the transcription |
-| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Output format |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Common output format |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
 ## useSummarize
@@ -415,9 +415,12 @@ function EmbeddingGenerator() {
 The `onResult` callback can transform what gets stored in `result`:
 
 ```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { ImageGenerationResult } from '@tanstack/ai'
+
 const { result } = useGenerateImage({
   connection: fetchServerSentEvents('/api/generate/image'),
-  onResult: (raw) => raw.images.map((img) => img.url || img.b64Json),
+  onResult: (raw: ImageGenerationResult) => raw.images.map((img) => img.url || img.b64Json),
 })
 // result is now string[] instead of ImageGenerationResult
 ```

@@ -5,17 +5,21 @@ import {
   Activity,
   BadgeCheck,
   Braces,
+  Code2,
   FileAudio,
   FileText,
   Guitar,
   Home,
   Image,
+  Layers,
   Menu,
+  LayoutGrid,
   Mic,
   MessageSquare,
   Music,
   Plug,
   Server,
+  Sparkles,
   Video,
   X,
 } from 'lucide-react'
@@ -217,6 +221,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/typesafe-tools"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Code2 size={20} />
+            <span className="font-medium">Type-Safe Tools</span>
+          </Link>
+
+          <Link
             to="/threads"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -227,6 +244,19 @@ export default function Header() {
           >
             <MessageSquare size={20} />
             <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/queueing"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Layers size={20} />
+            <span className="font-medium">Queueing Strategies</span>
           </Link>
 
           <Link
@@ -279,6 +309,32 @@ export default function Header() {
           >
             <Plug size={20} />
             <span className="font-medium">MCP Servers</span>
+          </Link>
+
+          <Link
+            to="/mcp-apps"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <LayoutGrid size={20} />
+            <span className="font-medium">MCP Apps</span>
+          </Link>
+
+          <Link
+            to="/capability-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <span className="font-medium">Capability Middleware</span>
           </Link>
         </nav>
       </aside>

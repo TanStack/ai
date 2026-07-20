@@ -2,8 +2,10 @@ import type {
   AnyClientTool,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
+  UsageInfo,
 } from '@tanstack/ai'
 import type { RealtimeAdapter } from '@tanstack/ai-client'
 
@@ -79,6 +81,9 @@ export interface UseRealtimeChatOptions {
   onMessage?: (message: RealtimeMessage) => void
   onModeChange?: (mode: RealtimeMode) => void
   onInterrupted?: () => void
+  onUsage?: (usage: UsageInfo) => void
+  onGoAway?: (timeLeft?: string) => void
+  onStatusChange?: (status: RealtimeStatus) => void
 }
 
 /**
@@ -135,9 +140,6 @@ export interface UseRealtimeChatReturn {
   /** Get time domain data for output waveform */
   getOutputTimeDomainData: () => Uint8Array
 
-  // VAD control
-  /** Current VAD mode */
-  vadMode: 'server' | 'semantic' | 'manual'
-  /** Change VAD mode at runtime */
-  setVADMode: (mode: 'server' | 'semantic' | 'manual') => void
+  // Session control
+  updateSession: (config: RealtimeSessionConfig) => void
 }

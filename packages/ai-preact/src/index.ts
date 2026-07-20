@@ -1,9 +1,17 @@
 export { useChat } from './use-chat'
+export { useMcpAppBridge } from './use-mcp-app-bridge'
+export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
 export type {
   UseChatOptions,
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 export {
@@ -14,6 +22,9 @@ export {
   stream,
   rpcStream,
   createChatClientOptions,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
   type ConnectionAdapter,
   type ConnectConnectionAdapter,
   type SubscribeConnectionAdapter,

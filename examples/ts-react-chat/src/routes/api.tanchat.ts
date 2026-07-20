@@ -15,6 +15,7 @@ import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
+import { bedrockText } from '@tanstack/ai-bedrock'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -40,6 +41,7 @@ type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'bedrock'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -293,13 +295,32 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           grok: () =>
             createChatOptions({
-              adapter: grokText((model || 'grok-4.20') as 'grok-4.20'),
+              adapter: grokText(
+                (model || 'grok-build-0.1') as 'grok-build-0.1',
+              ),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
               adapter: groqText(
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
+              ),
+            }),
+          bedrock: () =>
+            createChatOptions({
+              // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
+              // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
+              // BEDROCK_AUTH=sigv4 forces SigV4 via the AWS credential chain
+              // (env vars or `aws configure` profile). Region defaults to us-east-1.
+              adapter: bedrockText(
+                (model ||
+                  'us.anthropic.claude-haiku-4-5-20251001-v1:0') as 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+                {
+                  region: process.env.AWS_REGION || 'us-east-1',
+                  ...(process.env.BEDROCK_AUTH === 'sigv4' && {
+                    auth: 'sigv4' as const,
+                  }),
+                },
               ),
             }),
           ollama: () =>
@@ -337,7 +358,7 @@ export const Route = createFileRoute('/api/tanchat')({
 
           const stream = chat({
             ...options,
-            tools: Object.values(mergedTools),
+            tools: mergedTools,
             middleware: [loggingMiddleware, runtimeContextMiddleware],
             context: runtimeContext,
             systemPrompts: [SYSTEM_PROMPT],

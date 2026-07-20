@@ -18,6 +18,7 @@ import type {
   AfterToolCallInfo,
   BeforeToolCallDecision,
 } from '../middleware/types'
+import type { McpResourceReadResult } from '../mcp/types'
 import type {
   ContextFromTool,
   DefinedContext,
@@ -31,6 +32,92 @@ function safeJsonParse(value: string): unknown {
   } catch {
     return value
   }
+}
+
+/**
+ * MCP Apps metadata attached to a server tool at discovery (see
+ * `@tanstack/ai-mcp` discovery + `MCPManager.discover()`).
+ *
+ * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
+ * - `readResource` is bound by `MCPManager.discover()` (the one site that has
+ *   both the tool and its originating source) so the resource can be eagerly
+ *   read at the emit site. Under `chat()`-managed MCP lifecycle
+ *   (`connection:'close'`), the MCP source is not disposed until the run
+ *   drains, so `readResource` is still live at this emit point. Note: a caller
+ *   who closes the MCP source early (outside `chat()`'s managed lifecycle)
+ *   degrades fail-soft — `readResource` may reject, the widget is absent, but
+ *   the tool result still flows to the model.
+ *   `@tanstack/ai` never imports `@tanstack/ai-mcp`; this travels structurally
+ *   on the tool.
+ */
+interface McpToolAppMeta {
+  uiResourceUri?: string
+  serverId?: string
+  /** Server-native (unprefixed) MCP tool name — used as the renderer's toolName. */
+  serverToolName?: string
+  readResource?: (uri: string) => Promise<McpResourceReadResult>
+}
+
+function readMcpAppMeta(tool: AnyTool): McpToolAppMeta | undefined {
+  const meta = (tool.metadata as { mcp?: McpToolAppMeta } | undefined)?.mcp
+  return meta
+}
+
+/**
+ * Eagerly read a tool's linked `ui://` resource (MCP Apps) and emit a
+ * `ui-resource` CUSTOM event so the client can render the widget. The model
+ * still receives the normal text tool-result; the widget rides alongside and
+ * never enters model input.
+ *
+ * Fail-soft: any read error logs a warning and emits nothing — it never throws,
+ * so the normal tool-result still flows and a broken widget cannot break the run.
+ */
+async function emitUiResourceIfLinked<TContext>(
+  tool: AnyTool,
+  context: ToolExecutionContext<TContext>,
+): Promise<void> {
+  const mcp = readMcpAppMeta(tool)
+  const uiUri = mcp?.uiResourceUri
+  if (!uiUri || !mcp.readResource) return
+
+  // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
+  // an exception from the emit path can't be mislabeled as a read failure.
+  let matched: McpResourceReadResult['contents'][number] | undefined
+  try {
+    const res = await mcp.readResource(uiUri)
+    // Emit ONLY the content whose uri matches the requested `uiUri`. A source
+    // can return unrelated contents; falling back to `contents[0]` would risk
+    // rendering a widget that doesn't correspond to the linked resource. This
+    // is a display widget — a mismatched resource is worse than none, so if no
+    // content matches we fail-soft (warn + return) rather than emit.
+    matched = res.contents.find((c) => c.uri === uiUri)
+  } catch (err) {
+    // fail-soft — the text tool-result already flows; a broken widget must
+    // not break the run.
+    console.warn(`[mcp-apps] failed to read ui resource ${uiUri}:`, err)
+    return
+  }
+  if (!matched) {
+    console.warn(
+      `[mcp-apps] ui resource ${uiUri} returned no content matching that uri; not emitting`,
+    )
+    return
+  }
+  // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
+  // every emitted event by the `executeToolCalls` context wrapper, so the
+  // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
+  // still satisfied downstream.
+  context.emitCustomEvent('ui-resource', {
+    resource: {
+      uri: matched.uri,
+      mimeType: matched.mimeType ?? 'text/html',
+      text: matched.text,
+      blob: matched.blob,
+    },
+    serverId: mcp.serverId,
+    toolName: mcp.serverToolName ?? tool.name,
+    meta: undefined,
+  })
 }
 
 /**
@@ -456,7 +543,7 @@ async function applyBeforeToolCallDecision(
  * Execute a server-side tool with event polling, output validation, and middleware hooks.
  * Yields CustomEvent chunks during execution and pushes the result to the results array.
  */
-async function* executeServerTool<TContext = unknown>(
+export async function* executeServerTool<TContext = unknown>(
   toolCall: ToolCall,
   tool: AnyTool,
   toolName: string,
@@ -475,7 +562,14 @@ async function* executeServerTool<TContext = unknown>(
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
-    // Flush remaining events
+    // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
+    // a `ui-resource` CUSTOM event. The MCP source stays live until the run
+    // drains (MCPManager's `connection:'close'` policy disposes on completion),
+    // so `readResource` is callable here. Fail-soft: a read error warns and
+    // emits nothing — the text result still flows.
+    await emitUiResourceIfLinked(tool, context)
+
+    // Flush remaining events (including any queued ui-resource event)
     let pendingEvent: CustomEvent | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent

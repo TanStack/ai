@@ -1,3 +1,4 @@
+import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   createGeminiClient,
@@ -14,6 +15,7 @@ import {
 } from '../image/image-provider-options'
 import type { GEMINI_IMAGE_MODELS } from '../model-meta'
 import type {
+  GeminiImageModelInputModalitiesByName,
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName,
   GeminiImageProviderOptions,
@@ -22,15 +24,20 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
+  MediaInputMetadata,
+  ResolvedMediaPrompt,
 } from '@tanstack/ai'
 import type {
+  Content,
   GenerateContentConfig,
   GenerateContentResponse,
   GenerateImagesConfig,
   GenerateImagesResponse,
   GoogleGenAI,
+  Part,
 } from '@google/genai'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for Gemini image adapter
@@ -60,7 +67,8 @@ export class GeminiImageAdapter<
   TModel,
   GeminiImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
-  GeminiImageModelSizeByName
+  GeminiImageModelSizeByName,
+  GeminiImageModelInputModalitiesByName
 > {
   override readonly kind = 'image' as const
   readonly name = 'gemini' as const
@@ -70,6 +78,7 @@ export class GeminiImageAdapter<
     providerOptions: GeminiImageProviderOptions
     modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
     modelSizeByName: GeminiImageModelSizeByName
+    modelInputModalitiesByName: GeminiImageModelInputModalitiesByName
   }
 
   private readonly client: GoogleGenAI
@@ -82,7 +91,7 @@ export class GeminiImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, logger } = options
+    const { model, logger } = options
 
     logger.request(
       `activity=generateImage provider=gemini model=${this.model}`,
@@ -93,10 +102,35 @@ export class GeminiImageAdapter<
     )
 
     try {
-      validatePrompt({ prompt, model })
+      const resolved = resolveMediaPrompt(options.prompt)
+
+      // Image-only prompts are allowed (the image inputs carry the intent);
+      // a prompt with neither text nor images is always an error.
+      if (resolved.images.length === 0) {
+        validatePrompt({ prompt: resolved.text, model })
+      }
+
+      if (resolved.videos.length > 0) {
+        throw new Error(
+          `${this.name}.generateImages does not support video prompt parts (model: ${model}).`,
+        )
+      }
+      if (resolved.audios.length > 0) {
+        throw new Error(
+          `${this.name}.generateImages does not support audio prompt parts (model: ${model}).`,
+        )
+      }
 
       if (this.isGeminiImageModel(model)) {
-        return await this.generateWithGeminiApi(options)
+        return await this.generateWithGeminiApi(options, resolved)
+      }
+
+      // Imagen does not accept image inputs — it's strictly text-to-image.
+      if (resolved.images.length > 0) {
+        throw new Error(
+          `${this.name}: model "${model}" (Imagen) does not support image prompt parts. ` +
+            `Use a Gemini-native image model (e.g. gemini-2.5-flash-image, "nano-banana") for image-conditioned generation.`,
+        )
       }
 
       // Imagen models path (generateImages API)
@@ -107,7 +141,7 @@ export class GeminiImageAdapter<
 
       const response = await this.client.models.generateImages({
         model,
-        prompt,
+        prompt: resolved.text,
         config,
       })
 
@@ -127,17 +161,11 @@ export class GeminiImageAdapter<
 
   private async generateWithGeminiApi(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
+    resolved: ResolvedMediaPrompt,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, size, numberOfImages, modelOptions } = options
+    const { model, size, numberOfImages, modelOptions } = options
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
-
-    // The generateContent API has no numberOfImages parameter.
-    // Instead, augment the prompt to request multiple images when needed.
-    const augmentedPrompt =
-      numberOfImages && numberOfImages > 1
-        ? `${prompt} Generate ${numberOfImages} distinct images.`
-        : prompt
 
     // GeminiImageProviderOptions is Imagen-shaped — most fields
     // (personGeneration, safetyFilterLevel, addWatermark, outputMimeType,
@@ -170,13 +198,80 @@ export class GeminiImageAdapter<
       }),
     }
 
+    const contents = this.buildContents(resolved, numberOfImages)
+
     const response = await this.client.models.generateContent({
       model,
-      contents: augmentedPrompt,
+      contents,
       config,
     })
 
     return this.transformGeminiResponse(model, response)
+  }
+
+  /**
+   * Build the multimodal `contents` payload. Text-only prompts pass through
+   * as a plain string (the SDK accepts it directly); prompts with image
+   * parts become a single user `Content` whose `parts` mirror the prompt's
+   * interleaved order — position is meaningful to Gemini ("not like this
+   * *(image)*, more like this *(image)*").
+   *
+   * The generateContent API has no numberOfImages parameter, so when more
+   * than one image is requested a trailing instruction is appended.
+   */
+  private buildContents(
+    resolved: ResolvedMediaPrompt,
+    numberOfImages: number | undefined,
+  ): string | Array<Content> {
+    const countInstruction =
+      numberOfImages && numberOfImages > 1
+        ? `Generate ${numberOfImages} distinct images.`
+        : undefined
+
+    if (resolved.images.length === 0) {
+      return countInstruction
+        ? `${resolved.text} ${countInstruction}`
+        : resolved.text
+    }
+
+    const parts: Array<Part> = resolved.parts.map((part) => {
+      if (part.type === 'text') {
+        return { text: part.content }
+      }
+      if (part.type === 'image') {
+        return this.imagePartToGeminiPart(part)
+      }
+      // Video / audio parts were rejected in generateImages above.
+      throw new Error(
+        `gemini: unsupported prompt part type "${part.type}" in image generation.`,
+      )
+    })
+    if (countInstruction) {
+      parts.push({ text: countInstruction })
+    }
+    return [{ role: 'user', parts }]
+  }
+
+  private imagePartToGeminiPart(part: ImagePart<MediaInputMetadata>): Part {
+    if (part.source.type === 'data') {
+      return {
+        inlineData: {
+          mimeType: part.source.mimeType || 'image/png',
+          data: part.source.value,
+        },
+      }
+    }
+    // URL sources (public HTTPS, Files API URIs, gs://) pass through as
+    // `fileData` and Gemini fetches them server-side — same as the chat
+    // adapter. Fetching locally and inlining as base64 double-buffers the
+    // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
+    // Workers).
+    return {
+      fileData: {
+        fileUri: part.source.value,
+        mimeType: part.source.mimeType ?? 'image/jpeg',
+      },
+    }
   }
 
   private transformGeminiResponse(
@@ -301,14 +396,14 @@ export class GeminiImageAdapter<
  * Creates a Gemini image adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'imagen-3.0-generate-002')
+ * @param model - The model name (e.g., 'imagen-4.0-generate-001')
  * @param apiKey - Your Google API key
  * @param config - Optional additional configuration
  * @returns Configured Gemini image adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGeminiImage('imagen-3.0-generate-002', "your-api-key");
+ * const adapter = createGeminiImage('imagen-4.0-generate-001', "your-api-key");
  *
  * const result = await generateImage({
  *   adapter,

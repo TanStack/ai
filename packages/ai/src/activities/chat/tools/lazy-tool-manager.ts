@@ -1,7 +1,15 @@
 import { convertSchemaToJsonSchema } from './schema-converter'
-import type { Tool } from '../../../types'
+import { renderLazyCatalogEntry } from './lazy-tools'
+import type { AnyTool, LazyToolsConfig, Tool } from '../../../types'
 
-const DISCOVERY_TOOL_NAME = '__lazy__tool__discovery__'
+/**
+ * Name of the synthetic tool the LLM calls to discover lazy tools.
+ *
+ * Exported so callers building custom message-compaction / history-trimming
+ * logic can reference the discovery tool by constant instead of hard-coding
+ * the string (which is an internal contract that could change).
+ */
+export const DISCOVERY_TOOL_NAME = '__lazy__tool__discovery__'
 
 /**
  * Manages lazy tool discovery for the chat agent loop.
@@ -16,6 +24,7 @@ export class LazyToolManager {
   private readonly discoveredTools: Set<string>
   private hasNewDiscoveries: boolean
   private readonly discoveryTool: Tool | null
+  private readonly lazyToolsConfig: LazyToolsConfig
 
   constructor(
     tools: ReadonlyArray<Tool>,
@@ -29,7 +38,9 @@ export class LazyToolManager {
       }>
       toolCallId?: string
     }>,
+    lazyToolsConfig: LazyToolsConfig = {},
   ) {
+    this.lazyToolsConfig = lazyToolsConfig
     const eager: Array<Tool> = []
     this.lazyToolMap = new Map()
     this.discoveredTools = new Set()
@@ -85,6 +96,35 @@ export class LazyToolManager {
     }
 
     return active
+  }
+
+  /**
+   * Returns the tools that should be available for *execution* this turn.
+   *
+   * This is the advertised set (`getActiveTools()`, passed in as `activeTools`)
+   * plus the discovery tool when a pending call references it but it is no
+   * longer advertised. Once every lazy tool has been discovered the discovery
+   * tool is dropped from the advertised set, but a model may still re-request
+   * discovery (long context / hallucination); keeping it executable lets that
+   * call return the schemas again instead of failing with "Unknown tool".
+   *
+   * The advertised set is intentionally left unchanged — only execution lookup
+   * is widened. Operates on the already-built `activeTools`: it must NOT call
+   * `getActiveTools()`, which would reset `hasNewDiscoveries` before the
+   * post-execution refresh check in the agent loop.
+   */
+  getExecutableTools(
+    activeTools: ReadonlyArray<AnyTool>,
+    pendingToolCallNames: ReadonlyArray<string>,
+  ): ReadonlyArray<AnyTool> {
+    if (
+      this.discoveryTool &&
+      pendingToolCallNames.includes(DISCOVERY_TOOL_NAME) &&
+      !activeTools.some((t) => t.name === DISCOVERY_TOOL_NAME)
+    ) {
+      return [...activeTools, this.discoveryTool]
+    }
+    return activeTools
   }
 
   /**
@@ -188,9 +228,13 @@ export class LazyToolManager {
 
     const lazyToolMap = this.lazyToolMap
 
-    // Build the static description with all lazy tool names
-    const allLazyNames = Array.from(this.lazyToolMap.keys())
-    const description = `You have access to additional tools that can be discovered. Available tools: [${allLazyNames.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
+    // Build the static description, rendering each entry per includeDescription.
+    // With the default 'none' this is byte-identical to the legacy output.
+    const include = this.lazyToolsConfig.includeDescription ?? 'none'
+    const allLazyEntries = Array.from(this.lazyToolMap.values()).map((t) =>
+      renderLazyCatalogEntry(t.name, t.description, include),
+    )
+    const description = `You have access to additional tools that can be discovered. Available tools: [${allLazyEntries.join(', ')}]. Call this tool with a list of tool names to discover their full descriptions and argument schemas before using them.`
 
     // Use the arrow function to capture `this` context
     const manager = this
@@ -221,8 +265,14 @@ export class LazyToolManager {
         for (const name of args.toolNames) {
           const tool = lazyToolMap.get(name)
           if (tool) {
-            manager.discoveredTools.add(name)
-            manager.hasNewDiscoveries = true
+            // Only flag a refresh for genuinely new discoveries. Re-requesting
+            // an already-discovered tool still returns its schema below (the
+            // model asked for it), but must not trigger a redundant tool-list
+            // refresh + continue in the agent loop.
+            if (!manager.discoveredTools.has(name)) {
+              manager.discoveredTools.add(name)
+              manager.hasNewDiscoveries = true
+            }
             const jsonSchema = tool.inputSchema
               ? convertSchemaToJsonSchema(tool.inputSchema)
               : undefined

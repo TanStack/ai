@@ -78,7 +78,11 @@ const SPEECH_PROVIDER_SCHEMA = z
   .optional()
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs'])
+  .optional()
+
+const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
+  .enum(['json', 'text', 'srt', 'verbose_json', 'vtt'])
   .optional()
 
 const AUDIO_PROVIDER_SCHEMA = z
@@ -144,6 +148,8 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     z.object({
       audio: z.string(),
       language: z.string().optional(),
+      responseFormat: TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA,
+      modelOptions: z.record(z.string(), z.any()).optional(),
       provider: TRANSCRIPTION_PROVIDER_SCHEMA,
     }),
   )
@@ -162,6 +168,8 @@ export const transcribeFn = createServerFn({ method: 'POST' })
       adapter,
       audio: data.audio,
       language: data.language,
+      responseFormat: data.responseFormat,
+      modelOptions: data.modelOptions,
     })
   })
 
@@ -316,6 +324,8 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     z.object({
       audio: z.string(),
       language: z.string().optional(),
+      responseFormat: TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA,
+      modelOptions: z.record(z.string(), z.any()).optional(),
       provider: TRANSCRIPTION_PROVIDER_SCHEMA,
     }),
   )
@@ -335,6 +345,8 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
         adapter,
         audio: data.audio,
         language: data.language,
+        responseFormat: data.responseFormat,
+        modelOptions: data.modelOptions,
         stream: true,
       }),
     )

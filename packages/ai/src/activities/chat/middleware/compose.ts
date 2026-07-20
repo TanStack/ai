@@ -11,6 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
@@ -164,6 +165,57 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
+   * Run all `setup` hooks in array order, then assert every declared `provides`
+   * capability was actually provided. Wires the last-wins duplicate-provide
+   * warning into the registry. Runs before init `onConfig`.
+   *
+   * Takes the full `ChatMiddlewareContext` — the same stable context the engine
+   * threads through every other hook — because it both forwards `ctx` to each
+   * `setup` hook and emits instrumentation events from it.
+   */
+  async runSetup(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
+    ctx.capabilities.setOnDuplicate((name) => {
+      this.logger.warn(
+        `capability "${name}" was provided more than once; last provider wins`,
+        { capability: name },
+      )
+    })
+
+    for (const mw of this.middlewares) {
+      if (mw.setup) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        await mw.setup(ctx)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=setup middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'setup' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'setup',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
+      }
+    }
+
+    for (const mw of this.middlewares) {
+      for (const handle of mw.provides ?? []) {
+        if (!ctx.capabilities.has(handle)) {
+          throw new Error(
+            `Middleware "${mw.name ?? 'unnamed'}" declares it provides ` +
+              `"${handle.capabilityName}" but never called provide() in setup().`,
+          )
+        }
+      }
+    }
+  }
+
+  /**
    * Call onStart on all middleware in order.
    */
   async runOnStart(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
@@ -291,6 +343,39 @@ export class MiddlewareRunner<TContext = unknown> {
     }
 
     return chunks
+  }
+
+  /**
+   * Dispatch a sandbox file event to every middleware's `sandbox` hooks, in
+   * array order: the catch-all `onFile` then the type-specific hook. Errors are
+   * logged and swallowed so one bad hook can't break the run.
+   */
+  async runSandboxFile(
+    ctx: ChatMiddlewareContext<TContext>,
+    event: SandboxFileHookEvent,
+  ): Promise<void> {
+    const typed = (
+      {
+        create: 'onFileCreate',
+        change: 'onFileChange',
+        delete: 'onFileDelete',
+      } as const
+    )[event.type]
+    for (const mw of this.middlewares) {
+      const hooks = mw.sandbox
+      if (!hooks) continue
+      for (const fn of [hooks.onFile, hooks[typed]]) {
+        if (!fn) continue
+        try {
+          await fn(ctx, event)
+        } catch (error) {
+          this.logger.sandbox(
+            `hook=${typed} middleware=${mw.name ?? 'unnamed'} threw`,
+            { middleware: mw.name ?? 'unnamed', error },
+          )
+        }
+      }
+    }
   }
 
   /**

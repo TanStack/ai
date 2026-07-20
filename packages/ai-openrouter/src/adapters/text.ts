@@ -5,7 +5,7 @@ import {
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
@@ -15,6 +15,7 @@ import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
+  ChatContentText,
   ChatMessages,
   ChatRequest,
   ChatStreamChoice,
@@ -36,7 +37,10 @@ import type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
 } from '../model-meta'
-import type { ExternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions,
+  OpenRouterSystemPromptMetadata,
+} from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
@@ -94,7 +98,12 @@ export class OpenRouterTextAdapter<
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  // TToolCallMetadata — OpenRouter has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cache_control` autocomplete.
+  OpenRouterSystemPromptMetadata
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
@@ -624,14 +633,12 @@ export class OpenRouterTextAdapter<
    * Final shaping pass applied to parsed structured-output JSON before it is
    * returned to the caller. OpenRouter routes through a wide variety of
    * upstream providers; some return `null` as a distinct sentinel ("the field
-   * exists, the value is null") rather than collapsing it to absent. Stripping
-   * nulls would erase that distinction, so we passthrough.
-   *
-   * `transformNullsToUndefined` is imported for parity with the other
-   * provider adapters but intentionally not invoked here.
+   * exists, the value is null") rather than collapsing it to absent, so we
+   * passthrough and let the engine un-widen strict-mode nulls precisely. This
+   * now matches the base adapters' default — kept as an explicit override
+   * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    void transformNullsToUndefined
     return parsed
   }
 
@@ -883,6 +890,7 @@ export class OpenRouterTextAdapter<
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
+                parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
@@ -1141,11 +1149,31 @@ export class OpenRouterTextAdapter<
     const variantSuffix = variant ? `:${variant}` : ''
 
     const messages: Array<ChatMessages> = []
-    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+    const systemPrompts =
+      normalizeSystemPrompts<OpenRouterSystemPromptMetadata>(
+        options.systemPrompts,
+      )
     if (systemPrompts.length > 0) {
+      // When any system prompt carries a `cache_control` breakpoint, emit the
+      // system message as a structured content array so the directive rides on
+      // the wire (honoured by Anthropic-family routes). Otherwise keep the
+      // plain joined string — unchanged behaviour for every other caller.
+      const hasCacheControl = systemPrompts.some(
+        (p) => p.metadata?.cache_control,
+      )
       messages.push({
         role: 'system',
-        content: systemPrompts.map((p) => p.content).join('\n'),
+        content: hasCacheControl
+          ? systemPrompts.map(
+              (p): ChatContentText => ({
+                type: 'text',
+                text: p.content,
+                ...(p.metadata?.cache_control && {
+                  cacheControl: p.metadata.cache_control,
+                }),
+              }),
+            )
+          : systemPrompts.map((p) => p.content).join('\n'),
       })
     }
     for (const m of options.messages) {
@@ -1156,16 +1184,15 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // `modelOptions` is the sole sampling surface: callers set provider-native
-    // wire names (`temperature`, `topP`, `maxCompletionTokens`, etc.) there and
-    // they flow through the spread below. The root `temperature`/`topP`/
-    // `maxTokens` fields are intentionally NOT read here. Root `metadata` is
-    // still part of the contract, so forward it the same way the responses
-    // adapter does.
+    // `modelOptions` is the sole wire surface: callers set provider-native
+    // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
+    // there and they flow through the spread below. Root `metadata` is
+    // observability-only (middleware, devtools, event client) and must NOT be
+    // forwarded here — it may carry arbitrarily structured values while the
+    // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
       model: options.model + variantSuffix,
-      ...(options.metadata !== undefined && { metadata: options.metadata }),
       messages,
       ...(tools && tools.length > 0 && { tools }),
     }

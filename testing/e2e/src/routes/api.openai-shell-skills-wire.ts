@@ -1,9 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
+import type { Tool } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { shellTool } from '@tanstack/ai-openai/tools'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
+
+const freeFormMapTool = {
+  name: 'store_labels',
+  description: 'Store arbitrary labels',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      labels: {
+        type: 'object',
+        additionalProperties: { type: 'string' },
+      },
+    },
+    required: ['labels'],
+  },
+} satisfies Tool
 
 /**
  * Drives the OpenAI chat adapter (Responses API) with a `shellTool` that
@@ -158,7 +174,7 @@ export const Route = createFileRoute('/api/openai-shell-skills-wire')({
           })
         }
 
-        const adapter = createOpenaiChat('gpt-4o', DUMMY_KEY, {
+        const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: capturingFetch,
         })
 
@@ -184,6 +200,7 @@ export const Route = createFileRoute('/api/openai-shell-skills-wire')({
                   ],
                 },
               }),
+              freeFormMapTool,
             ],
           })) {
             // Drain the stream.

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { makeStructuredOutputCompatible } from '../src/utils/schema-converter'
+import {
+  isStrictModeCompatible,
+  makeStructuredOutputCompatible,
+} from '../src/utils/schema-converter'
 
 describe('makeStructuredOutputCompatible', () => {
   it('should add additionalProperties: false to object schemas', () => {
@@ -332,5 +335,194 @@ describe('makeStructuredOutputCompatible', () => {
 
     // Original definition is untouched — the strip pass returns a fresh tree.
     expect(schema.properties.data.format).toBe('uri')
+  })
+})
+
+describe('isStrictModeCompatible', () => {
+  it('returns true for a plain object schema in the strict subset', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        required: ['name'],
+      }),
+    ).toBe(true)
+  })
+
+  it('returns true for nested objects, arrays, and anyOf (all strict-supported)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                v: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+              },
+            },
+          },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it.each(['oneOf', 'allOf', 'not'])(
+    'returns false when a combinator keyword (%s) appears anywhere',
+    (keyword) => {
+      expect(
+        isStrictModeCompatible({
+          type: 'object',
+          properties: {
+            value: { [keyword]: [{ type: 'string' }] },
+          },
+        }),
+      ).toBe(false)
+    },
+  )
+
+  it('returns false for schemas using $ref / $defs (references escape strict normalization)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        $defs: {
+          user: { type: 'object', properties: { id: { type: 'string' } } },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('detects unsupported keywords nested deep in the tree', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          a: {
+            type: 'object',
+            properties: {
+              b: { type: 'array', items: { oneOf: [{ type: 'string' }] } },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('handles non-object input without throwing', () => {
+    expect(isStrictModeCompatible(undefined)).toBe(true)
+    expect(isStrictModeCompatible(null)).toBe(true)
+    expect(isStrictModeCompatible('x')).toBe(true)
+  })
+
+  it('returns false when a property is typeless (e.g. z.any() -> {})', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: {} },
+        required: ['payload'],
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless node with only metadata (no type keyword)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { payload: { description: 'anything' } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless array items schema', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { list: { type: 'array', items: {} } },
+      }),
+    ).toBe(false)
+  })
+
+  it('returns false for a typeless anyOf variant', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: { v: { anyOf: [{ type: 'string' }, {}] } },
+      }),
+    ).toBe(false)
+  })
+
+  it('detects a typeless property nested deep in the tree', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          a: {
+            type: 'object',
+            properties: {
+              b: {
+                type: 'array',
+                items: { type: 'object', properties: { c: {} } },
+              },
+            },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('treats enum / const properties as typed (strict-compatible)', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          color: { enum: ['red', 'blue'] },
+          tag: { const: 'x' },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('does not flag an empty properties map as typeless', () => {
+    expect(
+      isStrictModeCompatible({ type: 'object', properties: {}, required: [] }),
+    ).toBe(true)
+  })
+
+  it.each([true, {}, { type: 'string' }])(
+    'returns false for a free-form map with additionalProperties: %j',
+    (additionalProperties) => {
+      expect(
+        isStrictModeCompatible({
+          type: 'object',
+          additionalProperties,
+        }),
+      ).toBe(false)
+    },
+  )
+
+  it('returns false for a nested hybrid object with dynamic keys', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          labels: {
+            type: 'object',
+            properties: { fixed: { type: 'string' } },
+            additionalProperties: { type: 'string' },
+          },
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('allows an explicitly closed empty object', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        additionalProperties: false,
+      }),
+    ).toBe(true)
   })
 })

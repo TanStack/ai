@@ -4,6 +4,8 @@ import type {
   ChatClientState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -52,7 +54,7 @@ import type {
  * ```
  */
 export function createChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
 >(
@@ -71,6 +73,7 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
+  let queue = $state<Array<QueuedMessage>>([])
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -153,6 +156,10 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+      queue = nextQueue
+    },
   })
 
   messages = client.getMessages()
@@ -169,9 +176,14 @@ export function createChat<
   // Users should call chat.stop() in their component's cleanup if needed.
 
   // Define methods
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
   }
+
+  const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client.append(message)
@@ -293,6 +305,9 @@ export function createChat<
     get sessionGenerating() {
       return sessionGenerating
     },
+    get queue() {
+      return queue
+    },
     get partial() {
       return partial
     },
@@ -300,6 +315,7 @@ export function createChat<
       return final
     },
     sendMessage,
+    cancelQueued,
     append,
     reload,
     stop,

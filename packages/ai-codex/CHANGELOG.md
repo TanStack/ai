@@ -1,0 +1,77 @@
+# @tanstack/ai-codex
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`1deaa29`](https://github.com/TanStack/ai/commit/1deaa299b560ad1599b9d96cda1d7b7415f9fc4a), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+  - @tanstack/ai-sandbox@0.2.3
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+  - @tanstack/ai-sandbox@0.2.2
+
+## 0.2.0
+
+### Minor Changes
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - New `@tanstack/ai-codex` package: a Codex **harness adapter that runs inside a sandbox**. It declares `requires: [SandboxCapability]` and spawns `codex exec --experimental-json` inside the sandbox provided by `withSandbox(...)` (mirroring `@openai/codex-sdk`'s own CLI invocation), feeding the prompt via stdin and streaming its JSONL thread events back as AG-UI chunks. Codex owns the agent loop and executes its built-in tools (shell, file changes, web search, todo lists) against the sandbox workspace. Threads are resumable via `modelOptions.sessionId` (surfaced through a `codex.session-id` custom event); sandbox mode / approval policy / reasoning effort map to codex CLI flags. Requires the `codex` executable and `CODEX_API_KEY` (or a `codex login`) in the sandbox. chat()-provided server tools are bridged into the agent via the host MCP tool-proxy. A `defineSandboxPolicy` is mapped onto Codex's coarse permission knobs (sandbox mode, `approval_policy`, `network_access`); because `codex exec` runs non-interactively with no per-action host callback, the fine-grained resume-based interactive-approval flow is not available for Codex (it refuses, rather than prompts for, actions needing approval).
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - Declarative sandbox provisioning + faster headless init.
+  - **`createSecrets`**: type-safe secret references; underlying values are stored
+    in a non-enumerable symbol-keyed registry and never written to snapshots, the
+    sandbox store, or the event log. Use `secret: secrets.GH` in `gitSkill` for
+    private-repo auth and `bearer(secrets.GH)` in MCP header values.
+  - **Declarative `skills` / `plugins` / `instructions`**: `agentSkill`,
+    `gitSkill` (private-repo clone with `secret`), `mcpSkill` (MCP server with
+    resolved header values), and `fileSkill` are projected per harness into each
+    CLI's native format (Claude Code `.mcp.json`, Codex `.codex/config.toml`,
+    OpenCode `opencode.json`). `instructions` is written
+    as a canonical `AGENTS.md` at the workspace root; `CLAUDE.md` and `GEMINI.md`
+    are symlinked (copy fallback). Concepts a CLI lacks emit a warning and are
+    skipped rather than throwing.
+  - **Shallow clone by default**: `githubRepo`/`gitSource` default to
+    `--depth 1 --single-branch`. Pass `depth: number` for a specific history
+    depth or `depth: 'full'` to disable the flag.
+  - **Serial/parallel `setup` callback**: `setup` accepts a plain `Array<string>`
+    (all serial) or a `({ serial, parallel }) => void` callback that records
+    groups run over a persistent shell — the shell's cwd and env carry over
+    between serial steps; `parallel([...])` launches commands concurrently
+    using the shell's forked state.
+  - **Default snapshot-after-setup**: when the provider supports snapshots,
+    bootstrap takes one automatically after `setup` completes. Add
+    `lifecycle.snapshotMaxAge` (e.g. `'24h'`) to re-create the sandbox when the
+    snapshot is older than the TTL.
+  - **`@tanstack/ai-sandbox-docker` fix**: a spawned process's demuxed
+    stdout/stderr now end on the exec stream's `close`/`error` (not only `end`),
+    so disposing a long-lived process (e.g. the bootstrap shell) no longer hangs
+    after `kill()`.
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - Serverless/edge run model for the sandbox layer — a trigger can start an agent run and return immediately while a durable orchestrator drives it and clients tail the stream from a resumable cursor.
+  - **Resumable run event-log** (`RunEventLog`, `InMemoryRunEventLog`, `RunEvent`, `RunRecord`, `isTerminalRunStatus`) — an append-only, `seq`-indexed log of a run's `StreamChunk`s with replay-then-tail reads. A dropped connection, a new tab, or an orchestrator that hibernated between chunks all reconnect by passing their last-seen `seq`. The run never depends on a single open connection.
+  - **Run driver** (`pipeToRunLog`, `RunController`) — pumps a `chat()` stream into a `RunEventLog` (status transitions, RUN_ERROR capture, abort handling), and a controller that starts a run without blocking, exposes a resumable `attach(runId, { fromSeq })`, and `drain()`s in-flight runs for `waitUntil`-style flushing.
+  - **Transport-agnostic tool-bridge** — the MCP tool-proxy is split into a portable core (`createToolBridgeCore`, `handleBridgeJsonRpc`) and a transport. `startHostToolBridge` remains the `node:http` host transport (now loopback-bound unless a Docker container must reach it, with a constant-time bearer check); a serverless/edge orchestrator serves the same core from its own `fetch` handler — no raw TCP listener. A new `ToolBridgeProvisioner` capability (`getToolBridgeProvisioner` / `provideToolBridgeProvisioner`, default `nodeHttpBridgeProvisioner`) lets the orchestrator inject the transport.
+  - **Harness adapters inverted** — `claude-code`, `codex`, and `opencode` now resolve their tool-bridge from the `ToolBridgeProvisioner` capability (defaulting to the host transport) instead of hardcoding `node:http`, so they run unchanged on the host and on the edge.
+  - **Claude Code runs on the Cloudflare sandbox** — a new required `SandboxCapabilities.writableStdin` flag lets a provider advertise whether spawned processes have a writable host→process stdin — `true` for the host/Docker/local-process providers, `false` for Cloudflare. The Claude Code adapter detects `false` and delivers the prompt via a file + in-shell stdin-redirection (`claude -p … < file`) instead of a host stdin write, keeping it out of argv. Host/Docker behaviour is unchanged (stdin path).
+  - **Tool-bridge token hardening** — the per-run bearer token is no longer passed inline in argv. The Claude Code adapter writes the bridge MCP config to a file and passes claude the path (`--mcp-config <file>`), so the token can't be read from `ps` / `/proc/<pid>/cmdline` by other processes in the sandbox.
+  - **Co-located ("combined") run model** — new `@tanstack/ai-sandbox` exports (`remoteToolStubs`, `toolDescriptors`, `httpRemoteToolExecutor`, `executeHostTool`, plus the `RemoteToolExecutor` interface) let the harness loop AND its MCP tool-bridge run INSIDE the container (the in-container sandbox is just `local-process`, with native stdin + a localhost `node:http` bridge). The orchestrator serializes its tools with `toolDescriptors`; the container rebuilds them as delegating stubs with `remoteToolStubs(descriptors, httpRemoteToolExecutor(url, token))`; the orchestrator answers that one call with `executeHostTool(tools, name, args)`. Only host-tool **execution** crosses the container→orchestrator boundary — the MCP transport itself never leaves the container, shrinking the public surface from the whole MCP protocol to a single authenticated tool-exec call.
+  - **Request-derived callback hosts, split into bridge vs preview (`resolveBridgeOrigin` / `resolvePreviewHost`)** — the off-isolate sandbox container reaches the Worker over two distinct surfaces, now resolved separately (both exported from `@tanstack/ai-sandbox-cloudflare/agent`; the Worker captures the trigger host as `StartRunInput.publicHost`):
+    - **Bridge / tool-exec** (container → Worker): `PUBLIC_HOSTNAME` is **optional** — unset → derived from the `POST /runs` request, which is safe on Cloudflare (the edge only routes hostnames you own to your Worker, so the request host is never an attacker's `Host` and the per-run bearer token can't be steered off-domain). A `*.workers.dev` deploy needs no config; **local dev uses `host.docker.internal`** (the Docker host gateway), so agent runs work locally with **no tunnel**.
+    - **Preview** (browser → Worker → container, `exposePort`): a separate `PREVIEW_HOSTNAME`, because preview URLs require **wildcard DNS**. **Local** uses `*.localhost` (browser-resolved to loopback — previews work locally with no tunnel); **deployed** requires a **custom domain** with a `*.<domain>` route. `*.workers.dev` has no wildcard subdomains (the SDK's `exposePort` rejects it), so `resolvePreviewHost` throws a clear error pointing at `PREVIEW_HOSTNAME` rather than returning a dead URL.
+  - **Preview wiring is package-provided, not example glue** — `@tanstack/ai-sandbox-cloudflare/agent` now exports `exposePreviewTool(input, env)` (a ready-made `exposePreview` `chat()` server tool) and `PREVIEW_GUIDANCE` (an app-agnostic system prompt), and `createCloudflareSandboxAgent` gains a `systemPrompts` option (do-drives) to wire the guidance in. The tool mints previews via a **Cloudflare quick tunnel** (`sandbox.tunnels.get(port)` → `*.trycloudflare.com`), served by `cloudflared` inside the sandbox — deliberately NOT `exposePort` + `proxyToSandbox`, which routes the preview through the Worker origin (in local dev, your Vite dev server, whose middleware then serves the preview's `/@vite/client` / `/src/*` / `/@fs/*` from the host instead of the container and breaks the page). A tunnel bypasses the Vite port, needs no custom domain on a deploy, and forwards WebSockets (HMR works). `PREVIEW_GUIDANCE` just tells the agent to bind wide and allow all hosts so the tunnel hostname is accepted (Vite `server: { host: true, allowedHosts: true }`). Because `sandbox.tunnels` exists only on the SDK's **RPC** transport (it throws `requires the RPC transport` on the default `http`), `cloudflareSandbox` now defaults to `transport: 'rpc'` (new `transport` config option to override) and applies it to create/resume/destroy; `exposePreviewTool` obtains its stub with `transport: 'rpc'` too. `exposePort` + `resolvePreviewHost` remain available for Worker-fronted previews on a custom domain. Adds `zod` as a peer dependency.
+  - **`@tanstack/ai-sandbox-cloudflare` ships the runtime, not just the example** — the Worker router, the coordinator Durable Object, the durable run-log, and the `POST /run` wire contract are now package code, exported from two entries: `@tanstack/ai-sandbox-cloudflare/agent` (Workers-only — `createCloudflareSandboxAgent`, the coordinator base classes, `DurableObjectRunEventLog`, plus the shared `ContainerRunRequest` + `parseContainerRunRequest`), and `@tanstack/ai-sandbox-cloudflare/runner` (Node — `runInContainerHarness`, the in-container `chat()` server that validates the request, builds `chat()` over `localProcessSandbox()`, and streams NDJSON back). An app supplies only its config + an adapter resolver: the co-located example's whole worker + container program collapse to ~14 lines. Adds `@tanstack/ai-sandbox-local-process` as a peer dependency (used by the `/runner` entry).
+
+  See `examples/sandbox-cloudflare` for the Worker → Durable Object → Container reference — a TanStack Start app that ships the UI, the agent, the coordinator DO, and the container in one Worker (trigger returns immediately; the DO coordinates, persists to a DO-backed `RunEventLog`, serves the bridge from its `fetch` handler, and streams to clients over a hibernatable WebSocket). The co-located variant (harness + bridge in the container; only `executeHostTool` crosses back) is a supported package mode — `createCloudflareSandboxAgent({ mode: 'colocated' })` plus a one-`runInContainerHarness`-call container program — documented in `docs/sandbox/overview.md`.
+
+### Patch Changes
+
+- [#774](https://github.com/TanStack/ai/pull/774) [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4) - Fix codex failing to start whenever `chat()`-provided tools are bridged to it. The adapter configured the MCP tool-bridge with an inline `mcp_servers.<name>.bearer_token`, but current codex rejects that for the streamable-HTTP transport — the run died immediately with `Error loading config.toml: bearer_token is not supported for streamable_http`. The per-run bearer is now passed as an `Authorization` header (`http_headers = { "Authorization" = "Bearer <token>" }`), matching what the workspace-MCP projection already emits and what the host tool-bridge authenticates against. Codex with bridged tools (e.g. the Cloudflare sandbox example) now runs end to end.
+
+- Updated dependencies [[`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4), [`b628a4d`](https://github.com/TanStack/ai/commit/b628a4da5fd21184922c6944059768d1ed6071d4)]:
+  - @tanstack/ai-sandbox@0.2.0
+  - @tanstack/ai@0.39.0
