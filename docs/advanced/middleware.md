@@ -465,7 +465,7 @@ The `info` object for `onFinish` (`FinishInfo`):
 | `finishReason` | `string \| null` | The agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less `chat({ outputSchema })` run). |
 | `duration` | `number` | Total run duration in milliseconds, including any structured-output finalization. |
 | `content` | `string` | The agent loop's accumulated text content. Does **not** include finalization JSON deltas — for that, observe the `structured-output.complete` CUSTOM event via `onChunk`. |
-| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
+| `usage` | `TokenUsage \| undefined` | **Optional.** Usage rolled up across all agent-loop iterations' `RUN_FINISHED` chunks. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
 
 ## Context Object
 
