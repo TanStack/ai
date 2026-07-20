@@ -241,6 +241,11 @@ export interface TextActivityOptions<
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /**
+   * Cap how many tool calls from a single model turn are executed.
+   * Excess calls receive error results. See {@link TextOptions.maxToolCallsPerTurn}.
+   */
+  maxToolCallsPerTurn?: TextOptions['maxToolCallsPerTurn']
+  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -519,6 +524,10 @@ class TextEngine<
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
+  /** Cumulative tool calls emitted by the model in this run. */
+  private toolCallCount = 0
+  /** Tool calls emitted by the most recent model turn. */
+  private lastTurnToolCallCount = 0
   private lastFinishReason: string | null = null
   private streamStartTime = 0
   private totalChunkCount = 0
@@ -534,6 +543,7 @@ class TextEngine<
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
+  private readonly maxToolCallsPerTurn: number | undefined
   // Client state extracted from initial messages (before conversion to ModelMessage)
   private readonly initialApprovals: Map<string, boolean>
   private readonly initialClientToolResults: Map<string, any>
@@ -599,6 +609,7 @@ class TextEngine<
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
+    this.maxToolCallsPerTurn = config.params.maxToolCallsPerTurn
     this.initialMessageCount = config.params.messages.length
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
@@ -1446,6 +1457,8 @@ class TextEngine<
 
   private async *processToolCalls(): AsyncGenerator<StreamChunk, void, void> {
     if (!this.shouldExecuteToolPhase()) {
+      // Text-only turn — clear per-turn count so strategies see 0 tools.
+      this.lastTurnToolCallCount = 0
       this.setToolPhase('stop')
       return
     }
@@ -1454,15 +1467,20 @@ class TextEngine<
     const finishEvent = this.finishedEvent
 
     if (!finishEvent || toolCalls.length === 0) {
+      this.lastTurnToolCallCount = 0
       this.setToolPhase('stop')
       return
     }
+
+    // Count every model-emitted tool call (including ones we may skip).
+    const { toExecute: budgetedToolCalls, skippedResults } =
+      this.applyToolCallBudget(toolCalls)
 
     this.addAssistantToolCallMessage(toolCalls)
 
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executableToolCalls = toolCalls.filter((tc) => {
+    const executableToolCalls = budgetedToolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1479,17 +1497,21 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0 && this.finishedEvent) {
-      for (const chunk of this.buildToolResultChunks(
-        undiscoveredLazyResults,
-        this.finishedEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-    }
+    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
+    // Emitted after successful results so call order stays head→tail.
+    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
 
     if (executableToolCalls.length === 0) {
-      // All tool calls were undiscovered lazy tools — errors emitted, continue loop
+      // All tool calls were undiscovered lazy tools and/or skipped by the
+      // per-turn fan-out cap — errors emitted, continue loop (strategy may stop).
+      if (deferredErrorResults.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          deferredErrorResults,
+          finishEvent,
+        )) {
+          yield* this.pipeThroughMiddleware(chunk)
+        }
+      }
       this.toolCallManager.clear()
       this.setToolPhase('continue')
       return
@@ -1548,10 +1570,13 @@ class TextEngine<
       return
     }
 
+    // Executed results first, then deferred errors (fan-out skips / undiscovered)
+    const allResults = [...executionResult.results, ...deferredErrorResults]
+
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
     await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
       toolCalls,
-      results: executionResult.results,
+      results: allResults,
       needsApproval: executionResult.needsApproval,
       needsClientExecution: executionResult.needsClientExecution,
     })
@@ -1560,9 +1585,9 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
-      if (executionResult.results.length > 0) {
+      if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
-          executionResult.results,
+          allResults,
           finishEvent,
         )) {
           yield* this.pipeThroughMiddleware(chunk)
@@ -1587,10 +1612,7 @@ class TextEngine<
       return
     }
 
-    const toolResultChunks = this.buildToolResultChunks(
-      executionResult.results,
-      finishEvent,
-    )
+    const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
 
     for (const chunk of toolResultChunks) {
       yield* this.pipeThroughMiddleware(chunk)
@@ -1943,8 +1965,51 @@ class TextEngine<
         iterationCount: this.iterationCount,
         messages: this.messages,
         finishReason: this.lastFinishReason,
+        toolCallCount: this.toolCallCount,
+        lastTurnToolCallCount: this.lastTurnToolCallCount,
       }) && this.toolPhase === 'continue'
     )
+  }
+
+  /**
+   * Record tool calls from the latest model turn and return the subset that
+   * should be executed after applying `maxToolCallsPerTurn`. Excess calls get
+   * synthetic error results so every tool_call still has a matching result.
+   */
+  private applyToolCallBudget(toolCalls: Array<ToolCall>): {
+    toExecute: Array<ToolCall>
+    skippedResults: Array<ToolResult>
+  } {
+    this.lastTurnToolCallCount = toolCalls.length
+    this.toolCallCount += toolCalls.length
+
+    const cap = this.maxToolCallsPerTurn
+    if (cap == null || toolCalls.length <= cap) {
+      return { toExecute: toolCalls, skippedResults: [] }
+    }
+
+    this.logger.agentLoop(
+      `maxToolCallsPerTurn=${cap} skipped=${toolCalls.length - cap}`,
+      {
+        maxToolCallsPerTurn: cap,
+        emitted: toolCalls.length,
+        skipped: toolCalls.length - cap,
+      },
+    )
+
+    const toExecute = toolCalls.slice(0, cap)
+    const skippedResults: Array<ToolResult> = toolCalls
+      .slice(cap)
+      .map((tc) => ({
+        toolCallId: tc.id,
+        toolName: tc.function.name,
+        result: {
+          error: `Skipped: exceeded maxToolCallsPerTurn (${cap})`,
+        },
+        state: 'output-error' as const,
+      }))
+
+    return { toExecute, skippedResults }
   }
 
   private isAborted(): boolean {

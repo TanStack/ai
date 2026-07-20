@@ -155,7 +155,8 @@
         {
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "Streaming",
@@ -479,7 +480,8 @@
         {
           "label": "@tanstack/ai",
           "to": "api/ai",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "@tanstack/ai-client",

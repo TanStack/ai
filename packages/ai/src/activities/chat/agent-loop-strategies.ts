@@ -1,9 +1,14 @@
 import type { AgentLoopStrategy } from '../../types'
 
 /**
- * Creates a strategy that continues for a maximum number of iterations
+ * Creates a strategy that continues for a maximum number of **model turns**
+ * (iterations), not tool calls.
  *
- * @param max - Maximum number of iterations to allow
+ * One iteration can still emit many parallel tool calls. Prefer
+ * {@link maxToolCalls} (and optionally `maxToolCallsPerTurn` on `chat()`)
+ * when you need a tool-call budget.
+ *
+ * @param max - Maximum number of model turns to allow
  * @returns AgentLoopStrategy that stops after max iterations
  *
  * @example
@@ -13,12 +18,45 @@ import type { AgentLoopStrategy } from '../../types'
  *   model: "gpt-4o",
  *   messages: [...],
  *   tools: [weatherTool],
- *   agentLoopStrategy: maxIterations(3), // Max 3 iterations
+ *   agentLoopStrategy: maxIterations(3), // Max 3 model turns
  * });
  * ```
  */
 export function maxIterations(max: number): AgentLoopStrategy {
   return ({ iterationCount }) => iterationCount < max
+}
+
+/**
+ * Creates a strategy that continues until the cumulative tool-call count
+ * reaches `max`.
+ *
+ * Unlike {@link maxIterations} (which counts model turns), this bounds the
+ * number of tool calls the model has emitted across the whole run. Pair with
+ * `chat({ maxToolCallsPerTurn })` to also cap parallel fan-out inside a single
+ * turn — strategies only run between turns, so without a per-turn cap one
+ * turn can still execute unbounded calls before this limit is checked.
+ *
+ * @param max - Maximum cumulative tool calls to allow
+ * @returns AgentLoopStrategy that stops once `toolCallCount >= max`
+ *
+ * @example
+ * ```typescript
+ * import { chat, combineStrategies, maxIterations, maxToolCalls } from '@tanstack/ai'
+ *
+ * const stream = chat({
+ *   adapter: openaiText('gpt-4o'),
+ *   messages: [...],
+ *   tools: [weatherTool],
+ *   maxToolCallsPerTurn: 10,
+ *   agentLoopStrategy: combineStrategies([
+ *     maxIterations(20),
+ *     maxToolCalls(20),
+ *   ]),
+ * })
+ * ```
+ */
+export function maxToolCalls(max: number): AgentLoopStrategy {
+  return ({ toolCallCount }) => toolCallCount < max
 }
 
 /**
@@ -71,6 +109,7 @@ export function untilFinishReason(
  *   tools: [weatherTool],
  *   agentLoopStrategy: combineStrategies([
  *     maxIterations(10),
+ *     maxToolCalls(20),
  *     ({ messages }) => messages.length < 100,
  *   ]),
  * });

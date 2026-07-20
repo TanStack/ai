@@ -43,6 +43,7 @@ import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecy
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -232,6 +233,11 @@ const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
   path: '/api/mcp-apps-call',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMaxToolCallsWireRoute = ApiMaxToolCallsWireRouteImport.update({
+  id: '/api/max-tool-calls-wire',
+  path: '/api/max-tool-calls-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   id: '/api/lazy-tools-wire',
   path: '/api/lazy-tools-wire',
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -426,6 +434,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
+  '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
@@ -478,6 +487,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
+    | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
+    | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -578,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/image'
     | '/api/lazy-tools-wire'
+    | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
@@ -629,6 +641,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
+  ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
@@ -894,6 +907,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpAppsCallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/max-tool-calls-wire': {
+      id: '/api/max-tool-calls-wire'
+      path: '/api/max-tool-calls-wire'
+      fullPath: '/api/max-tool-calls-wire'
+      preLoaderRoute: typeof ApiMaxToolCallsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/lazy-tools-wire': {
       id: '/api/lazy-tools-wire'
       path: '/api/lazy-tools-wire'
@@ -1074,6 +1094,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
+  ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,

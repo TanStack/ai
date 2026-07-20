@@ -93,6 +93,7 @@ export { brandProviderTool } from './tools/provider-tool'
 // Agent loop strategies
 export {
   maxIterations,
+  maxToolCalls,
   untilFinishReason,
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'

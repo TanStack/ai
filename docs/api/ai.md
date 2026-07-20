@@ -46,7 +46,8 @@ const stream = chat({
 - `tools?` - Array of tools for function calling
 - `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
-- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
+- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`). Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Prefer `maxToolCalls(n)` when you need a tool-call budget — iterations are model turns, not tool calls.
+- `maxToolCallsPerTurn?` - Cap how many tool calls from a single model turn are executed. Excess calls receive error results so message history stays consistent. Unset means no per-turn execution cap. Pair with `maxToolCalls(n)` for a cumulative run-wide budget.
 - `abortController?` - AbortController for cancellation
 - `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
@@ -314,7 +315,7 @@ A merged tool record suitable for `chat({ tools })`.
 
 ## `maxIterations(count)`
 
-Creates an agent loop strategy that limits iterations.
+Creates an agent loop strategy that limits **model turns** (iterations), not tool calls. One turn can still emit many parallel tool calls — use `maxToolCalls` and/or `maxToolCallsPerTurn` for tool-call budgets.
 
 ```typescript
 import { chat, maxIterations } from "@tanstack/ai";
@@ -329,11 +330,40 @@ const stream = chat({
 
 ### Parameters
 
-- `count` - Maximum number of tool execution iterations
+- `count` - Maximum number of model turns
 
 ### Returns
 
-An `AgentLoopStrategy` object.
+An `AgentLoopStrategy` function.
+
+## `maxToolCalls(count)`
+
+Creates an agent loop strategy that limits the cumulative number of tool calls the model has emitted across the run.
+
+Strategies only run between turns. Pair with `chat({ maxToolCallsPerTurn })` to also cap parallel fan-out inside a single turn.
+
+```typescript
+import { chat, combineStrategies, maxIterations, maxToolCalls } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Hello!" }],
+  maxToolCallsPerTurn: 10,
+  agentLoopStrategy: combineStrategies([
+    maxIterations(20),
+    maxToolCalls(20),
+  ]),
+});
+```
+
+### Parameters
+
+- `count` - Maximum cumulative tool calls across the run
+
+### Returns
+
+An `AgentLoopStrategy` function.
 
 ## Types
 
