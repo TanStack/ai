@@ -1652,7 +1652,10 @@ export function webSocket(
   url: string | (() => string),
   options: WebSocketConnectionOptions = {},
 ): SubscribeConnectionAdapter & {
-  joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+  joinRun: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
 } {
   const Impl = options.WebSocketImpl ?? WebSocket
   let socket: WebSocket | undefined
@@ -1724,9 +1727,7 @@ export function webSocket(
         // from. Surface a hard failure rather than silently reconnecting
         // forever against a server that never tags its events.
         currentSession = undefined
-        failAll(
-          new StreamReadError(new Error('WebSocket connection closed')),
-        )
+        failAll(new StreamReadError(new Error('WebSocket connection closed')))
         return
       }
       void reconnect(session, lastEventId)
@@ -1851,10 +1852,10 @@ export function webSocket(
       ws.send(JSON.stringify(body))
     },
     joinRun(runId, abortSignal): AsyncIterable<StreamChunk> {
-      const target = withSearchParams(
-        typeof url === 'function' ? url() : url,
-        { offset: '-1', runId },
-      )
+      const target = withSearchParams(typeof url === 'function' ? url() : url, {
+        offset: '-1',
+        runId,
+      })
       openOnce(target)
       const chunks: Array<StreamChunk> = []
       const waiters: Array<(c: StreamChunk | null) => void> = []

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { StreamReconnectLimitError, webSocket } from '../src/connection-adapters'
+import {
+  StreamReconnectLimitError,
+  webSocket,
+} from '../src/connection-adapters'
 
 // Minimal fake WebSocket (constructor-compatible with the WHATWG shape).
 class FakeWebSocket {
@@ -56,9 +59,7 @@ function tick(): Promise<void> {
  * (instead of `drain()`) where the test needs the returned promise to REJECT
  * when the generator throws, rather than swallowing it.
  */
-async function drainToEnd(
-  iter: AsyncIterator<any>,
-): Promise<Array<any>> {
+async function drainToEnd(iter: AsyncIterator<any>): Promise<Array<any>> {
   const received: Array<any> = []
   for (;;) {
     const { value, done } = await iter.next()
@@ -91,12 +92,18 @@ describe('webSocket() subscribe/send', () => {
     const ac = new AbortController()
     const received: Array<any> = []
     const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
-    await conn.send([{ role: 'user', content: 'hi' } as any], undefined, ac.signal, {
-      threadId: 't',
-      runId: 'r',
-    })
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      {
+        threadId: 't',
+        runId: 'r',
+      },
+    )
     const ws = FakeWebSocket.instances[0]
-    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     await new Promise((r) => setTimeout(r, 0))
     expect(ws.sent.length).toBe(1)
     const sentFrame = ws.sent[0]
@@ -119,12 +126,18 @@ describe('webSocket() subscribe/send', () => {
     const ac = new AbortController()
     const received: Array<any> = []
     const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
-    await conn.send([{ role: 'user', content: 'hi' } as any], undefined, ac.signal, {
-      threadId: 't',
-      runId: 'r',
-    })
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      {
+        threadId: 't',
+        runId: 'r',
+      },
+    )
     const ws = FakeWebSocket.instances[0]
-    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     await new Promise((r) => setTimeout(r, 0))
 
     // Bare chunk (no id) — not wrapped in an {id, chunk} envelope.
@@ -147,11 +160,15 @@ describe('webSocket() subscribe/send', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     const ws = FakeWebSocket.instances[0]
-    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     expect(ws.url).toContain('offset=-1')
     expect(ws.url).toContain('runId=run-j')
 
-    ws.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'joined', timestamp: 0 }, 'off-1')
+    ws.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'joined', timestamp: 0 },
+      'off-1',
+    )
     await new Promise((r) => setTimeout(r, 0))
     ac.abort()
     await sub
@@ -189,7 +206,10 @@ describe('webSocket() subscribe/send', () => {
       await Promise.race([
         Promise.all([send1, send2]),
         new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('send() calls hung')), 1000)
+          timeoutId = setTimeout(
+            () => reject(new Error('send() calls hung')),
+            1000,
+          )
         }),
       ])
     } finally {
@@ -198,7 +218,8 @@ describe('webSocket() subscribe/send', () => {
 
     expect(FakeWebSocket.instances.length).toBe(1)
     const ws = FakeWebSocket.instances[0]
-    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     expect(ws.sent.length).toBe(2)
     const sent0 = ws.sent[0]
     if (sent0 === undefined) throw new Error('expected a sent frame')
@@ -219,30 +240,55 @@ describe('webSocket() reconnect', () => {
     const ac = new AbortController()
     const received: Array<any> = []
     const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
-    await conn.send([{ role: 'user', content: 'hi' } as any], undefined, ac.signal, {
-      threadId: 't',
-      runId: 'run-x',
-    })
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      {
+        threadId: 't',
+        runId: 'run-x',
+      },
+    )
     const ws1 = FakeWebSocket.instances[0]
-    if (!ws1) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws1)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     await new Promise((r) => setTimeout(r, 0))
-    ws1.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    ws1.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      'off-1',
+    )
     await new Promise((r) => setTimeout(r, 0))
     ws1.close() // drop mid-run
 
     await new Promise((r) => setTimeout(r, 5))
     const ws2 = FakeWebSocket.instances[1]
     expect(ws2).toBeDefined()
-    if (!ws2) throw new Error('expected a second FakeWebSocket instance to have been created')
+    if (!ws2)
+      throw new Error(
+        'expected a second FakeWebSocket instance to have been created',
+      )
     const url2 = new URL(ws2.url)
     expect(url2.searchParams.get('runId')).toBe('run-x')
     expect(url2.searchParams.get('offset')).toBe('off-1')
 
     // Server replays the de-duped boundary + a new chunk + terminal.
-    ws2.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
-    ws2.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 }, 'off-2')
     ws2.emit(
-      { type: 'RUN_FINISHED', runId: 'run-x', threadId: 't', model: 'm', finishReason: 'stop', timestamp: 0 },
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      'off-1',
+    )
+    ws2.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 },
+      'off-2',
+    )
+    ws2.emit(
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-x',
+        threadId: 't',
+        model: 'm',
+        finishReason: 'stop',
+        timestamp: 0,
+      },
       'off-3',
     )
     await new Promise((r) => setTimeout(r, 0))
@@ -276,7 +322,8 @@ describe('webSocket() fatal drop surfacing', () => {
       { threadId: 't', runId: 'r' },
     )
     const ws = FakeWebSocket.instances[0]
-    if (!ws) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     await tick()
 
     // Bare chunk — NO id envelope, so no durable offset is ever tracked.
@@ -323,13 +370,17 @@ describe('webSocket() fatal drop surfacing', () => {
       { threadId: 't', runId: 'run-stuck' },
     )
     const ws1 = FakeWebSocket.instances[0]
-    if (!ws1) throw new Error('expected a FakeWebSocket instance to have been created')
+    if (!ws1)
+      throw new Error('expected a FakeWebSocket instance to have been created')
     await tick()
 
     // One durable chunk establishes an offset (and makes progress, resetting
     // the no-progress counter), then the socket drops — this reconnect is
     // legitimate and does not count against the ceiling.
-    ws1.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    ws1.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      'off-1',
+    )
     await tick()
     ws1.close()
     await tick()
@@ -339,7 +390,10 @@ describe('webSocket() fatal drop surfacing', () => {
     // ceiling bounds. With maxAttempts: 2, the 3rd consecutive no-progress
     // close must exceed it.
     const ws2 = FakeWebSocket.instances[1]
-    if (!ws2) throw new Error('expected a second FakeWebSocket instance (post-drop reconnect)')
+    if (!ws2)
+      throw new Error(
+        'expected a second FakeWebSocket instance (post-drop reconnect)',
+      )
     ws2.close() // no-progress attempt 1 (1 <= 2, reconnects again)
     await tick()
 

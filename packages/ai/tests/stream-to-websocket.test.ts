@@ -37,9 +37,9 @@ describe('ws frame codec', () => {
   })
 
   it('decodes an abort control frame', () => {
-    expect(decodeWsFrame(JSON.stringify({ type: 'abort', runId: 'r' }))).toEqual(
-      { kind: 'abort', runId: 'r' },
-    )
+    expect(
+      decodeWsFrame(JSON.stringify({ type: 'abort', runId: 'r' })),
+    ).toEqual({ kind: 'abort', runId: 'r' })
   })
 })
 
@@ -144,7 +144,11 @@ describe('toWebSocketStream (non-durable)', () => {
     await flush()
 
     const types = socket.sent.map((s) => JSON.parse(s).type)
-    expect(types).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+    expect(types).toEqual([
+      'RUN_STARTED',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+    ])
     expect(socket.closed).toBe(false) // conversation-scoped: stays open
   })
 })

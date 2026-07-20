@@ -90,7 +90,9 @@ test.describe('delivery durability (websocket)', () => {
         const base = `${location.origin.replace(/^http/, 'ws')}/api/durable-delivery-ws`
 
         // First connection: read only the first two chunks, then disconnect.
-        const first = new WebSocket(`${base}?runId=${encodeURIComponent(runId)}`)
+        const first = new WebSocket(
+          `${base}?runId=${encodeURIComponent(runId)}`,
+        )
         await new Promise<void>((resolve, reject) => {
           first.onopen = () => resolve()
           first.onerror = () => reject(new Error('ws open failed'))

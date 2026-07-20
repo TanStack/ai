@@ -133,10 +133,7 @@ export function toWebSocketStream<TOffset extends string = string>(
       // Never idle-reap while a turn is in flight: a long single onRun
       // iteration (agentic loop / >5-min generation) sends no INBOUND
       // frames, so idle would otherwise fire and kill live work.
-      if (
-        activeTurns.size === 0 &&
-        Date.now() - lastActivity > idleTimeoutMs
-      ) {
+      if (activeTurns.size === 0 && Date.now() - lastActivity > idleTimeoutMs) {
         socket.close(1000, 'idle')
       }
     },
@@ -195,11 +192,15 @@ export function toWebSocketStream<TOffset extends string = string>(
     try {
       if (init.durability) {
         const adapter = init.durability(ctx)
-        const { source, getId } = durableStreamSource(init.onRun(ctx), adapter, {
-          abortController: turnAbort,
-          ...(init.batch === undefined ? {} : { batch: init.batch }),
-          logger,
-        })
+        const { source, getId } = durableStreamSource(
+          init.onRun(ctx),
+          adapter,
+          {
+            abortController: turnAbort,
+            ...(init.batch === undefined ? {} : { batch: init.batch }),
+            logger,
+          },
+        )
         for await (const chunk of source) {
           socket.send(encodeWsFrame(chunk, getId(chunk)))
         }
@@ -344,13 +345,13 @@ export function toWebSocketResponse<TOffset extends string = string>(
  * resumeWebSocketResponse({ adapter: memoryStream(request) })
  * ```
  */
-export function resumeWebSocketResponse<TOffset extends string = string>(
-  options: {
-    adapter: StreamDurability<TOffset>
-    batch?: number
-    debug?: DebugOption
-  },
-): Response {
+export function resumeWebSocketResponse<
+  TOffset extends string = string,
+>(options: {
+  adapter: StreamDurability<TOffset>
+  batch?: number
+  debug?: DebugOption
+}): Response {
   const { client, server } = upgradeOrThrow('resumeWebSocketResponse')
   resumeWebSocketStream(server, options)
   return upgradeResponse(client)
