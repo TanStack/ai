@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.42.0
+
+### Minor Changes
+
+- [#965](https://github.com/TanStack/ai/pull/965) [`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e) - Bound tool-call fan-out in agent loops: `AgentLoopState` now exposes `toolCallCount` and `lastTurnToolCallCount`, `maxToolCalls(n)` strategy caps cumulative tool calls, and `chat({ maxToolCallsPerTurn })` caps how many parallel calls execute in a single turn.
+
 ## 0.41.0
 
 ### Minor Changes

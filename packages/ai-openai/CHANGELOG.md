@@ -1,5 +1,13 @@
 # @tanstack/ai-openai
 
+## 0.17.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+  - @tanstack/openai-base@0.9.9
+
 ## 0.17.0
 
 ### Minor Changes

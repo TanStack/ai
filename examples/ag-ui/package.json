@@ -2,7 +2,7 @@
   "name": "ag-ui",
   "private": true,
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "scripts": {
     "detect-servers": "node scripts/detect-servers.mjs",
     "predev": "node scripts/detect-servers.mjs",
