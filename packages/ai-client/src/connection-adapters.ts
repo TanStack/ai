@@ -1560,6 +1560,134 @@ export function xhrHttpStream(
   }
 }
 
+export interface WebSocketConnectionOptions {
+  protocols?: string | Array<string>
+  body?: Record<string, any>
+  reconnect?: ReconnectOptions
+  /** Override the WebSocket implementation (tests / non-browser runtimes). */
+  WebSocketImpl?: typeof WebSocket
+}
+
+function runIdQuery(url: string, runId: string | undefined): string {
+  return runId ? withSearchParams(url, { runId }) : url
+}
+
+/**
+ * Full-duplex, conversation-scoped WebSocket connection adapter. Pairs with the
+ * server `toWebSocketResponse` / `toWebSocketStream`. `send()` writes a
+ * RunAgentInput frame; `subscribe()` yields inbound chunks. Durable runs are
+ * offset-tagged (`{ id, chunk }`); reconnect is added in a later task.
+ */
+export function webSocket(
+  url: string | (() => string),
+  options: WebSocketConnectionOptions = {},
+): SubscribeConnectionAdapter & {
+  joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+} {
+  const Impl = options.WebSocketImpl ?? WebSocket
+  let socket: WebSocket | undefined
+  const listeners = new Set<(chunk: StreamChunk) => void>()
+
+  function openOnce(target: string): WebSocket {
+    if (socket && socket.readyState <= 1) return socket
+    socket = options.protocols
+      ? new Impl(target, options.protocols)
+      : new Impl(target)
+    socket.onmessage = (event: MessageEvent) => {
+      const parsed: unknown = JSON.parse(String(event.data))
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        (parsed as { type?: unknown }).type === 'ping'
+      ) {
+        return
+      }
+      const chunk = isNdjsonEnvelope(parsed)
+        ? parsed.chunk
+        : (parsed as StreamChunk)
+      for (const l of listeners) l(chunk)
+    }
+    return socket
+  }
+
+  function waitOpen(ws: WebSocket): Promise<void> {
+    if (ws.readyState === 1) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = (e) => reject(new StreamReadError(e))
+    })
+  }
+
+  return {
+    subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
+      const queue: Array<StreamChunk> = []
+      const waiters: Array<(c: StreamChunk | null) => void> = []
+      const push = (c: StreamChunk) => {
+        const w = waiters.shift()
+        if (w) w(c)
+        else queue.push(c)
+      }
+      listeners.add(push)
+      abortSignal?.addEventListener('abort', () => {
+        const w = waiters.shift()
+        if (w) w(null)
+      })
+      return (async function* () {
+        try {
+          while (!abortSignal?.aborted) {
+            const buffered = queue.shift()
+            const chunk =
+              buffered ??
+              (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
+            if (chunk === null) return
+            yield chunk
+          }
+        } finally {
+          listeners.delete(push)
+        }
+      })()
+    },
+    async send(messages, data, _abortSignal, runContext) {
+      const target = typeof url === 'function' ? url() : url
+      const ws = openOnce(runIdQuery(target, runContext?.runId))
+      await waitOpen(ws)
+      const body = buildRunAgentInputBody(messages, data, runContext, {
+        body: options.body,
+      })
+      ws.send(JSON.stringify(body))
+    },
+    joinRun(runId, abortSignal): AsyncIterable<StreamChunk> {
+      const target = withSearchParams(
+        typeof url === 'function' ? url() : url,
+        { offset: '-1', runId },
+      )
+      openOnce(target)
+      const chunks: Array<StreamChunk> = []
+      const waiters: Array<(c: StreamChunk | null) => void> = []
+      const push = (c: StreamChunk) => {
+        const w = waiters.shift()
+        if (w) w(c)
+        else chunks.push(c)
+      }
+      listeners.add(push)
+      abortSignal?.addEventListener('abort', () => waiters.shift()?.(null))
+      return (async function* () {
+        try {
+          while (!abortSignal?.aborted) {
+            const c =
+              chunks.shift() ??
+              (await new Promise<StreamChunk | null>((r) => waiters.push(r)))
+            if (c === null) return
+            yield c
+          }
+        } finally {
+          listeners.delete(push)
+        }
+      })()
+    },
+  }
+}
+
 /**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
