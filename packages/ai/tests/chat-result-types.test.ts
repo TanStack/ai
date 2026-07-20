@@ -15,6 +15,7 @@ import type {
   InferSchemaType,
   StreamChunk,
   StructuredOutputStream,
+  TypedStreamChunk,
 } from '../src/types'
 
 type Person = { name: string }
@@ -89,10 +90,18 @@ describe('chat() return type', () => {
   })
 
   describe('without outputSchema', () => {
-    it('stream: true → ChatStream', () => {
+    it('stream: true → AsyncIterable<TypedStreamChunk> (equals ChatStream; assignable to StreamChunk)', () => {
+      // Default (untyped tools) TypedStreamChunk matches ChatStream: StreamChunk
+      // with bare CUSTOM replaced by KnownCustomEvent so name narrows work.
+      expectTypeOf<TextActivityResult<undefined, true>>().toEqualTypeOf<
+        AsyncIterable<TypedStreamChunk>
+      >()
       expectTypeOf<
         TextActivityResult<undefined, true>
       >().toEqualTypeOf<ChatStream>()
+      expectTypeOf<TextActivityResult<undefined, true>>().toMatchTypeOf<
+        AsyncIterable<StreamChunk>
+      >()
     })
 
     it('stream: false → Promise<string>', () => {
@@ -101,7 +110,10 @@ describe('chat() return type', () => {
       >()
     })
 
-    it('default stream (boolean) → ChatStream', () => {
+    it('default stream (boolean) → AsyncIterable<TypedStreamChunk> / ChatStream', () => {
+      expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<
+        AsyncIterable<TypedStreamChunk>
+      >()
       expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<ChatStream>()
     })
   })

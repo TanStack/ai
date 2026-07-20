@@ -249,6 +249,10 @@ export {
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'
+export type {
+  ClientToolDeclaration,
+  MergedAgentTools,
+} from './utilities/chat-params'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'

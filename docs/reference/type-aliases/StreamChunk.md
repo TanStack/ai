@@ -13,3 +13,5 @@ Defined in: [packages/ai/src/types.ts:1635](https://github.com/TanStack/ai/blob/
 
 Chunk returned by the SDK during streaming chat completions.
 Uses the AG-UI protocol event format.
+
+For the tool-aware variant that narrows `TOOL_CALL_START`/`TOOL_CALL_END` events by tool name and `CUSTOM` events by tagged literal name, see [`TypedStreamChunk`](./TypedStreamChunk).

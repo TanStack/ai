@@ -5,6 +5,7 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type { ProviderTool } from './tools/provider-tool'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -41,6 +42,12 @@ import type {
   ToolCallStartEvent as AGUIToolCallStartEvent,
   EventType,
 } from '@ag-ui/core'
+
+// Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
+// entry via `export * from './types'` without forcing the subpath import.
+// The canonical declaration lives in `./tools/provider-tool` alongside its
+// runtime helper `brandProviderTool`.
+export type { ProviderTool } from './tools/provider-tool'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -1176,15 +1183,24 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  *
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
  * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ *   When the stream is returned from `chat()` with typed tools, `TypedStreamChunk`
+ *   intersects a literal onto `toolCallName` and `toolName` for discrimination.
  */
-export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
+export interface ToolCallStartEvent<
+  TToolName extends string = string,
+> extends AGUIToolCallStartEvent {
   /** Model identifier for multi-model support */
   model?: string
   /**
    * @deprecated Use `toolCallName` instead (from @ag-ui/core spec).
    * Kept for backward compatibility.
+   *
+   * Carries `TToolName` on the base interface; for `toolCallName` narrowing use
+   * {@link TypedStreamChunk} (distributed variants intersect the AG-UI field).
    */
-  toolName: string
+  toolName: TToolName
   /** Index for parallel tool calls */
   index?: number
   /** Provider-specific metadata to carry into the ToolCall.
@@ -1211,21 +1227,36 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
  * Emitted when a tool call completes.
  *
  * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+ * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `output?`, `result?`
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ * @typeParam TInput - Constrained input arguments type. Defaults to `unknown`.
+ * @typeParam TOutput - Constrained output type from the tool's `outputSchema`. Defaults to `unknown`.
  */
-export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
+export interface ToolCallEndEvent<
+  TToolName extends string = string,
+  TInput = unknown,
+  TOutput = unknown,
+> extends AGUIToolCallEndEvent {
   /** Model identifier for multi-model support */
   model?: string
-  /** Name of the tool that completed */
-  toolCallName?: string
+  /** Name of the tool that completed (AG-UI-compatible optional field) */
+  toolCallName?: TToolName
   /**
    * @deprecated Use `toolCallName` instead.
    * Kept for backward compatibility.
    */
-  toolName?: string
+  toolName?: TToolName
   /** Final parsed input arguments (TanStack AI internal) */
-  input?: unknown
-  /** Tool execution result (TanStack AI internal) */
+  input?: TInput
+  /**
+   * Tool execution output, validated against the tool's `outputSchema` when
+   * one is declared. Prefer this over parsing `result` when present.
+   * Undefined for tools without execute, client tools pending approval, or
+   * when execution throws.
+   */
+  output?: TOutput
+  /** Tool execution result (TanStack AI internal / wire form) */
   result?: string | Array<ContentPart>
   /** Tool execution output state (TanStack AI internal) */
   state?: ToolOutputState
@@ -1665,6 +1696,197 @@ export type AGUIEvent =
  * Uses the AG-UI protocol event format.
  */
 export type StreamChunk = AGUIEvent
+
+// ============================================================================
+// Typed Stream Chunks (tool-aware)
+// ============================================================================
+
+/**
+ * Detect the `any` type. Returns `true` for `any`, `false` for everything else.
+ * @internal
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+/**
+ * Partition out provider-specific tools from a tools array. `ProviderTool`
+ * carries opaque provider metadata (e.g. `webSearchTool` from
+ * `@tanstack/ai-anthropic`) and intentionally has a generic `string` name —
+ * if we included it in the discriminated union, it would widen `toolName`
+ * back to `string` and defeat the entire typing exercise.
+ *
+ * @internal
+ */
+type NonProviderTools<TTools extends ReadonlyArray<AnyTool>> = Exclude<
+  TTools[number],
+  ProviderTool<string, string>
+>
+
+/**
+ * Check whether the tools array carries typed tool definitions.
+ * Returns `false` for empty arrays or arrays whose only entries are
+ * `ProviderTool`s (which have generic `string` names).
+ *
+ * The partitioning step matters: a user who passes
+ * `[webSearchTool, myTypedTool]` should still get typed narrowing for
+ * `myTypedTool`. Evaluating `string extends TTools[number]['name']` without
+ * filtering provider tools first would always return `false` (because
+ * `ProviderTool`'s `name` is `string`) and silently fall through to the
+ * untyped branch.
+ *
+ * @internal
+ */
+type HasTypedTools<TTools extends ReadonlyArray<AnyTool>> = [
+  NonProviderTools<TTools>,
+] extends [never]
+  ? false
+  : string extends NonProviderTools<TTools>['name']
+    ? false
+    : true
+
+/**
+ * Safely infer input type for a single tool, guarding against `any` leaks.
+ * Returns `unknown` when the tool has no inputSchema or when InferSchemaType
+ * produces `any` (e.g. for plain JSON Schema tools).
+ * @internal
+ */
+type SafeToolInput<T> = T extends {
+  inputSchema?: infer TInput
+}
+  ? IsAny<InferSchemaType<NonNullable<TInput>>> extends true
+    ? unknown
+    : InferSchemaType<NonNullable<TInput>>
+  : unknown
+
+/**
+ * Safely infer output type for a single tool. Mirrors `SafeToolInput`,
+ * picking `outputSchema` instead. Returns `unknown` when the tool has no
+ * `outputSchema` declared or when `InferSchemaType` produces `any`.
+ * @internal
+ */
+type SafeToolOutput<T> = T extends {
+  outputSchema?: infer TOutput
+}
+  ? IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
+    ? unknown
+    : InferSchemaType<NonNullable<TOutput>>
+  : unknown
+
+/**
+ * Distribute over each non-provider tool to create a per-tool
+ * `ToolCallStartEvent`.
+ *
+ * This produces a discriminated union — one variant per tool name literal.
+ * We distribute over `NonProviderTools<TTools>` (not `TTools[number]`) so
+ * that provider tools with generic `string` names do not leak into the
+ * union and widen `toolCallName` / `toolName` back to `string`.
+ *
+ * The trailing `& { toolCallName: TName; toolName: TName }` intersection
+ * narrows the base `AGUIToolCallStartEvent['toolCallName']` (declared as
+ * `string`) to the literal name — TypeScript intersects `string & TName`
+ * down to `TName` for literal `TName`.
+ *
+ * The `name` parameter constraint on the inner `extends` picks up any
+ * tool-like shape — including `ServerTool`, `ClientTool`, and the bare
+ * `Tool` definition — because all three expose `name: TName`.
+ * @internal
+ */
+type DistributedToolCallStart<TTools extends ReadonlyArray<AnyTool>> =
+  NonProviderTools<TTools> extends infer T
+    ? T extends { name: infer TName extends string }
+      ? ToolCallStartEvent<TName> & { toolCallName: TName; toolName: TName }
+      : never
+    : never
+
+/**
+ * Distribute over each non-provider tool to create a per-tool
+ * `ToolCallEndEvent`.
+ *
+ * Each variant pairs the tool's name literal with its specific input type,
+ * enabling discriminated narrowing: checking `toolName === 'x'` narrows
+ * `input`.
+ *
+ * `toolName`/`toolCallName` are intersected as required in the distributed
+ * variants so that `Extract<..., { toolName: 'x' }>` works for consumers
+ * relying on the discriminated-union pattern, even though the base
+ * interface keeps them optional for compatibility with the broader AG-UI
+ * surface.
+ *
+ * Distribution happens over `NonProviderTools<TTools>` for the same
+ * reason as in `DistributedToolCallStart`.
+ * @internal
+ */
+type DistributedToolCallEnd<TTools extends ReadonlyArray<AnyTool>> =
+  NonProviderTools<TTools> extends infer T
+    ? T extends { name: infer TName extends string }
+      ? ToolCallEndEvent<TName, SafeToolInput<T>, SafeToolOutput<T>> & {
+          toolCallName: TName
+          toolName: TName
+        }
+      : never
+    : never
+
+/**
+ * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
+ * has a literal `name`, so a single narrow on `chunk.name` yields a typed
+ * `value` with no helper or cast:
+ *
+ * ```ts
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
+ *   chunk.value.toolCallId // typed as string
+ * }
+ * ```
+ *
+ * The `StructuredOutputCompleteEvent` value is parameterized by `T`, which
+ * the chat orchestrator narrows to the schema's inferred type after Standard
+ * Schema validation. Adapters always emit it with `T = unknown`.
+ *
+ * Caveat: tools can emit arbitrary user-defined custom events via the
+ * `emitCustomEvent(name, value)` context API. Those flow through the stream
+ * at runtime but are intentionally absent from this union — including a bare
+ * `CustomEvent` (whose `value: any` would poison the union) would collapse
+ * `chunk.value` back to `any` after the narrow. If you rely on
+ * `emitCustomEvent`, branch on `CUSTOM` outside the literal-`name` narrows
+ * or cast the chunk to `StreamChunk` to recover the wider shape.
+ */
+export type TaggedCustomEvent<T = unknown> =
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent<T>
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+
+/**
+ * Stream chunk type parameterized by the tools array for type-safe tool call events.
+ *
+ * When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
+ * - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union**
+ *   over tool names — checking `toolName === 'x'` narrows `input` to that tool's type.
+ * - `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
+ *
+ * `CUSTOM` events are narrowed to the discriminated {@link KnownCustomEvent}
+ * union (sandbox, code-mode, structured-output, approvals, UI resources, etc.).
+ * Free-form user-emitted custom events (via `emitCustomEvent`) still flow at
+ * runtime but are excluded from the type to avoid `any` poisoning the union;
+ * cast to `StreamChunk` if you need to read those.
+ *
+ * When tools are untyped or absent, the tool-call events stay as plain
+ * `ToolCallStartEvent` / `ToolCallEndEvent` (no per-tool name narrowing) and
+ * the type is equivalent to the element type of {@link ChatStream}.
+ */
+export type TypedStreamChunk<
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+> =
+  HasTypedTools<TTools> extends true
+    ?
+        | Exclude<
+            StreamChunk,
+            | { type: 'TOOL_CALL_START' }
+            | { type: 'TOOL_CALL_END' }
+            | CustomEvent
+          >
+        | DistributedToolCallStart<TTools>
+        | DistributedToolCallEnd<TTools>
+        | KnownCustomEvent
+    : Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()

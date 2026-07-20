@@ -115,6 +115,8 @@ describe('null tool input normalization', () => {
       manager.completeToolCall({
         type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
+        toolCallName: 'test_tool',
+        toolName: 'test_tool',
         timestamp: Date.now(),
         input: null as unknown,
       })
@@ -139,6 +141,8 @@ describe('null tool input normalization', () => {
       manager.completeToolCall({
         type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
+        toolCallName: 'test_tool',
+        toolName: 'test_tool',
         timestamp: Date.now(),
         input: { location: 'NYC' },
       })
