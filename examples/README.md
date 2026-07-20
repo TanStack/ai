@@ -9,7 +9,7 @@ Choose an example based on your use case:
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
-- **Polyglot AG-UI backends (Go/Rust)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
+- **Polyglot AG-UI backends (Go/Rust/PHP/Zig)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
 
@@ -125,7 +125,7 @@ pnpm start
 
 ### AG-UI Polyglot Echo (ag-ui)
 
-A React SPA that connects to **Go and Rust chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions.
+A React SPA that connects to **Go, Rust, PHP, and Zig chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions. Toolchain detection writes `public/servers.json`; unavailable backends show setup instructions in the UI.
 
 **Tech Stack:**
 
@@ -133,12 +133,16 @@ A React SPA that connects to **Go and Rust chat servers** over the AG-UI SSE pro
 - `@tanstack/ai-react` + `@tanstack/ai-react-ui`
 - Go chat server (`net/http`, `:8001`)
 - Rust chat server (Axum, `:8002`)
+- PHP chat server (built-in server + curl, `:8003`)
+- Zig chat server (stdlib HTTP, `:8004`)
 
 **Features:**
 
-- ✅ Backend picker (Go | Rust)
+- ✅ Backend picker (Go | Rust | PHP | Zig)
+- ✅ Toolchain-gated `dev:all` + `servers.json` availability
+- ✅ Setup instructions when a runtime is missing (or disabled via `AGUI_DISABLE_SERVERS`)
 - ✅ Provider picker (OpenAI | Anthropic)
-- ✅ Hand-rolled AG-UI SSE in two languages
+- ✅ Hand-rolled AG-UI SSE in four languages
 - ✅ Streaming LLM responses via env API keys
 
 **Getting Started:**
@@ -150,7 +154,7 @@ cp .env.example .env
 pnpm dev:all
 ```
 
-Requires Go 1.22+, Rust stable, and provider API keys.
+Install whichever backends you want to run locally (Go, Rust, PHP, Zig) plus provider API keys. To simulate missing runtimes: `AGUI_DISABLE_SERVERS=php,zig pnpm dev:all`.
 
 📖 [Full Documentation](ag-ui/README.md)
 

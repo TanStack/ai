@@ -1,5 +1,7 @@
 dist
 node_modules
 servers/rust/target
+servers/zig/.zig-cache
+servers/zig/zig-out
 
 servers/go/go

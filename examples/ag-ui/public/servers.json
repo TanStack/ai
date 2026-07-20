@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-07-19T23:53:50.649Z",
+  "servers": [
+    {
+      "id": "go",
+      "label": "Go",
+      "port": 8001,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install Go 1.22+ and ensure `go` is on PATH.",
+        "installUrl": "https://go.dev/dl/",
+        "verify": "go version",
+        "run": "pnpm dev:go"
+      }
+    },
+    {
+      "id": "rust",
+      "label": "Rust",
+      "port": 8002,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install Rust stable via rustup and ensure `cargo` is on PATH.",
+        "installUrl": "https://rustup.rs/",
+        "verify": "cargo --version",
+        "run": "pnpm dev:rust"
+      }
+    },
+    {
+      "id": "php",
+      "label": "PHP",
+      "port": 8003,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install PHP 8.2+ CLI and ensure `php` is on PATH.",
+        "installUrl": "https://www.php.net/downloads",
+        "verify": "php -v",
+        "run": "pnpm dev:php"
+      }
+    },
+    {
+      "id": "zig",
+      "label": "Zig",
+      "port": 8004,
+      "available": true,
+      "disabledByEnv": false,
+      "setup": {
+        "summary": "Install Zig and ensure `zig` is on PATH.",
+        "installUrl": "https://ziglang.org/download/",
+        "verify": "zig version",
+        "run": "pnpm dev:zig"
+      }
+    }
+  ]
+}

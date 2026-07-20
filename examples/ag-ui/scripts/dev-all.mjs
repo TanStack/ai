@@ -1,32 +1,38 @@
 import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
 import { config as loadEnv } from 'dotenv'
+import {
+  detectServers,
+  exampleDir,
+  logDetectionSummary,
+  writeServersJson,
+} from './servers.mjs'
 
-const exampleDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-loadEnv({ path: path.join(exampleDir, '.env'), quiet: true })
+loadEnv({ path: `${exampleDir}/.env`, quiet: true })
 
+const detected = detectServers()
+writeServersJson()
+logDetectionSummary(detected)
+
+const available = detected.filter((server) => server.available)
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-const child = spawn(
-  pnpm,
-  [
-    'exec',
-    'concurrently',
-    '-n',
-    'client,go,rust',
-    '-c',
-    'cyan,green,yellow',
-    'pnpm dev',
-    'pnpm dev:go',
-    'pnpm dev:rust',
-  ],
-  {
-    cwd: exampleDir,
-    env: process.env,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  },
-)
+
+const names = ['client', ...available.map((server) => server.id)]
+const colors = ['cyan', 'green', 'yellow', 'magenta', 'blue'].slice(0, names.length)
+const commands = ['pnpm dev', ...available.map((server) => `pnpm ${server.devScript}`)]
+
+const args = ['exec', 'concurrently', '-n', names.join(','), '-c', colors.join(',')]
+for (const command of commands) {
+  args.push(command)
+}
+
+console.log(`[ag-ui] starting ${commands.length} process(es): ${names.join(', ')}`)
+
+const child = spawn(pnpm, args, {
+  cwd: exampleDir,
+  env: process.env,
+  stdio: 'inherit',
+  shell: process.platform === 'win32',
+})
 
 child.on('exit', (code) => {
   process.exit(code ?? 0)
