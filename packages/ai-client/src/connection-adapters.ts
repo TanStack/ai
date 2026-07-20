@@ -538,7 +538,13 @@ async function* resumableStream(
           sawTerminal = true
         }
         yield chunk
-        if (sawTerminal) return
+        // Do NOT stop on a terminal mid-source: an agent loop emits one
+        // RUN_STARTED/RUN_FINISHED pair PER turn, so a tool-calling run carries
+        // several RUN_FINISHED events before the run is truly done. Returning on
+        // the first one would drop every subsequent turn (the tool result and
+        // the final answer). Instead, drain the event source to its natural end
+        // — the server closes the response only when the run is actually
+        // complete — and use `sawTerminal` below to decide done-vs-reconnect.
       }
     } catch (error) {
       if (abortSignal?.aborted) return
@@ -562,6 +568,12 @@ async function* resumableStream(
     }
 
     if (abortSignal?.aborted) return
+
+    // The source ended after delivering a terminal event: the run is genuinely
+    // finished (for an agentic run this is the LAST turn's terminal, since we no
+    // longer stop on intermediate ones). Stop — reconnecting a durable run here
+    // would re-open past the final offset and see an empty window.
+    if (sawTerminal) return
 
     if (lastEventId !== undefined) {
       // A durable (id-tagged) run.
