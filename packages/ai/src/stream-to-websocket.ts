@@ -113,16 +113,62 @@ export function toWebSocketStream<TOffset extends string = string>(
   request: Request,
   init: WebSocketStreamInit<TOffset>,
 ): void {
-  socket.addEventListener('message', (event: { data: unknown }) => {
-    if (typeof event.data !== 'string') return
-    void handleInbound(String(event.data))
+  const logger = resolveDebugOption(init.debug)
+  const activeTurns = new Map<string, AbortController>()
+  const heartbeatMs = init.heartbeatMs ?? 30_000
+  const idleTimeoutMs = init.idleTimeoutMs ?? 300_000
+  let lastActivity = Date.now()
+
+  const heartbeat = setInterval(() => {
+    socket.send(JSON.stringify({ type: 'ping' }))
+  }, heartbeatMs)
+  const idle = setInterval(
+    () => {
+      if (Date.now() - lastActivity > idleTimeoutMs) socket.close(1000, 'idle')
+    },
+    Math.min(idleTimeoutMs, 30_000),
+  )
+
+  socket.addEventListener('close', () => {
+    for (const controller of activeTurns.values()) controller.abort()
+    activeTurns.clear()
+    clearInterval(heartbeat)
+    clearInterval(idle)
   })
 
-  async function handleInbound(data: string): Promise<void> {
-    const frame = decodeWsFrame(data)
-    if (frame.kind !== 'run') return // abort handled in a later task
-    const params = await chatParamsFromRequestBody(frame.input)
+  socket.addEventListener('message', (event: { data: unknown }) => {
+    if (typeof event.data !== 'string') return
+    lastActivity = Date.now()
+
+    // Inbound frames are client-controlled: a malformed frame (bad JSON, or
+    // valid JSON that isn't an AG-UI RunAgentInput/abort shape) must be
+    // dropped, not crash the socket or leak an unhandled rejection.
+    let frame: InboundFrame
+    try {
+      frame = decodeWsFrame(event.data)
+    } catch (error) {
+      logger.errors('Failed to decode inbound WS frame; dropping it', {
+        error,
+      })
+      return
+    }
+
+    if (frame.kind === 'abort') {
+      activeTurns.get(frame.runId)?.abort()
+      return
+    }
+
+    handleInbound(frame.input).catch((error: unknown) => {
+      logger.errors('Failed to handle inbound WS run frame; dropping it', {
+        error,
+      })
+    })
+  })
+
+  async function handleInbound(input: unknown): Promise<void> {
+    const params = await chatParamsFromRequestBody(input)
     const turnAbort = new AbortController()
+    activeTurns.set(params.runId, turnAbort)
     const ctx: WsRunContext = {
       messages: params.messages,
       threadId: params.threadId,
@@ -132,20 +178,24 @@ export function toWebSocketStream<TOffset extends string = string>(
       request: buildTurnRequest(request, params.runId, null),
       signal: turnAbort.signal,
     }
-    if (init.durability) {
-      const adapter = init.durability(ctx)
-      const { source, getId } = durableStreamSource(init.onRun(ctx), adapter, {
-        abortController: turnAbort,
-        ...(init.batch === undefined ? {} : { batch: init.batch }),
-        logger: resolveDebugOption(init.debug),
-      })
-      for await (const chunk of source) {
-        socket.send(encodeWsFrame(chunk, getId(chunk)))
+    try {
+      if (init.durability) {
+        const adapter = init.durability(ctx)
+        const { source, getId } = durableStreamSource(init.onRun(ctx), adapter, {
+          abortController: turnAbort,
+          ...(init.batch === undefined ? {} : { batch: init.batch }),
+          logger,
+        })
+        for await (const chunk of source) {
+          socket.send(encodeWsFrame(chunk, getId(chunk)))
+        }
+      } else {
+        for await (const chunk of init.onRun(ctx)) {
+          socket.send(encodeWsFrame(chunk, undefined))
+        }
       }
-    } else {
-      for await (const chunk of init.onRun(ctx)) {
-        socket.send(encodeWsFrame(chunk, undefined))
-      }
+    } finally {
+      activeTurns.delete(params.runId)
     }
   }
 }

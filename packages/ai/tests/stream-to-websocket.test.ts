@@ -176,3 +176,73 @@ describe('toWebSocketStream (durable)', () => {
     ])
   })
 })
+
+describe('toWebSocketStream lifecycle', () => {
+  it('aborts the matching turn on an abort control frame', async () => {
+    const socket = new FakeSocket()
+    let aborted = false
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId, signal }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.runStarted(runId, threadId)
+          await new Promise<void>((resolve) => {
+            signal.addEventListener('abort', () => {
+              aborted = true
+              resolve()
+            })
+          })
+        })(),
+    })
+    socket.emitMessage(inputFrame('run-3'))
+    await flush()
+    socket.emitMessage(JSON.stringify({ type: 'abort', runId: 'run-3' }))
+    await flush()
+    expect(aborted).toBe(true)
+  })
+
+  it('aborts the active turn when the socket closes', async () => {
+    const socket = new FakeSocket()
+    let aborted = false
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ signal }): AsyncIterable<StreamChunk> =>
+        // eslint-disable-next-line require-yield
+        (async function* () {
+          await new Promise<void>((resolve) => {
+            signal.addEventListener('abort', () => {
+              aborted = true
+              resolve()
+            })
+          })
+        })(),
+    })
+    socket.emitMessage(inputFrame('run-4'))
+    await flush()
+    socket.emitClose()
+    await flush()
+    expect(aborted).toBe(true)
+  })
+
+  it('drops a malformed inbound frame without crashing the socket, and still processes a subsequent valid frame', async () => {
+    const socket = new FakeSocket()
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.runStarted(runId, threadId)
+        })(),
+      debug: false,
+    })
+
+    expect(() => socket.emitMessage('{')).not.toThrow()
+    await flush()
+    expect(() =>
+      socket.emitMessage(JSON.stringify({ foo: 'bar' })),
+    ).not.toThrow()
+    await flush()
+    expect(socket.closed).toBe(false)
+
+    socket.emitMessage(inputFrame('run-5'))
+    await flush()
+    const types = socket.sent.map((s) => JSON.parse(s).type)
+    expect(types).toEqual(['RUN_STARTED'])
+  })
+})
