@@ -200,7 +200,11 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
  * interrupt payloads do not.
  */
 function readApprovalApproved(payload: unknown): boolean | undefined {
-  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (
+    payload === null ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
     return undefined
   }
   if (!('approved' in payload) || typeof payload.approved !== 'boolean') {
@@ -793,8 +797,8 @@ export class ChatClient<
     // `activeResumeRunId`, so match that too.
     const isActiveStreamRunTerminal = Boolean(
       this.isLoading &&
-        runId &&
-        (runId === this.activeResumeRunId || runId === this.currentRunId),
+      runId &&
+      (runId === this.activeResumeRunId || runId === this.currentRunId),
     )
     const isCurrentStreamTerminal =
       this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
@@ -804,9 +808,9 @@ export class ChatClient<
     // keeps showing a stale prompt and blocks follow-up turns.
     const isActiveInterruptSubmissionTerminal = Boolean(
       this.activeInterruptSubmission &&
-        this.isLoading &&
-        chunk.type === 'RUN_FINISHED' &&
-        chunk.outcome?.type !== 'interrupt',
+      this.isLoading &&
+      chunk.type === 'RUN_FINISHED' &&
+      chunk.outcome?.type !== 'interrupt',
     )
     if (
       isRunlessSessionError ||

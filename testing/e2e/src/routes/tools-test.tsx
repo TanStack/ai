@@ -551,7 +551,7 @@ function ToolsTestPage() {
                     toolCallId: tc.id,
                   })
                   interrupt.resolveInterrupt(false)
-                }
+                }}
                 style={{
                   padding: '5px 15px',
                   backgroundColor: '#dc3545',
