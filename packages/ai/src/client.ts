@@ -264,12 +264,6 @@ export {
 } from './activities/chat/tools/schema-converter'
 
 export {
-  JsonSchemaCompilationError,
-  compileJsonSchema202012,
-  type JsonSchemaValidationIssue,
-} from './activities/chat/tools/json-schema-validator'
-
-export {
   convertMessagesToModelMessages,
   generateMessageId,
   modelMessageToUIMessage,

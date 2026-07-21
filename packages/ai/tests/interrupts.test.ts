@@ -1,10 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { EventType } from '@ag-ui/core'
 import {
-  JsonSchemaCompilationError,
-  compileJsonSchema202012,
-} from '../src/activities/chat/tools/json-schema-validator'
-import {
   hashSchemaInput,
   normalizeApprovalSchema,
 } from '../src/activities/chat/tools/approval-schema'
@@ -97,102 +93,6 @@ describe('AG-UI interrupt protocol types', () => {
     expectTypeOf<RunFinishedOutcome>().toMatchTypeOf<
       { type: 'success' } | { type: 'interrupt'; interrupts: Array<Interrupt> }
     >()
-  })
-})
-
-describe('Draft 2020-12 interrupt schema validation', () => {
-  it('normalizes every Draft 2020-12 issue without mutating input', () => {
-    const validate = compileJsonSchema202012({
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: {
-        'a/b': { type: 'string', minLength: 3 },
-        email: { type: 'string', format: 'email' },
-      },
-      required: ['a/b', 'email'],
-      additionalProperties: false,
-    })
-    const input = { 'a/b': 'x', email: 'bad', extra: true }
-
-    expect(validate(input)).toEqual([
-      expect.objectContaining({
-        keyword: 'additionalProperties',
-        path: ['extra'],
-      }),
-      expect.objectContaining({ path: ['a/b'] }),
-      expect.objectContaining({ path: ['email'] }),
-    ])
-    expect(input).toEqual({ 'a/b': 'x', email: 'bad', extra: true })
-  })
-
-  it('accepts #, local $defs, and repeated acyclic object identities', () => {
-    const sharedProperty = { type: 'string', minLength: 2 } as const
-    const sharedObject = {
-      type: 'object',
-      properties: { label: sharedProperty },
-      required: ['label'],
-      additionalProperties: false,
-    } as const
-    const root = {
-      type: 'object',
-      $defs: { entry: sharedObject },
-      properties: {
-        selfCopy: { $ref: '#' },
-        first: { $ref: '#/$defs/entry' },
-        second: sharedObject,
-        third: sharedObject,
-      },
-      additionalProperties: false,
-    } as const
-    const validate = compileJsonSchema202012(root)
-
-    expect(
-      validate({
-        first: { label: 'ok' },
-        second: { label: 'yes' },
-        third: { label: 'no' },
-      }),
-    ).toEqual([])
-  })
-
-  it('rejects unresolved local references, true cycles, Date, and Map', () => {
-    expect(() => compileJsonSchema202012({ $ref: '#/$defs/missing' })).toThrow(
-      JsonSchemaCompilationError,
-    )
-
-    const cyclic: Record<string, unknown> = { type: 'object' }
-    cyclic['properties'] = { self: cyclic }
-    expect(() => compileJsonSchema202012(cyclic)).toThrow(/cycles/)
-    expect(() => compileJsonSchema202012(new Date())).toThrow(/plain JSON/)
-    expect(() => compileJsonSchema202012(new Map())).toThrow(/plain JSON/)
-  })
-
-  it('accepts canonical JSON primitives and rejects non-JSON values', () => {
-    const validate = compileJsonSchema202012({
-      type: 'array',
-      items: { type: ['string', 'number', 'boolean', 'null'] },
-    })
-    expect(validate(['text', 1, true, null])).toEqual([])
-    expect(() => compileJsonSchema202012({ const: undefined })).toThrow(
-      /JSON-compatible/,
-    )
-  })
-
-  it('rejects other dialects, remote references, and unknown formats', () => {
-    expect(() =>
-      compileJsonSchema202012({
-        $schema: 'http://json-schema.org/draft-07/schema#',
-        type: 'string',
-      }),
-    ).toThrow(JsonSchemaCompilationError)
-    expect(() =>
-      compileJsonSchema202012({
-        $ref: 'https://example.com/schema.json',
-      }),
-    ).toThrow(/document-local/)
-    expect(() =>
-      compileJsonSchema202012({ type: 'string', format: 'private-id' }),
-    ).toThrow(JsonSchemaCompilationError)
   })
 })
 

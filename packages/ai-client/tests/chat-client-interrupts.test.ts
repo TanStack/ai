@@ -354,13 +354,13 @@ describe('InterruptManager hydration', () => {
     })
   })
 
-  it('keeps cancellation available when a generic response schema is invalid', () => {
+  it('resolves a generic item regardless of its wire response schema', () => {
     const binding: InterruptBinding = {
       kind: 'generic',
       interruptId: 'generic-1',
       interruptedRunId: 'run-1',
       generation: 1,
-      responseSchemaHash: 'invalid-schema',
+      responseSchemaHash: 'any-schema',
     }
     const { manager } = createManager()
     manager.hydrate({
@@ -369,6 +369,9 @@ describe('InterruptManager hydration', () => {
       generation: 1,
       interrupts: [
         descriptor(binding, {
+          // The library does not compile or validate the wire schema, so even a
+          // schema in another dialect leaves the item resolvable. The
+          // application validates the value itself before resolving.
           responseSchema: {
             $schema: 'https://json-schema.org/draft/2019-09/schema',
             type: 'object',
@@ -379,7 +382,7 @@ describe('InterruptManager hydration', () => {
 
     const item = manager.getInterrupts()[0]
     expect(item?.kind).toBe('generic')
-    expect(item?.canResolve).toBe(false)
+    expect(item?.canResolve).toBe(true)
     item?.cancel()
     // Cancellation immediately submits the batch; submitting items are omitted
     // from the public interrupt list (not user-actionable while the resume

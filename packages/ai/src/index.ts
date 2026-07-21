@@ -98,11 +98,6 @@ export {
   validateWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
-export {
-  JsonSchemaCompilationError,
-  compileJsonSchema202012,
-  type JsonSchemaValidationIssue,
-} from './activities/chat/tools/json-schema-validator'
 
 // Stream utilities
 export {

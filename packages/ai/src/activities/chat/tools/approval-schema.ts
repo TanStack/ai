@@ -2,7 +2,6 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../../interrupt-serialization'
-import { compileJsonSchema202012 } from './json-schema-validator'
 import { isStandardJSONSchema, isStandardSchema } from './schema-converter'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { JSONSchema, SchemaInput } from '../../../types'
@@ -108,7 +107,8 @@ function schemaToWire(schema: SchemaInput): NormalizedSchemaInput {
     }
   }
   if (isRawJsonSchema(schema)) {
-    compileJsonSchema202012(schema)
+    // The library does not compile or validate raw JSON Schema; it is carried
+    // on the wire and hashed as-is. Validation is the application's job.
     return { source: schema, jsonSchema: schema }
   }
   throw new TypeError('Expected a supported SchemaInput.')

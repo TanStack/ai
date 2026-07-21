@@ -1354,9 +1354,6 @@ importers:
       '@ag-ui/core':
         specifier: ^0.0.57
         version: 0.0.57
-      '@noble/hashes':
-        specifier: ^2.0.1
-        version: 2.2.0
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1366,12 +1363,6 @@ importers:
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
-      ajv:
-        specifier: ^8.20.0
-        version: 8.20.0
-      ajv-formats:
-        specifier: ^3.0.1
-        version: 3.0.1(ajv@8.20.0)
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
@@ -5662,10 +5653,6 @@ packages:
   '@ngrok/ngrok@1.7.0':
     resolution: {integrity: sha512-P06o9TpxrJbiRbHQkiwy/rUrlXRupc+Z8KT4MiJfmcdWxvIdzjCaJOdnNkcOTs6DMyzIOefG5tvk/HLdtjqr0g==}
     engines: {node: '>= 10'}
-
-  '@noble/hashes@2.2.0':
-    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
-    engines: {node: '>= 20.19.0'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -19554,8 +19541,6 @@ snapshots:
       '@ngrok/ngrok-win32-arm64-msvc': 1.7.0
       '@ngrok/ngrok-win32-ia32-msvc': 1.7.0
       '@ngrok/ngrok-win32-x64-msvc': 1.7.0
-
-  '@noble/hashes@2.2.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

@@ -97,9 +97,10 @@ export function RefundReasons() {
 ```
 
 `z.fromJSONSchema` gives you a runtime validator, not a trustworthy static type.
-The client runs canonical Draft 2020-12 validation, and the server validates
-again before continuing, so a bad answer surfaces an `invalid-response-schema`
-error instead of slipping through.
+The library does not validate the wire schema for you. Whatever you pass to
+`resolveInterrupt` is sent as-is, so validate the value here on the client, and
+again on the server if you need to trust it, the same way you would treat any
+other user input.
 
 ## Emit it on the server
 
@@ -110,9 +111,10 @@ the descriptor and validate the answer yourself:
 1. End a run with `RUN_FINISHED` and `outcome.type === 'interrupt'`, carrying a
    `generic` descriptor with your `responseSchema`. A small middleware is the
    usual place to do this.
-2. On the continuation request, validate the incoming `resume` against that same
-   pending descriptor with `validateInterruptResumeBatch`, then append the
-   answer and let the run continue.
+2. On the continuation request, correlate the incoming `resume` against that
+   same pending descriptor with `validateInterruptResumeBatch`. It checks the
+   batch is complete and matches the pending item; it does not validate your
+   generic value, that is yours to do. Then append the answer and continue.
 
 The interrupt lab in `examples/ts-react-chat` has a complete middleware that
 emits a generic pause and correlates its answer. Without the server half, a

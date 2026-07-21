@@ -2,7 +2,6 @@ import {
   canonicalInterruptJson,
   canonicalizeInterruptResolutions,
   cloneAndDeepFreezeJson,
-  compileJsonSchema202012,
   digestInterruptJson,
   hashSchemaInput,
   isStandardSchema,
@@ -238,16 +237,6 @@ function responseSchemaHash(interrupt: Interrupt): string | undefined {
   }
 }
 
-function canValidateGeneric(interrupt: Interrupt): boolean {
-  if (interrupt.responseSchema === undefined) return true
-  try {
-    compileJsonSchema202012(interrupt.responseSchema)
-    return true
-  } catch {
-    return false
-  }
-}
-
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
     value !== null &&
@@ -280,18 +269,11 @@ function validateWithSchema(
       ? Promise.resolve(result).then(normalize)
       : normalize(result)
   }
-  try {
-    const issues = compileJsonSchema202012(schema)(value)
-    const issue = issues[0]
-    return issue
-      ? { code, message: issue.message, path: issue.path }
-      : { valid: true, payload: value }
-  } catch {
-    return {
-      code: 'invalid-response-schema',
-      message: 'The interrupt response schema is invalid.',
-    }
-  }
+  // A non-Standard-Schema value (a raw JSON Schema arriving over the wire) is
+  // not validated by the library. The application transforms the schema and
+  // validates the value itself before resolving; whatever it passes flows
+  // through as-is.
+  return { valid: true, payload: value }
 }
 
 function isItemErrorCode(value: string): value is ItemInterruptError['code'] {
@@ -711,7 +693,9 @@ export class InterruptManager<
       binding: genericBinding(interrupt, hydration, candidate),
       kind: 'generic',
       status: 'pending',
-      canResolve: canValidateGeneric(interrupt),
+      // The library no longer validates the wire response schema, so a generic
+      // item is always resolvable. The application validates the value itself.
+      canResolve: true,
       validationGeneration: 0,
     }
   }

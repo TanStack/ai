@@ -11,7 +11,6 @@ import {
   isStandardSchema,
   validateWithStandardSchema,
 } from './activities/chat/tools/schema-converter'
-import { compileJsonSchema202012 } from './activities/chat/tools/json-schema-validator'
 import type {
   InterruptBinding,
   InterruptSubmissionError,
@@ -133,10 +132,10 @@ async function validateSchemaValue(input: {
     return
   }
 
-  const validate = compileJsonSchema202012(input.schema)
-  for (const issue of validate(input.value)) {
-    input.onIssue(issue.message, issue.path)
-  }
+  // A non-Standard-Schema value (a raw JSON Schema, e.g. a generic interrupt's
+  // wire responseSchema) is not validated by the library. The application
+  // validates the resume value itself if it needs to; otherwise it flows
+  // through as-is.
 }
 
 type RuntimeTool = ChatMiddlewareConfig['tools'][number] & {

@@ -3,12 +3,12 @@ import {
   canonicalInterruptJson,
   chat,
   chatParamsFromRequestBody,
-  compileJsonSchema202012,
   digestInterruptJson,
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
+import { z } from 'zod'
 import { interruptLabScenarios, isInterruptLabScenarioId } from './scenarios'
 import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
 import type {
@@ -202,7 +202,13 @@ export function createGenericInterruptMiddleware({
   mode: InterruptLabMode
 }): ChatMiddleware {
   const responseSchema = scenario.genericResponseSchema
-  const validateResponse = compileJsonSchema202012(responseSchema)
+  // The library no longer validates a generic interrupt's wire schema, so the
+  // application validates the resolved value itself. Here we transform the JSON
+  // Schema with zod and check the payload before trusting it. The scenario's
+  // schema is typed as a precise literal; widen it to zod's JSON Schema input.
+  const responseValidator = z.fromJSONSchema(
+    responseSchema as Parameters<typeof z.fromJSONSchema>[0],
+  )
   const responseSchemaHash = digestInterruptJson(
     canonicalInterruptJson(responseSchema),
   )
@@ -238,9 +244,9 @@ export function createGenericInterruptMiddleware({
         resolutionPrompt =
           'The user cancelled the generic interrupt. Acknowledge the cancellation briefly.'
       } else {
-        const issues = validateResponse(resolution.payload)
-        if (issues.length > 0) {
-          const issueSummary = issues
+        const parsed = responseValidator.safeParse(resolution.payload)
+        if (!parsed.success) {
+          const issueSummary = parsed.error.issues
             .map(
               (issue) =>
                 `${issue.path.join('.') || '<root>'}: ${issue.message}`,
@@ -248,7 +254,7 @@ export function createGenericInterruptMiddleware({
             .join('; ')
           throw new Error(`Invalid generic interrupt payload: ${issueSummary}`)
         }
-        resolutionPrompt = `The user resolved the generic interrupt with this validated payload: ${JSON.stringify(resolution.payload)}. Acknowledge it briefly.`
+        resolutionPrompt = `The user resolved the generic interrupt with this validated payload: ${JSON.stringify(parsed.data)}. Acknowledge it briefly.`
       }
 
       return {
