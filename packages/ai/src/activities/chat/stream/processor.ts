@@ -1099,7 +1099,9 @@ export class StreamProcessor {
         return next
       })
       // Rebuild only when a part object identity changed.
-      const partsChanged = parts.some((part, index) => part !== msg.parts[index])
+      const partsChanged = parts.some(
+        (part, index) => part !== msg.parts[index],
+      )
       return partsChanged ? { ...msg, parts } : msg
     })
   }
