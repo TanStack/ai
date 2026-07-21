@@ -226,7 +226,11 @@ export class GeminiTextAdapter<
   async *structuredOutputStream(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
-    const { chatOptions, outputSchema } = options
+    const { chatOptions: requestedChatOptions, outputSchema } = options
+    const chatOptions = {
+      ...requestedChatOptions,
+      runId: requestedChatOptions.runId ?? generateId(this.name),
+    }
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
 
     try {
