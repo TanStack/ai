@@ -42,12 +42,11 @@ describe('useChat', () => {
       expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
       expect(result.current.interrupts[0]).toMatchObject({
         id: 'staged-interrupt',
-        status: 'staged',
+        status: 'pending',
       })
       expect(result.current.interrupts[1]).toMatchObject({
         id: 'invalid-interrupt',
-        status: 'error',
-        error: { code: 'invalid-payload' },
+        status: 'pending',
       })
       expect(result.current.interruptErrors).toEqual([])
       expect(result.current.resuming).toBe(false)

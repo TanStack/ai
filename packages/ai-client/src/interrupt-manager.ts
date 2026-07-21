@@ -13,8 +13,6 @@ import type {
   BatchInterruptError,
   Interrupt,
   InterruptBinding,
-  InterruptCommitResult,
-  InterruptRecoveryStateV1,
   InterruptSubmissionError,
   ItemInterruptError,
   RunAgentResumeItem,
@@ -26,7 +24,6 @@ import type {
   ChatInterruptState,
   GenericAGUIInterrupt,
   InterruptItemStatus,
-  PersistedInterruptDraft,
 } from './types'
 
 export interface InterruptManagerHydration {
@@ -49,10 +46,7 @@ export interface InterruptManagerOptions<
   TTools extends ReadonlyArray<AnyClientTool>,
 > {
   tools?: TTools
-  submit: (
-    submission: InterruptManagerSubmission,
-  ) => Promise<InterruptCommitResult | void>
-  recover?: (state?: InterruptRecoveryStateV1) => void | Promise<void>
+  submit: (submission: InterruptManagerSubmission) => Promise<void>
   onChange?: () => void
 }
 
@@ -542,117 +536,6 @@ export class InterruptManager<
     return this.hydration?.interrupts ?? Object.freeze([])
   }
 
-  getRecoveryState(): InterruptRecoveryStateV1 | undefined {
-    const hydration = this.hydration
-    if (!hydration) return undefined
-    return cloneAndDeepFreezeJson({
-      schemaVersion: 1,
-      state: 'pending',
-      threadId: hydration.threadId,
-      interruptedRunId: hydration.interruptedRunId,
-      generation: hydration.generation,
-      pendingInterrupts: hydration.interrupts,
-    })
-  }
-
-  getPersistedDrafts(): ReadonlyArray<PersistedInterruptDraft> {
-    return cloneAndDeepFreezeJson(
-      this.items.flatMap((item) => {
-        if (item.resolution === undefined && item.error === undefined) return []
-        return [
-          {
-            interruptId: item.descriptor.id,
-            response: item.resolution ?? null,
-            status: item.status,
-            ...(item.error !== undefined ? { error: item.error } : {}),
-          },
-        ]
-      }),
-    )
-  }
-
-  reportRecoveryError(
-    code: 'expired' | 'stale' | 'conflict' | 'recovery-unavailable',
-    message: string,
-    recoveryState?: InterruptRecoveryStateV1,
-  ): void {
-    if (!this.hydration && recoveryState !== undefined) {
-      this.hydration = {
-        threadId: recoveryState.threadId,
-        interruptedRunId: recoveryState.interruptedRunId,
-        generation: recoveryState.generation,
-        interrupts: cloneAndDeepFreezeJson(recoveryState.pendingInterrupts),
-      }
-      this.items = recoveryState.pendingInterrupts.map((interrupt) =>
-        this.hydrateInterrupt(interrupt, this.requireHydration()),
-      )
-    }
-    for (const item of this.items) {
-      if (item.status === 'submitting') item.status = 'error'
-    }
-    this.addRootError(code, message, false, 'server')
-    this.publish()
-  }
-
-  restorePersistedDrafts(drafts: ReadonlyArray<PersistedInterruptDraft>): void {
-    for (const draft of drafts) {
-      const item = this.items.find(
-        (candidate) => candidate.descriptor.id === draft.interruptId,
-      )
-      if (!item) continue
-      const response = draft.response
-      if (
-        isUnknownObject(response) &&
-        response['interruptId'] === item.descriptor.id &&
-        response['status'] === 'cancelled'
-      ) {
-        item.resolution = Object.freeze({
-          interruptId: item.descriptor.id,
-          status: 'cancelled',
-        })
-        item.status = draft.error === undefined ? 'staged' : 'error'
-        item.error = draft.error
-        continue
-      }
-      if (
-        isUnknownObject(response) &&
-        response['interruptId'] === item.descriptor.id &&
-        response['status'] === 'resolved'
-      ) {
-        const validationGeneration = ++item.validationGeneration
-        const validation = this.validateCandidate(item, response['payload'])
-        if (isPromiseLike(validation)) {
-          item.status = 'validating'
-          void Promise.resolve(validation)
-            .then((result) => {
-              if (validationGeneration !== item.validationGeneration) return
-              this.applyRestoredValidation(item, result, draft)
-            })
-            .catch((error: unknown) => {
-              if (validationGeneration !== item.validationGeneration) return
-              this.applyRestoredValidation(
-                item,
-                {
-                  code: this.validationCode(item),
-                  message:
-                    error instanceof Error ? error.message : String(error),
-                },
-                draft,
-              )
-            })
-        } else {
-          this.applyRestoredValidation(item, validation, draft, false)
-        }
-        continue
-      }
-      if (draft.error !== undefined) {
-        item.status = 'error'
-        item.error = cloneAndDeepFreezeJson(draft.error)
-      }
-    }
-    this.publish()
-  }
-
   reset(options?: { preserveRootErrors?: boolean }): void {
     this.hydration = undefined
     this.items = []
@@ -1046,35 +929,6 @@ export class InterruptManager<
     }
   }
 
-  private applyRestoredValidation(
-    item: RuntimeInterrupt,
-    result: ValidationResult,
-    draft: PersistedInterruptDraft,
-    publish = true,
-  ): void {
-    if (!('valid' in result)) {
-      item.status = 'error'
-      item.error = this.itemError(
-        item.descriptor.id,
-        result.code,
-        result.message,
-        result.path,
-      )
-    } else {
-      item.resolution = cloneAndDeepFreezeJson({
-        interruptId: item.descriptor.id,
-        status: 'resolved',
-        payload: result.payload,
-      })
-      item.status = draft.error === undefined ? 'staged' : 'error'
-      item.error =
-        draft.error === undefined
-          ? undefined
-          : cloneAndDeepFreezeJson(draft.error)
-    }
-    if (publish) this.publish()
-  }
-
   private validateCandidate(
     item: RuntimeInterrupt,
     payload: unknown,
@@ -1350,16 +1204,7 @@ export class InterruptManager<
     submission: InterruptManagerSubmission,
   ): Promise<void> {
     try {
-      const result = await this.options.submit(submission)
-      if (result?.status === 'conflict') {
-        this.addRootError(
-          'conflict',
-          'Interrupt submission conflicted with authoritative state.',
-          false,
-          'server',
-        )
-        await this.options.recover?.(result.authoritativeState)
-      }
+      await this.options.submit(submission)
     } catch (error) {
       await this.handleSubmissionFailure(error, submission)
     } finally {
@@ -1392,7 +1237,7 @@ export class InterruptManager<
       )
     }
 
-    let requiresRecovery = false
+    let nonRetryable = false
     let retryable = false
     const batchErrors: Array<BatchInterruptError> = []
     for (const submissionError of correlatedErrors) {
@@ -1401,7 +1246,7 @@ export class InterruptManager<
         submissionError.code === 'expired' ||
         submissionError.code === 'conflict'
       ) {
-        requiresRecovery = true
+        nonRetryable = true
       }
       retryable ||= submissionError.retryable
       if (submissionError.scope === 'item') {
@@ -1427,9 +1272,7 @@ export class InterruptManager<
     for (const item of this.items) {
       if (item.status === 'submitting') item.status = 'error'
     }
-    this.retrySubmission =
-      retryable && !requiresRecovery ? submission : undefined
-    if (requiresRecovery) await this.options.recover?.()
+    this.retrySubmission = retryable && !nonRetryable ? submission : undefined
   }
 
   private addRootError(

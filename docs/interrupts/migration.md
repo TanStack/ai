@@ -108,52 +108,40 @@ Don't derive a static type from a received `responseSchema` — parse as
 `unknown`, convert with `z.fromJSONSchema`, then resolve the validated value.
 Full form example in [Generic Interrupts](./generic).
 
-## Server events and persistence
+## Server events
 
 A native server emits, in order: `MESSAGES_SNAPSHOT` → optional
 `STATE_SNAPSHOT` → `RUN_FINISHED` with a nonempty interrupt outcome.
 Continuations use a fresh `runId`, the same `threadId`, and the interrupted run
 as `parentRunId`, with every pending ID present exactly once.
 
-Persistence is optional. Without it, the batch is reconstructed and validated
-from the submitted history (client-provided input — no authoritative recovery,
-exactly-once, replay protection, restart recovery, or CAS). Durable interrupt
-persistence — stored schema hashes, expiry, and generation validated before one
-compare-and-swap commit, with exact retries attaching to the winning
-continuation — is a separate opt-in layer shipped with the persistence guides.
+Interrupts run **ephemerally**: the server reconstructs and validates the
+expected batch from the submitted history and its current tool definitions, so
+a stateless route needs no persistence. Because the batch is rebuilt from
+client-provided input, this mode has no authoritative recovery, exactly-once,
+replay protection, restart recovery, or compare-and-swap — those are the concern
+of a separate, optional durable-persistence layer that is not part of this
+package.
 
-## Explicit recovery
-
-Browser persistence writes a V2 envelope of raw JSON-safe drafts only; after
-reload the client can fetch authoritative recovery before rebinding
-descriptors. Authoritative reload recovery — application-owned recovery and
-continuation endpoints wired onto the connection — is a separate opt-in layer
-shipped with the persistence guides. The ephemeral flow needs none of it: it
-resumes from the full client message history.
-
-`resumeInterruptsUnsafe` is only for low-level recovery integrations with
-validated raw resume entries — not the normal target for approval UI.
+`resumeInterruptsUnsafe` is a low-level escape hatch for submitting validated
+raw resume entries directly — not the normal target for approval UI.
 
 ## Legacy limits
 
 Deprecated readers recognize well-formed historical `approval-requested` and
 `tool-input-available` events and convert a fully-covered legacy batch into one
 cloned-history follow-up. They do **not** support edited arguments, custom
-approval payloads, generic responses, payloadless cancellation, expiry/
-schema-hash reconciliation, generation conflicts, or native recovery — those
-fail with `legacy-unsupported`. Native and legacy items can't mix in one batch;
-a failed legacy transport keeps staged decisions and reports `legacy-submit-failed`.
+approval payloads, generic responses, payloadless cancellation, or expiry/
+schema-hash reconciliation — those fail with `legacy-unsupported`. Native and
+legacy items can't mix in one batch; a failed legacy transport keeps staged
+decisions and reports `legacy-submit-failed`.
 
 ## Checklist
 
-1. Deploy persistence schema changes for every configured backend.
-2. Add `withChatPersistence(...)` to interrupt-producing routes.
-3. Replace native custom-event writers with the interrupt terminal.
-4. Render bound `interrupts` instead of `pendingInterrupts`.
-5. Replace boolean approval helpers with `resolveInterrupt` + explicit
+1. Replace native custom-event writers with the interrupt terminal.
+2. Render bound `interrupts` instead of `pendingInterrupts`.
+3. Replace boolean approval helpers with `resolveInterrupt` + explicit
    denial/cancellation.
-6. Replace approval loops with atomic batch staging or root `resolveInterrupts`.
-7. Add explicit recovery/continuation endpoints before enabling V2 draft restore.
-8. Keep `addToolResult` for client-tool results where useful.
-9. Test reloads, exact retries, two-tab conflicts, expired items, and failed
-   transport recovery before removing legacy support.
+4. Replace approval loops with atomic batch staging or root `resolveInterrupts`.
+5. Keep `addToolResult` for client-tool results where useful.
+6. Test expired items and failed transport before removing legacy support.

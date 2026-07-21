@@ -1,28 +1,9 @@
-import { createCapability } from './activities/chat/middleware/capabilities'
 import {
   canonicalInterruptJson,
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
 import type { Interrupt, RunAgentResumeItem } from './types'
-
-export interface OpenInterruptBatchInput {
-  threadId: string
-  interruptedRunId: string
-  descriptors: ReadonlyArray<Interrupt>
-  bindings: ReadonlyArray<UnopenedInterruptBinding>
-}
-
-export interface CommitInterruptResolutionsInput {
-  threadId: string
-  interruptedRunId: string
-  continuationRunId: string
-  expectedGeneration: number
-  expectedInterruptIds: ReadonlyArray<string>
-  resolutions: ReadonlyArray<RunAgentResumeItem>
-  fingerprint: string
-  canonicalResolutions: string
-}
 
 export interface InterruptCorrelation {
   threadId: string
@@ -123,14 +104,6 @@ export type UnopenedInterruptBinding = InterruptBinding extends infer TBinding
     : never
   : never
 
-export type InterruptCommitResult =
-  | { status: 'committed'; continuationRunId: string }
-  | { status: 'replayed'; continuationRunId: string }
-  | {
-      status: 'conflict'
-      authoritativeState: InterruptRecoveryStateV1
-    }
-
 export interface InterruptRecoveryQuery {
   threadId: string
   interruptedRunId: string
@@ -147,18 +120,6 @@ export interface InterruptRecoveryStateV1 extends InterruptCorrelation {
     continuationRunId?: string
     committedAt: string
   }
-}
-
-export interface InterruptPersistenceGateway {
-  openInterruptBatch: (
-    input: OpenInterruptBatchInput,
-  ) => Promise<{ generation: number; descriptors: ReadonlyArray<Interrupt> }>
-  commitInterruptResolutions: (
-    input: CommitInterruptResolutionsInput,
-  ) => Promise<InterruptCommitResult>
-  getInterruptRecoveryState: (
-    input: InterruptRecoveryQuery,
-  ) => Promise<InterruptRecoveryStateV1>
 }
 
 export type ToolApprovalResolution =
@@ -192,9 +153,3 @@ export function canonicalizeInterruptResolutions(
     fingerprint: digestInterruptJson(canonicalResolutions),
   })
 }
-
-export const InterruptPersistenceCapability =
-  createCapability<InterruptPersistenceGateway>()('interrupt-persistence')
-
-export const [getInterruptPersistence, provideInterruptPersistence] =
-  InterruptPersistenceCapability

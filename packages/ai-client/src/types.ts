@@ -14,7 +14,6 @@ import type {
   InputSchemaOf,
   Interrupt,
   InterruptBinding,
-  InterruptRecoveryStateV1,
   ItemInterruptError,
   ModelMessage,
   NoSchema,
@@ -44,30 +43,13 @@ export interface ChatResumeSnapshotV1 {
   pendingInterrupts?: Array<ChatPendingInterrupt>
 }
 
-/** JSON-safe client draft state. Authoritative interrupt state stays in recoveryState. */
-export interface PersistedInterruptDraft {
-  readonly interruptId: string
-  readonly response: unknown
-  readonly status: InterruptItemStatus
-  readonly error?: ItemInterruptError
-}
-
 export interface ChatResumeSnapshotV2 {
   schemaVersion: 2
   resumeState: ChatResumeState
   pendingInterrupts?: Array<ChatPendingInterrupt>
-  interruptState?: {
-    recoveryState: InterruptRecoveryStateV1
-    drafts: ReadonlyArray<PersistedInterruptDraft>
-  }
 }
 
 export type ChatResumeSnapshot = ChatResumeSnapshotV1 | ChatResumeSnapshotV2
-
-export type ChatContinuationLoader = (
-  continuationRunId: string,
-  abortSignal?: AbortSignal,
-) => AsyncIterable<StreamChunk>
 
 export type InterruptItemStatus =
   | 'pending'
@@ -672,8 +654,6 @@ export interface ChatClientBaseOptions<
    */
   initialResumeSnapshot?: ChatResumeSnapshot
 
-  /** Explicit read-only loader for replaying a committed continuation run. */
-  continuationLoader?: ChatContinuationLoader
 
   /**
    * Arbitrary client-controlled JSON forwarded to the server in the

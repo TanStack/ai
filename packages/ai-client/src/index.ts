@@ -45,8 +45,6 @@ export type {
   ChatResumeSnapshot,
   ChatResumeSnapshotV1,
   ChatResumeSnapshotV2,
-  ChatContinuationLoader,
-  PersistedInterruptDraft,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,

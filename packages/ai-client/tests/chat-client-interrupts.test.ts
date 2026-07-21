@@ -1,10 +1,5 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
-import {
-  InterruptPersistenceCapability,
-  chat,
-  defineChatMiddleware,
-  provideInterruptPersistence,
-} from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import {
   EventType,
   canonicalInterruptJson,
@@ -21,7 +16,6 @@ import type {
   AnyTextAdapter,
   InterruptSubmissionError,
   InterruptRecoveryStateV1,
-  InterruptPersistenceGateway,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
@@ -37,7 +31,6 @@ import type {
   RunAgentInputContext,
 } from '../src/connection-adapters'
 import type { UIMessage } from '../src/types'
-import type { ChatResumeSnapshotV2, ChatServerPersistence } from '../src/types'
 
 const transferDefinition = toolDefinition({
   name: 'transfer',
@@ -78,10 +71,9 @@ function descriptor(
 }
 
 function createManager() {
-  const submit = vi.fn(async (_submission: InterruptManagerSubmission) => ({
-    status: 'committed' as const,
-    continuationRunId: 'continuation-1',
-  }))
+  const submit = vi.fn(
+    async (_submission: InterruptManagerSubmission) => undefined,
+  )
   const manager = new InterruptManager({ tools, submit })
   return { manager, submit }
 }
@@ -207,72 +199,8 @@ describe('InterruptManager hydration', () => {
         })(),
       structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
     }
-    const gateway: InterruptPersistenceGateway = {
-      openInterruptBatch: (input) =>
-        Promise.resolve({ generation: 1, descriptors: input.descriptors }),
-      commitInterruptResolutions: (input) =>
-        Promise.resolve({
-          status: 'committed',
-          continuationRunId: input.continuationRunId,
-        }),
-      getInterruptRecoveryState: (input) =>
-        Promise.resolve({
-          schemaVersion: 1,
-          state: 'missing',
-          threadId: input.threadId,
-          interruptedRunId: input.interruptedRunId,
-          generation: input.knownGeneration,
-          pendingInterrupts: [],
-        }),
-    }
-    const persistence = defineChatMiddleware({
-      name: 'core-interrupt-test-persistence',
-      provides: [InterruptPersistenceCapability],
-      setup(ctx) {
-        provideInterruptPersistence(ctx, gateway)
-      },
-      async onChunk(_ctx, chunk) {
-        if (
-          chunk.type !== EventType.RUN_FINISHED ||
-          chunk.outcome?.type !== 'interrupt'
-        ) {
-          return
-        }
-        const opened = await gateway.openInterruptBatch({
-          threadId: chunk.threadId,
-          interruptedRunId: chunk.runId,
-          descriptors: chunk.outcome.interrupts,
-          bindings: [],
-        })
-        return {
-          ...chunk,
-          outcome: {
-            ...chunk.outcome,
-            interrupts: chunk.outcome.interrupts.map((interrupt) => {
-              const raw = interrupt.metadata?.['tanstack:interruptBinding']
-              if (
-                raw === null ||
-                typeof raw !== 'object' ||
-                Array.isArray(raw)
-              ) {
-                throw new Error('Expected a core interrupt binding.')
-              }
-              return {
-                ...interrupt,
-                metadata: {
-                  ...interrupt.metadata,
-                  'tanstack:interruptBinding': {
-                    ...Object.fromEntries(Object.entries(raw)),
-                    interruptedRunId: chunk.runId,
-                    generation: opened.generation,
-                  },
-                },
-              }
-            }),
-          },
-        }
-      },
-    })
+    // The ephemeral server path stamps the interrupt binding with
+    // interruptedRunId + generation 0 (no persistence gateway involved).
     const emitted: Array<StreamChunk> = []
     for await (const chunk of chat({
       adapter,
@@ -280,7 +208,6 @@ describe('InterruptManager hydration', () => {
       tools: [tools[1]],
       runId: 'core-run',
       threadId: 'core-thread',
-      middleware: [persistence],
     })) {
       emitted.push(chunk)
     }
@@ -322,7 +249,7 @@ describe('InterruptManager hydration', () => {
     manager.hydrate({
       threadId: 'core-thread',
       interruptedRunId: 'core-run',
-      generation: 1,
+      generation: 0,
       interrupts: terminal.outcome.interrupts,
     })
     // A correctly-correlated client-tool item is internal only â€” not public.
@@ -331,7 +258,7 @@ describe('InterruptManager hydration', () => {
     manager.hydrate({
       threadId: 'core-thread',
       interruptedRunId: 'core-run',
-      generation: 1,
+      generation: 0,
       interrupts: [
         {
           ...interrupt,
@@ -674,7 +601,7 @@ describe('InterruptManager transactions', () => {
     ])
   })
 
-  it('retries the exact frozen batch only for retryable failures and recovers conflicts', async () => {
+  it('retries the exact frozen batch only for retryable failures', async () => {
     const retryable = {
       scope: 'batch' as const,
       code: 'transport' as const,
@@ -690,8 +617,7 @@ describe('InterruptManager transactions', () => {
       .fn(async (_submission: InterruptManagerSubmission) => undefined)
       .mockRejectedValueOnce({ errors: [retryable] })
       .mockResolvedValue(undefined)
-    const recover = vi.fn(async () => undefined)
-    const manager = new InterruptManager({ submit, recover })
+    const manager = new InterruptManager({ submit })
     manager.hydrate({
       threadId: 'thread-1',
       interruptedRunId: 'run-1',
@@ -712,33 +638,6 @@ describe('InterruptManager transactions', () => {
     manager.getInterrupts()[0]?.clearResolution()
     manager.retry()
     expect(submit).toHaveBeenCalledTimes(2)
-
-    const conflictSubmit = vi.fn(
-      async (_submission: InterruptManagerSubmission) => ({
-        status: 'conflict' as const,
-        authoritativeState: {
-          schemaVersion: 1 as const,
-          state: 'pending' as const,
-          threadId: 'thread-1',
-          interruptedRunId: 'run-1',
-          generation: 2,
-          pendingInterrupts: [],
-        },
-      }),
-    )
-    const conflictManager = new InterruptManager({
-      submit: conflictSubmit,
-      recover,
-    })
-    conflictManager.hydrate({
-      threadId: 'thread-1',
-      interruptedRunId: 'run-1',
-      generation: 1,
-      interrupts: [genericDescriptor('generic')],
-    })
-    conflictManager.getInterrupts()[0]?.cancel()
-    await settle()
-    expect(recover).toHaveBeenCalled()
   })
 
   it('supersedes a server batch error set without dropping local client, transport, or item errors', async () => {
@@ -991,17 +890,6 @@ describe('ChatClient native interrupts', () => {
         schemaVersion: 2,
         resumeState: { threadId: 'thread-1', runId: 'run-1' },
         pendingInterrupts: [interrupt],
-        interruptState: {
-          recoveryState: {
-            schemaVersion: 1,
-            state: 'pending',
-            threadId: 'thread-1',
-            interruptedRunId: 'run-1',
-            generation: 1,
-            pendingInterrupts: [interrupt],
-          },
-          drafts: [],
-        },
       },
     })
 
@@ -1160,133 +1048,6 @@ describe('ChatClient native interrupts', () => {
     expect(sentMessages[1]).toEqual(sentMessages[0])
   })
 
-  it('writes a raw V2 snapshot with authoritative recovery state', async () => {
-    const writes: Array<ChatResumeSnapshotV2> = []
-    const persistence: ChatServerPersistence = {
-      getItem: () => undefined,
-      setItem: (_id, value) => {
-        if (value.schemaVersion === 2) writes.push(value)
-      },
-      removeItem: () => undefined,
-    }
-    const binding: InterruptBinding = {
-      kind: 'generic',
-      interruptId: 'generic-1',
-      interruptedRunId: 'run-1',
-      generation: 4,
-      responseSchemaHash: 'none',
-    }
-    const connection: ConnectConnectionAdapter = {
-      async *connect(_messages, _data, _signal, context) {
-        binding.interruptedRunId = context?.runId ?? 'run-1'
-        yield {
-          type: EventType.RUN_FINISHED,
-          threadId: context?.threadId ?? 'thread-1',
-          runId: binding.interruptedRunId,
-          timestamp: Date.now(),
-          outcome: {
-            type: 'interrupt',
-            interrupts: [descriptor(binding)],
-          },
-        }
-      },
-    }
-    const client = new ChatClient({
-      connection,
-      threadId: 'thread-1',
-      persistence: { server: persistence },
-    })
-
-    await client.sendMessage('start')
-
-    expect(writes.at(-1)).toEqual({
-      schemaVersion: 2,
-      resumeState: {
-        threadId: 'thread-1',
-        runId: binding.interruptedRunId,
-      },
-      pendingInterrupts: [descriptor(binding)],
-      interruptState: {
-        recoveryState: {
-          schemaVersion: 1,
-          state: 'pending',
-          threadId: 'thread-1',
-          interruptedRunId: binding.interruptedRunId,
-          generation: 4,
-          pendingInterrupts: [descriptor(binding)],
-        },
-        drafts: [],
-      },
-    })
-    expect(JSON.parse(JSON.stringify(writes.at(-1)))).toEqual(writes.at(-1))
-  })
-
-  it.skip('hydrates V2 drafts immediately before reconciling authoritative state', async () => {
-    const first = genericDescriptor('first')
-    const second = genericDescriptor('second')
-    const connect = vi.fn(async function* () {})
-    let releaseRecovery: ((state: InterruptRecoveryStateV1) => void) | undefined
-    const recovery = new Promise<InterruptRecoveryStateV1>((resolve) => {
-      releaseRecovery = resolve
-    })
-    const loadInterruptState = vi.fn(() => recovery)
-    const client = new ChatClient({
-      connection: { connect, loadInterruptState },
-      initialResumeSnapshot: {
-        schemaVersion: 2,
-        resumeState: { threadId: 'thread-1', runId: 'run-1' },
-        pendingInterrupts: [first, second],
-        interruptState: {
-          recoveryState: {
-            schemaVersion: 1,
-            state: 'pending',
-            threadId: 'thread-1',
-            interruptedRunId: 'run-1',
-            generation: 1,
-            pendingInterrupts: [first, second],
-          },
-          drafts: [
-            {
-              interruptId: 'first',
-              response: {
-                interruptId: 'first',
-                status: 'resolved',
-                payload: { answer: 42 },
-              },
-              status: 'staged',
-            },
-          ],
-        },
-      },
-    })
-
-    expect(client.getInterrupts().map((item) => item.status)).toEqual([
-      'staged',
-      'pending',
-    ])
-    releaseRecovery?.({
-      schemaVersion: 1,
-      state: 'pending',
-      threadId: 'thread-1',
-      interruptedRunId: 'run-1',
-      generation: 1,
-      pendingInterrupts: [first, second],
-    })
-    await settle()
-    await settle()
-    expect(client.getInterrupts()).toHaveLength(2)
-    expect(client.getInterrupts().map((item) => item.status)).toEqual([
-      'staged',
-      'pending',
-    ])
-    expect(loadInterruptState).toHaveBeenCalledWith({
-      threadId: 'thread-1',
-      interruptedRunId: 'run-1',
-      knownGeneration: 1,
-    })
-    expect(connect).not.toHaveBeenCalled()
-  })
-
   it('hydrates V2 fallback descriptors when recovery is unavailable', () => {
     const fallback = genericDescriptor('fallback')
     const malformed = JSON.parse(
@@ -1403,164 +1164,4 @@ describe('ChatClient native interrupts', () => {
     })
   })
 
-  it('replays a persisted committed winner through an explicit continuation loader', async () => {
-    const connect = vi.fn(async function* () {})
-    const continuationLoader = vi.fn(async function* (runId: string) {
-      yield {
-        type: EventType.RUN_FINISHED as const,
-        threadId: 'thread-1',
-        runId,
-        timestamp: Date.now(),
-        outcome: { type: 'success' as const },
-      }
-    })
-    const client = new ChatClient({
-      connection: { connect },
-      continuationLoader,
-      initialResumeSnapshot: {
-        schemaVersion: 2,
-        resumeState: { threadId: 'thread-1', runId: 'interrupted-run' },
-        pendingInterrupts: [],
-        interruptState: {
-          recoveryState: {
-            schemaVersion: 1,
-            state: 'committed',
-            threadId: 'thread-1',
-            interruptedRunId: 'interrupted-run',
-            generation: 1,
-            pendingInterrupts: [],
-            committed: {
-              fingerprint: 'winner',
-              continuationRunId: 'winner-run',
-              committedAt: '2026-07-13T00:00:00.000Z',
-            },
-          },
-          drafts: [],
-        },
-      },
-    })
-
-    await vi.waitFor(() =>
-      expect(continuationLoader).toHaveBeenCalledWith('winner-run'),
-    )
-    await vi.waitFor(() => expect(client.getResumeState()).toBeNull())
-    expect(connect).not.toHaveBeenCalled()
-  })
-
-  it('reports recovery-unavailable when a committed winner cannot be joined', async () => {
-    const client = new ChatClient({
-      connection: { async *connect() {} },
-      initialResumeSnapshot: {
-        schemaVersion: 2,
-        resumeState: { threadId: 'thread-1', runId: 'interrupted-run' },
-        pendingInterrupts: [],
-        interruptState: {
-          recoveryState: {
-            schemaVersion: 1,
-            state: 'committed',
-            threadId: 'thread-1',
-            interruptedRunId: 'interrupted-run',
-            generation: 1,
-            pendingInterrupts: [],
-            committed: {
-              fingerprint: 'winner',
-              continuationRunId: 'winner-run',
-              committedAt: '2026-07-13T00:00:00.000Z',
-            },
-          },
-          drafts: [],
-        },
-      },
-    })
-
-    await vi.waitFor(() =>
-      expect(client.getInterruptState().interruptErrors[0]?.code).toBe(
-        'recovery-unavailable',
-      ),
-    )
-  })
-
-  it.skip('loads authoritative pending state only through the explicit recovery operation', async () => {
-    const original = genericDescriptor('generic-1')
-    const replacement = descriptor({
-      kind: 'generic',
-      interruptId: 'generic-2',
-      interruptedRunId: 'run-1',
-      generation: 2,
-      responseSchemaHash: 'none',
-    })
-    let interruptedRunId = 'run-1'
-    let calls = 0
-    const loadInterruptState = vi.fn(async () => ({
-      schemaVersion: 1 as const,
-      state: 'pending' as const,
-      threadId: 'thread-1',
-      interruptedRunId,
-      generation: 2,
-      pendingInterrupts: [replacement],
-    }))
-    const connection: ConnectConnectionAdapter = {
-      async *connect(_messages, _data, _signal, context) {
-        calls++
-        if (calls === 1) {
-          interruptedRunId = context?.runId ?? interruptedRunId
-          const metadata = original.metadata?.['tanstack:interruptBinding']
-          if (metadata && typeof metadata === 'object') {
-            metadata.interruptedRunId = interruptedRunId
-          }
-          const nextMetadata =
-            replacement.metadata?.['tanstack:interruptBinding']
-          if (nextMetadata && typeof nextMetadata === 'object') {
-            nextMetadata.interruptedRunId = interruptedRunId
-          }
-          yield {
-            type: EventType.RUN_FINISHED,
-            threadId: 'thread-1',
-            runId: interruptedRunId,
-            timestamp: Date.now(),
-            outcome: { type: 'interrupt', interrupts: [original] },
-          }
-          return
-        }
-        yield {
-          type: EventType.RUN_ERROR,
-          threadId: 'thread-1',
-          runId: context?.runId ?? 'loser-run',
-          timestamp: Date.now(),
-          message: 'stale',
-          code: 'stale',
-          'tanstack:interruptErrors': [
-            {
-              scope: 'batch',
-              code: 'stale',
-              message: 'stale generation',
-              source: 'server',
-              retryable: false,
-              interruptIds: ['generic-1'],
-              threadId: 'thread-1',
-              interruptedRunId,
-              generation: 1,
-            },
-          ],
-        }
-      },
-      loadInterruptState,
-    }
-    const client = new ChatClient({ connection, threadId: 'thread-1' })
-
-    await client.sendMessage('start')
-    client.getInterrupts()[0]?.cancel()
-
-    await vi.waitFor(() =>
-      expect(client.getInterrupts()[0]).toMatchObject({
-        id: 'generic-2',
-        generation: 2,
-      }),
-    )
-    expect(loadInterruptState).toHaveBeenCalledWith({
-      threadId: 'thread-1',
-      interruptedRunId,
-      knownGeneration: 1,
-    })
-  })
 })

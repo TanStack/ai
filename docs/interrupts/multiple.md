@@ -109,12 +109,10 @@ cancel.
 ## Errors and retry
 
 Each item exposes `errors` (payload, edited-args, output, expiry, binding).
-Root `interruptErrors` reports batch, transport, persistence, stale-generation,
-conflict, and recovery failures. `canResolve` is `false` when an item is
-expired, submitting, or quarantined for recovery.
+Root `interruptErrors` reports batch, transport, and validation failures.
+`canResolve` is `false` when an item is expired or submitting.
 
 A failed candidate doesn't erase the last valid staged response — fix the form
 and call `resolveInterrupt` again, `clearResolution()` to start that item over,
-or `retryInterrupts()` after a *retryable* submission failure. Stale and
-conflict errors are non-retryable and need authoritative recovery (an optional
-persistence-layer capability).
+or `retryInterrupts()` after a *retryable* submission failure. Stale and expired
+errors are non-retryable — start a fresh run to get a new interrupt batch.

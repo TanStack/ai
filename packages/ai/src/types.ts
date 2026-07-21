@@ -5,10 +5,7 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
-import type {
-  InterruptRecoveryStateV1,
-  InterruptSubmissionError,
-} from './interrupts'
+import type { InterruptSubmissionError } from './interrupts'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -1149,8 +1146,6 @@ export interface RunErrorEvent extends AGUIRunErrorEvent {
   model?: string
   /** Exhaustive TanStack interrupt submission failures for this run. */
   'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
-  /** Authoritative interrupt state returned with stale/conflicting submissions. */
-  'tanstack:interruptRecovery'?: InterruptRecoveryStateV1
   /**
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.

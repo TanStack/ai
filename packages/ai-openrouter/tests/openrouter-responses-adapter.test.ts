@@ -1,21 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  EventType,
-  InterruptPersistenceCapability,
-  chat,
-  defineChatMiddleware,
-  provideInterruptPersistence,
-} from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
-import type {
-  InterruptPersistenceGateway,
-  StreamChunk,
-  Tool,
-} from '@tanstack/ai'
+import type { StreamChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 let mockSend: any
@@ -43,43 +33,6 @@ const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
 }
-
-const testInterruptGateway: InterruptPersistenceGateway = {
-  openInterruptBatch: async (input) => ({
-    generation: 1,
-    descriptors: input.descriptors,
-  }),
-  commitInterruptResolutions: async (input) => ({
-    status: 'committed',
-    continuationRunId: input.continuationRunId,
-  }),
-  getInterruptRecoveryState: async (input) => ({
-    schemaVersion: 1,
-    state: 'missing',
-    threadId: input.threadId,
-    interruptedRunId: input.interruptedRunId,
-    generation: input.knownGeneration,
-    pendingInterrupts: [],
-  }),
-}
-
-const testInterruptPersistence = defineChatMiddleware({
-  name: 'openrouter-test-interrupt-persistence',
-  provides: [InterruptPersistenceCapability],
-  setup(ctx) {
-    provideInterruptPersistence(ctx, testInterruptGateway)
-  },
-  async onChunk(_ctx, chunk) {
-    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
-      await testInterruptGateway.openInterruptBatch({
-        threadId: chunk.threadId,
-        interruptedRunId: chunk.runId,
-        descriptors: chunk.outcome.interrupts,
-        bindings: [],
-      })
-    }
-  },
-})
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {
@@ -737,9 +690,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     for await (const c of chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
-      tools: [weatherTool],
-      middleware: [testInterruptPersistence],
-    })) {
+      tools: [weatherTool],    })) {
       chunks.push(c)
     }
 

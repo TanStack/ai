@@ -32,12 +32,11 @@ describe('injectChat', () => {
       expect(result.pendingInterrupts()).toBe(result.interrupts())
       expect(result.interrupts()[0]).toMatchObject({
         id: 'staged-interrupt',
-        status: 'staged',
+        status: 'pending',
       })
       expect(result.interrupts()[1]).toMatchObject({
         id: 'invalid-interrupt',
-        status: 'error',
-        error: { code: 'invalid-payload' },
+        status: 'pending',
       })
       expect(result.interruptErrors()).toEqual([])
       expect(result.resuming()).toBe(false)

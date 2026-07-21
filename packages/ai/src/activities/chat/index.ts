@@ -11,7 +11,6 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
-import { getInterruptPersistence } from '../../interrupts'
 import {
   InterruptResumeValidationError,
   readUnopenedInterruptBinding,
@@ -48,7 +47,6 @@ import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
 import type {
   InterruptBinding,
-  InterruptRecoveryStateV1,
   InterruptSubmissionError,
   ToolApprovalResolution,
 } from '../../interrupts'
@@ -127,7 +125,6 @@ const interruptBindingMetadataKey = 'tanstack:interruptBinding'
 interface StructuralInterruptFailure {
   error: Error
   errors: ReadonlyArray<InterruptSubmissionError>
-  recovery?: InterruptRecoveryStateV1
 }
 
 function isInterruptSubmissionError(
@@ -172,28 +169,6 @@ function isInterruptSubmissionError(
   )
 }
 
-function isInterruptRecoveryState(
-  value: unknown,
-): value is InterruptRecoveryStateV1 {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    'schemaVersion' in value &&
-    value.schemaVersion === 1 &&
-    'state' in value &&
-    typeof value.state === 'string' &&
-    'threadId' in value &&
-    typeof value.threadId === 'string' &&
-    'interruptedRunId' in value &&
-    typeof value.interruptedRunId === 'string' &&
-    'generation' in value &&
-    typeof value.generation === 'number' &&
-    'pendingInterrupts' in value &&
-    Array.isArray(value.pendingInterrupts)
-  )
-}
-
 function structuralInterruptFailure(
   error: unknown,
 ): StructuralInterruptFailure | undefined {
@@ -207,14 +182,9 @@ function structuralInterruptFailure(
   ) {
     return undefined
   }
-  const recovery =
-    'recovery' in error && isInterruptRecoveryState(error.recovery)
-      ? error.recovery
-      : undefined
   return {
     error,
     errors: error.errors,
-    ...(recovery !== undefined ? { recovery } : {}),
   }
 }
 
@@ -2204,7 +2174,6 @@ class TextEngine<
     message: string
     code: string
     errors?: ReadonlyArray<InterruptSubmissionError>
-    recovery?: InterruptRecoveryStateV1
   } {
     const structured = structuralInterruptFailure(error)
     if (structured) {
@@ -2212,9 +2181,6 @@ class TextEngine<
         message: structured.error.message,
         code: structured.errors[0]?.code ?? 'server',
         errors: structured.errors,
-        ...(structured.recovery !== undefined
-          ? { recovery: structured.recovery }
-          : {}),
       }
     }
     if (error && typeof error === 'object' && 'errors' in error) {
@@ -2256,9 +2222,6 @@ class TextEngine<
       ...(failure.errors !== undefined
         ? { 'tanstack:interruptErrors': failure.errors }
         : {}),
-      ...(failure.recovery !== undefined
-        ? { 'tanstack:interruptRecovery': failure.recovery }
-        : {}),
     }
   }
 
@@ -2279,14 +2242,9 @@ class TextEngine<
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
   ): AsyncGenerator<StreamChunk, boolean, void> {
-    let terminal = this.buildInterruptFinishedChunk(
-      finishEvent,
-      approvals,
-      clientRequests,
+    const terminal = this.completeEphemeralInterruptBindings(
+      this.buildInterruptFinishedChunk(finishEvent, approvals, clientRequests),
     )
-    if (!getInterruptPersistence(this.middlewareCtx, { optional: true })) {
-      terminal = this.completeEphemeralInterruptBindings(terminal)
-    }
     let terminalOutputs: Array<StreamChunk>
     try {
       terminalOutputs = await this.middlewareRunner.runOnChunk(
@@ -3168,10 +3126,7 @@ class TextEngine<
   private async applyEphemeralInterruptResume(
     config: ChatMiddlewareConfig,
   ): Promise<void> {
-    if (
-      (config.resume?.length ?? 0) === 0 ||
-      getInterruptPersistence(this.middlewareCtx, { optional: true })
-    ) {
+    if ((config.resume?.length ?? 0) === 0) {
       return
     }
 

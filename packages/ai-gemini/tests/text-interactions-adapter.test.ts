@@ -1,16 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import {
-  InterruptPersistenceCapability,
-  chat,
-  defineChatMiddleware,
-  provideInterruptPersistence,
-} from '@tanstack/ai'
-import type {
-  InterruptPersistenceGateway,
-  StreamChunk,
-  Tool,
-} from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
+import type { StreamChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
 import type {
@@ -61,43 +52,6 @@ const collectChunks = async (stream: AsyncIterable<StreamChunk>) => {
   }
   return chunks
 }
-
-const testInterruptGateway: InterruptPersistenceGateway = {
-  openInterruptBatch: async (input) => ({
-    generation: 1,
-    descriptors: input.descriptors,
-  }),
-  commitInterruptResolutions: async (input) => ({
-    status: 'committed',
-    continuationRunId: input.continuationRunId,
-  }),
-  getInterruptRecoveryState: async (input) => ({
-    schemaVersion: 1,
-    state: 'missing',
-    threadId: input.threadId,
-    interruptedRunId: input.interruptedRunId,
-    generation: input.knownGeneration,
-    pendingInterrupts: [],
-  }),
-}
-
-const testInterruptPersistence = defineChatMiddleware({
-  name: 'gemini-test-interrupt-persistence',
-  provides: [InterruptPersistenceCapability],
-  setup(ctx) {
-    provideInterruptPersistence(ctx, testInterruptGateway)
-  },
-  async onChunk(_ctx, chunk) {
-    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
-      await testInterruptGateway.openInterruptBatch({
-        threadId: chunk.threadId,
-        interruptedRunId: chunk.runId,
-        descriptors: chunk.outcome.interrupts,
-        bindings: [],
-      })
-    }
-  },
-})
 
 describe('GeminiTextInteractionsAdapter', () => {
   beforeEach(() => {
@@ -461,9 +415,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
-        tools: [weatherTool],
-        middleware: [testInterruptPersistence],
-      }),
+        tools: [weatherTool],      }),
     )
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
@@ -539,9 +491,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
-        middleware: [testInterruptPersistence],
-      }),
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],      }),
     )
 
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START')
@@ -607,9 +557,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in London?' }],
-        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
-        middleware: [testInterruptPersistence],
-      }),
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],      }),
     )
 
     // No parse-failure RUN_ERROR, and the completed key survives truncation.

@@ -174,17 +174,7 @@ export class ChatPersistenceController<
     this.desiredResumeSnapshot = snapshot
       ? {
           ...(snapshot.schemaVersion === 2
-            ? {
-                schemaVersion: 2 as const,
-                ...(snapshot.interruptState !== undefined
-                  ? {
-                      interruptState: {
-                        recoveryState: snapshot.interruptState.recoveryState,
-                        drafts: [...snapshot.interruptState.drafts],
-                      },
-                    }
-                  : {}),
-              }
+            ? { schemaVersion: 2 as const }
             : snapshot.schemaVersion === 1
               ? { schemaVersion: 1 as const }
               : {}),

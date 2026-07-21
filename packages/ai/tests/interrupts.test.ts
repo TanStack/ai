@@ -13,10 +13,7 @@ import {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from '../src/interrupt-serialization'
-import {
-  InterruptPersistenceCapability,
-  canonicalizeInterruptResolutions,
-} from '../src/interrupts'
+import { canonicalizeInterruptResolutions } from '../src/interrupts'
 import type {
   InterruptRecoveryStateV1,
   InterruptSubmissionError,
@@ -287,9 +284,6 @@ describe('core interrupt correlation and persistence seam', () => {
 
     expect(recovery.committed.continuationRunId).toBe('run-new')
     expect(error.interruptedRunId).toBe('run-old')
-    expect(InterruptPersistenceCapability.capabilityName).toBe(
-      'interrupt-persistence',
-    )
   })
 
   it('canonicalizes and deeply freezes response batches in core', () => {

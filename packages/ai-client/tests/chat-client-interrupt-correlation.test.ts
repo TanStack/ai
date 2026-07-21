@@ -68,17 +68,6 @@ describe('ChatClient interrupt error correlation', () => {
         schemaVersion: 2,
         resumeState: { threadId: 'thread-1', runId: interruptedRunId },
         pendingInterrupts: [pendingInterrupt],
-        interruptState: {
-          recoveryState: {
-            schemaVersion: 1,
-            state: 'pending',
-            threadId: 'thread-1',
-            interruptedRunId,
-            generation: 1,
-            pendingInterrupts: [pendingInterrupt],
-          },
-          drafts: [],
-        },
       },
     })
     const interrupt = client.getInterrupts()[0]

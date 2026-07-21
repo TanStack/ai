@@ -977,22 +977,6 @@ describe('ChatClient resume', () => {
           reason: 'client_tool_input',
         }),
       ],
-      interruptState: {
-        recoveryState: {
-          schemaVersion: 1,
-          state: 'pending',
-          threadId: 'thread-1',
-          interruptedRunId: client.getResumeState()?.runId,
-          generation: 0,
-          pendingInterrupts: [
-            expect.objectContaining({
-              id: 'interrupt-1',
-              reason: 'client_tool_input',
-            }),
-          ],
-        },
-        drafts: [],
-      },
     })
     expect(onResumeStateChange).toHaveBeenCalled()
   })

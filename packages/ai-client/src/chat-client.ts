@@ -12,16 +12,12 @@ import {
   getChunkRunId,
   normalizeConnectionAdapter,
 } from './connection-adapters'
-import { parseInterruptRecoveryState } from './interrupt-recovery-parse'
 import { ChatPersistenceController } from './chat-persistence-controller'
 import { ClearedStreamTracker } from './cleared-stream-tracker'
 import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
-  InterruptCommitResult,
-  InterruptRecoveryQuery,
-  InterruptRecoveryStateV1,
   InterruptSubmissionError,
   ModelMessage,
   RunAgentResumeItem,
@@ -44,7 +40,6 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatContinuationLoader,
   ChatFetcher,
   ChatInterrupt,
   ChatInterruptState,
@@ -54,7 +49,6 @@ import type {
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
-  PersistedInterruptDraft,
   QueueBusyReason,
   QueueOption,
   QueueStrategy,
@@ -200,31 +194,6 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
   }
 }
 
-function replayContinuationRunId(chunk: StreamChunk): string | undefined {
-  if (chunk.type !== 'RUN_FINISHED' || !('result' in chunk)) return undefined
-  const result: unknown = chunk.result
-  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
-    return undefined
-  }
-  if (!('replayed' in result) || result.replayed !== true) return undefined
-  return 'continuationRunId' in result &&
-    typeof result.continuationRunId === 'string'
-    ? result.continuationRunId
-    : undefined
-}
-
-interface ParsedPersistedInterruptState {
-  recoveryState: InterruptRecoveryStateV1
-  drafts: ReadonlyArray<PersistedInterruptDraft>
-}
-
-interface PersistedRecoveryRequest {
-  query: InterruptRecoveryQuery
-  drafts: ReadonlyArray<PersistedInterruptDraft>
-  expectedGeneration?: number
-  expectedInterruptIds: ReadonlyArray<string>
-}
-
 function readResumeState(
   snapshot: ChatResumeSnapshot,
 ): ChatResumeState | undefined {
@@ -252,58 +221,6 @@ function readResumeState(
   return { threadId: resumeState.threadId, runId: resumeState.runId }
 }
 
-function readPersistedInterruptState(
-  snapshot: ChatResumeSnapshot,
-): ParsedPersistedInterruptState | undefined {
-  if (snapshot.schemaVersion !== 2) {
-    return undefined
-  }
-  const interruptStateValue: unknown = snapshot.interruptState
-  if (
-    interruptStateValue === undefined ||
-    interruptStateValue === null ||
-    typeof interruptStateValue !== 'object' ||
-    Array.isArray(interruptStateValue)
-  ) {
-    return undefined
-  }
-  const interruptState = interruptStateValue as Record<string, unknown>
-  let recoveryState: InterruptRecoveryStateV1
-  try {
-    recoveryState = parseInterruptRecoveryState(interruptState.recoveryState)
-  } catch {
-    return undefined
-  }
-  const drafts = interruptState.drafts
-  if (
-    recoveryState.threadId !== snapshot.resumeState.threadId ||
-    recoveryState.interruptedRunId !== snapshot.resumeState.runId ||
-    !Array.isArray(drafts)
-  ) {
-    return undefined
-  }
-  if (
-    !drafts.every(
-      (draft) =>
-        draft !== null &&
-        typeof draft === 'object' &&
-        typeof draft.interruptId === 'string' &&
-        ['pending', 'validating', 'staged', 'submitting', 'error'].includes(
-          draft.status,
-        ) &&
-        'response' in draft &&
-        (draft.error === undefined ||
-          (draft.error !== null && typeof draft.error === 'object')),
-    )
-  ) {
-    return undefined
-  }
-  return {
-    recoveryState,
-    drafts: drafts as ReadonlyArray<PersistedInterruptDraft>,
-  }
-}
-
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -325,19 +242,11 @@ export class ChatClient<
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
   private readonly interruptManager: InterruptManager<TTools>
-  private readonly continuationLoader: ChatContinuationLoader | undefined
   private activeInterruptSubmission: InterruptManagerSubmission | undefined
-  private pendingInterruptReplayRunId: string | undefined
   private interruptSubmissionFailure:
-    | {
-        errors: ReadonlyArray<InterruptSubmissionError>
-        recovery?: InterruptRecoveryStateV1
-      }
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
     | undefined
   private readonly joinedRunWaiters = new Map<string, () => void>()
-  private readonly recoveryReady: boolean
-  private pendingInitialRecovery: InterruptRecoveryStateV1 | undefined
-  private pendingPersistedRecovery: PersistedRecoveryRequest | undefined
   // When set, the next streamResponse() continues this interrupted run instead
   // of starting a fresh run (consumed once).
   private pendingResumeParentRunId: string | null = null
@@ -494,10 +403,8 @@ export class ChatClient<
     this.interruptManager = new InterruptManager({
       ...(options.tools !== undefined ? { tools: options.tools } : {}),
       submit: (submission) => this.submitInterruptBatch(submission),
-      recover: (state) => this.recoverInterrupts(state),
       onChange: () => this.notifyResumeStateChange(),
     })
-    this.continuationLoader = options.continuationLoader
 
     this.persistenceController = new ChatPersistenceController({
       chatId: this.uniqueId,
@@ -738,17 +645,6 @@ export class ChatClient<
     if (!options.initialResumeSnapshot) {
       this.persistenceController.hydrateResumeSnapshot(storedResumeSnapshot)
     }
-    this.recoveryReady = true
-    if (this.pendingInitialRecovery !== undefined) {
-      const recovery = this.pendingInitialRecovery
-      this.pendingInitialRecovery = undefined
-      this.startInitialRecovery(recovery)
-    }
-    if (this.pendingPersistedRecovery !== undefined) {
-      const recovery = this.pendingPersistedRecovery
-      this.pendingPersistedRecovery = undefined
-      this.startPersistedRecovery(recovery)
-    }
   }
 
   /**
@@ -777,39 +673,6 @@ export class ChatClient<
       return
     }
     this.lastResume = resumeState
-    const persistedState = readPersistedInterruptState(snapshot)
-    if (persistedState !== undefined) {
-      const { recoveryState, drafts } = persistedState
-      if (recoveryState.state === 'pending') {
-        this.interruptManager.hydrate({
-          threadId: recoveryState.threadId,
-          interruptedRunId: recoveryState.interruptedRunId,
-          generation: recoveryState.generation,
-          interrupts: recoveryState.pendingInterrupts,
-        })
-        this.interruptManager.restorePersistedDrafts(drafts)
-        this.schedulePersistedRecovery({
-          query: {
-            threadId: recoveryState.threadId,
-            interruptedRunId: recoveryState.interruptedRunId,
-            knownGeneration: recoveryState.generation,
-          },
-          drafts,
-          expectedGeneration: recoveryState.generation,
-          expectedInterruptIds: recoveryState.pendingInterrupts.map(
-            (interrupt) => interrupt.id,
-          ),
-        })
-        return
-      }
-      this.interruptManager.reset()
-      if (this.recoveryReady) {
-        this.startInitialRecovery(recoveryState)
-      } else {
-        this.pendingInitialRecovery = recoveryState
-      }
-      return
-    }
     const pendingInterrupts = Array.isArray(snapshot.pendingInterrupts)
       ? snapshot.pendingInterrupts
       : []
@@ -824,27 +687,6 @@ export class ChatClient<
       generation,
       interrupts: pendingInterrupts,
     })
-    this.schedulePersistedRecovery({
-      query: {
-        threadId: resumeState.threadId,
-        interruptedRunId: resumeState.runId,
-        knownGeneration: generation,
-      },
-      drafts: [],
-      expectedGeneration: generation,
-      expectedInterruptIds: pendingInterrupts.map((interrupt) => interrupt.id),
-    })
-  }
-
-  private schedulePersistedRecovery(request: PersistedRecoveryRequest): void {
-    if (this.connection.loadInterruptState === undefined) {
-      return
-    }
-    if (this.recoveryReady) {
-      this.startPersistedRecovery(request)
-    } else {
-      this.pendingPersistedRecovery = request
-    }
   }
 
   mountDevtools(): void {
@@ -919,13 +761,8 @@ export class ChatClient<
       return
     }
 
-    if (this.activeInterruptSubmission) {
-      const continuationRunId = replayContinuationRunId(chunk)
-      if (continuationRunId !== undefined) {
-        this.pendingInterruptReplayRunId = continuationRunId
-        return
-      }
-      if (chunk.type === 'RUN_ERROR') return
+    if (this.activeInterruptSubmission && chunk.type === 'RUN_ERROR') {
+      return
     }
     const runId = getChunkRunId(chunk)
     const threadId =
@@ -1041,9 +878,8 @@ export class ChatClient<
 
   private async submitInterruptBatch(
     submission: InterruptManagerSubmission,
-  ): Promise<InterruptCommitResult | void> {
+  ): Promise<void> {
     this.activeInterruptSubmission = submission
-    this.pendingInterruptReplayRunId = undefined
     this.interruptSubmissionFailure = undefined
     const resumed = await this.resumeInterruptsUnsafe(
       [...submission.resolutions],
@@ -1054,29 +890,9 @@ export class ChatClient<
     ).finally(() => {
       this.activeInterruptSubmission = undefined
     })
-    const replayRunId = this.takeInterruptReplayRunId()
     const failure = this.takeInterruptSubmissionFailure()
-    if (failure?.recovery !== undefined) {
-      return { status: 'conflict', authoritativeState: failure.recovery }
-    }
     if (failure !== undefined) {
       throw { errors: failure.errors }
-    }
-    if (replayRunId !== undefined) {
-      await this.joinContinuationRun(replayRunId, {
-        schemaVersion: 1,
-        state: 'committed',
-        threadId: submission.threadId,
-        interruptedRunId: submission.interruptedRunId,
-        generation: submission.generation,
-        pendingInterrupts: [],
-        committed: {
-          fingerprint: submission.fingerprint,
-          continuationRunId: replayRunId,
-          committedAt: new Date().toISOString(),
-        },
-      })
-      return { status: 'replayed', continuationRunId: replayRunId }
     }
     if (!resumed) {
       throw new Error('Interrupt continuation could not be started.')
@@ -1084,208 +900,11 @@ export class ChatClient<
   }
 
   private takeInterruptSubmissionFailure():
-    | {
-        errors: ReadonlyArray<InterruptSubmissionError>
-        recovery?: InterruptRecoveryStateV1
-      }
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
     | undefined {
     const failure = this.interruptSubmissionFailure
     this.interruptSubmissionFailure = undefined
     return failure
-  }
-
-  private takeInterruptReplayRunId(): string | undefined {
-    const runId = this.pendingInterruptReplayRunId
-    this.pendingInterruptReplayRunId = undefined
-    return runId
-  }
-
-  private async recoverInterrupts(
-    authoritativeState?: InterruptRecoveryStateV1,
-  ): Promise<void> {
-    let state = authoritativeState
-    if (state === undefined) {
-      const current = this.interruptManager.getRecoveryState()
-      if (
-        current === undefined ||
-        this.connection.loadInterruptState === undefined
-      ) {
-        this.interruptManager.reportRecoveryError(
-          'recovery-unavailable',
-          'Authoritative interrupt recovery is unavailable for this connection.',
-          current,
-        )
-        return
-      }
-      try {
-        state = await this.connection.loadInterruptState({
-          threadId: current.threadId,
-          interruptedRunId: current.interruptedRunId,
-          knownGeneration: current.generation,
-        })
-      } catch {
-        this.interruptManager.reportRecoveryError(
-          'recovery-unavailable',
-          'Authoritative interrupt recovery failed.',
-          current,
-        )
-        return
-      }
-    }
-
-    if (state.state === 'pending') {
-      this.lastResume = {
-        threadId: state.threadId,
-        runId: state.interruptedRunId,
-      }
-      this.interruptManager.hydrate({
-        threadId: state.threadId,
-        interruptedRunId: state.interruptedRunId,
-        generation: state.generation,
-        interrupts: state.pendingInterrupts,
-      })
-      return
-    }
-
-    if (state.state === 'committed' || state.state === 'legacy-committed') {
-      const continuationRunId = state.committed?.continuationRunId
-      if (continuationRunId === undefined) {
-        this.interruptManager.reportRecoveryError(
-          'recovery-unavailable',
-          'The committed interrupt state has no continuation run to join.',
-          state,
-        )
-        return
-      }
-      await this.joinContinuationRun(continuationRunId, state, {
-        preserveRootErrors: this.interruptManager
-          .getInterruptErrors()
-          .some((error) => error.code === 'conflict'),
-      })
-      return
-    }
-
-    this.interruptManager.reportRecoveryError(
-      state.state === 'expired' ? 'expired' : 'stale',
-      state.state === 'expired'
-        ? 'The interrupt batch has expired.'
-        : 'The interrupt batch no longer exists.',
-      state,
-    )
-  }
-
-  private startInitialRecovery(recoveryState: InterruptRecoveryStateV1): void {
-    // Constructors cannot await replay. The structured manager error keeps an
-    // unexpected async failure observable without turning hydration into an
-    // unhandled promise rejection.
-    void this.recoverInterrupts(recoveryState).catch(() => {
-      this.interruptManager.reportRecoveryError(
-        'recovery-unavailable',
-        'Initial interrupt recovery failed.',
-        recoveryState,
-      )
-    })
-  }
-
-  private startPersistedRecovery(request: PersistedRecoveryRequest): void {
-    void this.recoverPersistedInterrupts(request).catch(() => {
-      this.interruptManager.reportRecoveryError(
-        'recovery-unavailable',
-        'Persisted interrupt recovery failed.',
-        this.persistedRecoveryErrorState(request.query),
-      )
-    })
-  }
-
-  private async recoverPersistedInterrupts(
-    request: PersistedRecoveryRequest,
-  ): Promise<void> {
-    if (this.connection.loadInterruptState === undefined) {
-      this.interruptManager.reportRecoveryError(
-        'recovery-unavailable',
-        'Authoritative interrupt recovery is unavailable for this connection.',
-        this.persistedRecoveryErrorState(request.query),
-      )
-      return
-    }
-
-    let state: InterruptRecoveryStateV1
-    try {
-      state = parseInterruptRecoveryState(
-        await this.connection.loadInterruptState(request.query),
-      )
-      if (
-        state.threadId !== request.query.threadId ||
-        state.interruptedRunId !== request.query.interruptedRunId
-      ) {
-        throw new TypeError('Interrupt recovery correlation did not match.')
-      }
-    } catch {
-      this.interruptManager.reportRecoveryError(
-        'recovery-unavailable',
-        'Authoritative interrupt recovery failed.',
-        this.persistedRecoveryErrorState(request.query),
-      )
-      return
-    }
-
-    await this.recoverInterrupts(state)
-    if (
-      state.state === 'pending' &&
-      request.expectedGeneration === state.generation &&
-      request.expectedInterruptIds.length === state.pendingInterrupts.length &&
-      request.expectedInterruptIds.every(
-        (id, index) => state.pendingInterrupts[index]?.id === id,
-      )
-    ) {
-      this.interruptManager.restorePersistedDrafts(request.drafts)
-    }
-  }
-
-  private persistedRecoveryErrorState(
-    query: InterruptRecoveryQuery,
-  ): InterruptRecoveryStateV1 {
-    return {
-      schemaVersion: 1,
-      state: 'missing',
-      threadId: query.threadId,
-      interruptedRunId: query.interruptedRunId,
-      generation: query.knownGeneration,
-      pendingInterrupts: [],
-    }
-  }
-
-  private async joinContinuationRun(
-    continuationRunId: string,
-    recoveryState: InterruptRecoveryStateV1,
-    options?: { preserveRootErrors?: boolean },
-  ): Promise<void> {
-    try {
-      if (this.continuationLoader !== undefined) {
-        for await (const chunk of this.continuationLoader(continuationRunId)) {
-          await this.processIncomingChunk(chunk)
-        }
-      } else {
-        this.interruptManager.reportRecoveryError(
-          'recovery-unavailable',
-          'A continuation loader is required to replay a committed continuation.',
-          recoveryState,
-        )
-        return
-      }
-    } catch {
-      this.joinedRunWaiters.delete(continuationRunId)
-      this.interruptManager.reportRecoveryError(
-        'recovery-unavailable',
-        'The committed continuation run could not be replayed.',
-        recoveryState,
-      )
-      return
-    }
-    this.lastResume = null
-    this.interruptManager.reset({
-      preserveRootErrors: options?.preserveRootErrors === true,
-    })
   }
 
   private interruptGeneration(
@@ -1351,21 +970,12 @@ export class ChatClient<
   private notifyResumeStateChange(): void {
     const resumeState = this.getResumeState()
     const pendingInterrupts = [...this.interruptManager.getDescriptors()]
-    const recoveryState = this.interruptManager.getRecoveryState()
     this.persistenceController.persistResumeSnapshot(
       resumeState
         ? {
             schemaVersion: 2,
             resumeState,
             pendingInterrupts,
-            ...(recoveryState !== undefined
-              ? {
-                  interruptState: {
-                    recoveryState,
-                    drafts: this.interruptManager.getPersistedDrafts(),
-                  },
-                }
-              : {}),
           }
         : null,
     )
@@ -1545,9 +1155,6 @@ export class ChatClient<
     ) {
       this.interruptSubmissionFailure = {
         errors: chunk['tanstack:interruptErrors'] ?? [],
-        ...(chunk['tanstack:interruptRecovery'] !== undefined
-          ? { recovery: chunk['tanstack:interruptRecovery'] }
-          : {}),
       }
     }
     if (this.connectionStatus === 'connecting') {

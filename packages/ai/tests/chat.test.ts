@@ -2,10 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
-import {
-  InterruptPersistenceCapability,
-  provideInterruptPersistence,
-} from '../src/interrupts'
 import { EventType } from '../src/types'
 import {
   chunk,
@@ -16,7 +12,6 @@ import {
   serverTool,
 } from './test-utils'
 import type { StreamChunk, Tool, UIMessage } from '../src/types'
-import type { InterruptPersistenceGateway } from '../src/interrupts'
 import type { ChatResumeToolState } from '../src/activities/chat/middleware/types'
 
 /** Lazy server tool (has execute, lazy: true). */
@@ -40,43 +35,14 @@ function expectSingleRunFinished(
   return terminals[0]!
 }
 
-function interruptPersistenceMiddleware(sequence?: Array<string>) {
-  const gateway: InterruptPersistenceGateway = {
-    openInterruptBatch: async (input) => {
-      sequence?.push('persist')
-      return { generation: 1, descriptors: input.descriptors }
-    },
-    commitInterruptResolutions: async (input) => ({
-      status: 'committed',
-      continuationRunId: input.continuationRunId,
-    }),
-    getInterruptRecoveryState: async (input) => ({
-      schemaVersion: 1,
-      state: 'missing',
-      threadId: input.threadId,
-      interruptedRunId: input.interruptedRunId,
-      generation: input.knownGeneration,
-      pendingInterrupts: [],
-    }),
-  }
+// Records the ephemeral interrupt terminal ordering (messages snapshot, then
+// optional state snapshot, then the RUN_FINISHED interrupt outcome). The
+// ephemeral path requires no persistence gateway.
+function interruptSnapshotMiddleware(sequence?: Array<string>) {
   return defineChatMiddleware({
-    name: 'test-interrupt-persistence',
-    provides: [InterruptPersistenceCapability],
-    setup(ctx) {
-      provideInterruptPersistence(ctx, gateway)
-    },
+    name: 'test-interrupt-snapshot',
     async onChunk(_ctx, value) {
-      if (
-        value.type === EventType.RUN_FINISHED &&
-        value.outcome?.type === 'interrupt'
-      ) {
-        await gateway.openInterruptBatch({
-          threadId: value.threadId,
-          interruptedRunId: value.runId,
-          descriptors: value.outcome.interrupts,
-          bindings: [],
-        })
-      } else if (value.type === EventType.MESSAGES_SNAPSHOT) {
+      if (value.type === EventType.MESSAGES_SNAPSHOT) {
         sequence?.push('messages')
       } else if (value.type === EventType.STATE_SNAPSHOT) {
         sequence?.push('state')
@@ -161,14 +127,6 @@ describe('chat()', () => {
           generation: 1,
         },
       ] as const
-      const recovery = {
-        schemaVersion: 1,
-        state: 'pending',
-        threadId: 'thread-1',
-        interruptedRunId: 'interrupted-run',
-        generation: 1,
-        pendingInterrupts: [],
-      } as const
       const validation = defineChatMiddleware({
         name: 'test-interrupt-validation-failure',
         onConfig(ctx) {
@@ -177,7 +135,6 @@ describe('chat()', () => {
           error.name = 'InterruptResumeValidationError'
           Object.defineProperties(error, {
             errors: { value: errors, enumerable: true },
-            recovery: { value: recovery, enumerable: true },
           })
           throw error
         },
@@ -207,7 +164,6 @@ describe('chat()', () => {
           runId: 'continuation-run',
           message: errors[0].message,
           'tanstack:interruptErrors': errors,
-          'tanstack:interruptRecovery': recovery,
         }),
       ])
     })
@@ -635,7 +591,7 @@ describe('chat()', () => {
       })
     })
 
-    it('persists before ordered snapshots and emits canonical bound interrupts', async () => {
+    it('emits ordered snapshots before canonical bound interrupts', async () => {
       const sequence: Array<string> = []
       const { adapter } = createMockAdapter({
         iterations: [
@@ -654,11 +610,11 @@ describe('chat()', () => {
           messages: [{ role: 'user', content: 'Search' }],
           tools: [clientTool('clientSearch')],
           state: { screen: 'search' },
-          middleware: [interruptPersistenceMiddleware(sequence)],
+          middleware: [interruptSnapshotMiddleware(sequence)],
         }) as AsyncIterable<StreamChunk>,
       )
 
-      expect(sequence).toEqual(['persist', 'messages', 'state'])
+      expect(sequence).toEqual(['messages', 'state'])
       expect(chunks.slice(-3).map((value) => value.type)).toEqual([
         EventType.MESSAGES_SNAPSHOT,
         EventType.STATE_SNAPSHOT,
@@ -696,7 +652,7 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'Search for test' }],
         tools: [clientTool('clientSearch')],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -750,7 +706,7 @@ describe('chat()', () => {
           required: ['status'],
         },
         stream: true,
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream)
@@ -813,7 +769,7 @@ describe('chat()', () => {
           serverTool('searchTools', searchExecute),
           clientTool('showNotification'),
         ],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -902,7 +858,7 @@ describe('chat()', () => {
           serverTool('getWeather', weatherExecute),
           clientTool('showNotification'),
         ],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -994,7 +950,7 @@ describe('chat()', () => {
           },
         ],
         middleware: [
-          interruptPersistenceMiddleware(),
+          interruptSnapshotMiddleware(),
           resumeStateMiddleware({
             approvals: new Map([
               ['call_1', { approved: true, editedArgs: { action: 'edited' } }],
@@ -1815,7 +1771,7 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'Do something' }],
         tools: [clientTool('clientDanger', { needsApproval: true })],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -1858,7 +1814,7 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'Search for test' }],
         tools: [clientTool('clientSearch')],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
@@ -2160,7 +2116,7 @@ describe('chat()', () => {
           serverTool('getWeather', weatherSpy),
           clientTool('showNotification'),
         ],
-        middleware: [interruptPersistenceMiddleware()],
+        middleware: [interruptSnapshotMiddleware()],
       })
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)

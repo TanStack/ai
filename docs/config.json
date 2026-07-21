@@ -199,7 +199,8 @@
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-07-16"
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-20"
         },
         {
           "label": "Generic Interrupts",
@@ -210,7 +211,7 @@
           "label": "Migration",
           "to": "interrupts/migration",
           "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-16"
+          "updatedAt": "2026-07-20"
         }
       ]
     },

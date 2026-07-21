@@ -14,7 +14,6 @@ import {
 import { compileJsonSchema202012 } from './activities/chat/tools/json-schema-validator'
 import type {
   InterruptBinding,
-  InterruptRecoveryStateV1,
   InterruptSubmissionError,
   ItemInterruptErrorCode,
   ToolApprovalResolution,
@@ -56,10 +55,7 @@ export interface ValidatedInterruptResumeBatch {
 export class InterruptResumeValidationError extends Error {
   override readonly name = 'InterruptResumeValidationError'
 
-  constructor(
-    readonly errors: ReadonlyArray<InterruptSubmissionError>,
-    readonly recovery?: InterruptRecoveryStateV1,
-  ) {
+  constructor(readonly errors: ReadonlyArray<InterruptSubmissionError>) {
     super(errors.map((error) => error.message).join(' '))
   }
 }
