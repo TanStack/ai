@@ -2,7 +2,7 @@
 title: Generic Interrupts
 id: interrupts-generic
 order: 4
-description: "Resolve a schema-driven application pause by validating the wire responseSchema at runtime before submitting."
+description: "Pause a run to ask the user something that isn't a tool call, validate their answer, and continue."
 keywords:
   - tanstack ai
   - generic interrupt
@@ -13,31 +13,35 @@ keywords:
 
 # Generic Interrupts
 
-A generic interrupt is any application pause that isn't tied to a tool. It may
-carry a Draft 2020-12 `responseSchema`. Because that schema arrives over the
-wire, its payload is `unknown` at compile time — so you validate it at runtime
-before resolving. You have a schema-bearing `generic` item; you want a form that
-only submits valid input.
+Sometimes the agent needs an answer that isn't a tool call at all. Mid-run it has
+to ask the user to pick a shipping speed, confirm an address, or choose which of
+two drafts to keep. There's no tool to approve here, just a question your app
+asks and the user answers.
 
-## Render a validating form
+A generic interrupt is that question. You end the run with a pause that carries a
+`responseSchema` describing the answer you expect, render a form for it, and
+continue the run once the user submits a valid value.
 
-Convert the received schema to a validator with `z.fromJSONSchema`, parse the
-editor value as `unknown`, and resolve only on success:
+Because the pause is defined by your app, you own both ends: the server emits it,
+and the client resolves it.
+
+## Resolve it on the client
+
+The schema arrives over the wire, so its value is `unknown` at compile time.
+Validate the user's answer against it before resolving. Build the value from your
+form fields and pass it straight to the schema:
 
 ```tsx
-// app/generic-interrupt.tsx
+// app/refund-reason.tsx
 import { useState } from 'react'
 import type { GenericAGUIInterrupt } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { z } from 'zod'
 
-// A generic item owns its own editor state, so give each one its own component.
-function GenericInterruptForm({
-  interrupt,
-}: {
-  interrupt: GenericAGUIInterrupt
-}) {
-  const [value, setValue] = useState('')
+// You emitted this pause, so you know the shape of the answer. Here it is a
+// single reason string chosen from a dropdown.
+function RefundReasonForm({ interrupt }: { interrupt: GenericAGUIInterrupt }) {
+  const [reason, setReason] = useState('damaged')
   const [errors, setErrors] = useState<ReadonlyArray<string>>([])
 
   const submit = () => {
@@ -45,14 +49,9 @@ function GenericInterruptForm({
       setErrors(['This interrupt has no response schema.'])
       return
     }
-    let candidate: unknown
-    try {
-      candidate = JSON.parse(value)
-    } catch {
-      setErrors(['Enter valid JSON.'])
-      return
-    }
-    const result = z.fromJSONSchema(interrupt.responseSchema).safeParse(candidate)
+    const result = z
+      .fromJSONSchema(interrupt.responseSchema)
+      .safeParse({ reason })
     if (!result.success) {
       setErrors(result.error.issues.map((issue) => issue.message))
       return
@@ -62,22 +61,26 @@ function GenericInterruptForm({
   }
 
   return (
-    <article>
+    <div>
       <p>{interrupt.message ?? interrupt.reason}</p>
-      <textarea value={value} onChange={(event) => setValue(event.target.value)} />
+      <select value={reason} onChange={(event) => setReason(event.target.value)}>
+        <option value="damaged">Damaged</option>
+        <option value="wrong-item">Wrong item</option>
+        <option value="no-longer-needed">No longer needed</option>
+      </select>
       <button disabled={!interrupt.canResolve} onClick={submit}>
         Submit
       </button>
       {errors.map((message) => (
         <p key={message}>{message}</p>
       ))}
-    </article>
+    </div>
   )
 }
 
-export function GenericInterrupts() {
+export function RefundReasons() {
   const { interrupts } = useChat({
-    threadId: 'workflow-7',
+    threadId: 'order-7',
     connection: fetchServerSentEvents('/api/chat'),
   })
 
@@ -85,7 +88,7 @@ export function GenericInterrupts() {
     <>
       {interrupts.map((interrupt) =>
         interrupt.kind === 'generic' ? (
-          <GenericInterruptForm key={interrupt.id} interrupt={interrupt} />
+          <RefundReasonForm key={interrupt.id} interrupt={interrupt} />
         ) : null,
       )}
     </>
@@ -93,32 +96,28 @@ export function GenericInterrupts() {
 }
 ```
 
-The conversion gives you a runtime validator, not a trustworthy static type.
-TanStack AI still runs canonical Draft 2020-12 validation in the client, and
-server validation stays authoritative — an invalid or unsupported wire schema
-surfaces an `invalid-response-schema` error instead of slipping through.
+`z.fromJSONSchema` gives you a runtime validator, not a trustworthy static type.
+The client runs canonical Draft 2020-12 validation, and the server validates
+again before continuing, so a bad answer surfaces an `invalid-response-schema`
+error instead of slipping through.
 
-Applications that emit generic descriptors must send JSON-compatible Draft
-2020-12 schemas and validate the resume batch server-side. Prefer a shared
-`approvalSchema` for tool approvals instead — it adds compile-time branch
-inference on top of runtime validation. See [Tool Approval](./tool-approval).
+## Emit it on the server
 
-## Server responsibility
+Tool approvals are rebuilt by `chat()` from message history for free. Generic
+pauses are not, because only your app knows when to ask and what to ask. You emit
+the descriptor and validate the answer yourself:
 
-Core `chat()` reconstructs **tool-approval** and **client-tool-execution**
-pending items from message history on ephemeral resume. It does **not** rebuild
-generic descriptors from history — there is no durable pending store in the
-default path.
+1. End a run with `RUN_FINISHED` and `outcome.type === 'interrupt'`, carrying a
+   `generic` descriptor with your `responseSchema`. A small middleware is the
+   usual place to do this.
+2. On the continuation request, validate the incoming `resume` against that same
+   pending descriptor with `validateInterruptResumeBatch`, then append the
+   answer and let the run continue.
 
-To use generic interrupts with a normal chat endpoint you must:
+The interrupt lab in `examples/ts-react-chat` has a complete middleware that
+emits a generic pause and correlates its answer. Without the server half, a
+generic answer fails resume validation with `unknown-interrupt` or
+`incomplete-batch`.
 
-1. Emit the generic interrupt descriptors yourself (middleware that ends a run
-   with `RUN_FINISHED` + `outcome.type === 'interrupt'`, or a custom route).
-2. On the continuation request, supply the same pending descriptors (or an
-   equivalent trusted source) when validating `resume` with
-   `validateInterruptResumeBatch`.
-
-The example app's interrupt lab (`examples/ts-react-chat`) shows a middleware
-pattern for emitting and correlating a generic pause. Without that server half,
-resolving a generic item on the client will fail resume validation
-(`unknown-interrupt` / `incomplete-batch`).
+> Gating a tool instead of asking a free-form question? A tool
+> [approval](./tool-approval) gives you typed branches on top of validation.

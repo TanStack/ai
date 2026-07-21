@@ -2,7 +2,7 @@
 title: Multiple Interrupts
 id: interrupts-multiple
 order: 3
-description: "Render a queue of pending interrupts and resolve them item-by-item or as one atomic batch."
+description: "Render a queue of pending decisions and resolve them item by item or all at once as one atomic batch."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -13,27 +13,49 @@ keywords:
 
 # Multiple Interrupts
 
-A single run can pause on several interrupts at once. You have a list of pending
-decisions; you want to render each one and submit them together.
+One run can pause on several decisions at once. The model lines up three
+transfers, or an approval and a question land together. You want to show the
+whole queue and send the answers back together, not one round trip each.
 
-## How a batch submits
+## Two ways to resolve
 
-Item methods (`resolveInterrupt`, `cancel`, `clearResolution`) return `void` —
-they stage local state. Each staged item is held until the batch is complete;
-the **last valid item auto-submits the whole batch**, and the server accepts all
-resolutions atomically or none. There is no per-item network call.
+You have already seen the first one on the [Tool Approval](./tool-approval) page:
+call a method on the item itself.
+
+```ts ignore
+// Per item: resolve each one where you render it.
+interrupt.resolveInterrupt(true)
+```
+
+When several are pending, it is often easier to answer them all from one place.
+The `useChat` hook gives you root helpers that act on the whole queue:
+
+```ts ignore
+// All at once: one callback decides every pending item.
+resolveInterrupts((interrupt) => {
+  if (interrupt.kind === 'tool-approval') {
+    interrupt.resolveInterrupt(true)
+    return
+  }
+  interrupt.cancel()
+})
+```
+
+Both stage local drafts. Nothing goes to the server until every pending item has
+an answer, then the whole set submits at once. The server accepts all of them or
+none, so you never end up with half a batch applied.
 
 ## Render the queue
 
-Map over `interrupts` and switch on `kind`. Each item carries `canResolve` and
-its own `errors`:
+Map over `interrupts` and switch on `kind`. Each item carries its own
+`canResolve` and `errors`:
 
 ```tsx
-// app/interrupt-queue.tsx
+// app/decision-queue.tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { transferTool } from '../tools/transfer'
 
-export function InterruptQueue() {
+export function DecisionQueue() {
   const { interrupts, resolveInterrupts, cancelInterrupts, resuming } = useChat({
     threadId: 'account-42',
     connection: fetchServerSentEvents('/api/chat'),
@@ -54,21 +76,18 @@ export function InterruptQueue() {
           return (
             <article key={interrupt.id}>
               <p>
-                {interrupt.originalArgs.amount} → {interrupt.originalArgs.recipient}
+                {interrupt.originalArgs.amount} to{' '}
+                {interrupt.originalArgs.recipient}
               </p>
               <button
                 disabled={!interrupt.canResolve || resuming}
-                onClick={() =>
-                  interrupt.resolveInterrupt(true, { payload: { note: 'ok' } })
-                }
+                onClick={() => interrupt.resolveInterrupt(true)}
               >
                 Approve
               </button>
               <button
                 disabled={!interrupt.canResolve || resuming}
-                onClick={() =>
-                  interrupt.resolveInterrupt(false, { payload: { reason: 'no' } })
-                }
+                onClick={() => interrupt.resolveInterrupt(false)}
               >
                 Reject
               </button>
@@ -78,17 +97,22 @@ export function InterruptQueue() {
         return <article key={interrupt.id}>Unsupported: {interrupt.kind}</article>
       })}
 
-      <button onClick={() => void cancelInterrupts()}>Cancel all</button>
+      <button onClick={() => resolveInterrupts(true)} disabled={resuming}>
+        Approve all
+      </button>
+      <button onClick={() => cancelInterrupts()} disabled={resuming}>
+        Cancel all
+      </button>
     </section>
   )
 }
 ```
 
-## Resolve the whole batch in one transaction
+## Resolve every item from one callback
 
-`resolveInterrupts(callback)` runs your callback against every item inside one
-synchronous transaction. It must resolve or cancel each item and cannot be
-async — if it throws or leaves an item unresolved, nothing submits:
+`resolveInterrupts(callback)` runs your callback once per item inside a single
+synchronous transaction. It must resolve or cancel every item. If it throws or
+leaves one item unanswered, nothing submits:
 
 ```ts ignore
 resolveInterrupts((interrupt) => {
@@ -100,24 +124,27 @@ resolveInterrupts((interrupt) => {
 })
 ```
 
-The boolean shorthand `resolveInterrupts(true)` / `resolveInterrupts(false)` is
-valid **only** when every **public** item is a tool approval whose branch needs
-no payload or edits. It's rejected for generic items, mixed batches, or required
-branch payloads. (Client-tool execution is internal and never appears in
-`interrupts`.) `cancelInterrupts()` is the payloadless all-items cancel.
+Two shortcuts cover the common cases:
 
-## Errors and retry
+- `resolveInterrupts(true)` / `resolveInterrupts(false)` approves or rejects the
+  whole queue. It works only when every item is a tool approval that needs no
+  payload or edits. Generic items, mixed queues, or required payloads are
+  rejected.
+- `cancelInterrupts()` cancels every item with no payload.
 
-Each item exposes `errors` (payload, edited-args, output, expiry, binding).
-Root `interruptErrors` reports batch, transport, and validation failures —
-including failures for internal client-tool items that are hidden from the
-public list.
+## When an answer is wrong
 
-`canResolve` means the binding/schema allows resolution at hydrate time. It does
-**not** flip when an item is submitting or expired on the server — gate the UI
-on `status`, `resuming`, and `errors` for those lifecycle states.
+Each item exposes its own `errors` (bad payload, bad edited args, expired). The
+root `interruptErrors` reports failures for the whole batch, including transport
+problems and errors for internal client-tool steps that never appear in the
+list.
 
-A failed candidate doesn't erase the last valid staged response — fix the form
-and call `resolveInterrupt` again, `clearResolution()` to start that item over,
-or `retryInterrupts()` after a *retryable* submission failure. Stale and expired
-errors are non-retryable — start a fresh run to get a new interrupt batch.
+`canResolve` tells you the item can be answered at all, based on its schema and
+binding. It does not flip while a batch is submitting or after an item expires,
+so gate your buttons on `resuming` and the item's `status` and `errors` for
+those states.
+
+A rejected answer does not wipe your last valid draft. Fix the form and call
+`resolveInterrupt` again, use `clearResolution()` to start one item over, or
+`retryInterrupts()` after a transport failure. Expired or stale batches can't be
+retried, start a fresh run to get a new set of interrupts.

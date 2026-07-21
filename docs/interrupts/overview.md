@@ -2,7 +2,7 @@
 title: Overview
 id: interrupts-overview
 order: 1
-description: "Pause an agent run for a decision, then resume it — tool approvals and generic application pauses over the AG-UI interrupt lifecycle."
+description: "Pause an agent run for a human or application decision, then continue it exactly where it stopped."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -13,57 +13,59 @@ keywords:
 
 # Interrupts
 
-An interrupt pauses a run so an application or a person can supply a decision
-before the agent continues. TanStack AI binds each AG-UI interrupt to typed
-methods that validate, stage, and atomically submit its resolution.
+Most agent runs are fire and forget. The model calls tools, they run, you get an
+answer back. But some steps shouldn't happen on their own: moving money,
+deleting a project, sending an email. And sometimes the agent needs an answer
+only the user can give before it can go on.
 
-## Lifecycle
+An interrupt is a pause. The run stops, hands you a decision to make, and then
+picks up exactly where it left off once you answer.
 
-1. The server snapshots messages (and optional state).
-2. It emits `RUN_FINISHED` with `outcome.type === 'interrupt'` and one or more descriptors.
-3. The client exposes bound items as `interrupts`.
-4. Your app resolves or cancels every item.
-5. The client starts a continuation run — new `runId`, same `threadId`,
-   `parentRunId` set to the interrupted run — carrying the AG-UI `resume` array
-   and the current message history.
+## How it works
 
-This works **without persistence**. In the default ephemeral mode the server
-reconstructs and validates the expected batch from the submitted history and its
-current tool definitions. Durable persistence and authoritative recovery are an
-optional layer shipped separately with the persistence guides.
+1. The server reaches a step that needs a decision and ends the run with an
+   `interrupt` outcome instead of a final answer.
+2. The client gives you the pending decisions as `interrupts`.
+3. You resolve each one (approve, reject, submit a value, or cancel).
+4. The client starts a fresh continuation run that carries your answers and
+   continues the agent.
 
-## Kinds you resolve
+No database is required. The browser sends the full message history back on the
+continuation request, so a stateless server can rebuild the paused step and keep
+going.
 
-The bound `interrupts` array holds the pauses your app resolves:
+## What pauses a run
 
-| `kind` | Meaning | Guide |
+Two kinds of interrupt show up in the `interrupts` array for you to resolve:
+
+| `kind` | You get a pause when | Guide |
 | --- | --- | --- |
-| `tool-approval` | Approve or reject a tool call, optionally editing its args | [Tool Approval](./tool-approval) |
-| `generic` | Any application pause with a wire `responseSchema` | [Generic Interrupts](./generic) |
+| `tool-approval` | A tool is marked `needsApproval` and the model calls it | [Tool Approval](./tool-approval) |
+| `generic` | Your app ends a run to ask the user something that isn't a tool | [Generic Interrupts](./generic) |
 
-**Client tools are not on this list.** Running a tool in the browser and
-returning its result is not something you resolve by hand — a tool with a
-`.client()` implementation runs automatically and reports its own result. See
-[Client Tools](../tools/client-tools). Approval is a separate axis: add
-`needsApproval: true` to any tool (server or client) and it pauses on a
-`tool-approval` interrupt first; a client tool then runs automatically once
-approved.
+## What about client tools?
+
+A tool with a `.client()` implementation runs in the browser on its own and
+reports its own result. That is not a decision you make, so it never appears in
+`interrupts`. See [Client Tools](../tools/client-tools).
+
+The one time a tool pauses is when you mark it `needsApproval: true`. Then it
+stops for a yes or no first, whether it runs on the server or in the browser:
 
 | Tool | What you handle |
 | --- | --- |
-| Server tool | nothing (runs on the server); a `tool-approval` interrupt first if `needsApproval` |
-| Client tool (`.client()` impl) | nothing (runs automatically); a `tool-approval` interrupt first if `needsApproval` |
+| Server tool | Nothing, unless `needsApproval` adds a `tool-approval` pause. It then runs on the server after you approve. |
+| Client tool | Nothing, it runs in the browser automatically. With `needsApproval` it pauses for approval first, then runs in the browser. |
+
+So approval is the only thing you resolve for either kind of tool, and both use
+the same `tool-approval` interrupt.
 
 ## Where to go next
 
-| You want to… | Page |
+| You want to | Page |
 | --- | --- |
-| Approve/reject a single tool call and render it | [Tool Approval](./tool-approval) |
-| Render and resolve several pending interrupts at once | [Multiple Interrupts](./multiple) |
-| Validate a schema-driven application pause | [Generic Interrupts](./generic) |
-| Run a tool in the browser and return its result | [Client Tools](../tools/client-tools) |
-| Move off legacy `approval-requested` events | [Migration](./migration) |
-
-> This replaced the native `approval-requested` and `tool-input-available`
-> custom events. Native servers no longer emit them; deprecated readers remain
-> for old streams during [migration](./migration).
+| Approve or reject a single tool call | [Tool Approval](./tool-approval) |
+| Resolve several pending decisions at once | [Multiple Interrupts](./multiple) |
+| Ask the user something that isn't a tool | [Generic Interrupts](./generic) |
+| Run a tool in the browser | [Client Tools](../tools/client-tools) |
+| Move off the old `approval-requested` events | [Migration](./migration) |

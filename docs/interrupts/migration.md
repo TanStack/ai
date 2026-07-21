@@ -18,10 +18,9 @@ AG-UI interrupt descriptors. Native runs end with
 `RUN_FINISHED.outcome.type === 'interrupt'`, and the continuation is a new run
 whose `parentRunId` is the interrupted run.
 
-There's no codemod — migrate the server lifecycle, client rendering, and (if
-used) persistence schema together. Legacy readers stay temporarily for old
-streams but can't provide the full native contract. Start from
-[Overview](./overview).
+There's no codemod. Migrate the server lifecycle and client rendering together.
+Legacy readers stay temporarily for old streams but can't provide the full
+native contract. Start from [Overview](./overview).
 
 ## API mapping
 
@@ -35,7 +34,7 @@ streams but can't provide the full native contract. Start from
 | `tool-input-available` custom event | `RUN_FINISHED` interrupt descriptor, reason `tanstack:client_tool_execution` |
 | Boolean denial treated as cancellation | `resolveInterrupt(false)` for denial; `cancel()` for payloadless cancellation |
 
-`addToolResult` is **not** removed — it still handles client-tool results and
+`addToolResult` is **not** removed. It still handles client-tool results and
 delegates to a matching native item. `needsApproval` remains the tool-definition
 switch for approvals.
 
@@ -83,7 +82,7 @@ maps to denial, not cancellation.
 
 ## Batches
 
-Native batches are all-or-nothing — replace approval-ID loops with staged items
+Native batches are all-or-nothing. Replace approval-ID loops with staged items
 (the last valid item auto-submits) or one synchronous root callback:
 
 ```ts ignore
@@ -104,7 +103,7 @@ is still validly staged and the root error is retryable. See
 
 ## Generic responses
 
-Don't derive a static type from a received `responseSchema` — parse as
+Don't derive a static type from a received `responseSchema`. Parse as
 `unknown`, convert with `z.fromJSONSchema`, then resolve the validated value.
 Full form example in [Generic Interrupts](./generic).
 
@@ -118,13 +117,11 @@ as `parentRunId`, with every pending ID present exactly once.
 Interrupts run **ephemerally**: the server reconstructs and validates the
 expected batch from the submitted history and its current tool definitions, so
 a stateless route needs no persistence. Because the batch is rebuilt from
-client-provided input, this mode has no authoritative recovery, exactly-once,
-replay protection, restart recovery, or compare-and-swap — those are the concern
-of a separate, optional durable-persistence layer that is not part of this
-package.
+client-provided input, this mode does not provide authoritative recovery,
+exactly-once, replay protection, or restart recovery.
 
 `resumeInterruptsUnsafe` is a low-level escape hatch for submitting validated
-raw resume entries directly — not the normal target for approval UI.
+raw resume entries directly, not the normal target for approval UI.
 
 ## Legacy limits
 
@@ -132,7 +129,7 @@ Deprecated readers recognize well-formed historical `approval-requested` and
 `tool-input-available` events and convert a fully-covered legacy batch into one
 cloned-history follow-up. They do **not** support edited arguments, custom
 approval payloads, generic responses, payloadless cancellation, or expiry/
-schema-hash reconciliation — those fail with `legacy-unsupported`. Native and
+schema-hash reconciliation; those fail with `legacy-unsupported`. Native and
 legacy items can't mix in one batch; a failed legacy transport keeps staged
 decisions and reports `legacy-submit-failed`.
 

@@ -56,21 +56,17 @@ See [Interrupts](../interrupts/overview) for the public server/client guide and
 | --- | --- |
 | Tool definition | Declares `needsApproval: true` for a sensitive operation. |
 | Chat engine | Stops before tool execution and emits the interrupt outcome. |
-| Chat persistence middleware | Optionally opens the descriptor/binding batch atomically, marks the run interrupted, and snapshots authoritative messages. |
 | Chat client | Binds descriptors to typed methods, stages drafts, and submits one exact resume batch. |
 | Application UI | Explains the operation and uses `resolveInterrupt`, `cancel`, or root batch controls. |
 | Delivery adapter | Optionally replays SSE events by opaque adapter-owned offsets. |
 
 ## Descriptor to continuation pipeline
 
-The base invariant is **descriptor → validate all → continuation → history**.
-Durable mode inserts **open batch → compare-and-swap → receipt** around that
-flow:
+The invariant is **descriptor → validate all → continuation → history**:
 
 1. The engine builds public descriptors and bindings. Output includes
    `MESSAGES_SNAPSHOT`, optional `STATE_SNAPSHOT`, and the interrupt
-   `RUN_FINISHED` terminal. When persistence is configured, it first opens the
-   entire batch atomically and assigns its generation.
+   `RUN_FINISHED` terminal.
 2. The client binds only descriptors whose reason, tool identity, call ID,
    schema hashes, interrupted run, and generation match its tool registry.
    Anything untrusted degrades to `generic` rather than gaining a typed tool
@@ -80,20 +76,14 @@ flow:
 4. The client submits a fresh run with the full current message history, the
    interrupted `parentRunId`, and the complete resume batch.
 5. The server validates **all** payloads, edited inputs, outputs, hashes, and
-   correlation before executing anything. Ephemeral mode reconstructs the
-   expected batch from client-provided history and current tool definitions.
-   Durable mode instead uses stored authoritative state and also validates
-   expiry and generation.
-6. Durable mode uses one transaction to compare the current interrupted run and
-   generation, store the canonical resolution fingerprint, and record the
-   continuation receipt. Ephemeral mode proceeds directly after validation.
-7. Resumed tool calls emit results only; they do not replay synthetic tool-call
+   correlation before executing anything, reconstructing the expected batch
+   from the client-provided history and its current tool definitions.
+6. Resumed tool calls emit results only; they do not replay synthetic tool-call
    start/argument events. Successful history belongs to the continuation run.
 
-With persistence, an exact retry returns the recorded continuation and a stale
-or different submission returns authoritative recovery state. Ephemeral mode
-does not provide replay, exactly-once, restart, or cross-instance guarantees;
-its message history is validated but remains client-provided input.
+Because the batch is rebuilt from client-provided history, ephemeral mode does
+not provide replay, exactly-once, restart, or cross-instance guarantees; the
+message history is validated but remains client-provided input.
 
 ## Server setup
 
@@ -149,10 +139,9 @@ export async function POST(request: Request) {
 }
 ```
 
-Persistence is not required to emit or resolve interrupts — the route above is
-the complete ephemeral flow. Durable interrupt persistence is a separate opt-in
-layer added with the persistence middleware and documented with the persistence
-guides.
+No server storage is required to emit or resolve interrupts. The route above is
+the complete flow: the browser sends the full message history back on the
+continuation request, and the engine rebuilds the paused call from it.
 
 ## Client state machine
 
@@ -167,8 +156,6 @@ A single approval follows this sequence:
 6. The next request carries a fresh `runId`, the interrupted `parentRunId`, and
    the exact AG-UI `resume` array.
 7. The server validates the full set before the engine continues the tool call.
-   With persistence, it also commits the set atomically against authoritative
-   state.
 
 Normal input is rejected at step 4. This prevents a second branch from being
 created while the existing run still waits for a decision.
@@ -246,30 +233,11 @@ function ResolveAll({ approved }: { approved: boolean }) {
 }
 ```
 
-## Optional persistence and concurrency
-
-Durable interrupt persistence (atomic compare-and-swap, idempotent receipts,
-multi-instance coordination) is a **separate opt-in layer** outside the default
-ephemeral path. When a durable middleware is configured, typical run status
-transitions look like:
-
-| Run boundary | Run status | Other writes |
-| --- | --- | --- |
-| Start | `running` | Load and merge stored messages. |
-| Interrupt outcome | `interrupted` | Atomically open the descriptor/binding batch and save messages before emission. |
-| Accepted resume | `running` continuation | Validate all entries, CAS the generation/current run, store the receipt, and link the new run to its parent. |
-| Successful finish | `completed` | Save messages and usage. |
-| Provider/server error | `failed` | Save the error. |
-| Abort | `interrupted` | Mark the run interrupted. |
-
-This page covers the **ephemeral** interrupt lifecycle, which resumes from full
-client history and requires no persistence. See the persistence guides for the
-durable adapter when you need restart/recovery guarantees.
-
 ## State durability versus delivery durability
 
-Interrupts run ephemerally by default. A separate persistence layer can make
-interrupts survive page reloads and server restarts, but it does not make the
-live byte stream replayable. Delivery durability is configured on
+Interrupts run ephemerally: the paused call is rebuilt from the message history
+the browser replays on the continuation request. That is separate from
+*delivery* durability, which makes the live byte stream replayable after a
+dropped connection. Delivery durability is configured on
 `toServerSentEventsResponse` and assigns one opaque SSE id per chunk (it is not
-available for NDJSON).
+available for NDJSON). See [Resumable Streams](../resumable-streams/overview).

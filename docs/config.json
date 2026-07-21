@@ -108,7 +108,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -189,12 +189,14 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-07-16"
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
-          "addedAt": "2026-07-16"
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Multiple Interrupts",
