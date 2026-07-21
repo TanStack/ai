@@ -104,7 +104,6 @@ const runStarted: StreamChunk = {
   timestamp: Date.now(),
 }
 
-
 describe('ChatClient resume', () => {
   it('tracks the run/thread of an interrupted run', async () => {
     const { adapter, contexts } = recordingAdapter([

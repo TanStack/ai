@@ -204,41 +204,36 @@ function ToolsTestPage() {
     [historyFixture],
   )
 
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    stop,
-    interrupts,
-    error,
-  } = useChat({
-    // Include scenario in ID so client is recreated when scenario changes
-    id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
-    connection: fetchServerSentEvents('/api/tools-test'),
-    // History fixtures are untyped model-message replays; cast to the typed
-    // message shape so they don't fight the concrete `tools` tuple inference.
-    initialMessages: initialMessages,
-    forwardedProps: {
-      scenario,
-      testId,
-      aimockPort,
-      ...(scenario === 'client-server-context'
-        ? { runtimeUserId: 'client-forwarded-user-context' }
-        : {}),
+  const { messages, sendMessage, isLoading, stop, interrupts, error } = useChat(
+    {
+      // Include scenario in ID so client is recreated when scenario changes
+      id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
+      connection: fetchServerSentEvents('/api/tools-test'),
+      // History fixtures are untyped model-message replays; cast to the typed
+      // message shape so they don't fight the concrete `tools` tuple inference.
+      initialMessages: initialMessages,
+      forwardedProps: {
+        scenario,
+        testId,
+        aimockPort,
+        ...(scenario === 'client-server-context'
+          ? { runtimeUserId: 'client-forwarded-user-context' }
+          : {}),
+      },
+      context: clientRuntimeContext,
+      tools: clientTools,
+      onFinish: () => {
+        setTestComplete(true)
+      },
+      onCustomEvent: (eventType: string, data: unknown) => {
+        addEvent({
+          type: 'custom-event',
+          toolName: eventType,
+          details: JSON.stringify(data),
+        })
+      },
     },
-    context: clientRuntimeContext,
-    tools: clientTools,
-    onFinish: () => {
-      setTestComplete(true)
-    },
-    onCustomEvent: (eventType: string, data: unknown) => {
-      addEvent({
-        type: 'custom-event',
-        toolName: eventType,
-        details: JSON.stringify(data),
-      })
-    },
-  })
+  )
 
   // Track when test completes (all tool calls are complete and not loading)
   useEffect(() => {

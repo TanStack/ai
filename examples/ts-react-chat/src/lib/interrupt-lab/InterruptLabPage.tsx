@@ -206,8 +206,9 @@ export function InterruptLabPage({
                 Wildlife Interrupt Response Center
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-[#e0e5d3] sm:text-base">
-                Live AG-UI interrupt lab: bound <code className="text-[#dce7c1]">interrupts</code>{' '}
-                with <code className="text-[#dce7c1]">resolveInterrupt</code>,
+                Live AG-UI interrupt lab: bound{' '}
+                <code className="text-[#dce7c1]">interrupts</code> with{' '}
+                <code className="text-[#dce7c1]">resolveInterrupt</code>,
                 optional edited args / decision payloads, client-tool auto-run,
                 generic JSON Schema pauses, and atomic multi-item batches.
               </p>
@@ -777,9 +778,9 @@ function InterruptRunner({
           scenarioId === 'batch-mixed') && (
           <section className="border border-[#6e8aa3] bg-[#e5eef5] p-5 text-sm text-[#2a4558]">
             <strong>Client tools auto-run.</strong> They gate the resume batch
-            internally and do not appear in the public{' '}
-            <code>interrupts</code> list. Watch the stream inspector for
-            continuation after the browser tool finishes.
+            internally and do not appear in the public <code>interrupts</code>{' '}
+            list. Watch the stream inspector for continuation after the browser
+            tool finishes.
           </section>
         )}
 

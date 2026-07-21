@@ -317,7 +317,7 @@ resolveInterrupts(true)
 
 // Or per-item:
 resolveInterrupts((interrupt) => {
-  if (interrupt.kind === "tool-approval") {
+  if (interrupt.kind === 'tool-approval') {
     interrupt.resolveInterrupt(true)
   }
 })

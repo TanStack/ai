@@ -105,12 +105,12 @@ function safeInterruptLabRunError({
     message: interruptMessage ?? INTERRUPT_LAB_ERROR_MESSAGE,
     code:
       interruptMessage !== undefined
-        ? (typeof interruptErrors?.[0] === 'object' &&
+        ? typeof interruptErrors?.[0] === 'object' &&
           interruptErrors[0] !== null &&
           'code' in interruptErrors[0] &&
           typeof interruptErrors[0].code === 'string'
-            ? interruptErrors[0].code
-            : INTERRUPT_LAB_ERROR_CODE)
+          ? interruptErrors[0].code
+          : INTERRUPT_LAB_ERROR_CODE
         : INTERRUPT_LAB_ERROR_CODE,
     ...(interruptErrors !== undefined
       ? { 'tanstack:interruptErrors': interruptErrors }
