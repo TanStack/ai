@@ -67,6 +67,12 @@ function SanctuaryPage() {
   const [active, setActive] = useState<Scenario | null>(null)
   const [pending, setPending] = useState<string | null>(null)
   const [resolveMode, setResolveMode] = useState<ResolveMode>('each')
+  // What you submitted for each decision, so payloads/edits are visible even
+  // when the tool never receives them (an approve payload is decision metadata,
+  // not tool input).
+  const [decisions, setDecisions] = useState<Array<string>>([])
+  const record = (message: string) =>
+    setDecisions((prev) => [message, ...prev].slice(0, 8))
 
   const chat = useChat({
     id: threadId,
@@ -217,9 +223,23 @@ function SanctuaryPage() {
                     key={interrupt.id}
                     interrupt={interrupt}
                     disabled={resolveMode === 'all' || chat.resuming}
+                    record={record}
                   />
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {decisions.length > 0 ? (
+            <div className="rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-3">
+              <h2 className="mb-1 font-mono text-xs uppercase tracking-widest text-[#6f6338]">
+                Your decisions
+              </h2>
+              <ul className="space-y-1 font-mono text-[11px] text-[#4b5a48]">
+                {decisions.map((decision, i) => (
+                  <li key={i}>{decision}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
         </section>
@@ -247,9 +267,38 @@ function Transcript({
           <span className="font-mono text-xs uppercase text-[#6f6338]">
             {message.role}:{' '}
           </span>
-          {message.parts.map((part, i) =>
-            part.type === 'text' ? <span key={i}>{part.content}</span> : null,
-          )}
+          {message.parts.map((part, i) => {
+            if (part.type === 'text') return <span key={i}>{part.content}</span>
+            if (part.type === 'tool-call') {
+              return (
+                <div
+                  key={i}
+                  className="mt-1 rounded-md bg-[#efe6c8] px-2 py-1 font-mono text-[11px] text-[#4b5a48]"
+                >
+                  🔧 {part.name}(
+                  {JSON.stringify(part.input ?? part.arguments)})
+                  {part.output !== undefined
+                    ? ` → ${JSON.stringify(part.output)}`
+                    : ` · ${part.state}`}
+                </div>
+              )
+            }
+            if (part.type === 'tool-result') {
+              const body =
+                typeof part.content === 'string'
+                  ? part.content
+                  : JSON.stringify(part.content)
+              return (
+                <div
+                  key={i}
+                  className="mt-1 rounded-md bg-[#e6efdd] px-2 py-1 font-mono text-[11px] text-[#3a4a38]"
+                >
+                  ↳ {part.error ?? body}
+                </div>
+              )
+            }
+            return null
+          })}
         </div>
       ))}
     </div>
@@ -259,33 +308,69 @@ function Transcript({
 function InterruptCard({
   interrupt,
   disabled,
+  record,
 }: {
   interrupt: Interrupt
   disabled: boolean
+  record: (message: string) => void
 }) {
   if (interrupt.kind === 'generic') {
-    return <GenericCard interrupt={interrupt} disabled={disabled} />
+    return (
+      <GenericCard interrupt={interrupt} disabled={disabled} record={record} />
+    )
   }
-  return <ApprovalCard interrupt={interrupt} disabled={disabled} />
+  return (
+    <ApprovalCard interrupt={interrupt} disabled={disabled} record={record} />
+  )
 }
 
-// A friendly animal face for each card, chosen from whatever the tool call is
-// about. Reliable and offline, no remote images to break the example.
-function animalEmoji(interrupt: Interrupt): string {
-  if (interrupt.kind === 'generic') return '🍽️'
+// Pick an animal from whatever the tool call is about, for a photo + an emoji
+// fallback if the photo can't load.
+const ANIMALS: Array<[test: RegExp, keyword: string, emoji: string]> = [
+  [/fox/, 'red-fox', '🦊'],
+  [/owl/, 'barn-owl', '🦉'],
+  [/hedgehog/, 'hedgehog', '🦔'],
+  [/deer|fawn/, 'deer', '🦌'],
+  [/rabbit|bunny|hare/, 'rabbit', '🐰'],
+  [/badger/, 'badger', '🦡'],
+  [/turtle|tortoise/, 'turtle', '🐢'],
+  [/otter/, 'otter', '🦦'],
+  [/bird|sparrow|robin/, 'bird', '🐦'],
+]
+
+function animalOf(interrupt: Interrupt): { keyword: string; emoji: string } {
+  if (interrupt.kind === 'generic') return { keyword: 'wildlife', emoji: '🍽️' }
   const hay = JSON.stringify(interrupt.originalArgs).toLowerCase()
-  if (hay.includes('fox')) return '🦊'
-  if (hay.includes('owl')) return '🦉'
-  if (hay.includes('hedgehog')) return '🦔'
-  if (hay.includes('deer') || hay.includes('fawn')) return '🦌'
-  if (hay.includes('rabbit') || hay.includes('bunny') || hay.includes('hare'))
-    return '🐰'
-  if (hay.includes('badger')) return '🦡'
-  if (hay.includes('turtle') || hay.includes('tortoise')) return '🐢'
-  if (hay.includes('otter')) return '🦦'
-  if (hay.includes('bird') || hay.includes('sparrow') || hay.includes('robin'))
-    return '🐦'
-  return '🐾'
+  for (const [test, keyword, emoji] of ANIMALS) {
+    if (test.test(hay)) return { keyword, emoji }
+  }
+  return { keyword: 'wildlife-rescue', emoji: '🐾' }
+}
+
+// A real photo of the animal (loremflickr, keyed by species), with the emoji as
+// an offline/failure fallback so the card always shows something.
+function AnimalAvatar({ interrupt }: { interrupt: Interrupt }) {
+  const { keyword, emoji } = animalOf(interrupt)
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <span
+        aria-hidden
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#eadfba] text-2xl shadow-inner ring-1 ring-[#d8cba2]"
+      >
+        {emoji}
+      </span>
+    )
+  }
+  return (
+    <img
+      src={`https://loremflickr.com/96/96/${keyword}?lock=7`}
+      alt={keyword.replace(/-/g, ' ')}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-[#d8cba2]"
+    />
+  )
 }
 
 function Shell({
@@ -302,12 +387,7 @@ function Shell({
   return (
     <article className="space-y-3 rounded-2xl border border-[#d8cba2] bg-gradient-to-b from-[#fbf6e6] to-[#f4ecd4] p-4 shadow-[0_6px_20px_-8px_rgba(94,79,45,0.5)]">
       <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#eadfba] text-2xl shadow-inner ring-1 ring-[#d8cba2]"
-        >
-          {animalEmoji(interrupt)}
-        </span>
+        <AnimalAvatar interrupt={interrupt} />
         <div className="min-w-0">
           <h3 className="font-serif text-lg leading-tight">{title}</h3>
           {subtitle ? (
@@ -374,9 +454,11 @@ const textInput =
 function ApprovalCard({
   interrupt,
   disabled,
+  record,
 }: {
   interrupt: Extract<Interrupt, { kind: 'tool-approval' }>
   disabled: boolean
+  record: (message: string) => void
 }) {
   const [note, setNote] = useState('')
   const [reason, setReason] = useState('Not this time')
@@ -389,7 +471,18 @@ function ApprovalCard({
   const [certDate, setCertDate] = useState('')
 
   const args = JSON.stringify(interrupt.originalArgs)
-  const cancel = () => interrupt.cancel()
+  // Log exactly what was submitted, so payloads/edits are visible (an approve
+  // payload never reaches the tool, so this is the only place it shows).
+  const decided = (verb: string, detail?: unknown) =>
+    record(
+      `${verb} ${interrupt.toolName}${
+        detail === undefined ? '' : ` · ${JSON.stringify(detail)}`
+      }`,
+    )
+  const cancel = () => {
+    decided('✋ cancelled')
+    interrupt.cancel()
+  }
 
   // Note: each tool gets its own `case` (no shared fall-through). Sharing a
   // block would leave `interrupt` a union of tools, and calling its overloaded
@@ -400,8 +493,14 @@ function ApprovalCard({
         <Shell title={interrupt.toolName} subtitle={args} interrupt={interrupt}>
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() => interrupt.resolveInterrupt(true)}
-            onReject={() => interrupt.resolveInterrupt(false)}
+            onApprove={() => {
+              decided('✅ approved')
+              interrupt.resolveInterrupt(true)
+            }}
+            onReject={() => {
+              decided('❌ rejected')
+              interrupt.resolveInterrupt(false)
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -412,8 +511,14 @@ function ApprovalCard({
         <Shell title={interrupt.toolName} subtitle={args} interrupt={interrupt}>
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() => interrupt.resolveInterrupt(true)}
-            onReject={() => interrupt.resolveInterrupt(false)}
+            onApprove={() => {
+              decided('✅ approved')
+              interrupt.resolveInterrupt(true)
+            }}
+            onReject={() => {
+              decided('❌ rejected')
+              interrupt.resolveInterrupt(false)
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -430,12 +535,14 @@ function ApprovalCard({
           />
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() =>
+            onApprove={() => {
+              decided('✅ approved', { note })
               interrupt.resolveInterrupt(true, { payload: { note } })
-            }
-            onReject={() =>
+            }}
+            onReject={() => {
+              decided('❌ rejected', { note })
               interrupt.resolveInterrupt(false, { payload: { note } })
-            }
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -452,12 +559,14 @@ function ApprovalCard({
           />
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() =>
+            onApprove={() => {
+              decided('✅ approved', { note })
               interrupt.resolveInterrupt(true, { payload: { note } })
-            }
-            onReject={() =>
+            }}
+            onReject={() => {
+              decided('❌ rejected', { note })
               interrupt.resolveInterrupt(false, { payload: { note } })
-            }
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -488,14 +597,16 @@ function ApprovalCard({
           />
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() =>
+            onApprove={() => {
+              decided('✅ approved', { adopterName, homeCheckPassed: homeCheck })
               interrupt.resolveInterrupt(true, {
                 payload: { adopterName, homeCheckPassed: homeCheck },
               })
-            }
-            onReject={() =>
+            }}
+            onReject={() => {
+              decided('❌ rejected', { reason })
               interrupt.resolveInterrupt(false, { payload: { reason } })
-            }
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -524,12 +635,14 @@ function ApprovalCard({
           />
           <ApproveRejectRow
             disabled={disabled}
-            onApprove={() =>
+            onApprove={() => {
+              decided('✅ approved', { channel })
               interrupt.resolveInterrupt(true, { payload: { channel } })
-            }
-            onReject={() =>
+            }}
+            onReject={() => {
+              decided('❌ rejected', { reason })
               interrupt.resolveInterrupt(false, { payload: { reason } })
-            }
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -558,18 +671,21 @@ function ApprovalCard({
           <ApproveRejectRow
             disabled={disabled}
             approveLabel="Approve edited"
-            onApprove={() =>
-              interrupt.resolveInterrupt(true, {
-                editedArgs: {
-                  animal: interrupt.originalArgs.animal,
-                  enclosure: enclosure || interrupt.originalArgs.enclosure,
-                  sizeSqm: sizeSqm
-                    ? Number(sizeSqm)
-                    : interrupt.originalArgs.sizeSqm,
-                },
-              })
-            }
-            onReject={() => interrupt.resolveInterrupt(false)}
+            onApprove={() => {
+              const editedArgs = {
+                animal: interrupt.originalArgs.animal,
+                enclosure: enclosure || interrupt.originalArgs.enclosure,
+                sizeSqm: sizeSqm
+                  ? Number(sizeSqm)
+                  : interrupt.originalArgs.sizeSqm,
+              }
+              decided('✅ approved (edited)', editedArgs)
+              interrupt.resolveInterrupt(true, { editedArgs })
+            }}
+            onReject={() => {
+              decided('❌ rejected')
+              interrupt.resolveInterrupt(false)
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -597,16 +713,19 @@ function ApprovalCard({
           <ApproveRejectRow
             disabled={disabled}
             approveLabel="Approve edited"
-            onApprove={() =>
-              interrupt.resolveInterrupt(true, {
-                editedArgs: {
-                  animal: interrupt.originalArgs.animal,
-                  adopter: adopter || interrupt.originalArgs.adopter,
-                  date: certDate || interrupt.originalArgs.date,
-                },
-              })
-            }
-            onReject={() => interrupt.resolveInterrupt(false)}
+            onApprove={() => {
+              const editedArgs = {
+                animal: interrupt.originalArgs.animal,
+                adopter: adopter || interrupt.originalArgs.adopter,
+                date: certDate || interrupt.originalArgs.date,
+              }
+              decided('✅ approved (edited)', editedArgs)
+              interrupt.resolveInterrupt(true, { editedArgs })
+            }}
+            onReject={() => {
+              decided('❌ rejected')
+              interrupt.resolveInterrupt(false)
+            }}
             onCancel={cancel}
           />
         </Shell>
@@ -620,9 +739,11 @@ function ApprovalCard({
 function GenericCard({
   interrupt,
   disabled,
+  record,
 }: {
   interrupt: Extract<Interrupt, { kind: 'generic' }>
   disabled: boolean
+  record: (message: string) => void
 }) {
   const [meals, setMeals] = useState('2')
   const [diet, setDiet] = useState('')
@@ -648,16 +769,21 @@ function GenericCard({
       />
       <div className="flex gap-2">
         <button
-          onClick={() =>
-            interrupt.resolveInterrupt({ mealsPerDay: Number(meals), diet })
-          }
+          onClick={() => {
+            const value = { mealsPerDay: Number(meals), diet }
+            record(`🍽️ feeding schedule · ${JSON.stringify(value)}`)
+            interrupt.resolveInterrupt(value)
+          }}
           disabled={disabled}
           className="inline-flex items-center gap-1 rounded-md bg-[#2d5b3c] px-3 py-1 text-sm text-[#f7f1de] disabled:opacity-50"
         >
           <Check size={14} /> Submit
         </button>
         <button
-          onClick={() => interrupt.cancel()}
+          onClick={() => {
+            record('✋ feeding schedule cancelled')
+            interrupt.cancel()
+          }}
           disabled={disabled}
           className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm text-[#6f6338] disabled:opacity-50"
         >
