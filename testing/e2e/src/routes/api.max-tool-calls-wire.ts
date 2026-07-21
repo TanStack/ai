@@ -5,10 +5,13 @@ import {
   createChatOptions,
   maxIterations,
   toolDefinition,
-  type ChatMiddleware,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  StreamChunk,
+} from '@tanstack/ai'
 
 /**
  * Wire-format regression for issue #964.
