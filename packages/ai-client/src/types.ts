@@ -83,12 +83,6 @@ export interface BoundInterruptBase {
   clearResolution: () => void
 }
 
-/** Public wire binding kinds consumers see on bound interrupts. */
-export type PublicInterruptBinding = Extract<
-  InterruptBinding,
-  { kind: 'tool-approval' | 'generic' }
->
-
 export interface GenericAGUIInterrupt extends BoundInterruptBase {
   readonly kind: 'generic'
   readonly binding: Readonly<Extract<InterruptBinding, { kind: 'generic' }>>

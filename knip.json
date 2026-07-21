@@ -36,9 +36,6 @@
     "packages/ai-openai": {
       "ignore": ["src/tools/**"]
     },
-    "packages/ai-client": {
-      "ignoreDependencies": ["@standard-schema/spec"]
-    },
     "packages/ai-sandbox": {
       "ignoreDependencies": ["@ngrok/ngrok"]
     },

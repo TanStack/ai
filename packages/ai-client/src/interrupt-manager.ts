@@ -763,7 +763,7 @@ export class InterruptManager<
           }
           return Object.freeze(snapshot)
         }
-        const genericBinding =
+        const boundGeneric =
           item.binding.kind === 'generic'
             ? cloneAndDeepFreezeJson(item.binding)
             : cloneAndDeepFreezeJson({
@@ -779,7 +779,7 @@ export class InterruptManager<
         const snapshot: GenericAGUIInterrupt = {
           ...base,
           kind: 'generic',
-          binding: genericBinding,
+          binding: boundGeneric,
           resolveInterrupt: (payload) =>
             this.resolveItem(item.descriptor.id, payload, transaction),
         }
@@ -921,20 +921,20 @@ export class InterruptManager<
   ): void {
     if (!('valid' in result)) {
       item.status = 'error'
-      item.error = this.itemError(
+      const itemError = this.itemError(
         item.descriptor.id,
         result.code,
         result.message,
         result.path,
       )
+      item.error = itemError
       // Client-tool-execution items are hidden from the public interrupt list,
       // so promote their validation failures onto interruptErrors for the UI.
-      if (item.kind === 'client-tool-execution' && item.error) {
+      if (item.kind === 'client-tool-execution') {
         this.rootErrors = Object.freeze([
           ...this.rootErrors.filter(
             (error) =>
               !(
-                error.scope === 'batch' &&
                 error.code === 'item-validation-failed' &&
                 error.interruptIds.includes(item.descriptor.id)
               ),
@@ -942,13 +942,13 @@ export class InterruptManager<
           Object.freeze({
             scope: 'batch' as const,
             code: 'item-validation-failed' as const,
-            message: item.error.message,
+            message: itemError.message,
             source: 'client' as const,
             retryable: false,
             interruptIds: Object.freeze([item.descriptor.id]),
-            threadId: item.error.threadId,
-            interruptedRunId: item.error.interruptedRunId,
-            generation: item.error.generation,
+            threadId: itemError.threadId,
+            interruptedRunId: itemError.interruptedRunId,
+            generation: itemError.generation,
           }),
         ])
       }
@@ -1245,17 +1245,17 @@ export class InterruptManager<
     try {
       await this.options.submit(submission)
     } catch (error) {
-      await this.handleSubmissionFailure(error, submission)
+      this.handleSubmissionFailure(error, submission)
     } finally {
       this.resuming = false
       this.publish()
     }
   }
 
-  private async handleSubmissionFailure(
+  private handleSubmissionFailure(
     error: unknown,
     submission: InterruptManagerSubmission,
-  ): Promise<void> {
+  ): void {
     const errors = readSubmissionErrors(error)
     if (errors.length === 0) {
       const message = error instanceof Error ? error.message : String(error)
