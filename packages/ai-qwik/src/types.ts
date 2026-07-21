@@ -8,6 +8,7 @@ import type {
 import type {
   AIDevtoolsDisplayOptions,
   ChatClientOptions,
+  ChatClientPersistence,
   ChatClientState,
   ChatFetcher,
   ChatRequestBody,
@@ -58,6 +59,24 @@ export type UseChatOptions<
    * implementations capture browser APIs such as localStorage.
    */
   tools$?: QRL<() => TTools | Promise<TTools>>
+  /**
+   * Qwik-friendly persistence factory. Persistence adapters contain methods
+   * and therefore cannot survive SSR serialization when passed directly.
+   */
+  persistence$?: QRL<
+    () => ChatClientPersistence<TTools> | Promise<ChatClientPersistence<TTools>>
+  >
+  /**
+   * Qwik-friendly stream processor factory. Chunk strategies contain methods
+   * and therefore cannot survive SSR serialization when passed directly.
+   */
+  streamProcessor$?: QRL<
+    () =>
+      | NonNullable<ChatClientOptions<TTools, TContext>['streamProcessor']>
+      | Promise<
+          NonNullable<ChatClientOptions<TTools, TContext>['streamProcessor']>
+        >
+  >
   /**
    * Qwik-friendly connection factory. Prefer this over `connection` when the
    * adapter contains functions, sockets, browser APIs, or other non-serializable

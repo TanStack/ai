@@ -75,6 +75,10 @@ export function useChat<
   const client = useSignal<
     NoSerialize<ChatClient<TTools, TContext>> | undefined
   >()
+  const clientPromise = useSignal<
+    NoSerialize<Promise<ChatClient<TTools, TContext>>> | undefined
+  >()
+  const clientGeneration = useSignal(0)
   type PersistenceOption = ChatClientPersistence<TTools>
   type StreamProcessorOption = {
     chunkStrategy?: ChunkStrategy
@@ -95,13 +99,16 @@ export function useChat<
   const persistenceOption = useSignal<
     NoSerialize<PersistenceOption> | undefined
   >(options.persistence ? noSerialize(options.persistence) : undefined)
+  const persistenceFactoryOption = useSignal<
+    QRL<() => PersistenceOption | Promise<PersistenceOption>> | undefined
+  >(() => options.persistence$)
   const bodyOption = useSignal<Record<string, unknown> | undefined>(
     options.body,
   )
   const forwardedPropsOption = useSignal<Record<string, unknown> | undefined>(
     options.forwardedProps,
   )
-  const contextOption = useSignal<TContext | undefined>(options.context)
+  const contextOption = useSignal<TContext | undefined>(() => options.context)
   const liveOption = useSignal<boolean | undefined>(options.live)
   const apiOption = useSignal<string | undefined>(options.api)
   const usesApiTransportOption = useSignal(
@@ -113,15 +120,15 @@ export function useChat<
   const connectionOption = useSignal<
     NoSerialize<ConnectionAdapter> | undefined
   >(options.connection ? noSerialize(options.connection) : undefined)
-  const fetcherOption = useSignal<NoSerialize<ChatFetcher> | undefined>(
+  const fetcherOption = useSignal<NoSerialize<ChatFetcher> | undefined>(() =>
     options.fetcher ? noSerialize(options.fetcher) : undefined,
   )
   const connectionFactoryOption = useSignal<
     QRL<() => ConnectionAdapter | Promise<ConnectionAdapter>> | undefined
-  >(options.connection$)
+  >(() => options.connection$)
   const fetcherFactoryOption = useSignal<
     QRL<() => ChatFetcher | Promise<ChatFetcher>> | undefined
-  >(options.fetcher$)
+  >(() => options.fetcher$)
   const devtoolsOption = useSignal(options.devtools)
   const outputKindOption = useSignal<'structured' | 'chat'>(
     options.outputSchema ? 'structured' : 'chat',
@@ -129,24 +136,28 @@ export function useChat<
   const streamProcessorOption = useSignal<
     NoSerialize<StreamProcessorOption> | undefined
   >(options.streamProcessor ? noSerialize(options.streamProcessor) : undefined)
+  const streamProcessorFactoryOption = useSignal<
+    | QRL<() => StreamProcessorOption | Promise<StreamProcessorOption>>
+    | undefined
+  >(() => options.streamProcessor$)
   const toolsOption = useSignal<NoSerialize<TTools> | undefined>(
     options.tools ? noSerialize(options.tools) : undefined,
   )
   const toolsFactoryOption = useSignal<
     QRL<() => TTools | Promise<TTools>> | undefined
-  >(options.tools$)
+  >(() => options.tools$)
   const onResponseQrlOption = useSignal<
     QRL<(response?: Response) => void | Promise<void>> | undefined
-  >(options.onResponse$)
+  >(() => options.onResponse$)
   const onChunkQrlOption = useSignal<
     QRL<(chunk: StreamChunk) => void | Promise<void>> | undefined
-  >(options.onChunk$)
+  >(() => options.onChunk$)
   const onFinishQrlOption = useSignal<
     QRL<(message: UIMessage<TTools>) => void | Promise<void>> | undefined
-  >(options.onFinish$)
+  >(() => options.onFinish$)
   const onErrorQrlOption = useSignal<
     QRL<(error: Error) => void | Promise<void>> | undefined
-  >(options.onError$)
+  >(() => options.onError$)
   const onCustomEventQrlOption = useSignal<
     | QRL<
         (
@@ -156,22 +167,24 @@ export function useChat<
         ) => void | Promise<void>
       >
     | undefined
-  >(options.onCustomEvent$)
+  >(() => options.onCustomEvent$)
   const onResponseOption = useSignal<NoSerialize<OnResponseOption> | undefined>(
-    options.onResponse ? noSerialize(options.onResponse) : undefined,
+    () => (options.onResponse ? noSerialize(options.onResponse) : undefined),
   )
-  const onChunkOption = useSignal<NoSerialize<OnChunkOption> | undefined>(
+  const onChunkOption = useSignal<NoSerialize<OnChunkOption> | undefined>(() =>
     options.onChunk ? noSerialize(options.onChunk) : undefined,
   )
   const onFinishOption = useSignal<NoSerialize<OnFinishOption> | undefined>(
-    options.onFinish ? noSerialize(options.onFinish) : undefined,
+    () => (options.onFinish ? noSerialize(options.onFinish) : undefined),
   )
-  const onErrorOption = useSignal<NoSerialize<OnErrorOption> | undefined>(
+  const onErrorOption = useSignal<NoSerialize<OnErrorOption> | undefined>(() =>
     options.onError ? noSerialize(options.onError) : undefined,
   )
   const onCustomEventOption = useSignal<
     NoSerialize<OnCustomEventOption> | undefined
-  >(options.onCustomEvent ? noSerialize(options.onCustomEvent) : undefined)
+  >(() =>
+    options.onCustomEvent ? noSerialize(options.onCustomEvent) : undefined,
+  )
   const messages = useSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
@@ -191,6 +204,7 @@ export function useChat<
   persistenceOption.value = options.persistence
     ? noSerialize(options.persistence)
     : undefined
+  persistenceFactoryOption.value = options.persistence$
   bodyOption.value = options.body
   forwardedPropsOption.value = options.forwardedProps
   contextOption.value = options.context
@@ -214,6 +228,7 @@ export function useChat<
   streamProcessorOption.value = options.streamProcessor
     ? noSerialize(options.streamProcessor)
     : undefined
+  streamProcessorFactoryOption.value = options.streamProcessor$
   toolsOption.value = options.tools ? noSerialize(options.tools) : undefined
   toolsFactoryOption.value = options.tools$
   onResponseQrlOption.value = options.onResponse$
@@ -237,125 +252,175 @@ export function useChat<
     ? noSerialize(options.onCustomEvent)
     : undefined
 
-  useVisibleTask$(async ({ cleanup, track }) => {
-    const activeClientId = track(clientId)
-    const connection = connectionFactoryOption.value
-      ? await connectionFactoryOption.value()
-      : connectionOption.value
-    const fetcher = fetcherFactoryOption.value
-      ? await fetcherFactoryOption.value()
-      : fetcherOption.value
-    const transport = connection
-      ? { connection }
-      : fetcher
-        ? { fetcher }
-        : { connection: fetchServerSentEvents(apiOption.value || '/api/chat') }
-    const tools = toolsFactoryOption.value
-      ? await toolsFactoryOption.value()
-      : toolsOption.value
+  const initializeClient = $(async () => {
+    if (client.value) return client.value
+    if (clientPromise.value) return clientPromise.value
 
-    const chatClient = new ChatClient<TTools, TContext>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
-      ...transport,
-      id: activeClientId,
-      ...(initialMessagesOption.value !== undefined && {
-        initialMessages: initialMessagesOption.value,
-      }),
-      ...(persistenceOption.value !== undefined && {
-        persistence: persistenceOption.value,
-      }),
-      ...(bodyOption.value !== undefined && { body: bodyOption.value }),
-      ...(threadIdOption.value !== undefined && {
-        threadId: threadIdOption.value,
-      }),
-      ...(forwardedPropsOption.value !== undefined && {
-        forwardedProps: forwardedPropsOption.value,
-      }),
-      ...(contextOption.value !== undefined && {
-        context: contextOption.value,
-      }),
-      devtools: {
-        ...devtoolsOption.value,
-        framework: 'qwik',
-        hookName: 'useChat',
-        outputKind: outputKindOption.value,
-      },
-      onResponse: async (response) => {
-        if (onResponseQrlOption.value) {
-          await onResponseQrlOption.value(response)
-          return
-        }
-        await onResponseOption.value?.(response)
-      },
-      onChunk: (chunk: StreamChunk) => {
-        if (onChunkQrlOption.value) {
-          void onChunkQrlOption.value(chunk)
-          return
-        }
-        onChunkOption.value?.(chunk)
-      },
-      onFinish: (message) => {
-        if (onFinishQrlOption.value) {
-          void onFinishQrlOption.value(message)
-          return
-        }
-        onFinishOption.value?.(message)
-      },
-      onError: (nextError) => {
-        if (onErrorQrlOption.value) {
-          void onErrorQrlOption.value(nextError)
-          return
-        }
-        onErrorOption.value?.(nextError)
-      },
-      tools,
-      onCustomEvent: (eventType, data, context) =>
-        onCustomEventQrlOption.value
-          ? void onCustomEventQrlOption.value(eventType, data, context)
-          : onCustomEventOption.value?.(eventType, data, context),
-      ...(streamProcessorOption.value !== undefined && {
-        streamProcessor: streamProcessorOption.value,
-      }),
-      onMessagesChange: (nextMessages: Array<UIMessage<TTools>>) => {
-        messages.value = nextMessages
-      },
-      onLoadingChange: (nextIsLoading: boolean) => {
-        isLoading.value = nextIsLoading
-      },
-      onStatusChange: (nextStatus: ChatClientState) => {
-        status.value = nextStatus
-      },
-      onErrorChange: (nextError: Error | undefined) => {
+    const generation = clientGeneration.value
+    const initialization = (async () => {
+      const connection = connectionFactoryOption.value
+        ? await connectionFactoryOption.value()
+        : connectionOption.value
+      const fetcher = connection
+        ? undefined
+        : fetcherFactoryOption.value
+          ? await fetcherFactoryOption.value()
+          : fetcherOption.value
+      const persistence = persistenceFactoryOption.value
+        ? await persistenceFactoryOption.value()
+        : persistenceOption.value
+      const streamProcessor = streamProcessorFactoryOption.value
+        ? await streamProcessorFactoryOption.value()
+        : streamProcessorOption.value
+      const tools = toolsFactoryOption.value
+        ? await toolsFactoryOption.value()
+        : toolsOption.value
+
+      if (generation !== clientGeneration.value) {
+        throw new Error('Chat client initialization was superseded')
+      }
+
+      const transport = connection
+        ? { connection }
+        : fetcher
+          ? { fetcher }
+          : {
+              connection: fetchServerSentEvents(apiOption.value || '/api/chat'),
+            }
+
+      const chatClient = new ChatClient<TTools, TContext>({
+        devtoolsBridgeFactory: createChatDevtoolsBridge,
+        ...transport,
+        id: clientId.value,
+        ...(initialMessagesOption.value !== undefined && {
+          initialMessages: initialMessagesOption.value,
+        }),
+        ...(persistence !== undefined && {
+          persistence,
+        }),
+        ...(bodyOption.value !== undefined && { body: bodyOption.value }),
+        ...(threadIdOption.value !== undefined && {
+          threadId: threadIdOption.value,
+        }),
+        ...(forwardedPropsOption.value !== undefined && {
+          forwardedProps: forwardedPropsOption.value,
+        }),
+        ...(contextOption.value !== undefined && {
+          context: contextOption.value,
+        }),
+        devtools: {
+          ...devtoolsOption.value,
+          framework: 'qwik',
+          hookName: 'useChat',
+          outputKind: outputKindOption.value,
+        },
+        onResponse: async (response) => {
+          if (onResponseQrlOption.value) {
+            await onResponseQrlOption.value(response)
+            return
+          }
+          await onResponseOption.value?.(response)
+        },
+        onChunk: (chunk: StreamChunk) => {
+          if (onChunkQrlOption.value) {
+            void onChunkQrlOption.value(chunk)
+            return
+          }
+          onChunkOption.value?.(chunk)
+        },
+        onFinish: (message) => {
+          if (onFinishQrlOption.value) {
+            void onFinishQrlOption.value(message)
+            return
+          }
+          onFinishOption.value?.(message)
+        },
+        onError: (nextError) => {
+          if (onErrorQrlOption.value) {
+            void onErrorQrlOption.value(nextError)
+            return
+          }
+          onErrorOption.value?.(nextError)
+        },
+        tools,
+        onCustomEvent: (eventType, data, context) =>
+          onCustomEventQrlOption.value
+            ? void onCustomEventQrlOption.value(eventType, data, context)
+            : onCustomEventOption.value?.(eventType, data, context),
+        ...(streamProcessor !== undefined && {
+          streamProcessor,
+        }),
+        onMessagesChange: (nextMessages: Array<UIMessage<TTools>>) => {
+          messages.value = nextMessages
+        },
+        onLoadingChange: (nextIsLoading: boolean) => {
+          isLoading.value = nextIsLoading
+        },
+        onStatusChange: (nextStatus: ChatClientState) => {
+          status.value = nextStatus
+        },
+        onErrorChange: (nextError: Error | undefined) => {
+          error.value = nextError
+        },
+        onSubscriptionChange: (nextIsSubscribed: boolean) => {
+          isSubscribed.value = nextIsSubscribed
+        },
+        onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+          connectionStatus.value = nextStatus
+        },
+        onSessionGeneratingChange: (isGenerating: boolean) => {
+          sessionGenerating.value = isGenerating
+        },
+      })
+
+      if (generation !== clientGeneration.value) {
+        chatClient.dispose()
+        throw new Error('Chat client initialization was superseded')
+      }
+
+      client.value = noSerialize(chatClient)
+      messages.value = chatClient.getMessages()
+      error.value = undefined
+      status.value = 'ready'
+
+      if (liveOption.value) {
+        chatClient.subscribe()
+      }
+
+      chatClient.mountDevtools()
+      return chatClient
+    })()
+
+    clientPromise.value = noSerialize(initialization)
+    try {
+      return await initialization
+    } catch (cause) {
+      if (generation === clientGeneration.value) {
+        const nextError =
+          cause instanceof Error ? cause : new Error(String(cause))
         error.value = nextError
-      },
-      onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        isSubscribed.value = nextIsSubscribed
-      },
-      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        connectionStatus.value = nextStatus
-      },
-      onSessionGeneratingChange: (isGenerating: boolean) => {
-        sessionGenerating.value = isGenerating
-      },
-    })
-
-    client.value = noSerialize(chatClient)
-    messages.value = chatClient.getMessages()
-
-    if (liveOption.value) {
-      chatClient.subscribe()
+        status.value = 'error'
+      }
+      throw cause
+    } finally {
+      if (clientPromise.value === initialization) {
+        clientPromise.value = undefined
+      }
     }
+  })
 
-    chatClient.mountDevtools()
+  useVisibleTask$(({ cleanup, track }) => {
+    track(clientId)
+    const generation = clientGeneration.value
+    void initializeClient().catch(() => {})
 
     cleanup(() => {
-      if (liveOption.value) {
-        chatClient.unsubscribe()
-      } else {
-        chatClient.stop()
-      }
-      chatClient.dispose()
+      if (generation !== clientGeneration.value) return
+      clientGeneration.value++
+      clientPromise.value = undefined
+      const chatClient = client.value
       client.value = undefined
+      chatClient?.dispose()
     })
   })
 
@@ -442,27 +507,30 @@ export function useChat<
   })
 
   const sendMessage = $(async (content: string | MultimodalContent) => {
-    await client.value?.sendMessage(content)
+    await (await initializeClient()).sendMessage(content)
   })
 
   const append = $(async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.value?.append(message)
+    await (await initializeClient()).append(message)
   })
 
   const reload = $(async () => {
-    await client.value?.reload()
+    await (await initializeClient()).reload()
   })
 
-  const stop = $(() => {
-    client.value?.stop()
+  const stop = $(async () => {
+    const chatClient = await initializeClient()
+    chatClient.stop()
   })
 
-  const clear = $(() => {
-    client.value?.clear()
+  const clear = $(async () => {
+    const chatClient = await initializeClient()
+    chatClient.clear()
   })
 
-  const setMessages = $((nextMessages: Array<UIMessage<TTools>>) => {
-    client.value?.setMessagesManually(nextMessages)
+  const setMessages = $(async (nextMessages: Array<UIMessage<TTools>>) => {
+    const chatClient = await initializeClient()
+    chatClient.setMessagesManually(nextMessages)
   })
 
   const addToolResult = $(
@@ -473,13 +541,13 @@ export function useChat<
       state?: 'output-available' | 'output-error'
       errorText?: string
     }) => {
-      await client.value?.addToolResult(result)
+      await (await initializeClient()).addToolResult(result)
     },
   )
 
   const addToolApprovalResponse = $(
     async (response: { id: string; approved: boolean }) => {
-      await client.value?.addToolApprovalResponse(response)
+      await (await initializeClient()).addToolApprovalResponse(response)
     },
   )
 

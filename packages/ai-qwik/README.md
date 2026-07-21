@@ -87,3 +87,35 @@ export default component$(() => {
   return <button onClick$={() => chat.sendMessage('Use custom transport')} />
 })
 ```
+
+The same serialization rule applies to persistence adapters and custom chunk
+strategies because both contain methods. Create them with `persistence$` and
+`streamProcessor$` in SSR/resumable applications:
+
+```tsx
+import { $, component$ } from '@qwik.dev/core'
+import { BatchStrategy } from '@tanstack/ai'
+import { useChat } from '@tanstack/ai-qwik'
+
+export default component$(() => {
+  const chat = useChat({
+    api: '/api/chat',
+    persistence$: $(() => ({
+      getItem: (id) => JSON.parse(localStorage.getItem(id) || 'null'),
+      setItem: (id, messages) =>
+        localStorage.setItem(id, JSON.stringify(messages)),
+      removeItem: (id) => localStorage.removeItem(id),
+    })),
+    streamProcessor$: $(() => ({
+      chunkStrategy: new BatchStrategy(5),
+    })),
+  })
+
+  return <button onClick$={() => chat.sendMessage('Hello')} />
+})
+```
+
+Direct `connection`, `fetcher`, `tools`, `persistence`, `streamProcessor`, and
+callback options remain available for client-only rendering. For SSR, prefer
+their `$` variants: Qwik intentionally drops values marked with `noSerialize()`
+when the server-rendered application resumes in the browser.

@@ -10,6 +10,28 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '../lib/guitar-tools'
+import { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+
+const localStoragePersistence: ChatClientPersistence = {
+  getItem: (id) => {
+    const raw = window.localStorage.getItem(id)
+    if (!raw) return null
+    const stored: Array<UIMessage> = JSON.parse(raw)
+    return stored.map((message) => ({
+      ...message,
+      createdAt:
+        typeof message.createdAt === 'string'
+          ? new Date(message.createdAt)
+          : message.createdAt,
+    }))
+  },
+  setItem: (id, messages) => {
+    window.localStorage.setItem(id, JSON.stringify(messages))
+  },
+  removeItem: (id) => {
+    window.localStorage.removeItem(id)
+  },
+}
 
 function getTextPartContent(part: { type: string; content?: string }) {
   return part.type === 'text' ? part.content || '' : ''
@@ -155,12 +177,14 @@ export default component$(() => {
     )
   })
   const chat = useChat({
+    id: 'guitar-store-chat-1',
     api: '/api/chat',
     tools$: createTools,
     forwardedProps: {
       model: 'gpt-5.2',
       provider: 'openai',
     },
+    persistence: localStoragePersistence,
   })
 
   const send = $(async () => {

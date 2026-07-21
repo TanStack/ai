@@ -398,6 +398,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../packages/ai-client
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/ai-openai

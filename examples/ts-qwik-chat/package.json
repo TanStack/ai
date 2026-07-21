@@ -16,6 +16,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-qwik": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
     "zod": "^4.2.0"
   },
   "devDependencies": {
