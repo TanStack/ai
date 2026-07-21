@@ -73,12 +73,64 @@ import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { messages } = useChat({
   connection: fetchServerSentEvents("/api/chat", {
-    body: { provider: "openai", model: "gpt-5.1" },
+    body: { provider: "openai", model: "gpt-5.5" },
   }),
 });
 ```
 
 > **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
+
+### Resumable SSE
+
+`fetchServerSentEvents` watches SSE `id:` values. If a connection drops after
+receiving an id, it reconnects with `Last-Event-ID` and de-duplicates the
+replayed prefix. `joinRun(runId)` performs a read-only GET with `offset=-1` and
+the run id, replaying an in-flight or finished run from the start.
+
+The ids only appear when the server passes a durability adapter to
+`toServerSentEventsResponse`. They are opaque tokens owned by that adapter; the
+chat client does not create, parse, or persist them. Without ids, behavior is
+identical to a plain single fetch. See
+[Resumable Streams](../resumable-streams/overview).
+
+Your route needs a `GET` handler alongside `POST` for `joinRun` (second tab or
+reload) to work. `POST` handles fresh runs and auto-reconnects (it re-sends the
+same body with `Last-Event-ID`); `GET` replays a known run from the start:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  resumeServerSentEventsResponse,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+  const stream = chat({ adapter: openaiText("gpt-5.5"), messages, threadId, runId });
+  return toServerSentEventsResponse(stream, {
+    durability: { adapter: memoryStream(request) },
+  });
+}
+
+// joinRun hits GET ?offset=-1&runId=... (replay only, no messages sent).
+export async function GET(request: Request) {
+  return resumeServerSentEventsResponse({ adapter: memoryStream(request) });
+}
+```
+
+The `GET` handler calls no provider: on a replay the durability adapter's
+`resumeFrom()` is non-null (from `?offset`), so the log is replayed instead.
+`resumeServerSentEventsResponse` returns a 400 when the request has no resume
+offset. Use `resumeHttpResponse` for the NDJSON adapters.
+
+`fetchHttpStream` and `xhrHttpStream` resume the same way over NDJSON, where the
+offset rides in an `{ id, chunk }` envelope (see below) instead of an SSE `id:`
+line. Enable it by passing a durability adapter to `toHttpResponse`.
+`xhrServerSentEvents` resumes over SSE exactly like `fetchServerSentEvents`
+(paired with `toServerSentEventsResponse` and its `id:` lines).
 
 ## HTTP Streaming (NDJSON)
 
@@ -92,7 +144,9 @@ const { messages } = useChat({
 });
 ```
 
-Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body. Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body (or use `toHttpResponse(stream)`). Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+
+`fetchHttpStream` is also resumable: pass a durability adapter to `toHttpResponse` and each line becomes an `{ id, chunk }` envelope. A dropped connection reconnects with `Last-Event-ID`, de-duplicates the replayed prefix, and `joinRun(runId)` attaches to an existing run. Same guarantees as [Resumable SSE](#resumable-sse), over NDJSON.
 
 ## React Native and Expo
 
@@ -128,6 +182,10 @@ const chat = useChat({
   connection: xhrHttpStream(httpUrl),
 });
 ```
+
+Mobile connections drop often, so this is where resumability pays off most.
+Both XHR adapters reconnect and `joinRun` when the server adds a durability
+adapter. See [Resumable Streams](../resumable-streams/overview).
 
 Use `xhrServerSentEvents()` when your server returns `text/event-stream` via
 `toServerSentEventsResponse()`:
@@ -203,7 +261,7 @@ export const chatFn = createServerFn({ method: "POST" })
   .inputValidator((data: { messages: Array<UIMessage> }) => data)
   .handler(({ data }) =>
     toServerSentEventsResponse(
-      chat({ adapter: openaiText("gpt-5.1"), messages: data.messages }),
+      chat({ adapter: openaiText("gpt-5.5"), messages: data.messages }),
     ),
   );
 ```
@@ -292,20 +350,30 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
 
   return {
     async *subscribe(abortSignal) {
-      while (!abortSignal?.aborted && !closed) {
-        const buffered = queue.shift();
-        if (buffered !== undefined) {
-          yield buffered;
-          continue;
-        }
-        const chunk = await new Promise<StreamChunk | null>((resolve) => {
-          pending = resolve;
-          abortSignal?.addEventListener("abort", () => resolve(null), {
-            once: true,
+      // Register the abort listener once (not per-iteration) so it can't
+      // accumulate on a long-lived socket.
+      const onAbort = () => deliver(null);
+      abortSignal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        while (!abortSignal?.aborted) {
+          // Drain buffered chunks BEFORE honoring `closed`: a burst of messages
+          // followed by a close event (common within one macrotask) must still
+          // deliver the queued chunks (including a trailing RUN_FINISHED),
+          // otherwise the client would hang waiting for a terminal it dropped.
+          const buffered = queue.shift();
+          if (buffered !== undefined) {
+            yield buffered;
+            continue;
+          }
+          if (closed) return;
+          const chunk = await new Promise<StreamChunk | null>((resolve) => {
+            pending = resolve;
           });
-        });
-        if (chunk === null) return;
-        yield chunk;
+          if (chunk === null) return;
+          yield chunk;
+        }
+      } finally {
+        abortSignal?.removeEventListener("abort", onAbort);
       }
     },
 

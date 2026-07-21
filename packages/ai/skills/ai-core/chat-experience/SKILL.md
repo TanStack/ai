@@ -16,6 +16,7 @@ sources:
   - 'TanStack/ai:docs/chat/connection-adapters.md'
   - 'TanStack/ai:docs/chat/thinking-content.md'
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
+  - 'TanStack/ai:docs/resumable-streams/overview.md'
 ---
 
 # Chat Experience
@@ -41,7 +42,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = body
 
         const stream = chat({
-          adapter: openaiText('gpt-5.2'),
+          adapter: openaiText('gpt-5.5'),
           messages,
           systemPrompts: ['You are a helpful assistant.'],
           abortController,
@@ -147,6 +148,16 @@ const stream = chat({
 
 return toServerSentEventsResponse(stream, { abortController })
 ```
+
+To make the SSE response resumable (reconnect after a drop/refresh without
+re-running the provider), pass a delivery-durability adapter:
+`toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`
+(`memoryStream` from `@tanstack/ai` is process-local, for dev/tests) or
+`durableStream(request, { server })` from `@tanstack/ai-durable-stream`
+(Durable Streams protocol, production). Each SSE event gets an opaque
+adapter-owned `id:`; `fetchServerSentEvents` auto-reconnects with
+`Last-Event-ID` and exposes `joinRun(runId)` to replay a run from the start.
+See `docs/resumable-streams/overview.md`.
 
 **Client:**
 
@@ -317,7 +328,7 @@ import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   abortController,
 })
@@ -337,6 +348,13 @@ const { messages, sendMessage } = useChat({
 
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
+
+This includes resumability: pass the same `durability` adapter to
+`toHttpResponse(stream, { durability: { adapter: memoryStream(request) } })` and
+each NDJSON line becomes an `{ id, chunk }` envelope. `fetchHttpStream`
+auto-reconnects with `Last-Event-ID`, de-dupes the replayed prefix, and exposes
+`joinRun(runId)` — the same guarantees as resumable SSE. The XHR adapters
+(`xhrServerSentEvents` / `xhrHttpStream`) are resumable too.
 
 ### 6. MCP Tool Discovery via `chat({ mcp })`
 
@@ -475,12 +493,12 @@ sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
 // WRONG
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-const result = streamText({ model: openai('gpt-4o'), messages })
+const result = streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
@@ -489,12 +507,12 @@ const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
 // WRONG
 import { createOpenAI } from '@ai-sdk/openai'
 const openai = createOpenAI({ apiKey })
-streamText({ model: openai('gpt-4o'), messages })
+streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
@@ -502,11 +520,11 @@ chat({ adapter: openaiText('gpt-5.2'), messages })
 ```typescript
 // WRONG
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.2', messages })
+chat({ adapter: openai(), model: 'gpt-5.5', messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The monolithic `openai()` adapter is deprecated. Use tree-shakeable adapters:
@@ -528,10 +546,10 @@ return toServerSentEventsResponse(stream, { abortController })
 
 ```typescript
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.2', messages })
+chat({ adapter: openaiText(), model: 'gpt-5.5', messages })
 
 // CORRECT
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.

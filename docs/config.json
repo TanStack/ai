@@ -167,7 +167,8 @@
         {
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "Thinking & Reasoning",
@@ -178,6 +179,26 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02"
+        }
+      ]
+    },
+    {
+      "label": "Resumable Streams",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "resumable-streams/overview",
+          "addedAt": "2026-07-17"
+        },
+        {
+          "label": "Advanced",
+          "to": "resumable-streams/advanced",
+          "addedAt": "2026-07-17"
+        },
+        {
+          "label": "Custom Durability Adapter",
+          "to": "resumable-streams/custom-adapter",
+          "addedAt": "2026-07-17"
         }
       ]
     },

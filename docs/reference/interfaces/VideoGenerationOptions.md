@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions, TSize, TDuration\>
 
-Defined in: [packages/ai/src/types.ts:1903](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1903)
+Defined in: [packages/ai/src/types.ts:1935](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1935)
 
 **`Experimental`**
 
@@ -36,7 +36,7 @@ These are the common options supported across providers.
 optional duration: TDuration;
 ```
 
-Defined in: [packages/ai/src/types.ts:1926](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1926)
+Defined in: [packages/ai/src/types.ts:1958](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1958)
 
 **`Experimental`**
 
@@ -52,7 +52,7 @@ map narrow this to the model's valid union; use
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:1933](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1933)
+Defined in: [packages/ai/src/types.ts:1965](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1965)
 
 **`Experimental`**
 
@@ -67,7 +67,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1909](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1909)
+Defined in: [packages/ai/src/types.ts:1941](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1941)
 
 **`Experimental`**
 
@@ -81,7 +81,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:1928](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1928)
+Defined in: [packages/ai/src/types.ts:1960](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1960)
 
 **`Experimental`**
 
@@ -95,7 +95,7 @@ Model-specific options for video generation
 prompt: MediaPrompt;
 ```
 
-Defined in: [packages/ai/src/types.ts:1918](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1918)
+Defined in: [packages/ai/src/types.ts:1950](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1950)
 
 **`Experimental`**
 
@@ -114,7 +114,7 @@ provider-native request (e.g. OpenAI Sora `input_reference`, fal
 optional size: TSize;
 ```
 
-Defined in: [packages/ai/src/types.ts:1920](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1920)
+Defined in: [packages/ai/src/types.ts:1952](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1952)
 
 **`Experimental`**
 

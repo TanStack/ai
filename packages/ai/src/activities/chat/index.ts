@@ -45,13 +45,13 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
-  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
   JSONSchema,
   LazyToolsConfig,
   ModelMessage,
+  ProviderTool,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
@@ -63,6 +63,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  TypedStreamChunk,
   UIMessage,
 } from '../../types'
 import type {
@@ -77,7 +78,6 @@ import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { ProviderTool } from '../../tools/provider-tool'
 import type {
   ContextFromMiddleware,
   ContextFromTool,
@@ -171,6 +171,7 @@ type TextActivityOptionsWithContext<
  * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
+ * @template TContext - Runtime context value threaded to middleware hooks and server tools
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
@@ -221,7 +222,7 @@ export interface TextActivityOptions<
    *    compile-time error on the array element.
    */
   tools?:
-    | Array<
+    | ReadonlyArray<
         | (AnyRuntimeTool & { readonly '~toolKind'?: never })
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
@@ -280,7 +281,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -372,12 +373,18 @@ export function createChatOptions<
     TTools,
     TMiddleware
   >,
-): TextActivityOptions<
-  TAdapter,
-  TSchema,
-  TStream,
-  InferredContext<TTools, TMiddleware>
-> {
+  // Preserve the concrete `tools` tuple on the returned options (so a later
+  // `chat({ ...opts })` still narrows tool-call events to the tool names)
+  // while threading the inferred runtime context like the bare options type.
+): Omit<
+  TextActivityOptions<
+    TAdapter,
+    TSchema,
+    TStream,
+    InferredContext<TTools, TMiddleware>
+  >,
+  'tools'
+> & { tools?: TTools } {
   return options
 }
 
@@ -394,7 +401,10 @@ export function createChatOptions<
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
  * - If stream is explicitly false (no schema): Promise<string>.
- * - Otherwise (default): AsyncIterable<StreamChunk>.
+ * - Otherwise (default): AsyncIterable<TypedStreamChunk<TTools>>.
+ *
+ * When tools with typed schemas are provided, the stream chunks include
+ * type-safe `toolName` and `input` fields on tool call events.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
  * default `boolean` value of `TStream` does *not* match the streaming branch.
@@ -404,13 +414,23 @@ export function createChatOptions<
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = boolean,
+  // Unconstrained so `chat()` can forward its inferred `options['tools']` type
+  // (which may be `undefined` or the broad `AnyRuntimeTool | ProviderTool`
+  // array) directly; non-tool-array inputs normalize to the default below.
+  TTools = ReadonlyArray<AnyTool>,
 > = TSchema extends SchemaInput
   ? [TStream] extends [true]
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : ChatStream
+    : AsyncIterable<
+        TypedStreamChunk<
+          TTools extends ReadonlyArray<AnyTool>
+            ? TTools
+            : ReadonlyArray<AnyTool>
+        >
+      >
 
 // ===========================
 // ChatEngine Implementation
@@ -1795,7 +1815,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1818,7 +1838,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1845,6 +1865,7 @@ class TextEngine<
       // argsMap is set only on continuation re-executions, where the adapter
       // never streamed these calls. Otherwise it already emitted END, so a
       // second one here would be an orphan that fails verifyEvents (#519).
+      // When we do emit END, attach parsed `input`/`output` for TypedStreamChunk.
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1853,7 +1874,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1873,8 +1894,10 @@ class TextEngine<
           toolCallName: result.toolName,
           toolName: result.toolName,
           result: wireContent,
+          ...(result.input !== undefined && { input: result.input }),
+          ...(result.output !== undefined && { output: result.output }),
           ...(result.state !== undefined && { state: result.state }),
-        } as StreamChunk)
+        })
       }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
@@ -2718,7 +2741,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {
@@ -2820,7 +2843,7 @@ export function chat<
     TTools,
     TMiddleware
   >,
-): TextActivityResult<TSchema, TStream> {
+): TextActivityResult<TSchema, TStream, TTools> {
   validateCapabilities(options.middleware ?? [], options.adapter)
 
   const { outputSchema, stream } = options
@@ -2833,7 +2856,7 @@ export function chat<
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
@@ -2841,7 +2864,7 @@ export function chat<
     return runAgenticStructuredOutput({
       ...options,
       outputSchema,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If stream is explicitly false, run non-streaming text
@@ -2850,7 +2873,7 @@ export function chat<
       ...options,
       outputSchema: undefined,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // Otherwise, run streaming text (default)
@@ -2858,7 +2881,7 @@ export function chat<
     ...options,
     outputSchema: undefined,
     stream,
-  }) as TextActivityResult<TSchema, TStream>
+  }) as TextActivityResult<TSchema, TStream, TTools>
 }
 
 /**
