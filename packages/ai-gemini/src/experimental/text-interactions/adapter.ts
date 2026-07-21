@@ -449,7 +449,7 @@ export class GeminiTextInteractionsAdapter<
 
   async *structuredOutputStream(
     options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const runId = chatOptions.runId ?? generateId(this.name)
     const threadId = chatOptions.threadId ?? generateId(this.name)
@@ -487,7 +487,7 @@ export class GeminiTextInteractionsAdapter<
 
       let rawText = ''
       let finished:
-        | Extract<StreamChunk, { type: typeof EventType.RUN_FINISHED }>
+        | Extract<AdapterYieldChunk, { type: typeof EventType.RUN_FINISHED }>
         | undefined
       let failed = false
       for await (const chunk of translateInteractionEvents(
@@ -578,7 +578,7 @@ function interactionsStructuredStreamError(
   runId: string,
   message: string,
   code: string,
-): Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> {
+): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
   return {
     type: EventType.RUN_ERROR,
     runId,
