@@ -210,10 +210,46 @@ Only approval accepts `editedArgs`. Without an `approvalSchema` the boolean
 shorthand `resolveInterrupt(true)` / `resolveInterrupt(false)` is all you need.
 The server re-validates the whole decision before it runs the tool.
 
+## Consume the decision on the server
+
+The two fields you sent land in two different places, so pick the one that fits
+what you need.
+
+`editedArgs` become the arguments the tool runs with. This is how a human
+reshapes what the tool does before it runs. There is nothing to wire up: your
+`execute` always receives the final input, edited or not, already validated
+against `inputSchema`:
+
+```ts
+// server/transfer-tool.ts
+import { transferTool } from '../tools/transfer'
+
+export const transfer = transferTool.server(async (input) => {
+  // input.amount / input.recipient are the model's arguments, or the
+  // approver's editedArgs when they changed them. Same code either way.
+  return {
+    receiptId: `${input.recipient}-${input.amount}-${crypto.randomUUID()}`,
+  }
+})
+```
+
+The `payload` is decision data, not tool input, and the two branches use it
+differently:
+
+- The **reject** payload comes back as the tool's failed result, so the model
+  reads why it was refused and can respond. `resolveInterrupt(false, { payload:
+  { reason: 'Too large' } })` hands `{ reason: 'Too large' }` to the model as
+  the result of that call.
+- The **approve** payload is validated decision data for your own app: an audit
+  log, a "reviewed by" record, an analytics event. It is not passed to
+  `execute`. If the tool itself needs a value from the approver, put it in
+  `editedArgs` (part of the tool input) rather than the payload.
+
 ## Reject is not cancel
 
 `resolveInterrupt(false, ...)` is a resolved no. The run continues and the model
-sees the rejection (and any reject payload), so it can respond to it.
+sees the rejection (and its reject payload as the tool result), so it can
+respond to it.
 
 `interrupt.cancel()` abandons the pause. It carries no payload and does not pick
 the reject branch. Reject when the user answered no; cancel when the workflow is
