@@ -14,9 +14,9 @@ Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:25](https:
 Creates a strategy that continues for a maximum number of **model turns**
 (iterations), not tool calls.
 
-One iteration can still emit many parallel tool calls. Prefer
-[maxToolCalls](maxToolCalls.md) (and optionally `maxToolCallsPerTurn` on `chat()`)
-when you need a tool-call budget.
+One iteration can still emit many parallel tool calls. Prefer middleware
+with `onBeforeToolCall` / `onShouldContinue` when you need a tool-call
+budget (see the Agentic Cycle docs recipe).
 
 ## Parameters
 

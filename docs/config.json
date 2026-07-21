@@ -156,7 +156,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Streaming",
@@ -337,12 +337,13 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-15"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Built-in Middleware",
           "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03"
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "OpenTelemetry",
@@ -502,7 +503,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "@tanstack/ai-client",

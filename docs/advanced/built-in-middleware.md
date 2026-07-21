@@ -23,6 +23,8 @@ TanStack AI ships ready-made middleware so you don't have to hand-roll the commo
 
 > `toolCacheMiddleware` and `contentGuardMiddleware` are exported from the main `@tanstack/ai/middlewares` barrel. `otelMiddleware` lives on its own subpath (`@tanstack/ai/middlewares/otel`) so that importing the barrel never eagerly pulls in `@opentelemetry/api` (an optional peer dependency).
 
+For app-owned policies (for example tool-call budgets), see the [tool-call budget recipe](../chat/agentic-cycle#tool-call-budgets-middleware-recipe) — those stay in your code, not in `@tanstack/ai/middlewares`.
+
 ## toolCacheMiddleware
 
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
