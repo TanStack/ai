@@ -723,8 +723,16 @@ export class InterruptManager<
     // `client-tool-execution` items stay in `this.items` (they gate batch
     // submission and are resolved internally via auto-execution / addToolResult),
     // but they are never surfaced as public bound interrupts.
+    //
+    // Items with status `submitting` are also omitted: the resume stream is
+    // already in flight, so Approve/Deny is not actionable. Keeping them in
+    // the public list made UIs look stuck after a successful approve and
+    // blocked follow-up turns that key off `interrupts.length`.
     const next = this.items
-      .filter((item) => item.kind !== 'client-tool-execution')
+      .filter(
+        (item) =>
+          item.kind !== 'client-tool-execution' && item.status !== 'submitting',
+      )
       .map((item) => {
         const base = baseSnapshot(
           item,

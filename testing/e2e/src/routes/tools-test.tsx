@@ -138,7 +138,26 @@ function createTrackedTools(
     }
   })
 
-  return [readClientContextTool, showNotificationTool, displayChartTool]
+  // Client-side stub for the server `delete_file` approval tool. Must be
+  // registered with `needsApproval: true` so InterruptManager hydrates the
+  // pause as `kind: 'tool-approval'` (matching schema hashes) instead of
+  // falling through to generic — otherwise Approve/Deny look up
+  // `kind === 'tool-approval'` and silently no-op.
+  const deleteFileApprovalTool = toolDefinition({
+    name: 'delete_file',
+    description: 'Delete a file (requires approval)',
+    inputSchema: z.object({
+      path: z.string(),
+    }),
+    needsApproval: true,
+  }).client()
+
+  return [
+    readClientContextTool,
+    showNotificationTool,
+    displayChartTool,
+    deleteFileApprovalTool,
+  ]
 }
 
 function createHistoryFixtureMessages(historyFixture?: string) {
@@ -464,13 +483,18 @@ function ToolsTestPage() {
                   const interrupt = (
                     interrupts as ReadonlyArray<{
                       kind: string
+                      id?: string
+                      interruptId?: string
                       toolCallId?: string
+                      status?: string
                       resolveInterrupt: (approved: boolean) => void
                     }>
                   ).find(
                     (item) =>
-                      item.kind === 'tool-approval' &&
-                      item.toolCallId === tc.id,
+                      item.status === 'pending' &&
+                      (item.toolCallId === tc.id ||
+                        item.id === approvalId ||
+                        item.interruptId === approvalId),
                   )
                   if (!interrupt) return
                   respondedApprovals.current.add(approvalId)
@@ -506,13 +530,18 @@ function ToolsTestPage() {
                   const interrupt = (
                     interrupts as ReadonlyArray<{
                       kind: string
+                      id?: string
+                      interruptId?: string
                       toolCallId?: string
+                      status?: string
                       resolveInterrupt: (approved: boolean) => void
                     }>
                   ).find(
                     (item) =>
-                      item.kind === 'tool-approval' &&
-                      item.toolCallId === tc.id,
+                      item.status === 'pending' &&
+                      (item.toolCallId === tc.id ||
+                        item.id === approvalId ||
+                        item.interruptId === approvalId),
                   )
                   if (!interrupt) return
                   respondedApprovals.current.add(approvalId)
@@ -522,7 +551,7 @@ function ToolsTestPage() {
                     toolCallId: tc.id,
                   })
                   interrupt.resolveInterrupt(false)
-                }}
+                }
                 style={{
                   padding: '5px 15px',
                   backgroundColor: '#dc3545',

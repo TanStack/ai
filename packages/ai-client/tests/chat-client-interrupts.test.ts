@@ -381,7 +381,11 @@ describe('InterruptManager hydration', () => {
     expect(item?.kind).toBe('generic')
     expect(item?.canResolve).toBe(false)
     item?.cancel()
-    expect(manager.getInterrupts()[0]?.status).toBe('submitting')
+    // Cancellation immediately submits the batch; submitting items are omitted
+    // from the public interrupt list (not user-actionable while the resume
+    // stream is in flight).
+    expect(manager.getInterrupts()).toEqual([])
+    expect(manager.getResuming()).toBe(true)
   })
 })
 
@@ -535,9 +539,10 @@ describe('InterruptManager transactions', () => {
     expect(calls).toEqual(['one', 'two'])
     expect(submit).toHaveBeenCalledTimes(1)
     expect(() => lateCancel?.()).toThrow('inactive')
-    expect(() => manager.getInterrupts()[0]?.clearResolution()).toThrow(
-      'submitting',
-    )
+    // Submitting items are omitted from the public list while the resume
+    // stream is in flight.
+    expect(manager.getInterrupts()).toEqual([])
+    expect(manager.getResuming()).toBe(true)
   })
 
   it('permits boolean bulk resolution only for payloadless tool approvals and cancels all payloadlessly', () => {

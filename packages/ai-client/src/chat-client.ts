@@ -194,6 +194,21 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
   }
 }
 
+/**
+ * Extract a boolean approval decision from an AG-UI resume payload, if present.
+ * Tool-approval resolutions carry `{ approved: boolean, ... }`; generic
+ * interrupt payloads do not.
+ */
+function readApprovalApproved(payload: unknown): boolean | undefined {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    return undefined
+  }
+  if (!('approved' in payload) || typeof payload.approved !== 'boolean') {
+    return undefined
+  }
+  return payload.approved
+}
+
 function readResumeState(
   snapshot: ChatResumeSnapshot,
 ): ChatResumeState | undefined {
@@ -773,13 +788,33 @@ export class ChatClient<
       (runId && this.currentRunId === runId) ||
       (this.currentRunId && this.lastResume?.runId === this.currentRunId),
     )
+    // Provider adapters sometimes stamp a different run id on continuation
+    // events than the client-generated request id. RUN_STARTED updates
+    // `activeResumeRunId`, so match that too.
+    const isActiveStreamRunTerminal = Boolean(
+      this.isLoading &&
+        runId &&
+        (runId === this.activeResumeRunId || runId === this.currentRunId),
+    )
     const isCurrentStreamTerminal =
       this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+    // A resume batch that finishes successfully (or with a non-interrupt
+    // terminal) must always clear pending interrupts — even when the provider
+    // run id does not correlate. Otherwise Approve works once but the UI
+    // keeps showing a stale prompt and blocks follow-up turns.
+    const isActiveInterruptSubmissionTerminal = Boolean(
+      this.activeInterruptSubmission &&
+        this.isLoading &&
+        chunk.type === 'RUN_FINISHED' &&
+        chunk.outcome?.type !== 'interrupt',
+    )
     if (
       isRunlessSessionError ||
       isTrackedRunTerminal ||
       isCurrentRunTerminal ||
-      isCurrentStreamTerminal
+      isActiveStreamRunTerminal ||
+      isCurrentStreamTerminal ||
+      isActiveInterruptSubmissionTerminal
     ) {
       this.lastResume = null
       this.interruptManager.reset()
@@ -874,6 +909,15 @@ export class ChatClient<
   ): Promise<void> {
     this.activeInterruptSubmission = submission
     this.interruptSubmissionFailure = undefined
+    // Reflect approval decisions in the local message tree immediately so a
+    // follow-up turn does not re-serialize tool-calls still stuck in
+    // `approval-requested` (issue #532).
+    for (const resolution of submission.resolutions) {
+      const approved = readApprovalApproved(resolution.payload)
+      if (approved === undefined) continue
+      const approvalId = resolution.interruptId
+      this.processor.addToolApprovalResponse(approvalId, approved)
+    }
     const resumed = await this.resumeInterruptsUnsafe(
       [...submission.resolutions],
       {
@@ -889,6 +933,13 @@ export class ChatClient<
     }
     if (!resumed) {
       throw new Error('Interrupt continuation could not be started.')
+    }
+    // Belt-and-suspenders: if the continuation stream finished successfully
+    // but correlation failed to clear resume state, drop it now so the next
+    // user turn is not blocked by a stale interrupt prompt.
+    if (this.lastResume?.runId === submission.interruptedRunId) {
+      this.lastResume = null
+      this.interruptManager.reset()
     }
   }
 
@@ -1279,7 +1330,7 @@ export class ChatClient<
     if (emptyMessage) {
       return
     }
-    if (this.interruptManager.getInterrupts().length > 0 && this.lastResume) {
+    if (this.hasBlockingInterrupts()) {
       throw new Error(
         'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )
@@ -1312,6 +1363,30 @@ export class ChatClient<
     } finally {
       this.sendInFlight = false
     }
+  }
+
+  /**
+   * True when the client still has user-actionable interrupts (or is mid
+   * resume submission). Staged/submitting items that are already being
+   * continued do not block a later turn once the resume stream has cleared
+   * resume state.
+   */
+  private hasBlockingInterrupts(): boolean {
+    if (!this.lastResume && !this.activeInterruptSubmission) {
+      return false
+    }
+    if (this.activeInterruptSubmission) {
+      return true
+    }
+    return this.interruptManager
+      .getInterrupts()
+      .some(
+        (item) =>
+          item.status === 'pending' ||
+          item.status === 'validating' ||
+          item.status === 'error' ||
+          item.status === 'staged',
+      )
   }
 
   /** True while a stream is active, a send is claiming the client, or the queue is draining. */
@@ -1423,7 +1498,7 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
-    if (this.interruptManager.getInterrupts().length > 0 && this.lastResume) {
+    if (this.hasBlockingInterrupts()) {
       throw new Error(
         'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )
