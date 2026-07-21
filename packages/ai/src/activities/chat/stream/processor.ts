@@ -1045,7 +1045,6 @@ export class StreamProcessor {
     }
 
     return messages.map((msg) => {
-      let changed = false
       const parts = msg.parts.map((part) => {
         if (part.type !== 'tool-call') return part
 
@@ -1072,7 +1071,6 @@ export class StreamProcessor {
             ...(prev.approval !== undefined ? { approval: prev.approval } : {}),
             ...(prev.metadata !== undefined ? { metadata: prev.metadata } : {}),
           }
-          changed = true
         }
 
         // Apply sibling tool-result when the call still has no output.
@@ -1096,12 +1094,13 @@ export class StreamProcessor {
             output: errorText ? { error: errorText } : output,
             state: result.state === 'error' ? 'error' : 'complete',
           }
-          changed = true
         }
 
         return next
       })
-      return changed ? { ...msg, parts } : msg
+      // Rebuild only when a part object identity changed.
+      const partsChanged = parts.some((part, index) => part !== msg.parts[index])
+      return partsChanged ? { ...msg, parts } : msg
     })
   }
 
