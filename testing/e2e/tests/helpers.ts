@@ -31,6 +31,8 @@ export async function sendMessage(page: Page, text: string) {
     })
 }
 
+/** Types a prompt and attaches an image; attaching auto-sends. Retries until
+ *  the user bubble renders — the inline comment below explains why. */
 export async function sendMessageWithImage(
   page: Page,
   text: string,
@@ -64,6 +66,9 @@ export async function sendMessageWithImage(
   }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
 }
 
+/** Types a prompt and attaches a PDF; attaching auto-sends. Retries until the
+ *  user bubble renders (same fragile-controlled-input problem as
+ *  sendMessageWithImage — see the comment there). */
 export async function sendMessageWithDocument(
   page: Page,
   text: string,

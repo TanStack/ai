@@ -18,7 +18,9 @@ interface ChatUIProps<
   messages: Array<UIMessage>
   isLoading: boolean
   onSendMessage: (text: string) => void
+  /** Sends the typed prompt plus an attached image as an image content part. */
   onSendMessageWithImage?: (text: string, file: File) => void
+  /** Sends the typed prompt plus an attached PDF as a document content part. */
   onSendMessageWithDocument?: (text: string, file: File) => void
   /**
    * Bound AG-UI interrupts from `useChat({ tools })` —
@@ -30,7 +32,9 @@ interface ChatUIProps<
     id: string
     approved: boolean
   }) => Promise<void>
+  /** Renders the image file input (multimodal image features only). */
   showImageInput?: boolean
+  /** Renders the PDF file input (multimodal-document feature only). */
   showDocumentInput?: boolean
   onStop?: () => void
   /** When the streaming structured-output CUSTOM event lands, the page

@@ -47,9 +47,11 @@ export interface OpenAIVideoMetadata {}
  *
  * Documents are supported by the Responses adapter only, which sends them
  * as `input_file`; the Chat Completions adapter rejects document parts.
- * This adapter currently supports only `application/pdf` documents. That is
- * enforced locally for inline (base64) data; URL-sourced documents are sent
- * to OpenAI unvalidated, so a non-PDF URL fails server-side instead.
+ * This adapter currently supports only `application/pdf` documents. Inline
+ * (base64) data is verified locally — both the declared/embedded MIME type
+ * and the `%PDF` content header, so mislabeled non-PDF data is rejected
+ * before the request. URL-sourced documents are sent to OpenAI unvalidated,
+ * so a non-PDF URL fails server-side instead.
  *
  * @see https://developers.openai.com/api/docs/guides/pdf-files
  */
@@ -61,9 +63,12 @@ export interface OpenAIDocumentMetadata {
   filename?: string
   /**
    * Rendering quality for the file's page images. Omitted by default so the
-   * API applies its own default ('low').
+   * API applies its own default ('auto'), which resolves to 'low' or 'high'
+   * depending on the model.
+   *
+   * @see https://developers.openai.com/api/docs/guides/pdf-files
    */
-  detail?: 'low' | 'high'
+  detail?: 'auto' | 'low' | 'high'
 }
 
 /**
