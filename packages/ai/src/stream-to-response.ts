@@ -292,7 +292,9 @@ function durableStreamSource<TOffset extends string>(
     // envelope and is unaffected, but the contract must hold for both wires.)
     if (
       offset.length === 0 ||
-      /[\0\r\n]/.test(offset) ||
+      offset.includes('\0') ||
+      offset.includes('\r') ||
+      offset.includes('\n') ||
       offset !== offset.trim()
     ) {
       throw new Error(
