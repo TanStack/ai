@@ -5,8 +5,8 @@ blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
-  - 'kiira@0.5.0' # root dev dependency already locked on main
-  - 'kiira-core@0.5.0' # transitive dependency of kiira@0.5.0
+  - 'kiira@0.6.0' # root dev dependency (TS7-native engine); freshly published
+  - 'kiira-core@0.6.0' # transitive dependency of kiira@0.6.0
   # Working closely with the aimock team; the e2e suite often needs fresh
   # releases of this test-only mock as it tracks provider SDK changes.
   - '@copilotkit/aimock'
@@ -40,12 +40,10 @@ packageExtensions:
   vue-tsc:
     dependencies:
       typescript: 'npm:@typescript/typescript6@6.0.2'
-  # kiira (doc-snippet type checker) and knip both drive the TS JS API, which
-  # TS7 dropped. Inject the 6.0.2 shim into their node_modules so they resolve
-  # it instead of the root-hoisted TS7. knip's peer range already caps at `<7`.
-  kiira:
-    dependencies:
-      typescript: 'npm:@typescript/typescript6@6.0.2'
+  # knip drives the TS JS API, which TS7 dropped. Inject the 6.0.2 shim into
+  # its node_modules so it resolves it instead of the root-hoisted TS7. knip's
+  # peer range already caps at `<7`. (kiira 0.6.0 type-checks with the project's
+  # native TS7 compiler directly, so it no longer needs the shim.)
   knip:
     dependencies:
       typescript: 'npm:@typescript/typescript6@6.0.2'

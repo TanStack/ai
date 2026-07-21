@@ -70,7 +70,7 @@
     "@typescript/typescript6": "6.0.2",
     "eslint-plugin-unused-imports": "^4.3.0",
     "happy-dom": "^20.0.10",
-    "kiira": "0.5.0",
+    "kiira": "0.6.0",
     "knip": "^6.26.0",
     "markdown-link-extractor": "^4.0.3",
     "nx": "23.1.0",
