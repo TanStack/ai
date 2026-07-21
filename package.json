@@ -65,7 +65,7 @@
     "@faker-js/faker": "^10.1.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/typedoc-config": "0.3.1",
-    "@tanstack/vite-config": "0.5.2",
+    "@tanstack/vite-config": "https://pkg.pr.new/@tanstack/vite-config@18aefa8",
     "@types/node": "^24.10.1",
     "@typescript/typescript6": "6.0.2",
     "eslint-plugin-unused-imports": "^4.3.0",

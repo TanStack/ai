@@ -21,9 +21,6 @@ trustPolicyExclude:
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
 overrides:
   abbrev: ^3.0.0
-  # @tanstack/vite-config pins vite-plugin-dts@4.2.3, which reads the pre-7
-  # TS compiler API and crashes under TypeScript 7. 5.x adds tsgo/TS7 support.
-  vite-plugin-dts: 5.0.3
 
 # TypeScript 7's `typescript` package no longer ships the JS Compiler API
 # (`ts.sys`, `ts.createProgram`, etc.). These framework tools embed that API,
@@ -60,7 +57,6 @@ packageExtensions:
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
-  '@tanstack/vite-config@0.5.2': patches/@tanstack__vite-config@0.5.2.patch
 
 packages:
   - 'packages/*'
