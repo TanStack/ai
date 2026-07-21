@@ -39,7 +39,6 @@ A `MemoryAdapter` has one identifier and seven methods. The [Overview](./overvie
 
 ```ts
 import type {
-  MemoryAdapter,
   MemoryRecord,
   MemoryRecordPatch,
   MemoryScope,
@@ -49,6 +48,7 @@ import type {
   MemoryListResult,
 } from '@tanstack/ai/memory'
 
+// The `MemoryAdapter` contract, as exported from `@tanstack/ai/memory`:
 interface MemoryAdapter {
   name: string
   add(records: MemoryRecord | MemoryRecord[]): Promise<void>
@@ -73,7 +73,10 @@ The shared contract suite in `@tanstack/ai-memory/tests/contract.ts` verifies al
 
 Pick a backend and stub the eight members. Here's a pgvector skeleton you can copy as a starting point:
 
-```ts
+```ts ignore
+// ignore: scaffold to copy — `pg` is a peer dependency of a real pgvector
+// adapter (not a dependency of these docs), and the method bodies are elided
+// stubs, so this is not a standalone-compilable module.
 import type {
   MemoryAdapter,
   MemoryListOptions,
@@ -138,7 +141,10 @@ If your backend has native vector or full-text search (pgvector's `<->`, Postgre
 
 Implementation specifics are backend-dependent, but the shape is the same everywhere. A pgvector example for `add` and `search` makes the pattern concrete:
 
-```ts
+```ts ignore
+// ignore: method-body fragments from inside the adapter object above — they
+// reference `pool`, `table`, and a `rowToRecord` helper from the full adapter,
+// shown to illustrate the query shape, not as a standalone module.
 async add(input) {
   const batch = Array.isArray(input) ? input : [input]
   const now = Date.now()
@@ -225,7 +231,9 @@ The shape generalizes: every method takes a `scope`, does its backend-specific w
 
 The shared test suite in `@tanstack/ai-memory/tests/contract.ts` is the canonical verification for any adapter. Import `runMemoryAdapterContract` and point it at a factory that returns a fresh adapter:
 
-```ts
+```ts ignore
+// ignore: depends on `pg` (a peer dep, not a docs dependency) and a local
+// `../src/pgvector` module — an illustrative test file, not compilable here.
 // tests/pgvector.test.ts
 import { Pool } from 'pg'
 import { runMemoryAdapterContract } from '@tanstack/ai-memory/tests/contract'
@@ -247,7 +255,9 @@ The contract module isn't re-exported from `@tanstack/ai-memory`'s public entry 
 
 Once the contract suite is green, the adapter is interchangeable with the built-ins:
 
-```ts
+```ts ignore
+// ignore: imports `pg` (a peer dep) and a local `./pgvector-adapter` module, and
+// assumes `messages` / `scope` from your app — shown as an integration snippet.
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai/memory'

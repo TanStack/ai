@@ -59,8 +59,7 @@ Custom adapters implement `MemoryAdapter` from `@tanstack/ai/memory` — see the
 `MemoryScope` is the isolation boundary. Every key is optional and orthogonal — the adapter rejects cross-scope reads and writes:
 
 ```ts
-import type { MemoryScope } from '@tanstack/ai/memory'
-
+// The `MemoryScope` type, as exported from `@tanstack/ai/memory`:
 type MemoryScope = {
   tenantId?: string
   userId?: string
@@ -72,7 +71,10 @@ type MemoryScope = {
 
 **Always derive scope server-side from trusted state.** Accepting `tenantId` or `userId` from the request body is how one user reads another user's memory. The function form on `scope` is the recommended pattern — it runs per request and has access to the validated chat context:
 
-```ts
+```ts ignore
+// ignore: `adapter` and `AppCtx` (the shape of `ctx.context`) are application-
+// defined — this shows the server-side scope-derivation pattern rather than
+// type-checking against a concrete context type.
 memoryMiddleware({
   adapter,
   scope: (ctx) => {

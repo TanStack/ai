@@ -48,7 +48,7 @@ const memory = inMemoryMemoryAdapter()
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
-  messages,
+  messages: [{ role: 'user', content: 'Hello' }],
   middleware: [
     memoryMiddleware({
       adapter: memory,
@@ -62,7 +62,11 @@ That's a working setup. Each turn, the middleware retrieves relevant records int
 
 When you're ready to ship, swap the adapter and keep everything else the same:
 
-```ts
+```ts ignore
+// ignore: ioredis's `Redis` type is structurally broader than the adapter's
+// minimal `RedisLike` contract (heavily overloaded method signatures), so it
+// does not nominally match here — but it works at runtime, which is why the
+// adapter accepts a BYO ioredis client directly. `scope` is from Step 5.
 import Redis from 'ioredis'
 import { redisMemoryAdapter } from '@tanstack/ai-memory'
 
@@ -84,12 +88,14 @@ The middleware accepts an `embedder` for semantic search. **Add one when you nee
 ```ts
 import OpenAI from 'openai'
 import { memoryMiddleware } from '@tanstack/ai/memory'
+import { inMemoryMemoryAdapter } from '@tanstack/ai-memory'
 
 const openai = new OpenAI()
+const memory = inMemoryMemoryAdapter()
 
 memoryMiddleware({
   adapter: memory,
-  scope,
+  scope: { tenantId: 'demo', userId: 'alice' },
   embedder: {
     async embed(text) {
       // Use any embedding model — OpenAI, Cohere, a local model, etc.
@@ -97,7 +103,9 @@ memoryMiddleware({
         model: 'text-embedding-3-small',
         input: text,
       })
-      return result.data[0].embedding
+      const embedding = result.data[0]?.embedding
+      if (!embedding) throw new Error('embedding request returned no vector')
+      return embedding
     },
   },
 })
@@ -109,8 +117,13 @@ The embedder is invoked on the retrieval path (to embed the query) and may be in
 
 `scope` is the isolation boundary. Static scopes are fine for fixtures, but in any real multi-tenant app you must derive scope per request from server-validated session data — never from the request body.
 
-```ts
+```ts ignore
+// ignore: shows deriving scope from server-validated session state. `AppCtx`
+// and the shape of `ctx.context` are application-defined (attached by your auth
+// layer), and `messages` / `memory` / `session` come from earlier steps — so
+// this is shown as a pattern rather than type-checked against a concrete context.
 import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai/memory'
 
 type AppCtx = { session: { tenantId: string; userId: string; activeThreadId: string } }
