@@ -68,7 +68,6 @@
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
-    "fake-indexeddb": "^6.2.5",
     "vite": "^7.3.3",
     "zod": "^4.2.0"
   }

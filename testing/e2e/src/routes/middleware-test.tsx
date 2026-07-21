@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },

@@ -39,21 +39,25 @@ describe('normalizeSystemPrompts', () => {
 
   it('throws TypeError naming the offending index when object-form content is not a string', () => {
     expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       normalizeSystemPrompts(['ok', { metadata: {} } as any]),
     ).toThrow(/systemPrompts\[1\]: content must be a string, got undefined/)
 
-    expect(() => normalizeSystemPrompts([{ content: 42 as any }])).toThrow(
-      /systemPrompts\[0\]: content must be a string, got number/,
-    )
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      normalizeSystemPrompts([{ content: 42 as any }]),
+    ).toThrow(/systemPrompts\[0\]: content must be a string, got number/)
   })
 
   it('throws TypeError when entry is neither string nor object', () => {
-    expect(() => normalizeSystemPrompts(['ok', 123 as any])).toThrow(
-      /systemPrompts\[1\]: expected a string or .* got number/,
-    )
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      normalizeSystemPrompts(['ok', 123 as any]),
+    ).toThrow(/systemPrompts\[1\]: expected a string or .* got number/)
 
-    expect(() => normalizeSystemPrompts([null as any])).toThrow(
-      /systemPrompts\[0\]: expected a string or .* got null/,
-    )
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      normalizeSystemPrompts([null as any]),
+    ).toThrow(/systemPrompts\[0\]: expected a string or .* got null/)
   })
 })

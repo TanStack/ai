@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
-  combineStrategies,
   maxIterations,
   maxToolCalls,
   untilFinishReason,
+  combineStrategies,
 } from '../src/activities/chat/agent-loop-strategies'
 import type { AgentLoopState } from '../src/types'
 

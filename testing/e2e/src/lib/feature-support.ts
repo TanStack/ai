@@ -1,4 +1,4 @@
-import type { Feature, Provider } from '@/lib/types'
+import type { Provider, Feature } from '@/lib/types'
 
 /**
  * Single source of truth for provider × feature support.
@@ -260,7 +260,7 @@ export function isSupported(provider: Provider, feature: Feature): boolean {
   return matrix[feature]?.has(provider) ?? false
 }
 
-export function getSupportedFeatures(provider: Provider): Array<Feature> {
+export function getSupportedFeatures(provider: Provider): Feature[] {
   return (Object.entries(matrix) as Array<[Feature, Set<Provider>]>)
     .filter(([_, providers]) => providers.has(provider))
     .map(([feature]) => feature)
