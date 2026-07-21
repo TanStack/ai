@@ -1998,22 +1998,18 @@ class TextEngine<
       lastTurnToolCallCount: this.lastTurnToolCallCount,
     }
 
-    // Evaluate strategy and middleware even when toolPhase is 'stop' so
-    // observers can see final counters; AND with toolPhase at the end.
-    if (!this.loopStrategy(state)) {
-      return false
-    }
+    // Evaluate strategy and middleware unconditionally (even when the
+    // strategy already says stop) so every onShouldContinue observer still
+    // sees the final counters; AND all three at the end.
+    const strategyContinues = this.loopStrategy(state)
+    const middlewareContinues = await this.middlewareRunner.runOnShouldContinue(
+      this.middlewareCtx,
+      state,
+    )
 
-    if (
-      !(await this.middlewareRunner.runOnShouldContinue(
-        this.middlewareCtx,
-        state,
-      ))
-    ) {
-      return false
-    }
-
-    return this.toolPhase === 'continue'
+    return (
+      strategyContinues && middlewareContinues && this.toolPhase === 'continue'
+    )
   }
 
   /**
