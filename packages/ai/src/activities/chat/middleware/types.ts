@@ -1,4 +1,5 @@
 import type {
+  AgentLoopState,
   JSONSchema,
   ModelMessage,
   StreamChunk,
@@ -505,6 +506,25 @@ export interface ChatMiddleware<TContext = unknown> {
     ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ) => void | Promise<void>
+
+  /**
+   * Called when the engine is deciding whether to start another agent-loop
+   * iteration (after a tool phase or between model turns).
+   *
+   * Return `false` to stop further iterations. Return `true`, `void`, or
+   * `undefined` to allow continuation. Combined with AND semantics across
+   * middleware and with `agentLoopStrategy` — any `false` stops the loop.
+   *
+   * Does not abort the run: the stream finishes normally with the current
+   * messages. Use `ctx.abort()` only when you need a hard abort.
+   *
+   * Receives the same {@link AgentLoopState} passed to strategies
+   * (`iterationCount`, `toolCallCount`, `lastTurnToolCallCount`, etc.).
+   */
+  onShouldContinue?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    state: AgentLoopState,
+  ) => boolean | void | Promise<boolean | void>
 
   /**
    * Called for every chunk yielded by chat().

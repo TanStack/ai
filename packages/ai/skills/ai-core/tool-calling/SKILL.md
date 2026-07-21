@@ -375,8 +375,8 @@ export async function POST(request: Request) {
     adapter: openaiText('gpt-5.5'),
     messages,
     tools: [getProducts, compareProducts],
-    // maxIterations bounds model turns, not tool calls. Prefer maxToolCalls
-    // (and maxToolCallsPerTurn) when you need a tool-call budget.
+    // maxIterations bounds model turns, not tool calls. For tool budgets,
+    // use middleware onBeforeToolCall + onShouldContinue (see agentic-cycle docs).
     agentLoopStrategy: maxIterations(20),
   })
   return toServerSentEventsResponse(stream)

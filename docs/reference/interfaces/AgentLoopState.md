@@ -72,6 +72,6 @@ toolCallCount: number;
 Defined in: [packages/ai/src/types.ts:846](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L846)
 
 Cumulative tool calls counted so far in this run (model-emitted during the
-agent loop, including ones skipped by `maxToolCallsPerTurn`, and pending
-tools from the inbound message list when resumed). Not a recount of full
-message history; not model turns.
+agent loop, including ones skipped by middleware, and pending tools from
+the inbound message list when resumed). Not a recount of full message
+history; not model turns.
