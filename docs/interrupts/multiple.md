@@ -134,17 +134,93 @@ Two shortcuts cover the common cases:
 
 ## When an answer is wrong
 
-Each item exposes its own `errors` (bad payload, bad edited args, expired). The
-root `interruptErrors` reports failures for the whole batch, including transport
-problems and errors for internal client-tool steps that never appear in the
-list.
+A bad answer does not tear down the queue. The item keeps your last valid draft,
+shows what went wrong, and lets you fix it and resubmit. Errors come in two
+places, and you render both.
 
-`canResolve` tells you the item can be answered at all, based on its schema and
-binding. It does not flip while a batch is submitting or after an item expires,
-so gate your buttons on `resuming` and the item's `status` and `errors` for
-those states.
+Each item carries its own `errors`: a bad payload, invalid edited args, or an
+expired item. The root `interruptErrors` carries failures for the whole batch:
+transport problems, server rejections, and errors for the internal client-tool
+steps that never show up as their own item.
 
-A rejected answer does not wipe your last valid draft. Fix the form and call
-`resolveInterrupt` again, use `clearResolution()` to start one item over, or
-`retryInterrupts()` after a transport failure. Expired or stale batches can't be
-retried, start a fresh run to get a new set of interrupts.
+This component renders both, gates its buttons correctly, and offers the two
+recovery paths:
+
+```tsx
+// app/robust-queue.tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { transferTool } from '../tools/transfer'
+
+export function RobustQueue() {
+  const { interrupts, interruptErrors, retryInterrupts, resuming } = useChat({
+    threadId: 'account-42',
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [transferTool] as const,
+  })
+
+  // Retry only helps a transport failure. Expired or stale batches can't be
+  // retried, so don't offer it for those.
+  const canRetry = interruptErrors.some((error) => error.code === 'transport')
+
+  return (
+    <section>
+      {interrupts.map((interrupt) => {
+        if (
+          interrupt.kind !== 'tool-approval' ||
+          interrupt.toolName !== 'transfer'
+        ) {
+          return null
+        }
+
+        // canResolve reflects the schema and binding, not the live phase, so
+        // also gate on the item's status and the run being busy.
+        const busy = interrupt.status === 'submitting' || resuming
+
+        return (
+          <article key={interrupt.id}>
+            <p>
+              {interrupt.originalArgs.amount} to{' '}
+              {interrupt.originalArgs.recipient}
+            </p>
+            <button
+              disabled={!interrupt.canResolve || busy}
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve
+            </button>
+            <button disabled={busy} onClick={() => interrupt.clearResolution()}>
+              Start over
+            </button>
+
+            {/* Item errors: bad payload, bad edited args, expired. */}
+            {interrupt.errors.map((error) => (
+              <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>
+                {error.message}
+              </p>
+            ))}
+          </article>
+        )
+      })}
+
+      {/* Batch errors: transport, server, and hidden client-tool steps. */}
+      {interruptErrors.map((error) => (
+        <p key={error.code}>{error.message}</p>
+      ))}
+      {canRetry ? (
+        <button onClick={() => retryInterrupts()} disabled={resuming}>
+          Retry
+        </button>
+      ) : null}
+    </section>
+  )
+}
+```
+
+The two recovery paths, side by side:
+
+- `interrupt.clearResolution()` drops one item's draft so the user can answer it
+  again from scratch. Fixing a form and calling `resolveInterrupt` again works
+  too, the draft is replaced, not stacked.
+- `retryInterrupts()` re-sends the whole staged batch after a transport failure.
+  It does nothing for expired or stale batches, start a fresh run to get a new
+  set of interrupts for those.
