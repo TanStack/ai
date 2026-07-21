@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
-import { chat, EventType, summarize } from '@tanstack/ai'
+import { EventType, chat, summarize } from '@tanstack/ai'
 import type { Tool, StreamChunk } from '@tanstack/ai'
 import {
   Type,

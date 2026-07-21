@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { chat, EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
