@@ -94,11 +94,12 @@ const response = await chat({
 
 ### OpenAI
 
-OpenAI supports images and audio in their vision and audio models:
+OpenAI supports images, audio, and PDF documents in their vision, audio, and
+document-capable models:
 
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
-import { imageBase64 } from './data'
+import { imageBase64, pdfBase64 } from './data'
 
 const adapter = openaiText('gpt-5.5')
 
@@ -116,9 +117,29 @@ const message = {
 }
 ```
 
+```typescript
+import { pdfBase64 } from './data'
+
+// PDF document via base64 data (the API requires a filename alongside
+// inline data; defaults to "document.pdf" when omitted)
+const documentMessage = {
+  role: 'user',
+  content: [
+    { type: 'text', content: 'Summarize this document' },
+    {
+      type: 'document',
+      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
+      metadata: { filename: 'report.pdf' }
+    }
+  ]
+}
+```
+
 **Supported modalities by model:**
-- `gpt-5.2`, `gpt-5-mini`: text, image
+- `gpt-5.5`, `gpt-5.2`, `gpt-5-mini` (among others): text, image, PDF document
 - `gpt-4o-audio`: text, audio
+
+Check each model's `supports.input` in `@tanstack/ai-openai`'s `model-meta.ts` for the authoritative per-model list.
 
 ### Anthropic
 

@@ -439,7 +439,8 @@
         {
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Per-Model Type Safety",
