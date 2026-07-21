@@ -530,25 +530,21 @@ export interface UIMessage<
   createdAt?: Date
 }
 
-export interface ChatStorageAdapter<TValue> {
-  getItem: (
-    id: string,
-  ) => TValue | null | undefined | Promise<TValue | null | undefined>
-  setItem: (id: string, value: TValue) => void | Promise<void>
-  removeItem: (id: string) => void | Promise<void>
-}
-
-export type ChatClientPersistence<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
-> = ChatStorageAdapter<Array<UIMessage<TTools>>>
-
-export type ChatServerPersistence = ChatStorageAdapter<ChatResumeSnapshot>
-
-export interface ChatPersistenceOptions<
+export interface ChatClientPersistence<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
-  client?: ChatClientPersistence<TTools>
-  server?: ChatServerPersistence
+  getItem: (
+    id: string,
+  ) =>
+    | Array<UIMessage<TTools>>
+    | null
+    | undefined
+    | Promise<Array<UIMessage<TTools>> | null | undefined>
+  setItem: (
+    id: string,
+    messages: Array<UIMessage<TTools>>,
+  ) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
 }
 
 type IsUnknown<T> = unknown extends T
@@ -642,13 +638,11 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapters for chat state.
-   *
-   * `client` stores client-rendered `UIMessage[]` using this chat's `id`;
-   * `server` stores `{ resumeState, pendingInterrupts }` using this chat's
-   * `threadId`.
+   * Optional persistence adapter for chat messages (UIMessage[] by chat id).
+   * Durable interrupt resume storage is not part of this surface — use
+   * `initialResumeSnapshot` for in-memory rehydrate after a host-managed load.
    */
-  persistence?: ChatPersistenceOptions<TTools>
+  persistence?: ChatClientPersistence<TTools>
 
   /**
    * Unique identifier for this chat instance

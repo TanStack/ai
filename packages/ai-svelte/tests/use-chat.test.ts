@@ -152,7 +152,7 @@ describe('createChat', () => {
     const chat = createChat({
       connection: mockConnection,
       id: 'persisted-chat',
-      persistence: { client: persistence },
+      persistence: persistence,
     })
 
     expect(chat.messages).toEqual(persistedMessages)
@@ -179,7 +179,7 @@ describe('createChat', () => {
       connection: mockConnection,
       id: 'persisted-chat',
       initialMessages,
-      persistence: { client: persistence },
+      persistence: persistence,
     })
 
     expect(chat.messages).toEqual([])

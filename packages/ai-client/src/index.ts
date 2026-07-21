@@ -27,10 +27,7 @@ export type {
   ThinkingPart,
   StructuredOutputPart,
   // Client configuration types
-  ChatStorageAdapter,
   ChatClientPersistence,
-  ChatServerPersistence,
-  ChatPersistenceOptions,
   ChatClientOptions,
   ChatPendingInterrupt,
   BoundInterruptBase,
@@ -64,19 +61,6 @@ export type {
   QueueOption,
   SendMessageOptions,
 } from './types'
-export {
-  StorageUnavailableError,
-  indexedDBPersistence,
-  localStoragePersistence,
-  sessionStoragePersistence,
-} from './storage-adapters'
-export type {
-  IndexedDBPersistenceOptions,
-  JsonPrimitive,
-  JsonValue,
-  StorageCodec,
-  WebStoragePersistenceOptions,
-} from './storage-adapters'
 // Generation client types
 export type {
   InferGenerationOutput,

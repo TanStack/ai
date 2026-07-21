@@ -2,12 +2,8 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { clientTools, localStoragePersistence } from '@tanstack/ai-client'
-import type {
-  ChatPendingInterrupt,
-  ChatResumeSnapshot,
-  UIMessage,
-} from '@tanstack/ai-client'
+import { clientTools } from '@tanstack/ai-client'
+import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
@@ -119,66 +115,23 @@ function deserializeMessages(raw: string): Array<UIMessage> {
   }))
 }
 
-function parsePendingInterrupts(value: unknown): Array<ChatPendingInterrupt> {
-  if (!Array.isArray(value)) return []
-
-  const interrupts: Array<ChatPendingInterrupt> = []
-  for (const item of value) {
-    if (!isRecord(item)) continue
-    const interrupt = item
-    if (
-      typeof interrupt.id !== 'string' ||
-      typeof interrupt.reason !== 'string'
-    ) {
-      continue
+/** Simple localStorage message adapter (no @tanstack/ai-client storage helpers). */
+const messagePersistence: ChatClientPersistence = {
+  getItem(id) {
+    try {
+      const raw = localStorage.getItem(id)
+      return raw === null ? null : deserializeMessages(raw)
+    } catch {
+      return null
     }
-    interrupts.push({
-      id: interrupt.id,
-      reason: interrupt.reason,
-      ...(typeof interrupt.toolCallId === 'string'
-        ? { toolCallId: interrupt.toolCallId }
-        : {}),
-      ...(isRecord(interrupt.metadata) ? { metadata: interrupt.metadata } : {}),
-    })
-  }
-  return interrupts
+  },
+  setItem(id, messages) {
+    localStorage.setItem(id, serializeJson(messages))
+  },
+  removeItem(id) {
+    localStorage.removeItem(id)
+  },
 }
-
-function deserializeResumeSnapshot(raw: string): ChatResumeSnapshot {
-  const parsed: unknown = JSON.parse(raw)
-  if (!isRecord(parsed)) {
-    throw new TypeError('Stored resume snapshot is invalid')
-  }
-  const value = parsed
-  const resumeState = isRecord(value.resumeState) ? value.resumeState : value
-
-  if (
-    typeof resumeState.threadId !== 'string' ||
-    typeof resumeState.runId !== 'string'
-  ) {
-    throw new TypeError('Stored resume state is invalid')
-  }
-
-  return {
-    resumeState: {
-      threadId: resumeState.threadId,
-      runId: resumeState.runId,
-    },
-    pendingInterrupts: parsePendingInterrupts(value.pendingInterrupts),
-  }
-}
-
-const messagePersistence = localStoragePersistence<Array<UIMessage>>({
-  keyPrefix: '',
-  serialize: serializeJson,
-  deserialize: deserializeMessages,
-})
-
-const resumePersistence = localStoragePersistence<ChatResumeSnapshot>({
-  keyPrefix: 'tanstack-ai:e2e:resume:',
-  serialize: serializeJson,
-  deserialize: deserializeResumeSnapshot,
-})
 
 function FeaturePage() {
   const { provider, feature } = Route.useParams()
@@ -410,13 +363,9 @@ function ChatFeature({
       previousInteractionId: interactionId,
       serverPersistence: serverPersistenceEnabled,
     },
-    persistence:
-      persistenceEnabled || serverPersistenceEnabled
-        ? {
-            client: messagePersistence,
-            ...(serverPersistenceEnabled ? { server: resumePersistence } : {}),
-          }
-        : undefined,
+    // Message list persistence only. Interrupt resume snapshots are in-memory
+    // on this branch (durable resume adapters live on feat/persistence).
+    persistence: persistenceEnabled ? messagePersistence : undefined,
     onCustomEvent: (eventType, data) => {
       if (eventType === 'structured-output.complete') {
         const value = data as { object: unknown; raw: string } | undefined

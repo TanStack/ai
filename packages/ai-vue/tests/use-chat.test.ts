@@ -154,7 +154,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
       await flushPromises()
 
@@ -182,7 +182,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-chat',
         initialMessages,
-        persistence: { client: persistence },
+        persistence: persistence,
       })
       await flushPromises()
 

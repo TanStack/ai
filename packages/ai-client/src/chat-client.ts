@@ -12,7 +12,7 @@ import {
   getChunkRunId,
   normalizeConnectionAdapter,
 } from './connection-adapters'
-import { ChatPersistenceController } from './chat-persistence-controller'
+import { ChatPersistor } from './client-persistor'
 import { ClearedStreamTracker } from './cleared-stream-tracker'
 import { InterruptManager } from './interrupt-manager'
 import type {
@@ -229,13 +229,11 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
-  private readonly persistenceController: ChatPersistenceController<TTools>
+  // Message persistence (optional). Clear-during-stream suppression is always
+  // on via ClearedStreamTracker so `clear()` works without a storage adapter.
+  // Durable resume-snapshot storage is not wired here (feat/persistence).
+  private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
-  // Whether the consumer supplied an `onError` callback. Server-persistence is
-  // best-effort and must never break chat, but its failures should still be
-  // observable: they are routed to the consumer's `onError` when one exists,
-  // otherwise surfaced via `console.warn`.
-  private hasUserOnError = false
   private currentRunId: string | null = null
   // Interrupt-resume tracking: the run/thread of the most recent interrupted
   // run, so approvals/client-tool results can be sent back. Cleared when the
@@ -353,7 +351,13 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    this.hasUserOnError = typeof options.onError === 'function'
+    if (options.persistence) {
+      this.persistor = new ChatPersistor(
+        options.persistence,
+        this.uniqueId,
+        (messages) => this.processor.setMessages(messages),
+      )
+    }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -406,32 +410,17 @@ export class ChatClient<
       onChange: () => this.notifyResumeStateChange(),
     })
 
-    this.persistenceController = new ChatPersistenceController({
-      chatId: this.uniqueId,
-      threadId: this.threadId,
-      messageAdapter: options.persistence?.client,
-      resumeAdapter: options.persistence?.server,
-      applyMessages: (messages) => this.processor.setMessages(messages),
-      applyResumeSnapshot: (snapshot) => {
-        this.applyResumeSnapshot(snapshot)
-        this.notifyResumeStateChange()
-      },
-      canHydrateResume: () => this.lastResume === null,
-      reportResumeError: (error) => this.reportServerPersistenceError(error),
-    })
-
-    const storedResumeSnapshot = options.initialResumeSnapshot
-      ? undefined
-      : this.persistenceController.readInitialResumeSnapshot()
-    const resumeSnapshot = options.initialResumeSnapshot ?? storedResumeSnapshot
-    if (resumeSnapshot && !(resumeSnapshot instanceof Promise)) {
-      this.applyResumeSnapshot(resumeSnapshot)
+    // In-memory rehydrate of interrupt descriptors (e.g. after a page reload
+    // when the host supplies a snapshot). Durable storage of that snapshot is
+    // a persistence-stack concern — not wired here.
+    if (options.initialResumeSnapshot) {
+      this.applyResumeSnapshot(options.initialResumeSnapshot)
     }
 
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
-    const persistedMessages = this.persistenceController.readInitialMessages()
+    const persistedMessages = this.persistor?.readInitial()
     const initialMessages = Array.isArray(persistedMessages)
       ? persistedMessages
       : options.initialMessages
@@ -443,7 +432,7 @@ export class ChatClient<
       ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
-          this.persistenceController.messagesChanged(messages)
+          this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -641,29 +630,7 @@ export class ChatClient<
       },
     })
 
-    this.persistenceController.hydrateMessages(persistedMessages)
-    if (!options.initialResumeSnapshot) {
-      this.persistenceController.hydrateResumeSnapshot(storedResumeSnapshot)
-    }
-  }
-
-  /**
-   * Route a caught server-persistence error to an observable sink. Server
-   * persistence is best-effort and must never break chat, so callers still
-   * swallow the failure — but it is no longer silent: it goes to the
-   * consumer's `onError` callback when one was provided, otherwise to
-   * `console.warn`.
-   */
-  private reportServerPersistenceError(error: unknown): void {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    if (this.hasUserOnError) {
-      this.callbacksRef.current.onError(normalized)
-    } else {
-      console.warn(
-        '[TanStack AI] Server persistence adapter error (non-fatal):',
-        normalized,
-      )
-    }
+    this.persistor?.hydrateAsync(persistedMessages)
   }
 
   private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
@@ -699,9 +666,19 @@ export class ChatClient<
   }
 
   /**
-   * Retire cleared-run tracking for ignored terminal chunks without processing
-   * their stale message or resume payloads.
+   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
+   * still tracking. The persistor owns the cleared-run bookkeeping; the client
+   * owns the active-run / session / processing state.
    */
+  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_ERROR') return
+    const runId = this.clearedStreamTracker.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    this.resolveProcessing()
+  }
+
   private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
     if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
     const runId =
@@ -985,16 +962,6 @@ export class ChatClient<
 
   private notifyResumeStateChange(): void {
     const resumeState = this.getResumeState()
-    const pendingInterrupts = [...this.interruptManager.getDescriptors()]
-    this.persistenceController.persistResumeSnapshot(
-      resumeState
-        ? {
-            schemaVersion: 2,
-            resumeState,
-            pendingInterrupts,
-          }
-        : null,
-    )
     this.callbacksRef.current.onResumeStateChange(
       resumeState,
       this.interruptManager.getInterrupts(),
@@ -1181,6 +1148,8 @@ export class ChatClient<
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
         if (getChunkRunId(chunk)) {
           this.updateRunLifecycle(chunk, { resolveProcessing: false })
+        } else {
+          this.drainIgnoredRunlessChunk(chunk)
         }
         this.retireIgnoredClearedTerminalChunk(chunk)
         this.resolveJoinedRun(chunk)
@@ -1865,18 +1834,19 @@ export class ChatClient<
       activeRunIds: this.activeRunIds,
       currentRunId: this.currentRunId,
     })
-    // Suppress persisting the empty snapshot that clearMessages emits, then
-    // remove the stored conversation outright.
-    this.persistenceController.prepareMessagesClear()
+    // Always cancel in-flight work so clear works without message persistence.
     if (this.isLoading || hadLocalStream) {
       this.cancelInFlightStream({ setReadyStatus: true })
       this.resetSessionGenerating({ preserveClearedStreamTracking: true })
     } else if (this.activeRunIds.size > 0) {
       this.resetSessionGenerating({ preserveClearedStreamTracking: true })
     }
+    // Suppress persisting the empty snapshot that clearMessages emits, then
+    // remove the stored conversation outright.
+    this.persistor?.beginClear()
     this.processor.clearMessages()
     this.discardPendingSends()
-    this.persistenceController.removeMessages()
+    this.persistor?.remove()
     this.lastResume = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
@@ -2353,7 +2323,6 @@ export class ChatClient<
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
-      this.hasUserOnError = true
     }
     if (options.onSubscriptionChange !== undefined) {
       this.callbacksRef.current.onSubscriptionChange =
@@ -2384,7 +2353,6 @@ export class ChatClient<
   }
 
   dispose(): void {
-    this.persistenceController.dispose()
     this.unsubscribe()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false

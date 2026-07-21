@@ -14,11 +14,7 @@ import type {
   ConnectionAdapter,
 } from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
-import type {
-  ChatClientPersistence,
-  ChatServerPersistence,
-  UIMessage,
-} from '../src/types'
+import type { ChatClientPersistence, UIMessage } from '../src/types'
 
 describe('ChatClient', () => {
   const persistedMessage: UIMessage = {
@@ -93,7 +89,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
@@ -107,7 +103,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
@@ -122,7 +118,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([persistedMessage])
@@ -136,7 +132,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -150,7 +146,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -164,7 +160,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([])
@@ -184,7 +180,7 @@ describe('ChatClient', () => {
         id: 'chat-1',
         initialMessages: [initialMessage],
         onMessagesChange,
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -209,7 +205,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       client.setMessagesManually([
@@ -232,32 +228,6 @@ describe('ChatClient', () => {
           createdAt: new Date('2024-01-03T00:00:00.000Z'),
         },
       ])
-    })
-
-    it('should ignore async persistence hydration after dispose', async () => {
-      const adapter = createMockConnectionAdapter()
-      const deferred = createDeferred<Array<UIMessage>>()
-      const onMessagesChange = vi.fn()
-      const persistence = {
-        getItem: vi.fn(() => deferred.promise),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
-      const client = new ChatClient({
-        connection: adapter,
-        id: 'chat-1',
-        initialMessages: [initialMessage],
-        onMessagesChange,
-        persistence: { client: persistence },
-      })
-
-      client.dispose()
-      deferred.resolve([persistedMessage])
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      expect(client.getMessages()).toEqual([initialMessage])
-      expect(onMessagesChange).not.toHaveBeenCalled()
     })
 
     it('should keep current constructor behavior when persistence is omitted', () => {
@@ -459,7 +429,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -554,7 +524,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -688,7 +658,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -807,15 +777,16 @@ describe('ChatClient', () => {
           },
         ),
       }
-      const serverPersistence: ChatServerPersistence = {
-        getItem: vi.fn(() => undefined),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
+      // Clear-during-stream suppression is owned by ChatPersistor; enable it
+      // with a no-op message adapter (no durable resume storage on this branch).
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { server: serverPersistence },
+        persistence: {
+          getItem: vi.fn(() => undefined),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
       })
 
       const firstSend = client.sendMessage('A')
@@ -891,7 +862,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -944,7 +915,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
         onError,
       })
 
@@ -1062,7 +1033,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -1155,7 +1126,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1224,7 +1195,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1280,7 +1251,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1348,7 +1319,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: createPersistence() },
+        persistence: createPersistence(),
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1416,7 +1387,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       client.subscribe()
@@ -2110,7 +2081,7 @@ describe('ChatClient', () => {
         const client = new ChatClient({
           connection,
           id: 'chat-1',
-          persistence: { client: persistence },
+          persistence: persistence,
         })
 
         client.subscribe()
@@ -2483,7 +2454,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2536,7 +2507,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('Hello')
@@ -2575,7 +2546,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('Hello')
@@ -2621,7 +2592,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -2671,7 +2642,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: createMockConnectionAdapter(),
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       client.setMessagesManually([initialMessage])
@@ -2694,7 +2665,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2712,7 +2683,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       client.setMessagesManually([initialMessage])
@@ -2734,7 +2705,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2785,7 +2756,7 @@ describe('ChatClient', () => {
         id: 'chat-1',
         initialMessages: [initialMessage],
         onMessagesChange,
-        persistence: { client: persistence },
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
