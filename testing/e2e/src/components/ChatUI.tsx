@@ -351,6 +351,7 @@ export function ChatUI<
               if (file && text && onSendMessageWithDocument) {
                 onSendMessageWithDocument(text, file)
                 setInput('')
+                e.target.value = ''
               }
             }}
           />
