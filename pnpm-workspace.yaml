@@ -7,6 +7,8 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - 'kiira@0.6.0' # root dev dependency (TS7-native engine); freshly published
   - 'kiira-core@0.6.0' # transitive dependency of kiira@0.6.0
+  # First-party runtime required by the Workflow-backed orchestration package.
+  - '@tanstack/workflow-core@0.0.4'
   # Working closely with the aimock team; the e2e suite often needs fresh
   # releases of this test-only mock as it tracks provider SDK changes.
   - '@copilotkit/aimock'

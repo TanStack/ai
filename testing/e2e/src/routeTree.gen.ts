@@ -21,6 +21,7 @@ import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
+import { Route as ApiWorkflowOrchestrationRouteImport } from './routes/api.workflow-orchestration'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
@@ -120,6 +121,12 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
   path: '/$provider/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowOrchestrationRoute =
+  ApiWorkflowOrchestrationRouteImport.update({
+    id: '/api/workflow-orchestration',
+    path: '/api/workflow-orchestration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
@@ -361,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -413,6 +421,7 @@ export interface FileRoutesByTo {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -466,6 +475,7 @@ export interface FileRoutesById {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/workflow-orchestration': typeof ApiWorkflowOrchestrationRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -520,6 +530,7 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/workflow-orchestration'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/workflow-orchestration'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -624,6 +636,7 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/workflow-orchestration'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -677,6 +690,7 @@ export interface RootRouteChildren {
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
+  ApiWorkflowOrchestrationRoute: typeof ApiWorkflowOrchestrationRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -764,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/$provider'
       fullPath: '/$provider/'
       preLoaderRoute: typeof ProviderIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-orchestration': {
+      id: '/api/workflow-orchestration'
+      path: '/api/workflow-orchestration'
+      fullPath: '/api/workflow-orchestration'
+      preLoaderRoute: typeof ApiWorkflowOrchestrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video': {
@@ -1138,6 +1159,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,
+  ApiWorkflowOrchestrationRoute: ApiWorkflowOrchestrationRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport
