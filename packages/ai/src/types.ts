@@ -1804,30 +1804,36 @@ type HasTypedTools<TTools extends ReadonlyArray<AnyTool>> = [
 
 /**
  * Safely infer input type for a single tool, guarding against `any` leaks.
- * Returns `unknown` when the tool has no inputSchema or when InferSchemaType
- * produces `any` (e.g. for plain JSON Schema tools).
+ * Returns `unknown` when the tool has no inputSchema, when the schema
+ * parameter defaults to `undefined` (no-schema tool definitions), or when
+ * InferSchemaType produces `any` (e.g. for plain JSON Schema tools).
  * @internal
  */
 type SafeToolInput<T> = T extends {
   inputSchema?: infer TInput
 }
-  ? IsAny<InferSchemaType<NonNullable<TInput>>> extends true
+  ? [TInput] extends [undefined]
     ? unknown
-    : InferSchemaType<NonNullable<TInput>>
+    : IsAny<InferSchemaType<NonNullable<TInput>>> extends true
+      ? unknown
+      : InferSchemaType<NonNullable<TInput>>
   : unknown
 
 /**
  * Safely infer output type for a single tool. Mirrors `SafeToolInput`,
  * picking `outputSchema` instead. Returns `unknown` when the tool has no
- * `outputSchema` declared or when `InferSchemaType` produces `any`.
+ * `outputSchema` declared, when the schema parameter defaults to `undefined`,
+ * or when `InferSchemaType` produces `any`.
  * @internal
  */
 type SafeToolOutput<T> = T extends {
   outputSchema?: infer TOutput
 }
-  ? IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
+  ? [TOutput] extends [undefined]
     ? unknown
-    : InferSchemaType<NonNullable<TOutput>>
+    : IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
+      ? unknown
+      : InferSchemaType<NonNullable<TOutput>>
   : unknown
 
 /**
