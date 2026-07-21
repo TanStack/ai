@@ -102,3 +102,23 @@ Applications that emit generic descriptors must send JSON-compatible Draft
 2020-12 schemas and validate the resume batch server-side. Prefer a shared
 `approvalSchema` for tool approvals instead — it adds compile-time branch
 inference on top of runtime validation. See [Tool Approval](./tool-approval).
+
+## Server responsibility
+
+Core `chat()` reconstructs **tool-approval** and **client-tool-execution**
+pending items from message history on ephemeral resume. It does **not** rebuild
+generic descriptors from history — there is no durable pending store in the
+default path.
+
+To use generic interrupts with a normal chat endpoint you must:
+
+1. Emit the generic interrupt descriptors yourself (middleware that ends a run
+   with `RUN_FINISHED` + `outcome.type === 'interrupt'`, or a custom route).
+2. On the continuation request, supply the same pending descriptors (or an
+   equivalent trusted source) when validating `resume` with
+   `validateInterruptResumeBatch`.
+
+The example app's interrupt lab (`examples/ts-react-chat`) shows a middleware
+pattern for emitting and correlating a generic pause. Without that server half,
+resolving a generic item on the client will fail resume validation
+(`unknown-interrupt` / `incomplete-batch`).

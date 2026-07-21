@@ -91,7 +91,7 @@ synchronous transaction. It must resolve or cancel each item and cannot be
 async — if it throws or leaves an item unresolved, nothing submits:
 
 ```ts ignore
-await resolveInterrupts((interrupt) => {
+resolveInterrupts((interrupt) => {
   if (interrupt.kind === 'tool-approval') {
     interrupt.resolveInterrupt(true, { payload: { note: 'Batch review' } })
     return
@@ -101,16 +101,21 @@ await resolveInterrupts((interrupt) => {
 ```
 
 The boolean shorthand `resolveInterrupts(true)` / `resolveInterrupts(false)` is
-valid **only** when every item is a tool approval whose branch needs no payload
-or edits. It's rejected for generic items, client-tool outputs, mixed batches,
-or required branch payloads. `cancelInterrupts()` is the payloadless all-items
-cancel.
+valid **only** when every **public** item is a tool approval whose branch needs
+no payload or edits. It's rejected for generic items, mixed batches, or required
+branch payloads. (Client-tool execution is internal and never appears in
+`interrupts`.) `cancelInterrupts()` is the payloadless all-items cancel.
 
 ## Errors and retry
 
 Each item exposes `errors` (payload, edited-args, output, expiry, binding).
-Root `interruptErrors` reports batch, transport, and validation failures.
-`canResolve` is `false` when an item is expired or submitting.
+Root `interruptErrors` reports batch, transport, and validation failures —
+including failures for internal client-tool items that are hidden from the
+public list.
+
+`canResolve` means the binding/schema allows resolution at hydrate time. It does
+**not** flip when an item is submitting or expired on the server — gate the UI
+on `status`, `resuming`, and `errors` for those lifecycle states.
 
 A failed candidate doesn't erase the last valid staged response — fix the form
 and call `resolveInterrupt` again, `clearResolution()` to start that item over,

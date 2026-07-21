@@ -97,9 +97,10 @@ its message history is validated but remains client-provided input.
 
 ## Server setup
 
-Define the tool normally. The following route opts into state persistence for
-durable recovery and concurrency guarantees; omit the persistence imports,
-store, and middleware for the zero-configuration ephemeral flow:
+Define the tool normally. The following route is the **ephemeral** flow (no
+persistence middleware): `chat` + `chatParamsFromRequest` resume the interrupt
+batch from client message history and tool definitions. Durable recovery is a
+separate optional layer and is not required for tool approvals.
 
 ```ts
 // tools.ts
@@ -247,7 +248,10 @@ function ResolveAll({ approved }: { approved: boolean }) {
 
 ## Optional persistence and concurrency
 
-When configured, `withChatPersistence` performs these state transitions:
+Durable interrupt persistence (atomic compare-and-swap, idempotent receipts,
+multi-instance coordination) is a **separate opt-in layer** outside the default
+ephemeral path. When a durable middleware is configured, typical run status
+transitions look like:
 
 | Run boundary | Run status | Other writes |
 | --- | --- | --- |
@@ -258,10 +262,9 @@ When configured, `withChatPersistence` performs these state transitions:
 | Provider/server error | `failed` | Save the error. |
 | Abort | `interrupted` | Mark the run interrupted. |
 
-Durable interrupt persistence — atomic compare-and-swap, idempotent receipts,
-and multi-instance coordination — is a separate opt-in layer documented with
-the persistence guides. This page covers the ephemeral interrupt lifecycle,
-which resumes from full client history and requires no persistence.
+This page covers the **ephemeral** interrupt lifecycle, which resumes from full
+client history and requires no persistence. See the persistence guides for the
+durable adapter when you need restart/recovery guarantees.
 
 ## State durability versus delivery durability
 

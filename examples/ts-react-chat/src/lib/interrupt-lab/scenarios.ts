@@ -180,8 +180,9 @@ export const interruptLabScenarios = {
   },
   'client-output': {
     id: 'client-output',
-    label: 'Client tool output',
-    description: 'Run a client-only tool and submit its typed output.',
+    label: 'Client tool auto-run',
+    description:
+      'Client tools auto-execute via .client() and resume without a public interrupt card.',
     prompt:
       'Call interrupt_lab_client_output exactly once with key "manual-lab". Do not answer with text.',
     category: 'client-tool',
@@ -193,7 +194,8 @@ export const interruptLabScenarios = {
   'client-approval': {
     id: 'client-approval',
     label: 'Approved client tool',
-    description: 'Approve first, then execute the typed client tool.',
+    description:
+      'Approve the tool-approval interrupt; the client tool then auto-runs and the batch resumes.',
     prompt:
       'Call interrupt_lab_approval_client exactly once with operation "read browser setting". Do not answer with text.',
     category: 'client-tool',
@@ -242,7 +244,8 @@ export const interruptLabScenarios = {
   'batch-mixed': {
     id: 'batch-mixed',
     label: 'Mixed server and client batch',
-    description: 'Resolve approval and client execution items in one batch.',
+    description:
+      'Approve the public tool-approval; the client tool auto-runs and both items submit as one atomic resume batch.',
     prompt:
       'In one response call interrupt_lab_approval_basic and interrupt_lab_client_output. Do not answer with text.',
     category: 'batching',

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai/client'
+import {
+  EventType,
+  convertSchemaToJsonSchema,
+  digestInterruptJson,
+  canonicalInterruptJson,
+  hashSchemaInput,
+  toolDefinition,
+} from '@tanstack/ai/client'
+import { z } from 'zod'
 import { ChatClient } from '../src/chat-client'
 import type {
   ConnectConnectionAdapter,
@@ -1020,5 +1028,127 @@ describe('ChatClient resume', () => {
         payload: { answer: 43 },
       },
     ])
+  })
+
+  it('auto-executed client tool during parent stream defers resume until isLoading clears', async () => {
+    const outputSchema = z.object({ answer: z.number() })
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema,
+    }).client(async () => ({ answer: 42 }))
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let connectCount = 0
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+        connectCount++
+        if (connectCount === 1) {
+          const runId = runContext?.runId ?? 'run-1'
+          const threadId = runContext?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'tool-call-1',
+            toolCallName: 'lookup',
+            toolName: 'lookup',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'tool-call-1',
+            delta: '{"query":"first"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'client_tool_tool-call-1',
+                  reason: 'tanstack:client_tool_execution',
+                  toolCallId: 'tool-call-1',
+                  responseSchema,
+                  metadata: {
+                    kind: 'client_tool',
+                    toolName: 'lookup',
+                    input: { query: 'first' },
+                    'tanstack:interruptBinding': {
+                      kind: 'client-tool-execution',
+                      interruptId: 'client_tool_tool-call-1',
+                      interruptedRunId: runId,
+                      generation: 0,
+                      toolName: 'lookup',
+                      toolCallId: 'tool-call-1',
+                      outputSchemaHash,
+                      responseSchemaHash,
+                    },
+                  },
+                },
+              ],
+            },
+          }
+          return
+        }
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: runContext?.runId ?? 'run-2',
+          threadId: runContext?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'm1',
+          timestamp: Date.now(),
+          delta: 'done',
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: runContext?.runId ?? 'run-2',
+          threadId: runContext?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      },
+    }
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    // Drain deferred post-stream resume + child run
+    for (let i = 0; i < 10 && connectCount < 2; i++) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+
+    expect(connectCount).toBe(2)
+    expect(contexts[1]?.parentRunId).toBe(contexts[0]?.runId)
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-1',
+        status: 'resolved',
+        payload: { answer: 42 },
+      },
+    ])
+    expect(client.getInterruptState().interruptErrors).toEqual([])
   })
 })

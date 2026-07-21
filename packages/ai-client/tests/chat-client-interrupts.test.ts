@@ -640,6 +640,102 @@ describe('InterruptManager transactions', () => {
     expect(submit).toHaveBeenCalledTimes(2)
   })
 
+  it('does not enable retry for expired/stale/conflict server failures', async () => {
+    for (const code of ['expired', 'stale', 'conflict'] as const) {
+      const submit = vi.fn(async () => {
+        throw {
+          errors: [
+            {
+              scope: 'batch' as const,
+              code,
+              message: `${code} failure`,
+              source: 'server' as const,
+              retryable: true, // server may claim retryable; client must not
+              interruptIds: ['generic'],
+              threadId: 'thread-1',
+              interruptedRunId: 'run-1',
+              generation: 1,
+            },
+          ],
+        }
+      })
+      const manager = new InterruptManager({ submit })
+      manager.hydrate({
+        threadId: 'thread-1',
+        interruptedRunId: 'run-1',
+        generation: 1,
+        interrupts: [genericDescriptor('generic')],
+      })
+      const item = manager.getInterrupts()[0]
+      if (item?.kind !== 'generic') throw new Error('Expected generic')
+      item.resolveInterrupt('answer')
+      await settle()
+      expect(manager.getInterruptErrors().some((e) => e.code === code)).toBe(
+        true,
+      )
+      manager.retry()
+      expect(submit).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('surfaces client-tool validation failures on interruptErrors', async () => {
+    const { manager } = createManager()
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const binding: InterruptBinding = {
+      kind: 'client-tool-execution',
+      interruptId: 'client-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      toolName: 'lookup',
+      toolCallId: 'call-1',
+      outputSchemaHash,
+      responseSchemaHash: outputSchemaHash,
+    }
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [descriptor(binding)],
+    })
+    expect(manager.resolveClientToolOutput('call-1', { wrong: true })).toBe(
+      true,
+    )
+    await settle()
+    expect(manager.getInterrupts()).toHaveLength(0)
+    expect(
+      manager
+        .getInterruptErrors()
+        .some((error) => error.code === 'item-validation-failed'),
+    ).toBe(true)
+  })
+
+  it('resolves client-tool generic fallback for native reason string', () => {
+    const { manager, submit } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        {
+          id: 'client-degraded',
+          reason: 'tanstack:client_tool_execution',
+          toolCallId: 'call-degraded',
+          metadata: {
+            kind: 'client_tool',
+            toolName: 'lookup',
+            input: {},
+          },
+        },
+      ],
+    })
+    // Schema drift / missing tool → public generic item
+    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+    expect(
+      manager.resolveClientToolOutput('call-degraded', { accountId: 'a' }),
+    ).toBe(true)
+    expect(submit).toHaveBeenCalled()
+  })
+
   it('supersedes a server batch error set without dropping local client, transport, or item errors', async () => {
     const firstErrors: ReadonlyArray<InterruptSubmissionError> = [
       {

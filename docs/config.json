@@ -102,7 +102,7 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-14"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Tool Approval Flow",
@@ -200,18 +200,19 @@
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
           "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-07-16"
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Migration",
           "to": "interrupts/migration",
           "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         }
       ]
     },
@@ -505,7 +506,7 @@
           "label": "Approval Flow Processing",
           "to": "architecture/approval-flow-processing",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-15"
+          "updatedAt": "2026-07-21"
         }
       ]
     },

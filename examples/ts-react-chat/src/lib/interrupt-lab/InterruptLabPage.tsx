@@ -49,6 +49,10 @@ import type {
   InterruptLabScenarioId,
 } from './scenarios'
 
+// Approval-capable server tools need client definitions for typed
+// `tool-approval` interrupts. Client-only tools need real `.client(execute)`
+// so they auto-run and contribute to the resume batch (they never appear as
+// public bound interrupts).
 const clientTools = [
   approvalBasicTool.client(),
   approvalEditArgsTool.client(),
@@ -56,8 +60,12 @@ const clientTools = [
   approvalBranchPayloadTool.client(),
   batchSecondTool.client(),
   batchThirdTool.client(),
-  clientOutputTool.client(),
-  approvalClientTool.client(),
+  clientOutputTool.client(async ({ key }) => ({
+    browserValue: `sensor-reading-for-${key}`,
+  })),
+  approvalClientTool.client(async ({ operation }) => ({
+    browserValue: `browser-ran:${operation}`,
+  })),
 ] as const
 
 type LabInterrupt = ChatInterrupt<typeof clientTools>
@@ -198,8 +206,10 @@ export function InterruptLabPage({
                 Wildlife Interrupt Response Center
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-[#e0e5d3] sm:text-base">
-                A real-model field journal for approvals, edited tool inputs,
-                browser results, generic AG-UI responses, and atomic batches.
+                Live AG-UI interrupt lab: bound <code className="text-[#dce7c1]">interrupts</code>{' '}
+                with <code className="text-[#dce7c1]">resolveInterrupt</code>,
+                optional edited args / decision payloads, client-tool auto-run,
+                generic JSON Schema pauses, and atomic multi-item batches.
               </p>
             </div>
             <div className="border border-[#d8dfbd]/40 bg-[#152c20]/70 p-4 font-mono text-xs">
@@ -221,7 +231,7 @@ export function InterruptLabPage({
               <p className="mt-2 max-w-xs text-[#cbd9c2]">
                 {mode === 'durable'
                   ? 'Atomic server state + browser resume drafts.'
-                  : 'No persistence. Full-history continuation only.'}
+                  : 'Default path: no persistence. Continuation uses full message history + resume batch.'}
               </p>
             </div>
           </div>
@@ -761,12 +771,24 @@ function InterruptRunner({
         )}
       </section>
 
+      {!pending &&
+        (chat.isLoading || chat.resuming) &&
+        (scenario.category === 'client-tool' ||
+          scenarioId === 'batch-mixed') && (
+          <section className="border border-[#6e8aa3] bg-[#e5eef5] p-5 text-sm text-[#2a4558]">
+            <strong>Client tools auto-run.</strong> They gate the resume batch
+            internally and do not appear in the public{' '}
+            <code>interrupts</code> list. Watch the stream inspector for
+            continuation after the browser tool finishes.
+          </section>
+        )}
+
       {pending && (
         <section aria-labelledby="interrupt-heading" className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#5b674d]">
-                Live response queue
+                Live response queue · useChat().interrupts
               </p>
               <h2
                 id="interrupt-heading"
@@ -780,7 +802,9 @@ function InterruptRunner({
                   chat.interrupts.length,
                   staged,
                   chat.resuming,
-                )}
+                )}{' '}
+                Resolve with bound <code>resolveInterrupt</code> /{' '}
+                <code>cancel</code> — not legacy approval events.
               </p>
             </div>
             <span className="border border-[#69765a] bg-[#edf0df] px-3 py-2 font-mono text-xs uppercase tracking-wider">
@@ -1045,6 +1069,9 @@ function InterruptCard({
 
       {interrupt.kind === 'tool-approval' ? (
         <>
+          <div className="mt-3 border border-[#c9bea1] bg-[#fffdf7] p-3 font-mono text-[11px] leading-5 text-[#596157]">
+            originalArgs · {JSON.stringify(interrupt.originalArgs)}
+          </div>
           <label className="mt-4 flex items-center gap-2 text-xs font-bold">
             <input
               type="checkbox"
@@ -1097,12 +1124,9 @@ function InterruptCard({
         </>
       ) : (
         <label className="mt-4 block text-xs font-bold">
-          {interrupt.kind === 'generic'
-            ? 'Generic response payload'
-            : 'Typed client tool output'}{' '}
-          · JSON
+          Generic response payload · JSON
           <textarea
-            aria-label={`Response for ${interrupt.id}`}
+            aria-label={`Generic response for ${interrupt.id}`}
             disabled={disabled}
             value={draft.output}
             onChange={(event) => onDraft({ output: event.target.value })}
@@ -1139,7 +1163,7 @@ function InterruptCard({
               onClick={onReject}
               tone="reject"
             >
-              <X size={15} /> Reject
+              <X size={15} /> Deny
             </ActionButton>
             {interrupt.toolName === 'interrupt_lab_edit_order' && (
               <ActionButton disabled={disabled} onClick={onInvalidEdit}>
@@ -1153,10 +1177,7 @@ function InterruptCard({
             onClick={onResolve}
             tone="approve"
           >
-            <Check size={15} /> Resolve{' '}
-            {interrupt.kind === 'generic'
-              ? 'generic response'
-              : 'client output'}
+            <Check size={15} /> Resolve generic
           </ActionButton>
         )}
         <ActionButton
@@ -1164,16 +1185,13 @@ function InterruptCard({
           onClick={interrupt.cancel}
           tone="reject"
         >
-          Cancel{interrupt.kind === 'generic' ? ' generic interrupt' : ''}
+          Cancel
         </ActionButton>
         <ActionButton
           disabled={disabled || interrupt.status === 'pending'}
           onClick={interrupt.clearResolution}
         >
-          <RotateCcw size={14} />{' '}
-          {interrupt.kind === 'generic'
-            ? 'Clear generic response'
-            : 'Clear resolution'}
+          <RotateCcw size={14} /> Clear resolution
         </ActionButton>
       </div>
     </article>

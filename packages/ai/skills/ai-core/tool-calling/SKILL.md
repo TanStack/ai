@@ -4,7 +4,7 @@ description: >
   Isomorphic tool system: toolDefinition() with Zod schemas,
   .server() and .client() implementations, passing tools to both
   chat() on server and useChat/clientTools on client, tool approval
-  flows with needsApproval and addToolApprovalResponse(), lazy tool
+  flows with needsApproval and bound interrupts (resolveInterrupt), lazy tool
   discovery with lazy:true, rendering ToolCallPart and ToolResultPart
   in UI.
 type: sub-skill
@@ -108,14 +108,14 @@ function ChatPage() {
     connection: fetchServerSentEvents("/api/chat"),
     tools,
   });
-  type Messages = InferChatMessages<typeof chatOptions>;
-
   const { messages, sendMessage } = useChat(chatOptions);
+  // InferChatMessages ties part types to the configured tools when needed:
+  // type Messages = InferChatMessages<typeof chatOptions>
 
   return (
     <div>
       <span>Cart: {cartCount}</span>
-      {(messages as Messages).map((msg) => (
+      {messages.map((msg) => (
         <div key={msg.id}>
           {msg.parts.map((part) => {
             if (part.type === "text") return <p>{part.content}</p>;
@@ -240,11 +240,10 @@ function ChatPage() {
 ### Pattern 3: Tool with Approval Flow
 
 Set `needsApproval: true` in the definition. Execution pauses with
-`RUN_FINISHED.outcome.type === 'interrupt'`; legacy approval UI still sees a
-tool-call part with `state: "approval-requested"` and an `approval` object with
-an `id`. The primary resume path is AG-UI `RunAgentInput.resume[]` via
-`resumeInterrupts(...)`. `addToolApprovalResponse()` remains the compatibility
-UI helper and forwards matching pending approval interrupts when present.
+`RUN_FINISHED.outcome.type === 'interrupt'`. The primary client API is bound
+`interrupts` + `resolveInterrupt` / `resolveInterrupts` / `cancel`.
+`addToolApprovalResponse` and `pendingInterrupts` remain as deprecated
+compatibility shims during migration.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -268,64 +267,40 @@ export const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 })
 ```
 
-Client -- render approval UI and respond:
+Server route must forward `resume` / `parentRunId` (via `chatParamsFromRequest`
+or equivalent). Client -- render bound interrupts:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatPage() {
-  const {
-    messages,
-    pendingInterrupts,
-    resumeInterrupts,
-    addToolApprovalResponse,
-  } = useChat({
+  const { messages, interrupts, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
 
   return (
     <div>
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== "tool-approval") return null;
+        return (
+          <div key={interrupt.id}>
+            <p>Approve "{interrupt.toolName}"?</p>
+            <pre>{JSON.stringify(interrupt.originalArgs, null, 2)}</pre>
+            <button onClick={() => interrupt.resolveInterrupt(true)}>
+              Approve
+            </button>
+            <button onClick={() => interrupt.resolveInterrupt(false)}>
+              Deny
+            </button>
+            <button onClick={() => interrupt.cancel()}>Cancel</button>
+          </div>
+        );
+      })}
       {messages.map((msg) => (
         <div key={msg.id}>
-          {msg.parts.map((part) => {
-            if (part.type === "text") return <p>{part.content}</p>;
-            if (
-              part.type === "tool-call" &&
-              part.state === "approval-requested" &&
-              part.approval
-            ) {
-              return (
-                <div key={part.id}>
-                  <p>Approve "{part.name}"?</p>
-                  {/* `part.input` is the parsed, typed object (populated once
-                      the arguments are complete, as they are at approval
-                      time); `part.arguments` remains the raw JSON string. */}
-                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              );
-            }
-            return null;
-          })}
+          {msg.parts.map((part) =>
+            part.type === "text" ? <p key={part.content}>{part.content}</p> : null
+          )}
         </div>
       ))}
     </div>
@@ -333,27 +308,24 @@ function ChatPage() {
 }
 ```
 
-For new interrupt-aware UIs, render `pendingInterrupts` and resume them
-directly:
+Batch all pending approvals with `resolveInterrupts` (void — submission is
+async; watch `resuming` / `interruptErrors`):
 
 ```typescript
-await resumeInterrupts([
-  {
-    interruptId: pendingInterrupts[0].id,
-    status: 'resolved',
-    payload: { approved: true },
-  },
-])
+// Payloadless tool-approvals only
+resolveInterrupts(true)
+
+// Or per-item:
+resolveInterrupts((interrupt) => {
+  if (interrupt.kind === "tool-approval") {
+    interrupt.resolveInterrupt(true)
+  }
+})
 ```
 
-> **Type-safe approval:** With typed `tools`, `part.approval` exists **only**
-> on parts for tools defined with `needsApproval: true`. Tools without approval
-> have no `approval` field (reading it is a compile error). For a
-> tool-agnostic handler over a typed union, narrow with `'approval' in part`
-> (`if (part.type === 'tool-call' && 'approval' in part && part.approval)`),
-> or type a shared component against the base `ToolCallPart`. An untyped
-> `useChat()` keeps `approval` on every tool-call part, which is why the
-> snippet above (no `tools` generic) reads it directly.
+Migration: `pendingInterrupts` aliases `interrupts`; `addToolApprovalResponse`
+forwards to the matching bound approval when present. Prefer the bound methods
+above for new code. See `docs/interrupts/`.
 
 ### Pattern 4: Lazy Tool Discovery
 

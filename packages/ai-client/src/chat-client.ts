@@ -840,11 +840,12 @@ export class ChatClient<
   resolveInterrupts(
     resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
   ): void {
+    // Branch so TypeScript can select the InterruptManager.resolve overloads.
     if (typeof resolution === 'boolean') {
       this.interruptManager.resolve(resolution)
-    } else {
-      this.interruptManager.resolve(resolution)
+      return
     }
+    this.interruptManager.resolve(resolution)
   }
 
   cancelInterrupts(): void {
@@ -861,7 +862,22 @@ export class ChatClient<
     state?: ChatResumeState,
   ): Promise<boolean> {
     const target = state ?? this.lastResume
-    if (!target || this.isLoading) return Promise.resolve(false)
+    if (!target) return Promise.resolve(false)
+    // Auto-executed client tools resolve during the parent stream's
+    // `pendingToolExecutions` wait — while `isLoading` is still true.
+    // Defer the child continuation until that stream settles so we do not
+    // race the parent cleanup or return a false "could not start" failure.
+    if (this.isLoading) {
+      return new Promise<boolean>((resolve, reject) => {
+        this.queuePostStreamAction(async () => {
+          try {
+            resolve(await this.resumeInterruptsUnsafe(resume, target))
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+    }
     this.pendingResumeThreadId = target.threadId
     this.pendingResumeParentRunId = target.runId
     this.pendingResumeItems = [...resume]
@@ -1883,17 +1899,6 @@ export class ChatClient<
     clientTool: AnyClientTool | undefined,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
-    if (
-      this.interruptManager.resolveClientToolOutput(
-        result.toolCallId,
-        result.state === 'output-error'
-          ? { error: result.errorText || 'Tool execution failed' }
-          : result.output,
-      )
-    ) {
-      return
-    }
-
     if (clientTool && result.state !== 'output-error') {
       try {
         result = {
@@ -1918,9 +1923,8 @@ export class ChatClient<
       context,
     )
 
-    // Forward an error message only for output-error results (with a fallback so
-    // a message-less `throw new Error()` still reaches the terminal 'error'
-    // state); a stray errorText on a successful result must not signal an error.
+    // Always update local message state so the tool-call part is terminal in
+    // the UI even when the AG-UI interrupt path owns server continuation.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
@@ -1928,6 +1932,19 @@ export class ChatClient<
         ? result.errorText || 'Tool execution failed'
         : undefined,
     )
+    this.devtoolsBridge.emitSnapshot()
+
+    const resolvedViaInterrupt = this.interruptManager.resolveClientToolOutput(
+      result.toolCallId,
+      result.state === 'output-error'
+        ? { error: result.errorText || 'Tool execution failed' }
+        : result.output,
+    )
+    if (resolvedViaInterrupt) {
+      // Interrupt manager stages/submits the resume batch (deferred until the
+      // parent stream settles when still loading). Skip legacy continuation.
+      return
+    }
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {

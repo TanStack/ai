@@ -444,7 +444,6 @@ function baseSnapshot(
   clearResolution: () => void,
 ): BoundInterruptBase {
   const descriptor = cloneAndDeepFreezeJson(item.descriptor)
-  const binding = cloneAndDeepFreezeJson(item.binding)
   const errors: ReadonlyArray<ItemInterruptError> =
     item.error === undefined
       ? Object.freeze([])
@@ -470,7 +469,6 @@ function baseSnapshot(
     interruptedRunId: hydration.interruptedRunId,
     generation: hydration.generation,
     status: item.status,
-    binding,
     errors,
     ...(error !== undefined ? { error } : {}),
     canResolve: item.canResolve,
@@ -614,7 +612,7 @@ export class InterruptManager<
           candidate.binding.kind === 'client-tool-execution' &&
           candidate.binding.toolCallId === toolCallId) ||
         (candidate.kind === 'generic' &&
-          candidate.descriptor.reason === 'client_tool_input' &&
+          isClientToolExecutionReason(candidate.descriptor.reason) &&
           candidate.descriptor.toolCallId === toolCallId &&
           isLegacyClientToolMetadata(candidate.descriptor.metadata)),
     )
@@ -738,9 +736,11 @@ export class InterruptManager<
           item.kind === 'tool-approval' &&
           item.binding.kind === 'tool-approval'
         ) {
+          const binding = cloneAndDeepFreezeJson(item.binding)
           const snapshot = {
             ...base,
             kind: 'tool-approval' as const,
+            binding,
             toolName: item.binding.toolName,
             toolCallId: item.binding.toolCallId,
             originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
@@ -763,9 +763,23 @@ export class InterruptManager<
           }
           return Object.freeze(snapshot)
         }
+        const genericBinding =
+          item.binding.kind === 'generic'
+            ? cloneAndDeepFreezeJson(item.binding)
+            : cloneAndDeepFreezeJson({
+                kind: 'generic' as const,
+                interruptId: item.descriptor.id,
+                interruptedRunId: hydration.interruptedRunId,
+                generation: hydration.generation,
+                responseSchemaHash:
+                  typeof item.binding.responseSchemaHash === 'string'
+                    ? item.binding.responseSchemaHash
+                    : 'none',
+              })
         const snapshot: GenericAGUIInterrupt = {
           ...base,
           kind: 'generic',
+          binding: genericBinding,
           resolveInterrupt: (payload) =>
             this.resolveItem(item.descriptor.id, payload, transaction),
         }
@@ -913,6 +927,31 @@ export class InterruptManager<
         result.message,
         result.path,
       )
+      // Client-tool-execution items are hidden from the public interrupt list,
+      // so promote their validation failures onto interruptErrors for the UI.
+      if (item.kind === 'client-tool-execution' && item.error) {
+        this.rootErrors = Object.freeze([
+          ...this.rootErrors.filter(
+            (error) =>
+              !(
+                error.scope === 'batch' &&
+                error.code === 'item-validation-failed' &&
+                error.interruptIds.includes(item.descriptor.id)
+              ),
+          ),
+          Object.freeze({
+            scope: 'batch' as const,
+            code: 'item-validation-failed' as const,
+            message: item.error.message,
+            source: 'client' as const,
+            retryable: false,
+            interruptIds: Object.freeze([item.descriptor.id]),
+            threadId: item.error.threadId,
+            interruptedRunId: item.error.interruptedRunId,
+            generation: item.error.generation,
+          }),
+        ])
+      }
       if (!transaction) this.publish()
       return
     }

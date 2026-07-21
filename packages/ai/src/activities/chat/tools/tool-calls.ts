@@ -709,7 +709,7 @@ function buildClientToolResult(
  *
  * @param toolCalls - Tool calls from the LLM
  * @param tools - Available tools with their configurations
- * @param approvals - Map of approval decisions (approval.id -> approved boolean)
+ * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
  */

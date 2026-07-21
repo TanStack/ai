@@ -53,15 +53,20 @@ sequenceDiagram
 
 1. **Tool Call from LLM**: LLM decides to call a client tool
 2. **Server Detection**: Server sees the tool has no `execute` function
-3. **Client Notification**: Server emits a `client-tool-execution` AG-UI interrupt
-4. **Client Execution**: The browser finds the registered `.client()` implementation by tool name and runs it with the parsed input
-5. **Result Return**: Client executes the tool and returns the result
-6. **Server Update**: Result is sent back to the server and added to the conversation
+3. **Client Notification**: Server emits an internal `client-tool-execution`
+   pause on the interrupt wire (not a public item in `interrupts`)
+4. **Client Execution**: The browser finds the registered `.client()`
+   implementation by tool name and runs it with the parsed input
+5. **Result Return**: Client auto-submits the result via the resume batch
+6. **Server Update**: Result is validated and added to the conversation
 7. **LLM Continuation**: LLM receives the result and continues the conversation
 
-Native client-tool execution uses the same atomic interrupt lifecycle as other
-waits. See [Interrupts](../interrupts/overview) for persistence, batches, recovery,
-and migration from the historical `tool-input-available` custom event.
+Native client-tool execution shares the atomic interrupt **batch** lifecycle
+(it can gate multi-item submits) but is **auto-resolved** — you do not call
+`resolveInterrupt` for it. See [Interrupts](../interrupts/overview) for the
+ephemeral lifecycle, batches, and migration from the historical
+`tool-input-available` custom event. Durable recovery is optional and not part
+of the default client-tool path.
 
 ## Approval is a separate axis
 

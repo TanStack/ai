@@ -38,8 +38,14 @@ export type BatchInterruptErrorCode =
   | 'expired'
   | 'stale'
   | 'conflict'
+  /**
+   * Reserved for a durable persistence layer. Not emitted by the ephemeral
+   * chat resume path in this package.
+   */
   | 'persistence-required'
+  /** @see persistence-required */
   | 'atomic-commit-unsupported'
+  /** @see persistence-required */
   | 'recovery-unavailable'
   | 'legacy-submit-failed'
 
@@ -104,12 +110,20 @@ export type UnopenedInterruptBinding = InterruptBinding extends infer TBinding
     : never
   : never
 
+/**
+ * Query shape for an optional durable recovery adapter.
+ * Ephemeral chat resume does not use recovery state.
+ */
 export interface InterruptRecoveryQuery {
   threadId: string
   interruptedRunId: string
   knownGeneration: number
 }
 
+/**
+ * Recovery snapshot for an optional durable layer.
+ * Not produced or consumed by the default ephemeral interrupt path.
+ */
 export interface InterruptRecoveryStateV1 extends InterruptCorrelation {
   schemaVersion: 1
   state: 'pending' | 'committed' | 'expired' | 'missing' | 'legacy-committed'

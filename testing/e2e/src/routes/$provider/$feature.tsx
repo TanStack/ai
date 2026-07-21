@@ -318,7 +318,10 @@ function ChatFeature({
   const showImageInput =
     feature === 'multimodal-image' || feature === 'multimodal-structured'
 
-  const tools = needsApproval ? clientTools(addToCartClient) : undefined
+  // Stable tools tuple so `useChat` / `BoundInterrupts` keep approval typing
+  // (and ChatUI can accept `interrupts` without casts).
+  const approvalTools = clientTools(addToCartClient)
+  const tools = needsApproval ? approvalTools : undefined
 
   const { testId, aimockPort, persistence, serverPersistence } =
     Route.useSearch()
@@ -388,9 +391,8 @@ function ChatFeature({
     messages,
     sendMessage,
     isLoading,
-    addToolApprovalResponse,
     resumeState,
-    pendingInterrupts,
+    interrupts,
     stop,
     clear,
     queue,
@@ -445,7 +447,7 @@ function ChatFeature({
       )}
       <div
         data-testid="pending-interrupt-count"
-        data-count={String(pendingInterrupts.length)}
+        data-count={String(interrupts.length)}
         hidden
       />
       {interactionId && (
@@ -508,10 +510,8 @@ function ChatFeature({
               }
             : undefined
         }
-        addToolApprovalResponse={
-          needsApproval ? addToolApprovalResponse : undefined
-        }
-        hasPendingInterrupt={pendingInterrupts.length > 0}
+        interrupts={needsApproval ? interrupts : undefined}
+        hasPendingInterrupt={interrupts.length > 0}
         showImageInput={showImageInput}
         onStop={stop}
       />

@@ -87,7 +87,7 @@ Native batches are all-or-nothing — replace approval-ID loops with staged item
 (the last valid item auto-submits) or one synchronous root callback:
 
 ```ts ignore
-await resolveInterrupts((interrupt) => {
+resolveInterrupts((interrupt) => {
   if (interrupt.kind === 'tool-approval') {
     interrupt.resolveInterrupt(true, { payload: { note: 'Batch review' } })
     return

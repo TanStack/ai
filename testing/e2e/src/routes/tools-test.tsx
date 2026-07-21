@@ -209,7 +209,7 @@ function ToolsTestPage() {
     sendMessage,
     isLoading,
     stop,
-    addToolApprovalResponse,
+    interrupts,
     error,
   } = useChat({
     // Include scenario in ID so client is recreated when scenario changes
@@ -461,20 +461,30 @@ function ToolsTestPage() {
                 onClick={() => {
                   const approvalId = tc.approval?.id
                   if (
-                    approvalId &&
-                    !respondedApprovals.current.has(approvalId)
+                    !approvalId ||
+                    respondedApprovals.current.has(approvalId)
                   ) {
-                    respondedApprovals.current.add(approvalId)
-                    addEvent({
-                      type: 'approval-granted',
-                      toolName: tc.name,
-                      toolCallId: tc.id,
-                    })
-                    addToolApprovalResponse({
-                      id: approvalId,
-                      approved: true,
-                    })
+                    return
                   }
+                  const interrupt = (
+                    interrupts as ReadonlyArray<{
+                      kind: string
+                      toolCallId?: string
+                      resolveInterrupt: (approved: boolean) => void
+                    }>
+                  ).find(
+                    (item) =>
+                      item.kind === 'tool-approval' &&
+                      item.toolCallId === tc.id,
+                  )
+                  if (!interrupt) return
+                  respondedApprovals.current.add(approvalId)
+                  addEvent({
+                    type: 'approval-granted',
+                    toolName: tc.name,
+                    toolCallId: tc.id,
+                  })
+                  interrupt.resolveInterrupt(true)
                 }}
                 style={{
                   padding: '5px 15px',
@@ -493,20 +503,30 @@ function ToolsTestPage() {
                 onClick={() => {
                   const approvalId = tc.approval?.id
                   if (
-                    approvalId &&
-                    !respondedApprovals.current.has(approvalId)
+                    !approvalId ||
+                    respondedApprovals.current.has(approvalId)
                   ) {
-                    respondedApprovals.current.add(approvalId)
-                    addEvent({
-                      type: 'approval-denied',
-                      toolName: tc.name,
-                      toolCallId: tc.id,
-                    })
-                    addToolApprovalResponse({
-                      id: approvalId,
-                      approved: false,
-                    })
+                    return
                   }
+                  const interrupt = (
+                    interrupts as ReadonlyArray<{
+                      kind: string
+                      toolCallId?: string
+                      resolveInterrupt: (approved: boolean) => void
+                    }>
+                  ).find(
+                    (item) =>
+                      item.kind === 'tool-approval' &&
+                      item.toolCallId === tc.id,
+                  )
+                  if (!interrupt) return
+                  respondedApprovals.current.add(approvalId)
+                  addEvent({
+                    type: 'approval-denied',
+                    toolName: tc.name,
+                    toolCallId: tc.id,
+                  })
+                  interrupt.resolveInterrupt(false)
                 }}
                 style={{
                   padding: '5px 15px',

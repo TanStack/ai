@@ -70,17 +70,28 @@ export interface BoundInterruptBase {
   readonly interruptedRunId: string
   readonly generation: number
   readonly status: InterruptItemStatus
-  readonly binding: Readonly<InterruptBinding>
   readonly errors: ReadonlyArray<ItemInterruptError>
   /** @deprecated Use `errors[0]`. */
   readonly error?: ItemInterruptError
+  /**
+   * Whether the binding/schema allows resolution at hydrate time.
+   * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
+   * `errors` for those lifecycle states.
+   */
   readonly canResolve: boolean
   cancel: () => void
   clearResolution: () => void
 }
 
+/** Public wire binding kinds consumers see on bound interrupts. */
+export type PublicInterruptBinding = Extract<
+  InterruptBinding,
+  { kind: 'tool-approval' | 'generic' }
+>
+
 export interface GenericAGUIInterrupt extends BoundInterruptBase {
   readonly kind: 'generic'
+  readonly binding: Readonly<Extract<InterruptBinding, { kind: 'generic' }>>
   resolveInterrupt: (payload: unknown) => void
 }
 
@@ -129,6 +140,9 @@ export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
   TTool extends AnyClientTool
     ? BoundInterruptBase & {
         readonly kind: 'tool-approval'
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'tool-approval' }>
+        >
         readonly toolName: TTool['name']
         readonly toolCallId: string
         readonly originalArgs: InferToolInput<TTool>
@@ -164,6 +178,7 @@ export interface ChatInterruptState<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
 > {
   readonly interrupts: BoundInterrupts<TTools>
+  /** @deprecated Use `interrupts`. Same snapshot today. */
   readonly pendingInterrupts: BoundInterrupts<TTools>
   readonly interruptErrors: ReadonlyArray<BatchInterruptError>
   readonly resuming: boolean

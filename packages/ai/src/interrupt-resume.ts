@@ -224,7 +224,7 @@ function validateDescriptorSchema(
 
 /**
  * Validate and translate a complete interrupt batch before any tool executes.
- * Both ephemeral chat resumes and durable persistence use this function.
+ * Used by ephemeral chat resume; a durable layer may share the same validator.
  */
 export async function validateInterruptResumeBatch(
   input: ValidateInterruptResumeBatchInput,
