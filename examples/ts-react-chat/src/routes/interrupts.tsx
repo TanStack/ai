@@ -109,20 +109,20 @@ function SanctuaryPage() {
   )
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#f3ead0] via-[#efe7d2] to-[#e7ddbf] text-[#1c2a20]">
+    <main className="min-h-screen bg-gray-900 text-white">
       <div className="mx-auto grid max-w-6xl gap-6 p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-5">
-          <header className="overflow-hidden rounded-2xl border border-[#d8cba2] bg-gradient-to-br from-[#2d5b3c] to-[#3f7a4f] p-5 text-[#f4ecd4] shadow-[0_10px_30px_-12px_rgba(45,91,60,0.7)]">
+          <header className="overflow-hidden rounded-2xl border border-gray-700 bg-gray-800 p-5">
             <div className="mb-2 text-3xl" aria-hidden>
               🦊 🦉 🦔
             </div>
-            <p className="font-mono text-[11px] uppercase tracking-widest text-[#cfe6cf]">
+            <p className="text-xs uppercase tracking-wider text-orange-400">
               Willowbrook Wildlife Sanctuary
             </p>
-            <h1 className="font-serif text-3xl leading-tight">
+            <h1 className="text-3xl font-bold leading-tight">
               Intake &amp; Adoption Desk
             </h1>
-            <p className="mt-2 text-sm text-[#dcebdc]">
+            <p className="mt-2 text-sm text-gray-400">
               Pick an action below. Each one gently pauses for your sign-off,
               then carries on where it left off.
             </p>
@@ -132,7 +132,7 @@ function SanctuaryPage() {
             const Icon = groupMeta[group].icon
             return (
               <section key={group} className="space-y-2">
-                <h2 className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-[#6f6338]">
+                <h2 className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500">
                   <Icon size={14} /> {groupMeta[group].label}
                 </h2>
                 <div className="space-y-2">
@@ -141,10 +141,10 @@ function SanctuaryPage() {
                       key={scenario.id}
                       onClick={() => runScenario(scenario)}
                       disabled={chat.isLoading || chat.resuming}
-                      className="w-full rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-3 text-left shadow-[3px_3px_0_#cabd94] transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-[4px_5px_0_#b6a874] disabled:opacity-50"
+                      className="w-full rounded-lg border border-gray-700 bg-gray-800 p-3 text-left transition-colors enabled:hover:border-orange-500/50 enabled:hover:bg-gray-800/60 disabled:opacity-50"
                     >
                       <div className="font-semibold">{scenario.title}</div>
-                      <div className="text-xs text-[#5c6a58]">
+                      <div className="text-xs text-gray-400">
                         {scenario.blurb}
                       </div>
                     </button>
@@ -156,19 +156,19 @@ function SanctuaryPage() {
         </aside>
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-3">
-            <div className="text-sm text-[#4b5a48]">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-800 p-3">
+            <div className="text-sm text-gray-400">
               Resolve pending decisions:
             </div>
-            <div className="flex overflow-hidden rounded-lg border border-[#c9bd97]">
+            <div className="flex overflow-hidden rounded-lg border border-gray-700">
               {(['each', 'all'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setResolveMode(mode)}
-                  className={`px-3 py-1 text-sm ${
+                  className={`px-3 py-1 text-sm transition-colors ${
                     resolveMode === mode
-                      ? 'bg-[#2d5b3c] text-[#f7f1de]'
-                      : 'bg-transparent text-[#3a4a38]'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-transparent text-gray-400 hover:text-gray-200'
                   }`}
                 >
                   {mode === 'each' ? 'Resolve each' : 'Resolve all'}
@@ -180,13 +180,13 @@ function SanctuaryPage() {
           <Transcript chat={chat} />
 
           {chat.interruptErrors.length > 0 ? (
-            <div className="rounded-xl border border-[#c07a5b] bg-[#f6ddce] p-3 text-sm text-[#7a3520]">
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
               {chat.interruptErrors.map((error) => (
                 <div key={error.code}>{error.message}</div>
               ))}
               <button
                 onClick={() => chat.retryInterrupts()}
-                className="mt-2 inline-flex items-center gap-1 rounded-md bg-[#7a3520] px-2 py-1 text-[#f6ddce]"
+                className="mt-2 inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-white transition-colors hover:bg-red-700"
               >
                 <RotateCcw size={13} /> Retry
               </button>
@@ -196,21 +196,21 @@ function SanctuaryPage() {
           {interrupts.length > 0 ? (
             <div className="space-y-3">
               {resolveMode === 'all' ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-3">
-                  <span className="text-sm text-[#4b5a48]">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3">
+                  <span className="text-sm text-gray-400">
                     {interrupts.length} pending. Resolve the whole batch:
                   </span>
                   <button
                     onClick={() => chat.resolveInterrupts(true)}
                     disabled={chat.resuming}
-                    className="rounded-md bg-[#2d5b3c] px-3 py-1 text-sm text-[#f7f1de] disabled:opacity-50"
+                    className="rounded-md bg-green-600 px-3 py-1 text-sm text-white transition-colors hover:bg-green-700 disabled:opacity-50"
                   >
                     Approve all
                   </button>
                   <button
                     onClick={() => chat.cancelInterrupts()}
                     disabled={chat.resuming}
-                    className="rounded-md border border-[#8a5b3c] px-3 py-1 text-sm text-[#7a3520] disabled:opacity-50"
+                    className="rounded-md border border-gray-600 px-3 py-1 text-sm text-gray-300 transition-colors hover:bg-gray-800 disabled:opacity-50"
                   >
                     Cancel all
                   </button>
@@ -231,11 +231,11 @@ function SanctuaryPage() {
           ) : null}
 
           {decisions.length > 0 ? (
-            <div className="rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-3">
-              <h2 className="mb-1 font-mono text-xs uppercase tracking-widest text-[#6f6338]">
+            <div className="rounded-lg border border-gray-700 bg-gray-800/60 p-3">
+              <h2 className="mb-1 text-xs uppercase tracking-wider text-gray-500">
                 Your decisions
               </h2>
-              <ul className="space-y-1 font-mono text-[11px] text-[#4b5a48]">
+              <ul className="space-y-1 font-mono text-[11px] text-gray-400">
                 {decisions.map((decision, i) => (
                   <li key={i}>{decision}</li>
                 ))}
@@ -255,16 +255,16 @@ function Transcript({
 }) {
   if (chat.messages.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[#c9bd97] p-6 text-center text-sm text-[#6f6338]">
+      <div className="rounded-lg border border-dashed border-gray-700 p-6 text-center text-sm text-gray-500">
         Pick an action on the left to start.
       </div>
     )
   }
   return (
-    <div className="space-y-2 rounded-xl border border-[#c9bd97] bg-[#f7f1de] p-4">
+    <div className="space-y-2 rounded-lg border border-gray-700 bg-gray-800/60 p-4">
       {chat.messages.map((message) => (
         <div key={message.id} className="text-sm">
-          <span className="font-mono text-xs uppercase text-[#6f6338]">
+          <span className="font-mono text-xs uppercase text-gray-500">
             {message.role}:{' '}
           </span>
           {message.parts.map((part, i) => {
@@ -273,10 +273,9 @@ function Transcript({
               return (
                 <div
                   key={i}
-                  className="mt-1 rounded-md bg-[#efe6c8] px-2 py-1 font-mono text-[11px] text-[#4b5a48]"
+                  className="mt-1 rounded-md bg-gray-800 px-2 py-1 font-mono text-[11px] text-gray-300"
                 >
-                  🔧 {part.name}(
-                  {JSON.stringify(part.input ?? part.arguments)})
+                  🔧 {part.name}({JSON.stringify(part.input ?? part.arguments)})
                   {part.output !== undefined
                     ? ` → ${JSON.stringify(part.output)}`
                     : ` · ${part.state}`}
@@ -291,7 +290,7 @@ function Transcript({
               return (
                 <div
                   key={i}
-                  className="mt-1 rounded-md bg-[#e6efdd] px-2 py-1 font-mono text-[11px] text-[#3a4a38]"
+                  className="mt-1 rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[11px] text-emerald-300"
                 >
                   ↳ {part.error ?? body}
                 </div>
@@ -356,7 +355,7 @@ function AnimalAvatar({ interrupt }: { interrupt: Interrupt }) {
     return (
       <span
         aria-hidden
-        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#eadfba] text-2xl shadow-inner ring-1 ring-[#d8cba2]"
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gray-700 text-2xl shadow-inner ring-1 ring-gray-600"
       >
         {emoji}
       </span>
@@ -368,7 +367,7 @@ function AnimalAvatar({ interrupt }: { interrupt: Interrupt }) {
       alt={keyword.replace(/-/g, ' ')}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-[#d8cba2]"
+      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-gray-600"
     />
   )
 }
@@ -385,13 +384,13 @@ function Shell({
   interrupt: Interrupt
 }) {
   return (
-    <article className="space-y-3 rounded-2xl border border-[#d8cba2] bg-gradient-to-b from-[#fbf6e6] to-[#f4ecd4] p-4 shadow-[0_6px_20px_-8px_rgba(94,79,45,0.5)]">
+    <article className="space-y-3 rounded-2xl border border-gray-700 bg-gray-800 p-4">
       <div className="flex items-start gap-3">
         <AnimalAvatar interrupt={interrupt} />
         <div className="min-w-0">
-          <h3 className="font-serif text-lg leading-tight">{title}</h3>
+          <h3 className="text-lg font-semibold leading-tight">{title}</h3>
           {subtitle ? (
-            <p className="break-words text-xs text-[#5c6a58]">{subtitle}</p>
+            <p className="break-words text-xs text-gray-400">{subtitle}</p>
           ) : null}
         </div>
       </div>
@@ -399,7 +398,7 @@ function Shell({
       {interrupt.errors.map((error) => (
         <p
           key={`${error.code}:${error.path?.join('.') ?? ''}`}
-          className="text-xs text-[#a23b1e]"
+          className="text-xs text-red-400"
         >
           {error.message}
         </p>
@@ -426,21 +425,21 @@ function ApproveRejectRow({
       <button
         onClick={onApprove}
         disabled={disabled}
-        className="inline-flex items-center gap-1 rounded-md bg-[#2d5b3c] px-3 py-1 text-sm text-[#f7f1de] disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-sm text-white transition-colors hover:bg-green-700 disabled:opacity-50"
       >
         <Check size={14} /> {approveLabel}
       </button>
       <button
         onClick={onReject}
         disabled={disabled}
-        className="inline-flex items-center gap-1 rounded-md border border-[#8a5b3c] px-3 py-1 text-sm text-[#7a3520] disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
       >
         <X size={14} /> Reject
       </button>
       <button
         onClick={onCancel}
         disabled={disabled}
-        className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm text-[#6f6338] disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm text-gray-400 transition-colors hover:text-gray-200 disabled:opacity-50"
       >
         <Trash2 size={14} /> Cancel
       </button>
@@ -449,7 +448,7 @@ function ApproveRejectRow({
 }
 
 const textInput =
-  'w-full rounded-md border border-[#c9bd97] bg-[#fbf7ea] px-2 py-1 text-sm'
+  'w-full rounded-md border border-gray-700 bg-gray-800 px-2 py-1 text-sm text-white placeholder-gray-500 focus:border-orange-500/50 focus:outline-none'
 
 function ApprovalCard({
   interrupt,
@@ -464,7 +463,9 @@ function ApprovalCard({
   const [reason, setReason] = useState('Not this time')
   const [adopterName, setAdopterName] = useState('')
   const [homeCheck, setHomeCheck] = useState(true)
-  const [channel, setChannel] = useState<'instagram' | 'newsletter'>('instagram')
+  const [channel, setChannel] = useState<'instagram' | 'newsletter'>(
+    'instagram',
+  )
   const [enclosure, setEnclosure] = useState('')
   const [sizeSqm, setSizeSqm] = useState('')
   const [adopter, setAdopter] = useState('')
@@ -581,9 +582,10 @@ function ApprovalCard({
             value={adopterName}
             onChange={(event) => setAdopterName(event.target.value)}
           />
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-gray-300">
             <input
               type="checkbox"
+              className="accent-orange-500"
               checked={homeCheck}
               onChange={(event) => setHomeCheck(event.target.checked)}
             />
@@ -598,7 +600,10 @@ function ApprovalCard({
           <ApproveRejectRow
             disabled={disabled}
             onApprove={() => {
-              decided('✅ approved', { adopterName, homeCheckPassed: homeCheck })
+              decided('✅ approved', {
+                adopterName,
+                homeCheckPassed: homeCheck,
+              })
               interrupt.resolveInterrupt(true, {
                 payload: { adopterName, homeCheckPassed: homeCheck },
               })
@@ -620,7 +625,9 @@ function ApprovalCard({
             value={channel}
             onChange={(event) =>
               setChannel(
-                event.target.value === 'newsletter' ? 'newsletter' : 'instagram',
+                event.target.value === 'newsletter'
+                  ? 'newsletter'
+                  : 'instagram',
               )
             }
           >
@@ -775,7 +782,7 @@ function GenericCard({
             interrupt.resolveInterrupt(value)
           }}
           disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md bg-[#2d5b3c] px-3 py-1 text-sm text-[#f7f1de] disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-sm text-white transition-colors hover:bg-green-700 disabled:opacity-50"
         >
           <Check size={14} /> Submit
         </button>
@@ -785,7 +792,7 @@ function GenericCard({
             interrupt.cancel()
           }}
           disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm text-[#6f6338] disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm text-gray-400 transition-colors hover:text-gray-200 disabled:opacity-50"
         >
           <Trash2 size={14} /> Cancel
         </button>
