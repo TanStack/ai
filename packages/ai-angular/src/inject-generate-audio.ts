@@ -10,22 +10,13 @@ import type {
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { ReactiveOption } from './internal/to-reactive'
-import type {
-  InjectGenerationOptions,
-  InjectGenerationResult,
-} from './inject-generation'
 
 /**
  * Options for the injectGenerateAudio injectable.
  *
  * @template TOutput - The output type after optional transform (defaults to AudioGenerationResult)
  */
-export interface InjectGenerateAudioOptions<
-  TOutput = AudioGenerationResult,
-> extends Pick<
-  InjectGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
-  'persistence' | 'initialResumeSnapshot'
-> {
+export interface InjectGenerateAudioOptions<TOutput = AudioGenerationResult> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
@@ -57,9 +48,7 @@ export interface InjectGenerateAudioOptions<
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface InjectGenerateAudioResult<
-  TOutput = AudioGenerationResult,
-> extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
+export interface InjectGenerateAudioResult<TOutput = AudioGenerationResult> {
   /** Trigger audio generation */
   generate: (input: AudioGenerateInput) => Promise<void>
   /** The generation result containing audio, or null */
@@ -70,6 +59,10 @@ export interface InjectGenerateAudioResult<
   error: Signal<Error | undefined>
   /** Current state of the generation */
   status: Signal<GenerationClientState>
+  /** Abort the current generation */
+  stop: () => void
+  /** Clear result, error, and return to idle */
+  reset: () => void
 }
 
 /**
@@ -116,19 +109,19 @@ export function injectGenerateAudio<TTransformed = void>(
     hookName: 'injectGenerateAudio',
     outputKind: 'audio' as const,
   }
-  const generation = injectGeneration<
-    AudioGenerateInput,
-    AudioGenerationResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    injectGeneration<AudioGenerateInput, AudioGenerationResult, TTransformed>({
+      ...options,
+      devtools,
+    })
 
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: AudioGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: AudioGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

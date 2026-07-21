@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateVideo } from '@tanstack/ai-react'
+import type { UseGenerateVideoReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateVideoFn, generateVideoStreamFn } from '../lib/server-fns'
-import type { UseGenerateVideoReturn } from '@tanstack/ai-react'
 
 function StreamingVideoGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -24,10 +24,7 @@ function DirectVideoGeneration() {
   const hookReturn = useGenerateVideo({
     fetcher: (input) =>
       generateVideoFn({
-        data: {
-          prompt: resolveMediaPrompt(input.prompt).text,
-          duration: input.duration,
-        },
+        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
   })
 
@@ -42,10 +39,7 @@ function ServerFnVideoGeneration() {
   const hookReturn = useGenerateVideo({
     fetcher: (input) =>
       generateVideoStreamFn({
-        data: {
-          prompt: resolveMediaPrompt(input.prompt).text,
-          duration: input.duration,
-        },
+        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
   })
 

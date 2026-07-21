@@ -2,8 +2,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
   chat,
-  createImageOptions,
-  createVideoOptions,
   generateAudio,
   generateImage,
   generateSpeech,
@@ -19,6 +17,7 @@ import {
   openaiText,
   openaiVideo,
 } from '@tanstack/ai-openai'
+import type { UIMessage } from '@tanstack/ai'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -26,8 +25,6 @@ import {
   buildSpeechAdapter,
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
-import type { OpenAIChatModel } from '@tanstack/ai-openai'
-import type { UIMessage } from '@tanstack/ai'
 
 /**
  * Server-fn error with a stable `code` property clients can switch on.
@@ -98,14 +95,6 @@ const AUDIO_PROVIDER_SCHEMA = z
   ])
   .optional()
 
-const OPENAI_IMAGE_SIZE_SCHEMA = z
-  .enum(['1024x1024', '1536x1024', '1024x1536', 'auto'])
-  .optional()
-
-const OPENAI_VIDEO_SIZE_SCHEMA = z
-  .enum(['1280x720', '720x1280', '1792x1024', '1024x1792'])
-  .optional()
-
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)
 // =============================================================================
@@ -115,7 +104,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     z.object({
       prompt: z.string(),
       numberOfImages: z.number().optional(),
-      size: OPENAI_IMAGE_SIZE_SCHEMA,
+      size: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -123,7 +112,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       adapter: openaiImage('gpt-image-1'),
       prompt: data.prompt,
       numberOfImages: data.numberOfImages,
-      size: data.size,
+      size: data.size as any,
     })
   })
 
@@ -222,7 +211,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     return summarize({
-      adapter: openaiSummarize((data.model ?? 'gpt-5.5') as OpenAIChatModel),
+      adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -233,7 +222,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
       prompt: z.string(),
-      size: OPENAI_VIDEO_SIZE_SCHEMA,
+      size: z.string().optional(),
       duration: z.number().optional(),
     }),
   )
@@ -244,7 +233,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     const { jobId } = await generateVideo({
       adapter,
       prompt: data.prompt,
-      size: data.size,
+      size: data.size as any,
       duration: data.duration,
     })
 
@@ -285,20 +274,18 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
     z.object({
       prompt: z.string(),
       numberOfImages: z.number().optional(),
-      size: OPENAI_IMAGE_SIZE_SCHEMA,
+      size: z.string().optional(),
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
-      generateImage<ReturnType<typeof openaiImage>, true>(
-        createImageOptions({
-          adapter: openaiImage('gpt-image-1'),
-          prompt: data.prompt,
-          numberOfImages: data.numberOfImages,
-          size: data.size,
-          stream: true,
-        }),
-      ),
+      generateImage({
+        adapter: openaiImage('gpt-image-1'),
+        prompt: data.prompt,
+        numberOfImages: data.numberOfImages,
+        size: data.size as any,
+        stream: true,
+      }),
     )
   })
 
@@ -377,7 +364,9 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       summarize({
-        adapter: openaiSummarize((data.model ?? 'gpt-5.5') as OpenAIChatModel),
+        adapter: openaiSummarize(
+          (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
+        ),
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,
@@ -390,21 +379,19 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
       prompt: z.string(),
-      size: OPENAI_VIDEO_SIZE_SCHEMA,
+      size: z.string().optional(),
       duration: z.number().optional(),
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
-      generateVideo<ReturnType<typeof openaiVideo>, true>(
-        createVideoOptions({
-          adapter: openaiVideo('sora-2'),
-          prompt: data.prompt,
-          size: data.size,
-          duration: data.duration,
-          stream: true,
-        }),
-      ),
+      generateVideo({
+        adapter: openaiVideo('sora-2'),
+        prompt: data.prompt,
+        size: data.size as any,
+        duration: data.duration,
+        stream: true,
+      }),
     )
   })
 

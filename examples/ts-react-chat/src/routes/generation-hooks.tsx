@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   FileAudio,
@@ -19,19 +20,18 @@ import {
   useTranscription,
 } from '@tanstack/ai-react'
 import { EventType } from '@tanstack/ai'
-import { GENERATION_EVENTS } from '@tanstack/ai-client'
-import type {
-  ConnectConnectionAdapter,
-  VideoGenerateResult,
+import {
+  GENERATION_EVENTS,
+  type ConnectConnectionAdapter,
+  type VideoGenerateResult,
 } from '@tanstack/ai-client'
-import type { ReactNode } from 'react'
 import type {
   AudioGenerationResult,
   ImageGenerationResult,
   StreamChunk,
   SummarizationResult,
-  TTSResult,
   TranscriptionResult,
+  TTSResult,
 } from '@tanstack/ai'
 import type { LucideIcon } from 'lucide-react'
 

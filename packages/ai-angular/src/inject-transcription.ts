@@ -6,10 +6,7 @@ import type {
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
-import type {
-  InjectGenerationOptions,
-  InjectGenerationResult,
-} from './inject-generation'
+import type { InjectGenerationOptions } from './inject-generation'
 
 export type InjectTranscriptionOptions<TOutput = TranscriptionResult> = Omit<
   InjectGenerationOptions<
@@ -22,14 +19,14 @@ export type InjectTranscriptionOptions<TOutput = TranscriptionResult> = Omit<
   onResult?: (result: TranscriptionResult) => TOutput | null | void
 }
 
-export interface InjectTranscriptionResult<
-  TOutput = TranscriptionResult,
-> extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
+export interface InjectTranscriptionResult<TOutput = TranscriptionResult> {
   generate: (input: TranscriptionGenerateInput) => Promise<void>
   result: Signal<TOutput | null>
   isLoading: Signal<boolean>
   error: Signal<Error | undefined>
   status: Signal<GenerationClientState>
+  stop: () => void
+  reset: () => void
 }
 
 export function injectTranscription<TTransformed = void>(
@@ -45,18 +42,22 @@ export function injectTranscription<TTransformed = void>(
     hookName: 'injectTranscription',
     outputKind: 'text' as const,
   }
-  const generation = injectGeneration<
-    TranscriptionGenerateInput,
-    TranscriptionResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    injectGeneration<
+      TranscriptionGenerateInput,
+      TranscriptionResult,
+      TTransformed
+    >({
+      ...options,
+      devtools,
+    })
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: TranscriptionGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

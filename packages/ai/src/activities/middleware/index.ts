@@ -4,17 +4,11 @@ export type {
   GenerationActivity,
   GenerationMiddleware,
   GenerationMiddlewareContext,
-  GenerationResultTransform,
-  GenerationResultTransformContext,
   GenerationUsageInfo,
   GenerationFinishInfo,
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
-  GenerationRunIdentity,
-  GenerationReplayInput,
-  GenerationReplayOptions,
-  GenerationRunOptions,
 } from './types'
 export {
   createGenerationContext,
@@ -23,5 +17,4 @@ export {
   runGenerationFinish,
   runGenerationAbort,
   runGenerationError,
-  applyGenerationResultTransforms,
 } from './run'

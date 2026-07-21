@@ -39,13 +39,6 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-## Interrupt Lab
-
-Open `/interrupts` to exercise the AG-UI interrupt lifecycle (tool approval,
-client-tool execution, and generic interrupts) end to end. Add `?debug=true`
-to the route for client and server traces. Interrupts run ephemerally by
-resuming from the full client message history — no persistence required.
-
 ## Trying Out Lazy Tool Discovery
 
 This example includes three **lazy tools** — tools that are not sent to the LLM upfront. Instead, the LLM sees a `__lazy__tool__discovery__` tool that lists their names. When the LLM needs one, it discovers it first (getting the full description and schema), then calls it normally.
@@ -85,7 +78,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 
 ### AI Capabilities
 
-- 🤖 Powered by **TanStack AI** with OpenAI `gpt-5.5`
+- 🤖 Powered by **TanStack AI** with OpenAI GPT-4o
 - 📝 Rich markdown formatting with syntax highlighting
 - 🎯 Customizable system prompts for tailored AI behavior
 - 🔄 Real-time streaming responses with Server-Sent Events
@@ -114,7 +107,7 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - **Routing**: TanStack Router
 - **State Management**: TanStack Store
 - **Styling**: Tailwind CSS
-- **AI Integration**: TanStack AI with OpenAI `gpt-5.5`
+- **AI Integration**: TanStack AI with OpenAI GPT-4o
 - **Chat Client**: `@tanstack/ai-react` with connection adapters
 - **Streaming**: Server-Sent Events via `fetchServerSentEvents`
 - **Tool Execution**: Automatic loop with `ToolCallManager`

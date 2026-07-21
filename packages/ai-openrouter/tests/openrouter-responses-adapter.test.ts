@@ -695,22 +695,22 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       chunks.push(c)
     }
 
-    const start = chunks.find((c) => c.type === 'TOOL_CALL_START')
+    const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(start).toMatchObject({
       type: 'TOOL_CALL_START',
       toolCallId: 'item_1',
       toolCallName: 'lookup_weather',
     })
 
-    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as any[]
     expect(args.length).toBe(1)
-    expect(args[0]).toMatchObject({ delta: '{"location":"Berlin"}' })
+    expect(args[0]!.delta).toBe('{"location":"Berlin"}')
 
-    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
-    expect(end).toMatchObject({ input: { location: 'Berlin' } })
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+    expect(end.input).toEqual({ location: 'Berlin' })
 
-    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(finished).toMatchObject({ finishReason: 'tool_calls' })
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
+    expect(finished.finishReason).toBe('tool_calls')
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {

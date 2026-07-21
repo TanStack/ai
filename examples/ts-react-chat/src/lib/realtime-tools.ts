@@ -99,7 +99,7 @@ export const getWeatherClient = getWeatherToolDef.client(({ location }) => {
   // Mock weather data for demo purposes
   const conditions = ['Sunny', 'Partly Cloudy', 'Cloudy', 'Rainy', 'Snowy']
   const randomCondition =
-    conditions[Math.floor(Math.random() * conditions.length)]
+    conditions[Math.floor(Math.random() * conditions.length)]!
   const randomTemp = Math.floor(Math.random() * 30) + 50 // 50-80°F
   const randomHumidity = Math.floor(Math.random() * 50) + 30 // 30-80%
 

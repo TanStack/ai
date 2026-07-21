@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { clientTools, localStoragePersistence } from '@tanstack/ai-client'
+import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -9,7 +9,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { MessageSquare, Plus, Square, Trash2 } from 'lucide-react'
-import type { UIMessage } from '@tanstack/ai-client'
+import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
   addToCartToolDef,
@@ -86,51 +86,40 @@ interface ThreadMeta {
   updatedAt: number
 }
 
-type StoredUIMessage = Omit<UIMessage, 'createdAt'> & {
-  createdAt?: Date | string
-}
-
 const hasWindow = () => typeof window !== 'undefined'
 
-function isStoredUIMessage(value: unknown): value is StoredUIMessage {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    'id' in value &&
-    typeof value.id === 'string' &&
-    'role' in value &&
-    (value.role === 'system' ||
-      value.role === 'user' ||
-      value.role === 'assistant') &&
-    'parts' in value &&
-    Array.isArray(value.parts) &&
-    (!('createdAt' in value) ||
-      value.createdAt instanceof Date ||
-      typeof value.createdAt === 'string')
-  )
+/**
+ * Per-thread history adapter. Each thread's messages live under their own
+ * namespaced key, so this satisfies the PR's `ChatClientPersistence` contract
+ * (get/set/remove by id) while keeping threads isolated from each other.
+ */
+const threadPersistence: ChatClientPersistence = {
+  getItem: (id) => {
+    if (!hasWindow()) return null
+    const raw = window.localStorage.getItem(THREAD_KEY_PREFIX + id)
+    if (!raw) return null
+    // `UIMessage.createdAt` is a Date that JSON.stringify turned into a string —
+    // revive it on read.
+    return (JSON.parse(raw) as Array<UIMessage>).map((message) => ({
+      ...message,
+      createdAt:
+        typeof message.createdAt === 'string'
+          ? new Date(message.createdAt)
+          : message.createdAt,
+    }))
+  },
+  setItem: (id, messages) => {
+    if (!hasWindow()) return
+    window.localStorage.setItem(
+      THREAD_KEY_PREFIX + id,
+      JSON.stringify(messages),
+    )
+  },
+  removeItem: (id) => {
+    if (!hasWindow()) return
+    window.localStorage.removeItem(THREAD_KEY_PREFIX + id)
+  },
 }
-
-function deserializeThreadMessages(raw: string): Array<UIMessage> {
-  const parsed: unknown = JSON.parse(raw)
-  if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
-    throw new TypeError('Stored messages are invalid')
-  }
-  return parsed.map(({ createdAt, ...message }) => ({
-    ...message,
-    ...(createdAt
-      ? {
-          createdAt:
-            createdAt instanceof Date ? createdAt : new Date(createdAt),
-        }
-      : {}),
-  }))
-}
-
-const threadPersistence = localStoragePersistence<Array<UIMessage>>({
-  keyPrefix: THREAD_KEY_PREFIX,
-  serialize: (messages) => JSON.stringify(messages),
-  deserialize: deserializeThreadMessages,
-})
 
 function readIndex(): Array<ThreadMeta> {
   if (!hasWindow()) return []
@@ -476,7 +465,7 @@ function ThreadChat({
   } = useChat({
     id: threadId,
     connection: fetchServerSentEvents('/api/tanchat'),
-    persistence: { client: threadPersistence },
+    persistence: threadPersistence,
     tools,
     body: CHAT_BODY,
     onFinish: () => onActivity(),

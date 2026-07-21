@@ -6,10 +6,7 @@ import type {
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
-import type {
-  InjectGenerationOptions,
-  InjectGenerationResult,
-} from './inject-generation'
+import type { InjectGenerationOptions } from './inject-generation'
 
 export type InjectGenerateSpeechOptions<TOutput = TTSResult> = Omit<
   InjectGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
@@ -18,15 +15,14 @@ export type InjectGenerateSpeechOptions<TOutput = TTSResult> = Omit<
   onResult?: (result: TTSResult) => TOutput | null | void
 }
 
-export interface InjectGenerateSpeechResult<TOutput = TTSResult> extends Omit<
-  InjectGenerationResult<TOutput>,
-  'generate'
-> {
+export interface InjectGenerateSpeechResult<TOutput = TTSResult> {
   generate: (input: SpeechGenerateInput) => Promise<void>
   result: Signal<TOutput | null>
   isLoading: Signal<boolean>
   error: Signal<Error | undefined>
   status: Signal<GenerationClientState>
+  stop: () => void
+  reset: () => void
 }
 
 export function injectGenerateSpeech<TTransformed = void>(
@@ -42,18 +38,18 @@ export function injectGenerateSpeech<TTransformed = void>(
     hookName: 'injectGenerateSpeech',
     outputKind: 'audio' as const,
   }
-  const generation = injectGeneration<
-    SpeechGenerateInput,
-    TTSResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    injectGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
+      ...options,
+      devtools,
+    })
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: SpeechGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: SpeechGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

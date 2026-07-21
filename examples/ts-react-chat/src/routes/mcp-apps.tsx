@@ -13,8 +13,7 @@ import {
 } from '@tanstack/ai-react'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import type { McpAppBridge, UIMessage } from '@tanstack/ai-react'
-import type { McpProvider } from '@/lib/mcp-providers'
-import { MCP_PROVIDERS } from '@/lib/mcp-providers'
+import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 import {
   MCP_APP_SUGGESTIONS,
   SANDBOX_PROXY_URL,

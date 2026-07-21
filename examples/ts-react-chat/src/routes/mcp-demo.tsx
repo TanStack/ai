@@ -9,8 +9,7 @@ import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { McpProvider } from '@/lib/mcp-providers'
-import { MCP_PROVIDERS } from '@/lib/mcp-providers'
+import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 
 type McpMode = 'manual' | 'chat' | 'pool'
 

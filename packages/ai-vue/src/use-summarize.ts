@@ -1,8 +1,4 @@
 import { useGeneration } from './use-generation'
-import type {
-  UseGenerationOptions,
-  UseGenerationReturn,
-} from './use-generation'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -19,12 +15,7 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  *
  * @template TOutput - The output type after optional transform (defaults to SummarizationResult)
  */
-export interface UseSummarizeOptions<
-  TOutput = SummarizationResult,
-> extends Pick<
-  UseGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
-  'persistence' | 'initialResumeSnapshot'
-> {
+export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
@@ -56,10 +47,7 @@ export interface UseSummarizeOptions<
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
-  UseGenerationReturn<TOutput>,
-  'generate'
-> {
+export interface UseSummarizeReturn<TOutput = SummarizationResult> {
   /** Trigger summarization */
   generate: (input: SummarizeGenerateInput) => Promise<void>
   /** The summarization result, or null */
@@ -70,6 +58,10 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
   error: DeepReadonly<ShallowRef<Error | undefined>>
   /** Current state of the generation */
   status: DeepReadonly<ShallowRef<GenerationClientState>>
+  /** Abort the current summarization */
+  stop: () => void
+  /** Clear result, error, and return to idle */
+  reset: () => void
 }
 
 /**
@@ -114,19 +106,19 @@ export function useSummarize<TTransformed = void>(
     hookName: 'useSummarize',
     outputKind: 'text' as const,
   }
-  const generation = useGeneration<
-    SummarizeGenerateInput,
-    SummarizationResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    useGeneration<SummarizeGenerateInput, SummarizationResult, TTransformed>({
+      ...options,
+      devtools,
+    })
 
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: SummarizeGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: SummarizeGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

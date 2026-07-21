@@ -28,14 +28,14 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5.1', label: 'GPT-5.1' },
     { value: 'gpt-5', label: 'GPT-5' },
     { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    { value: 'gpt-5.5', label: 'GPT-5.5' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
   ],
   // OpenAI Chat Completions: same model surface, older `/v1/chat/completions`
   // wire format. The reasoning-summary opt-in isn't available here, so
   // streaming reasoning won't be surfaced for gpt-5.x even though the model
   // is still doing it under the hood.
   'openai-chat': [
-    { value: 'gpt-5.5', label: 'GPT-5.5' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
     { value: 'gpt-5', label: 'GPT-5' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
@@ -233,7 +233,7 @@ function StructuredOutputPage() {
       payload.value?.object
     ) {
       sawCompleteRef.current = true
-      setResult(payload.value.object)
+      setResult(payload.value.object as PartialResult)
       setHasFinalResult(true)
       if (
         typeof (payload.value as { reasoning?: string }).reasoning === 'string'

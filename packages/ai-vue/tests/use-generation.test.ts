@@ -10,11 +10,6 @@ import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
 import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
-import type {
-  ConnectConnectionAdapter,
-  GenerationResumeSnapshot,
-  RunAgentInputContext,
-} from '@tanstack/ai-client'
 import type { DeepReadonly } from 'vue'
 
 // Helper to create generation stream chunks
@@ -65,60 +60,6 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
       timestamp: Date.now(),
     },
   ] as unknown as Array<StreamChunk>
-}
-
-const videoResumeSnapshot: GenerationResumeSnapshot = {
-  resumeState: {
-    threadId: 'thread-resume',
-    runId: 'run-resume',
-  },
-  status: 'running',
-}
-
-function createReplayVideoChunks(): Array<StreamChunk> {
-  return [
-    {
-      type: 'RUN_STARTED',
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      timestamp: Date.now(),
-    },
-    {
-      type: 'CUSTOM',
-      name: 'generation:result',
-      value: {
-        jobId: 'job-replay',
-        status: 'completed',
-        url: 'https://example.com/video.mp4',
-      },
-      timestamp: Date.now(),
-    },
-    {
-      type: 'RUN_FINISHED',
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      timestamp: Date.now(),
-    },
-  ] as unknown as Array<StreamChunk>
-}
-
-function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
-  adapter: ConnectConnectionAdapter
-  connect: ReturnType<typeof vi.fn>
-  runContexts: Array<RunAgentInputContext | undefined>
-} {
-  const runContexts: Array<RunAgentInputContext | undefined> = []
-  const connect = vi.fn()
-  const adapter: ConnectConnectionAdapter = {
-    async *connect(_messages, _data, _signal, runContext) {
-      connect(runContext)
-      runContexts.push(runContext)
-      for (const chunk of chunks) {
-        yield chunk
-      }
-    },
-  }
-  return { adapter, connect, runContexts }
 }
 
 // Helper to create error stream chunks
@@ -245,38 +186,6 @@ describe('useGeneration', () => {
 
       expect(result.status.value).toBe('error')
       expect(result.error.value?.message).toBe('Generation failed')
-    })
-
-    it('does not auto-fire a generation on mount from a persisted running snapshot', async () => {
-      // Regression guard for the removed generation resume surface.
-      const snapshot: GenerationResumeSnapshot = {
-        resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-        status: 'running',
-      }
-      const { adapter, connect } = createRunContextCaptureAdapter(
-        createGenerationChunks({ id: '1' }),
-      )
-      const getItem = vi.fn(() => snapshot)
-      const { result } = renderHook(() =>
-        useGeneration({
-          id: 'no-auto-fire',
-          connection: adapter,
-          persistence: {
-            server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-          },
-          initialResumeSnapshot: snapshot,
-        }),
-      )
-
-      await flushPromises()
-      await nextTick()
-
-      expect(connect).not.toHaveBeenCalled()
-      expect(getItem).not.toHaveBeenCalled()
-      expect(result.isLoading.value).toBe(false)
-      expect(result.status.value).toBe('idle')
-      // The persisted snapshot remains exposed as read-only state.
-      expect(result.resumeState.value).toEqual(snapshot.resumeState)
     })
   })
 
@@ -677,7 +586,7 @@ describe('useSummarize', () => {
   it('should summarize text using fetcher', async () => {
     const mockResult = {
       summary: 'A brief summary',
-      model: 'gpt-5.5',
+      model: 'gpt-4',
     }
 
     const { result } = renderHook(() =>
@@ -695,7 +604,7 @@ describe('useSummarize', () => {
   })
 
   it('should summarize text using connection', async () => {
-    const mockResult = { summary: 'A brief summary', model: 'gpt-5.5' }
+    const mockResult = { summary: 'A brief summary', model: 'gpt-4' }
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
@@ -850,35 +759,6 @@ describe('useGenerateVideo', () => {
     expect(result.jobId.value).toBeNull()
     expect(result.videoStatus.value).toBeNull()
     expect(result.status.value).toBe('idle')
-  })
-
-  it('does not auto-fire a video generation on mount from a persisted running snapshot', async () => {
-    // Regression guard for the removed generation resume surface (video).
-    const { adapter, connect } = createRunContextCaptureAdapter(
-      createReplayVideoChunks(),
-    )
-    const getItem = vi.fn(() => videoResumeSnapshot)
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        id: 'video-no-auto-fire',
-        connection: adapter,
-        persistence: {
-          server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-        },
-        initialResumeSnapshot: videoResumeSnapshot,
-      }),
-    )
-
-    await flushPromises()
-    await nextTick()
-
-    expect(connect).not.toHaveBeenCalled()
-    expect(getItem).not.toHaveBeenCalled()
-    expect(result.isLoading.value).toBe(false)
-    expect(result.status.value).toBe('idle')
-    // The persisted snapshot remains exposed as read-only state.
-    expect(result.resumeSnapshot.value).toEqual(videoResumeSnapshot)
-    expect(result.resumeState.value).toEqual(videoResumeSnapshot.resumeState)
   })
 
   it('should require either connection or fetcher', () => {

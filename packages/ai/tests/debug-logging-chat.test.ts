@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat/index'
-import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { Logger } from '../src/logger/types'
 import type { StreamChunk } from '../src/types'
+import { collectChunks, createMockAdapter, ev } from './test-utils'
 
 // ============================================================================
 // Helpers

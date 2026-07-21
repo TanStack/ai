@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
+import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
-import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -32,10 +32,7 @@ function DirectImageGeneration() {
   const hookReturn = useGenerateImage({
     fetcher: (input) =>
       generateImageFn({
-        data: {
-          prompt: resolveMediaPrompt(input.prompt).text,
-          numberOfImages: input.numberOfImages,
-        },
+        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
   })
 
@@ -57,10 +54,7 @@ function ServerFnImageGeneration() {
   const hookReturn = useGenerateImage({
     fetcher: (input) =>
       generateImageStreamFn({
-        data: {
-          prompt: resolveMediaPrompt(input.prompt).text,
-          numberOfImages: input.numberOfImages,
-        },
+        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
   })
 

@@ -16,13 +16,13 @@ import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ModelOption } from '@/lib/model-selection'
-import type { ClientRuntimeContext } from '@/lib/guitar-tools'
 import {
   inspectClientRuntimeContextToolDef,
   inspectServerRuntimeContextToolDef,
+  type ClientRuntimeContext,
 } from '@/lib/guitar-tools'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
+import type { ModelOption } from '@/lib/model-selection'
 
 type RuntimeProfile = ClientRuntimeContext & {
   label: string

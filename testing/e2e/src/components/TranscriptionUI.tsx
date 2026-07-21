@@ -1,11 +1,12 @@
 import {
-  fetchHttpStream,
-  fetchServerSentEvents,
   useTranscription,
+  fetchServerSentEvents,
+  fetchHttpStream,
 } from '@tanstack/ai-react'
+import { generateTranscriptionFn } from '@/lib/server-functions'
+import type { TranscriptionResult } from '@tanstack/ai'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
-import { generateTranscriptionFn } from '@/lib/server-functions'
 
 type TranscriptionFeature = Extract<
   Feature,
@@ -69,7 +70,7 @@ export function TranscriptionUI({
             aimockPort,
             testId,
           },
-        })
+        }) as Promise<TranscriptionResult>
       },
     }
   }

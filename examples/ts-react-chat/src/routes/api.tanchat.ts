@@ -17,7 +17,6 @@ import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
-import type { ServerRuntimeContext } from '@/lib/guitar-tools'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -30,6 +29,7 @@ import {
   runtimeLoyaltyTiers,
   runtimePreferredStyles,
   searchGuitars,
+  type ServerRuntimeContext,
 } from '@/lib/guitar-tools'
 
 type Provider =

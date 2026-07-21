@@ -1,8 +1,8 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
   RunFinishedEvent,
-  TokenUsage,
   UsageCostBreakdown,
+  TokenUsage,
 } from '../src/types'
 import type {
   FinishInfo,

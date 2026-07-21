@@ -14,16 +14,11 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPendingArtifact,
-  GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
-import type { PersistedArtifactRef } from '@tanstack/ai/client'
 import type { Accessor } from 'solid-js'
 
 /**
@@ -42,10 +37,6 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
-  /** Initial lightweight resume snapshot restored by the app (read-only state). */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -90,14 +81,6 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
-  /** Lightweight generation resume snapshot, if one is available */
-  resumeSnapshot: Accessor<GenerationResumeSnapshot | undefined>
-  /** Observed run/cursor metadata from the snapshot (read-only state) */
-  resumeState: Accessor<GenerationResumeState | null>
-  /** Pending persisted artifact references observed during generation/replay */
-  pendingArtifacts: Accessor<Array<GenerationPendingArtifact>>
-  /** Final persisted artifact references observed from a replayed result */
-  resultArtifacts: Accessor<Array<PersistedArtifactRef>>
 }
 
 /**
@@ -156,10 +139,6 @@ export function useGenerateVideo<TTransformed = void>(
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
-  const [resumeSnapshot, setResumeSnapshot] = createSignal<
-    GenerationResumeSnapshot | undefined
-  >(options.initialResumeSnapshot)
-  let disposed = false
 
   const client = createMemo(() => {
     // Conditional spread on `body`: VideoGenerationClientOptions.body
@@ -167,12 +146,6 @@ export function useGenerateVideo<TTransformed = void>(
     const baseOptions = {
       id: clientId,
       body: options.body,
-      ...(options.persistence !== undefined && {
-        persistence: options.persistence,
-      }),
-      ...(options.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: options.initialResumeSnapshot,
-      }),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...options.devtools,
@@ -186,44 +159,17 @@ export function useGenerateVideo<TTransformed = void>(
       onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
         result: VideoGenerateResult,
       ) => TOutput | null | void,
-      onError: (e: Error) => {
-        if (!disposed) options.onError?.(e)
-      },
-      onProgress: (p: number, m?: string) => {
-        if (!disposed) options.onProgress?.(p, m)
-      },
-      onChunk: (c: StreamChunk) => {
-        if (!disposed) options.onChunk?.(c)
-      },
-      onJobCreated: (id: string) => {
-        if (!disposed) options.onJobCreated?.(id)
-      },
-      onStatusUpdate: (s: VideoStatusInfo) => {
-        if (!disposed) options.onStatusUpdate?.(s)
-      },
-      onResultChange: (r: TOutput | null) => {
-        if (!disposed) setResult(() => r)
-      },
-      onLoadingChange: (l: boolean) => {
-        if (!disposed) setIsLoading(l)
-      },
-      onErrorChange: (e: Error | undefined) => {
-        if (!disposed) setError(e)
-      },
-      onStatusChange: (s: GenerationClientState) => {
-        if (!disposed) setStatus(s)
-      },
-      onJobIdChange: (id: string | null) => {
-        if (!disposed) setJobId(id)
-      },
-      onVideoStatusChange: (s: VideoStatusInfo | null) => {
-        if (!disposed) setVideoStatus(s)
-      },
-      onResumeSnapshotChange: (
-        snapshot: GenerationResumeSnapshot | undefined,
-      ) => {
-        if (!disposed) setResumeSnapshot(snapshot)
-      },
+      onError: (e: Error) => options.onError?.(e),
+      onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
+      onChunk: (c: StreamChunk) => options.onChunk?.(c),
+      onJobCreated: (id: string) => options.onJobCreated?.(id),
+      onStatusUpdate: (s: VideoStatusInfo) => options.onStatusUpdate?.(s),
+      onResultChange: setResult,
+      onLoadingChange: setIsLoading,
+      onErrorChange: setError,
+      onStatusChange: setStatus,
+      onJobIdChange: setJobId,
+      onVideoStatusChange: setVideoStatus,
     }
 
     if (options.connection) {
@@ -253,15 +199,12 @@ export function useGenerateVideo<TTransformed = void>(
     })
   })
 
-  // Mount devtools only. Generation runs are never auto-started on mount —
-  // persisted state is read-only for display.
   onMount(() => {
     client().mountDevtools()
   })
 
   // Cleanup on unmount: stop any in-flight requests and unregister devtools
   onCleanup(() => {
-    disposed = true
     client().dispose()
   })
 
@@ -287,9 +230,5 @@ export function useGenerateVideo<TTransformed = void>(
     status,
     stop,
     reset,
-    resumeSnapshot,
-    resumeState: () => resumeSnapshot()?.resumeState ?? null,
-    pendingArtifacts: () => resumeSnapshot()?.pendingArtifacts ?? [],
-    resultArtifacts: () => resumeSnapshot()?.result?.artifacts ?? [],
   }
 }

@@ -7,13 +7,8 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
-import {
-  generationIdentityFields,
-  rejectEventsOnlyReplay,
-} from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
-  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
@@ -22,10 +17,7 @@ import {
 } from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type {
-  GenerationMiddleware,
-  GenerationRunOptions,
-} from '../middleware/types'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
@@ -62,7 +54,7 @@ export type TTSProviderOptions<TAdapter> =
 export interface TTSActivityOptions<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
-> extends GenerationRunOptions<TTSResult> {
+> {
   /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /** The text to convert to speech */
@@ -152,10 +144,8 @@ export function generateSpeech<
   TStream extends boolean = false,
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(
-      (resolvedOptions) =>
-        runGenerateSpeech({ ...options, ...resolvedOptions }),
-      options,
+    return streamGenerationResult(() =>
+      runGenerateSpeech(options),
     ) as TTSActivityResult<TStream>
   }
   return runGenerateSpeech(options) as TTSActivityResult<TStream>
@@ -167,20 +157,11 @@ export function generateSpeech<
 async function runGenerateSpeech<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
 >(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
-  rejectEventsOnlyReplay(options.replay)
-
-  if (options.replay && 'result' in options.replay) {
-    return options.replay.result as TTSResult
-  }
-
   const {
     adapter,
     stream: _stream,
     debug: _debug,
     middleware,
-    threadId,
-    runId,
-    replay: _replay,
     ...rest
   } = options
   const model = adapter.model
@@ -191,7 +172,6 @@ async function runGenerateSpeech<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
-  const identity = { threadId, runId }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -199,14 +179,6 @@ async function runGenerateSpeech<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
-    threadId,
-    runId,
-    artifactInputs: {
-      text: rest.text,
-      voice: rest.voice,
-      format: rest.format,
-      speed: rest.speed,
-    },
     createId,
   })
 
@@ -214,7 +186,6 @@ async function runGenerateSpeech<
 
   aiEventClient.emit('speech:request:started', {
     requestId,
-    ...generationIdentityFields(identity),
     provider: adapter.name,
     model,
     text: rest.text,
@@ -231,13 +202,11 @@ async function runGenerateSpeech<
   })
 
   try {
-    const rawResult = await adapter.generateSpeech({ ...rest, model, logger })
-    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+    const result = await adapter.generateSpeech({ ...rest, model, logger })
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
       requestId,
-      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       audio: result.audio,
@@ -252,7 +221,6 @@ async function runGenerateSpeech<
     if (result.usage) {
       aiEventClient.emit('speech:usage', {
         requestId,
-        ...generationIdentityFields(identity),
         model,
         usage: result.usage,
         modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
@@ -277,7 +245,6 @@ async function runGenerateSpeech<
     const err = error as Error
     aiEventClient.emit('speech:request:error', {
       requestId,
-      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       error: { message: err.message, name: err.name },

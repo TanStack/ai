@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useSummarize } from '@tanstack/ai-react'
+import type { UseSummarizeReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { summarizeFn, summarizeStreamFn } from '../lib/server-fns'
-import type { UseSummarizeReturn } from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) has rapidly transformed from a niche academic pursuit into one of the most influential technologies of the 21st century. The development of large language models, in particular, has demonstrated capabilities that were previously thought to be decades away. These models can generate human-like text, translate languages, write code, and even engage in complex reasoning tasks.

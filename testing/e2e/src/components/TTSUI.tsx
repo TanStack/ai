@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
-  fetchHttpStream,
-  fetchServerSentEvents,
   useGenerateSpeech,
+  fetchServerSentEvents,
+  fetchHttpStream,
 } from '@tanstack/ai-react'
-import type { Mode, Provider } from '@/lib/types'
 import { generateSpeechFn } from '@/lib/server-functions'
+import type { TTSResult } from '@tanstack/ai'
+import type { Mode, Provider } from '@/lib/types'
 
 interface TTSUIProps {
   provider: Provider
@@ -42,7 +43,7 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
             aimockPort,
             testId,
           },
-        })
+        }) as Promise<TTSResult>
       },
     }
   }

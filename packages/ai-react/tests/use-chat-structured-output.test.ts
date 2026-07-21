@@ -10,10 +10,10 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { createMockConnectionAdapter } from '../../ai-client/tests/test-utils'
-import { useChat } from '../src/use-chat'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { StreamChunk } from '@tanstack/ai'
+import { createMockConnectionAdapter } from '../../ai-client/tests/test-utils'
+import { useChat } from '../src/use-chat'
 
 type Person = { name: string; age: number; email: string }
 type PersonSchema = StandardJSONSchemaV1<Person, Person>

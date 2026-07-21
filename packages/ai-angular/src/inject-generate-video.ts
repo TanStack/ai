@@ -17,17 +17,12 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPendingArtifact,
-  GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
 import type { StreamChunk } from '@tanstack/ai'
-import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 let nextId = 0
 
@@ -37,8 +32,6 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   body?: ReactiveOption<Record<string, any>>
   devtools?: AIDevtoolsDisplayOptions
-  persistence?: GenerationPersistenceOptions
-  initialResumeSnapshot?: GenerationResumeSnapshot
   onResult?: (result: VideoGenerateResult) => TOutput | null | void
   onError?: (error: Error) => void
   onProgress?: (progress: number, message?: string) => void
@@ -57,10 +50,6 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
   status: Signal<GenerationClientState>
   stop: () => void
   reset: () => void
-  resumeSnapshot: Signal<GenerationResumeSnapshot | undefined>
-  resumeState: Signal<GenerationResumeState | null>
-  pendingArtifacts: Signal<Array<GenerationPendingArtifact>>
-  resultArtifacts: Signal<Array<PersistedArtifactRef>>
 }
 
 // `TTransformed` infers from the `onResult` return position so the callback
@@ -90,29 +79,6 @@ export function injectGenerateVideo<TTransformed = void>(
   const isLoading = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<GenerationClientState>('idle')
-  const resumeSnapshot = signal<GenerationResumeSnapshot | undefined>(
-    options.initialResumeSnapshot,
-  )
-  const resumeState = signal<GenerationResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
-  const pendingArtifacts = signal<Array<GenerationPendingArtifact>>(
-    options.initialResumeSnapshot?.pendingArtifacts ?? [],
-  )
-  const resultArtifacts = signal<Array<PersistedArtifactRef>>(
-    options.initialResumeSnapshot?.result?.artifacts ?? [],
-  )
-  let disposed = false
-
-  const setResumeSnapshotState = (
-    snapshot: GenerationResumeSnapshot | undefined,
-  ) => {
-    if (disposed) return
-    resumeSnapshot.set(snapshot)
-    resumeState.set(snapshot?.resumeState ?? null)
-    pendingArtifacts.set(snapshot?.pendingArtifacts ?? [])
-    resultArtifacts.set(snapshot?.result?.artifacts ?? [])
-  }
 
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
@@ -120,12 +86,6 @@ export function injectGenerateVideo<TTransformed = void>(
   const baseOptions = {
     id: clientId,
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
     devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -139,40 +99,17 @@ export function injectGenerateVideo<TTransformed = void>(
     onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
       result: VideoGenerateResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => {
-      if (!disposed) options.onError?.(e)
-    },
-    onProgress: (p: number, m?: string) => {
-      if (!disposed) options.onProgress?.(p, m)
-    },
-    onChunk: (c: StreamChunk) => {
-      if (!disposed) options.onChunk?.(c)
-    },
-    onJobCreated: (id: string) => {
-      if (!disposed) options.onJobCreated?.(id)
-    },
-    onStatusUpdate: (s: VideoStatusInfo) => {
-      if (!disposed) options.onStatusUpdate?.(s)
-    },
-    onResultChange: (r: TOutput | null) => {
-      if (!disposed) result.set(r)
-    },
-    onLoadingChange: (l: boolean) => {
-      if (!disposed) isLoading.set(l)
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (!disposed) error.set(e)
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (!disposed) status.set(s)
-    },
-    onJobIdChange: (id: string | null) => {
-      if (!disposed) jobId.set(id)
-    },
-    onVideoStatusChange: (s: VideoStatusInfo | null) => {
-      if (!disposed) videoStatus.set(s)
-    },
-    onResumeSnapshotChange: setResumeSnapshotState,
+    onError: (e: Error) => options.onError?.(e),
+    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
+    onChunk: (c: StreamChunk) => options.onChunk?.(c),
+    onJobCreated: (id: string) => options.onJobCreated?.(id),
+    onStatusUpdate: (s: VideoStatusInfo) => options.onStatusUpdate?.(s),
+    onResultChange: (r: TOutput | null) => result.set(r),
+    onLoadingChange: (l: boolean) => isLoading.set(l),
+    onErrorChange: (e: Error | undefined) => error.set(e),
+    onStatusChange: (s: GenerationClientState) => status.set(s),
+    onJobIdChange: (id: string | null) => jobId.set(id),
+    onVideoStatusChange: (s: VideoStatusInfo | null) => videoStatus.set(s),
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -195,26 +132,14 @@ export function injectGenerateVideo<TTransformed = void>(
   if (bodySource) {
     effect(
       () => {
-        client.updateOptions({
-          body: bodySource(),
-        })
+        client.updateOptions({ body: bodySource() })
       },
       { injector },
     )
   }
 
-  // Mount devtools only. Generation runs are never auto-started after render —
-  // persisted state is read-only for display.
-  afterNextRender(
-    () => {
-      client.mountDevtools()
-    },
-    { injector },
-  )
-  destroyRef.onDestroy(() => {
-    disposed = true
-    client.dispose()
-  })
+  afterNextRender(() => client.mountDevtools(), { injector })
+  destroyRef.onDestroy(() => client.dispose())
 
   return {
     generate: (input: VideoGenerateInput) => client.generate(input),
@@ -226,9 +151,5 @@ export function injectGenerateVideo<TTransformed = void>(
     status: status.asReadonly(),
     stop: () => client.stop(),
     reset: () => client.reset(),
-    resumeSnapshot: resumeSnapshot.asReadonly(),
-    resumeState: resumeState.asReadonly(),
-    pendingArtifacts: pendingArtifacts.asReadonly(),
-    resultArtifacts: resultArtifacts.asReadonly(),
   }
 }

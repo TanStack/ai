@@ -171,7 +171,7 @@ export const compareGuitarsToolDef = toolDefinition({
 export const compareGuitars = compareGuitarsToolDef.server((args) => {
   const selected = args.guitarIds
     .map((id) => guitars.find((g) => g.id === id))
-    .filter(Boolean) as Array<(typeof guitars)[number]>
+    .filter(Boolean) as (typeof guitars)[number][]
 
   const prices = selected.map((g) => g.price)
   const minPrice = Math.min(...prices)

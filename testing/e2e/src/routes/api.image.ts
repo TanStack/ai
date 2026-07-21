@@ -1,12 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  createImageOptions,
-  generateImage,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { createImageAdapter } from '@/lib/media-providers'
 import type { MediaPrompt } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
-import { createImageAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/image')({
   server: {
@@ -28,19 +24,15 @@ export const Route = createFileRoute('/api/image')({
         const adapter = createImageAdapter(provider, aimockPort, testId)
 
         try {
-          const stream = generateImage<typeof adapter, true>(
-            createImageOptions({
-              adapter,
-              prompt,
-              numberOfImages: numberOfImages ?? 1,
-              stream: true,
-            }),
-          )
+          const stream = generateImage({
+            adapter,
+            prompt,
+            numberOfImages: numberOfImages ?? 1,
+            stream: true,
+          })
           return toServerSentEventsResponse(stream, { abortController })
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Image generation failed'
-          return new Response(JSON.stringify({ error: message }), {
+        } catch (error: any) {
+          return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })

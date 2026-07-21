@@ -6,13 +6,8 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPendingArtifact,
-  GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
-import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useGenerateAudio hook.
@@ -30,10 +25,6 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
-  /** Initial lightweight resume snapshot restored by the app. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -70,14 +61,6 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
-  /** Lightweight generation resume snapshot, if one is available */
-  resumeSnapshot: GenerationResumeSnapshot | undefined
-  /** Current resumable run/cursor state, if one is available */
-  resumeState: GenerationResumeState | null
-  /** Pending persisted artifact references observed during generation/replay */
-  pendingArtifacts: Array<GenerationPendingArtifact>
-  /** Final persisted artifact references observed from a replayed result */
-  resultArtifacts: Array<PersistedArtifactRef>
 }
 
 /**
@@ -123,19 +106,19 @@ export function useGenerateAudio<TTransformed = void>(
     hookName: 'useGenerateAudio',
     outputKind: 'audio' as const,
   }
-  const generation = useGeneration<
-    AudioGenerateInput,
-    AudioGenerationResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    useGeneration<AudioGenerateInput, AudioGenerationResult, TTransformed>({
+      ...options,
+      devtools,
+    })
 
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: AudioGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: AudioGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

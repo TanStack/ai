@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import { modelMessagesToUIMessages } from '@tanstack/ai'
-import type { ModelMessage } from '@tanstack/ai'
+import { modelMessagesToUIMessages, type ModelMessage } from '@tanstack/ai'
 import { getGuitarsToolDef, recommendGuitarToolDef } from '@/lib/guitar-tools'
 
 const modelMessages: Array<ModelMessage> = [

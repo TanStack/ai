@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  EventType,
   chat,
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
@@ -22,6 +21,7 @@ import {
 } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
 import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 
 /**
  * Diagnostic middleware that records which middleware phases observed chunks.
@@ -400,7 +400,7 @@ export const Route = createFileRoute('/api/structured-output')({
           if (stream) {
             const streamIterable = chat({
               adapter,
-              modelOptions: modelOptions,
+              modelOptions: modelOptions as never,
               messages: params.messages,
               outputSchema: GuitarRecommendationSchema,
               stream: true,
@@ -421,7 +421,7 @@ export const Route = createFileRoute('/api/structured-output')({
 
           const result = await chat({
             adapter,
-            modelOptions: modelOptions,
+            modelOptions: modelOptions as never,
             messages: params.messages,
             outputSchema: GuitarRecommendationSchema,
             middleware: [counter.middleware],

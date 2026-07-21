@@ -1,6 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -9,18 +8,8 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type {
-  PersistedArtifactRef,
-  StreamChunk,
-  TTSResult,
-  TranscriptionResult,
-} from '@tanstack/ai'
-import type {
-  ConnectConnectionAdapter,
-  GenerationResumeSnapshot,
-  GenerationServerPersistence,
-  RunAgentInputContext,
-} from '@tanstack/ai-client'
+import type { StreamChunk, TTSResult, TranscriptionResult } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
@@ -82,87 +71,6 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   ]
 }
 
-const videoResumeSnapshot: GenerationResumeSnapshot = {
-  resumeState: {
-    threadId: 'thread-resume',
-    runId: 'run-resume',
-  },
-  status: 'running',
-}
-
-const replayedVideoArtifact: PersistedArtifactRef = {
-  role: 'output',
-  artifactId: 'artifact-video-1',
-  threadId: 'thread-resume',
-  runId: 'run-resume',
-  name: 'video.mp4',
-  mimeType: 'video/mp4',
-  size: 1234,
-  createdAt: '2026-07-06T00:00:00.000Z',
-  externalUrl: 'https://example.com/video.mp4',
-  source: {
-    activity: 'video',
-    path: 'runs/run-resume/video.mp4',
-    provider: 'test',
-    model: 'test-video',
-    mediaType: 'video',
-    jobId: 'job-replay',
-    expiresAt: '2026-07-07T00:00:00.000Z',
-  },
-}
-
-function createReplayVideoChunks(): Array<StreamChunk> {
-  return [
-    {
-      type: EventType.RUN_STARTED,
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      timestamp: Date.now(),
-    },
-    {
-      type: EventType.CUSTOM,
-      name: 'generation:result',
-      value: {
-        jobId: 'job-replay',
-        status: 'completed',
-        url: 'https://example.com/video.mp4',
-        artifacts: [replayedVideoArtifact],
-      },
-      timestamp: Date.now(),
-    },
-    {
-      type: EventType.RUN_FINISHED,
-      runId: 'run-resume',
-      threadId: 'thread-resume',
-      timestamp: Date.now(),
-    },
-  ]
-}
-
-function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
-  adapter: ConnectConnectionAdapter
-  connect: ReturnType<typeof vi.fn>
-  runContexts: Array<RunAgentInputContext | undefined>
-} {
-  const runContexts: Array<RunAgentInputContext | undefined> = []
-  const connect = vi.fn()
-  const adapter: ConnectConnectionAdapter = {
-    async *connect(_messages, _data, _signal, runContext) {
-      connect(runContext)
-      runContexts.push(runContext)
-      for (const chunk of chunks) {
-        yield chunk
-      }
-    },
-  }
-  return { adapter, connect, runContexts }
-}
-
-async function flushPromises(): Promise<void> {
-  await Promise.resolve()
-  await new Promise((resolve) => setTimeout(resolve, 0))
-}
-
 // Helper to create error stream chunks.
 // NOTE: The AG-UI spec for RUN_ERROR carries `message` directly on the event
 // (not nested under `error`). We emit BOTH shapes here because GenerationClient
@@ -184,7 +92,7 @@ function createErrorChunks(message: string): Array<StreamChunk> {
       // AGUIEventSchema is `passthrough` so unknown keys are allowed at runtime;
       // the strict TS union still requires a cast on this single chunk.
       error: { message },
-    },
+    } as StreamChunk,
   ]
 }
 
@@ -367,52 +275,6 @@ describe('useGeneration', () => {
 
       // Resolve the promise after unmount — should not cause errors
       resolvePromise!({ id: '1' })
-    })
-
-    it('does not auto-fire a generation on mount from a persisted running snapshot', async () => {
-      // Regression guard for the removed generation resume surface: mounting a
-      // generation hook that has server persistence and a persisted `running`
-      // snapshot must NOT start a fresh empty-prompt generation (previously
-      // `maybeAutoResume()` -> `resume()` -> `generate({})` fired here).
-      const { adapter, connect } = createRunContextCaptureAdapter(
-        createGenerationChunks({ id: '1' }),
-      )
-      const persistence: GenerationServerPersistence = {
-        getItem: vi.fn(() => ({
-          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-          status: 'running' as const,
-        })),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
-      const { result } = renderHook(() =>
-        useGeneration({
-          id: 'no-auto-fire',
-          connection: adapter,
-          persistence: { server: persistence },
-          initialResumeSnapshot: {
-            resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-            status: 'running',
-          },
-        }),
-      )
-
-      await act(async () => {
-        await flushPromises()
-      })
-
-      expect(connect).not.toHaveBeenCalled()
-      // Persisted state is read-only for display; the client never reads it
-      // back to drive a resume, so getItem is not consulted on mount.
-      expect(persistence.getItem).not.toHaveBeenCalled()
-      expect(result.current.isLoading).toBe(false)
-      expect(result.current.status).toBe('idle')
-      // The persisted snapshot is still exposed as read-only state.
-      expect(result.current.resumeState).toEqual({
-        threadId: 'thread-resume',
-        runId: 'run-resume',
-      })
     })
   })
 })
@@ -673,7 +535,7 @@ describe('useSummarize', () => {
     const mockResult = {
       id: 'sum-1',
       summary: 'A brief summary',
-      model: 'gpt-5.5',
+      model: 'gpt-4',
       usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
     }
 
@@ -692,7 +554,7 @@ describe('useSummarize', () => {
   })
 
   it('should summarize text using connection', async () => {
-    const mockResult = { summary: 'A brief summary', model: 'gpt-5.5' }
+    const mockResult = { summary: 'A brief summary', model: 'gpt-4' }
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
@@ -818,39 +680,6 @@ describe('useGenerateVideo', () => {
     expect(result.current.jobId).toBeNull()
     expect(result.current.videoStatus).toBeNull()
     expect(result.current.status).toBe('idle')
-  })
-
-  it('does not auto-fire a video generation on mount from a persisted running snapshot', async () => {
-    // Regression guard for the removed generation resume surface (video).
-    const { adapter, connect } = createRunContextCaptureAdapter(
-      createReplayVideoChunks(),
-    )
-    const persistence: GenerationServerPersistence = {
-      getItem: vi.fn(() => videoResumeSnapshot),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    }
-
-    const { result } = renderHook(() =>
-      useGenerateVideo({
-        id: 'video-no-auto-fire',
-        connection: adapter,
-        persistence: { server: persistence },
-        initialResumeSnapshot: videoResumeSnapshot,
-      }),
-    )
-
-    await act(async () => {
-      await flushPromises()
-    })
-
-    expect(connect).not.toHaveBeenCalled()
-    expect(persistence.getItem).not.toHaveBeenCalled()
-    expect(result.current.isLoading).toBe(false)
-    expect(result.current.status).toBe('idle')
-    // The persisted snapshot remains exposed as read-only state.
-    expect(result.current.resumeSnapshot).toEqual(videoResumeSnapshot)
-    expect(result.current.resumeState).toEqual(videoResumeSnapshot.resumeState)
   })
 })
 

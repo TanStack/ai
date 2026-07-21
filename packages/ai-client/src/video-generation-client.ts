@@ -1,7 +1,4 @@
-import {
-  GENERATION_EVENTS,
-  updateGenerationResumeSnapshot,
-} from './generation-types'
+import { GENERATION_EVENTS } from './generation-types'
 import { createNoOpVideoDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai/client'
@@ -18,8 +15,6 @@ import type {
 import type {
   GenerationClientState,
   GenerationFetcher,
-  GenerationResumeSnapshot,
-  GenerationServerPersistence,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoGenerationClientOptions,
@@ -47,9 +42,6 @@ interface VideoCallbacks<TOutput> {
   onStatusChange?: ((status: GenerationClientState) => void) | undefined
   onJobIdChange?: ((jobId: string | null) => void) | undefined
   onVideoStatusChange?: ((status: VideoStatusInfo | null) => void) | undefined
-  onResumeSnapshotChange?:
-    | ((snapshot: GenerationResumeSnapshot) => void)
-    | undefined
 }
 
 /**
@@ -96,7 +88,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: VideoDevtoolsBridge<TOutput>
   private readonly threadId: string
-  private readonly serverPersistence: GenerationServerPersistence | undefined
   private body: Record<string, any>
 
   private result: TOutput | null = null
@@ -107,13 +98,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
-  private resumeSnapshot: GenerationResumeSnapshot | undefined
-  private resumeSnapshotPersistenceQueue: Promise<void> = Promise.resolve()
-  private resumePersistenceError: Error | undefined = undefined
   private abortController: AbortController | null = null
   private readonly callbacksRef: VideoCallbacks<TOutput>
   private devtoolsMounted = false
-  private disposed = false
 
   constructor(
     options: VideoGenerationClientOptions<TOutput> &
@@ -130,8 +117,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.body = options.body ?? {}
-    this.serverPersistence = options.persistence?.server
-    this.resumeSnapshot = options.initialResumeSnapshot
 
     this.callbacksRef = {
       onResult: options.onResult,
@@ -146,7 +131,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       onStatusChange: options.onStatusChange,
       onJobIdChange: options.onJobIdChange,
       onVideoStatusChange: options.onVideoStatusChange,
-      onResumeSnapshotChange: options.onResumeSnapshotChange,
     }
 
     this.devtoolsMetadata = this.createDevtoolsMetadata(options.devtools)
@@ -190,7 +174,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    */
   async generate(input: VideoGenerateInput): Promise<void> {
     this.mountDevtools()
-    if (this.disposed) return
     if (this.isLoading) return
 
     this.input = input
@@ -217,7 +200,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           signal,
           this.createRunContext(runId),
         )
-        await this.processStream(stream, runId, signal)
+        await this.processStream(stream, runId)
       } else {
         throw new Error(
           'VideoGenerationClient requires either a connection or fetcher option',
@@ -243,10 +226,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       )
       this.callbacksRef.onError?.(error)
     } finally {
-      if (this.abortController === abortController) {
-        this.abortController = null
-        this.setIsLoading(false)
-      }
+      this.abortController = null
+      this.setIsLoading(false)
     }
   }
 
@@ -266,12 +247,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
 
     if (result instanceof Response) {
       // Server function returned SSE Response — parse stream
-      await this.processStream(parseSSEResponse(result, signal), runId, signal)
+      await this.processStream(parseSSEResponse(result, signal), runId)
     } else {
       this.devtoolsBridge.ensureRunStarted(runId)
       this.setResult(result)
       this.setStatus('success')
-      this.completePlainFetcherResumeSnapshot()
     }
   }
 
@@ -282,15 +262,13 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private async processStream(
     source: AsyncIterable<StreamChunk>,
     fallbackRunId: string,
-    signal: AbortSignal,
   ): Promise<void> {
     let streamRunId: string | undefined
 
     for await (const chunk of source) {
-      if (signal.aborted) break
+      if (this.abortController?.signal.aborted) break
 
       this.callbacksRef.onChunk?.(chunk)
-      this.observeResumeSnapshot(chunk)
       const chunkRunId =
         'runId' in chunk && typeof chunk.runId === 'string'
           ? chunk.runId
@@ -425,7 +403,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   dispose(): void {
-    this.disposed = true
     this.stop()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
@@ -455,39 +432,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     return this.error
   }
 
-  getResumePersistenceError(): Error | undefined {
-    return this.resumePersistenceError
-  }
-
   getStatus(): GenerationClientState {
     return this.status
-  }
-
-  getResumeSnapshot(): GenerationResumeSnapshot | undefined {
-    return this.resumeSnapshot
-      ? {
-          ...this.resumeSnapshot,
-          ...(this.resumeSnapshot.pendingArtifacts
-            ? { pendingArtifacts: [...this.resumeSnapshot.pendingArtifacts] }
-            : {}),
-          ...(this.resumeSnapshot.result
-            ? {
-                result: {
-                  ...this.resumeSnapshot.result,
-                  ...(this.resumeSnapshot.result.artifacts
-                    ? { artifacts: [...this.resumeSnapshot.result.artifacts] }
-                    : {}),
-                },
-              }
-            : {}),
-          ...(this.resumeSnapshot.error
-            ? { error: { ...this.resumeSnapshot.error } }
-            : {}),
-          ...(this.resumeSnapshot.lastEvent
-            ? { lastEvent: { ...this.resumeSnapshot.lastEvent } }
-            : {}),
-        }
-      : undefined
   }
 
   // ===========================
@@ -608,58 +554,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     return {
       threadId: this.threadId,
       runId,
-    }
-  }
-
-  private observeResumeSnapshot(chunk: StreamChunk): void {
-    this.resumeSnapshot = updateGenerationResumeSnapshot(
-      this.resumeSnapshot,
-      chunk,
-    )
-    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
-    void this.persistResumeSnapshot(this.resumeSnapshot)
-  }
-
-  private completePlainFetcherResumeSnapshot(): void {
-    if (!this.resumeSnapshot) {
-      return
-    }
-    this.resumeSnapshot = {
-      ...this.resumeSnapshot,
-      resumeState: null,
-      status: 'complete',
-    }
-    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
-    void this.persistResumeSnapshot(this.resumeSnapshot)
-  }
-
-  private async persistResumeSnapshot(
-    snapshot: GenerationResumeSnapshot,
-  ): Promise<void> {
-    if (!this.serverPersistence) {
-      return
-    }
-
-    this.resumeSnapshotPersistenceQueue =
-      this.resumeSnapshotPersistenceQueue.then(
-        () => this.writeResumeSnapshot(snapshot),
-        () => this.writeResumeSnapshot(snapshot),
-      )
-    await this.resumeSnapshotPersistenceQueue
-  }
-
-  private async writeResumeSnapshot(
-    snapshot: GenerationResumeSnapshot,
-  ): Promise<void> {
-    try {
-      await this.serverPersistence?.setItem(this.threadId, snapshot)
-    } catch (error) {
-      this.resumePersistenceError =
-        error instanceof Error ? error : new Error(String(error))
-      console.warn(
-        '[TanStack AI] Failed to persist generation resume snapshot',
-        error,
-      )
     }
   }
 }

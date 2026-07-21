@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import {
-  fetchHttpStream,
-  fetchServerSentEvents,
   useGenerateVideo,
+  fetchServerSentEvents,
+  fetchHttpStream,
 } from '@tanstack/ai-react'
+import { generateVideoFn } from '@/lib/server-functions'
 import type { MediaPrompt } from '@tanstack/ai'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import type { VideoGenerateResult } from '@tanstack/ai-client'
-import { generateVideoFn } from '@/lib/server-functions'
 
 interface VideoGenUIProps {
   provider: Provider

@@ -14,21 +14,19 @@ import {
   elevenlabsTranscription,
 } from '@tanstack/ai-elevenlabs'
 import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
+import type {
+  AnyAudioAdapter,
+  AnyTranscriptionAdapter,
+  AnyTTSAdapter,
+} from '@tanstack/ai'
 import {
   AUDIO_PROVIDERS,
   SPEECH_PROVIDERS,
   TRANSCRIPTION_PROVIDERS,
+  type AudioProviderId,
+  type SpeechProviderId,
+  type TranscriptionProviderId,
 } from './audio-providers'
-import type {
-  AudioProviderId,
-  SpeechProviderId,
-  TranscriptionProviderId,
-} from './audio-providers'
-import type {
-  AnyAudioAdapter,
-  AnyTTSAdapter,
-  AnyTranscriptionAdapter,
-} from '@tanstack/ai'
 
 function findConfig<T extends { id: string }>(
   list: ReadonlyArray<T>,

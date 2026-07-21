@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateAudio } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { generateAudioFn } from '../lib/server-fns'
-import { AUDIO_PROVIDERS } from '../lib/audio-providers'
-import type {
-  AudioProviderConfig,
-  AudioProviderId,
-} from '../lib/audio-providers'
-import type { AudioGenerationResult } from '@tanstack/ai'
 import type { UseGenerateAudioReturn } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+import type { AudioGenerationResult } from '@tanstack/ai'
+import { generateAudioFn } from '../lib/server-fns'
+import {
+  AUDIO_PROVIDERS,
+  type AudioProviderConfig,
+  type AudioProviderId,
+} from '../lib/audio-providers'
 
 type Mode = 'hooks' | 'server-fn'
 

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  fetchHttpStream,
-  fetchServerSentEvents,
   useGenerateImage,
+  fetchServerSentEvents,
+  fetchHttpStream,
 } from '@tanstack/ai-react'
-import type { MediaPrompt } from '@tanstack/ai'
-import type { Mode, Provider } from '@/lib/types'
 import { generateImageFn } from '@/lib/server-functions'
+import type { ImageGenerationResult, MediaPrompt } from '@tanstack/ai'
+import type { Mode, Provider } from '@/lib/types'
 
 interface ImageGenUIProps {
   provider: Provider
@@ -62,7 +62,7 @@ export function ImageGenUI({
             aimockPort,
             testId,
           },
-        })
+        }) as Promise<ImageGenerationResult>
       },
     }
   }

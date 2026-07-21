@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
+import { createTextAdapter } from '@/lib/providers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
-import { createTextAdapter } from '@/lib/providers'
 
 // 1x1 transparent PNG (base64) — enough to assert structured passthrough.
 const PNG_1x1 =

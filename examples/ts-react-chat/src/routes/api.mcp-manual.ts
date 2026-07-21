@@ -113,7 +113,7 @@ export const Route = createFileRoute('/api/mcp-manual')({
           try {
             const availablePrompts = await client.prompts()
             if (availablePrompts.length > 0) {
-              const firstPrompt = availablePrompts[0]
+              const firstPrompt = availablePrompts[0]!
               const promptResult = await client.getPrompt(firstPrompt.name)
               const promptMessages = mcpPromptToMessages(promptResult)
               // Prepend prompt messages before resource context and user messages.

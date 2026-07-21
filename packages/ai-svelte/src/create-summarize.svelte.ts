@@ -1,8 +1,4 @@
 import { createGeneration } from './create-generation.svelte'
-import type {
-  CreateGenerationOptions,
-  CreateGenerationReturn,
-} from './create-generation.svelte'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -18,12 +14,7 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to SummarizationResult)
  */
-export interface CreateSummarizeOptions<
-  TOutput = SummarizationResult,
-> extends Pick<
-  CreateGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
-  'persistence' | 'initialResumeSnapshot'
-> {
+export interface CreateSummarizeOptions<TOutput = SummarizationResult> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
@@ -55,9 +46,7 @@ export interface CreateSummarizeOptions<
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateSummarizeReturn<
-  TOutput = SummarizationResult,
-> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
+export interface CreateSummarizeReturn<TOutput = SummarizationResult> {
   /** The summarization result, or null */
   readonly result: TOutput | null
   /** Whether summarization is in progress */
@@ -68,6 +57,12 @@ export interface CreateSummarizeReturn<
   readonly status: GenerationClientState
   /** Trigger summarization */
   generate: (input: SummarizeGenerateInput) => Promise<void>
+  /** Abort the current summarization */
+  stop: () => void
+  /** Clear result, error, and return to idle */
+  reset: () => void
+  /** Update additional body parameters */
+  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -139,18 +134,5 @@ export function createSummarize<TTransformed = void>(
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
-    dispose: gen.dispose,
-    get resumeSnapshot() {
-      return gen.resumeSnapshot
-    },
-    get resumeState() {
-      return gen.resumeState
-    },
-    get pendingArtifacts() {
-      return gen.pendingArtifacts
-    },
-    get resultArtifacts() {
-      return gen.resultArtifacts
-    },
   }
 }

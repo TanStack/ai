@@ -1,8 +1,4 @@
 import { useGeneration } from './use-generation'
-import type {
-  UseGenerationOptions,
-  UseGenerationReturn,
-} from './use-generation'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -19,12 +15,7 @@ import type { Accessor } from 'solid-js'
  *
  * @template TOutput - The transformed output type (defaults to AudioGenerationResult)
  */
-export interface UseGenerateAudioOptions<
-  TOutput = AudioGenerationResult,
-> extends Pick<
-  UseGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
-  'persistence' | 'initialResumeSnapshot'
-> {
+export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
@@ -56,9 +47,7 @@ export interface UseGenerateAudioOptions<
  *
  * @template TOutput - The transformed output type (defaults to AudioGenerationResult)
  */
-export interface UseGenerateAudioReturn<
-  TOutput = AudioGenerationResult,
-> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
+export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
   /** Trigger audio generation */
   generate: (input: AudioGenerateInput) => Promise<void>
   /** The generation result containing audio, or null */
@@ -69,6 +58,10 @@ export interface UseGenerateAudioReturn<
   error: Accessor<Error | undefined>
   /** Current state of the generation */
   status: Accessor<GenerationClientState>
+  /** Abort the current generation */
+  stop: () => void
+  /** Clear result, error, and return to idle */
+  reset: () => void
 }
 
 /**
@@ -108,19 +101,19 @@ export function useGenerateAudio<TTransformed = void>(
     hookName: 'useGenerateAudio',
     outputKind: 'audio' as const,
   }
-  const generation = useGeneration<
-    AudioGenerateInput,
-    AudioGenerationResult,
-    TTransformed
-  >({
-    ...options,
-    devtools,
-  })
+  const { generate, result, isLoading, error, status, stop, reset } =
+    useGeneration<AudioGenerateInput, AudioGenerationResult, TTransformed>({
+      ...options,
+      devtools,
+    })
 
   return {
-    ...generation,
-    generate: generation.generate as (
-      input: AudioGenerateInput,
-    ) => Promise<void>,
+    generate: generate as (input: AudioGenerateInput) => Promise<void>,
+    result,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
   }
 }

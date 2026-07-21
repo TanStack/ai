@@ -7,13 +7,8 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
-import {
-  generationIdentityFields,
-  rejectEventsOnlyReplay,
-} from '../generation-run'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
-  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
@@ -22,10 +17,7 @@ import {
 } from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type {
-  GenerationMiddleware,
-  GenerationRunOptions,
-} from '../middleware/types'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { AudioAdapter } from './adapter'
 import type { AudioGenerationResult, StreamChunk } from '../../types'
 
@@ -63,7 +55,7 @@ export type AudioProviderOptions<TAdapter> = TAdapter extends {
 export interface AudioActivityOptions<
   TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
   TStream extends boolean = false,
-> extends GenerationRunOptions<AudioGenerationResult> {
+> {
   /** The audio adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /** Text description of the desired audio */
@@ -142,9 +134,8 @@ export function generateAudio<
   options: AudioActivityOptions<TAdapter, TStream>,
 ): AudioActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(
-      (resolvedOptions) => runGenerateAudio({ ...options, ...resolvedOptions }),
-      options,
+    return streamGenerationResult(() =>
+      runGenerateAudio(options),
     ) as AudioActivityResult<TStream>
   }
   return runGenerateAudio(options) as AudioActivityResult<TStream>
@@ -158,20 +149,11 @@ async function runGenerateAudio<
 >(
   options: AudioActivityOptions<TAdapter, boolean>,
 ): Promise<AudioGenerationResult> {
-  rejectEventsOnlyReplay(options.replay)
-
-  if (options.replay && 'result' in options.replay) {
-    return options.replay.result as AudioGenerationResult
-  }
-
   const {
     adapter,
     stream: _stream,
     debug: _debug,
     middleware,
-    threadId,
-    runId,
-    replay: _replay,
     ...rest
   } = options
   const model = adapter.model
@@ -182,7 +164,6 @@ async function runGenerateAudio<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
-  const identity = { threadId, runId }
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -190,9 +171,6 @@ async function runGenerateAudio<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
-    threadId,
-    runId,
-    artifactInputs: { prompt: rest.prompt, duration: rest.duration },
     createId,
   })
 
@@ -200,7 +178,6 @@ async function runGenerateAudio<
 
   aiEventClient.emit('audio:request:started', {
     requestId,
-    ...generationIdentityFields(identity),
     provider: adapter.name,
     model,
     prompt: rest.prompt,
@@ -215,13 +192,11 @@ async function runGenerateAudio<
   })
 
   try {
-    const rawResult = await adapter.generateAudio({ ...rest, model, logger })
-    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+    const result = await adapter.generateAudio({ ...rest, model, logger })
     const elapsedMs = Date.now() - startTime
 
     aiEventClient.emit('audio:request:completed', {
       requestId,
-      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       audio: result.audio,
@@ -233,7 +208,6 @@ async function runGenerateAudio<
     if (result.usage) {
       aiEventClient.emit('audio:usage', {
         requestId,
-        ...generationIdentityFields(identity),
         model,
         usage: result.usage,
         modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
@@ -258,7 +232,6 @@ async function runGenerateAudio<
     const err = error as Error
     aiEventClient.emit('audio:request:error', {
       requestId,
-      ...generationIdentityFields(identity),
       provider: adapter.name,
       model,
       error: { message: err.message, name: err.name },

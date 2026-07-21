@@ -15,13 +15,8 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPendingArtifact,
-  GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
-import type { PersistedArtifactRef } from '@tanstack/ai/client'
 import type { Accessor } from 'solid-js'
 
 /**
@@ -44,10 +39,6 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
-  /** Initial lightweight resume snapshot restored by the app (read-only state). */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -84,14 +75,6 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
-  /** Lightweight generation resume snapshot, if one is available */
-  resumeSnapshot: Accessor<GenerationResumeSnapshot | undefined>
-  /** Observed run/cursor metadata from the snapshot (read-only state) */
-  resumeState: Accessor<GenerationResumeState | null>
-  /** Pending persisted artifact references observed during generation/replay */
-  pendingArtifacts: Accessor<Array<GenerationPendingArtifact>>
-  /** Final persisted artifact references observed from a replayed result */
-  resultArtifacts: Accessor<Array<PersistedArtifactRef>>
 }
 
 /**
@@ -137,10 +120,6 @@ export function useGeneration<
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
-  const [resumeSnapshot, setResumeSnapshot] = createSignal<
-    GenerationResumeSnapshot | undefined
-  >(options.initialResumeSnapshot)
-  let disposed = false
 
   const client = createMemo(() => {
     // Conditional spread on `body`: `GenerationClientOptions.body` is a
@@ -149,12 +128,6 @@ export function useGeneration<
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
       body: options.body,
-      ...(options.persistence !== undefined && {
-        persistence: options.persistence,
-      }),
-      ...(options.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: options.initialResumeSnapshot,
-      }),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
         ...options.devtools,
@@ -167,30 +140,13 @@ export function useGeneration<
       onResult: ((r: TResult) => options.onResult?.(r)) as (
         result: TResult,
       ) => TOutput | null | void,
-      onError: (e: Error) => {
-        if (!disposed) options.onError?.(e)
-      },
-      onProgress: (p: number, m?: string) => {
-        if (!disposed) options.onProgress?.(p, m)
-      },
-      onChunk: (c: StreamChunk) => {
-        if (!disposed) options.onChunk?.(c)
-      },
-      onResultChange: (r) => {
-        if (!disposed) setResult(() => r)
-      },
-      onLoadingChange: (l) => {
-        if (!disposed) setIsLoading(l)
-      },
-      onErrorChange: (e) => {
-        if (!disposed) setError(e)
-      },
-      onStatusChange: (s) => {
-        if (!disposed) setStatus(s)
-      },
-      onResumeSnapshotChange: (snapshot) => {
-        if (!disposed) setResumeSnapshot(snapshot)
-      },
+      onError: (e: Error) => options.onError?.(e),
+      onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
+      onChunk: (c: StreamChunk) => options.onChunk?.(c),
+      onResultChange: setResult,
+      onLoadingChange: setIsLoading,
+      onErrorChange: setError,
+      onStatusChange: setStatus,
     }
 
     if (options.connection) {
@@ -220,15 +176,12 @@ export function useGeneration<
     })
   })
 
-  // Mount devtools only. Generation runs are never auto-started on mount —
-  // persisted state is read-only for display.
   onMount(() => {
     client().mountDevtools()
   })
 
   // Cleanup on unmount: stop any in-flight requests and unregister devtools
   onCleanup(() => {
-    disposed = true
     client().dispose()
   })
 
@@ -252,9 +205,5 @@ export function useGeneration<
     status,
     stop,
     reset,
-    resumeSnapshot,
-    resumeState: () => resumeSnapshot()?.resumeState ?? null,
-    pendingArtifacts: () => resumeSnapshot()?.pendingArtifacts ?? [],
-    resultArtifacts: () => resumeSnapshot()?.result?.artifacts ?? [],
   }
 }
