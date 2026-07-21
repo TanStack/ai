@@ -918,6 +918,12 @@ export class StreamProcessor {
    * `tool-call` part is absent from the snapshot, carry the `tool-call` part
    * forward from the pre-snapshot state (state and output untouched) so a
    * subsequent `addToolResult(toolCallId)` can still locate the call.
+   *
+   * Post-pass (c): AG-UI wire snapshots rebuild `tool-call` parts as
+   * `input-complete` without `output` (ModelMessage has no result field on
+   * the call). After anchoring results, copy each `tool-result` onto its
+   * matching `tool-call` (and prefer pre-snapshot complete/output when the
+   * snapshot is poorer) so server tools keep the same UI shape as client tools.
    */
   private reconcileSnapshotToolCalls(
     snapshot: Array<UIMessage>,
@@ -1017,7 +1023,86 @@ export class StreamProcessor {
       target.parts = parts
     }
 
-    return reconciled
+    return this.enrichSnapshotToolCallsFromResults(reconciled, prevToolCalls)
+  }
+
+  /**
+   * Post-pass (c): fold `tool-result` content into sibling `tool-call` parts
+   * and prefer pre-snapshot complete/output when the snapshot rebuilt a
+   * poorer `input-complete` call (AG-UI ModelMessage has no result on calls).
+   */
+  private enrichSnapshotToolCallsFromResults(
+    messages: Array<UIMessage>,
+    prevToolCalls: Map<string, ToolCallPart>,
+  ): Array<UIMessage> {
+    const resultsByCallId = new Map<string, ToolResultPart>()
+    for (const msg of messages) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-result') {
+          resultsByCallId.set(part.toolCallId, part)
+        }
+      }
+    }
+
+    return messages.map((msg) => {
+      let changed = false
+      const parts = msg.parts.map((part) => {
+        if (part.type !== 'tool-call') return part
+
+        const prev = prevToolCalls.get(part.id)
+        const result = resultsByCallId.get(part.id)
+        let next: ToolCallPart = part
+
+        // Prefer a pre-snapshot call that already carried output/complete —
+        // the client observed TOOL_CALL_END/RESULT before the snapshot wipe.
+        if (
+          prev &&
+          (prev.output !== undefined ||
+            prev.state === 'complete' ||
+            prev.state === 'error') &&
+          (part.output === undefined ||
+            part.state === 'input-complete' ||
+            part.state === 'input-streaming' ||
+            part.state === 'awaiting-input')
+        ) {
+          next = {
+            ...part,
+            ...(prev.output !== undefined ? { output: prev.output } : {}),
+            state: prev.state,
+            ...(prev.approval !== undefined ? { approval: prev.approval } : {}),
+            ...(prev.metadata !== undefined ? { metadata: prev.metadata } : {}),
+          }
+          changed = true
+        }
+
+        // Apply sibling tool-result when the call still has no output.
+        if (result && next.output === undefined) {
+          let output: unknown
+          if (Array.isArray(result.content)) {
+            output = result.content
+          } else {
+            try {
+              output = JSON.parse(result.content)
+            } catch {
+              output = result.content
+            }
+          }
+          const errorText =
+            result.state === 'error'
+              ? this.extractToolResultError(output)
+              : undefined
+          next = {
+            ...next,
+            output: errorText ? { error: errorText } : output,
+            state: result.state === 'error' ? 'error' : 'complete',
+          }
+          changed = true
+        }
+
+        return next
+      })
+      return changed ? { ...msg, parts } : msg
+    })
   }
 
   /**

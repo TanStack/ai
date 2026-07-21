@@ -3170,6 +3170,57 @@ describe('StreamProcessor', () => {
       warn.mockRestore()
     })
 
+    it('should fold tool-result content into tool-call output on MESSAGES_SNAPSHOT (server tools)', () => {
+      // Regression: client-tool interrupt path emits MESSAGES_SNAPSHOT from
+      // ModelMessages. Snapshot conversion rebuilds tool-call parts as
+      // `input-complete` without `output`, wiping the complete/output state
+      // the client already applied from TOOL_CALL_END/RESULT. After
+      // reconciliation, server tools must match the client-tool UI shape:
+      // tool-call.state === 'complete' with output populated from tool-result.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: '[sequence] run' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Fetching.',
+            toolCalls: [
+              {
+                id: 'tc-fetch',
+                type: 'function',
+                function: {
+                  name: 'fetch_data',
+                  arguments: '{"source":"api"}',
+                },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"source":"api","data":[1,2,3,4,5]}',
+            toolCallId: 'tc-fetch',
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const fetchCall = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .find(
+          (p): p is ToolCallPart =>
+            p.type === 'tool-call' && p.name === 'fetch_data',
+        )
+      expect(fetchCall).toMatchObject({
+        state: 'complete',
+        output: { source: 'api', data: [1, 2, 3, 4, 5] },
+      })
+    })
+
     it('should warn when a snapshot tool-result has no recoverable tool-call', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const processor = new StreamProcessor()
