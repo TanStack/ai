@@ -21,6 +21,9 @@ pnpm add @tanstack/ai-isolate-node
 # QuickJS WASM (browser-compatible, no native deps)
 pnpm add @tanstack/ai-isolate-quickjs
 
+# Bun servers (native QuickJS via bun:ffi)
+bun add @tanstack/ai-isolate-quickjs-bun
+
 # Cloudflare Workers (edge execution)
 pnpm add @tanstack/ai-isolate-cloudflare
 ```
@@ -82,10 +85,10 @@ Creates both the `execute_typescript` tool and its matching system prompt. This 
 
 **Config:**
 
-- `driver` — An `IsolateDriver` (Node, QuickJS, or Cloudflare)
+- `driver` — An `IsolateDriver` (Node, QuickJS, QuickJS Bun, or Cloudflare)
 - `tools` — Array of `ServerTool` or `ToolDefinition` instances. Exposed as `external_*` functions in the sandbox
 - `timeout` — Execution timeout in ms (default: 30000)
-- `memoryLimit` — Memory limit in MB (default: 128, supported by Node and QuickJS drivers)
+- `memoryLimit` — Memory limit in MB (default: 128, supported by the Node, QuickJS, and QuickJS Bun drivers)
 - `getSkillBindings` — Optional async function returning dynamic bindings
 
 ### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
@@ -102,11 +105,12 @@ These utilities are used internally and exported for custom pipelines:
 
 ## Driver Selection Guide
 
-| Driver                            | Best For                                     | Native Deps         | Browser | Memory Limit |
-| --------------------------------- | -------------------------------------------- | ------------------- | ------- | ------------ |
-| `@tanstack/ai-isolate-node`       | Server-side Node.js apps                     | Yes (`isolated-vm`) | No      | Yes          |
-| `@tanstack/ai-isolate-quickjs`    | Browser, edge, or no-native-dep environments | No (WASM)           | Yes     | Yes          |
-| `@tanstack/ai-isolate-cloudflare` | Cloudflare Workers deployments               | No                  | N/A     | N/A          |
+| Driver                             | Best For                                     | Native Deps         | Browser | Memory Limit |
+| ---------------------------------- | -------------------------------------------- | ------------------- | ------- | ------------ |
+| `@tanstack/ai-isolate-node`        | Server-side Node.js apps                     | Yes (`isolated-vm`) | No      | Yes          |
+| `@tanstack/ai-isolate-quickjs`     | Browser, edge, or no-native-dep environments | No (WASM)           | Yes     | Yes          |
+| `@tanstack/ai-isolate-quickjs-bun` | Bun servers (native QuickJS via `bun:ffi`)   | No                  | No      | Yes          |
+| `@tanstack/ai-isolate-cloudflare`  | Cloudflare Workers deployments               | No                  | N/A     | N/A          |
 
 ## Custom Events
 

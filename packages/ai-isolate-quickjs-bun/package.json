@@ -1,0 +1,64 @@
+{
+  "name": "@tanstack/ai-isolate-quickjs-bun",
+  "version": "0.0.0",
+  "description": "Native QuickJS sandbox driver for TanStack AI Code Mode TypeScript execution on Bun via bun:ffi.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-isolate-quickjs-bun"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:bun": "bun test ./tests",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "code-mode",
+    "quickjs",
+    "bun",
+    "ffi",
+    "isolate",
+    "sandbox",
+    "code-execution"
+  ],
+  "dependencies": {
+    "quickjs-bun": "0.1.2"
+  },
+  "peerDependencies": {
+    "@tanstack/ai-code-mode": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/ai-isolate-quickjs": "workspace:*",
+    "@types/bun": "^1.3.14",
+    "@vitest/coverage-v8": "4.0.14"
+  }
+}

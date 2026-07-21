@@ -39,6 +39,9 @@
     "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/ai-isolate-quickjs-bun": {
+      "entry": ["src/index.ts", "benchmarks/*.ts"]
+    },
     "packages/ai-sandbox": {
       "ignoreDependencies": ["@ngrok/ngrok"]
     },
