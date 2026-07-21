@@ -2514,9 +2514,19 @@ class TextEngine<
     const pending = this.getPendingToolCallsFromMessages()
     const byId = new Map(pending.map((toolCall) => [toolCall.id, toolCall]))
     for (const entry of resume ?? []) {
-      if (!entry.interruptId.startsWith('client_tool_')) continue
-      const toolCallId = entry.interruptId.slice('client_tool_'.length)
-      if (byId.has(toolCallId)) continue
+      // Recover tool calls the client already finalized in history for two
+      // resume-batch cases that no longer look "pending":
+      //  - `client_tool_*`: a client tool wrote its output before resuming.
+      //  - `approval_*`: a DENIED approval wrote its denial result, so the
+      //    call reads as completed. Without this it drops out of the
+      //    reconstructed batch and the resume entry fails as unknown-interrupt.
+      let toolCallId: string | undefined
+      if (entry.interruptId.startsWith('client_tool_')) {
+        toolCallId = entry.interruptId.slice('client_tool_'.length)
+      } else if (entry.interruptId.startsWith('approval_')) {
+        toolCallId = entry.interruptId.slice('approval_'.length)
+      }
+      if (toolCallId === undefined || byId.has(toolCallId)) continue
       const toolCall = this.findToolCallInMessages(toolCallId)
       if (toolCall && !isProviderExecutedToolCall(toolCall)) {
         pending.push(toolCall)

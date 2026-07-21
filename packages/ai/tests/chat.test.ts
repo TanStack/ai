@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat, createChatOptions } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
@@ -1106,18 +1107,86 @@ describe('chat()', () => {
       expect(expectSingleRunFinished(chunks).finishReason).toBe('stop')
     })
 
+    // Regression: a DENIED approval writes a final tool result into history, so
+    // the tool call reads as completed and dropped out of the reconstructed
+    // pending set, while the resume batch still references its `approval_` id.
+    // That surfaced as `unknown-interrupt`. Ephemeral resume must recover the
+    // denied call from history so the batch validates and the tool is skipped.
+    it('resumes an ephemeral denial even when the denied call already has a result in history', async () => {
+      const execute = vi.fn().mockReturnValue({ ok: true })
+      const { adapter } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread-1',
+          runId: 'continuation-run',
+          parentRunId: 'interrupted-run',
+          messages: [
+            { role: 'user', content: 'Delete something' },
+            {
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'dangerousTool',
+                    arguments: '{"action":"delete"}',
+                  },
+                },
+              ],
+            },
+            // The client finalized the denial in history before resuming.
+            {
+              role: 'tool',
+              toolCallId: 'call_1',
+              content: JSON.stringify({ error: 'User declined tool execution' }),
+            },
+          ],
+          tools: [
+            {
+              ...serverTool('dangerousTool', execute),
+              needsApproval: true,
+              inputSchema: {
+                type: 'object',
+                properties: { action: { type: 'string' } },
+                required: ['action'],
+                additionalProperties: false,
+              },
+            },
+          ],
+          resume: [
+            {
+              interruptId: 'approval_call_1',
+              status: 'resolved',
+              payload: false,
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      // Denied: the tool must not run.
+      expect(execute).not.toHaveBeenCalled()
+      expect(expectSingleRunFinished(chunks).finishReason).toBe('stop')
+    })
+
     it('validates an entire ephemeral batch before executing any tool', async () => {
       const firstExecute = vi.fn().mockReturnValue({ ok: true })
       const secondExecute = vi.fn().mockReturnValue({ ok: true })
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
-      const inputSchema = {
-        type: 'object',
-        properties: { action: { type: 'string' } },
-        required: ['action'],
-        additionalProperties: false,
-      }
+      // A Standard Schema input so the library validates the edited args. Raw
+      // JSON Schema is intentionally not validated by the library (the app owns
+      // that), so the invalid `editedArgs` below is caught via this path.
+      const inputSchema = z.object({ action: z.string() })
 
       const chunks = await collectChunks(
         chat({
