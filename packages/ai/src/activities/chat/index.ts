@@ -2465,6 +2465,44 @@ class TextEngine<
     return pending
   }
 
+  /**
+   * Find a tool call by id in message history (including already-completed ones).
+   * Used when the client has already attached a tool result for UI before resume.
+   */
+  private findToolCallInMessages(toolCallId: string): ToolCall | undefined {
+    for (const message of this.messages) {
+      if (message.role !== 'assistant' || !message.toolCalls) continue
+      for (const toolCall of message.toolCalls) {
+        if (toolCall.id === toolCallId) return toolCall
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Tool calls that must be reconstructed as interrupt pending for ephemeral
+   * resume. Includes outstanding tools plus client tools that already have
+   * results in history when the resume batch still carries `client_tool_*`
+   * entries (the client writes local tool results before submitting resume).
+   */
+  private getToolCallsForEphemeralResume(
+    resume: ReadonlyArray<{ interruptId: string }> | undefined,
+  ): Array<ToolCall> {
+    const pending = this.getPendingToolCallsFromMessages()
+    const byId = new Map(pending.map((toolCall) => [toolCall.id, toolCall]))
+    for (const entry of resume ?? []) {
+      if (!entry.interruptId.startsWith('client_tool_')) continue
+      const toolCallId = entry.interruptId.slice('client_tool_'.length)
+      if (byId.has(toolCallId)) continue
+      const toolCall = this.findToolCallInMessages(toolCallId)
+      if (toolCall && !isProviderExecutedToolCall(toolCall)) {
+        pending.push(toolCall)
+        byId.set(toolCallId, toolCall)
+      }
+    }
+    return pending
+  }
+
   private createSyntheticFinishedEvent(): RunFinishedEvent {
     return {
       type: 'RUN_FINISHED',
@@ -3150,7 +3188,9 @@ class TextEngine<
 
     const approvalRequests: Array<ApprovalRequest> = []
     const clientRequests: Array<ClientToolRequest> = []
-    const pendingToolCalls = this.getPendingToolCallsFromMessages()
+    // Prefer resume-aware reconstruction so client-tool outputs already written
+    // into history for UI still validate against the resume batch.
+    const pendingToolCalls = this.getToolCallsForEphemeralResume(config.resume)
     const resumeInterruptIds = new Set(
       config.resume?.map((entry) => entry.interruptId),
     )

@@ -1414,6 +1414,72 @@ describe('chat()', () => {
       )
     })
 
+    it('accepts ephemeral client-tool resume when the client already wrote the tool result into history', async () => {
+      // Mirrors the UI path: addToolResult updates messages before resume is
+      // submitted. Reconstruction must still treat the client_tool_* resume
+      // entry as resolving that tool call.
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+      const outputSchema = {
+        type: 'object',
+        properties: { browserValue: { type: 'string' } },
+        required: ['browserValue'],
+        additionalProperties: false,
+      }
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread-1',
+          runId: 'continuation-run',
+          parentRunId: 'interrupted-run',
+          messages: [
+            { role: 'user', content: 'Read browser' },
+            {
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'clientSearch',
+                    arguments: '{"key":"manual-lab"}',
+                  },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              toolCallId: 'call_1',
+              content: JSON.stringify({
+                browserValue: 'sensor-reading-for-manual-lab',
+              }),
+            },
+          ],
+          tools: [
+            {
+              ...clientTool('clientSearch'),
+              outputSchema,
+            },
+          ],
+          resume: [
+            {
+              interruptId: 'client_tool_call_1',
+              status: 'resolved',
+              payload: { browserValue: 'sensor-reading-for-manual-lab' },
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect(calls).toHaveLength(1)
+    })
+
     it('continues an approved client tool through its client-execution interrupt', async () => {
       const tool = {
         ...clientTool('clientDanger', { needsApproval: true }),

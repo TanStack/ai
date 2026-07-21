@@ -85,15 +85,35 @@ function safeInterruptLabRunError({
   runId: string
   source?: Extract<StreamChunk, { type: 'RUN_ERROR' }>
 }): Extract<StreamChunk, { type: 'RUN_ERROR' }> {
+  // Preserve structured interrupt validation errors and surface their first
+  // message so the lab can debug resume failures (generic "run failed" alone
+  // hides unknown-interrupt / incomplete-batch).
+  const interruptErrors = source?.['tanstack:interruptErrors']
+  const interruptMessage =
+    Array.isArray(interruptErrors) &&
+    interruptErrors[0] &&
+    typeof interruptErrors[0] === 'object' &&
+    'message' in interruptErrors[0] &&
+    typeof interruptErrors[0].message === 'string'
+      ? interruptErrors[0].message
+      : undefined
   return {
     type: EventType.RUN_ERROR,
     threadId,
     runId,
     timestamp: Date.now(),
-    message: INTERRUPT_LAB_ERROR_MESSAGE,
-    code: INTERRUPT_LAB_ERROR_CODE,
-    ...(source?.['tanstack:interruptErrors'] !== undefined
-      ? { 'tanstack:interruptErrors': source['tanstack:interruptErrors'] }
+    message: interruptMessage ?? INTERRUPT_LAB_ERROR_MESSAGE,
+    code:
+      interruptMessage !== undefined
+        ? (typeof interruptErrors?.[0] === 'object' &&
+          interruptErrors[0] !== null &&
+          'code' in interruptErrors[0] &&
+          typeof interruptErrors[0].code === 'string'
+            ? interruptErrors[0].code
+            : INTERRUPT_LAB_ERROR_CODE)
+        : INTERRUPT_LAB_ERROR_CODE,
+    ...(interruptErrors !== undefined
+      ? { 'tanstack:interruptErrors': interruptErrors }
       : {}),
     ...(source?.['tanstack:interruptRecovery'] !== undefined
       ? { 'tanstack:interruptRecovery': source['tanstack:interruptRecovery'] }
@@ -251,7 +271,14 @@ export function createGenericInterruptMiddleware({
         return
       }
 
-      const interruptId = genericInterruptId(ctx.runId)
+      // Correlate against the terminal's run id (what the client will send as
+      // parentRunId), not middleware ctx.runId — adapters may emit a provider
+      // run id that differs from the client request run id.
+      const interruptedRunId =
+        typeof chunk.runId === 'string' && chunk.runId.length > 0
+          ? chunk.runId
+          : ctx.runId
+      const interruptId = genericInterruptId(interruptedRunId)
       return {
         ...chunk,
         outcome: {
@@ -267,7 +294,7 @@ export function createGenericInterruptMiddleware({
                 'tanstack:interruptBinding': {
                   kind: 'generic',
                   interruptId,
-                  interruptedRunId: ctx.runId,
+                  interruptedRunId,
                   generation: 0,
                   responseSchemaHash,
                 },

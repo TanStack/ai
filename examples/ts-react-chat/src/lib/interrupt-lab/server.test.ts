@@ -615,11 +615,22 @@ describe('controlled generic AG-UI interrupt', () => {
       terminal,
     )
 
+    // Interrupt id follows the terminal/provider run id so parentRunId from
+    // the client (terminal.runId) correlates on resume.
     expect(transformed).toMatchObject({
       type: EventType.RUN_FINISHED,
       outcome: {
         type: 'interrupt',
-        interrupts: [{ id: 'interrupt_lab_generic_request-run-1' }],
+        interrupts: [
+          {
+            id: 'interrupt_lab_generic_provider-run-1',
+            metadata: {
+              'tanstack:interruptBinding': {
+                interruptedRunId: 'provider-run-1',
+              },
+            },
+          },
+        ],
       },
     })
   })
