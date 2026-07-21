@@ -2878,7 +2878,9 @@ describe('StreamProcessor', () => {
 
       const messages = processor.getMessages()
       // The detached tool message is anchored into the assistant turn rather
-      // than left as a standalone message.
+      // than left as a standalone message. Sibling tool-result content is also
+      // folded onto the tool-call (state complete + output) so server tools
+      // match the client-tool UI shape after MESSAGES_SNAPSHOT.
       expect(messages).toHaveLength(2)
       expect(messages[0]?.role).toBe('user')
       expect(messages[1]?.id).toBe('a1')
@@ -2890,7 +2892,8 @@ describe('StreamProcessor', () => {
           name: 'getWeather',
           arguments: '{"loc":"Berlin"}',
           input: { loc: 'Berlin' },
-          state: 'input-complete',
+          state: 'complete',
+          output: { temp: 72 },
         },
         {
           type: 'tool-result',
