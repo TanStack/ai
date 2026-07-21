@@ -306,6 +306,10 @@ export {
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'
+export type {
+  ClientToolDeclaration,
+  MergedAgentTools,
+} from './utilities/chat-params'
 
 export { generationParamsFromBody, generationParamsFromRequest } from './client'
 

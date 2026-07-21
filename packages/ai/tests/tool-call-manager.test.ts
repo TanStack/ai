@@ -28,6 +28,8 @@ function toolCallStart(fields: {
     type: EventType.TOOL_CALL_START,
     timestamp: Date.now(),
     ...fields,
+    // `toolName` is the deprecated alias of `toolCallName`; mirror it
+    // so tests don't have to write both.
     toolName: fields.toolName ?? fields.toolCallName,
   }
 }
@@ -60,6 +62,8 @@ function toolCallEnd(fields: {
     type: EventType.TOOL_CALL_END,
     timestamp: Date.now(),
     ...fields,
+    // `toolName` is required on the merged event type; mirror the alias.
+    toolName: fields.toolName ?? fields.toolCallName ?? '',
   }
 }
 
