@@ -10,6 +10,9 @@ minimumReleaseAgeExclude:
   # Working closely with the aimock team; the e2e suite often needs fresh
   # releases of this test-only mock as it tracks provider SDK changes.
   - '@copilotkit/aimock'
+  # Build-time devDep; 0.6.0 is the release carrying the dts-5/Vite-8 fix
+  # (TanStack/config#403) this toolchain migration depends on.
+  - '@tanstack/vite-config@0.6.0'
 
 trustPolicyExclude:
   - 'chokidar@4.0.3' # existing transitive from sass/nitro; latest v4 with v5 available
