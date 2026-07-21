@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker", "@aws-sdk/client-bedrock"],
+  "ignoreDependencies": [
+    "@faker-js/faker",
+    "@aws-sdk/client-bedrock",
+    "@typescript/typescript6"
+  ],
+  "ignoreBinaries": ["taskkill"],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
@@ -60,6 +65,9 @@
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
     },
-    "packages/ai-bedrock": {}
+    "packages/ai-bedrock": {},
+    "packages/ai-grok-build": {
+      "ignoreDependencies": ["@tanstack/ai-acp"]
+    }
   }
 }

@@ -49,9 +49,7 @@ chat({
     // Response format
     response_format: {
       type: 'json_schema',
-      json_schema: {
-        /* ... */
-      },
+      json_schema: {/* ... */},
     },
     // Sampling
     temperature: 0.7,
@@ -71,9 +69,7 @@ chat({
     // Documents for context
     documents: [{ text: '...' }],
     // Search settings (for web search tool)
-    search_settings: {
-      /* SearchSettings */
-    },
+    search_settings: {/* SearchSettings */},
     // Service tier
     service_tier: 'auto', // 'auto' | 'on_demand' | 'flex' | 'performance'
     // Metadata

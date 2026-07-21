@@ -45,7 +45,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
       const chunk = bytes.subarray(i, i + chunkSize)
       binary += String.fromCharCode.apply(
         null,
-        // eslint-disable-next-line no-restricted-syntax -- TS lib types String.fromCharCode.apply as Array<number> but runtime accepts any ArrayLike
+        // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TS lib types String.fromCharCode.apply as Array<number> but runtime accepts any ArrayLike
         chunk as unknown as Array<number>,
       )
     }
@@ -59,7 +59,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
  * Decode a base64 string into an `ArrayBuffer`.
  */
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  // eslint-disable-next-line no-restricted-syntax -- feature-detecting Uint8Array.fromBase64 Stage-3 proposal not yet in lib.es types
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- feature-detecting Uint8Array.fromBase64 Stage-3 proposal not yet in lib.es types
   const fast = (Uint8Array as unknown as Uint8ArrayWithBase64).fromBase64
   if (typeof fast === 'function') {
     return fast(base64).buffer as ArrayBuffer

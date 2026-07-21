@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
-import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
+import { nitro } from 'nitro/vite'
 import { devtools } from '@tanstack/devtools-vite'
 
 // `dockerode` is a server-only dependency that pulls in optional native addons
@@ -13,9 +12,13 @@ import { devtools } from '@tanstack/devtools-vite'
 //     resolve `cpufeatures.node` → `optimizeDeps.exclude` keeps it out of the scan.
 //   • the SSR build would try to inline it → `ssr.external` keeps it a runtime
 //     require.
-// This example uses nitro-v2 (NOT nitro 3's auto-tracing), so `dockerode` is also
-// added to the nitroV2Plugin `externals.external` list so the nitro-v2 server build
-// resolves it at runtime rather than bundling it.
+// This example uses nitro 3. Its server build (rolldown) externalizes
+// node_modules by default, but must resolve each external to a real path.
+// Under pnpm these server-only deps are only reachable via a workspace
+// adapter's nested store dir, so a bare resolve from this example fails —
+// they are therefore declared as direct dependencies here (dockerode,
+// @anthropic-ai/sdk, @elevenlabs/elevenlabs-js) so nitro can resolve and
+// trace them. The vite-level guards below still cover the client/SSR passes.
 //
 // `@anthropic-ai/sdk` (via @tanstack/ai-claude-code) ships a
 // `tools/agent-toolset/fs-util.mjs` sub-module that imports `node:crypto`,
@@ -45,21 +48,8 @@ const config = defineConfig({
   // own, which `ssr.external` doesn't reach). The client build never imports it, so
   // this is a no-op there.
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
-  plugins: [
-    devtools(),
-    nitroV2Plugin({
-      externals: {
-        external: ['@elevenlabs/elevenlabs-js', ...SERVER_ONLY_NATIVE],
-      },
-    }),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
+  resolve: { tsconfigPaths: true },
+  plugins: [devtools(), nitro(), tailwindcss(), tanstackStart(), viteReact()],
 })
 
 export default config
