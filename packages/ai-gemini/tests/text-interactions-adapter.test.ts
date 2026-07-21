@@ -415,7 +415,8 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Madrid?' }],
-        tools: [weatherTool],      }),
+        tools: [weatherTool],
+      }),
     )
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]!
@@ -491,7 +492,8 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],      }),
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
+      }),
     )
 
     const startEvent = chunks.find((c) => c.type === 'TOOL_CALL_START')
@@ -557,7 +559,8 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Weather in London?' }],
-        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],      }),
+        tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
+      }),
     )
 
     // No parse-failure RUN_ERROR, and the completed key survives truncation.

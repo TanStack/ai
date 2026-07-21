@@ -690,7 +690,8 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     for await (const c of chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
-      tools: [weatherTool],    })) {
+      tools: [weatherTool],
+    })) {
       chunks.push(c)
     }
 

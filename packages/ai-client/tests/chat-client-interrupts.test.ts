@@ -1163,5 +1163,4 @@ describe('ChatClient native interrupts', () => {
       knownGeneration: 1,
     })
   })
-
 })

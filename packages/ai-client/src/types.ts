@@ -654,7 +654,6 @@ export interface ChatClientBaseOptions<
    */
   initialResumeSnapshot?: ChatResumeSnapshot
 
-
   /**
    * Arbitrary client-controlled JSON forwarded to the server in the
    * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session

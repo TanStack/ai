@@ -1714,7 +1714,8 @@ describe('Anthropic stream processing', () => {
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-      tools: [weatherTool],    })) {
+      tools: [weatherTool],
+    })) {
       chunks.push(chunk)
     }
 
