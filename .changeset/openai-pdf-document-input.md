@@ -23,4 +23,4 @@ const message = {
 }
 ```
 
-Non-PDF MIME types are rejected before the request is sent — including pre-wrapped `data:` URLs whose media type disagrees with `mimeType` — so callers get an actionable message instead of an opaque provider `400`. `OpenAIDocumentMetadata` gains `filename` and `detail`. The Chat Completions adapter throws a document-specific error pointing here, since documents are Responses-only.
+Non-PDF MIME types are rejected before the request is sent — including pre-wrapped `data:` URLs whose media type disagrees with `mimeType` — so callers get an actionable message instead of an opaque provider `400`. Inline base64 payloads are also checked for the `%PDF` magic bytes, so non-PDF data mislabeled (or sent without) a PDF `mimeType` is rejected locally. `OpenAIDocumentMetadata` gains `filename` and `detail`. The Chat Completions adapter throws a document-specific error pointing here, since documents are Responses-only.

@@ -31,6 +31,10 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 
+// Base64 encoding of the '%PDF' file header — every PDF payload starts with
+// these bytes, so inline document data must begin with this prefix.
+const PDF_BASE64_MAGIC = 'JVBERi'
+
 /**
  * Shared implementation of the OpenAI Responses API. Holds the stream-event
  * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
@@ -1841,13 +1845,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       case 'document': {
         const documentMetadata = part.metadata as
-          | { filename?: string; detail?: 'low' | 'high' }
+          | { filename?: string; detail?: 'auto' | 'low' | 'high' }
           | undefined
-        // `detail` is optional with no 'auto' member (unlike input_image) —
-        // spread only when provided so the API applies its own default.
+        // Spread `detail` only when provided so the API applies its own
+        // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
+        // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
+        // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
+        // pass through without a type error.
         const documentDetail =
           documentMetadata?.detail !== undefined
-            ? { detail: documentMetadata.detail }
+            ? { detail: documentMetadata.detail as 'low' | 'high' }
             : {}
         if (part.source.type === 'url') {
           // The Responses API fetches the PDF itself; filename and MIME
@@ -1879,6 +1886,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           throw new Error(
             `${this.name} document parts only support application/pdf ` +
               `(received data URL with non-PDF media type)`,
+          )
+        }
+        // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
+        // caught locally instead of by an opaque provider 400. Only base64
+        // payloads are checked; a rare `data:` URL without `;base64` is left
+        // to the server.
+        const documentBase64 = documentValue.startsWith('data:')
+          ? /;base64,/i.test(documentValue)
+            ? documentValue.slice(documentValue.indexOf(',') + 1)
+            : ''
+          : documentValue
+        if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(inline data does not start with the %PDF header)`,
           )
         }
         // Wrap raw base64 in a data URL — `input_file` rejects bare base64

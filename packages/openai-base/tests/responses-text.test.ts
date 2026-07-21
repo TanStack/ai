@@ -2248,6 +2248,9 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         'trailer<</Root 1 0 R>>\n%%EOF',
     ).toString('base64')
 
+    // A payload that is not a PDF (no '%PDF' header).
+    const NOT_PDF_BASE64 = Buffer.from('hello, not a pdf').toString('base64')
+
     const minimalStreamChunks = [
       {
         type: 'response.created',
@@ -2448,6 +2451,23 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
     })
 
+    it("passes detail: 'auto' through to the payload", async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'auto' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('auto')
+    })
+
     it('omits detail when metadata does not provide it', async () => {
       await runChat([
         {
@@ -2557,6 +2577,80 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
         },
       ])
+    })
+
+    it('emits RUN_ERROR for raw base64 without a mimeType that is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: NOT_PDF_BASE64 },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('accepts raw base64 PDF data without a mimeType', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: TINY_PDF_BASE64 },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('emits RUN_ERROR for non-PDF data mislabeled as application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: NOT_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('emits RUN_ERROR for a PDF data URL whose payload is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf;base64,${NOT_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
     })
   })
 
