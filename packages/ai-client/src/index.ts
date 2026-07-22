@@ -28,6 +28,8 @@ export type {
   StructuredOutputPart,
   // Client configuration types
   ChatClientPersistence,
+  ChatPersistedState,
+  ChatStorageAdapter,
   ChatClientOptions,
   ChatPendingInterrupt,
   BoundInterruptBase,
@@ -84,6 +86,20 @@ export type {
 export { GENERATION_EVENTS } from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
+// Web storage adapters for durable chat persistence (messages + resume snapshot)
+export {
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+} from './storage-adapters'
+export type {
+  JsonPrimitive,
+  JsonValue,
+  StorageCodec,
+  WebStoragePersistenceOptions,
+  IndexedDBPersistenceOptions,
+} from './storage-adapters'
 export {
   createAIDevtoolsGenerationPreview,
   type AIDevtoolsClientMetadata,

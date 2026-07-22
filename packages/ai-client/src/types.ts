@@ -553,19 +553,62 @@ export interface UIMessage<
   createdAt?: Date
 }
 
+/**
+ * A generic key/value storage adapter. `getItem` may be sync or async; the
+ * chat persistence layer treats every call as best-effort. The provided
+ * `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
+ * factories return one of these, and `ChatStorageAdapter<ChatPersistedState>`
+ * is assignable to {@link ChatClientPersistence}.
+ */
+export interface ChatStorageAdapter<TValue> {
+  getItem: (
+    id: string,
+  ) => TValue | null | undefined | Promise<TValue | null | undefined>
+  setItem: (id: string, value: TValue) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
+/**
+ * The single record a `ChatClientPersistence` adapter stores per chat. It folds
+ * the two things that must survive a full page reload into one blob under one
+ * key: the message transcript and the optional resume snapshot (which run to
+ * rejoin / which interrupts to rehydrate). One adapter, one key — see
+ * {@link ChatClientPersistence}.
+ */
+export interface ChatPersistedState<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  messages: Array<UIMessage<TTools>>
+  /** Present while a run is in flight or paused on an interrupt; absent otherwise. */
+  resume?: ChatResumeSnapshot
+}
+
+/**
+ * Storage adapter for durable chat state. A single adapter persists both the
+ * message transcript and the resume snapshot as one {@link ChatPersistedState}
+ * record, so a full page reload restores the conversation AND can rejoin an
+ * in-flight run / rehydrate pending interrupts.
+ *
+ * For backward compatibility `getItem` may also return a bare `UIMessage[]`
+ * (the legacy messages-only format); the client normalizes it to
+ * `{ messages }`. `setItem` always writes the combined record.
+ */
 export interface ChatClientPersistence<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   getItem: (
     id: string,
   ) =>
+    | ChatPersistedState<TTools>
     | Array<UIMessage<TTools>>
     | null
     | undefined
-    | Promise<Array<UIMessage<TTools>> | null | undefined>
+    | Promise<
+        ChatPersistedState<TTools> | Array<UIMessage<TTools>> | null | undefined
+      >
   setItem: (
     id: string,
-    messages: Array<UIMessage<TTools>>,
+    state: ChatPersistedState<TTools>,
   ) => void | Promise<void>
   removeItem: (id: string) => void | Promise<void>
 }
@@ -661,9 +704,11 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapter for chat messages (UIMessage[] by chat id).
-   * Durable interrupt resume storage is not part of this surface — use
-   * `initialResumeSnapshot` for in-memory rehydrate after a host-managed load.
+   * Optional persistence adapter for durable chat state, keyed by chat id. It
+   * stores one combined {@link ChatPersistedState} record (messages + an
+   * optional resume snapshot), so a full page reload restores the transcript,
+   * rehydrates pending interrupts, and rejoins an in-flight run. Use
+   * `initialResumeSnapshot` instead for a host-supplied in-memory rehydrate.
    */
   persistence?: ChatClientPersistence<TTools>
 

@@ -248,9 +248,11 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
-  // Message persistence (optional). Clear-during-stream suppression is always
-  // on via ClearedStreamTracker so `clear()` works without a storage adapter.
-  // Durable resume-snapshot storage is not wired here (feat/persistence).
+  // Durable chat persistence (optional): messages + resume snapshot as one
+  // combined record, so a full page reload restores the transcript, rehydrates
+  // pending interrupts, and rejoins an in-flight run. Clear-during-stream
+  // suppression is always on via ClearedStreamTracker so `clear()` works
+  // without a storage adapter.
   private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
   private currentRunId: string | null = null
@@ -375,6 +377,7 @@ export class ChatClient<
         options.persistence,
         this.uniqueId,
         (messages) => this.processor.setMessages(messages),
+        (snapshot) => this.applyResumeSnapshot(snapshot),
       )
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
@@ -439,10 +442,28 @@ export class ChatClient<
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
-    const persistedMessages = this.persistor?.readInitial()
-    const initialMessages = Array.isArray(persistedMessages)
-      ? persistedMessages
+    const persistedState = this.persistor?.readInitial()
+    const syncPersistedState =
+      persistedState instanceof Promise ? undefined : persistedState
+    const initialMessages = syncPersistedState
+      ? syncPersistedState.messages
       : options.initialMessages
+    // A durable snapshot read synchronously from storage wins over the
+    // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
+    // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
+    // rejoined after the processor is ready (see `rejoinRunId` below).
+    let rejoinRunId: string | null = null
+    if (syncPersistedState?.resume) {
+      const snapshot = syncPersistedState.resume
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (hasPendingInterrupts) {
+        this.applyResumeSnapshot(snapshot)
+      } else if (snapshot.resumeState.runId) {
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
 
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy
@@ -649,7 +670,14 @@ export class ChatClient<
       },
     })
 
-    this.persistor?.hydrateAsync(persistedMessages)
+    this.persistor?.hydrateAsync(persistedState)
+
+    // Full page reload with an in-flight run persisted: re-attach to it off the
+    // server's delivery-durability log so the stream finishes here. Best-effort
+    // and non-blocking; a finished/evicted run just replays or no-ops.
+    if (rejoinRunId && this.connection.joinRun) {
+      this.resumeInFlightRun(rejoinRunId)
+    }
   }
 
   private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
@@ -724,6 +752,16 @@ export class ChatClient<
       this.activeRunIds.add(chunkRunId)
       this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
+      // Persist a live-run resume snapshot so a full page reload can rejoin this
+      // in-flight run via joinRun. Only meaningful when the connection is
+      // resumable; skipped otherwise. Interrupt/terminal handling overwrites or
+      // clears it in observeInterruptState.
+      if (this.persistor && this.connection.joinRun && !this.lastResume) {
+        this.persistResumeSnapshot({
+          threadId: this.activeResumeThreadId ?? this.threadId,
+          runId: chunkRunId,
+        })
+      }
       return
     }
 
@@ -821,6 +859,9 @@ export class ChatClient<
       isActiveInterruptSubmissionTerminal
     ) {
       this.lastResume = null
+      // Run settled without an interrupt: drop the durable resume snapshot so a
+      // later reload does not try to rejoin a finished run.
+      this.persistor?.persistResumeSnapshot(null)
       this.interruptManager.reset()
       return
     }
@@ -1017,6 +1058,10 @@ export class ChatClient<
 
   private notifyResumeStateChange(): void {
     const resumeState = this.getResumeState()
+    // Persist (or clear) the durable resume snapshot so a full page reload can
+    // rehydrate pending interrupts and rejoin the run. Folded into the same
+    // persistence adapter that stores messages (one record per chat).
+    this.persistResumeSnapshot(resumeState)
     this.callbacksRef.current.onResumeStateChange(
       resumeState,
       this.interruptManager.getInterrupts(),
@@ -1024,6 +1069,26 @@ export class ChatClient<
     this.callbacksRef.current.onInterruptStateChange(
       this.interruptManager.getState(),
     )
+  }
+
+  /**
+   * Build the durable resume snapshot from the current resume state + pending
+   * interrupt descriptors and hand it to the persistor (null clears it).
+   */
+  private persistResumeSnapshot(resumeState: ChatResumeState | null): void {
+    if (!this.persistor) return
+    if (!resumeState) {
+      this.persistor.persistResumeSnapshot(null)
+      return
+    }
+    const descriptors = this.interruptManager.getDescriptors()
+    this.persistor.persistResumeSnapshot({
+      schemaVersion: 2,
+      resumeState,
+      ...(descriptors.length > 0
+        ? { pendingInterrupts: [...descriptors] }
+        : {}),
+    })
   }
 
   private resetSessionGenerating(options?: {
@@ -1184,6 +1249,41 @@ export class ChatClient<
       if (signal.aborted) break
       await this.processIncomingChunk(chunk)
     }
+  }
+
+  /**
+   * Re-attach to an in-flight run after a full page reload, replaying its
+   * stream from the server's delivery-durability log via `joinRun`. Chunks flow
+   * through the normal processing path, so the restored (possibly partial)
+   * assistant message is updated in place by message id rather than duplicated.
+   * Best-effort: a finished, evicted, or unknown run replays to completion or
+   * fails quietly, leaving the restored transcript intact.
+   */
+  private resumeInFlightRun(runId: string): void {
+    const joinRun = this.connection.joinRun
+    if (!joinRun) return
+    const controller = new AbortController()
+    this.abortController = controller
+    this.currentRunId = runId
+    this.setIsLoading(true)
+    this.setStatus('streaming')
+    void (async () => {
+      try {
+        for await (const chunk of joinRun(runId, controller.signal)) {
+          if (controller.signal.aborted) break
+          await this.processIncomingChunk(chunk)
+        }
+      } catch {
+        // Best-effort re-attach: the durable log may be gone or the run
+        // unknown. Keep the restored transcript rather than surfacing an error.
+      } finally {
+        if (this.abortController === controller) {
+          this.abortController = null
+          this.setIsLoading(false)
+          if (this.status === 'streaming') this.setStatus('ready')
+        }
+      }
+    })()
   }
 
   private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
