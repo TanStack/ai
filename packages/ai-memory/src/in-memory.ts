@@ -6,7 +6,11 @@ import {
   sameScope,
   saveTurn,
 } from './internal/store'
-import type { BuiltinOptions, MemoryRecord, RecordStore } from './internal/store'
+import type {
+  BuiltinOptions,
+  MemoryRecord,
+  RecordStore,
+} from './internal/store'
 import type { MemoryAdapter, MemoryScope } from './types'
 
 /**

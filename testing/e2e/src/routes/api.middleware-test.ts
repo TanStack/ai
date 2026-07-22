@@ -415,7 +415,10 @@ export const Route = createFileRoute('/api/middleware-test')({
             if (!testId) {
               return new Response(
                 JSON.stringify({ error: 'memory mode requires testId' }),
-                { status: 400, headers: { 'Content-Type': 'application/json' } },
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
               )
             }
             resetMemoryCapture(testId)

@@ -55,10 +55,10 @@ callbacks.
 ```ts
 interface MemoryAdapter {
   id: string
-  recall(scope, query): Promise<RecallResult>   // { systemPrompt, fragments?, tools?, toolGuidance? }
+  recall(scope, query): Promise<RecallResult> // { systemPrompt, fragments?, tools?, toolGuidance? }
   save(scope, turn): Promise<Array<SaveReceipt>> // turn = { user, assistant }; extraction lives HERE
-  inspect?(scope): Promise<MemorySnapshot>       // optional (devtools)
-  listFacts?(scope): Promise<Array<MemoryFact>>  // optional (devtools)
+  inspect?(scope): Promise<MemorySnapshot> // optional (devtools)
+  listFacts?(scope): Promise<Array<MemoryFact>> // optional (devtools)
 }
 ```
 

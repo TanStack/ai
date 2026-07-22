@@ -36,7 +36,9 @@ type JsonResult =
   | { ok: false; latencyMs: number; error: string }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : undefined
 }
 
 function asString(value: unknown): string | undefined {
@@ -77,7 +79,11 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
       const latencyMs = Date.now() - start
       if (!res.ok) {
         const text = await res.text().catch(() => '')
-        return { ok: false, latencyMs, error: `HTTP ${res.status}: ${text.slice(0, 300)}` }
+        return {
+          ok: false,
+          latencyMs,
+          error: `HTTP ${res.status}: ${text.slice(0, 300)}`,
+        }
       }
       const data = await res.json().catch(() => null)
       return { ok: true, latencyMs, data }
@@ -138,10 +144,12 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
       if (!result.ok) {
         return { systemPrompt: '', fragments: [], raw: { error: result.error } }
       }
-      const fragments: Array<MemoryFragment> = itemsOf(result.data).map((m) => ({
-        text: asString(m.memory) ?? asString(m.text) ?? JSON.stringify(m),
-        source: asString(m.id) ?? 'mem0',
-      }))
+      const fragments: Array<MemoryFragment> = itemsOf(result.data).map(
+        (m) => ({
+          text: asString(m.memory) ?? asString(m.text) ?? JSON.stringify(m),
+          source: asString(m.id) ?? 'mem0',
+        }),
+      )
       const systemPrompt =
         fragments.length === 0
           ? ''

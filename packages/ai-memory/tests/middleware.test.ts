@@ -70,7 +70,11 @@ describe('memoryMiddleware', () => {
   })
 
   it('save-only role skips recall entirely', async () => {
-    const mw = memoryMiddleware({ adapter: fakeAdapter([]), scope, role: 'save-only' })
+    const mw = memoryMiddleware({
+      adapter: fakeAdapter([]),
+      scope,
+      role: 'save-only',
+    })
     const config = makeConfig('hello')
     const result = await mw.onConfig?.(makeCtx(config, []), config)
     expect(result).toBeUndefined()
@@ -96,7 +100,10 @@ describe('memoryMiddleware', () => {
     await Promise.all(deferred)
 
     expect(saved).toHaveLength(1)
-    expect(saved[0]?.turn).toEqual({ user: 'remember I like cats', assistant: 'You like cats!' })
+    expect(saved[0]?.turn).toEqual({
+      user: 'remember I like cats',
+      assistant: 'You like cats!',
+    })
     expect(onSave).toHaveBeenCalledOnce()
   })
 

@@ -36,7 +36,10 @@ import { redis, nodeRedisAsRedisLike } from '@tanstack/ai-memory/redis'
 const client = createClient({ url: process.env.REDIS_URL })
 await client.connect()
 
-const memory = redis({ redis: nodeRedisAsRedisLike(client), prefix: 'myapp:memory' })
+const memory = redis({
+  redis: nodeRedisAsRedisLike(client),
+  prefix: 'myapp:memory',
+})
 
 memoryMiddleware({ adapter: memory, scope })
 ```

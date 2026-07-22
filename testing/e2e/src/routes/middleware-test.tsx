@@ -119,9 +119,7 @@ function MiddlewareTestPage() {
         void fetch(
           `/api/middleware-test?testId=${encodeURIComponent(testId)}&kind=memory`,
         )
-          .then((res) =>
-            res.ok ? res.json() : { configs: [], saveCount: 0 },
-          )
+          .then((res) => (res.ok ? res.json() : { configs: [], saveCount: 0 }))
           .then((data) => {
             setMemoryCapture(data)
             setTestComplete(true)

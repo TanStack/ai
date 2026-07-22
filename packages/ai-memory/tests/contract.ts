@@ -75,7 +75,9 @@ export function runMemoryAdapterContract(
         const facts = await adapter.listFacts(scopeA)
         expect(Array.isArray(facts)).toBe(true)
         expect(
-          facts.every((f) => typeof f.id === 'string' && typeof f.text === 'string'),
+          facts.every(
+            (f) => typeof f.id === 'string' && typeof f.text === 'string',
+          ),
         ).toBe(true)
       })
     })

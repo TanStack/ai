@@ -5,7 +5,11 @@ import {
   recallRecords,
   saveTurn,
 } from './internal/store'
-import type { BuiltinOptions, MemoryRecord, RecordStore } from './internal/store'
+import type {
+  BuiltinOptions,
+  MemoryRecord,
+  RecordStore,
+} from './internal/store'
 import type { MemoryAdapter, MemoryScope } from './types'
 
 /**
@@ -74,7 +78,10 @@ function escapeScopeValue(value: string): string {
 const warnedMalformedIds = new Set<string>()
 const MALFORMED_WARN_CAP = 100
 function warnMalformedRow(id: string, err: unknown): void {
-  if (warnedMalformedIds.has(id) || warnedMalformedIds.size >= MALFORMED_WARN_CAP) {
+  if (
+    warnedMalformedIds.has(id) ||
+    warnedMalformedIds.size >= MALFORMED_WARN_CAP
+  ) {
     return
   }
   warnedMalformedIds.add(id)

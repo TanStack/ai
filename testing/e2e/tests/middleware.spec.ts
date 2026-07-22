@@ -403,9 +403,9 @@ test.describe('Middleware Lifecycle', () => {
       c.systemPrompts.some((p) => p.includes('love TanStack')),
     )
     expect(injected).toBeTruthy()
-    expect(
-      injected?.systemPrompts.some((p) => p.includes('recall_more')),
-    ).toBe(true)
+    expect(injected?.systemPrompts.some((p) => p.includes('recall_more'))).toBe(
+      true,
+    )
     expect(injected?.toolNames).toContain('recall_more')
 
     // The finished turn deferred a save through the adapter.

@@ -90,8 +90,10 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
   async function loadClient() {
     const mod = await import('@honcho-ai/sdk')
     return new mod.Honcho({
-      baseURL: options.baseURL ?? process.env.HONCHO_URL ?? 'http://localhost:8001',
-      workspaceId: options.workspaceId ?? process.env.HONCHO_APP_NAME ?? 'ai-memory',
+      baseURL:
+        options.baseURL ?? process.env.HONCHO_URL ?? 'http://localhost:8001',
+      workspaceId:
+        options.workspaceId ?? process.env.HONCHO_APP_NAME ?? 'ai-memory',
       apiKey: options.apiKey ?? process.env.HONCHO_API_KEY ?? 'dev-no-auth',
     })
   }
@@ -117,21 +119,24 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
   }
 
   function getUserPeer(userId: string): Promise<Peer> {
-    return cached(userPeerCache, userId, async () => (await getClient()).peer(userId))
+    return cached(userPeerCache, userId, async () =>
+      (await getClient()).peer(userId),
+    )
   }
   function getAssistantPeer(): Promise<Peer> {
     if (!assistantPeerPromise) {
-      assistantPeerPromise = (async () => (await getClient()).peer(assistantId))().catch(
-        (err) => {
-          assistantPeerPromise = null
-          throw err
-        },
-      )
+      assistantPeerPromise = (async () =>
+        (await getClient()).peer(assistantId))().catch((err) => {
+        assistantPeerPromise = null
+        throw err
+      })
     }
     return assistantPeerPromise
   }
   function getSession(sessionId: string): Promise<Session> {
-    return cached(sessionCache, sessionId, async () => (await getClient()).session(sessionId))
+    return cached(sessionCache, sessionId, async () =>
+      (await getClient()).session(sessionId),
+    )
   }
 
   function userIdFor(scope: MemoryScope): string {
@@ -181,7 +186,10 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     async inspect(scope): Promise<MemorySnapshot> {
       const session = await getSession(scope.sessionId).catch(() => null)
       if (!session) {
-        return { takenAt: new Date().toISOString(), data: { error: 'failed to get session' } }
+        return {
+          takenAt: new Date().toISOString(),
+          data: { error: 'failed to get session' },
+        }
       }
       const [messages, summaries] = await Promise.all([
         timed(() => session.messages({ size: 50 })),
@@ -205,7 +213,10 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
       const raw =
         typeof result.data === 'string'
           ? result.data
-          : String((result.data as { representation?: unknown }).representation ?? '')
+          : String(
+              (result.data as { representation?: unknown }).representation ??
+                '',
+            )
       return parseHonchoRepresentation(raw)
     },
   }

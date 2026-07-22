@@ -49,7 +49,11 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
           context: 'chat:tool',
           timestamp: new Date(),
         })
-        deps.onToolRetain?.({ ok: true, latencyMs: Date.now() - start, raw: data })
+        deps.onToolRetain?.({
+          ok: true,
+          latencyMs: Date.now() - start,
+          raw: data,
+        })
         return { ok: true }
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err)
@@ -79,12 +83,16 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
       const start = Date.now()
       try {
         const { client, recallToPrompt } = await deps.getRuntime()
-        const data = await client.recall(deps.bankId, query, { budget: deps.budget })
+        const data = await client.recall(deps.bankId, query, {
+          budget: deps.budget,
+        })
         const systemPrompt = recallToPrompt(data)
-        const fragments: Array<MemoryFragment> = (data.results ?? []).map((r) => ({
-          text: r.text,
-          source: r.type ?? r.id,
-        }))
+        const fragments: Array<MemoryFragment> = (data.results ?? []).map(
+          (r) => ({
+            text: r.text,
+            source: r.type ?? r.id,
+          }),
+        )
         deps.onToolRecall?.(query, {
           systemPrompt,
           fragments,
@@ -109,7 +117,7 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
         query: {
           type: 'string',
           description:
-            "The synthesis question to reflect on, e.g. \"what do I know about the user's preferences?\"",
+            'The synthesis question to reflect on, e.g. "what do I know about the user\'s preferences?"',
         },
       },
       required: ['query'],

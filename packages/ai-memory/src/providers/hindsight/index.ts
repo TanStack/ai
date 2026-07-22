@@ -92,9 +92,13 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       runtimePromise = (async () => {
         const mod = await import('@vectorize-io/hindsight-client')
         const baseUrl =
-          options.baseUrl ?? process.env.HINDSIGHT_URL ?? 'http://localhost:8888'
+          options.baseUrl ??
+          process.env.HINDSIGHT_URL ??
+          'http://localhost:8888'
         // oxlint-disable-next-line eslint-js/no-restricted-syntax -- intentionally decoupled from the SDK's exact client type; the adapter only uses the HindsightClientLike subset
-        const client = new mod.HindsightClient({ baseUrl }) as unknown as HindsightClientLike
+        const client = new mod.HindsightClient({
+          baseUrl,
+        }) as unknown as HindsightClientLike
         const recallToPrompt = mod.recallResponseToPromptString as (
           data: unknown,
         ) => string
@@ -118,7 +122,10 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
     async save(scope, turn: MemoryTurn): Promise<Array<SaveReceipt>> {
       const bank = bankId(scope)
       const timestamp = new Date()
-      async function retain(text: string, context: string): Promise<SaveReceipt> {
+      async function retain(
+        text: string,
+        context: string,
+      ): Promise<SaveReceipt> {
         const start = Date.now()
         try {
           const { client } = await getRuntime()
@@ -150,10 +157,12 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       try {
         const { client, recallToPrompt } = await getRuntime()
         const data = await client.recall(bank, query, { budget })
-        const fragments: Array<MemoryFragment> = (data.results ?? []).map((r) => ({
-          text: r.text,
-          source: r.type ?? r.id,
-        }))
+        const fragments: Array<MemoryFragment> = (data.results ?? []).map(
+          (r) => ({
+            text: r.text,
+            source: r.type ?? r.id,
+          }),
+        )
         return {
           systemPrompt: recallToPrompt(data),
           fragments,
@@ -180,7 +189,10 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
           client.listMemories(bank, { limit: 200 }),
           client.getBankProfile(bank),
         ])
-        return { takenAt: new Date().toISOString(), data: { memories, profile } }
+        return {
+          takenAt: new Date().toISOString(),
+          data: { memories, profile },
+        }
       } catch (err) {
         return {
           takenAt: new Date().toISOString(),
@@ -205,7 +217,8 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
               id: typeof m.id === 'string' ? m.id : `hindsight-${i}`,
               text,
               source: typeof m.context === 'string' ? m.context : 'memory',
-              createdAt: typeof m.created_at === 'string' ? m.created_at : undefined,
+              createdAt:
+                typeof m.created_at === 'string' ? m.created_at : undefined,
             }
           })
           .filter((f): f is MemoryFact => f !== null)

@@ -145,7 +145,8 @@ export function memoryMiddleware(
     onFinish(ctx, info) {
       const state = stateByCtx.get(ctx)
       stateByCtx.delete(ctx)
-      const userText = state?.lastUserText || getMessageText(findLastUserMessage(ctx.messages))
+      const userText =
+        state?.lastUserText || getMessageText(findLastUserMessage(ctx.messages))
       const assistant = info.content
       if (!userText || !assistant) return
       const scope = state?.resolvedScope
@@ -156,7 +157,8 @@ export function memoryMiddleware(
           // terminal hook. Memory failures are always non-fatal + observable.
           let resolved: MemoryScope
           try {
-            resolved = scope ?? (await resolveScope(ctx, { lastUserText: userText }))
+            resolved =
+              scope ?? (await resolveScope(ctx, { lastUserText: userText }))
           } catch (error) {
             safeEmit('memory:error', {
               scope: emptyScope(),
@@ -304,7 +306,8 @@ function getMessageText(message?: ModelMessage): string {
 }
 
 function errorInfo(error: unknown): { name: string; message: string } {
-  if (error instanceof Error) return { name: error.name, message: error.message }
+  if (error instanceof Error)
+    return { name: error.name, message: error.message }
   if (
     error &&
     typeof error === 'object' &&

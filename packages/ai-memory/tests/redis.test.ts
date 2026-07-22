@@ -55,11 +55,17 @@ describe('redis scope-key hardening', () => {
 
     // Without escaping, { userId: 'a:b', sessionId: 'c' } and
     // { userId: 'a', sessionId: 'b:c' } both serialize to key `a:b:c`.
-    await adapter.save({ userId: 'a:b', sessionId: 'c' }, {
-      user: 'confidential tenant one data',
-      assistant: 'ok',
-    })
-    const other = await adapter.recall({ userId: 'a', sessionId: 'b:c' }, 'confidential')
+    await adapter.save(
+      { userId: 'a:b', sessionId: 'c' },
+      {
+        user: 'confidential tenant one data',
+        assistant: 'ok',
+      },
+    )
+    const other = await adapter.recall(
+      { userId: 'a', sessionId: 'b:c' },
+      'confidential',
+    )
     expect(other.systemPrompt).toBe('')
     expect(other.fragments ?? []).toHaveLength(0)
   })
@@ -105,7 +111,9 @@ describe('nodeRedisAsRedisLike', () => {
     await wrapped.mget('k1', 'k2')
     await wrapped.del('d1', 'd2')
 
-    expect(calls.find((c) => c.method === 'set')).toMatchObject({ args: ['k', 'v'] })
+    expect(calls.find((c) => c.method === 'set')).toMatchObject({
+      args: ['k', 'v'],
+    })
     // Variadic members forwarded as an array so node-redis' overload resolves right.
     expect(
       calls.find(
@@ -115,7 +123,11 @@ describe('nodeRedisAsRedisLike', () => {
           (c.args[1] as Array<string>).length === 2,
       ),
     ).toBeTruthy()
-    expect(calls.find((c) => c.method === 'mGet')).toMatchObject({ args: [['k1', 'k2']] })
-    expect(calls.find((c) => c.method === 'del')).toMatchObject({ args: [['d1', 'd2']] })
+    expect(calls.find((c) => c.method === 'mGet')).toMatchObject({
+      args: [['k1', 'k2']],
+    })
+    expect(calls.find((c) => c.method === 'del')).toMatchObject({
+      args: [['d1', 'd2']],
+    })
   })
 })
