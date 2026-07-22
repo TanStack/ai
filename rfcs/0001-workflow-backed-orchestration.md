@@ -98,6 +98,12 @@ export const article = createWorkflow({
   })
 ```
 
+The async handler and context API is the only workflow authoring model. TanStack
+AI will not expose a generator equivalent for these operations. Each durable
+primitive has one canonical call shape, which keeps documentation, types, and
+generated code aligned. The term "yield" remains reserved for Workflow's
+cooperative runtime scheduling behavior.
+
 `ctx.ai` is the package-owned middleware namespace. Workflow core does not need
 to reserve every official integration name. A conflicting `ai` extension is a
 composition error visible in TypeScript, while Workflow's own fields remain
@@ -218,12 +224,19 @@ inside one Workflow definition.
 
 ## Alternatives rejected
 
-### Restore the generator DSL
+### Add a generator DSL
 
-Rejected for the initial package. `yield* agents.writer()` duplicates
-Workflow's closure API and every durable primitive. It also adds syntax and
-concepts for users and code-generating agents to learn without adding a new
-guarantee.
+Rejected, not deferred. `yield* agents.writer()` would duplicate Workflow's
+async context API and every durable primitive without adding a new guarantee.
+Maintaining equivalent generator and async forms would split documentation,
+examples, type behavior, and generated code while encouraging invalid mixtures
+of `await`, `yield`, and `yield*`. It would also overload "yield" when Workflow
+already uses that term for cooperative runtime scheduling.
+
+Generator syntax is not planned and will not be added as optional sugar. Any
+future proposal would have to demonstrate a required semantic that the async
+context API cannot express and replace, rather than duplicate, the canonical
+authoring model.
 
 ### Let TanStack AI own the workflow store
 
@@ -263,4 +276,3 @@ The following do not block the experimental package:
 - Backpressure and failure semantics for background event publishers.
 - Durable boundaries inside long `chat()` model/tool loops.
 - First-class child workflow semantics.
-- Whether generator syntax is worth adding later as optional sugar.
