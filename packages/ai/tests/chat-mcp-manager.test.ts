@@ -8,7 +8,7 @@ import {
   type ToolResult,
 } from '../src/activities/chat/tools/tool-calls'
 import { EventType } from '../src/types'
-import type { ServerTool } from '../src'
+import type { AnyServerTool } from '../src'
 import type {
   CustomEvent,
   ToolCall,
@@ -40,12 +40,12 @@ interface ReadResourceResult {
   }>
 }
 
-/** A ui-linked ServerTool whose `metadata.mcp` is statically typed. */
-interface UiServerTool extends ServerTool {
+/** A ui-linked server tool whose `metadata.mcp` is statically typed. */
+interface UiServerTool extends AnyServerTool {
   metadata: McpAppMetadata
 }
 
-function tool(name: string): ServerTool {
+function tool(name: string): AnyServerTool {
   return {
     __toolSide: 'server',
     name,
@@ -55,7 +55,7 @@ function tool(name: string): ServerTool {
   }
 }
 
-function source(tools: Array<ServerTool>, opts: { fail?: boolean } = {}) {
+function source(tools: Array<AnyServerTool>, opts: { fail?: boolean } = {}) {
   const s = {
     closed: false,
     tools: async (_o?: { lazy?: boolean }) => {
@@ -193,7 +193,7 @@ type EmittedEvent = { name: string; value: UIResourceEvent['value'] }
  * CUSTOM events emitted via the same `emitCustomEvent` closure chat() wires in.
  */
 async function runToolResult(
-  tool: ServerTool,
+  tool: AnyServerTool,
   toolCallId: string,
   onEvent: (event: EmittedEvent) => void,
 ): Promise<Array<ToolResult>> {

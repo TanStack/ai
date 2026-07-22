@@ -1375,8 +1375,8 @@ importers:
   packages/ai:
     dependencies:
       '@ag-ui/core':
-        specifier: ^0.0.52
-        version: 0.0.52
+        specifier: ^0.0.57
+        version: 0.0.57
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -2824,8 +2824,8 @@ packages:
   '@acemir/cssom@0.9.29':
     resolution: {integrity: sha512-G90x0VW+9nW4dFajtjCoT+NM0scAfH9Mb08IcjgFHYbfiL/lU04dTF9JuVOi3/OH+DJCQdcIseSXkdCB9Ky6JA==}
 
-  '@ag-ui/core@0.0.52':
-    resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
+  '@ag-ui/core@0.0.57':
+    resolution: {integrity: sha512-gho1OWjNE6E3Rl7ZEZ1wr2CEpUHjLFU0FqzCZZk439TicLu+BfLCMkMokB07bMGlRmbJ60hM6LW60iOVauCx+Q==}
 
   '@agentclientprotocol/sdk@0.25.1':
     resolution: {integrity: sha512-jx2rF3bdpGwZ75Q/meyEDLLbYmbtxk82Uh9hDCdxDvcEedBnNSF5hZAnL/kJR5VNz56JqwOmqnAqasC84MwwkQ==}
@@ -16131,7 +16131,7 @@ snapshots:
 
   '@acemir/cssom@0.9.29': {}
 
-  '@ag-ui/core@0.0.52':
+  '@ag-ui/core@0.0.57':
     dependencies:
       zod: 3.25.76
 

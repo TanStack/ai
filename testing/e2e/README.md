@@ -51,6 +51,31 @@ Deterministic scenarios covering tool execution flows:
 | `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows           |
 | `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                 |
 
+### Interrupt playground
+
+Deterministic coverage of every AG-UI interrupt shape, ported from the
+`ts-react-chat` wildlife example (route `/interrupts-test`, scenarios in
+`src/lib/interrupt-scenario-tools.ts`). Each scenario isolates one interrupt
+behavior — server/client × boolean, shared payload, branch payload, edited
+args, plus a generic (non-tool) interrupt and batch sets — and is exercised
+across allow / deny / cancel via both per-item (`interrupt.resolveInterrupt` /
+`interrupt.cancel`) and root batch (`resolveInterrupts` / `cancelInterrupts`)
+resolution.
+
+| Spec file                                | Tests | What it covers                                                         |
+| ---------------------------------------- | ----- | ---------------------------------------------------------------------- |
+| `tests/interrupts-test/per-item.spec.ts` | 24    | Approve / deny / cancel each single scenario via the bound interrupt   |
+| `tests/interrupts-test/generic.spec.ts`  | 2     | Generic interrupt resolve-with-payload and cancel                      |
+| `tests/interrupts-test/batch.spec.ts`    | 5     | Root approve-all / deny-all / cancel-all, per-item, and mixed resolver |
+
+Notes:
+
+- Server tool results are **not** surfaced to the client as message parts, so
+  server execution is asserted via the `approval-responded` state; server
+  edited-args are verified through a `emitCustomEvent` echo.
+- A shared `approvalSchema` requires a payload on the **deny** decision too, so
+  those scenarios carry a `denyPayload`.
+
 ### Advanced feature tests
 
 | Spec file                      | What it covers                                            |

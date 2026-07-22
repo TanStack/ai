@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
   "docSearch": {
     "appId": "FQ0DQ6MA3C",
@@ -102,13 +102,13 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -145,7 +145,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-06-26"
+          "updatedAt": "2026-07-03"
         }
       ]
     },
@@ -178,7 +178,43 @@
         {
           "label": "Persistence",
           "to": "chat/persistence",
-          "addedAt": "2026-06-02"
+          "addedAt": "2026-06-02",
+          "updatedAt": "2026-07-14"
+        }
+      ]
+    },
+    {
+      "label": "Interrupts",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "interrupts/overview",
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Tool Approval",
+          "to": "interrupts/tool-approval",
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Multiple Interrupts",
+          "to": "interrupts/multiple",
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Generic Interrupts",
+          "to": "interrupts/generic",
+          "addedAt": "2026-07-16",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Migration",
+          "to": "interrupts/migration",
+          "addedAt": "2026-07-14",
+          "updatedAt": "2026-07-21"
         }
       ]
     },
@@ -326,7 +362,8 @@
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-10"
         }
       ]
     },
@@ -359,7 +396,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-07-03"
         },
         {
           "label": "Quick Start",
@@ -401,7 +438,8 @@
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-07-09"
         },
         {
           "label": "Events",
@@ -466,6 +504,12 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25"
+        },
+        {
+          "label": "Approval Flow Processing",
+          "to": "architecture/approval-flow-processing",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-21"
         }
       ]
     },
@@ -490,7 +534,7 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Sampling → modelOptions",
+          "label": "Sampling \u2192 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
@@ -832,7 +876,8 @@
         {
           "label": "toolDefinition",
           "to": "reference/functions/toolDefinition",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "uiMessageToModelMessages",
