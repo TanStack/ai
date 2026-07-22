@@ -1,0 +1,3 @@
+# Scratch sqlite databases used to generate migrations / run tests.
+prisma/*.db
+prisma/*.db-journal
