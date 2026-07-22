@@ -48,7 +48,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             },
           ]}
           eventBusConfig={{
-            connectToServerBus: true,
+            connectToServerBus: false,
           }}
         />
         <Scripts />

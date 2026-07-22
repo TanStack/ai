@@ -45,13 +45,13 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
-  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
   JSONSchema,
   LazyToolsConfig,
   ModelMessage,
+  ProviderTool,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
@@ -63,6 +63,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  TypedStreamChunk,
   UIMessage,
 } from '../../types'
 import type {
@@ -77,7 +78,6 @@ import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { ProviderTool } from '../../tools/provider-tool'
 import type {
   ContextFromMiddleware,
   ContextFromTool,
@@ -171,6 +171,7 @@ type TextActivityOptionsWithContext<
  * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
+ * @template TContext - Runtime context value threaded to middleware hooks and server tools
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
@@ -221,7 +222,7 @@ export interface TextActivityOptions<
    *    compile-time error on the array element.
    */
   tools?:
-    | Array<
+    | ReadonlyArray<
         | (AnyRuntimeTool & { readonly '~toolKind'?: never })
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
@@ -240,6 +241,11 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /**
+   * Cap how many tool calls from a single model turn are executed.
+   * Excess calls receive error results. See {@link TextOptions.maxToolCallsPerTurn}.
+   */
+  maxToolCallsPerTurn?: TextOptions['maxToolCallsPerTurn']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -275,7 +281,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -367,12 +373,18 @@ export function createChatOptions<
     TTools,
     TMiddleware
   >,
-): TextActivityOptions<
-  TAdapter,
-  TSchema,
-  TStream,
-  InferredContext<TTools, TMiddleware>
-> {
+  // Preserve the concrete `tools` tuple on the returned options (so a later
+  // `chat({ ...opts })` still narrows tool-call events to the tool names)
+  // while threading the inferred runtime context like the bare options type.
+): Omit<
+  TextActivityOptions<
+    TAdapter,
+    TSchema,
+    TStream,
+    InferredContext<TTools, TMiddleware>
+  >,
+  'tools'
+> & { tools?: TTools } {
   return options
 }
 
@@ -389,7 +401,10 @@ export function createChatOptions<
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
  * - If stream is explicitly false (no schema): Promise<string>.
- * - Otherwise (default): AsyncIterable<StreamChunk>.
+ * - Otherwise (default): AsyncIterable<TypedStreamChunk<TTools>>.
+ *
+ * When tools with typed schemas are provided, the stream chunks include
+ * type-safe `toolName` and `input` fields on tool call events.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
  * default `boolean` value of `TStream` does *not* match the streaming branch.
@@ -399,13 +414,23 @@ export function createChatOptions<
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = boolean,
+  // Unconstrained so `chat()` can forward its inferred `options['tools']` type
+  // (which may be `undefined` or the broad `AnyRuntimeTool | ProviderTool`
+  // array) directly; non-tool-array inputs normalize to the default below.
+  TTools = ReadonlyArray<AnyTool>,
 > = TSchema extends SchemaInput
   ? [TStream] extends [true]
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : ChatStream
+    : AsyncIterable<
+        TypedStreamChunk<
+          TTools extends ReadonlyArray<AnyTool>
+            ? TTools
+            : ReadonlyArray<AnyTool>
+        >
+      >
 
 // ===========================
 // ChatEngine Implementation
@@ -474,6 +499,23 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
 /**
+ * Validate and normalize `maxToolCallsPerTurn`.
+ * Unset → unlimited. `0` → execute none. Negatives / non-finite → throw
+ * (Array#slice treats negatives as "from end", which is not a useful cap).
+ */
+function resolveMaxToolCallsPerTurn(
+  cap: number | undefined,
+): number | undefined {
+  if (cap == null) return undefined
+  if (!Number.isFinite(cap) || cap < 0) {
+    throw new Error(
+      `maxToolCallsPerTurn must be a non-negative finite number, got ${cap}`,
+    )
+  }
+  return Math.floor(cap)
+}
+
+/**
  * Combine two optional AbortSignals into one that aborts when either does.
  * Returns the other signal directly when one is absent or already aborted.
  * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
@@ -519,6 +561,12 @@ class TextEngine<
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
+  /** Cumulative tool calls counted in this run (emitted + pending resume). */
+  private toolCallCount = 0
+  /** Tool calls in the most recent budgeted batch (0 when none). */
+  private lastTurnToolCallCount = 0
+  /** Tool call IDs already counted toward `toolCallCount` (avoids double-count on resume). */
+  private readonly countedToolCallIds = new Set<string>()
   private lastFinishReason: string | null = null
   private streamStartTime = 0
   private totalChunkCount = 0
@@ -534,6 +582,7 @@ class TextEngine<
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
+  private readonly maxToolCallsPerTurn: number | undefined
   // Client state extracted from initial messages (before conversion to ModelMessage)
   private readonly initialApprovals: Map<string, boolean>
   private readonly initialClientToolResults: Map<string, any>
@@ -599,6 +648,9 @@ class TextEngine<
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
+    this.maxToolCallsPerTurn = resolveMaxToolCallsPerTurn(
+      config.params.maxToolCallsPerTurn,
+    )
     this.initialMessageCount = config.params.messages.length
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
@@ -1302,9 +1354,14 @@ class TextEngine<
 
     const finishEvent = this.createSyntheticFinishedEvent()
 
+    // Same fan-out budget as live model turns (seeded history / resume).
+    // Count is deduped so wait→resume after a live turn does not double-count.
+    const { toExecute: budgetedToolCalls, skippedResults } =
+      this.applyToolCallBudget(pendingToolCalls)
+
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executablePendingCalls = pendingToolCalls.filter((tc) => {
+    const executablePendingCalls = budgetedToolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1321,16 +1378,27 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0) {
-      for (const chunk of this.buildToolResultChunks(
-        undiscoveredLazyResults,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
+    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
+    // Emitted after executed results so the stream prefers real results first.
+    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
+
+    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
+    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
+    const argsMap = new Map<string, string>()
+    for (const tc of pendingToolCalls) {
+      argsMap.set(tc.id, tc.function.arguments)
     }
 
     if (executablePendingCalls.length === 0) {
+      if (deferredErrorResults.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          deferredErrorResults,
+          finishEvent,
+          argsMap,
+        )) {
+          yield* this.pipeThroughMiddleware(chunk)
+        }
+      }
       return 'continue'
     }
 
@@ -1384,28 +1452,23 @@ class TextEngine<
       return 'stop'
     }
 
+    const allResults = [...executionResult.results, ...deferredErrorResults]
+
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
     await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
       toolCalls: pendingToolCalls,
-      results: executionResult.results,
+      results: allResults,
       needsApproval: executionResult.needsApproval,
       needsClientExecution: executionResult.needsClientExecution,
     })
-
-    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
-    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
-    const argsMap = new Map<string, string>()
-    for (const tc of pendingToolCalls) {
-      argsMap.set(tc.id, tc.function.arguments)
-    }
 
     if (
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
-      if (executionResult.results.length > 0) {
+      if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
-          executionResult.results,
+          allResults,
           finishEvent,
           argsMap,
         )) {
@@ -1432,7 +1495,7 @@ class TextEngine<
     }
 
     const toolResultChunks = this.buildToolResultChunks(
-      executionResult.results,
+      allResults,
       finishEvent,
       argsMap,
     )
@@ -1446,6 +1509,8 @@ class TextEngine<
 
   private async *processToolCalls(): AsyncGenerator<StreamChunk, void, void> {
     if (!this.shouldExecuteToolPhase()) {
+      // Text-only turn — clear per-turn count so strategies see 0 tools.
+      this.lastTurnToolCallCount = 0
       this.setToolPhase('stop')
       return
     }
@@ -1454,15 +1519,20 @@ class TextEngine<
     const finishEvent = this.finishedEvent
 
     if (!finishEvent || toolCalls.length === 0) {
+      this.lastTurnToolCallCount = 0
       this.setToolPhase('stop')
       return
     }
+
+    // Count every model-emitted tool call (including ones we may skip).
+    const { toExecute: budgetedToolCalls, skippedResults } =
+      this.applyToolCallBudget(toolCalls)
 
     this.addAssistantToolCallMessage(toolCalls)
 
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executableToolCalls = toolCalls.filter((tc) => {
+    const executableToolCalls = budgetedToolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1479,17 +1549,21 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0 && this.finishedEvent) {
-      for (const chunk of this.buildToolResultChunks(
-        undiscoveredLazyResults,
-        this.finishedEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-    }
+    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
+    // Emitted after executed results so the stream prefers real results first.
+    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
 
     if (executableToolCalls.length === 0) {
-      // All tool calls were undiscovered lazy tools — errors emitted, continue loop
+      // All tool calls were undiscovered lazy tools and/or skipped by the
+      // per-turn fan-out cap — errors emitted, continue loop (strategy may stop).
+      if (deferredErrorResults.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          deferredErrorResults,
+          finishEvent,
+        )) {
+          yield* this.pipeThroughMiddleware(chunk)
+        }
+      }
       this.toolCallManager.clear()
       this.setToolPhase('continue')
       return
@@ -1548,10 +1622,13 @@ class TextEngine<
       return
     }
 
+    // Executed results first, then deferred errors (fan-out skips / undiscovered)
+    const allResults = [...executionResult.results, ...deferredErrorResults]
+
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
     await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
       toolCalls,
-      results: executionResult.results,
+      results: allResults,
       needsApproval: executionResult.needsApproval,
       needsClientExecution: executionResult.needsClientExecution,
     })
@@ -1560,9 +1637,9 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
-      if (executionResult.results.length > 0) {
+      if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
-          executionResult.results,
+          allResults,
           finishEvent,
         )) {
           yield* this.pipeThroughMiddleware(chunk)
@@ -1587,10 +1664,7 @@ class TextEngine<
       return
     }
 
-    const toolResultChunks = this.buildToolResultChunks(
-      executionResult.results,
-      finishEvent,
-    )
+    const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
 
     for (const chunk of toolResultChunks) {
       yield* this.pipeThroughMiddleware(chunk)
@@ -1741,7 +1815,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1764,7 +1838,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      } as StreamChunk)
+      })
     }
 
     return chunks
@@ -1791,6 +1865,7 @@ class TextEngine<
       // argsMap is set only on continuation re-executions, where the adapter
       // never streamed these calls. Otherwise it already emitted END, so a
       // second one here would be an orphan that fails verifyEvents (#519).
+      // When we do emit END, attach parsed `input`/`output` for TypedStreamChunk.
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1799,7 +1874,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1819,8 +1894,10 @@ class TextEngine<
           toolCallName: result.toolName,
           toolName: result.toolName,
           result: wireContent,
+          ...(result.input !== undefined && { input: result.input }),
+          ...(result.output !== undefined && { output: result.output }),
           ...(result.state !== undefined && { state: result.state }),
-        } as StreamChunk)
+        })
       }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
@@ -1943,8 +2020,62 @@ class TextEngine<
         iterationCount: this.iterationCount,
         messages: this.messages,
         finishReason: this.lastFinishReason,
+        toolCallCount: this.toolCallCount,
+        lastTurnToolCallCount: this.lastTurnToolCallCount,
       }) && this.toolPhase === 'continue'
     )
+  }
+
+  /**
+   * Record tool calls (deduped by id) and return the subset that should be
+   * executed after applying `maxToolCallsPerTurn`. Excess calls get synthetic
+   * error results so every tool_call still has a matching result.
+   *
+   * Used for both live model turns and pending/resume batches. IDs already
+   * counted in this run (e.g. wait→resume after a live turn) are not
+   * re-added to `toolCallCount`.
+   */
+  private applyToolCallBudget(toolCalls: Array<ToolCall>): {
+    toExecute: Array<ToolCall>
+    skippedResults: Array<ToolResult>
+  } {
+    this.lastTurnToolCallCount = toolCalls.length
+    let newlyCounted = 0
+    for (const tc of toolCalls) {
+      if (!this.countedToolCallIds.has(tc.id)) {
+        this.countedToolCallIds.add(tc.id)
+        newlyCounted++
+      }
+    }
+    this.toolCallCount += newlyCounted
+
+    const cap = this.maxToolCallsPerTurn
+    if (cap == null || toolCalls.length <= cap) {
+      return { toExecute: toolCalls, skippedResults: [] }
+    }
+
+    this.logger.agentLoop(
+      `maxToolCallsPerTurn=${cap} skipped=${toolCalls.length - cap}`,
+      {
+        maxToolCallsPerTurn: cap,
+        emitted: toolCalls.length,
+        skipped: toolCalls.length - cap,
+      },
+    )
+
+    const toExecute = toolCalls.slice(0, cap)
+    const skippedResults: Array<ToolResult> = toolCalls
+      .slice(cap)
+      .map((tc) => ({
+        toolCallId: tc.id,
+        toolName: tc.function.name,
+        result: {
+          error: `Skipped: exceeded maxToolCallsPerTurn (${cap})`,
+        },
+        state: 'output-error' as const,
+      }))
+
+    return { toExecute, skippedResults }
   }
 
   private isAborted(): boolean {
@@ -2610,7 +2741,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {
@@ -2712,7 +2843,7 @@ export function chat<
     TTools,
     TMiddleware
   >,
-): TextActivityResult<TSchema, TStream> {
+): TextActivityResult<TSchema, TStream, TTools> {
   validateCapabilities(options.middleware ?? [], options.adapter)
 
   const { outputSchema, stream } = options
@@ -2725,7 +2856,7 @@ export function chat<
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
@@ -2733,7 +2864,7 @@ export function chat<
     return runAgenticStructuredOutput({
       ...options,
       outputSchema,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If stream is explicitly false, run non-streaming text
@@ -2742,7 +2873,7 @@ export function chat<
       ...options,
       outputSchema: undefined,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // Otherwise, run streaming text (default)
@@ -2750,7 +2881,7 @@ export function chat<
     ...options,
     outputSchema: undefined,
     stream,
-  }) as TextActivityResult<TSchema, TStream>
+  }) as TextActivityResult<TSchema, TStream, TTools>
 }
 
 /**
@@ -2801,7 +2932,7 @@ function runNonStreamingText<TContext = unknown>(
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText.
   const stream = runStreamingText(
-    // eslint-disable-next-line no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
     options as unknown as TextActivityOptions<
       AnyTextAdapter,
       undefined,

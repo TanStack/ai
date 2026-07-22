@@ -34,7 +34,7 @@
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/devtools-event-bus": "^0.4.1",
-    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
@@ -48,7 +48,6 @@
     "remark-cjk-friendly": "^2.0.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.2.0"
   },
   "devDependencies": {
@@ -59,6 +58,6 @@
     "@vitejs/plugin-react": "^5.1.2",
     "miniflare": "^4.20260609.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^8.1.4"
   }
 }

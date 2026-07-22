@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   maxIterations,
+  maxToolCalls,
   untilFinishReason,
   combineStrategies,
 } from '../src/activities/chat/agent-loop-strategies'
@@ -13,6 +14,8 @@ describe('Agent Loop Strategies', () => {
     iterationCount: 0,
     messages: [],
     finishReason: null,
+    toolCallCount: 0,
+    lastTurnToolCallCount: 0,
     ...overrides,
   })
 
@@ -43,6 +46,42 @@ describe('Agent Loop Strategies', () => {
       const strategy = maxIterations(0)
 
       expect(strategy(createState({ iterationCount: 0 }))).toBe(false)
+    })
+  })
+
+  describe('maxToolCalls', () => {
+    it('should continue when below max tool calls', () => {
+      const strategy = maxToolCalls(20)
+
+      expect(strategy(createState({ toolCallCount: 0 }))).toBe(true)
+      expect(strategy(createState({ toolCallCount: 10 }))).toBe(true)
+      expect(strategy(createState({ toolCallCount: 19 }))).toBe(true)
+    })
+
+    it('should stop when reaching max tool calls', () => {
+      const strategy = maxToolCalls(20)
+
+      expect(strategy(createState({ toolCallCount: 20 }))).toBe(false)
+      expect(strategy(createState({ toolCallCount: 21 }))).toBe(false)
+    })
+
+    it('should ignore iterationCount (counts tools, not turns)', () => {
+      const strategy = maxToolCalls(5)
+
+      // Many iterations but few tools — still continue
+      expect(
+        strategy(createState({ iterationCount: 100, toolCallCount: 4 })),
+      ).toBe(true)
+      // Few iterations but many tools — stop
+      expect(
+        strategy(createState({ iterationCount: 1, toolCallCount: 5 })),
+      ).toBe(false)
+    })
+
+    it('should work with max = 0 (never allow tool calls)', () => {
+      const strategy = maxToolCalls(0)
+
+      expect(strategy(createState({ toolCallCount: 0 }))).toBe(false)
     })
   })
 

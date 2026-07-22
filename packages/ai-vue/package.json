@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.14.4",
+  "version": "0.15.1",
   "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -32,7 +32,7 @@
   ],
   "scripts": {
     "clean": "premove ./build ./dist",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
@@ -68,7 +68,7 @@
     "jsdom": "^27.2.0",
     "tsdown": "^0.17.0-beta.6",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.1.10",
     "vue": "^3.5.25"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.21.0",
+  "version": "0.22.1",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -51,11 +51,11 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:coverage": "vitest run --coverage",
     "test:coverage:watch": "vitest --coverage --watch",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -68,7 +68,7 @@
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3",
+    "vite": "^8.1.4",
     "zod": "^4.2.0"
   }
 }

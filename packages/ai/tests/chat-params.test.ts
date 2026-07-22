@@ -168,7 +168,9 @@ describe('mergeAgentTools', () => {
     const result = mergeAgentTools(server, client)
     expect(result).toHaveLength(1)
     expect(result[0]!.name).toBe('showToast')
-    expect(result[0]!.execute).toBeUndefined()
+    expect(
+      'execute' in result[0]! ? result[0]!.execute : undefined,
+    ).toBeUndefined()
     expect(result[0]!.inputSchema).toEqual({ type: 'object', properties: {} })
     expect(result[0]!.description).toBe('render a toast')
   })
@@ -185,7 +187,7 @@ describe('mergeAgentTools', () => {
     const result = mergeAgentTools(server, client)
     expect(result).toHaveLength(1)
     expect(result[0]!.description).toBe('server greet')
-    expect(result[0]!.execute).toBeDefined()
+    expect('execute' in result[0]! && result[0]!.execute).toBeTruthy()
   })
 
   it('preserves the order: server tools first, then unique client tools', () => {

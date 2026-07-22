@@ -95,11 +95,15 @@ describe('xhr connection adapters', () => {
       await nextTick()
 
       expect(xhr.method).toBe('POST')
+      // The run id is sent in the X-Run-Id header so a durable server can
+      // correlate a reconnect/join to the same run, while the POST URL stays
+      // byte-identical to a plain request (matches the fetch SSE adapter).
       expect(xhr.url).toBe('/api/chat')
       expect(xhr.withCredentials).toBe(true)
       expect(xhr.requestHeaders).toMatchObject({
         'Content-Type': 'application/json',
         Authorization: 'Bearer token',
+        'X-Run-Id': 'run-1',
       })
       const body = JSON.parse(xhr.requestBody ?? '{}')
       expect(body).toMatchObject({
@@ -174,6 +178,12 @@ describe('xhr connection adapters', () => {
       await expect(nextChunk).resolves.toMatchObject({
         done: false,
         value: { type: EventType.RUN_FINISHED },
+      })
+      // Completing iteration tears the socket down so late bytes stop
+      // downloading (the terminal event's yield pauses before cleanup).
+      await expect(iterator.next()).resolves.toEqual({
+        done: true,
+        value: undefined,
       })
       expect(xhr.abort).toHaveBeenCalledTimes(1)
     })
@@ -257,13 +267,10 @@ describe('xhr connection adapters', () => {
         done: true,
         value: undefined,
       })
-      expect(xhr.abort).toHaveBeenCalledTimes(1)
+      // An already-aborted signal short-circuits before any request is opened,
+      // so no XHR is created, sent, or aborted.
+      expect(xhr.abort).not.toHaveBeenCalled()
       expect(xhr.send).not.toHaveBeenCalled()
-      expect(xhr.onprogress).toBeNull()
-      expect(xhr.onload).toBeNull()
-      expect(xhr.onerror).toBeNull()
-      expect(xhr.onabort).toBeNull()
-      expect(xhr.onloadend).toBeNull()
     })
 
     it('maps AbortSignal to xhr.abort, stops output, and cleans up handlers', async () => {
@@ -341,7 +348,11 @@ describe('xhr connection adapters', () => {
       await nextTick()
       failure.xhr.error()
 
-      await expect(failureNext).rejects.toThrow('XHR request failed')
+      // A network onerror surfaces as StreamReadError (so a durable run can
+      // reconnect); the original cause is preserved on `.cause`.
+      await expect(failureNext).rejects.toThrow(
+        'Stream response body read failed',
+      )
       expect(failureRemoveEventListener).toHaveBeenCalledWith(
         'abort',
         expect.any(Function),
@@ -427,13 +438,9 @@ describe('xhr connection adapters', () => {
         done: true,
         value: undefined,
       })
-      expect(xhr.abort).toHaveBeenCalledTimes(1)
+      // An already-aborted signal short-circuits before any request is opened.
+      expect(xhr.abort).not.toHaveBeenCalled()
       expect(xhr.send).not.toHaveBeenCalled()
-      expect(xhr.onprogress).toBeNull()
-      expect(xhr.onload).toBeNull()
-      expect(xhr.onerror).toBeNull()
-      expect(xhr.onabort).toBeNull()
-      expect(xhr.onloadend).toBeNull()
     })
   })
 })

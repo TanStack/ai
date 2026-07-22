@@ -1,5 +1,28 @@
 # @tanstack/ai-svelte
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+  - @tanstack/ai-client@0.22.1
+
+## 0.15.0
+
+### Minor Changes
+
+- [#900](https://github.com/TanStack/ai/pull/900) [`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c) - Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.** Restore the previous drop-while-busy behavior with `queue: 'drop'`.
+
+  The behavior is configurable via a new `queue` option, which accepts `whenBusy: 'queue' | 'drop' | 'interrupt'`, `drain: 'fifo' | 'batch'`, `maxSize`, and `onOverflow`, or a custom strategy function for full control.
+
+  Queued messages are exposed on the hook as `queue` and can be cancelled before they send via `cancelQueued(id)`. `sendMessage` also accepts a per-call `{ whenBusy }` override.
+
+### Patch Changes
+
+- Updated dependencies [[`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c)]:
+  - @tanstack/ai-client@0.22.0
+
 ## 0.14.4
 
 ### Patch Changes

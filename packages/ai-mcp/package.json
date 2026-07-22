@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-mcp",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Host-side Model Context Protocol client for TanStack AI: discover and run MCP server tools, resources, and prompts in any adapter's chat() loop, with generated end-to-end types.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -52,10 +52,10 @@
   "scripts": {
     "build": "vite build && tsup --config tsup.bin.config.ts",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:coverage": "vitest run --coverage",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -69,7 +69,7 @@
     "jiti": "^2.4.2",
     "json-schema-to-typescript": "^15.0.4",
     "tsup": "^8.5.1",
-    "vite": "^7.3.3",
+    "vite": "^8.1.4",
     "zod": "^4.2.0"
   }
 }

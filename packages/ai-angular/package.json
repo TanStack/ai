@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-angular",
-  "version": "0.2.4",
+  "version": "0.3.1",
   "description": "Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
@@ -45,7 +45,7 @@
   ],
   "scripts": {
     "clean": "premove ./build ./dist",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "vitest",
     "test:types": "tsc",
@@ -73,7 +73,7 @@
     "jsdom": "^27.2.0",
     "ng-packagr": "^21.2.0",
     "typescript": "5.9.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.1.10",
     "zod": "^4.2.0",
     "zone.js": "^0.15.0"
   }

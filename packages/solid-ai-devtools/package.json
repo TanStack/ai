@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-ai-devtools",
-  "version": "0.2.66",
+  "version": "0.2.67",
   "description": "Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -39,9 +39,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -69,7 +69,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
     "solid-js": "^1.9.10",
-    "vite": "^7.3.3",
+    "vite": "^8.1.4",
     "vite-plugin-solid": "^2.11.10"
   }
 }

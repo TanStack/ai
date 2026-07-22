@@ -104,6 +104,6 @@ export function createChatMiddleware(): ChatMiddlewareBuilder<
   // object reused across `.use()` calls, but the type accumulates `TProvided`
   // and `TList` per call — TypeScript cannot derive that from runtime values, so
   // a structural `as` is impossible and the double assertion is irreducible.
-  // eslint-disable-next-line no-restricted-syntax -- irreducible: type-level accumulation cannot be expressed from a single runtime object
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- irreducible: type-level accumulation cannot be expressed from a single runtime object
   return builder as unknown as ChatMiddlewareBuilder<readonly [], never>
 }

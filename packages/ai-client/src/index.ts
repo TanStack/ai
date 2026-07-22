@@ -35,6 +35,13 @@ export type {
   ChatTransport,
   DistributedOmit,
   MultimodalContent,
+  QueuedMessage,
+  WhenBusy,
+  QueueBusyReason,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
+  SendMessageOptions,
 } from './types'
 // Generation client types
 export type {
@@ -88,9 +95,13 @@ export {
   stream,
   rpcStream,
   StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type ReconnectOptions,
+  type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
   type SubscribeConnectionAdapter,
   type XhrConnectionOptions,

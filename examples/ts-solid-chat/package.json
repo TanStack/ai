@@ -20,7 +20,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
     "@tanstack/ai-solid-ui": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/router-plugin": "^1.158.4",
     "@tanstack/solid-ai-devtools": "workspace:*",
     "@tanstack/solid-devtools": "^0.7.15",
@@ -35,7 +35,6 @@
     "solid-js": "^1.9.10",
     "solid-markdown": "^2.1.0",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.2.0"
   },
   "devDependencies": {
@@ -46,9 +45,9 @@
     "@types/node": "^24.10.1",
     "jsdom": "^27.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.3",
+    "vite": "^8.1.4",
     "vite-plugin-solid": "^2.11.10",
-    "vitest": "^4.0.14",
+    "vitest": "^4.1.10",
     "web-vitals": "^5.1.0"
   }
 }
