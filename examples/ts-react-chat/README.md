@@ -369,6 +369,18 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
+## Persistent chat (`/persistent-chat`)
+
+A chat that survives a full page reload on both ends. The client writes the
+transcript to `localStorage` (via `localStoragePersistence`), so a reload
+restores the conversation instantly. The server writes the same transcript,
+run records, and interrupt state to SQLite with `withChatPersistence`
+(`@tanstack/ai-persistence` + the Drizzle SQLite backend), so it survives a
+server restart too — the DB lives at `.data/persistent-chat.db` (gitignored).
+
+Try it: send a message, wait for the reply, then reload the page. The
+conversation is still there. Needs `OPENAI_API_KEY` in `.env`.
+
 ## Sandboxes — GitHub issue triage (`/sandboxes`)
 
 Pick a harness adapter (Claude Code, Codex, OpenCode) and a sandbox
