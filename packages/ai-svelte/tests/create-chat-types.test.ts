@@ -245,8 +245,8 @@ describe('createChat() interrupt types', () => {
       })
       // @ts-expect-error rejected approvals cannot edit tool input
       transferInterrupt.resolveInterrupt(false, { editedArgs: { cents: 1 } })
-      // @ts-expect-error approve payload uses the approve branch
       transferInterrupt.resolveInterrupt(true, {
+        // @ts-expect-error approve payload uses the approve branch
         payload: { reason: 'wrong branch' },
       })
 
