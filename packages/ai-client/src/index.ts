@@ -6,6 +6,12 @@ export type {
   InferAudioRecordingOutput,
 } from './audio-recorder'
 export { ChatClient } from './chat-client'
+export { InterruptManager } from './interrupt-manager'
+export type {
+  InterruptManagerHydration,
+  InterruptManagerOptions,
+  InterruptManagerSubmission,
+} from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
 export { RealtimeClient } from './realtime-client'
@@ -23,7 +29,20 @@ export type {
   // Client configuration types
   ChatClientPersistence,
   ChatClientOptions,
+  ChatPendingInterrupt,
+  BoundInterruptBase,
+  BoundInterrupts,
+  ChatInterrupt,
+  ChatInterruptState,
+  GenericAGUIInterrupt,
+  UnboundInterrupt,
+  InterruptItemStatus,
+  ToolApprovalInterrupt,
   ClientContextOptionFromTools,
+  ChatResumeState,
+  ChatResumeSnapshot,
+  ChatResumeSnapshotV1,
+  ChatResumeSnapshotV2,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -79,7 +98,15 @@ export type {
   ExtractToolInput,
   ExtractToolOutput,
 } from './tool-types'
-export type { AnyClientTool } from '@tanstack/ai/client'
+export type {
+  AnyClientTool,
+  Interrupt,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+  RunAgentResumeItem,
+  RunFinishedOutcome,
+} from '@tanstack/ai/client'
 export type {
   RealtimeAdapter,
   RealtimeConnection,
@@ -95,9 +122,13 @@ export {
   stream,
   rpcStream,
   StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type ReconnectOptions,
+  type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
   type SubscribeConnectionAdapter,
   type XhrConnectionOptions,

@@ -13,11 +13,13 @@ import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
+import { Route as ResumableRouteImport } from './routes/resumable'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as QueueingRouteImport } from './routes/queueing'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
+import { Route as InterruptsRouteImport } from './routes/interrupts'
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
@@ -38,6 +40,7 @@ import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -46,6 +49,7 @@ import { Route as ApiMcpAppsWeatherServerRouteImport } from './routes/api.mcp-ap
 import { Route as ApiMcpAppsShopServerRouteImport } from './routes/api.mcp-apps-shop-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
+import { Route as ApiInterruptsRouteImport } from './routes/api.interrupts'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
@@ -76,6 +80,11 @@ const SandboxesRoute = SandboxesRouteImport.update({
   path: '/sandboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResumableRoute = ResumableRouteImport.update({
+  id: '/resumable',
+  path: '/resumable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
@@ -99,6 +108,11 @@ const McpAppsRoute = McpAppsRouteImport.update({
 const Issue176ToolResultRoute = Issue176ToolResultRouteImport.update({
   id: '/issue-176-tool-result',
   path: '/issue-176-tool-result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterruptsRoute = InterruptsRouteImport.update({
+  id: '/interrupts',
+  path: '/interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageToolReproRoute = ImageToolReproRouteImport.update({
@@ -204,6 +218,11 @@ const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   path: '/api/sandbox-triage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResumableRoute = ApiResumableRouteImport.update({
+  id: '/api/resumable',
+  path: '/api/resumable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -242,6 +261,11 @@ const ApiMcpAppsChatRoute = ApiMcpAppsChatRouteImport.update({
 const ApiMcpAppsCallRoute = ApiMcpAppsCallRouteImport.update({
   id: '/api/mcp-apps-call',
   path: '/api/mcp-apps-call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInterruptsRoute = ApiInterruptsRouteImport.update({
+  id: '/api/interrupts',
+  path: '/api/interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImageToolReproRoute = ApiImageToolReproRouteImport.update({
@@ -296,11 +320,13 @@ export interface FileRoutesByFullPath {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -308,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -316,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -344,11 +372,13 @@ export interface FileRoutesByTo {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -356,6 +386,7 @@ export interface FileRoutesByTo {
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -364,6 +395,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -393,11 +425,13 @@ export interface FileRoutesById {
   '/generation-hooks': typeof GenerationHooksRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
+  '/interrupts': typeof InterruptsRoute
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -405,6 +439,7 @@ export interface FileRoutesById {
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
+  '/api/interrupts': typeof ApiInterruptsRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-shop-server': typeof ApiMcpAppsShopServerRoute
@@ -413,6 +448,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
@@ -443,11 +479,13 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -455,6 +493,7 @@ export interface FileRouteTypes {
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -463,6 +502,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -491,11 +531,13 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -503,6 +545,7 @@ export interface FileRouteTypes {
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -511,6 +554,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -539,11 +583,13 @@ export interface FileRouteTypes {
     | '/generation-hooks'
     | '/image-gen'
     | '/image-tool-repro'
+    | '/interrupts'
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
     | '/queueing'
     | '/realtime'
+    | '/resumable'
     | '/sandboxes'
     | '/server-fn-chat'
     | '/threads'
@@ -551,6 +597,7 @@ export interface FileRouteTypes {
     | '/api/capability-demo'
     | '/api/image-gen'
     | '/api/image-tool-repro'
+    | '/api/interrupts'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-shop-server'
@@ -559,6 +606,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
     | '/api/structured-output'
@@ -588,11 +636,13 @@ export interface RootRouteChildren {
   GenerationHooksRoute: typeof GenerationHooksRoute
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
+  InterruptsRoute: typeof InterruptsRoute
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
+  ResumableRoute: typeof ResumableRoute
   SandboxesRoute: typeof SandboxesRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
@@ -600,6 +650,7 @@ export interface RootRouteChildren {
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
+  ApiInterruptsRoute: typeof ApiInterruptsRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsShopServerRoute: typeof ApiMcpAppsShopServerRoute
@@ -608,6 +659,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
@@ -661,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SandboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/resumable': {
+      id: '/resumable'
+      path: '/resumable'
+      fullPath: '/resumable'
+      preLoaderRoute: typeof ResumableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -694,6 +753,13 @@ declare module '@tanstack/react-router' {
       path: '/issue-176-tool-result'
       fullPath: '/issue-176-tool-result'
       preLoaderRoute: typeof Issue176ToolResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interrupts': {
+      id: '/interrupts'
+      path: '/interrupts'
+      fullPath: '/interrupts'
+      preLoaderRoute: typeof InterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-tool-repro': {
@@ -836,6 +902,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/resumable': {
+      id: '/api/resumable'
+      path: '/api/resumable'
+      fullPath: '/api/resumable'
+      preLoaderRoute: typeof ApiResumableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -890,6 +963,13 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-apps-call'
       fullPath: '/api/mcp-apps-call'
       preLoaderRoute: typeof ApiMcpAppsCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/interrupts': {
+      id: '/api/interrupts'
+      path: '/api/interrupts'
+      fullPath: '/api/interrupts'
+      preLoaderRoute: typeof ApiInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image-tool-repro': {
@@ -964,11 +1044,13 @@ const rootRouteChildren: RootRouteChildren = {
   GenerationHooksRoute: GenerationHooksRoute,
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
+  InterruptsRoute: InterruptsRoute,
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
+  ResumableRoute: ResumableRoute,
   SandboxesRoute: SandboxesRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
@@ -976,6 +1058,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
+  ApiInterruptsRoute: ApiInterruptsRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsShopServerRoute: ApiMcpAppsShopServerRoute,
@@ -984,6 +1067,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiResumableRoute: ApiResumableRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,

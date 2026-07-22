@@ -463,7 +463,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       ...this.createMetadataPayload(),
       // Wire envelope uses Record<string, unknown>; widen the typed snapshot
       // here so the typed-snapshot constraint above can stay narrow.
-      // eslint-disable-next-line no-restricted-syntax -- TSnapshot extends object is structurally compatible but TS can't see the missing index signature
+      // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TSnapshot extends object is structurally compatible but TS can't see the missing index signature
       state: this.options.getSnapshot() as unknown as Record<string, unknown>,
     })
   }

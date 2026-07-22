@@ -197,13 +197,13 @@ describe('BedrockConverseTextAdapter', () => {
       events.push(c)
     }
     const complete = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.CUSTOM }> =>
-        e.type === EventType.CUSTOM &&
+      (e): e is Extract<StreamChunk, { type: 'CUSTOM' }> =>
+        e.type === 'CUSTOM' &&
         'name' in e &&
         e.name === 'structured-output.complete',
     )
     expect(complete).toBeDefined()
-    expect((complete?.value as { object: unknown }).object).toEqual({ n: 5 })
+    expect(complete?.value.object).toEqual({ n: 5 })
     // The forced-tool 'tool_use' stopReason is internal — a clean structured
     // run reports 'stop', not 'tool_calls'.
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)

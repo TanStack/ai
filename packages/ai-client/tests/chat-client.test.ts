@@ -89,7 +89,21 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
+      })
+
+      expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should hydrate messages from persistence.client', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
       })
 
       expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
@@ -104,7 +118,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([persistedMessage])
@@ -118,7 +132,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -132,7 +146,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -146,7 +160,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([])
@@ -166,7 +180,7 @@ describe('ChatClient', () => {
         id: 'chat-1',
         initialMessages: [initialMessage],
         onMessagesChange,
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -191,7 +205,7 @@ describe('ChatClient', () => {
         connection: adapter,
         id: 'chat-1',
         initialMessages: [initialMessage],
-        persistence,
+        persistence: persistence,
       })
 
       client.setMessagesManually([
@@ -415,7 +429,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -510,7 +524,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -644,7 +658,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -677,6 +691,133 @@ describe('ChatClient', () => {
       expect(storedMessages).toEqual(client.getMessages())
     })
 
+    it('should keep fresh runless chunks after server-only clear drains an ignored terminal chunk', async () => {
+      const releaseStaleTerminal = createDeferred<void>()
+      const staleTerminalAttempted = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const wakeQueuedSubscriber = () => {
+        const wake = wakeSubscriber
+        wakeSubscriber = null
+        wake?.()
+      }
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const next = queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A') {
+                  await releaseStaleTerminal.promise
+                  yield* next.chunks.slice(1)
+                  staleTerminalAttempted.resolve()
+                  continue
+                }
+                yield* next.chunks.slice(1)
+              }
+            })()
+          },
+        ),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks:
+                prompt === 'A'
+                  ? [
+                      {
+                        type: EventType.RUN_STARTED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                      {
+                        type: EventType.RUN_FINISHED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                    ]
+                  : createTextChunks(
+                      'fresh server-only response',
+                      'fresh-msg',
+                    ).map((chunk) => {
+                      if (
+                        chunk.type === 'TEXT_MESSAGE_START' ||
+                        chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+                        chunk.type === 'TEXT_MESSAGE_END' ||
+                        chunk.type === 'RUN_FINISHED'
+                      ) {
+                        const { runId: _runId, ...withoutRunId } = chunk
+                        return withoutRunId as StreamChunk
+                      }
+                      return chunk
+                    }),
+            })
+            wakeQueuedSubscriber()
+          },
+        ),
+      }
+      // Clear-during-stream suppression is owned by ChatPersistor; enable it
+      // with a no-op message adapter (no durable resume storage on this branch).
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: {
+          getItem: vi.fn(() => undefined),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseStaleTerminal.resolve()
+      await staleTerminalAttempted.promise
+      await firstSend
+
+      const secondSend = client.sendMessage('B')
+
+      const getFinalText = () =>
+        client
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join('')
+
+      await vi.waitFor(() => {
+        expect(getFinalText()).toContain('fresh server-only response')
+      })
+      await secondSend
+
+      const finalText = getFinalText()
+      expect(finalText).toContain('B')
+      expect(finalText).not.toContain('A')
+    })
     it('should ignore stale messages snapshot after persisted clear', async () => {
       let storedMessages: Array<UIMessage> | undefined
       const releaseSnapshot = createDeferred<void>()
@@ -721,7 +862,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -774,7 +915,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
         onError,
       })
 
@@ -892,7 +1033,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -985,7 +1126,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1054,7 +1195,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1110,7 +1251,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('A')
@@ -1246,7 +1387,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       client.subscribe()
@@ -1940,7 +2081,7 @@ describe('ChatClient', () => {
         const client = new ChatClient({
           connection,
           id: 'chat-1',
-          persistence,
+          persistence: persistence,
         })
 
         client.subscribe()
@@ -2313,7 +2454,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2325,7 +2466,7 @@ describe('ChatClient', () => {
       expect(persistence.setItem).not.toHaveBeenCalled()
     })
 
-    it('should not abort an in-flight stream when persistence is omitted', async () => {
+    it('should abort an in-flight stream when persistence is omitted', async () => {
       let abortSignal: AbortSignal | undefined
       // Gate the chunks on a deferred (instead of a fixed timer) so they are
       // released strictly after clear() runs — otherwise the assertion races
@@ -2347,18 +2488,14 @@ describe('ChatClient', () => {
       })
 
       client.clear()
-      expect(abortSignal?.aborted).toBe(false)
+      expect(abortSignal?.aborted).toBe(true)
 
-      // Without persistence, clear() does not abort the in-flight stream, so
-      // its chunks still populate messages once they arrive.
+      // Clear invalidates in-flight stream work even when message persistence
+      // is omitted, so delayed chunks cannot repopulate messages.
       releaseChunks.resolve()
       await sendPromise
 
-      expect(client.getMessages()).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ role: 'assistant' }),
-        ]),
-      )
+      expect(client.getMessages()).toEqual([])
     })
 
     it('should prevent delayed stream chunks from recreating messages after clear', async () => {
@@ -2370,7 +2507,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('Hello')
@@ -2409,7 +2546,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const sendPromise = client.sendMessage('Hello')
@@ -2455,7 +2592,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       const firstSend = client.sendMessage('A')
@@ -2505,7 +2642,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: createMockConnectionAdapter(),
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       client.setMessagesManually([initialMessage])
@@ -2528,7 +2665,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2546,7 +2683,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       client.setMessagesManually([initialMessage])
@@ -2568,7 +2705,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         id: 'chat-1',
-        persistence,
+        persistence: persistence,
       })
 
       await client.sendMessage('Hello')
@@ -2619,7 +2756,7 @@ describe('ChatClient', () => {
         id: 'chat-1',
         initialMessages: [initialMessage],
         onMessagesChange,
-        persistence,
+        persistence: persistence,
       })
 
       expect(client.getMessages()).toEqual([initialMessage])
@@ -3243,16 +3380,16 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        body: { model: 'gpt-4', temperature: 0.7 },
+        body: { model: 'gpt-5.5', temperature: 0.7 },
       })
 
       await client.sendMessage('Hello', {
-        model: 'gpt-4-turbo',
+        model: 'gpt-5.5',
         maxTokens: 100,
       })
 
       // Per-message body should override base body
-      expect(capturedData?.['model']).toBe('gpt-4-turbo')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
       expect(capturedData?.['temperature']).toBe(0.7) // From base body
       expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
     })
@@ -3269,13 +3406,13 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        forwardedProps: { provider: 'openai', model: 'gpt-4o' },
+        forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
       })
 
       await client.sendMessage('Hello')
 
       expect(capturedData?.['provider']).toBe('openai')
-      expect(capturedData?.['model']).toBe('gpt-4o')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
     })
 
     it('updateOptions({ forwardedProps }) leaves a previously-set body intact', async () => {
@@ -3291,15 +3428,15 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-4' },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       // Replace only `forwardedProps` — `body` must survive.
-      client.updateOptions({ forwardedProps: { model: 'gpt-4o' } })
+      client.updateOptions({ forwardedProps: { model: 'gpt-5.5' } })
 
       await client.sendMessage('Hi')
       expect(captures[0]?.['provider']).toBe('openai')
-      expect(captures[0]?.['model']).toBe('gpt-4o')
+      expect(captures[0]?.['model']).toBe('gpt-5.5')
     })
 
     it('updateOptions({ body }) leaves a previously-set forwardedProps intact', async () => {
@@ -3315,14 +3452,14 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-4' },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       client.updateOptions({ body: { provider: 'anthropic' } })
 
       await client.sendMessage('Hi')
       expect(captures[0]?.['provider']).toBe('anthropic')
-      expect(captures[0]?.['model']).toBe('gpt-4')
+      expect(captures[0]?.['model']).toBe('gpt-5.5')
     })
 
     it('should merge body and forwardedProps with forwardedProps winning', async () => {
@@ -3339,14 +3476,14 @@ describe('ChatClient', () => {
         connection: adapter,
         // Legacy `body` and new `forwardedProps` declared together —
         // simulates a mid-migration codebase.
-        body: { model: 'gpt-4', temperature: 0.7 },
-        forwardedProps: { model: 'gpt-4o' },
+        body: { model: 'gpt-5.5', temperature: 0.7 },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       await client.sendMessage('Hello')
 
       // forwardedProps wins on key collision so partial migrations are sane.
-      expect(capturedData?.['model']).toBe('gpt-4o')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
       // Non-conflicting keys from `body` are still forwarded.
       expect(capturedData?.['temperature']).toBe(0.7)
     })
@@ -3409,7 +3546,7 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        body: { model: 'gpt-4' },
+        body: { model: 'gpt-5.5' },
       })
 
       // First message with per-message body
@@ -3419,7 +3556,7 @@ describe('ChatClient', () => {
       // Second message without per-message body should not have temperature
       await client.sendMessage('Second')
       expect(capturedData?.['temperature']).toBeUndefined()
-      expect(capturedData?.['model']).toBe('gpt-4')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
     })
 
     it('should emit events with multimodal content', async () => {

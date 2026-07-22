@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -36,8 +36,8 @@
   ],
   "scripts": {
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
-    "test:eslint": "eslint ./src",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
@@ -65,7 +65,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
     "preact": "^10.26.9",
-    "vite": "^7.3.3"
+    "vite": "^8.1.4"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",

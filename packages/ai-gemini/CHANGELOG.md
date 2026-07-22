@@ -1,5 +1,12 @@
 # @tanstack/ai-gemini
 
+## 0.20.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
 ## 0.20.0
 
 ### Minor Changes
@@ -779,8 +786,7 @@
 
   ```ts
   type GeneratedMediaSource =
-    | { url: string; b64Json?: never }
-    | { b64Json: string; url?: never }
+    { url: string; b64Json?: never } | { b64Json: string; url?: never }
   ```
 
   Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.

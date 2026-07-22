@@ -4,7 +4,15 @@
     "outDir": "dist",
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    // Tests import shared fixtures from a sibling package
+    // (`../../ai-client/tests/*`), so the program spans two packages. TS5.9
+    // inferred `rootDir` as their common ancestor; TS7 defaults it to the
+    // project dir and then rejects the out-of-root files (TS6059). Point
+    // `rootDir` back at the workspace root. `test:types` is `noEmit`, and the
+    // published build sets its own dts entry root, so this only affects the
+    // typecheck program shape.
+    "rootDir": "../.."
   },
   "include": ["src", "tests"],
   "exclude": ["node_modules", "dist"]
