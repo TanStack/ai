@@ -12,6 +12,7 @@ library_version: '0.10.0'
 sources:
   - 'TanStack/ai:docs/advanced/middleware.md'
   - 'TanStack/ai:docs/sandbox/observability.md'
+  - 'TanStack/ai:docs/persistence/overview.md'
 ---
 
 # Middleware
@@ -372,6 +373,94 @@ Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default
 `keyFn` (custom cache key), `storage` (custom backend like Redis). See
 `docs/advanced/middleware.md` for custom storage examples.
 
+## Server State Persistence: withChatPersistence
+
+`withChatPersistence(persistence)` (from `@tanstack/ai-persistence`) is a
+`ChatMiddleware` that persists **state** for `chat()` — thread messages, run
+records (status/timing/usage/errors), and interrupt state — to a backend store.
+Add it to the `middleware` array like any other middleware. It never mutates the
+chunk stream; replaying a dropped/reloaded *stream* is a separate transport-layer
+concern (see ai-core/chat-experience/SKILL.md resumability, not this middleware).
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { withChatPersistence } from '@tanstack/ai-persistence'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
+
+const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
+  migrate: true,
+})
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    middleware: [withChatPersistence(persistence)],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+### Authoritative-history contract
+
+The middleware treats each request's `messages` as the source of truth for the
+thread:
+
+- **Non-empty `messages`** → on a successful finish (and at an interrupt
+  boundary) the middleware **overwrites** the entire stored thread with that
+  array. Post the **complete** transcript, never just the newest message(s) — a
+  delta would replace and destroy the stored history.
+- **Empty `messages`** → the middleware **loads** the stored thread and runs the
+  turn from the server's copy. This is how you continue a conversation without
+  resending history from the client.
+
+### Backends
+
+Every backend returns an `AIPersistence` you pass straight to
+`withChatPersistence`:
+
+| Backend                              | Factory                                     | Import                                              |
+| ------------------------------------ | ------------------------------------------- | --------------------------------------------------- |
+| In-memory (dev/tests)                | `memoryPersistence()`                       | `@tanstack/ai-persistence`                          |
+| Drizzle SQLite-family (edge-safe)    | `drizzlePersistence(db)`                    | `@tanstack/ai-persistence-drizzle`                  |
+| Node SQLite convenience factory      | `sqlitePersistence({ url, migrate })`       | `@tanstack/ai-persistence-drizzle/sqlite`           |
+| Prisma                               | `prismaPersistence(prisma)`                 | `@tanstack/ai-persistence-prisma`                   |
+| Cloudflare (D1 + Durable Object locks) | `cloudflarePersistence({ d1, durableObjects })` | `@tanstack/ai-persistence-cloudflare`           |
+
+`drizzlePersistence(db)` is the edge-safe root — pass an already-migrated
+SQLite-compatible Drizzle database (including Cloudflare D1). `sqlitePersistence`
+is Node-only and lives at the `/sqlite` subpath. Compose backends per store with
+`composePersistence(base, { overrides })`.
+
+### Resume reconstruction is the engine's job, not the middleware's
+
+When a thread has pending interrupts, the middleware only **records** the
+interrupts and **gates** new input: a request that carries pending interrupts
+must include a `resume` batch that references them, or `onConfig` throws. The
+middleware does **not** build `ChatResumeToolState`. The chat engine reconstructs
+the actual resume tool state itself, from `config.resume` plus the interrupt
+bindings carried in the server-loaded message history. Resumes accepted in
+`onConfig` are committed (marked resolved/cancelled) only once the run reaches a
+successful boundary, so a provider failure between accepting a resume and
+finishing leaves the interrupt pending and a retry with the same resume succeeds.
+
+> A companion `withGenerationPersistence(persistence)` tracks run records for
+> non-chat generation activities (image, audio, TTS, video, transcription).
+
+Source: docs/persistence/overview.md
+
 ## Sandbox File-Event Hooks (`sandbox` group)
 
 Declare a `sandbox: ChatSandboxHooks` group on `defineChatMiddleware` to react
@@ -557,3 +646,4 @@ Source: docs/advanced/middleware.md
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
 - See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms
 - See also: **ai-core/ag-ui-protocol/SKILL.md** -- Reading the `sandbox.file` / `sandbox.file.diff` `CUSTOM` chunks the sandbox runtime emits alongside these `sandbox` hooks, via `ChatStream`'s typed `KnownCustomEvent` narrowing
+- See also: **ai-core/chat-experience/SKILL.md** -- `withChatPersistence` is the server (authoritative) half; the client `persistence` option is the browser-refresh half

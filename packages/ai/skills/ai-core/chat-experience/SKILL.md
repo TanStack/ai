@@ -17,6 +17,8 @@ sources:
   - 'TanStack/ai:docs/chat/thinking-content.md'
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
   - 'TanStack/ai:docs/resumable-streams/overview.md'
+  - 'TanStack/ai:docs/chat/persistence.md'
+  - 'TanStack/ai:docs/persistence/browser-refresh.md'
 ---
 
 # Chat Experience
@@ -485,6 +487,68 @@ to `sendMessage`:
 sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
 ```
 
+### 8. Browser-Refresh Durability (client persistence)
+
+By default a `ChatClient` / `useChat` keeps messages in memory only, so a full
+page reload loses the conversation. The optional `persistence` option (a
+`ChatClientPersistence` adapter) fixes this from the client side: it stores one
+combined record — `{ messages, resume? }` (`ChatPersistedState`) — per chat `id`,
+so a reload restores the transcript **and** rehydrates any pending interrupt /
+rejoins a run that was still streaming. No manual `initialMessages` + `onFinish`
+boilerplate.
+
+Three storage adapters ship from `@tanstack/ai-client`:
+`localStoragePersistence` (survives reloads and browser restarts),
+`sessionStoragePersistence` (scoped to the tab), and `indexedDBPersistence`
+(async, structured-clone storage — no codec needed for `Date`/`Map`/etc.).
+Give the chat a stable `id` so the reload finds the same record.
+
+The storage adapters and `ChatPersistedState` are **not** re-exported by the
+framework packages — import them from `@tanstack/ai-client` (the one exception
+to mistake `j` below), while `useChat` still comes from the framework package:
+
+```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { localStoragePersistence } from '@tanstack/ai-client'
+import type { ChatPersistedState } from '@tanstack/ai-client'
+
+// UIMessage carries a Date (not JSON-native), so pass a serialize/deserialize
+// pair for the Web Storage adapters. indexedDBPersistence needs no codec.
+const persistence = localStoragePersistence<ChatPersistedState>({
+  serialize: (value) => JSON.stringify(value),
+  deserialize: (value) => JSON.parse(value),
+})
+
+function Chat() {
+  const { messages, sendMessage } = useChat({
+    id: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence,
+  })
+  // ...render messages, call sendMessage(text)
+}
+```
+
+**Mid-stream reload rejoin.** If the run was still streaming when the page
+reloaded, the client re-attaches instead of showing a frozen half-reply — but
+only when the connection is **resumable**: a delivery-durability-backed route
+that records the stream and exposes a GET replay handler (see
+`docs/resumable-streams/overview.md` and Pattern 1's `durability` adapter). Given
+that, `useChat` finds the persisted in-flight run on load and auto-rejoins it via
+`joinRun`, replaying from the server's log so the reply finishes where it left
+off. No extra client code beyond the resumable connection.
+
+**Every framework, no extra code.** Durability rides the existing `persistence`
+option, so it works identically in `@tanstack/ai-react`, `-solid`, `-vue`,
+`-svelte`, `-angular`, and `-preact` — pass `persistence` (and a stable `id`) to
+the framework's `useChat` / `createChat` / `injectChat`; nothing is
+framework-specific.
+
+> **Client vs. server durability.** This is the client (per-browser) half.
+> The authoritative, multi-user, server-side copy is the `withChatPersistence`
+> middleware — see ai-core/middleware/SKILL.md. The two are independent; use
+> both for instant reload restore plus a durable record of record.
+
 ## Common Mistakes
 
 ### a. CRITICAL: Using Vercel AI SDK patterns (streamText, generateText)
@@ -695,4 +759,4 @@ If not handled, the UI appears to hang with no feedback.
 
 - See also: **ai-core/tool-calling/SKILL.md** -- Most chats include tools
 - See also: **ai-core/adapter-configuration/SKILL.md** -- Adapter choice affects available features
-- See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events
+- See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events; `withChatPersistence` is the server (authoritative) half of the client `persistence` option
