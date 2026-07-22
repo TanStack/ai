@@ -336,7 +336,8 @@
         {
           "label": "Embeddings",
           "to": "embeddings",
-          "addedAt": "2026-07-10"
+          "addedAt": "2026-07-10",
+          "updatedAt": "2026-07-22"
         }
       ]
     },
@@ -606,7 +607,8 @@
         {
           "label": "Cohere",
           "to": "adapters/cohere",
-          "addedAt": "2026-07-10"
+          "addedAt": "2026-07-10",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "ElevenLabs",
@@ -661,7 +663,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-22"
         }
       ]
     },

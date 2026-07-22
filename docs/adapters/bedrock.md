@@ -221,7 +221,7 @@ const result = await embed({
 console.log(result.embeddings[0]?.vector);
 ```
 
-Titan Multimodal embeds text and images — alone or fused into a single vector:
+Titan Multimodal embeds text and images — alone or fused into a single vector. Fuse parts by nesting them in an array (the same `Array<ContentPart>` shape a chat message's `content` uses); the outer array is the item list, so this embeds one fused item:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -231,9 +231,8 @@ const productPhoto = "iVBORw0KGgo..."; // base64 image data
 
 const result = await embed({
   adapter: bedrockEmbedding("amazon.titan-embed-image-v1"),
-  input: {
-    type: "content",
-    content: [
+  input: [
+    [
       { type: "text", content: "a red guitar" },
       {
         type: "image",
@@ -244,7 +243,7 @@ const result = await embed({
         },
       },
     ],
-  },
+  ],
   dimensions: 1024, // 256 | 384 | 1024
 });
 ```

@@ -11,6 +11,8 @@ import type {
   EmbeddingInputItem,
   EmbeddingOptions,
   EmbeddingResult,
+  ImagePart,
+  TextPart,
   TokenUsage,
 } from '../src/types'
 
@@ -224,16 +226,13 @@ describe('embedding input utilities', () => {
     type: 'image',
     source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
   }
-  const fused: EmbeddingInputItem = {
-    type: 'content',
-    content: [
-      { type: 'text', content: 'caption' },
-      {
-        type: 'image',
-        source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
-      },
-    ],
-  }
+  const fused: EmbeddingInputItem = [
+    { type: 'text', content: 'caption' },
+    {
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    },
+  ]
 
   describe('resolveEmbeddingInput', () => {
     it('resolves strings, text parts, image parts, and fused items in order', () => {
@@ -251,6 +250,29 @@ describe('embedding input utilities', () => {
       expect(resolved[2]!.images).toHaveLength(1)
       expect(resolved[3]!.texts).toEqual(['caption'])
       expect(resolved[3]!.images).toHaveLength(1)
+    })
+
+    const textPart: TextPart = { type: 'text', content: 'caption' }
+    const imagePart: ImagePart = {
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    }
+
+    it('treats a top-level array of parts as separate items (one vector each)', () => {
+      const resolved = resolveEmbeddingInput([textPart, imagePart])
+
+      expect(resolved).toHaveLength(2)
+      expect(resolved[0]).toEqual({ texts: ['caption'], images: [] })
+      expect(resolved[1]!.texts).toEqual([])
+      expect(resolved[1]!.images).toHaveLength(1)
+    })
+
+    it('fuses a nested array of parts into a single item (one vector)', () => {
+      const resolved = resolveEmbeddingInput([[textPart, imagePart]])
+
+      expect(resolved).toHaveLength(1)
+      expect(resolved[0]!.texts).toEqual(['caption'])
+      expect(resolved[0]!.images).toHaveLength(1)
     })
   })
 

@@ -205,16 +205,13 @@ describe('Cohere Embedding Adapter', () => {
       const result = await adapter.createEmbeddings({
         model: 'embed-v4.0',
         input: [
-          {
-            type: 'content',
-            content: [
-              { type: 'text', content: 'product photo' },
-              {
-                type: 'image',
-                source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
-              },
-            ],
-          },
+          [
+            { type: 'text', content: 'product photo' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
         ],
         modelOptions: { inputType: 'search_document' },
         logger: testLogger,

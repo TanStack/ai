@@ -41,7 +41,7 @@ console.log(result.embeddings[0].vector)
 
 ### Multimodal Inputs
 
-embed-v4.0 embeds text, images, and fused text+image items (one vector per input item):
+embed-v4.0 embeds text, images, and fused text+image items (one vector per input item). Fuse parts by nesting them in an array — the outer array is the item list:
 
 ```typescript
 const result = await embed({
@@ -52,16 +52,14 @@ const result = await embed({
       type: 'image',
       source: { type: 'data', value: base64Png, mimeType: 'image/png' },
     },
-    {
-      type: 'content',
-      content: [
-        { type: 'text', content: 'product photo' },
-        {
-          type: 'image',
-          source: { type: 'data', value: base64Jpeg, mimeType: 'image/jpeg' },
-        },
-      ],
-    },
+    // A nested array fuses its parts into a single vector.
+    [
+      { type: 'text', content: 'product photo' },
+      {
+        type: 'image',
+        source: { type: 'data', value: base64Jpeg, mimeType: 'image/jpeg' },
+      },
+    ],
   ],
   modelOptions: { inputType: 'search_document' },
 })

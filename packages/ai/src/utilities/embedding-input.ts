@@ -16,21 +16,22 @@ function resolveItem(item: EmbeddingInputItem): ResolvedEmbeddingItem {
   if (typeof item === 'string') {
     return { texts: [item], images: [] }
   }
+  // A nested array is a fused item: its parts embed together into one vector.
+  if (Array.isArray(item)) {
+    const resolved: ResolvedEmbeddingItem = { texts: [], images: [] }
+    for (const part of item) {
+      if (part.type === 'text') {
+        resolved.texts.push(part.content)
+      } else {
+        resolved.images.push(part)
+      }
+    }
+    return resolved
+  }
   if (item.type === 'text') {
     return { texts: [item.content], images: [] }
   }
-  if (item.type === 'image') {
-    return { texts: [], images: [item] }
-  }
-  const resolved: ResolvedEmbeddingItem = { texts: [], images: [] }
-  for (const part of item.content) {
-    if (part.type === 'text') {
-      resolved.texts.push(part.content)
-    } else {
-      resolved.images.push(part)
-    }
-  }
-  return resolved
+  return { texts: [], images: [item] }
 }
 
 /**

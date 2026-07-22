@@ -2437,39 +2437,41 @@ export type EmbeddingModelInputModalitiesByName = Record<
 
 /**
  * A fused multi-part embedding item: all parts are embedded together into a
- * single vector (e.g. a product photo plus its caption). Supported by
+ * single vector (e.g. a product photo plus its caption). Written as a nested
+ * array of content parts — the same `Array<ContentPart>` convention chat
+ * messages use — so a fused item is visually distinct from the top-level
+ * `input` list, where each element produces its own vector. Supported by
  * multimodal embedding models such as Cohere embed-v4 and Amazon Titan
- * Multimodal. Distinct from passing multiple items in the `input` array,
- * where each item produces its own vector.
+ * Multimodal.
  */
-export interface EmbeddingContentItem {
-  type: 'content'
-  content: Array<TextPart | ImagePart>
-}
+export type EmbeddingContentParts = Array<TextPart | ImagePart>
 
 /**
- * One embeddable item. A bare string is shorthand for a text part. Each item
- * in an `embed()` input array produces exactly one vector.
+ * One embeddable item, producing exactly one vector. A bare string is
+ * shorthand for a text part; a nested {@link EmbeddingContentParts} array
+ * fuses its parts into a single vector. Note that a bare array at the top
+ * level of `input` is the *list of items* (one vector each) — fuse by
+ * nesting, e.g. `input: [[textPart, imagePart]]`.
  */
 export type EmbeddingInputItem =
   | string
   | TextPart
   | ImagePart
-  | EmbeddingContentItem
+  | EmbeddingContentParts
 
 /** Maps an embedding modality to the item types it admits. @internal */
 interface EmbeddingItemByModality {
   text: TextPart
-  image: ImagePart | EmbeddingContentItem
+  image: ImagePart | EmbeddingContentParts
 }
 
 /**
  * Embedding item type narrowed to the modalities a specific model supports.
  * `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;
  * `'text' | 'image'` additionally admits image parts and fused
- * {@link EmbeddingContentItem}s. Used by the activity option types together
- * with the adapter's per-model modality map so unsupported inputs fail at
- * compile time.
+ * {@link EmbeddingContentParts} arrays. Used by the activity option types
+ * together with the adapter's per-model modality map so unsupported inputs
+ * fail at compile time.
  */
 export type EmbeddingInputItemFor<
   TModalities extends EmbeddingModality = EmbeddingModality,

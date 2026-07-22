@@ -85,11 +85,13 @@ Adapters for fixed-dimension models (for example `mistral-embed` or Ollama model
 
 Multimodal models embed images — alone, or fused with text into a single vector. Image inputs reuse the same content-part shapes as chat messages, and the accepted item types are narrowed per model at compile time: passing an image to a text-only model is a type error.
 
-Each item in the input array produces exactly one vector:
+The top-level `input` array is always the list of items, and **each item produces exactly one vector**:
 
 - a string or text part embeds that text
 - an image part embeds that image
-- a `{ type: "content" }` item fuses its text and image parts into one vector
+- a **nested array of parts** (`[textPart, imagePart]`) fuses those parts into one vector — the same `Array<ContentPart>` shape a chat message's `content` uses
+
+Because a top-level array is the item list, fuse by nesting: `[textPart, imagePart]` is two vectors, while `[[textPart, imagePart]]` is one fused vector.
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -109,20 +111,18 @@ const result = await embed({
         mimeType: "image/png",
       },
     },
-    {
-      type: "content",
-      content: [
-        { type: "text", content: "Fender Stratocaster, sunburst finish" },
-        {
-          type: "image",
-          source: {
-            type: "data",
-            value: productPhoto,
-            mimeType: "image/png",
-          },
+    // A nested array fuses its parts into a single vector.
+    [
+      { type: "text", content: "Fender Stratocaster, sunburst finish" },
+      {
+        type: "image",
+        source: {
+          type: "data",
+          value: productPhoto,
+          mimeType: "image/png",
         },
-      ],
-    },
+      },
+    ],
   ],
   modelOptions: { inputType: "search_document" },
 });
@@ -130,7 +130,7 @@ const result = await embed({
 console.log(result.embeddings.length); // 3 — one vector per input item
 ```
 
-Amazon Titan Multimodal works the same way:
+Amazon Titan Multimodal works the same way — nest the parts to fuse them into one vector:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -140,9 +140,8 @@ const productPhoto = "iVBORw0KGgo..."; // base64 image data
 
 const result = await embed({
   adapter: bedrockEmbedding("amazon.titan-embed-image-v1"),
-  input: {
-    type: "content",
-    content: [
+  input: [
+    [
       { type: "text", content: "a red guitar" },
       {
         type: "image",
@@ -153,7 +152,7 @@ const result = await embed({
         },
       },
     ],
-  },
+  ],
   dimensions: 1024,
 });
 ```
@@ -219,25 +218,6 @@ const result = await embed({
 
 console.log(result.usage?.promptTokens);
 ```
-
-## Provider Support Matrix
-
-| Provider | Models | Modalities | `dimensions` | Usage reported |
-| --- | --- | --- | --- | --- |
-| OpenAI | text-embedding-3-small, text-embedding-3-large | text | ✅ | ✅ |
-| Cohere | embed-v4.0 | text + image | ✅ | ✅ |
-| Gemini | gemini-embedding-001 | text | ✅ | ❌ |
-| Mistral | mistral-embed | text | ❌ | ✅ |
-| Mistral | codestral-embed | text | ✅ | ✅ |
-| Bedrock | amazon.titan-embed-text-v2:0 | text | ✅ (256/512/1024) | ✅ |
-| Bedrock | amazon.titan-embed-image-v1 | text + image | ✅ (256/384/1024) | ✅ |
-| Bedrock | cohere.embed-english-v3, cohere.embed-multilingual-v3 | text | ❌ | ❌ |
-| Ollama | nomic-embed-text, mxbai-embed-large, … | text | ❌ | ✅ |
-
-Notes:
-
-- Bedrock Titan models have no batch API — a batch of N items runs as N requests under a small concurrency cap.
-- Gemini's Vertex-only multimodal embedding model (`multimodalembedding@001`) is not supported; `@tanstack/ai-gemini` targets the Gemini API.
 
 ## Error Handling
 

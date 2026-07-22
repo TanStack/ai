@@ -142,11 +142,10 @@ describe('Type Safety Tests for embed() function', () => {
     it('rejects fused content items on text-only models', () => {
       embed({
         adapter: mockEmbedding('mock-text-embed'),
-        // @ts-expect-error - mock-text-embed does not accept fused content items
-        input: {
-          type: 'content',
-          content: [{ type: 'text', content: 'caption' }, imagePart],
-        },
+        input: [
+          // @ts-expect-error - mock-text-embed does not accept fused content items
+          [{ type: 'text', content: 'caption' }, imagePart],
+        ],
       })
     })
 
@@ -162,10 +161,7 @@ describe('Type Safety Tests for embed() function', () => {
         input: [
           'a red guitar',
           imagePart,
-          {
-            type: 'content',
-            content: [{ type: 'text', content: 'caption' }, imagePart],
-          },
+          [{ type: 'text', content: 'caption' }, imagePart],
         ],
         modelOptions: { inputType: 'search_document' },
       })

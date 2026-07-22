@@ -204,21 +204,18 @@ describe('Bedrock Embedding Adapter', () => {
       const result = await adapter.createEmbeddings({
         model: 'amazon.titan-embed-image-v1',
         input: [
-          {
-            type: 'content',
-            content: [
-              { type: 'text', content: 'a red guitar' },
-              { type: 'text', content: 'product photo' },
-              {
-                type: 'image',
-                source: {
-                  type: 'data',
-                  value: 'QkFTRTY0',
-                  mimeType: 'image/png',
-                },
+          [
+            { type: 'text', content: 'a red guitar' },
+            { type: 'text', content: 'product photo' },
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: 'QkFTRTY0',
+                mimeType: 'image/png',
               },
-            ],
-          },
+            },
+          ],
         ],
         logger: testLogger,
       })
@@ -295,27 +292,24 @@ describe('Bedrock Embedding Adapter', () => {
         adapter.createEmbeddings({
           model: 'amazon.titan-embed-image-v1',
           input: [
-            {
-              type: 'content',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'data',
-                    value: 'QQ==',
-                    mimeType: 'image/png',
-                  },
+            [
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: 'QQ==',
+                  mimeType: 'image/png',
                 },
-                {
-                  type: 'image',
-                  source: {
-                    type: 'data',
-                    value: 'Qg==',
-                    mimeType: 'image/png',
-                  },
+              },
+              {
+                type: 'image',
+                source: {
+                  type: 'data',
+                  value: 'Qg==',
+                  mimeType: 'image/png',
                 },
-              ],
-            },
+              },
+            ],
           ],
           logger: testLogger,
         }),

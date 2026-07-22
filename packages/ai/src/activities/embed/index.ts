@@ -92,11 +92,12 @@ export type EmbedOptions<
   /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /**
-   * What to embed: a single item or an array of items. Each item produces
-   * exactly one vector. An item is a plain string, a text part, an image
-   * part, or — for models that embed text and image together — a fused
-   * `{ type: 'content', content: [...] }` item. The accepted item types are
-   * narrowed per model via the adapter's input-modality map.
+   * What to embed: a single item or an array of items. Each item in the array
+   * produces exactly one vector. An item is a plain string, a text part, an
+   * image part, or — for models that embed text and image together — a fused
+   * item written as a nested array of parts (`[textPart, imagePart]`), the
+   * same `Array<ContentPart>` shape chat messages use. The accepted item types
+   * are narrowed per model via the adapter's input-modality map.
    */
   input: EmbeddingInputForModel<TAdapter, TAdapter['model']>
   /**
@@ -167,19 +168,20 @@ function createId(prefix: string): string {
  * })
  * ```
  *
- * @example Multimodal embedding (text + image, one fused vector)
+ * @example Multimodal embedding (text + image fused into one vector)
  * ```ts
  * import { cohereEmbedding } from '@tanstack/ai-cohere'
  *
+ * // A nested array of parts fuses them into a single vector. The outer array
+ * // is the item list, so this embeds one fused item into one vector.
  * const result = await embed({
  *   adapter: cohereEmbedding('embed-v4.0'),
- *   input: {
- *     type: 'content',
- *     content: [
+ *   input: [
+ *     [
  *       { type: 'text', content: 'product photo' },
  *       { type: 'image', source: { type: 'data', value: base64, mimeType: 'image/png' } },
  *     ],
- *   },
+ *   ],
  *   modelOptions: { inputType: 'search_document' },
  * })
  * ```

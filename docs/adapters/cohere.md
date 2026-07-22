@@ -56,7 +56,7 @@ const result = await embed({
 
 ## Multimodal Embeddings
 
-embed-v4.0 embeds images alongside text. An image part produces an image vector; a `{ type: "content" }` item fuses text and image into one vector — ideal for product catalogs and screenshot search:
+embed-v4.0 embeds images alongside text. An image part produces an image vector; a nested array of parts (`[textPart, imagePart]`) fuses text and image into one vector — ideal for product catalogs and screenshot search. The outer array is the item list, so nest to fuse:
 
 ```typescript
 import { embed } from "@tanstack/ai";
@@ -75,20 +75,18 @@ const result = await embed({
         mimeType: "image/png",
       },
     },
-    {
-      type: "content",
-      content: [
-        { type: "text", content: "Fender Stratocaster, sunburst finish" },
-        {
-          type: "image",
-          source: {
-            type: "data",
-            value: productPhoto,
-            mimeType: "image/png",
-          },
+    // A nested array fuses its parts into a single vector.
+    [
+      { type: "text", content: "Fender Stratocaster, sunburst finish" },
+      {
+        type: "image",
+        source: {
+          type: "data",
+          value: productPhoto,
+          mimeType: "image/png",
         },
-      ],
-    },
+      },
+    ],
   ],
   modelOptions: { inputType: "search_document" },
 });
