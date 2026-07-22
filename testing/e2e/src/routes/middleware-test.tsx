@@ -9,6 +9,7 @@ const MIDDLEWARE_MODES = [
   { id: 'capability', label: 'Capability (provide/consume prefix)' },
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },
+  { id: 'memory', label: 'Memory (recall/save)' },
 ] as const
 
 interface PhaseCaptureSnapshot {
@@ -84,6 +85,10 @@ function MiddlewareTestPage() {
   const [testComplete, setTestComplete] = useState(false)
   const [phaseCapture, setPhaseCapture] =
     useState<PhaseCaptureSnapshot>(EMPTY_PHASE_CAPTURE)
+  const [memoryCapture, setMemoryCapture] = useState<{
+    configs: Array<{ systemPrompts: Array<string>; toolNames: Array<string> }>
+    saveCount: number
+  }>({ configs: [], saveCount: 0 })
 
   const { messages, sendMessage, isLoading } = useChat({
     id: `mw-test-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
@@ -106,6 +111,23 @@ function MiddlewareTestPage() {
           })
           .catch(() => {
             setPhaseCapture(EMPTY_PHASE_CAPTURE)
+            setTestComplete(true)
+          })
+        return
+      }
+      if (middlewareMode === 'memory' && testId) {
+        void fetch(
+          `/api/middleware-test?testId=${encodeURIComponent(testId)}&kind=memory`,
+        )
+          .then((res) =>
+            res.ok ? res.json() : { configs: [], saveCount: 0 },
+          )
+          .then((data) => {
+            setMemoryCapture(data)
+            setTestComplete(true)
+          })
+          .catch(() => {
+            setMemoryCapture({ configs: [], saveCount: 0 })
             setTestComplete(true)
           })
         return
@@ -223,6 +245,9 @@ function MiddlewareTestPage() {
       </span>
       <pre id="mw-yielded-chunks-json" style={{ display: 'none' }}>
         {JSON.stringify(phaseCapture.yieldedChunks)}
+      </pre>
+      <pre id="mw-memory-json" style={{ display: 'none' }}>
+        {JSON.stringify(memoryCapture)}
       </pre>
 
       <div

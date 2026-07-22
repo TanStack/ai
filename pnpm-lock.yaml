@@ -1944,13 +1944,22 @@ importers:
 
   packages/ai-memory:
     dependencies:
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
       ioredis:
         specifier: '>=5.0.0'
         version: 5.9.2
     devDependencies:
+      '@honcho-ai/sdk':
+        specifier: ^2.1.1
+        version: 2.2.0
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@vectorize-io/hindsight-client':
+        specifier: ^0.6.1
+        version: 0.6.2
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
@@ -2603,6 +2612,9 @@ importers:
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
+      '@tanstack/ai-memory':
+        specifier: workspace:*
+        version: link:../../packages/ai-memory
       '@tanstack/ai-mistral':
         specifier: workspace:*
         version: link:../../packages/ai-mistral
@@ -4975,6 +4987,9 @@ packages:
 
   '@harperfast/extended-iterable@1.0.3':
     resolution: {integrity: sha512-sSAYhQca3rDWtQUHSAPeO7axFIUJOI6hn1gjRC5APVE1a90tuyT8f5WIgRsFhhWA7htNkju2veB9eWL6YHi/Lw==}
+
+  '@honcho-ai/sdk@2.2.0':
+    resolution: {integrity: sha512-SyygN+BrpUB2fRjhwcYmT+tcEhHrKmbj9nOZLVUFY7M5YBswJ+mZb/CeLpNbRh+QQTU8F8JWY3lQat95c6nwmA==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -9477,6 +9492,9 @@ packages:
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
     deprecated: Potential CWE-502 - Update to 1.3.1 or higher
+
+  '@vectorize-io/hindsight-client@0.6.2':
+    resolution: {integrity: sha512-bymmlMWI1z0zOjgY+wRMLudNxzqcW20VHMtyV3QLhwJm63NeQN/nEZ4plWPR0p28DffaUM5nk2VSxzQljN+Mow==}
 
   '@vercel/nft@1.3.0':
     resolution: {integrity: sha512-i4EYGkCsIjzu4vorDUbqglZc5eFtQI2syHb++9ZUDm6TU4edVywGpVnYDein35x9sevONOn9/UabfQXuNXtuzQ==}
@@ -16200,6 +16218,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.0.0:
+    resolution: {integrity: sha512-9diLdTPc/L7w/5jI4C3gHYNiGHDV9IZYxo1e5LSD8cabi65WVTWWb+g2BGPEpUUCOxR4D+6O5B0AzyMdUAXwrw==}
+
   zod@4.2.1:
     resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
 
@@ -19018,6 +19039,10 @@ snapshots:
 
   '@harperfast/extended-iterable@1.0.3':
     optional: true
+
+  '@honcho-ai/sdk@2.2.0':
+    dependencies:
+      zod: 4.0.0
 
   '@hono/node-server@1.19.14(hono@4.12.23)':
     dependencies:
@@ -23853,6 +23878,8 @@ snapshots:
       '@typescript/old': typescript@6.0.3
 
   '@ungap/structured-clone@1.3.0': {}
+
+  '@vectorize-io/hindsight-client@0.6.2': {}
 
   '@vercel/nft@1.3.0(rollup@4.60.1)':
     dependencies:
@@ -32305,6 +32332,8 @@ snapshots:
       zod: 4.3.6
 
   zod@3.25.76: {}
+
+  zod@4.0.0: {}
 
   zod@4.2.1: {}
 

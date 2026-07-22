@@ -824,61 +824,60 @@ export interface VideoUsageEvent extends BaseEventContext {
 // Memory events
 // ---------------------------------------------------------------------------
 
+/**
+ * Lite scope for devtools payloads. Mirrors the `MemoryScope` contract in
+ * `@tanstack/ai-memory` (session-centric); kept structurally minimal so the
+ * event client stays decoupled from the memory package.
+ */
 export type MemoryScopeLite = {
-  tenantId?: string
-  userId?: string
   sessionId?: string
-  threadId?: string
-  namespace?: string
+  userId?: string
 }
 
-export type MemoryKindLite =
-  | 'message'
-  | 'summary'
-  | 'fact'
-  | 'preference'
-  | 'tool-result'
-
-export type MemoryRoleLite = 'user' | 'assistant' | 'system' | 'tool'
-
+/** Emitted when the middleware begins a `recall` for the current turn. */
 export interface MemoryRetrieveStartedEvent extends BaseEventContext {
   scope: MemoryScopeLite
+  /** Adapter id (e.g. 'in-memory', 'hindsight'). */
+  adapter: string
+  /** Recall query text (typically the last user message). */
   query: string
-  topK: number
-  minScore: number
-  embedderUsed: boolean
 }
 
+/** Emitted when `recall` returns, before the result is injected into the prompt. */
 export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
   scope: MemoryScopeLite
-  hits: Array<{
-    id: string
-    kind: MemoryKindLite
-    score: number
-    preview: string
-  }>
+  adapter: string
+  /** Number of discrete fragments returned (0 when the adapter synthesizes). */
+  fragmentCount: number
+  /** Whether the recall result injected any tools this turn. */
+  hasTools: boolean
+  /** Length (chars) of the rendered system-prompt block. */
+  systemPromptChars: number
   durationMs: number
 }
 
+/** Emitted when the middleware begins a deferred `save` for the finished turn. */
 export interface MemoryPersistStartedEvent extends BaseEventContext {
   scope: MemoryScopeLite
-  records: Array<{
-    id: string
-    kind: MemoryKindLite
-    role?: MemoryRoleLite
-    preview: string
-  }>
+  adapter: string
 }
 
+/** Emitted when a deferred `save` completes. */
 export interface MemoryPersistCompletedEvent extends BaseEventContext {
   scope: MemoryScopeLite
-  recordIds: Array<string>
+  adapter: string
+  /** Total receipts returned by `save`. */
+  receiptCount: number
+  /** Receipts with `ok: true`. */
+  okCount: number
   durationMs: number
 }
 
+/** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
 export interface MemoryErrorEvent extends BaseEventContext {
   scope: MemoryScopeLite
-  phase: 'retrieve' | 'persist' | 'extract'
+  adapter: string
+  phase: 'recall' | 'save'
   error: { name: string; message: string }
 }
 

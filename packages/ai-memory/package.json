@@ -17,13 +17,25 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
-    "./adapters/in-memory": {
-      "types": "./dist/esm/adapters/in-memory.d.ts",
-      "import": "./dist/esm/adapters/in-memory.js"
+    "./in-memory": {
+      "types": "./dist/esm/in-memory.d.ts",
+      "import": "./dist/esm/in-memory.js"
     },
-    "./adapters/redis": {
-      "types": "./dist/esm/adapters/redis.d.ts",
-      "import": "./dist/esm/adapters/redis.js"
+    "./redis": {
+      "types": "./dist/esm/redis.d.ts",
+      "import": "./dist/esm/redis.js"
+    },
+    "./hindsight": {
+      "types": "./dist/esm/providers/hindsight/index.d.ts",
+      "import": "./dist/esm/providers/hindsight/index.js"
+    },
+    "./mem0": {
+      "types": "./dist/esm/providers/mem0/index.d.ts",
+      "import": "./dist/esm/providers/mem0/index.js"
+    },
+    "./honcho": {
+      "types": "./dist/esm/providers/honcho/index.d.ts",
+      "import": "./dist/esm/providers/honcho/index.js"
     }
   },
   "sideEffects": false,
@@ -35,9 +47,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -49,8 +61,13 @@
     "redis",
     "rag"
   ],
+  "dependencies": {
+    "@tanstack/ai-event-client": "workspace:*"
+  },
   "peerDependencies": {
+    "@honcho-ai/sdk": ">=2.0.0",
     "@tanstack/ai": "workspace:^",
+    "@vectorize-io/hindsight-client": ">=0.6.0",
     "ioredis": ">=5.0.0",
     "redis": ">=4.0.0"
   },
@@ -60,10 +77,18 @@
     },
     "redis": {
       "optional": true
+    },
+    "@vectorize-io/hindsight-client": {
+      "optional": true
+    },
+    "@honcho-ai/sdk": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@honcho-ai/sdk": "^2.1.1",
     "@tanstack/ai": "workspace:*",
+    "@vectorize-io/hindsight-client": "^0.6.1",
     "@vitest/coverage-v8": "4.0.14",
     "ioredis-mock": "^8.9.0",
     "redis": "^4.7.0"

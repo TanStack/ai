@@ -2,7 +2,7 @@
 title: Overview
 id: memory-overview
 order: 1
-description: "Persist and recall context across turns and sessions in TanStack AI — the memoryMiddleware retrieves relevant records into the prompt, then deferred-persists user, assistant, and tool turns through a pluggable adapter."
+description: "Persist and recall context across turns and sessions in TanStack AI — memoryMiddleware recalls relevant memory into the prompt through a pluggable recall/save adapter, then deferred-saves each finished turn."
 keywords:
   - tanstack ai
   - memory
@@ -14,115 +14,164 @@ keywords:
   - personalization
 ---
 
-`memoryMiddleware` plugs server-side memory into a `chat()` run. It retrieves relevant records from a pluggable adapter into the system prompt before the model runs, then asynchronously persists what should be remembered after the run finishes. It is the right tool when you need recall **across turns or across sessions** — not for keeping recent messages in the same request.
+`memoryMiddleware` plugs server-side memory into a `chat()` run. Before the model
+runs it **recalls** relevant memory from a pluggable adapter into the system prompt;
+after the run finishes it **saves** the turn — asynchronously, so streaming is never
+blocked. It's the right tool when you need recall **across turns or across sessions**,
+not for keeping recent messages in the same request.
 
-> **Want a copy-paste setup before reading the contract?** See the [Memory Quickstart](./quickstart) guide. **Building an adapter for a backend that isn't shipped?** See the [Custom Adapter](./custom-adapter) guide.
+Everything lives in `@tanstack/ai-memory`: the middleware, the adapter contract, and
+the built-in and vendor adapters.
+
+> **Want a copy-paste setup?** See the [Quickstart](./quickstart). **Building an
+> adapter for a backend that isn't shipped?** See the [Custom Adapter](./custom-adapter) guide.
 
 ## When to reach for it
 
 | Need | Use this |
 |------|----------|
-| "Remember what the user told me last week" | Memory middleware + persistent adapter |
-| "Each tenant or user has its own context" | Memory middleware with scoped adapter calls |
-| "Cache expensive tool results across requests" | Memory middleware with `onToolResult` + `kind: 'tool-result'` |
+| "Remember what the user told me last week" | Memory middleware + a persistent adapter |
+| "Each user has their own context" | Memory middleware with a scoped adapter |
+| "Use a hosted memory service (mem0, Honcho, Hindsight)" | The matching vendor adapter |
 | Keep the last N turns in the same request | Just pass them in `messages` — memory is overkill |
 
-Memory is for cross-turn / cross-session recall. The `messages` array on `chat()` already covers within-turn history.
+## The contract: `recall` + `save`
 
-## Adapter contract
+A memory adapter has one identifier and two verbs. Everything else — extraction,
+ranking, rendering, storage — is the adapter's job. The middleware never inspects
+records.
 
-Adapters are thin storage. They persist, fetch, search, and isolate by scope — they do not decide what to remember or how to render hits. Every backend implements the same seven methods:
-
-| Method | Purpose |
+| Member | Purpose |
 |--------|---------|
-| `name` | Stable identifier used in logs and devtools. |
-| `add(records)` | Upsert one or many records by `id`. Same id replaces. |
-| `get(id, scope)` | Fetch a single record. Returns `undefined` for missing, out-of-scope, or expired records. |
-| `update(id, scope, patch)` | Patch a record in place. Preserves `id`/`scope`/`createdAt`, bumps `updatedAt`. |
-| `search(query)` | Relevance-ranked search within a scope. Strategy (lexical / semantic / hybrid) is adapter-defined. |
-| `list(scope, options)` | Non-relevance browsing — for inspectors, admin tools, exports. |
-| `delete(ids, scope)` | Remove ids within a scope. Out-of-scope ids are silently skipped. |
-| `clear(scope)` | Wipe everything matching a scope. Empty scope (`{}`) is treated as misuse. |
-
-Three invariants every adapter MUST uphold: **scope isolation** (no cross-scope reads or writes), **expiry filtering** (`expiresAt` records are excluded from reads), and **id uniqueness** across all scopes.
-
-Built-in adapters live in `@tanstack/ai-memory`:
+| `id` | Stable identifier used in logs and devtools. |
+| `recall(scope, query)` | Return what's relevant to `query` within `scope`: a rendered `systemPrompt`, optional `fragments`, and optional LLM `tools` + `toolGuidance`. |
+| `save(scope, turn)` | Persist a completed `{ user, assistant }` turn. Extraction happens here. Returns one `SaveReceipt` per underlying write. |
+| `inspect(scope)?` | Optional — a full snapshot for a devtools panel. |
+| `listFacts(scope)?` | Optional — a flat fact list for a devtools panel. |
 
 ```ts
-import { inMemoryMemoryAdapter, redisMemoryAdapter } from '@tanstack/ai-memory'
+// The MemoryAdapter contract, from `@tanstack/ai-memory`:
+import type { MemoryAdapter } from '@tanstack/ai-memory'
 ```
 
-Custom adapters implement `MemoryAdapter` from `@tanstack/ai/memory` — see the [Custom Adapter](./custom-adapter) guide for a complete walkthrough.
+Built-in adapters (each a tree-shakeable subpath):
+
+```ts
+import { inMemory } from '@tanstack/ai-memory/in-memory'
+import { redis } from '@tanstack/ai-memory/redis'
+```
+
+Vendor adapters:
+
+```ts
+import { hindsight } from '@tanstack/ai-memory/hindsight'
+import { mem0 } from '@tanstack/ai-memory/mem0'
+import { honcho } from '@tanstack/ai-memory/honcho'
+```
 
 ## Scope and security
 
-`MemoryScope` is the isolation boundary. Every key is optional and orthogonal — the adapter rejects cross-scope reads and writes:
+`MemoryScope` is the isolation boundary — session-centric, with an optional durable
+user id:
 
 ```ts
-// The `MemoryScope` type, as exported from `@tanstack/ai/memory`:
+// The MemoryScope type, from `@tanstack/ai-memory`:
 type MemoryScope = {
-  tenantId?: string
+  sessionId: string
   userId?: string
-  sessionId?: string
-  threadId?: string
-  namespace?: string
 }
 ```
 
-**Always derive scope server-side from trusted state.** Accepting `tenantId` or `userId` from the request body is how one user reads another user's memory. The function form on `scope` is the recommended pattern — it runs per request and has access to the validated chat context:
+**Always derive scope server-side from trusted state.** Accepting `userId` from the
+request body is how one user reads another user's memory. The function form on `scope`
+runs per request and only sees what your server attached to the chat context:
 
 ```ts ignore
-// ignore: `adapter` and `AppCtx` (the shape of `ctx.context`) are application-
-// defined — this shows the server-side scope-derivation pattern rather than
-// type-checking against a concrete context type.
+// ignore: `adapter` and `getSession` are application-defined — this shows the
+// server-side scope-derivation pattern.
 memoryMiddleware({
   adapter,
   scope: (ctx) => {
-    const session = (ctx.context as AppCtx).session // server-validated
-    return {
-      tenantId: session.tenantId,
-      userId: session.userId,
-      threadId: session.activeThreadId,
-    }
+    const session = getSession(ctx) // your server-validated session
+    return { sessionId: session.threadId, userId: session.userId }
   },
 })
 ```
 
-Pass the validated session through `chat({ context: { session } })`. The static form (`scope: { tenantId: 'acme' }`) is fine for single-tenant or test fixtures, but the function form is safer in any multi-tenant deployment.
+## Recall flow (read side)
 
-## Retrieval flow
+Runs once per `chat()` invocation, during the `init` phase:
 
-Retrieval runs once per `chat()` invocation, during the `init` phase:
+1. `adapter.recall({ sessionId, userId }, userText)` — the adapter decides how to
+   rank (lexical, semantic, hybrid, or vendor-native).
+2. The middleware injects `result.toolGuidance` and `result.systemPrompt` into the
+   system prompts, and merges `result.tools` into the run's tools.
 
-1. `shouldRetrieve({ userText, scope })` — optional gate. Return `false` to skip retrieval entirely for this turn.
-2. `adapter.search({ scope, text, embedding?, topK, minScore, kinds })` — the adapter decides whether to use the embedding (semantic), the text (lexical), or both (hybrid).
-3. `rerank(hits, { scope, query, ctx })` — optional re-rank between search and render. Plug in MMR, RRF, or a cross-encoder.
-4. `render(hits)` — formats the final hit set into a string injected into the prompt. Defaults to `defaultRenderMemory`.
+Set `role: 'save-only'` to skip recall entirely (persist without reading).
 
-An `embedder` is **optional**. Adapters that support semantic search (Redis with vector ops, hosted vector DBs) need one; lexical-only setups don't.
+## Save flow (write side)
 
-## Persistence flow
+Deferred via `ctx.defer` — runs after the stream finishes and never blocks the response:
 
-Persistence is **deferred** via `ctx.defer` — it runs after the chat stream finishes and never blocks the response:
+1. The middleware captures the `{ user, assistant }` turn.
+2. `adapter.save(scope, turn)` persists it. Extraction (turn → stored facts) is the
+   adapter's responsibility — the built-in adapters store the raw turn by default and
+   accept an `extract` option; vendors extract server-side.
 
-1. `shouldRemember({ message, responseText })` — optional gate on whether to write at all this turn.
-2. The middleware persists user and assistant turns as `kind: 'message'`.
-3. `extractMemories({ userText, responseText, scope, adapter })` — return a `MemoryOp[]` (mixed add/update/delete) or `MemoryRecord[]` (treated as all-add) to capture facts, preferences, or summaries.
-4. For each completed tool call, `onToolResult({ toolName, toolCallId, args, result, scope, adapter })` — same return shape, typically used to persist results as `kind: 'tool-result'`.
-5. `afterPersist({ newRecords, scope, adapter })` — fires after `adapter.add` commits, with newly-added records (not updates or deletes).
+## `memoryMiddleware` options
 
-## Extension hooks
+| Option | Type | Default | Purpose |
+|--------|------|---------|---------|
+| `adapter` | `MemoryAdapter` | — (required) | The backend to `recall` from / `save` to. |
+| `scope` | `MemoryScope \| (ctx) => MemoryScope` | — (required) | Isolation scope, static or derived per request. |
+| `role` | `'recall+save' \| 'save-only'` | `'recall+save'` | `'save-only'` persists turns without recalling/injecting. |
+| `onRecall` | `({ scope, query, result }) => void` | — | App telemetry after each `recall`. |
+| `onSave` | `({ scope, turn, receipts }) => void` | — | App telemetry after each deferred `save`. |
 
-| Hook | Phase | Use for |
-|------|-------|---------|
-| `shouldRetrieve` | before search | Skip retrieval for cheap turns or content-gated requests |
-| `rerank` | between search and render | MMR, RRF, recency boosts, cross-encoder rerankers |
-| `shouldRemember` | before persist | Drop short, sensitive, or transient messages |
-| `extractMemories` | after model finishes | Mem0-style consolidation — extract facts and preferences |
-| `onToolResult` | per completed tool call | Persist tool outputs as `kind: 'tool-result'` |
-| `afterPersist` | after `adapter.add` commits | Background work — summarisation, eviction, indexing |
+Every option in one place:
 
-`extractMemories` and `onToolResult` may return `MemoryRecord[]` (shorthand: all-add) or `MemoryOp[]` (mixed `add` / `update` / `delete`).
+```ts
+import { memoryMiddleware } from '@tanstack/ai-memory'
+import { inMemory } from '@tanstack/ai-memory/in-memory'
+
+const mw = memoryMiddleware({
+  adapter: inMemory(),
+  // Function form derives scope per request. `ctx.threadId` is the stable
+  // per-conversation id; add `userId` from your server-validated session.
+  scope: (ctx) => ({ sessionId: ctx.threadId }),
+  // Static form is fine for fixtures: scope: { sessionId: 'demo', userId: 'alice' }
+  role: 'recall+save', // or 'save-only' to persist without injecting
+  onRecall: ({ query, result }) => {
+    console.log('recalled', result.fragments?.length ?? 0, 'hits for', query)
+  },
+  onSave: ({ receipts }) => {
+    console.log('saved', receipts.filter((r) => r.ok).length, 'records')
+  },
+})
+```
+
+See the [Adapters](./adapters) page for every adapter's own options.
+
+## Stacking adapters
+
+`composeMemoryMiddleware` runs several memory middlewares as one — e.g. save to two
+backends, or recall from one while saving to another:
+
+```ts ignore
+// ignore: `scope` and `client` come from your app.
+import {
+  memoryMiddleware,
+  composeMemoryMiddleware,
+} from '@tanstack/ai-memory'
+import { inMemory } from '@tanstack/ai-memory/in-memory'
+import { redis } from '@tanstack/ai-memory/redis'
+
+const memory = composeMemoryMiddleware([
+  memoryMiddleware({ adapter: redis({ redis: client }), scope }),
+  // second adapter only writes (no recall injection)
+  memoryMiddleware({ adapter: inMemory(), scope, role: 'save-only' }),
+])
+```
 
 ## Devtools events
 
@@ -130,44 +179,24 @@ The middleware emits five events on `aiEventClient` (from `@tanstack/ai-event-cl
 
 | Event | When |
 |-------|------|
-| `memory:retrieve:started` | Retrieval path begins (after `shouldRetrieve` returns true) |
-| `memory:retrieve:completed` | Final hit set is ready (post-rerank, pre-render) |
-| `memory:persist:started` | Persist path is about to call `adapter.add` |
-| `memory:persist:completed` | `adapter.add` succeeded |
-| `memory:error` | Retrieval, persistence, or extraction threw |
+| `memory:retrieve:started` | Recall begins |
+| `memory:retrieve:completed` | Recall returns (fragment count, whether tools were injected) |
+| `memory:persist:started` | A deferred save begins |
+| `memory:persist:completed` | A save completes (receipt count) |
+| `memory:error` | A `recall` or `save` threw (`phase: 'recall' \| 'save'`) |
 
-Hits and records carry a 200-character `preview` only — full text is never streamed by default, so devtools never leak full memory contents.
-
-For application telemetry that should not depend on devtools being installed, use the `events.*` callbacks on `MemoryMiddlewareOptions` (`onRetrieveStart`, `onRetrieveEnd`, `onPersistStart`, `onPersistEnd`, `onError`).
+For app telemetry that shouldn't depend on devtools, use the `onRecall` / `onSave`
+callbacks on `memoryMiddleware`.
 
 ## Failure modes
 
-By default `strict: false` — retrieval and persistence failures emit `memory:error` (and call `events.onError`), but the chat run continues with degraded memory. Set `strict: true` when memory correctness is more important than uptime, for example in compliance-sensitive deployments or in tests where a missed write is worse than a failed turn.
-
-## TypeScript types
-
-```ts
-import type {
-  MemoryAdapter,
-  MemoryRecord,
-  MemoryRecordPatch,
-  MemoryScope,
-  MemoryQuery,
-  MemorySearchResult,
-  MemoryListOptions,
-  MemoryListResult,
-  MemoryHit,
-  MemoryKind,
-  MemoryRole,
-  MemoryEmbedder,
-  MemoryOp,
-  MemoryMiddlewareOptions,
-} from '@tanstack/ai/memory'
-```
+Memory failures are **non-fatal**: a throwing `recall` or `save` emits `memory:error`
+and the chat run continues with degraded memory. Streaming is never blocked, and a
+failed save never fails the turn.
 
 ## Next steps
 
-- [Memory Quickstart](./quickstart) — wire the middleware into a real `chat()` call in five steps
-- [Custom Adapter](./custom-adapter) — implement `MemoryAdapter` for an unsupported backend
-- [Middleware](../advanced/middleware) — the underlying `chat()` middleware lifecycle and hooks
-- [Devtools](../getting-started/devtools) — subscribe to `memory:*` events for tracing
+- [Quickstart](./quickstart) — wire `memoryMiddleware` into a real `chat()` call
+- [Adapters](./adapters) — every adapter's options, with an example of each
+- [Custom Adapter](./custom-adapter) — implement `recall`/`save` for an unsupported backend
+- [Middleware](../advanced/middleware) — the underlying `chat()` middleware lifecycle

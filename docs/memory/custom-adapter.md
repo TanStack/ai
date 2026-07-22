@@ -1,325 +1,173 @@
 ---
 title: Custom Adapter
 id: memory-custom-adapter
-order: 3
-description: "Write a MemoryAdapter for a backend that isn't shipped — pgvector, MongoDB, DynamoDB, Pinecone, Supabase. Walks through the eight contract members, the three isolation invariants, the shared contract test suite, and publishing as a package."
+order: 4
+description: "Write a recall/save MemoryAdapter for a backend that isn't shipped — pgvector, MongoDB, DynamoDB, a hosted memory service. Two methods, one shared contract test."
 keywords:
   - tanstack ai
   - memory
   - custom adapter
   - MemoryAdapter
+  - recall
+  - save
   - pgvector
-  - mongodb
-  - dynamodb
-  - pinecone
-  - supabase
   - contract suite
 ---
 
-You have a backend in mind — pgvector, MongoDB, DynamoDB, Pinecone, Supabase, a hand-rolled SQL table — and the built-in `inMemoryMemoryAdapter` and `redisMemoryAdapter` don't fit. By the end of this guide, you'll have a working adapter that passes the shared contract suite, plugs into `memoryMiddleware`, and is ready to publish if you want.
+You have a backend in mind — pgvector, MongoDB, DynamoDB, a hosted memory API — and the
+built-in `inMemory()` / `redis()` adapters don't fit. A memory adapter is just an object
+with two methods, `recall` and `save`, so this is a short guide.
 
-> **Already comfortable with the contract?** Jump to [Step 4 — Run the contract suite](#step-4--run-the-contract-suite). **First time looking at memory?** Start with the [Overview](./overview) for what `MemoryAdapter` is and what it does.
+> **First time looking at memory?** Start with the [Overview](./overview) for what the
+> contract is and how the middleware uses it.
 
-## When to write a custom adapter
-
-| Situation | Use this |
-|-----------|----------|
-| You already use Postgres + pgvector / Supabase / Neon for app data | Custom adapter (one fewer system to operate) |
-| You need ANN search through a hosted vector DB (Pinecone, Weaviate, Qdrant) | Custom adapter |
-| You need DynamoDB / Cosmos / Spanner for compliance or existing infra | Custom adapter |
-| You want to layer caching, encryption, or tenant routing in front of an existing adapter | Custom adapter that wraps `inMemoryMemoryAdapter` or `redisMemoryAdapter` |
-| Local dev or single-process demo | `inMemoryMemoryAdapter` from `@tanstack/ai-memory` |
-| Production with Redis already in your stack | `redisMemoryAdapter` from `@tanstack/ai-memory` |
-
-If a built-in fits, use it. The contract is documented precisely so a custom adapter is always an option — not a requirement.
-
-## The contract at a glance
-
-A `MemoryAdapter` has one identifier and seven methods. The [Overview](./overview#adapter-contract) page covers each method's semantics in detail; this guide focuses on the implementation journey.
+## The contract
 
 ```ts
-import type {
-  MemoryRecord,
-  MemoryRecordPatch,
-  MemoryScope,
-  MemoryQuery,
-  MemorySearchResult,
-  MemoryListOptions,
-  MemoryListResult,
-} from '@tanstack/ai/memory'
+// The MemoryAdapter contract, from `@tanstack/ai-memory`:
+import type { MemoryAdapter } from '@tanstack/ai-memory'
+```
 
-// The `MemoryAdapter` contract, as exported from `@tanstack/ai/memory`:
+```ts ignore
+// ignore: the shape of the contract, shown for reference.
 interface MemoryAdapter {
-  name: string
-  add(records: MemoryRecord | MemoryRecord[]): Promise<void>
-  get(id: string, scope: MemoryScope): Promise<MemoryRecord | undefined>
-  update(id: string, scope: MemoryScope, patch: MemoryRecordPatch): Promise<MemoryRecord | undefined>
-  search(query: MemoryQuery): Promise<MemorySearchResult>
-  list(scope: MemoryScope, options?: MemoryListOptions): Promise<MemoryListResult>
-  delete(ids: string[], scope: MemoryScope): Promise<void>
-  clear(scope: MemoryScope): Promise<void>
+  id: string
+  recall(scope: MemoryScope, query: string): Promise<RecallResult>
+  save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>>
+  inspect?(scope: MemoryScope): Promise<MemorySnapshot>   // optional (devtools)
+  listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>> // optional (devtools)
 }
 ```
 
-Three invariants every adapter MUST uphold — these are non-negotiable:
+Two rules the middleware relies on:
 
-1. **Scope isolation.** Reads and writes never cross scopes. A query for `{tenantId: 't1'}` MUST NOT return records belonging to `{tenantId: 't2'}`.
-2. **Expiry filtering.** Records whose `expiresAt` is in the past MUST be excluded from `get`, `search`, and `list`. Adapters SHOULD opportunistically sweep them on `add`.
-3. **Id uniqueness across all scopes.** Two records with the same `id` MUST NOT coexist, even if their scopes differ.
+1. **`recall` decides relevance.** Return a rendered `systemPrompt` (empty string when
+   there's nothing), plus optional `fragments`, `tools`, and `toolGuidance`. Ranking
+   strategy is entirely yours — lexical, vector, hybrid, or vendor-native.
+2. **`save` owns extraction.** Turn the `{ user, assistant }` turn into whatever you
+   persist. Return one `SaveReceipt` per underlying write.
 
-The shared contract suite in `@tanstack/ai-memory/tests/contract.ts` verifies all three across every method. If your adapter passes it, the middleware works.
+Scope isolation is your responsibility: a `recall` for one `scope` must never surface
+another scope's data.
 
-## Step 1 — Scaffold the adapter shape
-
-Pick a backend and stub the eight members. Here's a pgvector skeleton you can copy as a starting point:
+## Step 1 — Scaffold
 
 ```ts ignore
-// ignore: scaffold to copy — `pg` is a peer dependency of a real pgvector
-// adapter (not a dependency of these docs), and the method bodies are elided
-// stubs, so this is not a standalone-compilable module.
+// ignore: `pg` is a peer dependency of a real pgvector adapter (not of these docs),
+// and the method bodies are elided — this is a scaffold to copy.
 import type {
   MemoryAdapter,
-  MemoryListOptions,
-  MemoryListResult,
-  MemoryQuery,
-  MemoryRecord,
-  MemoryRecordPatch,
   MemoryScope,
-  MemorySearchResult,
-} from '@tanstack/ai/memory'
+  MemoryTurn,
+  RecallResult,
+  SaveReceipt,
+} from '@tanstack/ai-memory'
 import type { Pool } from 'pg'
 
-export interface PgvectorMemoryAdapterOptions {
-  pool: Pool
-  /** Table name. Defaults to "tanstack_ai_memory". */
-  table?: string
-}
-
-export function pgvectorMemoryAdapter(
-  options: PgvectorMemoryAdapterOptions,
-): MemoryAdapter {
-  const table = options.table ?? 'tanstack_ai_memory'
-  const pool = options.pool
-
+export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAdapter {
+  const { pool, embed } = options
   return {
-    name: 'pgvector',
-    async add(records) { /* … */ },
-    async get(id, scope) { /* … */ },
-    async update(id, scope, patch) { /* … */ },
-    async search(query) { /* … */ },
-    async list(scope, options) { /* … */ },
-    async delete(ids, scope) { /* … */ },
-    async clear(scope) { /* … */ },
+    id: 'pgvector',
+
+    async save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>> {
+      const rows = [
+        { role: 'user', text: turn.user },
+        { role: 'assistant', text: turn.assistant },
+      ]
+      for (const row of rows) {
+        const vector = await embed(row.text)
+        await pool.query(
+          `INSERT INTO memory (session_id, user_id, role, text, embedding)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [scope.sessionId, scope.userId ?? null, row.role, row.text, JSON.stringify(vector)],
+        )
+      }
+      return [{ ok: true }]
+    },
+
+    async recall(scope: MemoryScope, query: string): Promise<RecallResult> {
+      const q = await embed(query)
+      const { rows } = await pool.query(
+        `SELECT text, 1 - (embedding <=> $1::vector) AS score
+           FROM memory
+          WHERE session_id = $2 AND ($3::text IS NULL OR user_id = $3)
+          ORDER BY score DESC
+          LIMIT 6`,
+        [JSON.stringify(q), scope.sessionId, scope.userId ?? null],
+      )
+      const fragments = rows.map((r) => ({ text: r.text, source: 'pgvector' }))
+      const systemPrompt = fragments.length
+        ? `Relevant memory:\n${fragments.map((f) => `- ${f.text}`).join('\n')}`
+        : ''
+      return { systemPrompt, fragments }
+    },
   }
 }
 ```
 
-Pick a `name` your operators will see in logs and devtools — usually the backend's name.
+The shape generalizes: every method takes a `scope`, does its backend-specific work,
+and keeps scopes isolated. For a backend without native search, load the scope's
+records and rank them yourself.
 
-## Step 2 — Reuse the shared helpers
+## Step 2 — Run the contract suite
 
-`@tanstack/ai/memory` exports helpers that handle the parts of the contract that don't depend on your storage choice. Use them instead of reimplementing:
-
-```ts
-import {
-  scopeMatches,
-  isExpired,
-  defaultScoreHit,
-  cosine,
-  lexicalOverlap,
-  recencyScore,
-} from '@tanstack/ai/memory'
-```
-
-- `scopeMatches(recordScope, queryScope)` — the canonical "does this record match this query scope?" check. Treats empty-string values and empty objects as no-match. Use everywhere you'd filter by scope.
-- `isExpired(record, now?)` — returns `true` for records past their `expiresAt`. Inject `now` for deterministic tests.
-- `defaultScoreHit({ record, query, now? })` — weighted score: semantic 0.55, lexical 0.20, recency 0.15, importance 0.10. Use as your default ranker, or roll your own and reuse `cosine` / `lexicalOverlap` / `recencyScore` à la carte.
-
-If your backend has native vector or full-text search (pgvector's `<->`, Postgres `ts_rank`, Pinecone's score), prefer it — the helpers are for adapters with no native ranking.
-
-## Step 3 — Implement each method
-
-Implementation specifics are backend-dependent, but the shape is the same everywhere. A pgvector example for `add` and `search` makes the pattern concrete:
+`@tanstack/ai-memory/tests/contract` exports `runMemoryAdapterContract`. Point it at a
+factory that returns a fresh adapter — it verifies the save→recall round-trip, scope
+isolation, empty recall, receipt shape, and the optional introspection methods.
 
 ```ts ignore
-// ignore: method-body fragments from inside the adapter object above — they
-// reference `pool`, `table`, and a `rowToRecord` helper from the full adapter,
-// shown to illustrate the query shape, not as a standalone module.
-async add(input) {
-  const batch = Array.isArray(input) ? input : [input]
-  const now = Date.now()
-
-  for (const r of batch) {
-    await pool.query(
-      `INSERT INTO ${table} (id, tenant_id, user_id, session_id, thread_id, namespace,
-                            text, kind, role, created_at, updated_at, expires_at,
-                            importance, embedding, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       ON CONFLICT (id) DO UPDATE SET
-         tenant_id = EXCLUDED.tenant_id,
-         user_id = EXCLUDED.user_id,
-         session_id = EXCLUDED.session_id,
-         thread_id = EXCLUDED.thread_id,
-         namespace = EXCLUDED.namespace,
-         text = EXCLUDED.text,
-         kind = EXCLUDED.kind,
-         role = EXCLUDED.role,
-         updated_at = EXCLUDED.updated_at,
-         expires_at = EXCLUDED.expires_at,
-         importance = EXCLUDED.importance,
-         embedding = EXCLUDED.embedding,
-         metadata = EXCLUDED.metadata`,
-      [
-        r.id, r.scope.tenantId ?? null, r.scope.userId ?? null,
-        r.scope.sessionId ?? null, r.scope.threadId ?? null, r.scope.namespace ?? null,
-        r.text, r.kind, r.role ?? null, r.createdAt ?? now, now,
-        r.expiresAt ?? null, r.importance ?? null,
-        r.embedding ? JSON.stringify(r.embedding) : null,
-        r.metadata ? JSON.stringify(r.metadata) : null,
-      ],
-    )
-  }
-},
-
-async search(query: MemoryQuery): Promise<MemorySearchResult> {
-  const topK = query.topK ?? 6
-  const minScore = query.minScore ?? 0
-  const offset = query.cursor ? Number.parseInt(query.cursor, 10) || 0 : 0
-
-  const { rows } = await pool.query(
-    `SELECT *,
-            CASE WHEN $1::vector IS NOT NULL AND embedding IS NOT NULL
-                 THEN 1 - (embedding <=> $1::vector)
-                 ELSE 0
-            END AS score
-       FROM ${table}
-      WHERE ($2::text IS NULL OR tenant_id = $2)
-        AND ($3::text IS NULL OR user_id = $3)
-        AND ($4::text IS NULL OR session_id = $4)
-        AND ($5::text IS NULL OR thread_id = $5)
-        AND ($6::text IS NULL OR namespace = $6)
-        AND (expires_at IS NULL OR expires_at > $7)
-        AND ($8::text[] IS NULL OR kind = ANY($8))
-      ORDER BY score DESC
-      OFFSET $9 LIMIT $10`,
-    [
-      query.embedding ? JSON.stringify(query.embedding) : null,
-      query.scope.tenantId ?? null, query.scope.userId ?? null,
-      query.scope.sessionId ?? null, query.scope.threadId ?? null,
-      query.scope.namespace ?? null,
-      Date.now(),
-      query.kinds ?? null,
-      offset, topK + 1,
-    ],
-  )
-
-  const hits = rows.slice(0, topK).map((row) => ({
-    record: rowToRecord(row),
-    score: Number(row.score),
-  })).filter((h) => h.score >= minScore)
-
-  return {
-    hits,
-    nextCursor: rows.length > topK ? String(offset + topK) : undefined,
-  }
-}
-```
-
-The shape generalizes: every method takes a `scope`, does its backend-specific work, and respects the three invariants. For backends without native search, fall back to "load scope-matched records, score via `defaultScoreHit`, sort, slice" — that's exactly what `inMemoryMemoryAdapter` does.
-
-## Step 4 — Run the contract suite
-
-The shared test suite in `@tanstack/ai-memory/tests/contract.ts` is the canonical verification for any adapter. Import `runMemoryAdapterContract` and point it at a factory that returns a fresh adapter:
-
-```ts ignore
-// ignore: depends on `pg` (a peer dep, not a docs dependency) and a local
-// `../src/pgvector` module — an illustrative test file, not compilable here.
+// ignore: depends on `pg` (a peer dep) and a local `../src/pgvector` module.
 // tests/pgvector.test.ts
-import { Pool } from 'pg'
 import { runMemoryAdapterContract } from '@tanstack/ai-memory/tests/contract'
-import { pgvectorMemoryAdapter } from '../src/pgvector'
+import { pgvectorMemory } from '../src/pgvector'
 
-runMemoryAdapterContract('pgvectorMemoryAdapter', async () => {
-  const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL })
-  // Truncate the table between tests so each test gets a clean adapter.
-  await pool.query('TRUNCATE tanstack_ai_memory')
-  return pgvectorMemoryAdapter({ pool })
+runMemoryAdapterContract('pgvectorMemory', async () => {
+  const pool = makeCleanPool() // truncate between tests for a fresh adapter
+  return pgvectorMemory({ pool, embed })
 })
 ```
 
-The suite covers `add` (single, batch, upsert), `get`, `update`, `search` (topK, minScore, kinds filter, cursor pagination, lexical-vs-semantic ranking), `list`, `delete`, `clear`, scope isolation across every method, expiry filtering, partial-scope cascades, glob metacharacter safety, and colon and underscore safety. If your adapter passes, every adapter-level contract guarantee is met.
+## Step 3 — Wire it into `memoryMiddleware`
 
-The contract module isn't re-exported from `@tanstack/ai-memory`'s public entry yet — import directly from `@tanstack/ai-memory/tests/contract` until that lands.
-
-## Step 5 — Wire it into `memoryMiddleware`
-
-Once the contract suite is green, the adapter is interchangeable with the built-ins:
+Once the suite is green, the adapter is interchangeable with the built-ins:
 
 ```ts ignore
-// ignore: imports `pg` (a peer dep) and a local `./pgvector-adapter` module, and
-// assumes `messages` / `scope` from your app — shown as an integration snippet.
+// ignore: imports `pg` (a peer dep) and a local `./pgvector` module, and assumes
+// `messages` / `scope` from your app.
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { memoryMiddleware } from '@tanstack/ai/memory'
-import { Pool } from 'pg'
-import { pgvectorMemoryAdapter } from './pgvector-adapter'
+import { memoryMiddleware } from '@tanstack/ai-memory'
+import { pgvectorMemory } from './pgvector'
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-const memory = pgvectorMemoryAdapter({ pool })
+const memory = pgvectorMemory({ pool, embed })
 
 const stream = chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   middleware: [memoryMiddleware({ adapter: memory, scope })],
 })
 ```
 
-Everything the middleware does — retrieval, deferred persistence, `extractMemories`, `onToolResult`, `afterPersist`, devtools events — works exactly the same. The middleware never inspects the adapter's internals; the contract is the entire interface.
+The middleware never inspects the adapter's internals — `recall`/`save` is the entire
+interface.
 
-## Step 6 — Publish (optional)
+## Exposing tools (optional)
 
-If you want others to use your adapter, ship it as its own package. The conventions:
-
-- Name it `@your-org/ai-memory-<backend>` (e.g. `@acme/ai-memory-pgvector`).
-- List `@tanstack/ai` as a peer dependency with a workspace-friendly range — `">=0.16.0 <1"` is typical.
-- List your backend client (`pg`, `mongodb`, `@pinecone-database/pinecone`, …) as a peer dependency, marked optional via `peerDependenciesMeta` if your adapter accepts any compatible shape (BYO-client pattern, like `redisMemoryAdapter`).
-- Include the contract suite as a `devDependency` so consumers can run the same tests against forks.
-- Re-export the relevant types from `@tanstack/ai/memory` for ergonomics.
-
-A minimal `package.json` for a published adapter:
-
-```json
-{
-  "name": "@acme/ai-memory-pgvector",
-  "version": "0.1.0",
-  "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "peerDependencies": {
-    "@tanstack/ai": ">=0.16.0 <1",
-    "pg": ">=8"
-  },
-  "peerDependenciesMeta": { "pg": { "optional": false } },
-  "devDependencies": {
-    "@tanstack/ai": "^0.16.0",
-    "@tanstack/ai-memory": "^0.1.0",
-    "pg": "^8",
-    "vitest": "^1"
-  }
-}
-```
+`recall` can return `tools` and `toolGuidance` to give the model direct control over
+memory (this is how the `hindsight()` adapter exposes retain/recall/reflect tools). The
+middleware merges them into the run's tools and injects the guidance ahead of the
+recalled prompt. Return `tools: []` (or omit it) when your adapter exposes none.
 
 ## Pitfalls
 
-A few things that catch first-time adapter authors:
-
-- **Don't trust the caller's `record.scope`.** The middleware overrides it before calling `add`, so adapter implementations should not silently rewrite scope based on caller intent. If your storage encodes scope into keys, take it from the record you were handed — and treat empty values defensively.
-- **Escape your delimiters.** If your storage serializes scope into a composite key, escape any character your delimiter uses (`:`, `_`, `/`, …) when it appears inside a user-supplied scope value. Otherwise a tenant whose id legitimately contains the delimiter will collide with sub-scope buckets. The Redis adapter handles this with an `escapeScopeValue` helper.
-- **Make `clear` cascade correctly.** `clear({tenantId: 't1'})` MUST wipe every record whose scope is `t1`-prefixed (e.g. `{tenantId: 't1', userId: 'u1'}`), not only records whose scope is exactly `{tenantId: 't1'}`. This is the partial-scope contract — the in-memory adapter gets it for free via `scopeMatches`; the Redis adapter implements it via SCAN over a glob pattern.
-- **Multi-step writes are not atomic by default.** If your backend supports transactions (Postgres, MongoDB sessions, DynamoDB transact-write), use them for `add` on scope changes and for `clear`. Document the consistency guarantee you provide.
-- **Refuse `clear({})`.** Empty scope is documented as misuse. `scopeMatches` returns `false` for it, so adapters using the helper get the guard for free. Adapters that bypass `scopeMatches` (Redis with its SCAN path) need an explicit `hasAnyScopeKey` check.
+- **Keep scopes isolated.** If you serialize scope into a composite key, escape your
+  delimiter so a `sessionId`/`userId` containing it can't collide with another scope.
+- **`recall` must not throw for an empty scope.** Return `{ systemPrompt: '' }`.
+- **Extraction lives in `save`.** Don't expect the middleware to derive facts — the raw
+  turn is handed to you; store or summarize it however you like.
 
 ## Where to go next
 
-- [Overview](./overview) — adapter contract, hooks reference, devtools events, failure modes
+- [Overview](./overview) — contract, scope, `memoryMiddleware` options, devtools events
+- [Adapters](./adapters) — the built-in and vendor adapters, with every option
 - [Quickstart](./quickstart) — wire `memoryMiddleware` into a real `chat()` call
-- [Middleware](../advanced/middleware) — the underlying `chat()` middleware lifecycle, useful when your adapter needs to coordinate with other middlewares

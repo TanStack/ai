@@ -365,4 +365,50 @@ test.describe('Middleware Lifecycle', () => {
     expect(textPart?.content).not.toContain('[MW]')
     expect(textPart?.content).toContain('Hello')
   })
+
+  test('memory middleware injects recalled prompt + tools and defers save', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('basic-text')
+    await page.locator('#mw-mode-select').selectOption('memory')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const memoryJson = await page.locator('#mw-memory-json').textContent()
+    const capture = JSON.parse(memoryJson || '{}') as {
+      configs: Array<{ systemPrompts: Array<string>; toolNames: Array<string> }>
+      saveCount: number
+    }
+
+    // The recorder placed after memoryMiddleware saw the config the model
+    // receives: the recalled system prompt (+ tool guidance) and the injected
+    // tool must both be present.
+    expect(capture.configs.length).toBeGreaterThan(0)
+    const injected = capture.configs.find((c) =>
+      c.systemPrompts.some((p) => p.includes('love TanStack')),
+    )
+    expect(injected).toBeTruthy()
+    expect(
+      injected?.systemPrompts.some((p) => p.includes('recall_more')),
+    ).toBe(true)
+    expect(injected?.toolNames).toContain('recall_more')
+
+    // The finished turn deferred a save through the adapter.
+    expect(capture.saveCount).toBeGreaterThanOrEqual(1)
+  })
 })

@@ -427,15 +427,23 @@
       "children": [
         {
           "label": "Overview",
-          "to": "memory/overview"
+          "to": "memory/overview",
+          "addedAt": "2026-07-21"
         },
         {
           "label": "Quickstart",
-          "to": "memory/quickstart"
+          "to": "memory/quickstart",
+          "addedAt": "2026-07-21"
+        },
+        {
+          "label": "Adapters",
+          "to": "memory/adapters",
+          "addedAt": "2026-07-21"
         },
         {
           "label": "Custom Adapter",
-          "to": "memory/custom-adapter"
+          "to": "memory/custom-adapter",
+          "addedAt": "2026-07-21"
         }
       ]
     },
