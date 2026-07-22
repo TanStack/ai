@@ -140,10 +140,21 @@ export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
         readonly toolName: TTool['name']
         readonly toolCallId: string
         readonly originalArgs: InferToolInput<TTool>
-        resolveInterrupt: {
-          (approved: true, ...args: ApproveArguments<TTool>): void
-          (approved: false, ...args: RejectArguments<TTool>): void
-        }
+        // A single generic call signature — not two overloads. Overloads break
+        // editor autocomplete: a half-typed options literal (e.g.
+        // `resolveInterrupt(true, { payload: {` ) satisfies neither overload,
+        // so TS resolves no signature and offers no contextual completions.
+        // Making `approved` a generic discriminant lets TS infer it from the
+        // first argument and pick the matching branch for the rest params, so
+        // `payload` / `editedArgs` / the correct schema's fields complete
+        // per-branch (a plain union-of-tuples would offer both branches'
+        // fields) while still enforcing the right shape.
+        resolveInterrupt: <TApproved extends boolean>(
+          approved: TApproved,
+          ...args: TApproved extends true
+            ? ApproveArguments<TTool>
+            : RejectArguments<TTool>
+        ) => void
       }
     : never
 

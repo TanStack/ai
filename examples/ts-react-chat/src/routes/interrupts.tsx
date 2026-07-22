@@ -486,7 +486,7 @@ function ApprovalCard({
   }
 
   // Note: each tool gets its own `case` (no shared fall-through). Sharing a
-  // block would leave `interrupt` a union of tools, and calling its overloaded
+  // block would leave `interrupt` a union of tools, and calling
   // `resolveInterrupt` on that union collapses the parameter to `never`.
   switch (interrupt.toolName) {
     case 'admitRescue':
