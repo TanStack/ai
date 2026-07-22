@@ -693,6 +693,16 @@ export interface SubscribeConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => Promise<void>
+  /**
+   * Re-attach to an existing run by id, replaying its stream from the start off
+   * the server's delivery-durability sink. Present only when the underlying
+   * connection is resumable (a `ResumableConnectConnectionAdapter`). Used to
+   * rejoin an in-flight run after a full page reload.
+   */
+  joinRun?: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
@@ -727,9 +737,13 @@ export function normalizeConnectionAdapter(
   }
 
   if (hasSubscribe && hasSend) {
+    const joinRun = (
+      connection as SubscribeConnectionAdapter
+    ).joinRun?.bind(connection)
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),
+      ...(joinRun ? { joinRun } : {}),
     }
   }
 
@@ -858,6 +872,17 @@ export function normalizeConnectionAdapter(
         throw err
       }
     },
+    // Expose joinRun only when the underlying connection is resumable. Returns
+    // the replay iterable directly; the client consumes it like a subscription.
+    ...('joinRun' in connection
+      ? {
+          joinRun: (runId: string, abortSignal?: AbortSignal) =>
+            (connection as ResumableConnectConnectionAdapter).joinRun(
+              runId,
+              abortSignal,
+            ),
+        }
+      : {}),
   }
 }
 

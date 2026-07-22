@@ -1,6 +1,20 @@
 import { getChunkRunId } from './connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
-import type { ChatClientPersistence, UIMessage } from './types'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  ChatResumeSnapshot,
+  UIMessage,
+} from './types'
+
+/** Normalize a raw `getItem` result (legacy bare array or combined record). */
+function normalizePersistedState(
+  raw: ChatPersistedState | Array<UIMessage> | null | undefined,
+): ChatPersistedState | undefined {
+  if (Array.isArray(raw)) return { messages: raw }
+  if (raw && Array.isArray(raw.messages)) return raw
+  return undefined
+}
 
 // `StreamChunk` is a discriminated union; `toolCallId` / `messageId` /
 // `parentMessageId` exist on only some members. Narrow with `in` (matching
@@ -51,6 +65,10 @@ export class ChatPersistor {
   // Bumped on every message change; lets an in-flight async hydration detect
   // that the message list moved on and avoid clobbering it.
   private messagesGeneration = 0
+  // Latest messages + resume snapshot, written together as one combined record
+  // so a full page reload restores both from a single adapter key.
+  private lastMessages: Array<UIMessage> = []
+  private lastResume: ChatResumeSnapshot | null = null
 
   // --- clear-during-stream suppression state ---
   private readonly clearedMessageIds = new Set<string>()
@@ -63,51 +81,77 @@ export class ChatPersistor {
     private readonly adapter: ChatClientPersistence,
     private readonly id: string,
     private readonly applyMessages: (messages: Array<UIMessage>) => void,
+    private readonly applyResume?: (snapshot: ChatResumeSnapshot) => void,
   ) {}
+
+  /** Persist the current messages + resume snapshot as one combined record. */
+  private writeState(): void {
+    const generation = this.generation
+    const state: ChatPersistedState = {
+      messages: [...this.lastMessages],
+      ...(this.lastResume ? { resume: this.lastResume } : {}),
+    }
+    this.runOperation(() => {
+      if (generation !== this.generation) {
+        return
+      }
+      return this.adapter.setItem(this.id, state)
+    })
+  }
 
   // ---------------------------------------------------------------------------
   // Storage orchestration
   // ---------------------------------------------------------------------------
 
   /**
-   * Synchronously read the persisted messages for constructor-time hydration.
-   * Returns the raw `getItem` result (which may be a promise for async stores).
+   * Synchronously read the persisted state for constructor-time hydration.
+   * Returns the normalized combined record, or a promise of it for async stores.
    */
   readInitial():
-    | Array<UIMessage>
-    | null
+    | ChatPersistedState
     | undefined
-    | Promise<Array<UIMessage> | null | undefined> {
+    | Promise<ChatPersistedState | undefined> {
     try {
-      return this.adapter.getItem(this.id)
+      const raw = this.adapter.getItem(this.id)
+      if (raw instanceof Promise) {
+        return raw.then(normalizePersistedState).catch(() => undefined)
+      }
+      const state = normalizePersistedState(raw)
+      if (state) {
+        this.lastMessages = state.messages
+        this.lastResume = state.resume ?? null
+      }
+      return state
     } catch {
       return undefined
     }
   }
 
   /**
-   * Apply messages from an async `getItem` once it resolves, unless the message
+   * Apply state from an async `getItem` once it resolves, unless the message
    * list has already changed since hydration began.
    */
   hydrateAsync(
-    persistedMessages:
-      | Array<UIMessage>
-      | null
+    persistedState:
+      | ChatPersistedState
       | undefined
-      | Promise<Array<UIMessage> | null | undefined>,
+      | Promise<ChatPersistedState | undefined>,
   ): void {
-    if (!(persistedMessages instanceof Promise)) {
+    if (!(persistedState instanceof Promise)) {
       return
     }
 
     const hydrationGeneration = this.messagesGeneration
-    persistedMessages
-      .then((messages) => {
-        if (
-          Array.isArray(messages) &&
-          this.messagesGeneration === hydrationGeneration
-        ) {
-          this.applyMessages(messages)
+    persistedState
+      .then((state) => {
+        if (!state || this.messagesGeneration !== hydrationGeneration) {
+          return
+        }
+        this.lastMessages = state.messages
+        this.lastResume = state.resume ?? null
+        this.applyMessages(state.messages)
+        if (state.resume && this.applyResume) {
+          this.applyResume(state.resume)
         }
       })
       .catch(() => {
@@ -116,28 +160,37 @@ export class ChatPersistor {
   }
 
   /**
-   * Record a message-list change and queue a `setItem` write for it. Skips a
+   * Record a message-list change and queue a combined write for it. Skips a
    * single write after {@link beginClear} so the clear's empty snapshot isn't
    * persisted between `clearMessages()` and {@link remove}.
    */
   notifyMessagesChanged(messages: Array<UIMessage>): void {
     this.messagesGeneration++
+    this.lastMessages = [...messages]
     if (this.skipNextPersist) {
       this.skipNextPersist = false
       return
     }
-    const generation = this.generation
-    const messagesSnapshot = [...messages]
-    this.runOperation(() => {
-      if (generation !== this.generation) {
-        return
-      }
-      return this.adapter.setItem(this.id, messagesSnapshot)
-    })
+    this.writeState()
+  }
+
+  /**
+   * Record the current resume snapshot (which run to rejoin / which interrupts
+   * are pending) and persist it alongside the messages. Pass `null` to clear it
+   * once the run reaches a non-interrupt terminal.
+   */
+  persistResumeSnapshot(snapshot: ChatResumeSnapshot | null): void {
+    this.lastResume = snapshot
+    if (this.skipNextPersist) {
+      return
+    }
+    this.writeState()
   }
 
   /** Remove the persisted conversation. Invalidates any queued writes. */
   remove(): void {
+    this.lastMessages = []
+    this.lastResume = null
     const generation = ++this.generation
     this.runOperation(() => {
       if (generation !== this.generation) {
