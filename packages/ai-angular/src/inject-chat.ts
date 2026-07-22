@@ -292,7 +292,7 @@ export function injectChat<
     state?: ChatResumeState,
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
-  // eslint-disable-next-line no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
   return {
     messages: messages.asReadonly(),
     sendMessage,

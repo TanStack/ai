@@ -43,9 +43,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "dotenv": "^17.2.3",
-    "nitro": "3.0.1-alpha.2",
+    "nitro": "3.0.260610-beta",
     "tailwindcss": "^4.1.18",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^8.1.4"
   }
 }

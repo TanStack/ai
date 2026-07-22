@@ -408,7 +408,7 @@ export class GenerationClient<
     // No onResult callback, or callback returned void → use raw value as
     // TOutput. When the caller did not supply an onResult transform,
     // `TOutput` defaults to `TResult`, so the runtime cast is sound.
-    // eslint-disable-next-line no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
     this.callbacksRef.onResultChange?.(this.result)
     this.devtoolsBridge.recordResultChange()
