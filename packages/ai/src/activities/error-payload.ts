@@ -29,6 +29,28 @@ function normalizeCode(codeField: unknown): string | undefined {
   return undefined
 }
 
+// SDK error classes disagree on where they carry the HTTP status. Most expose a
+// `code` (OpenAI/Anthropic error bodies), but some report it only as a numeric
+// `status` — Google's `@google/genai` `ApiError` sets `status: number` and no
+// `code` at all. Without this fallback such errors reach downstream consumers
+// with `code: undefined`, so a 401/403/404/429 is indistinguishable from an
+// unknown failure and cannot be classified.
+//
+// Only a *numeric* `status` is used: a string `status` is commonly an HTTP
+// reason phrase ("Forbidden") or a symbolic status ("PERMISSION_DENIED"), not
+// the numeric code consumers key on, so forwarding it would be misleading.
+function extractCode(source: {
+  code?: unknown
+  status?: unknown
+}): string | undefined {
+  const fromCode = normalizeCode(source.code)
+  if (fromCode !== undefined) return fromCode
+  if (typeof source.status === 'number' && Number.isFinite(source.status)) {
+    return String(source.status)
+  }
+  return undefined
+}
+
 export function toRunErrorPayload(
   error: unknown,
   fallbackMessage = 'Unknown error occurred',
@@ -40,21 +62,19 @@ export function toRunErrorPayload(
     }
   }
   if (error instanceof Error) {
-    const codeField = (error as Error & { code?: unknown }).code
     return {
       message: error.message || fallbackMessage,
-      code: normalizeCode(codeField),
+      code: extractCode(error as Error & { code?: unknown; status?: unknown }),
     }
   }
   if (typeof error === 'object' && error !== null) {
     const messageField = (error as { message?: unknown }).message
-    const codeField = (error as { code?: unknown }).code
     return {
       message:
         typeof messageField === 'string' && messageField.length > 0
           ? messageField
           : fallbackMessage,
-      code: normalizeCode(codeField),
+      code: extractCode(error as { code?: unknown; status?: unknown }),
     }
   }
   if (typeof error === 'string' && error.length > 0) {

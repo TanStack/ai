@@ -63,6 +63,67 @@ describe('toRunErrorPayload', () => {
     })
   })
 
+  it('falls back to a numeric `status` when there is no `code`', () => {
+    // Google's `@google/genai` `ApiError` reports the HTTP status on
+    // `status: number` and carries no `code`; without the fallback the status
+    // is lost and the failure cannot be classified downstream.
+    const err = Object.assign(new Error('http 403'), { status: 403 })
+    expect(toRunErrorPayload(err)).toEqual({
+      message: 'http 403',
+      code: '403',
+    })
+    expect(toRunErrorPayload({ message: 'http 429', status: 429 })).toEqual({
+      message: 'http 429',
+      code: '429',
+    })
+  })
+
+  it('prefers an explicit `code` over `status`', () => {
+    const err = Object.assign(new Error('conflict'), {
+      code: 'rate_limit_exceeded',
+      status: 429,
+    })
+    expect(toRunErrorPayload(err)).toEqual({
+      message: 'conflict',
+      code: 'rate_limit_exceeded',
+    })
+  })
+
+  it('ignores a non-numeric `status` (reason phrase, not an HTTP code)', () => {
+    // A string `status` is typically an HTTP reason phrase ("Forbidden") or a
+    // symbolic status ("PERMISSION_DENIED"), not the numeric code consumers key
+    // on, so it must not be forwarded as `code`.
+    expect(
+      toRunErrorPayload({ message: 'denied', status: 'Forbidden' }),
+    ).toEqual({
+      message: 'denied',
+      code: undefined,
+    })
+    expect(
+      toRunErrorPayload({ message: 'denied', status: 'PERMISSION_DENIED' }),
+    ).toEqual({
+      message: 'denied',
+      code: undefined,
+    })
+  })
+
+  it('reproduces the @google/genai ApiError shape (status-only, JSON message)', () => {
+    // Mirrors `class ApiError extends Error { status: number }` from
+    // `@google/genai`, whose message is the stringified provider body.
+    const body = JSON.stringify({
+      error: {
+        code: 403,
+        message: 'Your project has been denied access. Please contact support.',
+        status: 'PERMISSION_DENIED',
+      },
+    })
+    const err = Object.assign(new Error(body), { name: 'ApiError', status: 403 })
+    expect(toRunErrorPayload(err)).toEqual({
+      message: body,
+      code: '403',
+    })
+  })
+
   it('accepts a bare string as a thrown value', () => {
     expect(toRunErrorPayload('plain string error')).toEqual({
       message: 'plain string error',
