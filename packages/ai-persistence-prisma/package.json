@@ -1,0 +1,91 @@
+{
+  "name": "@tanstack/ai-persistence-prisma",
+  "version": "0.0.0",
+  "description": "Prisma persistence for TanStack AI with a provider-neutral models fragment and bring-your-own migrated PrismaClient.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-prisma"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence",
+    "prisma",
+    "database"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "bin": {
+    "tanstack-ai-prisma-models": "./bin/tanstack-ai-prisma-models.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "prisma/tanstack-ai.prisma"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "db:generate": "prisma generate --schema ./prisma",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:oxlint": "oxlint src --type-aware"
+  },
+  "nx": {
+    "targets": {
+      "db:generate": {
+        "cache": false
+      },
+      "build": {
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
+      },
+      "test:lib": {
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
+      },
+      "test:types": {
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
+      },
+      "test:eslint": {
+        "dependsOn": [
+          "db:generate",
+          "^build"
+        ]
+      }
+    }
+  },
+  "peerDependencies": {
+    "@prisma/client": ">=6.7.0",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.3",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "prisma": "^6.19.3"
+  }
+}

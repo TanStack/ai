@@ -1,0 +1,63 @@
+{
+  "name": "@tanstack/ai-persistence",
+  "version": "0.0.0",
+  "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "persistence",
+    "durable",
+    "resume",
+    "chat-history"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./testkit": {
+      "types": "./dist/esm/testkit/conformance.d.ts",
+      "import": "./dist/esm/testkit/conformance.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:oxlint": "oxlint src --type-aware"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "vitest": "^4.1.10"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vitest": "^4.1.10"
+  }
+}

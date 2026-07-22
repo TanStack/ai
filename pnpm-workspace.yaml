@@ -95,3 +95,9 @@ allowBuilds:
   # JS fallback, so their native builds are not required.
   cpu-features: false
   ssh2: false
+  # @tanstack/ai-persistence-prisma runs `prisma generate` (nx `db:generate`)
+  # as a build/typecheck prerequisite, so the Prisma engine + client build
+  # scripts must run.
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true

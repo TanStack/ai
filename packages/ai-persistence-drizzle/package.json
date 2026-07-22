@@ -1,0 +1,66 @@
+{
+  "name": "@tanstack/ai-persistence-drizzle",
+  "version": "0.0.0",
+  "description": "SQLite-family Drizzle persistence for TanStack AI, with an edge-safe bring-your-own database adapter, a Node SQLite factory, and bundled migrations.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-persistence-drizzle"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "persistence",
+    "drizzle",
+    "sqlite"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/esm/sqlite.d.ts",
+      "import": "./dist/esm/sqlite.js"
+    }
+  },
+  "bin": {
+    "tanstack-ai-drizzle-migrations": "./bin/tanstack-ai-drizzle-migrations.mjs",
+    "tanstack-ai-drizzle-schema": "./bin/tanstack-ai-drizzle-schema.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "drizzle",
+    "drizzle.config.ts"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "db:generate": "drizzle-kit generate",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:oxlint": "oxlint src --type-aware"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
+    "drizzle-orm": ">=0.44.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "drizzle-kit": "^0.31.0",
+    "drizzle-orm": "^0.45.0"
+  }
+}
