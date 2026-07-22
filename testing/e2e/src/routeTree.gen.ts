@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
@@ -29,6 +30,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
@@ -67,6 +69,11 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
+  id: '/persistence-durability',
+  path: '/persistence-durability',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
@@ -165,6 +172,12 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPersistenceDurabilityRoute =
+  ApiPersistenceDurabilityRouteImport.update({
+    id: '/api/persistence-durability',
+    path: '/api/persistence-durability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
   id: '/api/otel-usage',
   path: '/api/otel-usage',
@@ -353,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -383,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -409,6 +424,7 @@ export interface FileRoutesByTo {
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -439,6 +455,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -466,6 +483,7 @@ export interface FileRoutesById {
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
+  '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -496,6 +514,7 @@ export interface FileRoutesById {
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -524,6 +543,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/persistence-durability'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -554,6 +574,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/persistence-durability'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -580,6 +601,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/persistence-durability'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -610,6 +632,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/persistence-durability'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -636,6 +659,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
+    | '/persistence-durability'
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -666,6 +690,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-usage'
+    | '/api/persistence-durability'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -693,6 +718,7 @@ export interface RootRouteChildren {
   InterruptsTestRoute: typeof InterruptsTestRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
+  PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
@@ -723,6 +749,7 @@ export interface RootRouteChildren {
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
+  ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -739,6 +766,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/persistence-durability': {
+      id: '/persistence-durability'
+      path: '/persistence-durability'
+      fullPath: '/persistence-durability'
+      preLoaderRoute: typeof PersistenceDurabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/middleware-test': {
@@ -872,6 +906,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/persistence-durability': {
+      id: '/api/persistence-durability'
+      path: '/api/persistence-durability'
+      fullPath: '/api/persistence-durability'
+      preLoaderRoute: typeof ApiPersistenceDurabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/otel-usage': {
@@ -1186,6 +1227,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterruptsTestRoute: InterruptsTestRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
+  PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
@@ -1216,6 +1258,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
+  ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
