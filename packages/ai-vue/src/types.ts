@@ -2,13 +2,18 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
@@ -85,6 +90,7 @@ export type UseChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'onQueueChange'
+  | 'onResumeStateChange'
   | 'context'
   | 'devtools'
 > & {
@@ -179,6 +185,30 @@ interface BaseUseChatReturn<
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
+
+  resumeState: DeepReadonly<ShallowRef<ChatResumeState | null>>
+  interrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  interruptErrors: DeepReadonly<
+    ShallowRef<ChatInterruptState<TTools>['interruptErrors']>
+  >
+  resuming: DeepReadonly<ShallowRef<boolean>>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
+  resumeInterrupts: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
 
   /**
    * Reload the last assistant message
