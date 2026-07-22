@@ -1417,7 +1417,7 @@ Vercel's `embed` and `embedMany` both map to TanStack AI's single `embed()` func
 
 ### Before (Vercel AI SDK)
 
-```typescript ignore
+```typescript
 import { embed, embedMany } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
