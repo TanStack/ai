@@ -89,7 +89,14 @@ function sha256Hex(input: string): string {
 
   const hex = (n: number): string => (n >>> 0).toString(16).padStart(8, '0')
   return (
-    hex(h0) + hex(h1) + hex(h2) + hex(h3) + hex(h4) + hex(h5) + hex(h6) + hex(h7)
+    hex(h0) +
+    hex(h1) +
+    hex(h2) +
+    hex(h3) +
+    hex(h4) +
+    hex(h5) +
+    hex(h6) +
+    hex(h7)
   )
 }
 

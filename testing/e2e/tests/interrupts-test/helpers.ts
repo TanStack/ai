@@ -29,8 +29,9 @@ export async function selectScenario(
   await page.waitForSelector('#run-test-button')
   await page.waitForFunction(
     (expected) =>
-      document.getElementById('test-metadata')?.getAttribute('data-scenario') ===
-      expected,
+      document
+        .getElementById('test-metadata')
+        ?.getAttribute('data-scenario') === expected,
     scenario,
     { timeout: 10000 },
   )
@@ -129,9 +130,7 @@ export async function waitForTestComplete(page: Page, timeout = 15000) {
 }
 
 /** Read every data-* attribute off #test-metadata as a flat string map. */
-export async function getMetadata(
-  page: Page,
-): Promise<Record<string, string>> {
+export async function getMetadata(page: Page): Promise<Record<string, string>> {
   return page.evaluate(() => {
     const el = document.getElementById('test-metadata')
     const out: Record<string, string> = {}
@@ -165,7 +164,9 @@ export async function getEventLog(
 
 export async function getToolCalls(
   page: Page,
-): Promise<Array<{ id: string; name: string; state: string; output?: unknown }>> {
+): Promise<
+  Array<{ id: string; name: string; state: string; output?: unknown }>
+> {
   return page.evaluate(() => {
     const el = document.getElementById('tool-calls-json')
     if (!el) return []
@@ -203,9 +204,11 @@ async function clickAllItems(page: Page, cls: string): Promise<number> {
   return clicked
 }
 
-export const approveEachItem = (page: Page) => clickAllItems(page, 'approve-button')
+export const approveEachItem = (page: Page) =>
+  clickAllItems(page, 'approve-button')
 export const denyEachItem = (page: Page) => clickAllItems(page, 'deny-button')
-export const cancelEachItem = (page: Page) => clickAllItems(page, 'cancel-button')
+export const cancelEachItem = (page: Page) =>
+  clickAllItems(page, 'cancel-button')
 
 export const approveAll = (page: Page) => page.click('#resolve-all-approve')
 export const denyAll = (page: Page) => page.click('#resolve-all-deny')

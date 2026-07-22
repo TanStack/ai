@@ -127,11 +127,7 @@ export const feedingScheduleResponseSchema = {
   additionalProperties: false,
 } as const
 
-export type ScenarioGroup =
-  | 'server'
-  | 'client'
-  | 'generic'
-  | 'batch'
+export type ScenarioGroup = 'server' | 'client' | 'generic' | 'batch'
 
 export interface Scenario {
   id: string
@@ -160,7 +156,7 @@ export const scenarios: ReadonlyArray<Scenario> = [
     group: 'server',
     title: 'Schedule a vet check',
     blurb: 'Server tool, one shared note on the decision.',
-    message: "Book an urgent vet check for Rusty.",
+    message: 'Book an urgent vet check for Rusty.',
     forceTool: scheduleVetCheck.name,
   },
   {
@@ -208,7 +204,8 @@ export const scenarios: ReadonlyArray<Scenario> = [
     group: 'client',
     title: 'Print a certificate',
     blurb: 'Client tool, edit the details before approving.',
-    message: 'Print an adoption certificate for Luna, adopted by Dana Rivers today.',
+    message:
+      'Print an adoption certificate for Luna, adopted by Dana Rivers today.',
     forceTool: printCertificate.name,
   },
   {

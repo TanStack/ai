@@ -104,13 +104,17 @@ export function createFeedingMiddleware(): ChatMiddleware {
       }
       const expectedId = feedingInterruptId(interruptedRunId)
       const resolution = config.resume?.[0]
-      if (config.resume?.length !== 1 || resolution?.interruptId !== expectedId) {
+      if (
+        config.resume?.length !== 1 ||
+        resolution?.interruptId !== expectedId
+      ) {
         throw new Error(`Feeding continuation must resolve only ${expectedId}.`)
       }
 
       let prompt: string
       if (resolution.status === 'cancelled') {
-        prompt = 'The keeper cancelled the feeding schedule. Acknowledge briefly.'
+        prompt =
+          'The keeper cancelled the feeding schedule. Acknowledge briefly.'
       } else {
         const parsed = validate.safeParse(resolution.payload)
         if (!parsed.success) {
@@ -184,9 +188,12 @@ async function handle(request: Request): Promise<Response> {
   try {
     params = await chatParamsFromRequestBody(await request.json())
   } catch (error) {
-    return new Response(error instanceof Error ? error.message : 'Bad request', {
-      status: 400,
-    })
+    return new Response(
+      error instanceof Error ? error.message : 'Bad request',
+      {
+        status: 400,
+      },
+    )
   }
 
   const forwarded = params.forwardedProps as {

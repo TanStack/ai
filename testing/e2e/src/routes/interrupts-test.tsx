@@ -53,11 +53,7 @@ interface LooseInterrupt {
 }
 
 function InterruptsTestPage() {
-  const {
-    testId,
-    aimockPort,
-    scenario: initialScenario,
-  } = Route.useSearch()
+  const { testId, aimockPort, scenario: initialScenario } = Route.useSearch()
   const [scenario, setScenario] = useState(initialScenario || 'admit')
   const [events, setEvents] = useState<Array<InterruptEvent>>([])
   const [testComplete, setTestComplete] = useState(false)
@@ -71,47 +67,45 @@ function InterruptsTestPage() {
   // InterruptManager hydrates their pause as `tool-approval` (schema hashes
   // must match the server). Client tools get echoing executors so approval is
   // observable in the event log / messages.
-  const clientTools = useRef(
-    [
-      admitRescue.client(),
-      scheduleVetCheck.client(),
-      finalizeAdoption.client(),
-      assignEnclosure.client(),
-      printIntakeTag.client(async ({ animal }) => {
-        addEvent({
-          type: 'execution-complete',
-          toolName: 'printIntakeTag',
-          details: animal,
-        })
-        return { tag: `tag_${animal.toLowerCase()}` }
-      }),
-      logFieldSighting.client(async ({ species, location }) => {
-        addEvent({
-          type: 'execution-complete',
-          toolName: 'logFieldSighting',
-          details: `${species}@${location}`,
-        })
-        return { sightingId: `sighting_${species.toLowerCase()}` }
-      }),
-      shareAdoptionStory.client(async ({ animal }) => {
-        addEvent({
-          type: 'execution-complete',
-          toolName: 'shareAdoptionStory',
-          details: animal,
-        })
-        return { url: `https://sanctuary.example/${animal.toLowerCase()}` }
-      }),
-      printCertificate.client(async ({ animal, adopter, date }) => {
-        addEvent({
-          type: 'execution-complete',
-          toolName: 'printCertificate',
-          // Echo the (possibly edited) args so the edited-args spec can assert.
-          details: `${animal}|${adopter}|${date}`,
-        })
-        return { certificate: `cert_${animal.toLowerCase()}_${date}` }
-      }),
-    ],
-  ).current
+  const clientTools = useRef([
+    admitRescue.client(),
+    scheduleVetCheck.client(),
+    finalizeAdoption.client(),
+    assignEnclosure.client(),
+    printIntakeTag.client(async ({ animal }) => {
+      addEvent({
+        type: 'execution-complete',
+        toolName: 'printIntakeTag',
+        details: animal,
+      })
+      return { tag: `tag_${animal.toLowerCase()}` }
+    }),
+    logFieldSighting.client(async ({ species, location }) => {
+      addEvent({
+        type: 'execution-complete',
+        toolName: 'logFieldSighting',
+        details: `${species}@${location}`,
+      })
+      return { sightingId: `sighting_${species.toLowerCase()}` }
+    }),
+    shareAdoptionStory.client(async ({ animal }) => {
+      addEvent({
+        type: 'execution-complete',
+        toolName: 'shareAdoptionStory',
+        details: animal,
+      })
+      return { url: `https://sanctuary.example/${animal.toLowerCase()}` }
+    }),
+    printCertificate.client(async ({ animal, adopter, date }) => {
+      addEvent({
+        type: 'execution-complete',
+        toolName: 'printCertificate',
+        // Echo the (possibly edited) args so the edited-args spec can assert.
+        details: `${animal}|${adopter}|${date}`,
+      })
+      return { certificate: `cert_${animal.toLowerCase()}_${date}` }
+    }),
+  ]).current
 
   const {
     messages,
@@ -267,13 +261,16 @@ function InterruptsTestPage() {
   for (const msg of messages) {
     for (const part of msg.parts) {
       if (part.type === 'tool-result') {
-        const p = part as { toolCallId: string; content?: unknown; output?: unknown }
+        const p = part as {
+          toolCallId: string
+          content?: unknown
+          output?: unknown
+        }
         toolResults.set(p.toolCallId, p.output ?? p.content)
       }
     }
   }
-  const outputFor = (tc: ToolCallPart) =>
-    tc.output ?? toolResults.get(tc.id)
+  const outputFor = (tc: ToolCallPart) => tc.output ?? toolResults.get(tc.id)
 
   const count = (type: InterruptEvent['type']) =>
     events.filter((e) => e.type === type).length
