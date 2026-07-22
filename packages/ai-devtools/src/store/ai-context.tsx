@@ -14,12 +14,19 @@ import {
   createClientToolCallMessage,
   shouldSkipClientAssistantPlaceholder,
 } from './message-event-utils'
+import {
+  applyMemoryEvent,
+  applyMemorySnapshot,
+  clearMemoryRegistry,
+  createMemoryRegistryState,
+} from './memory-registry'
 import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   DevtoolsToolFixtureApplyEvent,
   RunLifecycleEvent,
 } from '@tanstack/ai-event-client'
 import type { HookRegistryState, ToolFixtureRecord } from './hook-registry'
+import type { MemoryRegistryState } from './memory-registry'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
@@ -227,6 +234,7 @@ interface AIStoreState {
   conversations: Record<string, Conversation>
   activeConversationId: string | null
   hooks: HookRegistryState
+  memory: MemoryRegistryState
 }
 
 interface AIContextValue {
@@ -234,6 +242,7 @@ interface AIContextValue {
   clearAllConversations: () => void
   selectConversation: (id: string) => void
   clearHooks: () => void
+  clearMemory: () => void
   selectHook: (id: string | null) => void
   saveToolFixture: (fixture: ToolFixtureRecord) => void
   deleteToolFixture: (fixtureId: string) => void
@@ -255,6 +264,7 @@ export const AIProvider: ParentComponent = (props) => {
     conversations: {},
     activeConversationId: null,
     hooks: createHookRegistryState(),
+    memory: createMemoryRegistryState(),
   })
 
   const streamToConversation = new Map<string, string>()
@@ -637,6 +647,15 @@ export const AIProvider: ParentComponent = (props) => {
       'hooks',
       produce((hooks: HookRegistryState) => {
         clearHookRegistry(hooks)
+      }),
+    )
+  }
+
+  function clearMemory() {
+    setState(
+      'memory',
+      produce((memory: MemoryRegistryState) => {
+        clearMemoryRegistry(memory)
       }),
     )
   }
@@ -1183,6 +1202,47 @@ export const AIProvider: ParentComponent = (props) => {
           'hooks',
           produce((hooks: HookRegistryState) => {
             applyHookEvent(hooks, 'hook:state-snapshot', e.payload)
+          }),
+        )
+      }),
+    )
+
+    // Memory: the 5 `memory:*` operation events feed the timeline; `memory:snapshot`
+    // replaces the per-scope stored-state view. Keyed by scope (sessionId).
+    type MemoryEventInput = Parameters<typeof applyMemoryEvent>[1]
+    const recordMemoryEvent = (
+      type: MemoryEventInput['type'],
+      payload: object,
+    ) => {
+      setState(
+        'memory',
+        produce((memory: MemoryRegistryState) => {
+          applyMemoryEvent(memory, { ...payload, type } as MemoryEventInput)
+        }),
+      )
+    }
+
+    cleanupFns.push(
+      aiEventClient.on('memory:retrieve:started', (e) => {
+        recordMemoryEvent('retrieve:started', e.payload)
+      }),
+      aiEventClient.on('memory:retrieve:completed', (e) => {
+        recordMemoryEvent('retrieve:completed', e.payload)
+      }),
+      aiEventClient.on('memory:persist:started', (e) => {
+        recordMemoryEvent('persist:started', e.payload)
+      }),
+      aiEventClient.on('memory:persist:completed', (e) => {
+        recordMemoryEvent('persist:completed', e.payload)
+      }),
+      aiEventClient.on('memory:error', (e) => {
+        recordMemoryEvent('error', e.payload)
+      }),
+      aiEventClient.on('memory:snapshot', (e) => {
+        setState(
+          'memory',
+          produce((memory: MemoryRegistryState) => {
+            applyMemorySnapshot(memory, e.payload)
           }),
         )
       }),
@@ -3402,6 +3462,7 @@ export const AIProvider: ParentComponent = (props) => {
     clearAllConversations,
     selectConversation,
     clearHooks,
+    clearMemory,
     selectHook,
     saveToolFixture,
     deleteToolFixture,

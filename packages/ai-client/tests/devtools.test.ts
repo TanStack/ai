@@ -1275,6 +1275,99 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('re-emits memory:* devtools events from a transported memory:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
+      {
+        type: EventType.CUSTOM,
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'memory:state',
+        value: {
+          scope: { sessionId: 'sess-1' },
+          adapter: 'in-memory',
+          query: 'what is my name?',
+          recall: {
+            fragmentCount: 2,
+            hasTools: false,
+            systemPromptChars: 96,
+            durationMs: 4,
+          },
+          snapshot: {
+            takenAt: '2026-07-22T00:00:00.000Z',
+            data: { records: [{ id: 'r1', text: 'name is Jack', kind: 'message' }] },
+            facts: [{ id: 'r1', text: 'name is Jack', source: 'user' }],
+          },
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-mem',
+        delta: 'Your name is Jack',
+        content: 'Your name is Jack',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('what is my name?')
+    await waitForCondition(
+      () => eventClientMock.emitted('memory:snapshot').length > 0,
+    )
+
+    expect(eventClientMock.emitted('memory:retrieve:started')).toEqual([
+      [
+        'memory:retrieve:started',
+        expect.objectContaining({
+          scope: { sessionId: 'sess-1' },
+          adapter: 'in-memory',
+          query: 'what is my name?',
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('memory:retrieve:completed')).toEqual([
+      [
+        'memory:retrieve:completed',
+        expect.objectContaining({
+          adapter: 'in-memory',
+          fragmentCount: 2,
+          hasTools: false,
+          systemPromptChars: 96,
+          durationMs: 4,
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('memory:snapshot')).toEqual([
+      [
+        'memory:snapshot',
+        expect.objectContaining({
+          adapter: 'in-memory',
+          takenAt: '2026-07-22T00:00:00.000Z',
+          facts: [{ id: 'r1', text: 'name is Jack', source: 'user' }],
+        }),
+      ],
+    ])
+
+    // Replay: a devtools panel opening AFTER the turn requests state; the bridge
+    // re-emits the last memory:state so a late-opened panel isn't empty.
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('memory:snapshot').length > 0,
+    )
+    expect(eventClientMock.emitted('memory:retrieve:completed')).toEqual([
+      [
+        'memory:retrieve:completed',
+        expect.objectContaining({ adapter: 'in-memory', fragmentCount: 2 }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('batches structured output update events while preserving final state', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const finalObject = { title: 'Pasta', servings: 2 }

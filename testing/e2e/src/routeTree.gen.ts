@@ -16,6 +16,7 @@ import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
+import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
@@ -47,6 +48,7 @@ import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-c
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
+import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -93,6 +95,11 @@ const DevtoolsRouteBRoute = DevtoolsRouteBRouteImport.update({
 const DevtoolsRouteARoute = DevtoolsRouteARouteImport.update({
   id: '/devtools-route-a',
   path: '/devtools-route-a',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsMemoryRoute = DevtoolsMemoryRouteImport.update({
+  id: '/devtools-memory',
+  path: '/devtools-memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsGenerationHooksRoute = DevtoolsGenerationHooksRouteImport.update({
@@ -254,6 +261,11 @@ const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   path: '/api/durable-delivery',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
+  id: '/api/devtools-memory',
+  path: '/api/devtools-memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -321,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
@@ -335,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -373,6 +387,7 @@ export interface FileRoutesByTo {
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
@@ -387,6 +402,7 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -426,6 +442,7 @@ export interface FileRoutesById {
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
+  '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
@@ -440,6 +457,7 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
@@ -480,6 +498,7 @@ export interface FileRouteTypes {
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
+    | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
@@ -494,6 +513,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -532,6 +552,7 @@ export interface FileRouteTypes {
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
+    | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
@@ -546,6 +567,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -584,6 +606,7 @@ export interface FileRouteTypes {
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
+    | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
@@ -598,6 +621,7 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/chat'
+    | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/image'
     | '/api/lazy-tools-wire'
@@ -637,6 +661,7 @@ export interface RootRouteChildren {
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
+  DevtoolsMemoryRoute: typeof DevtoolsMemoryRoute
   DevtoolsRouteARoute: typeof DevtoolsRouteARoute
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
@@ -651,6 +676,7 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
@@ -729,6 +755,13 @@ declare module '@tanstack/react-router' {
       path: '/devtools-route-a'
       fullPath: '/devtools-route-a'
       preLoaderRoute: typeof DevtoolsRouteARouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-memory': {
+      id: '/devtools-memory'
+      path: '/devtools-memory'
+      fullPath: '/devtools-memory'
+      preLoaderRoute: typeof DevtoolsMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-generation-hooks': {
@@ -948,6 +981,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDurableDeliveryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/devtools-memory': {
+      id: '/api/devtools-memory'
+      path: '/api/devtools-memory'
+      fullPath: '/api/devtools-memory'
+      preLoaderRoute: typeof ApiDevtoolsMemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -1098,6 +1138,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
+  DevtoolsMemoryRoute: DevtoolsMemoryRoute,
   DevtoolsRouteARoute: DevtoolsRouteARoute,
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
@@ -1112,6 +1153,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,

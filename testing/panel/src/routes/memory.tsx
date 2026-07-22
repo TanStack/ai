@@ -84,6 +84,7 @@ function MemoryPage() {
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/memory-chat'),
     body,
+    devtools: { name: 'Memory' },
   })
 
   const refreshInspect = useCallback(async () => {

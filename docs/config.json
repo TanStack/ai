@@ -27,7 +27,8 @@
         {
           "label": "Devtools",
           "to": "getting-started/devtools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Quick Start: Vue",
@@ -434,17 +435,25 @@
         {
           "label": "Quickstart",
           "to": "memory/quickstart",
-          "addedAt": "2026-07-21"
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Adapters",
           "to": "memory/adapters",
-          "addedAt": "2026-07-21"
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
-          "addedAt": "2026-07-21"
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Operating",
+          "to": "memory/operating",
+          "addedAt": "2026-07-22"
         }
       ]
     },

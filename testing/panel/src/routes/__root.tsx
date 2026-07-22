@@ -1,4 +1,6 @@
 import { createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
 import Header from '@/components/Header'
 import appCss from '../styles.css?url'
 
@@ -36,6 +38,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <Header />
         <div className="min-h-screen bg-gray-900">{children}</div>
+        <TanStackDevtools
+          config={{ position: 'bottom-right' }}
+          plugins={[aiDevtoolsPlugin()]}
+          eventBusConfig={{ connectToServerBus: true }}
+        />
         <Scripts />
       </body>
     </html>

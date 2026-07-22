@@ -36,6 +36,7 @@ import {
   visiblePreviewPartsForMessage,
 } from './preview-messages'
 import { GenerationPanel, GenerationPreview } from './GenerationPanel'
+import { MemoryPanel } from './MemoryPanel'
 import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
   HookRecord,
@@ -46,7 +47,7 @@ import type {
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'
 
-type DetailTab = 'conversation' | 'tools' | 'state'
+type DetailTab = 'conversation' | 'tools' | 'state' | 'memory'
 type MessagePart = NonNullable<Message['parts']>[number]
 const scrollAnimations = new WeakMap<HTMLElement, number>()
 
@@ -144,7 +145,12 @@ export const HookDetails: Component = () => {
   })
 
   createEffect(() => {
-    if (isGenerationHook() && activeTab() === 'tools') {
+    // Tools and Memory are chat-only tabs; if a generation hook becomes active
+    // while one of them is selected, fall back to the conversation view.
+    if (
+      isGenerationHook() &&
+      (activeTab() === 'tools' || activeTab() === 'memory')
+    ) {
       setActiveTab('conversation')
     }
   })
@@ -240,6 +246,14 @@ export const HookDetails: Component = () => {
               activeTab={activeTab()}
               onSelect={setActiveTab}
             />
+            <Show when={!isGenerationHook()}>
+              <TabButton
+                label="Memory"
+                tab="memory"
+                activeTab={activeTab()}
+                onSelect={setActiveTab}
+              />
+            </Show>
           </nav>
 
           <div
@@ -282,6 +296,9 @@ export const HookDetails: Component = () => {
               </Show>
               <Show when={activeTab() === 'state'}>
                 <JsonPanel value={activeHook().state} />
+              </Show>
+              <Show when={activeTab() === 'memory'}>
+                <MemoryPanel />
               </Show>
             </main>
 

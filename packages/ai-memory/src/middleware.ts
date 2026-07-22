@@ -4,14 +4,50 @@ import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ModelMessage,
+  StreamChunk,
 } from '@tanstack/ai'
 import type {
   MemoryAdapter,
+  MemoryFact,
   MemoryScope,
   MemoryTurn,
   RecallResult,
   SaveReceipt,
 } from './types'
+
+/**
+ * CUSTOM stream-event name carrying server-side memory state to the browser.
+ * The middleware injects one of these per turn (via `onChunk`); the client
+ * devtools bridge (`@tanstack/ai-client`) recognizes it and re-emits `memory:*`
+ * on the browser event bus. This is how server-side memory reaches the browser
+ * DevTools panel — server-emitted `aiEventClient` events never cross runtimes;
+ * everything the panel shows is re-derived client-side from the chat stream
+ * (mirrors how generation results ride `CUSTOM` events — see `GENERATION_EVENTS`).
+ */
+export const MEMORY_STATE_EVENT = 'memory:state'
+
+/** Payload of the {@link MEMORY_STATE_EVENT} CUSTOM chunk. Captures memory state
+ *  as of the turn's START — the snapshot reflects every prior turn's save; this
+ *  turn's own save (deferred) surfaces in the next turn's snapshot. */
+export interface MemoryStateEventValue {
+  scope: MemoryScope
+  adapter: string
+  /** The recall query (last user text). */
+  query: string
+  /** Recall metrics for the operations timeline. */
+  recall: {
+    fragmentCount: number
+    hasTools: boolean
+    systemPromptChars: number
+    durationMs: number
+  }
+  /** Live store snapshot, when the adapter supports `inspect`/`listFacts`. */
+  snapshot?: {
+    takenAt: string
+    data: unknown
+    facts: Array<MemoryFact>
+  }
+}
 
 /**
  * How the middleware participates in the run:
@@ -56,6 +92,8 @@ export interface MemoryMiddlewareOptions {
 interface MemoryRequestState {
   resolvedScope?: MemoryScope
   lastUserText: string
+  /** Pending devtools transport chunk, injected once by the first `onChunk`. */
+  stateChunk?: { emitted: boolean; value: MemoryStateEventValue }
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, MemoryRequestState>()
@@ -120,16 +158,34 @@ export function memoryMiddleware(
       }
 
       const tools = result.tools ?? []
-      safeEmit('memory:retrieve:completed', {
-        scope,
-        adapter: options.adapter.id,
+      const recallMetrics = {
         fragmentCount: result.fragments?.length ?? 0,
         hasTools: tools.length > 0,
         systemPromptChars: result.systemPrompt.length,
         durationMs: Date.now() - startedAt,
+      }
+      safeEmit('memory:retrieve:completed', {
+        scope,
+        adapter: options.adapter.id,
+        ...recallMetrics,
         timestamp: Date.now(),
       })
       await options.onRecall?.({ scope, query: state.lastUserText, result })
+
+      // Stage the devtools transport chunk (recall metrics + current store
+      // snapshot). Injected into the stream by `onChunk` so it reaches the
+      // browser panel; see MEMORY_STATE_EVENT.
+      const snapshot = await gatherSnapshot(options.adapter, scope)
+      state.stateChunk = {
+        emitted: false,
+        value: {
+          scope,
+          adapter: options.adapter.id,
+          query: state.lastUserText,
+          recall: recallMetrics,
+          ...(snapshot ? { snapshot } : {}),
+        },
+      }
 
       const memoryPrompts = [result.toolGuidance ?? '', result.systemPrompt]
       const additions = memoryPrompts.filter((p) => p.length > 0)
@@ -139,6 +195,22 @@ export function memoryMiddleware(
         systemPrompts: [...config.systemPrompts, ...additions],
         tools: [...config.tools, ...tools],
       } satisfies Partial<ChatMiddlewareConfig>
+    },
+
+    onChunk(ctx, chunk) {
+      // Inject the staged memory-state chunk exactly once, riding alongside the
+      // first stream chunk (typically RUN_STARTED) so the browser devtools sees
+      // it. Returning an array expands the stream; see ChatMiddleware.onChunk.
+      const state = stateByCtx.get(ctx)
+      if (!state?.stateChunk || state.stateChunk.emitted) return
+      state.stateChunk.emitted = true
+      const custom: StreamChunk = {
+        type: 'CUSTOM',
+        name: MEMORY_STATE_EVENT,
+        value: state.stateChunk.value,
+        timestamp: Date.now(),
+      }
+      return [chunk, custom]
     },
 
     onFinish(ctx, info) {
@@ -197,6 +269,7 @@ export function memoryMiddleware(
             durationMs: Date.now() - startedAt,
             timestamp: Date.now(),
           })
+          await emitSnapshot(options.adapter, resolved)
           await options.onSave?.({ scope: resolved, turn, receipts })
         })(),
       )
@@ -210,6 +283,48 @@ export function memoryMiddleware(
 
 function emptyScope(): MemoryScope {
   return { sessionId: '' }
+}
+
+/**
+ * Read the adapter's current stored state via the optional `inspect`/`listFacts`
+ * introspection methods. Returns `undefined` for adapters that don't implement
+ * `inspect` (they degrade to the metrics-only timeline). Fully guarded:
+ * introspection must never affect chat.
+ */
+async function gatherSnapshot(
+  adapter: MemoryAdapter,
+  scope: MemoryScope,
+): Promise<{ takenAt: string; data: unknown; facts: Array<MemoryFact> } | undefined> {
+  if (!adapter.inspect) return undefined
+  try {
+    const snapshot = await adapter.inspect(scope)
+    const facts = (await adapter.listFacts?.(scope)) ?? []
+    return { takenAt: snapshot.takenAt, data: snapshot.data, facts }
+  } catch {
+    // ignored — introspection is best-effort telemetry.
+    return undefined
+  }
+}
+
+/**
+ * DevTools-only: after a save, emit the adapter's current stored state on the
+ * (in-process) event bus, so a devtools consumer running in the SAME runtime as
+ * the chat (client-side execution / server-side listener) sees "what's in
+ * memory". For the standard server-side topology, the browser panel instead
+ * gets state via the {@link MEMORY_STATE_EVENT} stream chunk (see `onChunk`).
+ */
+async function emitSnapshot(
+  adapter: MemoryAdapter,
+  scope: MemoryScope,
+): Promise<void> {
+  const snapshot = await gatherSnapshot(adapter, scope)
+  if (!snapshot) return
+  safeEmit('memory:snapshot', {
+    scope,
+    adapter: adapter.id,
+    ...snapshot,
+    timestamp: Date.now(),
+  })
 }
 
 function findLastUserMessage(

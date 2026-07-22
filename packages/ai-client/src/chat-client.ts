@@ -544,6 +544,13 @@ export class ChatClient<
           data: unknown,
           context: { toolCallId?: string },
         ) => {
+          // Server-side memory middleware transports its state as a `memory:state`
+          // CUSTOM event (its own event bus never reaches this browser runtime).
+          // Route it to the devtools bridge here — the designated custom-event
+          // path — then still forward to the app's callback.
+          if (eventType === 'memory:state') {
+            this.devtoolsBridge.recordMemoryState(data)
+          }
           this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
       },

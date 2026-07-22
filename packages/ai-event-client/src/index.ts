@@ -881,6 +881,32 @@ export interface MemoryErrorEvent extends BaseEventContext {
   error: { name: string; message: string }
 }
 
+/** A flat fact row, mirroring `MemoryFact` from `@tanstack/ai-memory`. */
+export interface MemoryFactLite {
+  id: string
+  text: string
+  source?: string
+  createdAt?: string
+}
+
+/**
+ * Emitted after a successful `save` when the adapter supports introspection
+ * (`inspect`/`listFacts`), carrying the current stored state for the scope so
+ * DevTools can render "what's in memory". Adapters without introspection never
+ * emit this — DevTools then falls back to the metrics-only timeline. Structurally
+ * decoupled from `@tanstack/ai-memory` (mirrors `MemorySnapshot` + `MemoryFact`).
+ */
+export interface MemorySnapshotEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** ISO timestamp the snapshot was taken (from `MemorySnapshot.takenAt`). */
+  takenAt: string
+  /** Adapter-defined `inspect()` payload (e.g. `{ records: [...] }`). */
+  data: unknown
+  /** Flat fact list from `listFacts()`; `[]` when the adapter lacks it. */
+  facts: Array<MemoryFactLite>
+}
+
 // ===========================
 // Client Events
 // ===========================
@@ -1118,6 +1144,7 @@ export interface AIDevtoolsEventMap {
   'memory:persist:started': MemoryPersistStartedEvent
   'memory:persist:completed': MemoryPersistCompletedEvent
   'memory:error': MemoryErrorEvent
+  'memory:snapshot': MemorySnapshotEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

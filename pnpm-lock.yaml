@@ -2751,6 +2751,12 @@ importers:
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.155.0
         version: 1.155.0(aws4fetch@1.0.20)(rolldown@1.1.5)(vite@8.1.4(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0))
+      '@tanstack/react-ai-devtools':
+        specifier: workspace:*
+        version: link:../../packages/react-ai-devtools
+      '@tanstack/react-devtools':
+        specifier: ^0.9.10
+        version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

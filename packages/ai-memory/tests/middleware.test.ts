@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { memoryMiddleware } from '../src'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { MEMORY_STATE_EVENT, memoryMiddleware } from '../src'
+import type { StreamChunk } from '@tanstack/ai'
 import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
@@ -105,6 +107,115 @@ describe('memoryMiddleware', () => {
       assistant: 'You like cats!',
     })
     expect(onSave).toHaveBeenCalledOnce()
+  })
+
+  it('emits memory:snapshot after save when the adapter supports inspection', async () => {
+    const base = fakeAdapter([])
+    const inspectable: MemoryAdapter = {
+      ...base,
+      inspect: async () => ({
+        takenAt: '2026-07-22T00:00:00.000Z',
+        data: { records: [{ id: 'r1', text: 'You like cats!', kind: 'message' }] },
+      }),
+      listFacts: async () => [{ id: 'r1', text: 'You like cats!', source: 'assistant' }],
+    }
+    const emit = vi.spyOn(aiEventClient, 'emit').mockImplementation(() => {})
+    try {
+      const mw = memoryMiddleware({ adapter: inspectable, scope })
+      const deferred: Array<Promise<unknown>> = []
+      const config = makeConfig('remember I like cats')
+      const ctx = makeCtx(config, deferred)
+      await mw.onConfig?.(ctx, config)
+      mw.onFinish?.(ctx, {
+        finishReason: 'stop',
+        duration: 1,
+        content: 'You like cats!',
+      })
+      await Promise.all(deferred)
+
+      const snapshotCall = emit.mock.calls.find((c) => c[0] === 'memory:snapshot')
+      expect(snapshotCall).toBeTruthy()
+      expect(snapshotCall?.[1]).toMatchObject({
+        adapter: 'fake',
+        takenAt: '2026-07-22T00:00:00.000Z',
+        facts: [{ id: 'r1', text: 'You like cats!' }],
+      })
+    } finally {
+      emit.mockRestore()
+    }
+  })
+
+  it('does not emit memory:snapshot for adapters without inspect', async () => {
+    const emit = vi.spyOn(aiEventClient, 'emit').mockImplementation(() => {})
+    try {
+      const mw = memoryMiddleware({ adapter: fakeAdapter([]), scope })
+      const deferred: Array<Promise<unknown>> = []
+      const config = makeConfig('hi there')
+      const ctx = makeCtx(config, deferred)
+      await mw.onConfig?.(ctx, config)
+      mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: 'hello' })
+      await Promise.all(deferred)
+
+      expect(emit.mock.calls.some((c) => c[0] === 'memory:snapshot')).toBe(false)
+    } finally {
+      emit.mockRestore()
+    }
+  })
+
+  it('injects one memory:state CUSTOM chunk carrying recall metrics + snapshot', async () => {
+    const inspectable = {
+      ...fakeAdapter([]),
+      inspect: async () => ({
+        takenAt: '2026-07-22T00:00:00.000Z',
+        data: { records: [{ id: 'r1', text: 'likes cats', kind: 'message' }] },
+      }),
+      listFacts: async () => [{ id: 'r1', text: 'likes cats', source: 'user' }],
+    }
+    const mw = memoryMiddleware({ adapter: inspectable, scope })
+    const config = makeConfig('what do I like?')
+    const ctx = makeCtx(config, [])
+    await mw.onConfig?.(ctx, config)
+
+    const runStarted = {
+      type: 'RUN_STARTED',
+      threadId: 't1',
+      runId: 'run1',
+    } as unknown as StreamChunk
+    const out = await mw.onChunk?.(ctx, runStarted)
+
+    expect(Array.isArray(out)).toBe(true)
+    const chunks = out as Array<StreamChunk>
+    expect(chunks[0]).toBe(runStarted)
+    const custom = chunks[1] as Extract<StreamChunk, { type: 'CUSTOM' }>
+    expect(custom.type).toBe('CUSTOM')
+    expect(custom.name).toBe(MEMORY_STATE_EVENT)
+    expect(custom.value).toMatchObject({
+      adapter: 'fake',
+      query: 'what do I like?',
+      recall: { fragmentCount: 1, hasTools: true },
+      snapshot: {
+        takenAt: '2026-07-22T00:00:00.000Z',
+        facts: [{ id: 'r1', text: 'likes cats' }],
+      },
+    })
+
+    // Injected exactly once per turn — a second chunk passes through untouched.
+    const again = await mw.onChunk?.(ctx, runStarted)
+    expect(again).toBeUndefined()
+  })
+
+  it('omits the snapshot in memory:state for adapters without inspect', async () => {
+    const mw = memoryMiddleware({ adapter: fakeAdapter([]), scope })
+    const config = makeConfig('hi')
+    const ctx = makeCtx(config, [])
+    await mw.onConfig?.(ctx, config)
+    const out = (await mw.onChunk?.(
+      ctx,
+      { type: 'RUN_STARTED' } as unknown as StreamChunk,
+    )) as Array<StreamChunk>
+    const custom = out[1] as Extract<StreamChunk, { type: 'CUSTOM' }>
+    expect(custom.name).toBe(MEMORY_STATE_EVENT)
+    expect((custom.value as { snapshot?: unknown }).snapshot).toBeUndefined()
   })
 
   it('recall failures are non-fatal (no throw, no injection)', async () => {
