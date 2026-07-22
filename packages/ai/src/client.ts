@@ -336,7 +336,32 @@ export type {
   InferSchemaType,
 } from './types'
 
-export * from './interrupts'
+// Enumerated, not `export *` — see the matching note in `index.ts`. The
+// interrupt protocol surface is a commitment, so it is published field by
+// field.
+export {
+  INTERRUPT_BINDING_VERSION,
+  canonicalizeInterruptResolutions,
+} from './interrupts'
+export type {
+  BatchInterruptError,
+  BatchInterruptErrorCode,
+  InterruptBinding,
+  InterruptCorrelation,
+  InterruptSubmissionError,
+  ItemInterruptError,
+  ItemInterruptErrorCode,
+  ToolApprovalResolution,
+  UnopenedInterruptBinding,
+} from './interrupts'
+
+export {
+  INTERRUPT_BINDING_METADATA_KEY,
+  readInterruptBinding,
+  readUnopenedInterruptBinding,
+  withInterruptBinding,
+  withoutInterruptBinding,
+} from './interrupt-resume'
 
 export type {
   AudioVisualization,

@@ -10,6 +10,13 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 
+/**
+ * Type-level brand key for {@link ToolApprovalCapabilityMarker}. Only ever used
+ * in type positions, but it must stay exported: a `unique symbol` referenced by
+ * an exported interface has to be nameable in the emitted declarations.
+ *
+ * @public
+ */
 export declare const toolApprovalCapability: unique symbol
 
 export interface ToolApprovalCapabilityMarker<

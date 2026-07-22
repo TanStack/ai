@@ -89,6 +89,24 @@ export interface GenericAGUIInterrupt extends BoundInterruptBase {
   resolveInterrupt: (payload: unknown) => void
 }
 
+/**
+ * An interrupt that arrived on the stream carrying no resume binding this
+ * client understands — no `tanstack:interruptBinding`, or one written at a
+ * protocol version we don't recognise.
+ *
+ * These are surfaced rather than hidden so a UI can show that the run is
+ * paused, but they are never resolvable here: something else owns them. A
+ * workflow engine's durable approval projected into the same AG-UI stream
+ * lands in this bucket, and resolving it through the chat resume path would
+ * send an answer no one is waiting for. Render it, or route it to whatever
+ * actually owns the pause.
+ */
+export interface UnboundInterrupt extends BoundInterruptBase {
+  readonly kind: 'unbound'
+  readonly binding?: undefined
+  readonly canResolve: false
+}
+
 type ApprovalBranchSchema<TTool, TBranch extends 'approve' | 'reject'> =
   ApprovalSchemaOf<TTool> extends infer TApproval
     ? TApproval extends { approve?: SchemaInput; reject?: SchemaInput }
@@ -162,7 +180,7 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
 // union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> = GenericAGUIInterrupt | ApprovalInterrupts<TTools>
+> = GenericAGUIInterrupt | UnboundInterrupt | ApprovalInterrupts<TTools>
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,

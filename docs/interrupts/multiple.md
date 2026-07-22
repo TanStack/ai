@@ -149,7 +149,19 @@ recovery paths:
 ```tsx
 // app/robust-queue.tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { transferTool } from '../tools/transfer'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferTool = toolDefinition({
+  name: 'transfer',
+  description: 'Move money between accounts',
+  needsApproval: true,
+  inputSchema: z.object({
+    recipient: z.string(),
+    amount: z.number(),
+  }),
+  outputSchema: z.object({ receiptId: z.string() }),
+}).client()
 
 export function RobustQueue() {
   const { interrupts, interruptErrors, retryInterrupts, resuming } = useChat({

@@ -9,11 +9,17 @@ import {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from '../src/interrupt-serialization'
-import { canonicalizeInterruptResolutions } from '../src/interrupts'
-import type {
-  InterruptRecoveryStateV1,
-  InterruptSubmissionError,
+import {
+  INTERRUPT_BINDING_VERSION,
+  canonicalizeInterruptResolutions,
 } from '../src/interrupts'
+import {
+  INTERRUPT_BINDING_METADATA_KEY,
+  readInterruptBinding,
+  readUnopenedInterruptBinding,
+  withInterruptBinding,
+} from '../src/interrupt-resume'
+import type { InterruptSubmissionError } from '../src/interrupts'
 import type {
   Interrupt,
   RunAgentResumeItem,
@@ -154,22 +160,8 @@ describe('approval schema normalization and interrupt serialization', () => {
   })
 })
 
-describe('core interrupt correlation and persistence seam', () => {
-  it('correlates interrupt errors and recovery to the interrupted run', () => {
-    const recovery = {
-      schemaVersion: 1,
-      state: 'committed',
-      threadId: 'thread-1',
-      interruptedRunId: 'run-old',
-      generation: 2,
-      pendingInterrupts: [],
-      committed: {
-        fingerprint: 'sha256:abc',
-        resolutions: [],
-        continuationRunId: 'run-new',
-        committedAt: '2026-07-13T10:00:00.000Z',
-      },
-    } satisfies InterruptRecoveryStateV1
+describe('core interrupt correlation', () => {
+  it('correlates interrupt errors to the interrupted run', () => {
     const error: InterruptSubmissionError = {
       scope: 'batch',
       code: 'conflict',
@@ -182,7 +174,6 @@ describe('core interrupt correlation and persistence seam', () => {
       generation: 2,
     }
 
-    expect(recovery.committed.continuationRunId).toBe('run-new')
     expect(error.interruptedRunId).toBe('run-old')
   })
 
@@ -209,5 +200,76 @@ describe('core interrupt correlation and persistence seam', () => {
     expect(left.fingerprint).toBe(right.fingerprint)
     expect(Object.isFrozen(left.resolutions)).toBe(true)
     expect(Object.isFrozen(left.resolutions[0])).toBe(true)
+  })
+})
+
+describe('interrupt binding seam', () => {
+  const openedBinding = {
+    v: INTERRUPT_BINDING_VERSION,
+    kind: 'generic',
+    interruptId: 'pause-1',
+    interruptedRunId: 'run-1',
+    generation: 0,
+    responseSchemaHash: 'none',
+  } as const
+
+  it('attaches a binding under the namespaced key without disturbing the envelope', () => {
+    const descriptor: Interrupt = {
+      id: 'pause-1',
+      reason: 'confirmation',
+      message: 'Pick a shipping speed',
+      metadata: { surface: 'checkout' },
+    }
+
+    const bound = withInterruptBinding(descriptor, openedBinding)
+
+    // The AG-UI envelope is untouched; only the namespaced key is added.
+    expect(bound.id).toBe(descriptor.id)
+    expect(bound.reason).toBe(descriptor.reason)
+    expect(bound.message).toBe(descriptor.message)
+    expect(bound.metadata?.['surface']).toBe('checkout')
+    expect(bound.metadata?.[INTERRUPT_BINDING_METADATA_KEY]).toMatchObject({
+      v: INTERRUPT_BINDING_VERSION,
+      interruptId: 'pause-1',
+    })
+    expect(readInterruptBinding(bound)).toEqual(openedBinding)
+  })
+
+  it('reads no binding off an interrupt this package did not produce', () => {
+    const foreign: Interrupt = {
+      id: 'workflow-approval-1',
+      reason: 'approval_requested',
+      metadata: { 'acme:workflowApproval': { stepId: 'deploy' } },
+    }
+
+    expect(readUnopenedInterruptBinding(foreign)).toBeUndefined()
+    expect(readInterruptBinding(foreign)).toBeUndefined()
+  })
+
+  it('rejects a binding stamped with a version it does not understand', () => {
+    const future: Interrupt = {
+      id: 'pause-1',
+      reason: 'confirmation',
+      metadata: {
+        [INTERRUPT_BINDING_METADATA_KEY]: {
+          ...openedBinding,
+          v: INTERRUPT_BINDING_VERSION + 1,
+        },
+      },
+    }
+
+    expect(readUnopenedInterruptBinding(future)).toBeUndefined()
+    expect(readInterruptBinding(future)).toBeUndefined()
+  })
+
+  it('still reads a binding written before the version field existed', () => {
+    const { v: _omitted, ...unversioned } = openedBinding
+    const legacy: Interrupt = {
+      id: 'pause-1',
+      reason: 'confirmation',
+      metadata: { [INTERRUPT_BINDING_METADATA_KEY]: unversioned },
+    }
+
+    expect(readInterruptBinding(legacy)).toEqual(openedBinding)
   })
 })

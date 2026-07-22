@@ -1144,7 +1144,9 @@ describe('chat()', () => {
             {
               role: 'tool',
               toolCallId: 'call_1',
-              content: JSON.stringify({ error: 'User declined tool execution' }),
+              content: JSON.stringify({
+                error: 'User declined tool execution',
+              }),
             },
           ],
           tools: [

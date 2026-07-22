@@ -12,10 +12,12 @@ import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
 import {
+  INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
   readUnopenedInterruptBinding,
   validateInterruptResumeBatch,
 } from '../../interrupt-resume'
+import { INTERRUPT_BINDING_VERSION } from '../../interrupts'
 import {
   canonicalInterruptJson,
   digestInterruptJson,
@@ -120,7 +122,7 @@ type AnyRuntimeTool = AnyTool
 type RuntimeToolWithApproval = AnyRuntimeTool & {
   approvalSchema?: ApprovalSchemaConfig
 }
-const interruptBindingMetadataKey = 'tanstack:interruptBinding'
+const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
 
 interface StructuralInterruptFailure {
   error: Error
@@ -200,6 +202,9 @@ function normalizePublicInterruptBinding(
   )
   if (
     binding.interruptId !== expectedInterruptId ||
+    // A binding version we don't recognise belongs to another producer. Drop
+    // it rather than reading our fields out of it.
+    (binding.v !== undefined && binding.v !== INTERRUPT_BINDING_VERSION) ||
     typeof binding.interruptedRunId !== 'string' ||
     typeof binding.generation !== 'number' ||
     !Number.isInteger(binding.generation) ||
@@ -210,6 +215,7 @@ function normalizePublicInterruptBinding(
     return undefined
   }
   const base = {
+    v: INTERRUPT_BINDING_VERSION,
     interruptId: binding.interruptId,
     interruptedRunId: binding.interruptedRunId,
     generation: binding.generation,
@@ -2056,6 +2062,9 @@ class TextEngine<
       )
       interrupts.push({
         id: approval.approvalId,
+        // Display hint only. `reason` is free-form AG-UI text that another
+        // producer can also spell `tool_call`, so it never decides ownership —
+        // the binding in `metadata` does.
         reason: 'tool_call',
         message: `Approval required to run ${approval.toolName}`,
         toolCallId: approval.toolCallId,
@@ -2065,6 +2074,7 @@ class TextEngine<
           toolName: approval.toolName,
           input: approval.input,
           [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
             kind: 'tool-approval',
             interruptId: approval.approvalId,
             toolName: approval.toolName,
@@ -2094,6 +2104,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
           [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
             kind: 'client-tool-execution',
             interruptId: `client_tool_${clientTool.toolCallId}`,
             toolName: clientTool.toolName,

@@ -1,4 +1,6 @@
 import {
+  INTERRUPT_BINDING_METADATA_KEY,
+  INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
   canonicalizeInterruptResolutions,
   cloneAndDeepFreezeJson,
@@ -23,6 +25,7 @@ import type {
   ChatInterruptState,
   GenericAGUIInterrupt,
   InterruptItemStatus,
+  UnboundInterrupt,
 } from './types'
 
 export interface InterruptManagerHydration {
@@ -51,11 +54,17 @@ export interface InterruptManagerOptions<
 
 type UnknownObject = { [key: string]: unknown }
 
-type RuntimeKind = 'generic' | 'tool-approval' | 'client-tool-execution'
+type RuntimeKind =
+  | 'generic'
+  | 'tool-approval'
+  | 'client-tool-execution'
+  /** Carries no binding we understand — not ours to resume. */
+  | 'unbound'
 
 interface RuntimeInterrupt {
   descriptor: Interrupt
-  binding: InterruptBinding
+  /** `undefined` only for `unbound` items. */
+  binding: InterruptBinding | undefined
   kind: RuntimeKind
   status: InterruptItemStatus
   canResolve: boolean
@@ -110,9 +119,6 @@ const batchErrorCodes = new Set<BatchInterruptError['code']>([
   'expired',
   'stale',
   'conflict',
-  'persistence-required',
-  'atomic-commit-unsupported',
-  'recovery-unavailable',
   'legacy-submit-failed',
 ])
 
@@ -138,8 +144,25 @@ function isLegacyClientToolMetadata(value: unknown): boolean {
   )
 }
 
+/**
+ * Does this descriptor carry the pre-binding TanStack metadata marker?
+ *
+ * Descriptors emitted before the resume binding existed are still ours to
+ * resume, so they must not be mistaken for another producer's interrupt.
+ */
+function isLegacyInterruptMetadata(interrupt: Interrupt): boolean {
+  return (
+    isLegacyApprovalMetadata(interrupt.metadata) ||
+    isLegacyClientToolMetadata(interrupt.metadata)
+  )
+}
+
 function isBindingBase(value: UnknownObject): boolean {
   return (
+    // A binding stamped with a version we don't know is another producer's.
+    // Reject it whole; never read our fields out of it. Missing `v` is read as
+    // the current version so pre-versioning bindings still resume.
+    (value['v'] === undefined || value['v'] === INTERRUPT_BINDING_VERSION) &&
     typeof value['kind'] === 'string' &&
     typeof value['interruptId'] === 'string' &&
     typeof value['interruptedRunId'] === 'string' &&
@@ -159,6 +182,7 @@ function readBinding(value: unknown): InterruptBinding | undefined {
     typeof value['expiresAt'] === 'string' ? value['expiresAt'] : undefined
   if (value['kind'] === 'generic') {
     return {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'generic',
       interruptId: String(value['interruptId']),
       interruptedRunId: String(value['interruptedRunId']),
@@ -174,6 +198,7 @@ function readBinding(value: unknown): InterruptBinding | undefined {
     typeof value['outputSchemaHash'] === 'string'
   ) {
     return {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: String(value['interruptId']),
       interruptedRunId: String(value['interruptedRunId']),
@@ -194,6 +219,7 @@ function readBinding(value: unknown): InterruptBinding | undefined {
     'originalArgs' in value
   ) {
     return {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'tool-approval',
       interruptId: String(value['interruptId']),
       interruptedRunId: String(value['interruptedRunId']),
@@ -213,14 +239,15 @@ function readBinding(value: unknown): InterruptBinding | undefined {
 function getDescriptorBinding(
   interrupt: Interrupt,
 ): InterruptBinding | undefined {
-  const candidate: unknown = interrupt.metadata?.['tanstack:interruptBinding']
+  const candidate: unknown =
+    interrupt.metadata?.[INTERRUPT_BINDING_METADATA_KEY]
   return readBinding(candidate)
 }
 
-function isToolApprovalReason(reason: string): boolean {
-  return reason === 'tool_call' || reason === 'approval_required'
-}
-
+/**
+ * Only used to route *legacy* (pre-binding) descriptors, which have no binding
+ * to classify off. Current descriptors are classified by their binding alone.
+ */
 function isClientToolExecutionReason(reason: string): boolean {
   return (
     reason === 'tanstack:client_tool_execution' ||
@@ -405,6 +432,7 @@ function genericBinding(
   candidate: InterruptBinding | undefined,
 ): InterruptBinding {
   return cloneAndDeepFreezeJson({
+    v: INTERRUPT_BINDING_VERSION,
     kind: 'generic',
     interruptId: interrupt.id,
     interruptedRunId: hydration.interruptedRunId,
@@ -591,7 +619,7 @@ export class InterruptManager<
     const item = this.items.find(
       (candidate) =>
         (candidate.kind === 'client-tool-execution' &&
-          candidate.binding.kind === 'client-tool-execution' &&
+          candidate.binding?.kind === 'client-tool-execution' &&
           candidate.binding.toolCallId === toolCallId) ||
         (candidate.kind === 'generic' &&
           isClientToolExecutionReason(candidate.descriptor.reason) &&
@@ -623,6 +651,34 @@ export class InterruptManager<
   ): RuntimeInterrupt {
     const interrupt = cloneAndDeepFreezeJson(descriptor)
     const candidate = getDescriptorBinding(interrupt)
+
+    // No binding we understand, and nothing else identifying the descriptor as
+    // ours, means this interrupt was not produced by this package's resume
+    // path — a workflow engine's durable approval projected onto the same
+    // AG-UI stream, a third-party agent's pause, or a binding written at a
+    // protocol version we don't know.
+    //
+    // Do not invent a binding for it. Synthesising one would render a
+    // resolvable form whose answer is submitted against a run that has no
+    // matching pending descriptor, failing late as `unknown-interrupt` after
+    // the user has already filled it in. Surface it as unresolvable instead,
+    // so "someone else owns this pause" is visible rather than silently
+    // translated into an AI-domain interrupt.
+    //
+    // Pre-binding TanStack descriptors are still ours: they carry the legacy
+    // `metadata.kind` marker, so they keep hydrating through the generic path
+    // below.
+    if (candidate === undefined && !isLegacyInterruptMetadata(interrupt)) {
+      return {
+        descriptor: interrupt,
+        binding: undefined,
+        kind: 'unbound',
+        status: 'pending',
+        canResolve: false,
+        validationGeneration: 0,
+      }
+    }
+
     const correlated =
       candidate !== undefined &&
       candidate.interruptId === interrupt.id &&
@@ -635,9 +691,11 @@ export class InterruptManager<
       const tool = this.tools?.find(
         (configured) => configured.name === candidate.toolName,
       )
+      // Gated on the binding and the schema hashes below, not on
+      // `interrupt.reason` — that string is free-form AG-UI text another
+      // producer can also use, so it cannot be what decides ownership.
       if (
         tool?.needsApproval === true &&
-        isToolApprovalReason(interrupt.reason) &&
         interrupt.toolCallId === candidate.toolCallId
       ) {
         try {
@@ -670,9 +728,9 @@ export class InterruptManager<
       const tool = this.tools?.find(
         (configured) => configured.name === candidate.toolName,
       )
+      // Binding-gated, for the same reason as tool approvals above.
       if (
         tool !== undefined &&
-        isClientToolExecutionReason(interrupt.reason) &&
         interrupt.toolCallId === candidate.toolCallId &&
         hashSchemaInput(tool.outputSchema) === candidate.outputSchemaHash
       ) {
@@ -724,6 +782,16 @@ export class InterruptManager<
           () => this.cancelItem(item.descriptor.id, transaction),
           () => this.clearItem(item.descriptor.id, transaction),
         )
+        // Not ours to resume: expose the descriptor so a UI can show the run
+        // is paused, with no `resolveInterrupt` to call.
+        if (item.kind === 'unbound' || item.binding === undefined) {
+          const snapshot: UnboundInterrupt = {
+            ...base,
+            kind: 'unbound',
+            canResolve: false,
+          }
+          return Object.freeze(snapshot)
+        }
         if (
           item.kind === 'tool-approval' &&
           item.binding.kind === 'tool-approval'
@@ -759,6 +827,7 @@ export class InterruptManager<
           item.binding.kind === 'generic'
             ? cloneAndDeepFreezeJson(item.binding)
             : cloneAndDeepFreezeJson({
+                v: INTERRUPT_BINDING_VERSION,
                 kind: 'generic' as const,
                 interruptId: item.descriptor.id,
                 interruptedRunId: hydration.interruptedRunId,
@@ -881,9 +950,14 @@ export class InterruptManager<
   }
 
   private maybeSubmit(): void {
+    // Unbound items can never be resolved through this path — something else
+    // owns them. Including them in the completeness gate would deadlock the
+    // batch, so the run's own interrupts could never be answered once a
+    // foreign one shared the stream.
+    const ours = this.items.filter((item) => item.kind !== 'unbound')
     if (
-      this.items.length === 0 ||
-      this.items.some(
+      ours.length === 0 ||
+      ours.some(
         (item) => item.resolution === undefined || item.status !== 'staged',
       )
     ) {
@@ -891,9 +965,7 @@ export class InterruptManager<
     }
     const hydration = this.requireHydration()
     const canonical = canonicalizeInterruptResolutions(
-      this.items
-        .map((item) => item.resolution)
-        .filter((item) => item !== undefined),
+      ours.map((item) => item.resolution).filter((item) => item !== undefined),
     )
     const submission = Object.freeze({
       threadId: hydration.threadId,

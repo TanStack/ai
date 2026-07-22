@@ -43,6 +43,122 @@ Two kinds of interrupt show up in the `interrupts` array for you to resolve:
 | `tool-approval` | A tool is marked `needsApproval` and the model calls it | [Tool Approval](./tool-approval) |
 | `generic` | Your app ends a run to ask the user something that isn't a tool | [Generic Interrupts](./generic) |
 
+## Interrupts that aren't ours: `unbound`
+
+An interrupt is a standard AG-UI object, and TanStack AI is not the only thing
+that can put one on a stream. A workflow engine pausing for a durable approval,
+or another agent framework sharing the same connection, emits the same envelope.
+
+What makes a pause resumable *here* is a binding this library attaches to the
+interrupt's metadata, under a key exported as `INTERRUPT_BINDING_METADATA_KEY`.
+It records which run and generation the pause belongs to, so your answer can be
+matched back to the paused step.
+
+When an interrupt arrives without one, you get it with `kind: 'unbound'` and
+`canResolve: false`, and there is no `resolveInterrupt` to call:
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferTool = toolDefinition({
+  name: 'transfer',
+  description: 'Move money between accounts',
+  needsApproval: true,
+  inputSchema: z.object({ recipient: z.string(), amount: z.number() }),
+  outputSchema: z.object({ receiptId: z.string() }),
+}).client()
+
+export function Pauses() {
+  const { interrupts } = useChat({
+    threadId: 'thread-1',
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [transferTool] as const,
+  })
+
+  return (
+    <>
+      {interrupts.map((interrupt) => {
+        // Someone else owns this pause: show it, but offer no way to answer it.
+        if (interrupt.kind === 'unbound') {
+          return (
+            <p key={interrupt.id}>
+              Paused elsewhere: {interrupt.message ?? interrupt.reason}
+            </p>
+          )
+        }
+        if (interrupt.kind === 'generic') {
+          return (
+            <button
+              key={interrupt.id}
+              onClick={() => interrupt.resolveInterrupt({ confirmed: true })}
+            >
+              {interrupt.message ?? interrupt.reason}
+            </button>
+          )
+        }
+        return (
+          <button
+            key={interrupt.id}
+            onClick={() => interrupt.resolveInterrupt(true)}
+          >
+            Approve {interrupt.toolName}
+          </button>
+        )
+      })}
+    </>
+  )
+}
+```
+
+The library will not invent a binding to make these resolvable. Doing so would
+render a form whose answer gets submitted against a run that has nothing pending
+— failing only after the user has filled it in. `unbound` says plainly that the
+pause belongs to something else, and unbound items never block you from
+resolving the ones that are yours.
+
+If you emit your own pauses and want them resumable here, attach the binding
+with `withInterruptBinding` rather than writing the metadata key by hand:
+
+```ts
+import {
+  INTERRUPT_BINDING_VERSION,
+  canonicalInterruptJson,
+  digestInterruptJson,
+  withInterruptBinding,
+} from '@tanstack/ai'
+
+const responseSchema = {
+  type: 'object',
+  properties: { speed: { type: 'string' } },
+  required: ['speed'],
+}
+
+const descriptor = withInterruptBinding(
+  {
+    id: 'shipping-1',
+    reason: 'confirmation',
+    message: 'Which shipping speed?',
+    responseSchema,
+  },
+  {
+    v: INTERRUPT_BINDING_VERSION,
+    kind: 'generic',
+    interruptId: 'shipping-1',
+    // The server checks the schema it hands out still matches the one it
+    // validates against, so the hash is computed from the schema itself.
+    responseSchemaHash: digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    ),
+  },
+)
+```
+
+`v` is the binding's wire version. Readers reject a version they don't
+recognise instead of guessing at the fields, which is what keeps another
+producer's binding from being mistaken for one of ours.
+
 ## What about client tools?
 
 A tool with a `.client()` implementation runs in the browser on its own and

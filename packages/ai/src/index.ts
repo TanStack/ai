@@ -70,10 +70,13 @@ export {
   digestInterruptJson,
 } from './interrupt-serialization'
 export {
+  INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
   interruptItemError,
+  readInterruptBinding,
   readUnopenedInterruptBinding,
   validateInterruptResumeBatch,
+  withInterruptBinding,
   withoutInterruptBinding,
   type PendingInterruptResumeRecord,
   type ValidateInterruptResumeBatchInput,
@@ -163,7 +166,27 @@ export type {
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
-export * from './interrupts'
+// Interrupt protocol surface. Deliberately enumerated rather than
+// `export *`: the interrupt object is the seam between AI-domain pauses and
+// any future durable/workflow-owned approval model, so what we publish here is
+// a commitment. Only the ephemeral contract this release actually implements
+// is exported — no durable-recovery or persisted-state types, which would
+// pre-decide a question the orchestration RFC still owns.
+export {
+  INTERRUPT_BINDING_VERSION,
+  canonicalizeInterruptResolutions,
+} from './interrupts'
+export type {
+  BatchInterruptError,
+  BatchInterruptErrorCode,
+  InterruptBinding,
+  InterruptCorrelation,
+  InterruptSubmissionError,
+  ItemInterruptError,
+  ItemInterruptErrorCode,
+  ToolApprovalResolution,
+  UnopenedInterruptBinding,
+} from './interrupts'
 
 // Base, activity-agnostic middleware. The observe-only superset that media
 // activities accept via their `middleware` option; `ChatMiddleware` adds the

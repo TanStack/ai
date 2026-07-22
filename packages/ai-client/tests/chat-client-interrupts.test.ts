@@ -10,12 +10,12 @@ import {
   toolDefinition,
 } from '@tanstack/ai/client'
 import { z } from 'zod'
+import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
 import { InterruptManager } from '../src/interrupt-manager'
 import { ChatClient } from '../src/chat-client'
 import type {
   AnyTextAdapter,
   InterruptSubmissionError,
-  InterruptRecoveryStateV1,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
@@ -80,6 +80,7 @@ function createManager() {
 
 function genericDescriptor(id: string): Interrupt {
   return descriptor({
+    v: INTERRUPT_BINDING_VERSION,
     kind: 'generic',
     interruptId: id,
     interruptedRunId: 'run-1',
@@ -93,6 +94,97 @@ async function settle(): Promise<void> {
   await Promise.resolve()
 }
 
+describe('InterruptManager foreign-interrupt handling', () => {
+  it('surfaces an interrupt with no binding as unbound rather than resolvable generic', () => {
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        {
+          id: 'workflow-approval-1',
+          reason: 'approval_requested',
+          message: 'Approve the deployment?',
+          metadata: { 'acme:workflowApproval': { stepId: 'deploy' } },
+        },
+      ],
+    })
+
+    const [item] = manager.getInterrupts()
+    expect(item?.kind).toBe('unbound')
+    expect(item?.canResolve).toBe(false)
+    // No resume affordance: resolving would submit an answer against a run
+    // that has no matching pending descriptor.
+    expect(item && 'resolveInterrupt' in item).toBe(false)
+    // Still visible, so a UI can show the run is paused.
+    expect(item?.message).toBe('Approve the deployment?')
+  })
+
+  it('rejects a binding written at an unknown protocol version', () => {
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        {
+          id: 'future-1',
+          reason: 'confirmation',
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: INTERRUPT_BINDING_VERSION + 1,
+              kind: 'generic',
+              interruptId: 'future-1',
+              interruptedRunId: 'run-1',
+              generation: 1,
+              responseSchemaHash: 'none',
+            },
+          },
+        },
+      ],
+    })
+
+    const [item] = manager.getInterrupts()
+    expect(item?.kind).toBe('unbound')
+    expect(item?.canResolve).toBe(false)
+  })
+
+  it('does not let an unbound interrupt block submission of the bound ones', async () => {
+    const { manager, submit } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor({
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId: 'ours',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          responseSchemaHash: 'none',
+        }),
+        {
+          id: 'theirs',
+          reason: 'approval_requested',
+          metadata: {},
+        },
+      ],
+    })
+
+    manager.getInterrupts().forEach((item) => {
+      if (item.kind === 'generic') item.resolveInterrupt({ ok: true })
+    })
+    await settle()
+
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(
+      submit.mock.calls[0]?.[0].resolutions.map((r) => r.interruptId),
+    ).toEqual(['ours'])
+  })
+})
+
 describe('InterruptManager hydration', () => {
   it('hydrates correlated approval and client-tool bindings into frozen typed snapshots', () => {
     const approval = normalizeApprovalSchema(
@@ -100,6 +192,7 @@ describe('InterruptManager hydration', () => {
       transferDefinition.inputSchema,
     )
     const approvalBinding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'tool-approval',
       interruptId: 'approval-1',
       interruptedRunId: 'run-1',
@@ -113,6 +206,7 @@ describe('InterruptManager hydration', () => {
     }
     const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
     const clientBinding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: 'client-1',
       interruptedRunId: 'run-1',
@@ -281,6 +375,7 @@ describe('InterruptManager hydration', () => {
       transferDefinition.inputSchema,
     )
     const approvalBinding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'tool-approval',
       interruptId: 'approval-legacy',
       interruptedRunId: 'run-legacy',
@@ -294,6 +389,7 @@ describe('InterruptManager hydration', () => {
     }
     const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
     const clientBinding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: 'client-legacy',
       interruptedRunId: 'run-legacy',
@@ -328,6 +424,7 @@ describe('InterruptManager hydration', () => {
   it('degrades mismatched tool correlation to generic without trusting wire correlation', () => {
     const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: 'client-1',
       interruptedRunId: 'untrusted-run',
@@ -356,6 +453,7 @@ describe('InterruptManager hydration', () => {
 
   it('resolves a generic item regardless of its wire response schema', () => {
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'generic',
       interruptId: 'generic-1',
       interruptedRunId: 'run-1',
@@ -450,6 +548,7 @@ describe('InterruptManager transactions', () => {
       submit,
     })
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: 'async-1',
       interruptedRunId: 'run-1',
@@ -556,6 +655,7 @@ describe('InterruptManager transactions', () => {
     }).client()
     const approval = normalizeApprovalSchema(undefined, undefined)
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'tool-approval',
       interruptId: 'approval-1',
       interruptedRunId: 'run-1',
@@ -690,6 +790,7 @@ describe('InterruptManager transactions', () => {
     const { manager } = createManager()
     const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'client-tool-execution',
       interruptId: 'client-1',
       interruptedRunId: 'run-1',
@@ -1008,6 +1109,7 @@ describe('ChatClient native interrupts', () => {
     const contexts: Array<RunAgentInputContext | undefined> = []
     const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []
     const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
       kind: 'generic',
       interruptId: 'generic-1',
       interruptedRunId: 'placeholder',
@@ -1100,6 +1202,7 @@ describe('ChatClient native interrupts', () => {
               type: 'interrupt',
               interrupts: [
                 descriptor({
+                  v: INTERRUPT_BINDING_VERSION,
                   kind: 'generic',
                   interruptId: 'first',
                   interruptedRunId: runId,
@@ -1107,6 +1210,7 @@ describe('ChatClient native interrupts', () => {
                   responseSchemaHash: 'none',
                 }),
                 descriptor({
+                  v: INTERRUPT_BINDING_VERSION,
                   kind: 'generic',
                   interruptId: 'second',
                   interruptedRunId: runId,
@@ -1231,40 +1335,4 @@ describe('ChatClient native interrupts', () => {
       expect(client?.getInterruptState().interruptErrors).toEqual([])
     },
   )
-
-  it.skip('hydrates V1 descriptors before explicit recovery replaces them', async () => {
-    const persisted = genericDescriptor('persisted')
-    const authoritative = genericDescriptor('authoritative')
-    let releaseRecovery: ((state: InterruptRecoveryStateV1) => void) | undefined
-    const recovery = new Promise<InterruptRecoveryStateV1>((resolve) => {
-      releaseRecovery = resolve
-    })
-    const loadInterruptState = vi.fn(() => recovery)
-    const client = new ChatClient({
-      connection: { async *connect() {}, loadInterruptState },
-      initialResumeSnapshot: {
-        schemaVersion: 1,
-        resumeState: { threadId: 'thread-1', runId: 'run-1' },
-        pendingInterrupts: [persisted],
-      },
-    })
-
-    expect(client.getInterrupts().map((item) => item.id)).toEqual(['persisted'])
-    releaseRecovery?.({
-      schemaVersion: 1,
-      state: 'pending',
-      threadId: 'thread-1',
-      interruptedRunId: 'run-1',
-      generation: 1,
-      pendingInterrupts: [authoritative],
-    })
-    await vi.waitFor(() =>
-      expect(client.getInterrupts()[0]?.id).toBe('authoritative'),
-    )
-    expect(loadInterruptState).toHaveBeenCalledWith({
-      threadId: 'thread-1',
-      interruptedRunId: 'run-1',
-      knownGeneration: 1,
-    })
-  })
 })

@@ -5,8 +5,6 @@ import {
 } from './response-stream'
 import { parseSseDataLine } from './sse-utils'
 import type {
-  InterruptRecoveryQuery,
-  InterruptRecoveryStateV1,
   ModelMessage,
   RunAgentResumeItem,
   RunErrorEvent,
@@ -663,15 +661,6 @@ export interface ConnectConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
-  /**
-   * Optional authoritative interrupt-recovery fetch. Dormant unless an
-   * application wires an explicit recovery endpoint; the ephemeral interrupt
-   * flow resumes from full client history and never calls this.
-   */
-  loadInterruptState?: (
-    query: InterruptRecoveryQuery,
-    abortSignal?: AbortSignal,
-  ) => Promise<InterruptRecoveryStateV1>
 }
 
 /**
@@ -704,15 +693,6 @@ export interface SubscribeConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => Promise<void>
-  /**
-   * Optional authoritative interrupt-recovery fetch. Dormant unless an
-   * application wires an explicit recovery endpoint; the ephemeral interrupt
-   * flow resumes from full client history and never calls this.
-   */
-  loadInterruptState?: (
-    query: InterruptRecoveryQuery,
-    abortSignal?: AbortSignal,
-  ) => Promise<InterruptRecoveryStateV1>
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   toolDefinition,
   validateInterruptResumeBatch,
 } from '../src/index'
+import { INTERRUPT_BINDING_VERSION } from '../src/interrupts'
 import type { InterruptBinding } from '../src/interrupts'
 
 const transferDef = toolDefinition({
@@ -30,6 +31,7 @@ function approvalFixture(
     transferDef.inputSchema,
   )
   const binding: Extract<InterruptBinding, { kind: 'tool-approval' }> = {
+    v: INTERRUPT_BINDING_VERSION,
     kind: 'tool-approval',
     interruptId: 'approval_call-1',
     interruptedRunId: 'run-1',

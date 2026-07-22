@@ -222,7 +222,19 @@ against `inputSchema`:
 
 ```ts
 // server/transfer-tool.ts
-import { transferTool } from '../tools/transfer'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferTool = toolDefinition({
+  name: 'transfer',
+  description: 'Move money between accounts',
+  needsApproval: true,
+  inputSchema: z.object({
+    recipient: z.string(),
+    amount: z.number(),
+  }),
+  outputSchema: z.object({ receiptId: z.string() }),
+})
 
 export const transfer = transferTool.server(async (input) => {
   // input.amount / input.recipient are the model's arguments, or the

@@ -3,7 +3,7 @@ import {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
-import type { Interrupt, RunAgentResumeItem } from './types'
+import type { RunAgentResumeItem } from './types'
 
 export interface InterruptCorrelation {
   threadId: string
@@ -38,15 +38,6 @@ export type BatchInterruptErrorCode =
   | 'expired'
   | 'stale'
   | 'conflict'
-  /**
-   * Reserved for a durable persistence layer. Not emitted by the ephemeral
-   * chat resume path in this package.
-   */
-  | 'persistence-required'
-  /** @see persistence-required */
-  | 'atomic-commit-unsupported'
-  /** @see persistence-required */
-  | 'recovery-unavailable'
   | 'legacy-submit-failed'
 
 export interface ItemInterruptError extends InterruptCorrelation {
@@ -70,71 +61,57 @@ export interface BatchInterruptError extends InterruptCorrelation {
 
 export type InterruptSubmissionError = ItemInterruptError | BatchInterruptError
 
+/**
+ * Wire version of {@link InterruptBinding}.
+ *
+ * The binding is the only part of an AG-UI `Interrupt` that this package
+ * claims — it rides in `metadata` under
+ * {@link INTERRUPT_BINDING_METADATA_KEY} and tells the resume path how to
+ * correlate an answer back to a paused run. Producers stamp `v`; readers
+ * reject any version they don't understand rather than duck-typing the fields.
+ *
+ * That matters because an AG-UI `Interrupt` is a shared envelope. Another
+ * producer — a workflow engine projecting a durable approval, a third-party
+ * agent — can legitimately put its own binding in the same envelope. Versioning
+ * makes "not mine" a clean rejection instead of a partial match that resumes
+ * against the wrong owner.
+ */
+export const INTERRUPT_BINDING_VERSION = 1 as const
+
+interface InterruptBindingBase {
+  /** @see INTERRUPT_BINDING_VERSION */
+  v: typeof INTERRUPT_BINDING_VERSION
+  interruptId: string
+  interruptedRunId: string
+  generation: number
+  responseSchemaHash: string
+  expiresAt?: string
+}
+
 export type InterruptBinding =
-  | {
+  | (InterruptBindingBase & {
       kind: 'tool-approval'
-      interruptId: string
-      interruptedRunId: string
-      generation: number
       toolName: string
       toolCallId: string
       originalArgs: unknown
       inputSchemaHash: string
       approvalSchemaHash: string
-      responseSchemaHash: string
-      expiresAt?: string
-    }
-  | {
+    })
+  | (InterruptBindingBase & {
       kind: 'client-tool-execution'
-      interruptId: string
-      interruptedRunId: string
-      generation: number
       toolName: string
       toolCallId: string
       outputSchemaHash: string
-      responseSchemaHash: string
-      expiresAt?: string
-    }
-  | {
+    })
+  | (InterruptBindingBase & {
       kind: 'generic'
-      interruptId: string
-      interruptedRunId: string
-      generation: number
-      responseSchemaHash: string
-      expiresAt?: string
-    }
+    })
 
 export type UnopenedInterruptBinding = InterruptBinding extends infer TBinding
   ? TBinding extends InterruptBinding
     ? Omit<TBinding, 'interruptedRunId' | 'generation'>
     : never
   : never
-
-/**
- * Query shape for an optional durable recovery adapter.
- * Ephemeral chat resume does not use recovery state.
- */
-export interface InterruptRecoveryQuery {
-  threadId: string
-  interruptedRunId: string
-  knownGeneration: number
-}
-
-/**
- * Recovery snapshot for an optional durable layer.
- * Not produced or consumed by the default ephemeral interrupt path.
- */
-export interface InterruptRecoveryStateV1 extends InterruptCorrelation {
-  schemaVersion: 1
-  state: 'pending' | 'committed' | 'expired' | 'missing' | 'legacy-committed'
-  pendingInterrupts: ReadonlyArray<Interrupt>
-  committed?: {
-    fingerprint: string
-    resolutions?: ReadonlyArray<RunAgentResumeItem>
-    continuationRunId?: string
-    committedAt: string
-  }
-}
 
 export type ToolApprovalResolution =
   | boolean

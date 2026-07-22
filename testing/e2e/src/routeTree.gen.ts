@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
@@ -46,6 +47,7 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -73,6 +75,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignInterruptRoute = ForeignInterruptRouteImport.update({
+  id: '/foreign-interrupt',
+  path: '/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
@@ -249,6 +256,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
+  id: '/api/foreign-interrupt',
+  path: '/api/foreign-interrupt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   id: '/api/durable-delivery',
   path: '/api/durable-delivery',
@@ -325,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-interrupt': typeof ForeignInterruptRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -336,6 +349,7 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -377,6 +391,7 @@ export interface FileRoutesByTo {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-interrupt': typeof ForeignInterruptRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -388,6 +403,7 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -430,6 +446,7 @@ export interface FileRoutesById {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-interrupt': typeof ForeignInterruptRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -441,6 +458,7 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
@@ -484,6 +502,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/foreign-interrupt'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -495,6 +514,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/durable-delivery'
+    | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
@@ -536,6 +556,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/foreign-interrupt'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -547,6 +568,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/durable-delivery'
+    | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
@@ -588,6 +610,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/foreign-interrupt'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -599,6 +622,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/chat'
     | '/api/durable-delivery'
+    | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
@@ -641,6 +665,7 @@ export interface RootRouteChildren {
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  ForeignInterruptRoute: typeof ForeignInterruptRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
@@ -652,6 +677,7 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
@@ -701,6 +727,13 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-interrupt': {
+      id: '/foreign-interrupt'
+      path: '/foreign-interrupt'
+      fullPath: '/foreign-interrupt'
+      preLoaderRoute: typeof ForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-tools': {
@@ -941,6 +974,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/foreign-interrupt': {
+      id: '/api/foreign-interrupt'
+      path: '/api/foreign-interrupt'
+      fullPath: '/api/foreign-interrupt'
+      preLoaderRoute: typeof ApiForeignInterruptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/durable-delivery': {
       id: '/api/durable-delivery'
       path: '/api/durable-delivery'
@@ -1102,6 +1142,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
+  ForeignInterruptRoute: ForeignInterruptRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
@@ -1113,6 +1154,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,

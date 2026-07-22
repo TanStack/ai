@@ -113,7 +113,13 @@ export function ChatUI<
             // Structural narrow (not only `kind ===`) so this stays valid when
             // `TTools` defaults to a tools array whose `ChatInterrupt` union is
             // generic-only at the type level but still carries approval at runtime.
-            if (!('toolName' in interrupt) || !('originalArgs' in interrupt)) {
+            if (
+              !('toolName' in interrupt) ||
+              !('originalArgs' in interrupt) ||
+              // `unbound` pauses carry no resolver — they belong to another
+              // producer on the stream.
+              !('resolveInterrupt' in interrupt)
+            ) {
               return null
             }
             const toolName = String(interrupt.toolName)

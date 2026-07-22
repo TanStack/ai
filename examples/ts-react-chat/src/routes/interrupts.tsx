@@ -24,7 +24,7 @@ import {
   shareAdoptionStory,
 } from '@/lib/interrupt-tools'
 import type { Scenario, ScenarioGroup } from '@/lib/interrupt-tools'
-import type { ChatInterrupt } from '@tanstack/ai-client'
+import type { ChatInterrupt, UnboundInterrupt } from '@tanstack/ai-client'
 
 export const Route = createFileRoute('/interrupts')({
   component: SanctuaryPage,
@@ -318,8 +318,28 @@ function InterruptCard({
       <GenericCard interrupt={interrupt} disabled={disabled} record={record} />
     )
   }
+  // Not ours to resolve — something else on the stream owns this pause, so
+  // there is nothing to approve or submit here.
+  if (interrupt.kind === 'unbound') {
+    return <UnboundCard interrupt={interrupt} />
+  }
   return (
     <ApprovalCard interrupt={interrupt} disabled={disabled} record={record} />
+  )
+}
+
+function UnboundCard({ interrupt }: { interrupt: UnboundInterrupt }) {
+  return (
+    <article className="rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+      <h3 className="text-sm font-semibold text-slate-300">Paused elsewhere</h3>
+      <p className="mt-1 text-sm text-slate-400">
+        {interrupt.message ?? interrupt.reason}
+      </p>
+      <p className="mt-2 text-xs text-slate-500">
+        This interrupt carries no resume binding for this chat, so it can't be
+        answered here.
+      </p>
+    </article>
   )
 }
 
@@ -338,7 +358,9 @@ const ANIMALS: Array<[test: RegExp, keyword: string, emoji: string]> = [
 ]
 
 function animalOf(interrupt: Interrupt): { keyword: string; emoji: string } {
-  if (interrupt.kind === 'generic') return { keyword: 'wildlife', emoji: '🍽️' }
+  if (interrupt.kind === 'generic' || interrupt.kind === 'unbound') {
+    return { keyword: 'wildlife', emoji: '🍽️' }
+  }
   const hay = JSON.stringify(interrupt.originalArgs).toLowerCase()
   for (const [test, keyword, emoji] of ANIMALS) {
     if (test.test(hay)) return { keyword, emoji }
