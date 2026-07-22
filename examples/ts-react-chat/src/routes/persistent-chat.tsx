@@ -31,7 +31,9 @@ function PersistentChatPage() {
     connection,
     persistence,
   })
-  const [input, setInput] = useState('Tell me a two-sentence story about a lighthouse.')
+  const [input, setInput] = useState(
+    'Tell me a two-sentence story about a lighthouse.',
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,9 +50,10 @@ function PersistentChatPage() {
         This chat persists on both ends. The client writes the transcript to
         <code> localStorage</code>, so a full page reload restores the
         conversation instantly. The server writes the same transcript, run
-        records, and interrupt state to SQLite via <code>withChatPersistence</code>,
-        so it survives a server restart too. Send a message, wait for the reply,
-        then reload the page: the conversation is still here.
+        records, and interrupt state to SQLite via{' '}
+        <code>withChatPersistence</code>, so it survives a server restart too.
+        Send a message, wait for the reply, then reload the page: the
+        conversation is still here.
       </p>
 
       <div style={{ margin: '12px 0', color: '#888', fontSize: 13 }}>

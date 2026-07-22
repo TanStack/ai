@@ -136,7 +136,10 @@ describe('ChatClient auto-rejoin after reload', () => {
     // A store pre-seeded as if a previous session persisted a live run.
     const { adapter } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],
-      resume: { schemaVersion: 2, resumeState: { threadId: 't1', runId: 'r1' } },
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
     })
 
     const joinRun = vi.fn(
