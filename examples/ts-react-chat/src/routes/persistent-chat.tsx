@@ -1,0 +1,131 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+} from '@tanstack/ai-client'
+import { useChat } from '@tanstack/ai-react'
+import type { ChatPersistedState } from '@tanstack/ai-client'
+
+export const Route = createFileRoute('/persistent-chat')({
+  component: PersistentChatPage,
+})
+
+const connection = fetchServerSentEvents('/api/persistent-chat')
+
+// One combined record (messages + resume snapshot) per chat id, in
+// localStorage so it survives a full reload and browser restart. UIMessage
+// carries a `Date`, which is not JSON-native, so a codec is required; strings
+// round-trip fine for this demo.
+const persistence = localStoragePersistence<ChatPersistedState>({
+  serialize: (value) => JSON.stringify(value),
+  deserialize: (value) => JSON.parse(value),
+})
+
+function PersistentChatPage() {
+  // A stable id + threadId so a reload rehydrates the SAME conversation from
+  // storage (client) and continues it on the server (SQLite).
+  const { messages, sendMessage, isLoading, connectionStatus } = useChat({
+    id: 'persistent-chat',
+    threadId: 'persistent-chat-thread',
+    connection,
+    persistence,
+  })
+  const [input, setInput] = useState('Tell me a two-sentence story about a lighthouse.')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const text = input.trim()
+    if (!text || isLoading) return
+    setInput('')
+    void sendMessage(text)
+  }
+
+  return (
+    <div style={page}>
+      <h1>Persistent chat</h1>
+      <p style={{ color: '#555' }}>
+        This chat persists on both ends. The client writes the transcript to
+        <code> localStorage</code>, so a full page reload restores the
+        conversation instantly. The server writes the same transcript, run
+        records, and interrupt state to SQLite via <code>withChatPersistence</code>,
+        so it survives a server restart too. Send a message, wait for the reply,
+        then reload the page: the conversation is still here.
+      </p>
+
+      <div style={{ margin: '12px 0', color: '#888', fontSize: 13 }}>
+        connection: <code>{connectionStatus}</code> &nbsp;|&nbsp; messages:{' '}
+        <code>{messages.length}</code>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            style={message.role === 'user' ? userBubble : assistantBubble}
+          >
+            <div style={roleLabel}>{message.role}</div>
+            {message.parts.map((part, index) =>
+              part.type === 'text' && part.content ? (
+                <p
+                  key={`${message.id}-${index}`}
+                  style={{ margin: 0, whiteSpace: 'pre-wrap' }}
+                >
+                  {part.content}
+                </p>
+              ) : null,
+            )}
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        style={{ marginTop: 16, display: 'flex', gap: 8 }}
+      >
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask something…"
+          style={{ flex: 1, padding: 8 }}
+        />
+        <button type="submit" disabled={isLoading}>
+          {isLoading ? 'Streaming…' : 'Send'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+const page: React.CSSProperties = {
+  maxWidth: 720,
+  margin: '0 auto',
+  padding: 24,
+  fontFamily: 'system-ui, sans-serif',
+}
+
+const bubble: React.CSSProperties = {
+  borderRadius: 8,
+  padding: '10px 14px',
+  maxWidth: '85%',
+}
+
+const userBubble: React.CSSProperties = {
+  ...bubble,
+  alignSelf: 'flex-end',
+  background: '#eef2ff',
+}
+
+const assistantBubble: React.CSSProperties = {
+  ...bubble,
+  alignSelf: 'flex-start',
+  background: '#f6f6f6',
+}
+
+const roleLabel: React.CSSProperties = {
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  color: '#999',
+  marginBottom: 4,
+}
