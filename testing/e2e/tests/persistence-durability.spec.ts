@@ -48,9 +48,7 @@ test.describe('persistence durability (browser refresh)', () => {
     // one namespaced key. After a clean finish the resume half is dropped, so
     // the persisted record is messages-only.
     const stored = await page.evaluate(() =>
-      window.localStorage.getItem(
-        'tanstack-ai:persistence-durability-text',
-      ),
+      window.localStorage.getItem('tanstack-ai:persistence-durability-text'),
     )
     expect(stored).not.toBeNull()
     const record = JSON.parse(stored!) as {

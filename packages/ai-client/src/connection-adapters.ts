@@ -737,9 +737,9 @@ export function normalizeConnectionAdapter(
   }
 
   if (hasSubscribe && hasSend) {
-    const joinRun = (
-      connection as SubscribeConnectionAdapter
-    ).joinRun?.bind(connection)
+    const joinRun = (connection as SubscribeConnectionAdapter).joinRun?.bind(
+      connection,
+    )
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),

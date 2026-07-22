@@ -379,7 +379,7 @@ Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default
 `ChatMiddleware` that persists **state** for `chat()` — thread messages, run
 records (status/timing/usage/errors), and interrupt state — to a backend store.
 Add it to the `middleware` array like any other middleware. It never mutates the
-chunk stream; replaying a dropped/reloaded *stream* is a separate transport-layer
+chunk stream; replaying a dropped/reloaded _stream_ is a separate transport-layer
 concern (see ai-core/chat-experience/SKILL.md resumability, not this middleware).
 
 ```typescript
@@ -431,13 +431,13 @@ thread:
 Every backend returns an `AIPersistence` you pass straight to
 `withChatPersistence`:
 
-| Backend                              | Factory                                     | Import                                              |
-| ------------------------------------ | ------------------------------------------- | --------------------------------------------------- |
-| In-memory (dev/tests)                | `memoryPersistence()`                       | `@tanstack/ai-persistence`                          |
-| Drizzle SQLite-family (edge-safe)    | `drizzlePersistence(db)`                    | `@tanstack/ai-persistence-drizzle`                  |
-| Node SQLite convenience factory      | `sqlitePersistence({ url, migrate })`       | `@tanstack/ai-persistence-drizzle/sqlite`           |
-| Prisma                               | `prismaPersistence(prisma)`                 | `@tanstack/ai-persistence-prisma`                   |
-| Cloudflare (D1 + Durable Object locks) | `cloudflarePersistence({ d1, durableObjects })` | `@tanstack/ai-persistence-cloudflare`           |
+| Backend                                | Factory                                         | Import                                    |
+| -------------------------------------- | ----------------------------------------------- | ----------------------------------------- |
+| In-memory (dev/tests)                  | `memoryPersistence()`                           | `@tanstack/ai-persistence`                |
+| Drizzle SQLite-family (edge-safe)      | `drizzlePersistence(db)`                        | `@tanstack/ai-persistence-drizzle`        |
+| Node SQLite convenience factory        | `sqlitePersistence({ url, migrate })`           | `@tanstack/ai-persistence-drizzle/sqlite` |
+| Prisma                                 | `prismaPersistence(prisma)`                     | `@tanstack/ai-persistence-prisma`         |
+| Cloudflare (D1 + Durable Object locks) | `cloudflarePersistence({ d1, durableObjects })` | `@tanstack/ai-persistence-cloudflare`     |
 
 `drizzlePersistence(db)` is the edge-safe root — pass an already-migrated
 SQLite-compatible Drizzle database (including Cloudflare D1). `sqlitePersistence`

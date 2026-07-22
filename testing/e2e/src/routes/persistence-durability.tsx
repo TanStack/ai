@@ -72,7 +72,11 @@ function PersistenceDurabilityPage() {
         data-count={String(interrupts.length)}
         hidden
       />
-      <div data-testid="message-count" data-count={String(messages.length)} hidden />
+      <div
+        data-testid="message-count"
+        data-count={String(messages.length)}
+        hidden
+      />
 
       <div data-testid="message-list">
         {messages.map((message) => (
