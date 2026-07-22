@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
@@ -45,6 +46,7 @@ import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -73,6 +75,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterruptsTestRoute = InterruptsTestRouteImport.update({
+  id: '/interrupts-test',
+  path: '/interrupts-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
@@ -244,6 +251,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   path: '/api/lazy-tools-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
+  id: '/api/interrupts-test',
+  path: '/api/interrupts-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -325,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -337,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -377,6 +391,7 @@ export interface FileRoutesByTo {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -389,6 +404,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -430,6 +446,7 @@ export interface FileRoutesById {
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
@@ -442,6 +459,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/image': typeof ApiImageRouteWithChildren
+  '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -484,6 +502,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -496,6 +515,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-test'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -536,6 +556,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -548,6 +569,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-test'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -588,6 +610,7 @@ export interface FileRouteTypes {
     | '/devtools-route-b'
     | '/devtools-structured'
     | '/devtools-tools'
+    | '/interrupts-test'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
@@ -600,6 +623,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/durable-delivery'
     | '/api/image'
+    | '/api/interrupts-test'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -641,6 +665,7 @@ export interface RootRouteChildren {
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  InterruptsTestRoute: typeof InterruptsTestRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
@@ -653,6 +678,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
+  ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -701,6 +727,13 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interrupts-test': {
+      id: '/interrupts-test'
+      path: '/interrupts-test'
+      fullPath: '/interrupts-test'
+      preLoaderRoute: typeof InterruptsTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-tools': {
@@ -934,6 +967,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/interrupts-test': {
+      id: '/api/interrupts-test'
+      path: '/api/interrupts-test'
+      fullPath: '/api/interrupts-test'
+      preLoaderRoute: typeof ApiInterruptsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -1102,6 +1142,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
+  InterruptsTestRoute: InterruptsTestRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
@@ -1114,6 +1155,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
+  ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
