@@ -61,11 +61,11 @@ across allow / deny / cancel via both per-item (`interrupt.resolveInterrupt` /
 `interrupt.cancel`) and root batch (`resolveInterrupts` / `cancelInterrupts`)
 resolution.
 
-| Spec file                                  | Tests | What it covers                                                        |
-| ------------------------------------------ | ----- | --------------------------------------------------------------------- |
-| `tests/interrupts-test/per-item.spec.ts`   | 24    | Approve / deny / cancel each single scenario via the bound interrupt  |
-| `tests/interrupts-test/generic.spec.ts`    | 2     | Generic interrupt resolve-with-payload and cancel                     |
-| `tests/interrupts-test/batch.spec.ts`      | 5     | Root approve-all / deny-all / cancel-all, per-item, and mixed resolver |
+| Spec file                                | Tests | What it covers                                                         |
+| ---------------------------------------- | ----- | ---------------------------------------------------------------------- |
+| `tests/interrupts-test/per-item.spec.ts` | 24    | Approve / deny / cancel each single scenario via the bound interrupt   |
+| `tests/interrupts-test/generic.spec.ts`  | 2     | Generic interrupt resolve-with-payload and cancel                      |
+| `tests/interrupts-test/batch.spec.ts`    | 5     | Root approve-all / deny-all / cancel-all, per-item, and mixed resolver |
 
 Notes:
 

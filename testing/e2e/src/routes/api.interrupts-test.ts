@@ -141,10 +141,10 @@ export const Route = createFileRoute('/api/interrupts-test')({
         }
 
         const fp = params.forwardedProps
-        const scenario =
-          typeof fp.scenario === 'string' ? fp.scenario : 'admit'
+        const scenario = typeof fp.scenario === 'string' ? fp.scenario : 'admit'
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
-        const aimockPort = fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        const aimockPort =
+          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
         const isGeneric = scenario === 'feeding'
 
         const abortController = new AbortController()
