@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { inMemory } from '../src/in-memory'
-import { runMemoryAdapterContract } from './contract'
+import { inMemory } from '../../src/providers/in-memory'
+import { runMemoryAdapterContract } from '../contract'
 
 runMemoryAdapterContract('inMemory', () => inMemory())
 

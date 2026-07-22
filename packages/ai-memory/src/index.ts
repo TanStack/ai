@@ -1,6 +1,5 @@
 export {
   memoryMiddleware,
-  composeMemoryMiddleware,
   type MemoryMiddlewareOptions,
   type MemoryMiddlewareRole,
   type MemoryRecallInfo,

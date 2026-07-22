@@ -5,13 +5,13 @@ import {
   recallRecords,
   sameScope,
   saveTurn,
-} from './internal/store'
+} from '../../internal/store'
 import type {
   BuiltinOptions,
   MemoryRecord,
   RecordStore,
-} from './internal/store'
-import type { MemoryAdapter, MemoryScope } from './types'
+} from '../../internal/store'
+import type { MemoryAdapter, MemoryScope } from '../../types'
 
 /**
  * Options for {@link inMemory}. Retrieval/extraction knobs that used to live on

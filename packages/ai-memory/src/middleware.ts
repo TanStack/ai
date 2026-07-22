@@ -4,7 +4,6 @@ import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   ModelMessage,
-  StreamChunk,
 } from '@tanstack/ai'
 import type {
   MemoryAdapter,
@@ -201,64 +200,6 @@ export function memoryMiddleware(
           await options.onSave?.({ scope: resolved, turn, receipts })
         })(),
       )
-    },
-  }
-}
-
-/**
- * Compose multiple memory middlewares into one — useful for saving to (or
- * recalling from) more than one backend in a single run. `onConfig` results are
- * merged in order; every other hook fans out to each middleware.
- */
-export function composeMemoryMiddleware(
-  middlewares: Array<ChatMiddleware>,
-): ChatMiddleware {
-  return {
-    name: 'memory:compose',
-
-    async onConfig(ctx, config) {
-      let current: ChatMiddlewareConfig = config
-      let changed = false
-      for (const middleware of middlewares) {
-        const result = await middleware.onConfig?.(ctx, current)
-        if (result != null) {
-          current = { ...current, ...result }
-          changed = true
-        }
-      }
-      return changed ? current : undefined
-    },
-
-    async onChunk(ctx, chunk) {
-      let chunks: Array<StreamChunk> = [chunk]
-      for (const middleware of middlewares) {
-        if (!middleware.onChunk) continue
-        const next: Array<StreamChunk> = []
-        for (const item of chunks) {
-          const result = await middleware.onChunk(ctx, item)
-          if (result === null) continue
-          if (result === undefined) next.push(item)
-          else if (Array.isArray(result)) next.push(...result)
-          else next.push(result)
-        }
-        chunks = next
-      }
-      if (chunks.length === 0) return null
-      if (chunks.length === 1) return chunks[0]
-      return chunks
-    },
-
-    async onStart(ctx) {
-      for (const m of middlewares) await m.onStart?.(ctx)
-    },
-    async onFinish(ctx, info) {
-      for (const m of middlewares) await m.onFinish?.(ctx, info)
-    },
-    async onAbort(ctx, info) {
-      for (const m of middlewares) await m.onAbort?.(ctx, info)
-    },
-    async onError(ctx, info) {
-      for (const m of middlewares) await m.onError?.(ctx, info)
     },
   }
 }

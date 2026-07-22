@@ -18,12 +18,12 @@
       "import": "./dist/esm/index.js"
     },
     "./in-memory": {
-      "types": "./dist/esm/in-memory.d.ts",
-      "import": "./dist/esm/in-memory.js"
+      "types": "./dist/esm/providers/in-memory/index.d.ts",
+      "import": "./dist/esm/providers/in-memory/index.js"
     },
     "./redis": {
-      "types": "./dist/esm/redis.d.ts",
-      "import": "./dist/esm/redis.js"
+      "types": "./dist/esm/providers/redis/index.d.ts",
+      "import": "./dist/esm/providers/redis/index.js"
     },
     "./hindsight": {
       "types": "./dist/esm/providers/hindsight/index.d.ts",

@@ -152,27 +152,6 @@ const mw = memoryMiddleware({
 
 See the [Adapters](./adapters) page for every adapter's own options.
 
-## Stacking adapters
-
-`composeMemoryMiddleware` runs several memory middlewares as one — e.g. save to two
-backends, or recall from one while saving to another:
-
-```ts ignore
-// ignore: `scope` and `client` come from your app.
-import {
-  memoryMiddleware,
-  composeMemoryMiddleware,
-} from '@tanstack/ai-memory'
-import { inMemory } from '@tanstack/ai-memory/in-memory'
-import { redis } from '@tanstack/ai-memory/redis'
-
-const memory = composeMemoryMiddleware([
-  memoryMiddleware({ adapter: redis({ redis: client }), scope }),
-  // second adapter only writes (no recall injection)
-  memoryMiddleware({ adapter: inMemory(), scope, role: 'save-only' }),
-])
-```
-
 ## Devtools events
 
 The middleware emits five events on `aiEventClient` (from `@tanstack/ai-event-client`):

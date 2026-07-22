@@ -2,9 +2,9 @@
 //   the lowercase RedisLike subset ioredis-mock implements (cast below).
 import RedisMock from 'ioredis-mock'
 import { describe, expect, it, vi } from 'vitest'
-import { nodeRedisAsRedisLike, redis } from '../src/redis'
-import type { RedisLike } from '../src/redis'
-import { runMemoryAdapterContract } from './contract'
+import { nodeRedisAsRedisLike, redis } from '../../src/providers/redis'
+import type { RedisLike } from '../../src/providers/redis'
+import { runMemoryAdapterContract } from '../contract'
 
 function mockClient(): RedisLike {
   return new RedisMock() as unknown as RedisLike

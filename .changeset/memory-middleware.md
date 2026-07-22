@@ -15,7 +15,7 @@ Extraction, ranking, and rendering live inside each adapter — the middleware i
 
 `@tanstack/ai-memory` (new package) — everything ships here:
 
-- Root: `memoryMiddleware` + `composeMemoryMiddleware`, the `MemoryAdapter` contract
+- Root: `memoryMiddleware`, the `MemoryAdapter` contract
   (`recall` / `save` / optional `inspect` / `listFacts`), and the `MemoryScope` /
   `MemoryTurn` / `RecallResult` / `SaveReceipt` types.
 - `@tanstack/ai-memory/in-memory` → `inMemory()` — zero-dependency adapter for dev,

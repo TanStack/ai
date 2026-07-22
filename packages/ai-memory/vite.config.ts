@@ -30,8 +30,8 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
-      './src/in-memory.ts',
-      './src/redis.ts',
+      './src/providers/in-memory/index.ts',
+      './src/providers/redis/index.ts',
       './src/providers/hindsight/index.ts',
       './src/providers/mem0/index.ts',
       './src/providers/honcho/index.ts',

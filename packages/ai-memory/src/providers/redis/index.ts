@@ -4,13 +4,13 @@ import {
   listRecordFacts,
   recallRecords,
   saveTurn,
-} from './internal/store'
+} from '../../internal/store'
 import type {
   BuiltinOptions,
   MemoryRecord,
   RecordStore,
-} from './internal/store'
-import type { MemoryAdapter, MemoryScope } from './types'
+} from '../../internal/store'
+import type { MemoryAdapter, MemoryScope } from '../../types'
 
 /**
  * Minimal subset of the Redis client API the adapter uses. Shaped to match
