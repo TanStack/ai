@@ -378,7 +378,7 @@ export function useChat<
 
   // partial / final are runtime-tracked unconditionally; the conditional
   // return type hides them when no `outputSchema` is supplied.
-  // eslint-disable-next-line no-restricted-syntax -- primitive return shape diverges from generic UseChatReturn<TTools, TSchema>; TS can't structurally narrow the conditional partial/final fields
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- primitive return shape diverges from generic UseChatReturn<TTools, TSchema>; TS can't structurally narrow the conditional partial/final fields
   return {
     messages,
     queue,

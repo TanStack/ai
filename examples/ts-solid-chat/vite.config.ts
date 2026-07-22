@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/solid-start/plugin/vite'
 import viteSolid from 'vite-plugin-solid'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
 
@@ -14,6 +13,7 @@ const config = defineConfig({
     noExternal: ['@tanstack/ai-solid-ui'],
   },
   resolve: {
+    tsconfigPaths: true,
     alias: {
       debug: path.resolve(__dirname, 'src/debug-shim.ts'),
       extend: path.resolve(__dirname, 'src/extend-shim.ts'),
@@ -21,11 +21,6 @@ const config = defineConfig({
   },
   plugins: [
     devtools(),
-    // nitroV2Plugin(),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
     tailwindcss(),
     tanstackStart(),
     viteSolid({ ssr: true }),

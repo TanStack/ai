@@ -1848,11 +1848,11 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     if ('part' in raw) out.part = raw.part
     out.type =
       typeof raw['type'] === 'string' ? raw['type'] : e.type || 'unknown'
-    // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
     return out as unknown as NormalizedStreamEvent
   }
 
-  // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
   return event as unknown as NormalizedStreamEvent
 }
 

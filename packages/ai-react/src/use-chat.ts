@@ -493,7 +493,7 @@ export function useChat<
   // The runtime shape unconditionally exposes partial/final; the public
   // return type hides them when no outputSchema was supplied. TS can't
   // structurally narrow across that conditional, so the `as` is the seam.
-  // eslint-disable-next-line no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,
     sendMessage,

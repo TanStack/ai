@@ -11,6 +11,8 @@
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.97.1",
+    "@elevenlabs/elevenlabs-js": "^2.44.0",
     "@mcp-ui/client": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@ngrok/ngrok": "^1.7.0",
@@ -41,7 +43,6 @@
     "@tanstack/ai-sandbox-docker": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-sandbox-vercel": "workspace:*",
-    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-router-devtools": "^1.158.4",
@@ -50,8 +51,10 @@
     "@tanstack/react-store": "^0.8.0",
     "@tanstack/router-plugin": "^1.158.4",
     "@tanstack/store": "^0.8.0",
+    "dockerode": "^4.0.2",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.561.0",
+    "nitro": "3.0.260610-beta",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
@@ -60,7 +63,6 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^4.2.0"
   },
   "devDependencies": {
@@ -75,8 +77,8 @@
     "concurrently": "^9.1.2",
     "jsdom": "^27.2.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.3",
-    "vitest": "^4.0.14",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10",
     "web-vitals": "^5.1.0"
   }
 }

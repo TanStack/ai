@@ -1,7 +1,4 @@
 import { makeStructuredOutputCompatible } from '@tanstack/openai-base'
-import { transformNullsToUndefined } from '@tanstack/ai-utils'
-
-export { transformNullsToUndefined }
 
 /**
  * Recursively removes `required: []` from a schema object.

@@ -3638,7 +3638,7 @@ function runNonStreamingText<TContext = unknown>(
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText.
   const stream = runStreamingText(
-    // eslint-disable-next-line no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
     options as unknown as TextActivityOptions<
       AnyTextAdapter,
       undefined,

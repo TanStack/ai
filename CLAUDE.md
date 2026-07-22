@@ -10,10 +10,16 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 - **Package Manager**: pnpm@10.17.0 (required)
 - **Build System**: Nx for task orchestration and caching
-- **TypeScript**: 5.9.3
+- **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
+  that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
+  vue-tsc, kiira, knip) run against the `@typescript/typescript6` (6.0.2) shim
+  via `pnpm-workspace.yaml` packageExtensions; the framework packages
+  themselves stay pinned to 5.9.3. See that file's comments.
 - **Testing**: Vitest for unit tests
-- **Linting**: ESLint with custom TanStack config
-- **Formatting**: Prettier
+- **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few
+  ESLint-compat rules run through oxlint's JS-plugin layer
+  (`oxlint-plugin-eslint`, `eslint-plugin-unused-imports`, `@stylistic`)
+- **Formatting**: oxfmt
 
 Run `pnpm install` before starting any task and again after every merge with
 `main`.
@@ -32,7 +38,7 @@ pnpm test:pr
 # Run specific test suites
 pnpm test:lib              # Run unit tests for affected packages
 pnpm test:lib:dev          # Watch mode for unit tests
-pnpm test:eslint           # Lint affected packages
+pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
 pnpm test:coverage         # Generate coverage reports
@@ -53,7 +59,7 @@ cd packages/ai
 pnpm test:lib              # Run tests for this package
 pnpm test:lib:dev          # Watch mode
 pnpm test:types            # Type check
-pnpm test:eslint           # Lint
+pnpm test:oxlint           # Lint (oxlint)
 ```
 
 ### Building
@@ -73,7 +79,7 @@ pnpm dev  # alias for watch
 ### Code Quality
 
 ```bash
-pnpm format                # Format all files with Prettier
+pnpm format                # Format all files with oxfmt
 ```
 
 ### Changesets (Release Management)
@@ -214,7 +220,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 4. Run tests: `pnpm test:lib` (or package-specific tests)
 5. Run E2E tests: `pnpm --filter @tanstack/ai-e2e test:e2e`
 6. Run type checks: `pnpm test:types`
-7. Run linter: `pnpm test:eslint`
+7. Run linter: `pnpm test:oxlint`
 8. Format code: `pnpm format`
 9. Verify build: `pnpm test:build` or `pnpm build`
 
@@ -230,14 +236,14 @@ The single canonical command is:
 pnpm test:pr
 ```
 
-This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
+This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:oxlint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
 
 If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
 
 - `pnpm test:sherif` — workspace consistency
 - `pnpm test:knip` — unused dependencies
 - `pnpm test:docs` — doc link verification
-- `pnpm test:eslint` — lint
+- `pnpm test:oxlint` — lint (oxlint, incl. type-aware)
 - `pnpm test:types` — typecheck (packages)
 - `nx run-many --targets=test:types --projects=examples/**,testing/**` — typecheck the example apps + `testing/` packages
 - `pnpm test:lib` — unit tests
