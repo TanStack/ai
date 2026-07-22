@@ -2730,6 +2730,9 @@ importers:
       '@tanstack/ai-grok':
         specifier: workspace:*
         version: link:../../packages/ai-grok
+      '@tanstack/ai-memory':
+        specifier: workspace:*
+        version: link:../../packages/ai-memory
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/ai-ollama

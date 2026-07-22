@@ -16,6 +16,7 @@ import { Route as SummarizeRouteImport } from './routes/summarize'
 import { Route as StructuredRouteImport } from './routes/structured'
 import { Route as StreamDebuggerRouteImport } from './routes/stream-debugger'
 import { Route as SimulatorRouteImport } from './routes/simulator'
+import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ImageRouteImport } from './routes/image'
 import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
@@ -25,6 +26,8 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredRouteImport } from './routes/api.structured'
 import { Route as ApiSimulatorChatRouteImport } from './routes/api.simulator-chat'
+import { Route as ApiMemoryInspectRouteImport } from './routes/api.memory-inspect'
+import { Route as ApiMemoryChatRouteImport } from './routes/api.memory-chat'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiImageRouteImport } from './routes/api.image'
@@ -64,6 +67,11 @@ const StreamDebuggerRoute = StreamDebuggerRouteImport.update({
 const SimulatorRoute = SimulatorRouteImport.update({
   id: '/simulator',
   path: '/simulator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemoryRoute = MemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageRoute = ImageRouteImport.update({
@@ -111,6 +119,16 @@ const ApiSimulatorChatRoute = ApiSimulatorChatRouteImport.update({
   path: '/api/simulator-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMemoryInspectRoute = ApiMemoryInspectRouteImport.update({
+  id: '/api/memory-inspect',
+  path: '/api/memory-inspect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoryChatRoute = ApiMemoryChatRouteImport.update({
+  id: '/api/memory-chat',
+  path: '/api/memory-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLoadTraceRoute = ApiLoadTraceRouteImport.update({
   id: '/api/load-trace',
   path: '/api/load-trace',
@@ -141,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -153,6 +172,8 @@ export interface FileRoutesByFullPath {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/memory-chat': typeof ApiMemoryChatRoute
+  '/api/memory-inspect': typeof ApiMemoryInspectRoute
   '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -164,6 +185,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -176,6 +198,8 @@ export interface FileRoutesByTo {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/memory-chat': typeof ApiMemoryChatRoute
+  '/api/memory-inspect': typeof ApiMemoryInspectRoute
   '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -188,6 +212,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
   '/image': typeof ImageRoute
+  '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
   '/stream-debugger': typeof StreamDebuggerRoute
   '/structured': typeof StructuredRoute
@@ -200,6 +225,8 @@ export interface FileRoutesById {
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
+  '/api/memory-chat': typeof ApiMemoryChatRoute
+  '/api/memory-inspect': typeof ApiMemoryInspectRoute
   '/api/simulator-chat': typeof ApiSimulatorChatRoute
   '/api/structured': typeof ApiStructuredRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -213,6 +240,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/memory'
     | '/simulator'
     | '/stream-debugger'
     | '/structured'
@@ -225,6 +253,8 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/memory-chat'
+    | '/api/memory-inspect'
     | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
@@ -236,6 +266,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/memory'
     | '/simulator'
     | '/stream-debugger'
     | '/structured'
@@ -248,6 +279,8 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/memory-chat'
+    | '/api/memory-inspect'
     | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
@@ -259,6 +292,7 @@ export interface FileRouteTypes {
     | '/'
     | '/addon-manager'
     | '/image'
+    | '/memory'
     | '/simulator'
     | '/stream-debugger'
     | '/structured'
@@ -271,6 +305,8 @@ export interface FileRouteTypes {
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
+    | '/api/memory-chat'
+    | '/api/memory-inspect'
     | '/api/simulator-chat'
     | '/api/structured'
     | '/api/summarize'
@@ -283,6 +319,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddonManagerRoute: typeof AddonManagerRoute
   ImageRoute: typeof ImageRoute
+  MemoryRoute: typeof MemoryRoute
   SimulatorRoute: typeof SimulatorRoute
   StreamDebuggerRoute: typeof StreamDebuggerRoute
   StructuredRoute: typeof StructuredRoute
@@ -295,6 +332,8 @@ export interface RootRouteChildren {
   ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
+  ApiMemoryChatRoute: typeof ApiMemoryChatRoute
+  ApiMemoryInspectRoute: typeof ApiMemoryInspectRoute
   ApiSimulatorChatRoute: typeof ApiSimulatorChatRoute
   ApiStructuredRoute: typeof ApiStructuredRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -352,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/simulator'
       fullPath: '/simulator'
       preLoaderRoute: typeof SimulatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memory': {
+      id: '/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof MemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image': {
@@ -417,6 +463,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSimulatorChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/memory-inspect': {
+      id: '/api/memory-inspect'
+      path: '/api/memory-inspect'
+      fullPath: '/api/memory-inspect'
+      preLoaderRoute: typeof ApiMemoryInspectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memory-chat': {
+      id: '/api/memory-chat'
+      path: '/api/memory-chat'
+      fullPath: '/api/memory-chat'
+      preLoaderRoute: typeof ApiMemoryChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/load-trace': {
       id: '/api/load-trace'
       path: '/api/load-trace'
@@ -459,6 +519,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddonManagerRoute: AddonManagerRoute,
   ImageRoute: ImageRoute,
+  MemoryRoute: MemoryRoute,
   SimulatorRoute: SimulatorRoute,
   StreamDebuggerRoute: StreamDebuggerRoute,
   StructuredRoute: StructuredRoute,
@@ -471,6 +532,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,
+  ApiMemoryChatRoute: ApiMemoryChatRoute,
+  ApiMemoryInspectRoute: ApiMemoryInspectRoute,
   ApiSimulatorChatRoute: ApiSimulatorChatRoute,
   ApiStructuredRoute: ApiStructuredRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
