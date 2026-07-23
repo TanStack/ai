@@ -18,6 +18,10 @@ export type {
 // Middleware
 export { withChatPersistence, withGenerationPersistence } from './middleware'
 
+// Server helper: rehydrate a thread's messages for a client load
+export { reconstructChat } from './reconstruct'
+export type { ReconstructChatOptions } from './reconstruct'
+
 // Reference in-memory implementation
 export { memoryPersistence } from './memory'
 
