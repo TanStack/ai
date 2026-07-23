@@ -359,6 +359,65 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('keeps the resume pointer on the client run id across a rejoin', async () => {
+    // The durability log is keyed by the CLIENT run id (what the pointer holds).
+    // A rejoin replays the run whose events carry the PROVIDER run id — that must
+    // NOT overwrite the persisted pointer, or a SECOND reload would joinRun an id
+    // the log isn't keyed by and never re-attach.
+    const { adapter, read } = memoryAdapter({
+      messages: [],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'client-run' },
+      },
+    })
+    const joinRun = vi.fn(async function* (_runId: string) {
+      // In-flight run (no RUN_FINISHED) whose events carry a different provider id.
+      yield {
+        type: 'RUN_STARTED',
+        runId: 'provider-run',
+        threadId: 't1',
+        timestamp: 1,
+      } as StreamChunk
+      yield {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'a1',
+        role: 'assistant',
+        timestamp: 2,
+      } as StreamChunk
+      yield {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'a1',
+        delta: 'partial',
+        content: 'partial',
+        timestamp: 3,
+      } as StreamChunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+      onMessagesChange: (m) => {
+        latest = m
+      },
+    })
+
+    await vi.waitFor(() => {
+      const a = latest.find((m) => m.role === 'assistant')
+      const t = a?.parts.find((p) => p.type === 'text')
+      expect(t && 'content' in t && t.content).toBe('partial')
+    })
+
+    const stored = read() as ChatPersistedState
+    expect(stored.resume?.resumeState.runId).toBe('client-run')
+    void client
+  })
+
   it('rejoins from an async store (getItem returns a Promise)', async () => {
     // An async adapter (like indexedDBPersistence): readInitial resolves later,
     // so the rejoin must come from the async hydrate path, not the sync read.

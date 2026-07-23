@@ -174,10 +174,15 @@ export const Route = createFileRoute('/api/persistent-chat')({
         // response (a reload) cancels only the reader — never the producer.
         startDetachedRun(params.runId, params.threadId, params.messages)
 
+        // This reader genuinely races the producer it just started, so give it a
+        // generous first-chunk deadline (the default is tuned short for reload
+        // rejoins, where the producer ran in a prior request and an empty log
+        // means "gone").
         const reader = memoryStream(
           new Request(
             `http://persistent-chat.internal/?offset=-1&runId=${encodeURIComponent(params.runId)}`,
           ),
+          { firstChunkDeadlineMs: 10_000 },
         )
         return resumeServerSentEventsResponse({ adapter: reader })
       },
@@ -194,6 +199,11 @@ export const Route = createFileRoute('/api/persistent-chat')({
       //    (persistence `{ messages: false }`) fetches on reload, since the
       //    delivery log only holds one run, never prior turns.
       GET: ({ request }) => {
+        // `memoryStream` fails a from-start join to a gone/empty run fast (its
+        // ~100ms default first-chunk deadline), so an unresumable reload frees
+        // the input near-instantly instead of hanging. Raise
+        // `firstChunkDeadlineMs` here if your producer can start well after a
+        // joiner attaches.
         const durability = memoryStream(request)
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })
