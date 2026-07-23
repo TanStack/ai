@@ -247,4 +247,4 @@ response helper.
 The durability log replays chunks. It is not a queryable source of truth for
 thread messages or conversation history. It answers "what did this run stream?",
 not "what has this user said?". Keep authoritative state in your own storage.
-See [Persistence](../chat/persistence) for the client-side options.
+See [Client persistence](../persistence/client-persistence) for the client-side options.

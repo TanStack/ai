@@ -174,12 +174,6 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Persistence",
-          "to": "chat/persistence",
-          "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-23"
         }
       ]
     },
@@ -254,8 +248,8 @@
           "addedAt": "2026-07-22"
         },
         {
-          "label": "Browser Refresh",
-          "to": "persistence/browser-refresh",
+          "label": "Client Persistence",
+          "to": "persistence/client-persistence",
           "addedAt": "2026-07-22",
           "updatedAt": "2026-07-23"
         },

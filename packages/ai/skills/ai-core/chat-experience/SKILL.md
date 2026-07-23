@@ -18,7 +18,7 @@ sources:
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
   - 'TanStack/ai:docs/resumable-streams/overview.md'
   - 'TanStack/ai:docs/chat/persistence.md'
-  - 'TanStack/ai:docs/persistence/browser-refresh.md'
+  - 'TanStack/ai:docs/persistence/client-persistence.md'
 ---
 
 # Chat Experience

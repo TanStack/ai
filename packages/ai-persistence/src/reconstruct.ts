@@ -8,7 +8,7 @@ export interface ReconstructChatOptions {
 /**
  * Build a JSON `Response` of a thread's stored messages, for a
  * server-authoritative client to hydrate its transcript on load (see the
- * browser-refresh guide). Reads the thread id from the request query
+ * client-persistence guide). Reads the thread id from the request query
  * (`?threadId=` by default) and returns the stored messages as JSON.
  *
  * Returns an empty array when the thread id is missing, no `messages` store is

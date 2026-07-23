@@ -83,7 +83,7 @@ only records the interrupts and gates the thread.
 ## Where to go next
 
 - Bring durability to the browser too, so a full page reload restores the
-  conversation and rejoins an in-flight run: [Browser refresh](./browser-refresh).
+  conversation and rejoins an in-flight run: [Client persistence](./client-persistence).
 - Pick a backend: [Drizzle](./drizzle), [Prisma](./prisma),
   [Cloudflare](./cloudflare), or [your own store](./custom-stores).
 - Choose which stores to run: [Controls](./controls).
