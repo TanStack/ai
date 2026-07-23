@@ -24,6 +24,7 @@ import type {
   GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  ModelMessage,
   RunAgentResumeItem,
   StreamChunk,
   ToolApprovalResolution,
@@ -202,6 +203,34 @@ function resumeToolStateFromPending(
 
   if (approvals.size === 0 && clientToolResults.size === 0) return undefined
   return { approvals, clientToolResults }
+}
+
+/**
+ * Build the transcript to persist when a run finishes successfully.
+ *
+ * The chat engine appends an assistant message to the middleware message list
+ * only when that turn carries tool calls (to feed the agent loop); a run's
+ * terminal *text* reply is never appended. So `ctx.messages` at `onFinish` is
+ * missing the assistant's final answer. Reattach it from the finish info —
+ * `info.content` is the last turn's accumulated text (reset each cycle) — so
+ * the stored thread is the complete conversation a server-authoritative client
+ * hydrates on load. A guard avoids duplicating a terminal assistant turn should
+ * the engine ever start appending it itself.
+ */
+function finishedTranscript(
+  messages: ReadonlyArray<ModelMessage>,
+  info: FinishInfo,
+): Array<ModelMessage> {
+  const transcript = [...messages]
+  const last = transcript[transcript.length - 1]
+  const alreadyPresent =
+    last?.role === 'assistant' &&
+    last.toolCalls === undefined &&
+    last.content === info.content
+  if (info.content && !alreadyPresent) {
+    transcript.push({ role: 'assistant', content: info.content })
+  }
+  return transcript
 }
 
 function interruptPayload(interrupt: unknown): Record<string, unknown> {
@@ -402,8 +431,7 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
           const stored = await persistence.stores.messages.loadThread(
             ctx.threadId,
           )
-          patch.messages =
-            config.messages.length > 0 ? config.messages : stored
+          patch.messages = config.messages.length > 0 ? config.messages : stored
         }
       }
 
@@ -453,9 +481,10 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
       await commitPendingResumes(state, persistence.stores.interrupts)
       await completeRun(runs, ctx.runId, info.usage)
       if (wantsMessages && persistence.stores.messages) {
-        await persistence.stores.messages.saveThread(ctx.threadId, [
-          ...ctx.messages,
-        ])
+        await persistence.stores.messages.saveThread(
+          ctx.threadId,
+          finishedTranscript(ctx.messages, info),
+        )
       }
     },
 

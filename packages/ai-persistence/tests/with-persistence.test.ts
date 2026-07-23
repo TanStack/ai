@@ -102,11 +102,14 @@ describe('withPersistence (state-only)', () => {
     expect(chunks.length).toBeGreaterThan(0)
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
 
-    // Run is completed and the transcript is saved.
+    // Run is completed and the FULL transcript is saved — including the
+    // assistant's terminal text reply, which the engine does not append to the
+    // middleware message list itself (see `finishedTranscript`).
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('completed')
-    expect(
-      (await persistence.stores.messages!.loadThread('t1')).length,
-    ).toBeGreaterThan(0)
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ])
   })
 
   it('records an interrupt and marks the run interrupted', async () => {
