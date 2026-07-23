@@ -3,7 +3,7 @@ import {
   composePersistence,
   defineAIPersistence,
   memoryPersistence,
-  withChatPersistence,
+  withPersistence,
   withGenerationPersistence,
 } from '../src'
 import type { LockStore } from '@tanstack/ai'
@@ -109,13 +109,13 @@ const uncertainInherited = composePersistence(base, {
 })
 expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 
-withChatPersistence(messagesOnly)
-withChatPersistence(defineAIPersistence({ stores: { runs } }))
-withChatPersistence(
+withPersistence(messagesOnly)
+withPersistence(defineAIPersistence({ stores: { runs } }))
+withPersistence(
   defineAIPersistence({ stores: { runs, interrupts, messages } }),
 )
 // @ts-expect-error a known interrupt store requires a known run store
-withChatPersistence(defineAIPersistence({ stores: { interrupts } }))
+withPersistence(defineAIPersistence({ stores: { interrupts } }))
 
 withGenerationPersistence(defineAIPersistence({ stores: { runs } }))
 
@@ -123,15 +123,15 @@ const chatWithRemovedRuns = composePersistence(base, {
   overrides: { runs: false },
 })
 // @ts-expect-error composition carries the missing run dependency into chat
-withChatPersistence(chatWithRemovedRuns)
+withPersistence(chatWithRemovedRuns)
 
 declare const broadPersistence: AIPersistence
 declare const dynamicChatPersistence: AIPersistence<{
   runs?: RunStore
   interrupts?: InterruptStore
 }>
-withChatPersistence(broadPersistence)
-withChatPersistence(dynamicChatPersistence)
+withPersistence(broadPersistence)
+withPersistence(dynamicChatPersistence)
 withGenerationPersistence(broadPersistence)
 
 const memoryWithCustomLocks = composePersistence(memoryPersistence(), {

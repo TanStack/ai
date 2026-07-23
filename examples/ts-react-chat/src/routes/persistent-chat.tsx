@@ -57,7 +57,7 @@ function PersistentChatPage() {
         <code> localStorage</code>, so a full page reload restores the
         conversation instantly. The server writes the same transcript, run
         records, and interrupt state to SQLite via{' '}
-        <code>withChatPersistence</code>, so it survives a server restart too.
+        <code>withPersistence</code>, so it survives a server restart too.
         Send a message, wait for the reply, then reload the page: the
         conversation is still here.
       </p>

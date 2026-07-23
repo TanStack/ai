@@ -373,9 +373,9 @@ Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default
 `keyFn` (custom cache key), `storage` (custom backend like Redis). See
 `docs/advanced/middleware.md` for custom storage examples.
 
-## Server State Persistence: withChatPersistence
+## Server State Persistence: withPersistence
 
-`withChatPersistence(persistence)` (from `@tanstack/ai-persistence`) is a
+`withPersistence(persistence)` (from `@tanstack/ai-persistence`) is a
 `ChatMiddleware` that persists **state** for `chat()` — thread messages, run
 records (status/timing/usage/errors), and interrupt state — to a backend store.
 Add it to the `middleware` array like any other middleware. It never mutates the
@@ -389,7 +389,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 const persistence = sqlitePersistence({
@@ -406,7 +406,7 @@ export async function POST(request: Request) {
     threadId: params.threadId,
     runId: params.runId,
     ...(params.resume ? { resume: params.resume } : {}),
-    middleware: [withChatPersistence(persistence)],
+    middleware: [withPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)
@@ -429,7 +429,7 @@ thread:
 ### Backends
 
 Every backend returns an `AIPersistence` you pass straight to
-`withChatPersistence`:
+`withPersistence`:
 
 | Backend                                | Factory                                         | Import                                    |
 | -------------------------------------- | ----------------------------------------------- | ----------------------------------------- |
@@ -646,4 +646,4 @@ Source: docs/advanced/middleware.md
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
 - See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms
 - See also: **ai-core/ag-ui-protocol/SKILL.md** -- Reading the `sandbox.file` / `sandbox.file.diff` `CUSTOM` chunks the sandbox runtime emits alongside these `sandbox` hooks, via `ChatStream`'s typed `KnownCustomEvent` narrowing
-- See also: **ai-core/chat-experience/SKILL.md** -- `withChatPersistence` is the server (authoritative) half; the client `persistence` option is the client-persistence half
+- See also: **ai-core/chat-experience/SKILL.md** -- `withPersistence` is the server (authoritative) half; the client `persistence` option is the client-persistence half

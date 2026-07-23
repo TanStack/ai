@@ -8,7 +8,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { reconstructChat, withChatPersistence } from '@tanstack/ai-persistence'
+import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 /**
@@ -16,7 +16,7 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
  *
  * Two kinds of durability stack here:
  *
- * 1. STATE (this file) — `withChatPersistence` middleware writes the thread
+ * 1. STATE (this file) — `withPersistence` middleware writes the thread
  *    transcript, run records, and interrupt state to SQLite. The store survives
  *    a full server restart, so a reload can continue the same conversation from
  *    the server's own copy even if the client sent no history.
@@ -44,9 +44,9 @@ export const Route = createFileRoute('/api/persistent-chat')({
 
         const stream = chat({
           adapter: openaiText('gpt-5.5'),
-          // `withChatPersistence` loads the stored transcript when `messages` is
+          // `withPersistence` loads the stored transcript when `messages` is
           // empty and overwrites it (authoritative-history contract) on finish.
-          middleware: [withChatPersistence(persistence)],
+          middleware: [withPersistence(persistence)],
           agentLoopStrategy: maxIterations(10),
           messages: params.messages,
           threadId: params.threadId,

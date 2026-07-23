@@ -304,4 +304,49 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
     void client
   })
+
+  it('rejoins from an async store (getItem returns a Promise)', async () => {
+    // An async adapter (like indexedDBPersistence): readInitial resolves later,
+    // so the rejoin must come from the async hydrate path, not the sync read.
+    const record: ChatPersistedState = {
+      messages: [],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    }
+    const asyncAdapter: ChatClientPersistence = {
+      getItem: () => Promise.resolve(record),
+      setItem: () => Promise.resolve(),
+      removeItem: () => Promise.resolve(),
+    }
+
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: asyncAdapter,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    void client
+  })
 })

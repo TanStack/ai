@@ -19,7 +19,7 @@ stores your workflow needs.
 | App or integration checkpoints | `metadata` |
 | Cross-worker coordination | `locks` |
 
-`withChatPersistence(persistence)` and `withGenerationPersistence(persistence)`
+`withPersistence(persistence)` and `withGenerationPersistence(persistence)`
 inspect the stores that are present. Store presence is the whole capability
 selection mechanism.
 
@@ -66,7 +66,7 @@ values arrive from untyped JavaScript.
 ## Valid store combinations
 
 `interrupts` requires `runs`: an interrupt record is scoped to a run, so
-`withChatPersistence` rejects a persistence object that has `interrupts` without
+`withPersistence` rejects a persistence object that has `interrupts` without
 `runs`. Everything else is independent, add stores as the workflow needs them.
 
 To define a partial backend directly rather than by composing, use

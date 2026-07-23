@@ -254,10 +254,10 @@ async function interruptRun(
  * resending history, pass an empty `messages` array and the stored transcript
  * is loaded and used.
  */
-export function withChatPersistence<TStores extends AIPersistenceStores>(
+export function withPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
 ): ChatMiddleware
-export function withChatPersistence(
+export function withPersistence(
   persistence: AIPersistence,
 ): ChatMiddleware {
   validateChatPersistenceStores(persistence)
