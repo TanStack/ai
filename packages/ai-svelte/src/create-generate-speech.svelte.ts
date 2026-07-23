@@ -1,4 +1,8 @@
 import { createGeneration } from './create-generation.svelte'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -14,7 +18,10 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to TTSResult)
  */
-export interface CreateGenerateSpeechOptions<TOutput = TTSResult> {
+export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
+  CreateGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
+  'persistence' | 'initialResumeSnapshot'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
@@ -46,7 +53,10 @@ export interface CreateGenerateSpeechOptions<TOutput = TTSResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerateSpeechReturn<TOutput = TTSResult> {
+export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
+  CreateGenerationReturn<TOutput>,
+  'generate'
+> {
   /** The TTS result containing audio data, or null */
   readonly result: TOutput | null
   /** Whether generation is in progress */
@@ -57,12 +67,6 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> {
   readonly status: GenerationClientState
   /** Trigger speech generation */
   generate: (input: SpeechGenerateInput) => Promise<void>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -126,5 +130,18 @@ export function createGenerateSpeech<TTransformed = void>(
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get resumeSnapshot() {
+      return gen.resumeSnapshot
+    },
+    get resumeState() {
+      return gen.resumeState
+    },
+    get pendingArtifacts() {
+      return gen.pendingArtifacts
+    },
+    get resultArtifacts() {
+      return gen.resultArtifacts
+    },
   }
 }

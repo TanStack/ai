@@ -9,6 +9,7 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
@@ -87,6 +88,10 @@ export interface TTSActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 }
 
 // ===========================
@@ -144,8 +149,9 @@ export function generateSpeech<
   TStream extends boolean = false,
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateSpeech(options),
+    return streamGenerationResult(
+      (resolved) => runGenerateSpeech({ ...options, ...resolved }),
+      options,
     ) as TTSActivityResult<TStream>
   }
   return runGenerateSpeech(options) as TTSActivityResult<TStream>
@@ -162,6 +168,8 @@ async function runGenerateSpeech<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
     ...rest
   } = options
   const model = adapter.model
@@ -179,6 +187,14 @@ async function runGenerateSpeech<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    artifactInputs: {
+      text: rest.text,
+      voice: rest.voice,
+      format: rest.format,
+      speed: rest.speed,
+    },
+    threadId,
+    runId,
     createId,
   })
 
@@ -202,7 +218,8 @@ async function runGenerateSpeech<
   })
 
   try {
-    const result = await adapter.generateSpeech({ ...rest, model, logger })
+    const rawResult = await adapter.generateSpeech({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {

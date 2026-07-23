@@ -46,6 +46,9 @@
     "test:types": "tsc",
     "test:oxlint": "oxlint src --type-aware"
   },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:*"
+  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "vitest": "^4.1.10"

@@ -60,6 +60,10 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   provider: string
   /** Model id. Emitted as `gen_ai.request.model`. */
   model: string
+  /** Stable conversation/thread id, when supplied by the caller. */
+  threadId?: string
+  /** Stable run id, when supplied by the caller. */
+  runId?: string
   /**
    * Provider-specific options passed to the activity, if any. Typed `unknown`
    * because each activity's options are strongly typed per model; a supertype
@@ -72,7 +76,35 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   createId: (prefix: string) => string
   /** Runtime context provided by the activity options, if any. */
   context: TContext
+  /**
+   * Result transforms registered by middleware during this activity call.
+   * Transforms run after the raw adapter result exists and before the final
+   * result is returned or streamed. Push multiple transforms to run them in
+   * registration order.
+   */
+  resultTransforms?: Array<GenerationResultTransform<any, TContext>>
+  /**
+   * Activity inputs captured for middleware that needs to transform or persist
+   * the result together with reconstructable request metadata.
+   */
+  artifactInputs?: unknown
 }
+
+/** Stable context handed to each {@link GenerationResultTransform}. */
+export interface GenerationResultTransformContext<TContext = unknown> {
+  /** The activity call being transformed. */
+  middleware: GenerationMiddlewareContext<TContext>
+}
+
+/**
+ * A transform middleware registers on `ctx.resultTransforms` to rewrite the raw
+ * adapter result before it is returned or streamed. Return a new result to
+ * replace it, or `undefined` to leave it unchanged.
+ */
+export type GenerationResultTransform<TResult = unknown, TContext = unknown> = (
+  result: TResult,
+  ctx: GenerationResultTransformContext<TContext>,
+) => TResult | undefined | Promise<TResult | undefined>
 
 // ===========================
 // Hook payloads

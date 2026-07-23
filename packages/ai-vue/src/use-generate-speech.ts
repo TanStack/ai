@@ -1,4 +1,8 @@
 import { useGeneration } from './use-generation'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -15,7 +19,10 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  *
  * @template TOutput - The output type after optional transform (defaults to TTSResult)
  */
-export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
+export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
+  UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
+  'persistence' | 'initialResumeSnapshot'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
@@ -47,7 +54,10 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
+export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
+  UseGenerationReturn<TOutput>,
+  'generate'
+> {
   /** Trigger speech generation */
   generate: (input: SpeechGenerateInput) => Promise<void>
   /** The TTS result containing audio data, or null */
@@ -58,10 +68,6 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
   error: DeepReadonly<ShallowRef<Error | undefined>>
   /** Current state of the generation */
   status: DeepReadonly<ShallowRef<GenerationClientState>>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -105,19 +111,19 @@ export function useGenerateSpeech<TTransformed = void>(
     hookName: 'useGenerateSpeech',
     outputKind: 'audio' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = useGeneration<
+    SpeechGenerateInput,
+    TTSResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
 
   return {
-    generate: generate as (input: SpeechGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: SpeechGenerateInput,
+    ) => Promise<void>,
   }
 }

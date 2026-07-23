@@ -56,6 +56,13 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 /**
+ * Decode a base64 string into a `Uint8Array`.
+ */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  return new Uint8Array(base64ToArrayBuffer(base64))
+}
+
+/**
  * Decode a base64 string into an `ArrayBuffer`.
  */
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
