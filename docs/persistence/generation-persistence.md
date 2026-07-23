@@ -101,8 +101,11 @@ durable references to the result. `memoryPersistence()` ships both stores, so
 it works out of the box; any backend that implements `ArtifactStore` and
 `BlobStore` works the same way.
 
-The bytes land under the blob key `artifacts/<runId>/<artifactId>`, so a second
-handler can read them back and serve them from your own origin:
+The bytes land under the blob key `artifacts/<runId>/<artifactId>`. To fetch a
+generated file later, to render it, download it, or hand it to another request,
+add a `GET` route that reads the artifact back by its id and streams the bytes
+from your own origin. This is a plain file endpoint: it serves one stored file
+and nothing more. It does not resume a run or rebuild a conversation.
 
 ```ts group=generation-bytes
 import {
@@ -166,9 +169,22 @@ production. Control what gets captured with `withGenerationPersistence`'s
 `extractArtifacts` (return your own descriptors) and `nameArtifact` (name each
 file) options.
 
-On the client, the observed references show up on the generation hook as
-`resultArtifacts` (and `pendingArtifacts` while streaming), so the UI can link
-straight to your serve route.
+### Fetching artifacts later
+
+Two pieces cooperate, and neither one rebuilds a chat:
+
+- The run **remembers which files it produced**. Each reference carries an
+  `artifactId` and shows up on the generation hook as `resultArtifacts` (and
+  `pendingArtifacts` while streaming). The client snapshot keeps these across a
+  reload, and you can also store them in your own database.
+- The **`GET` route turns an `artifactId` into bytes**. Point an `<img>` `src`,
+  a download link, or a later request at `/api/generate/image?id=<artifactId>`
+  and it streams the stored file.
+
+So a page that generated an image yesterday can show it today: take the
+`artifactId` you kept and hit the serve route. That is the whole loop, one id in,
+one file out. Rebuilding a conversation's stored messages is a separate concern
+handled by the chat `reconstructChat` helper, not by anything here.
 
 ## Show the last run after a reload
 
