@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChatPersistor } from '../src/client-persistor'
 import { normalizeConnectionAdapter } from '../src/connection-adapters'
 import { ChatClient } from '../src/chat-client'
+import { localStoragePersistence } from '../src/storage-adapters'
 import { createUIMessage } from './test-utils'
 import type {
   ChatClientPersistence,
@@ -116,6 +117,39 @@ describe('ChatClient persistence option shapes', () => {
     const stored = read()
     if (stored && !Array.isArray(stored)) {
       expect(stored.messages).toEqual([])
+    }
+  })
+})
+
+describe('localStoragePersistence ergonomics', () => {
+  it('needs no type arg or codec and round-trips a ChatPersistedState', () => {
+    // Minimal in-memory Storage stub so the test doesn't depend on a DOM env.
+    const map = new Map<string, string>()
+    const stub = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+    }
+    const globals = globalThis as { localStorage?: unknown }
+    const previous = globals.localStorage
+    globals.localStorage = stub
+    try {
+      // The headline call: no generic, no serialize/deserialize.
+      const store = localStoragePersistence()
+      const record: ChatPersistedState = {
+        messages: [createUIMessage('m1', 'hi')],
+        resume: {
+          schemaVersion: 2,
+          resumeState: { threadId: 't1', runId: 'r1' },
+        },
+      }
+      store.setItem('chat-1', record)
+      const read = store.getItem('chat-1')
+      expect(
+        read && !(read instanceof Promise) && read.messages[0]?.id,
+      ).toBe('m1')
+    } finally {
+      globals.localStorage = previous
     }
   })
 })

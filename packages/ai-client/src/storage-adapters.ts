@@ -1,19 +1,14 @@
-import type { ChatStorageAdapter } from './types'
-
-export type JsonPrimitive = string | number | boolean | null
-export type JsonValue =
-  | JsonPrimitive
-  | Array<JsonValue>
-  | { [key: string]: JsonValue }
-
-export interface StorageCodec<TValue> {
-  serialize: (value: TValue) => string
-  deserialize: (value: string) => TValue
-}
+import type { ChatPersistedState, ChatStorageAdapter } from './types'
 
 export interface WebStoragePersistenceOptions<TValue> {
   keyPrefix?: string
+  /**
+   * Defaults to `JSON.stringify`. Override only for values JSON can't
+   * round-trip losslessly (a `Map`, a `bigint`, a `Date` you need back as a
+   * `Date` rather than an ISO string).
+   */
   serialize?: (value: TValue) => string
+  /** Defaults to `JSON.parse`. */
   deserialize?: (value: string) => TValue
 }
 
@@ -22,32 +17,6 @@ export interface IndexedDBPersistenceOptions {
   objectStoreName?: string
   keyPrefix?: string
 }
-
-type NonJsonValue =
-  | bigint
-  | Date
-  | symbol
-  | undefined
-  | ((...args: Array<never>) => unknown)
-
-type IsJsonSerializable<TValue> = [TValue] extends [JsonPrimitive]
-  ? true
-  : [TValue] extends [NonJsonValue]
-    ? false
-    : TValue extends ReadonlyArray<infer TItem>
-      ? IsJsonSerializable<TItem>
-      : TValue extends object
-        ? false extends {
-            [TKey in keyof TValue]-?: IsJsonSerializable<TValue[TKey]>
-          }[keyof TValue]
-          ? false
-          : true
-        : false
-
-type WebStorageArguments<TValue> =
-  IsJsonSerializable<TValue> extends true
-    ? [options?: WebStoragePersistenceOptions<TValue>]
-    : [options: WebStoragePersistenceOptions<TValue> & StorageCodec<TValue>]
 
 type StorageName = 'localStorage' | 'sessionStorage' | 'indexedDB'
 
@@ -119,12 +88,13 @@ function createWebStoragePersistence<TValue>(
  * adapter can be constructed safely on the server.
  *
  * The `serialize` / `deserialize` codec defaults to `JSON.stringify` /
- * `JSON.parse`. When `TValue` is JSON-serializable the codec is optional; when
- * it is not (it contains `Date`, `Map`, `bigint`, etc.), the type signature
- * **requires** you to pass a `serialize`/`deserialize` pair.
+ * `JSON.parse`, so the common case needs no codec. `TValue` defaults to
+ * {@link ChatPersistedState}, so `localStoragePersistence()` drops straight into
+ * the `persistence` option with no type argument. Pass a codec only for values
+ * JSON can't round-trip losslessly, and a type argument for non-chat storage.
  */
-export function localStoragePersistence<TValue = JsonValue>(
-  ...[options = {}]: WebStorageArguments<TValue>
+export function localStoragePersistence<TValue = ChatPersistedState>(
+  options: WebStoragePersistenceOptions<TValue> = {},
 ): ChatStorageAdapter<TValue> {
   return createWebStoragePersistence('localStorage', options)
 }
@@ -132,12 +102,12 @@ export function localStoragePersistence<TValue = JsonValue>(
 /**
  * A `ChatStorageAdapter` backed by `window.sessionStorage` (scoped to the tab
  * and cleared when it closes). Identical to {@link localStoragePersistence} in
- * every other respect: `tanstack-ai:` default `keyPrefix`, lazy per-operation
- * {@link StorageUnavailableError} on SSR, and a JSON codec that becomes a
- * required argument when `TValue` is not JSON-serializable.
+ * every other respect: `ChatPersistedState` default `TValue`, `tanstack-ai:`
+ * default `keyPrefix`, lazy per-operation {@link StorageUnavailableError} on
+ * SSR, and a JSON codec that defaults to `JSON.stringify` / `JSON.parse`.
  */
-export function sessionStoragePersistence<TValue = JsonValue>(
-  ...[options = {}]: WebStorageArguments<TValue>
+export function sessionStoragePersistence<TValue = ChatPersistedState>(
+  options: WebStoragePersistenceOptions<TValue> = {},
 ): ChatStorageAdapter<TValue> {
   return createWebStoragePersistence('sessionStorage', options)
 }
@@ -151,9 +121,9 @@ export function sessionStoragePersistence<TValue = JsonValue>(
  *
  * No serialize/deserialize codec is needed or accepted — values are stored via
  * IndexedDB's native structured clone, so `Date`, `Map`, `ArrayBuffer`, etc.
- * round-trip without a JSON step.
+ * round-trip without a JSON step. `TValue` defaults to {@link ChatPersistedState}.
  */
-export function indexedDBPersistence<TValue>(
+export function indexedDBPersistence<TValue = ChatPersistedState>(
   options: IndexedDBPersistenceOptions = {},
 ): ChatStorageAdapter<TValue> {
   const databaseName = options.databaseName ?? 'tanstack-ai'

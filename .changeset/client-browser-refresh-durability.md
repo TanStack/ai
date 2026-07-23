@@ -1,5 +1,11 @@
 ---
 '@tanstack/ai-client': minor
+'@tanstack/ai-react': minor
+'@tanstack/ai-solid': minor
+'@tanstack/ai-vue': minor
+'@tanstack/ai-svelte': minor
+'@tanstack/ai-angular': minor
+'@tanstack/ai-preact': minor
 ---
 
 Add browser-refresh durability to the `persistence` option.

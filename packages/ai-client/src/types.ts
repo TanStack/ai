@@ -744,14 +744,18 @@ export interface ChatClientBaseOptions<
   persistence?: ChatPersistenceOption<TTools>
 
   /**
-   * Unique identifier for this chat instance
-   * Used for managing multiple chats
+   * Optional storage-key override for this chat instance, and the devtools
+   * instance id. Persistence keys on `threadId` by default; set `id` only when
+   * you need the persisted record keyed separately from the wire thread.
+   * Prefer a stable `threadId` for the common case.
    */
   id?: string
 
   /**
-   * Thread ID to use for this chat session. Persists across sends within
-   * the session. If omitted, a unique thread ID is generated.
+   * The conversation id for this chat, stable across sends and reloads. It is
+   * the AG-UI thread key on the wire AND the key client persistence stores the
+   * conversation under, so set a stable `threadId` to have a reload restore the
+   * same conversation. If omitted, a unique thread id is generated per session.
    */
   threadId?: string
 
