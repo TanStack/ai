@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   fetchServerSentEvents,
   localStoragePersistence,
 } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 import { loadPersistentChatHistoryFn } from '../lib/server-fns'
+import './persistent-chat.css'
 
 export const Route = createFileRoute('/persistent-chat')({
   // Server-authoritative history: the client caches no transcript, so hydrate
@@ -27,6 +28,18 @@ const THREAD_ID = 'persistent-chat'
 // to a JSON codec and the ChatPersistedState shape, so no type arg or codec.
 const persistence = { store: localStoragePersistence(), messages: false }
 
+const SUGGESTIONS = [
+  "What's the weather in Tokyo?",
+  'Roll two 20-sided dice.',
+  'Tell me a two-sentence story about a lighthouse.',
+]
+
+function formatValue(value: unknown): string {
+  if (value === undefined) return ''
+  if (typeof value === 'string') return value
+  return JSON.stringify(value, null, 2)
+}
+
 function PersistentChatPage() {
   // The loader hydrated the transcript from the server (server owns history).
   const initialMessages = Route.useLoaderData()
@@ -39,106 +52,119 @@ function PersistentChatPage() {
     persistence,
     initialMessages,
   })
-  const [input, setInput] = useState(
-    'Tell me a two-sentence story about a lighthouse.',
-  )
+  const [input, setInput] = useState('')
+  const threadRef = useRef<HTMLDivElement>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const text = input.trim()
-    if (!text || isLoading) return
+  // Keep the latest message in view as the conversation grows / streams.
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
+  }, [messages])
+
+  const send = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || isLoading) return
     setInput('')
-    void sendMessage(text)
+    void sendMessage(trimmed)
   }
 
   return (
-    <div style={page}>
-      <h1>Persistent chat</h1>
-      <p style={{ color: '#555' }}>
-        The recommended, server-authoritative setup. The server owns the
-        conversation: it writes the transcript, run records, and interrupt state
-        to SQLite via <code>withPersistence</code>, and the page loader hydrates
-        history from it on load. The client caches only the tiny resume pointer
-        in <code>localStorage</code> (<code>{'{ messages: false }'}</code>) — no
-        transcript in the browser — so a reload still rejoins an in-flight run
-        and restores interrupts. Send a message, wait for the reply, then
-        reload: the conversation is restored from the server, not from your
-        browser.
+    <div className="pc-page">
+      <div className="pc-header">
+        <h1>Persistent chat</h1>
+        <span className="pc-status">
+          <span className={`pc-dot ${connectionStatus}`} />
+          {connectionStatus}
+        </span>
+      </div>
+
+      <p className="pc-blurb">
+        Server-authoritative persistence: the server owns the conversation
+        (transcript, runs, interrupts, and tool calls) in SQLite via{' '}
+        <code>withPersistence</code>, and the page loader hydrates it on load.
+        The client caches only the resume pointer (<code>messages: false</code>)
+        — no transcript in the browser. Ask for the weather or a dice roll to
+        exercise server tools, then reload: everything comes back from the
+        server.
       </p>
 
-      <div style={{ margin: '12px 0', color: '#888', fontSize: 13 }}>
-        connection: <code>{connectionStatus}</code> &nbsp;|&nbsp; messages:{' '}
-        <code>{messages.length}</code>
+      <div className="pc-thread" ref={threadRef}>
+        {messages.length === 0 ? (
+          <p className="pc-empty">
+            No messages yet — try a suggestion below, then reload the page.
+          </p>
+        ) : (
+          messages.map((message) => (
+            <div key={message.id} className={`pc-row ${message.role}`}>
+              <span className="pc-role">{message.role}</span>
+              {message.parts.map((part, index) => {
+                const key = `${message.id}-${index}`
+                if (part.type === 'text' && part.content) {
+                  return (
+                    <div key={key} className="pc-bubble">
+                      {part.content}
+                    </div>
+                  )
+                }
+                if (part.type === 'tool-call') {
+                  const args = part.input ?? part.arguments
+                  return (
+                    <div key={key} className="pc-tool">
+                      <div className="pc-tool-head">🔧 {part.name}</div>
+                      {formatValue(args) ? (
+                        <pre className="pc-tool-io">{formatValue(args)}</pre>
+                      ) : null}
+                      {part.output !== undefined ? (
+                        <pre className="pc-tool-io">
+                          {formatValue(part.output)}
+                        </pre>
+                      ) : (
+                        <div className="pc-tool-pending">running…</div>
+                      )}
+                    </div>
+                  )
+                }
+                return null
+              })}
+            </div>
+          ))
+        )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            style={message.role === 'user' ? userBubble : assistantBubble}
-          >
-            <div style={roleLabel}>{message.role}</div>
-            {message.parts.map((part, index) =>
-              part.type === 'text' && part.content ? (
-                <p
-                  key={`${message.id}-${index}`}
-                  style={{ margin: 0, whiteSpace: 'pre-wrap' }}
+      <div className="pc-composer">
+        <div style={{ flex: 1 }}>
+          {messages.length === 0 ? (
+            <div className="pc-suggestions">
+              {SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  className="pc-chip"
+                  onClick={() => send(suggestion)}
                 >
-                  {part.content}
-                </p>
-              ) : null,
-            )}
-          </div>
-        ))}
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              send(input)
+            }}
+            style={{ display: 'flex', gap: 10 }}
+          >
+            <input
+              className="pc-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about the weather, roll some dice…"
+            />
+            <button className="pc-send" type="submit" disabled={isLoading}>
+              {isLoading ? 'Streaming…' : 'Send'}
+            </button>
+          </form>
+        </div>
       </div>
-
-      <form
-        onSubmit={handleSubmit}
-        style={{ marginTop: 16, display: 'flex', gap: 8 }}
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask something…"
-          style={{ flex: 1, padding: 8 }}
-        />
-        <button type="submit" disabled={isLoading}>
-          {isLoading ? 'Streaming…' : 'Send'}
-        </button>
-      </form>
     </div>
   )
-}
-
-const page: React.CSSProperties = {
-  maxWidth: 720,
-  margin: '0 auto',
-  padding: 24,
-  fontFamily: 'system-ui, sans-serif',
-}
-
-const bubble: React.CSSProperties = {
-  borderRadius: 8,
-  padding: '10px 14px',
-  maxWidth: '85%',
-}
-
-const userBubble: React.CSSProperties = {
-  ...bubble,
-  alignSelf: 'flex-end',
-  background: '#eef2ff',
-}
-
-const assistantBubble: React.CSSProperties = {
-  ...bubble,
-  alignSelf: 'flex-start',
-  background: '#f6f6f6',
-}
-
-const roleLabel: React.CSSProperties = {
-  fontSize: 11,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  color: '#999',
-  marginBottom: 4,
 }
