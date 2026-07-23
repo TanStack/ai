@@ -9,6 +9,23 @@ id: prisma
 `PrismaClient`. The package provides a provider-neutral models fragment, not a
 datasource, generator, connection URL, or prebuilt SQL migration.
 
+## Prisma 6 and 7
+
+Both major versions are supported. `prismaPersistence` types its argument
+structurally, so it does not matter where your client comes from — it only
+reads the model delegates off it at runtime, and the delegate query API is the
+same across versions.
+
+- **Prisma 6** (`prisma-client-js` generator): the client is generated into
+  `node_modules`, so you `import { PrismaClient } from '@prisma/client'`.
+- **Prisma 7** (`prisma-client` generator): the client is generated to the
+  `output` path you configure and is no longer exported from `@prisma/client`,
+  so you import it from that path, e.g.
+  `import { PrismaClient } from './generated/prisma/client'`.
+
+The samples below use the Prisma 6 import; on Prisma 7 swap it for your
+generated output path. Everything else is identical.
+
 ## Copy the models fragment
 
 ```bash

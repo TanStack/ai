@@ -13,11 +13,25 @@ import {
   createRunStore,
 } from './stores'
 import type { PrismaModelMap } from './model-contract'
-import type { PrismaClient } from '@prisma/client'
 
 export { prismaModels, prismaModelsFilename } from './models'
 export { PrismaModelError } from './model-contract'
 export type { PrismaModelMap } from './model-contract'
+
+/**
+ * Structural stand-in for a generated Prisma client.
+ *
+ * We deliberately do **not** import `PrismaClient` from `@prisma/client`: the
+ * stores only ever read model delegates off the client by name at runtime
+ * (see `resolveDelegates`), and the delegate query API (`findUnique`, `upsert`,
+ * `findMany`, `updateMany`, `deleteMany`) is identical across Prisma majors.
+ * Typing the parameter structurally keeps this package compatible with both the
+ * v6 `prisma-client-js` generator (client under `@prisma/client`) and the v7
+ * `prisma-client` generator (client emitted to a custom `output` path and not
+ * exported from `@prisma/client`), so v7 users pass their generated client
+ * without a type mismatch.
+ */
+export type PrismaClientLike = object
 
 export interface PrismaPersistenceOptions {
   /**
@@ -42,7 +56,7 @@ export interface PrismaPersistenceOptions {
  * as the Cloudflare Durable Object lock (`@tanstack/ai-persistence-cloudflare`).
  */
 export function prismaPersistence(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   options?: PrismaPersistenceOptions,
 ) {
   const delegates = resolveDelegates(prisma, options?.models)
