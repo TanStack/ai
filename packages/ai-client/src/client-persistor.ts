@@ -154,9 +154,14 @@ export class ChatPersistor {
         if (!state || this.messagesGeneration !== hydrationGeneration) {
           return
         }
-        this.lastMessages = state.messages
         this.lastResume = state.resume ?? null
-        this.applyMessages(state.messages)
+        // Only apply the persisted transcript when we cache it. In
+        // `messages: false` mode the record's empty `messages` must not wipe
+        // host-provided initialMessages; still apply the resume snapshot.
+        if (this.storeMessages) {
+          this.lastMessages = state.messages
+          this.applyMessages(state.messages)
+        }
         if (state.resume && this.applyResume) {
           this.applyResume(state.resume)
         }
