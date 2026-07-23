@@ -254,6 +254,11 @@
           "updatedAt": "2026-07-23"
         },
         {
+          "label": "Generation Persistence",
+          "to": "persistence/generation-persistence",
+          "addedAt": "2026-07-23"
+        },
+        {
           "label": "Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-22",

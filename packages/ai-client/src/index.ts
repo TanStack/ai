@@ -71,6 +71,15 @@ export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
+  GenerationResumeState,
+  GenerationResumeStatus,
+  GenerationResumeSnapshot,
+  GenerationPendingArtifact,
+  GenerationResultSnapshot,
+  GenerationErrorSnapshot,
+  GenerationEventSnapshot,
+  GenerationServerPersistence,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,
@@ -85,7 +94,10 @@ export type {
   SummarizeGenerateInput,
   VideoGenerateInput,
 } from './generation-types'
-export { GENERATION_EVENTS } from './generation-types'
+export {
+  GENERATION_EVENTS,
+  updateGenerationResumeSnapshot,
+} from './generation-types'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
 // Web storage adapters for durable chat persistence (messages + resume snapshot)

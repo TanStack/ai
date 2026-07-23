@@ -5,9 +5,14 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPendingArtifact,
+  GenerationPersistenceOptions,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
 
 /**
  * Options for the useTranscription hook.
@@ -25,6 +30,10 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Server-side lightweight generation state persistence. */
+  persistence?: GenerationPersistenceOptions
+  /** Initial lightweight resume snapshot restored by the app. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Callback when transcription is complete. Can optionally return a transformed value.
    *
@@ -61,6 +70,14 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /** Lightweight generation resume snapshot, if one is available */
+  resumeSnapshot: GenerationResumeSnapshot | undefined
+  /** Current resumable run/cursor state, if one is available */
+  resumeState: GenerationResumeState | null
+  /** Pending persisted artifact references observed during generation/replay */
+  pendingArtifacts: Array<GenerationPendingArtifact>
+  /** Final persisted artifact references observed from a replayed result */
+  resultArtifacts: Array<PersistedArtifactRef>
 }
 
 /**
@@ -110,20 +127,16 @@ export function useTranscription<TTransformed = void>(
     hookName: 'useTranscription',
     outputKind: 'text' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<
-      TranscriptionGenerateInput,
-      TranscriptionResult,
-      TTransformed
-    >({ ...options, devtools })
+  const generation = useGeneration<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TTransformed
+  >({ ...options, devtools })
 
   return {
-    generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: TranscriptionGenerateInput,
+    ) => Promise<void>,
   }
 }

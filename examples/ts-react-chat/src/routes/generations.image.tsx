@@ -3,8 +3,39 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
 import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
+import type {
+  GenerationResumeSnapshot,
+  GenerationServerPersistence,
+} from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
+
+// Lightweight, read-only generation resume snapshots persisted in the browser.
+// Only run identity, status, errors, and result metadata are stored — never the
+// generated image bytes. On reload the last snapshot is surfaced for
+// observability; generation still only starts when `generate(...)` is called.
+const imageSnapshots: GenerationServerPersistence = {
+  getItem: (id) => {
+    if (typeof window === 'undefined') return null
+    const raw = window.localStorage.getItem(`example:generation:${id}`)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === 'object'
+      ? (parsed as GenerationResumeSnapshot)
+      : null
+  },
+  setItem: (id, value) => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      `example:generation:${id}`,
+      JSON.stringify(value),
+    )
+  },
+  removeItem: (id) => {
+    if (typeof window === 'undefined') return
+    window.localStorage.removeItem(`example:generation:${id}`)
+  },
+}
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -66,6 +97,42 @@ function ServerFnImageGeneration() {
       numberOfImages={numberOfImages}
       setNumberOfImages={setNumberOfImages}
     />
+  )
+}
+
+function PersistedImageGeneration() {
+  const [prompt, setPrompt] = useState('')
+  const [numberOfImages, setNumberOfImages] = useState(1)
+
+  const hookReturn = useGenerateImage({
+    id: 'persisted-image',
+    connection: fetchServerSentEvents('/api/generate/image'),
+    persistence: { server: imageSnapshots },
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm">
+        <p className="text-gray-400">
+          Resume status: <span className="text-white">{hookReturn.status}</span>
+        </p>
+        {hookReturn.resumeState ? (
+          <p className="text-gray-400">
+            Last run:{' '}
+            <span className="text-white">{hookReturn.resumeState.runId}</span>
+          </p>
+        ) : (
+          <p className="text-gray-500">No persisted run yet.</p>
+        )}
+      </div>
+      <ImageGenerationUI
+        {...hookReturn}
+        prompt={prompt}
+        setPrompt={setPrompt}
+        numberOfImages={numberOfImages}
+        setNumberOfImages={setNumberOfImages}
+      />
+    </div>
   )
 }
 
@@ -170,9 +237,9 @@ function ImageGenerationUI({
 }
 
 function ImageGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>(
-    'streaming',
-  )
+  const [mode, setMode] = useState<
+    'streaming' | 'direct' | 'server-fn' | 'persisted'
+  >('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -215,6 +282,16 @@ function ImageGenerationPage() {
             >
               Server Fn
             </button>
+            <button
+              onClick={() => setMode('persisted')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'persisted'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Persisted
+            </button>
           </div>
         </div>
       </div>
@@ -225,8 +302,10 @@ function ImageGenerationPage() {
             <StreamingImageGeneration key="streaming" />
           ) : mode === 'direct' ? (
             <DirectImageGeneration key="direct" />
-          ) : (
+          ) : mode === 'server-fn' ? (
             <ServerFnImageGeneration key="server-fn" />
+          ) : (
+            <PersistedImageGeneration key="persisted" />
           )}
         </div>
       </div>

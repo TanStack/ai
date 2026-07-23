@@ -6,7 +6,10 @@ import type {
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
-import type { InjectGenerationOptions } from './inject-generation'
+import type {
+  InjectGenerationOptions,
+  InjectGenerationResult,
+} from './inject-generation'
 
 export type InjectGenerateImageOptions<TOutput = ImageGenerationResult> = Omit<
   InjectGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
@@ -15,14 +18,14 @@ export type InjectGenerateImageOptions<TOutput = ImageGenerationResult> = Omit<
   onResult?: (result: ImageGenerationResult) => TOutput | null | void
 }
 
-export interface InjectGenerateImageResult<TOutput = ImageGenerationResult> {
+export interface InjectGenerateImageResult<
+  TOutput = ImageGenerationResult,
+> extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
   generate: (input: ImageGenerateInput) => Promise<void>
   result: Signal<TOutput | null>
   isLoading: Signal<boolean>
   error: Signal<Error | undefined>
   status: Signal<GenerationClientState>
-  stop: () => void
-  reset: () => void
 }
 
 export function injectGenerateImage<TTransformed = void>(
@@ -38,18 +41,18 @@ export function injectGenerateImage<TTransformed = void>(
     hookName: 'injectGenerateImage',
     outputKind: 'image' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = injectGeneration<
+    ImageGenerateInput,
+    ImageGenerationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+  })
   return {
-    generate: generate as (input: ImageGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+    ...generation,
+    generate: generation.generate as (
+      input: ImageGenerateInput,
+    ) => Promise<void>,
   }
 }
