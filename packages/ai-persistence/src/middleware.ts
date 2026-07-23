@@ -16,6 +16,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  ChatResumeToolState,
   ErrorInfo,
   FinishInfo,
   GenerationAbortInfo,
@@ -25,6 +26,7 @@ import type {
   GenerationMiddlewareContext,
   RunAgentResumeItem,
   StreamChunk,
+  ToolApprovalResolution,
   TokenUsage,
 } from '@tanstack/ai'
 import type {
@@ -133,6 +135,73 @@ async function commitPendingResumes(
   const { pending, resumeByInterruptId } = state.pendingResumes
   state.pendingResumes = undefined
   await applyPendingResumes(pending, resumeByInterruptId, interrupts)
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function stringField(
+  value: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  return typeof value[key] === 'string' ? value[key] : undefined
+}
+
+function interruptKind(interrupt: InterruptRecord): string | undefined {
+  const metadata = objectValue(interrupt.payload.metadata)
+  return metadata ? stringField(metadata, 'kind') : undefined
+}
+
+function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
+  if (entry.status === 'cancelled') return false
+  const payload = objectValue(entry.payload)
+  // Fail closed: persisted resume payloads may be malformed or truncated, so a
+  // missing/non-boolean `approved` denies the tool rather than running it.
+  return typeof payload?.approved === 'boolean' ? payload.approved : false
+}
+
+/**
+ * Translate the persisted pending interrupts + the resume batch into the
+ * `ChatResumeToolState` the chat engine consumes. This is the server-authoritative
+ * counterpart to the engine's ephemeral (client-history) reconstruction: because
+ * the persistence flow sends empty client messages, the engine has no history to
+ * rebuild from, so persistence supplies the resume state directly (and clears
+ * `config.resume` so the ephemeral path is skipped — see `onConfig`).
+ */
+function resumeToolStateFromPending(
+  pending: Array<InterruptRecord>,
+  resumeByInterruptId: Map<string, RunAgentResumeItem>,
+): ChatResumeToolState | undefined {
+  const approvals = new Map<string, ToolApprovalResolution>()
+  const clientToolResults = new Map<string, unknown>()
+
+  for (const interrupt of pending) {
+    const entry = resumeByInterruptId.get(interrupt.interruptId)
+    if (!entry) continue
+
+    const kind = interruptKind(interrupt)
+    const reason = stringField(interrupt.payload, 'reason')
+    const toolCallId = stringField(interrupt.payload, 'toolCallId')
+
+    if (kind === 'approval' || reason === 'approval_required') {
+      approvals.set(interrupt.interruptId, resolvedApprovalDecision(entry))
+      continue
+    }
+
+    if (
+      entry.status === 'resolved' &&
+      toolCallId &&
+      (kind === 'client_tool' || reason === 'client_tool_input')
+    ) {
+      clientToolResults.set(toolCallId, entry.payload)
+    }
+  }
+
+  if (approvals.size === 0 && clientToolResults.size === 0) return undefined
+  return { approvals, clientToolResults }
 }
 
 function interruptPayload(interrupt: unknown): Record<string, unknown> {
@@ -290,19 +359,31 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
     async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
       if (ctx.phase !== 'init') return
 
+      const patch: Partial<ChatMiddlewareConfig> = {}
+
       if (wantsInterrupts && persistence.stores.interrupts) {
         const pending = await persistence.stores.interrupts.listPending(
           ctx.threadId,
         )
         // Gate: a thread with pending interrupts must carry a resume batch that
-        // references them. The chat engine reconstructs the actual resume tool
-        // state itself, from `config.resume` plus the interrupt bindings carried
-        // in the (server-loaded) message history — persistence only records the
-        // interrupts and gates new input, it no longer feeds resume maps.
+        // references them.
         const resumeByInterruptId = validatePendingResumes(
           pending,
           config.resume,
         )
+        // Persistence is the server-authoritative resume path: translate the
+        // persisted interrupts into the engine's resume tool state and CLEAR
+        // `config.resume`, so the engine skips its ephemeral reconstruction
+        // (which needs a parentRunId and the client message history the
+        // persistence flow deliberately omits).
+        if ((config.resume?.length ?? 0) > 0) {
+          const resumeToolState = resumeToolStateFromPending(
+            pending,
+            resumeByInterruptId,
+          )
+          patch.resume = []
+          if (resumeToolState) patch.resumeToolState = resumeToolState
+        }
         // Defer marking these interrupts resolved/cancelled until the run
         // succeeds (see commitPendingResumes). Committing here would consume the
         // approval even if the run then failed, breaking a retry.
@@ -314,14 +395,19 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
 
       await createOrResumeRun(runs, ctx.runId, ctx.threadId)
 
-      if (!wantsMessages || !persistence.stores.messages) return
-      const state = runState.get(ctx)
-      if (state?.merged) return
-      if (state) state.merged = true
+      if (wantsMessages && persistence.stores.messages) {
+        const state = runState.get(ctx)
+        if (!state?.merged) {
+          if (state) state.merged = true
+          const stored = await persistence.stores.messages.loadThread(
+            ctx.threadId,
+          )
+          patch.messages =
+            config.messages.length > 0 ? config.messages : stored
+        }
+      }
 
-      const stored = await persistence.stores.messages.loadThread(ctx.threadId)
-      const merged = config.messages.length > 0 ? config.messages : stored
-      return { messages: merged }
+      return Object.keys(patch).length > 0 ? patch : undefined
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
@@ -400,33 +486,31 @@ export function withGenerationPersistence(
   validatePersistenceStoreKeys(persistence)
   const { runs } = resolvePersistencePlan(persistence)
 
+  // A generation activity has no thread or agent run: its only stable identity
+  // is `requestId`, so the run record is keyed by it on both axes.
   return {
     name: 'generation-persistence',
 
     async onStart(ctx: GenerationMiddlewareContext) {
-      await createOrResumeRun(
-        runs,
-        ctx.runId ?? ctx.requestId,
-        ctx.threadId ?? ctx.requestId,
-      )
+      await createOrResumeRun(runs, ctx.requestId, ctx.requestId)
     },
 
     async onFinish(
       ctx: GenerationMiddlewareContext,
       info: GenerationFinishInfo,
     ) {
-      await completeRun(runs, ctx.runId ?? ctx.requestId, info.usage)
+      await completeRun(runs, ctx.requestId, info.usage)
     },
 
     async onError(ctx: GenerationMiddlewareContext, info: GenerationErrorInfo) {
-      await failRun(runs, ctx.runId ?? ctx.requestId, info.error)
+      await failRun(runs, ctx.requestId, info.error)
     },
 
     async onAbort(
       ctx: GenerationMiddlewareContext,
       _info: GenerationAbortInfo,
     ) {
-      await interruptRun(runs, ctx.runId ?? ctx.requestId)
+      await interruptRun(runs, ctx.requestId)
     },
   }
 }

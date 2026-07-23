@@ -6,7 +6,7 @@ import {
   withPersistence,
   withGenerationPersistence,
 } from '../src'
-import type { LockStore } from '@tanstack/ai'
+import type { LockStore } from '../src/locks'
 import type {
   AIPersistence,
   InterruptStore,

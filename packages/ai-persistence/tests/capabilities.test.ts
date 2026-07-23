@@ -3,9 +3,9 @@ import { EventType, chat, defineChatMiddleware } from '@tanstack/ai'
 import type {
   AnyTextAdapter,
   ChatMiddlewareContext,
-  LockStore,
   StreamChunk,
 } from '@tanstack/ai'
+import type { LockStore } from '../src/locks'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import {
