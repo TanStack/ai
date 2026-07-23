@@ -75,6 +75,26 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['maxTokens']).toBeUndefined()
   })
 
+  it('Groq adapter receives maxLength as max_completion_tokens', async () => {
+    const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
+    const adapter = new ChatStreamSummarizeAdapter(
+      textAdapter,
+      'llama-3.3-70b-versatile',
+      'groq',
+    )
+
+    await adapter.summarize({
+      model: 'llama-3.3-70b-versatile',
+      text: 'hi',
+      maxLength: 256,
+      logger,
+    })
+
+    const opts = lastModelOptions()
+    expect(opts?.['max_completion_tokens']).toBe(256)
+    expect(opts?.['maxTokens']).toBeUndefined()
+  })
+
   it('Ollama adapter receives maxLength AND the temperature default nested under options', async () => {
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     const adapter = new ChatStreamSummarizeAdapter(
