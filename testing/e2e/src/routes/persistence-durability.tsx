@@ -1,31 +1,28 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { localStoragePersistence } from '@tanstack/ai-client'
-import type { ChatPersistedState } from '@tanstack/ai-client'
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
 
 /**
  * Browser-refresh persistence harness (client half).
  *
  * A `localStoragePersistence` adapter stores ONE combined `{ messages, resume }`
- * record per chat id (see `ChatPersistedState`), so a full `page.reload()`
- * restores the conversation — and any pending-interrupt resume snapshot —
- * straight from `localStorage`, with no server round-trip. The matching
- * provider-free durable endpoint is `/api/persistence-durability`.
+ * record per thread, so a full `page.reload()` restores the conversation — and
+ * any pending-interrupt resume snapshot — straight from `localStorage`, with no
+ * server round-trip. The matching provider-free durable endpoint is
+ * `/api/persistence-durability`.
  *
  * `?scenario=interrupt` points the connection at the interrupt variant of the
- * endpoint and uses a distinct chat id, so the two scenarios never share a
+ * endpoint and uses a distinct threadId, so the two scenarios never share a
  * storage key.
  */
 
-// A stable id + threadId per scenario so a reload rehydrates the SAME
-// conversation from storage. UIMessage carries a `createdAt` that is not
-// JSON-native, so a codec is required; a plain JSON round-trip is fine here
-// because the harness only asserts on rendered text + interrupt presence.
-const persistence = localStoragePersistence<ChatPersistedState>({
-  serialize: (value) => JSON.stringify(value),
-  deserialize: (value) => JSON.parse(value) as ChatPersistedState,
-})
+// Defaults to the ChatPersistedState shape and a JSON codec, so no type
+// argument or serialize/deserialize is needed.
+const persistence = localStoragePersistence()
 
 const textConnection = fetchServerSentEvents('/api/persistence-durability')
 const interruptConnection = fetchServerSentEvents(
@@ -50,7 +47,6 @@ function PersistenceDurabilityPage() {
     : 'persistence-durability-text'
 
   const { messages, sendMessage, isLoading, interrupts } = useChat({
-    id: chatId,
     threadId: chatId,
     connection: isInterrupt ? interruptConnection : textConnection,
     persistence,

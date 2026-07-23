@@ -8,7 +8,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { reconstructChat, withChatPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 /**
@@ -62,22 +62,21 @@ export const Route = createFileRoute('/api/persistent-chat')({
 
       // GET serves two independent jobs off one route:
       //
-      // 1. Delivery replay (`?offset=-1&runId=…`) — re-attach to an in-flight
-      //    run by id off the ephemeral, per-run durability log. Read-only.
-      // 2. History hydration (`?threadId=…`) — read the DURABLE thread transcript
-      //    from the persistence store. This is what a server-authoritative
-      //    client (persistence `{ messages: false }`) fetches on reload, since
-      //    the delivery log only holds one run, never prior turns.
-      GET: async ({ request }) => {
-        const url = new URL(request.url)
-        if (url.searchParams.has('offset') || url.searchParams.has('runId')) {
-          return resumeServerSentEventsResponse({
-            adapter: memoryStream(request),
-          })
+      // 1. Delivery replay — re-attach to an in-flight run off the ephemeral,
+      //    per-run durability log. The run id rides the `X-Run-Id` header (or
+      //    `?runId`) and the resume offset the `Last-Event-ID` header (or
+      //    `?offset`), so ask the adapter via `resumeFrom()` rather than
+      //    sniffing query params.
+      // 2. History hydration — read the DURABLE thread transcript from the
+      //    persistence store. This is what a server-authoritative client
+      //    (persistence `{ messages: false }`) fetches on reload, since the
+      //    delivery log only holds one run, never prior turns.
+      GET: ({ request }) => {
+        const durability = memoryStream(request)
+        if (durability.resumeFrom() !== null) {
+          return resumeServerSentEventsResponse({ adapter: durability })
         }
-        const threadId = url.searchParams.get('threadId') ?? ''
-        const messages = await persistence.stores.messages.loadThread(threadId)
-        return Response.json(messages)
+        return reconstructChat(persistence, request)
       },
     },
   },

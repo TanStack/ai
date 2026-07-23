@@ -74,20 +74,17 @@ export async function POST(request: Request) {
 The minimal client setup adds one option to `useChat`:
 
 ```tsx
-import { fetchServerSentEvents, localStoragePersistence } from '@tanstack/ai-client'
-import { useChat } from '@tanstack/ai-react'
-import type { ChatPersistedState } from '@tanstack/ai-client'
-
-const store = localStoragePersistence<ChatPersistedState>({
-  serialize: (value) => JSON.stringify(value),
-  deserialize: (value) => JSON.parse(value),
-})
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
 
 function Chat() {
   const { messages, sendMessage } = useChat({
-    id: 'support-chat',
+    threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
-    persistence: store,
+    persistence: localStoragePersistence(),
   })
   // ...
 }
@@ -129,6 +126,98 @@ If you run server-authoritative with the transcript kept off the client (see [Br
 | A mid-stream reload to pick up the live answer | Client persistence + delivery durability together |
 
 Most production chat apps end up with all three: delivery durability on the route, client persistence for instant reload, and server persistence as the record of record.
+
+## What we recommend
+
+For a real multi-user app, one combination beats the rest:
+
+1. **Client: cache only the resume pointer** with `persistence: { store, messages: false }`. The browser holds a few bytes (which run to rejoin, which interrupts are pending), never the transcript.
+2. **Server: `withChatPersistence`** owns the authoritative history, run status, and durable interrupts.
+3. **One `GET` endpoint that does two jobs**: rehydrate the conversation from the store, and resume an in-flight durable stream.
+
+The server route:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  resumeServerSentEventsResponse,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import {
+  reconstructChat,
+  withChatPersistence,
+} from '@tanstack/ai-persistence'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
+
+const persistence = sqlitePersistence({
+  url: 'file:.tanstack-ai/state.sqlite',
+  migrate: true,
+})
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    middleware: [withChatPersistence(persistence)],
+  })
+  return toServerSentEventsResponse(stream, {
+    durability: { adapter: memoryStream(request) },
+  })
+}
+
+export function GET(request: Request): Response | Promise<Response> {
+  const durability = memoryStream(request)
+  // In-flight run: the resume offset arrives via the Last-Event-ID header or
+  // ?offset, and the run id via the X-Run-Id header or ?runId, so ask the
+  // adapter with resumeFrom() instead of sniffing query params. Replay the log
+  // so a reload finishes the answer.
+  if (durability.resumeFrom() !== null) {
+    return resumeServerSentEventsResponse({ adapter: durability })
+  }
+  // Otherwise rehydrate the conversation from the durable store. `reconstructChat`
+  // reads `?threadId` and returns the stored messages as JSON.
+  return reconstructChat(persistence, request)
+}
+```
+
+The client caches only the pointer and loads history from that `GET`:
+
+```tsx
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
+
+const store = localStoragePersistence()
+
+function Chat() {
+  const { messages, sendMessage } = useChat({
+    threadId: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: { store, messages: false },
+  })
+  // On mount, fetch GET /api/chat?threadId=support-chat and seed the thread
+  // (a router loader is the natural place). The resume pointer in localStorage
+  // then rejoins any run that was still streaming.
+}
+```
+
+Why this wins over the alternatives:
+
+- **One source of truth.** History lives on the server, so there is no client/server copy to drift or reconcile. The same conversation opens on any device and survives a server restart.
+- **A cheap client.** The browser never parses or stores a long transcript, so there is no `localStorage` quota or startup-parse cost, even for huge threads.
+- **Full reload durability anyway.** The tiny resume pointer is enough to rejoin a mid-stream run and restore pending interrupts instantly, so dropping the transcript costs nothing on reload.
+- **No wasted work.** The `GET` reuses the same route as the durable-stream resume, and `loadThread` returns ready-made messages instead of replaying a stream to reconstruct them.
+
+Client-only persistence can't do multi-device and bloats storage. Caching everything client-side duplicates the source of truth. Server-only without the resume pointer can't rejoin a live run after a reload without a round-trip. This combination avoids all three.
 
 ## The store contract
 

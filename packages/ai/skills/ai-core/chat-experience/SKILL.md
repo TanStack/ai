@@ -501,27 +501,25 @@ Three storage adapters ship from `@tanstack/ai-client`:
 `localStoragePersistence` (survives reloads and browser restarts),
 `sessionStoragePersistence` (scoped to the tab), and `indexedDBPersistence`
 (async, structured-clone storage — no codec needed for `Date`/`Map`/etc.).
-Give the chat a stable `id` so the reload finds the same record.
-
-The storage adapters and `ChatPersistedState` are **not** re-exported by the
-framework packages — import them from `@tanstack/ai-client` (the one exception
-to mistake `j` below), while `useChat` still comes from the framework package:
+Give the chat a stable `threadId` so the reload finds the same record.
+Persistence keys on `threadId`; the storage adapters are re-exported from each
+framework package, so a single import works:
 
 ```typescript
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { localStoragePersistence } from '@tanstack/ai-client'
-import type { ChatPersistedState } from '@tanstack/ai-client'
+import {
+  useChat,
+  fetchServerSentEvents,
+  localStoragePersistence,
+} from '@tanstack/ai-react'
 
-// UIMessage carries a Date (not JSON-native), so pass a serialize/deserialize
-// pair for the Web Storage adapters. indexedDBPersistence needs no codec.
-const persistence = localStoragePersistence<ChatPersistedState>({
-  serialize: (value) => JSON.stringify(value),
-  deserialize: (value) => JSON.parse(value),
-})
+// Defaults to the ChatPersistedState shape and a JSON codec, so no type
+// argument or serialize/deserialize is needed. indexedDBPersistence stores via
+// structured clone (a Date round-trips exactly).
+const persistence = localStoragePersistence()
 
 function Chat() {
   const { messages, sendMessage } = useChat({
-    id: 'support-chat',
+    threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
     persistence,
   })

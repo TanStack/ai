@@ -27,23 +27,20 @@ This is the client half of persistence. For the authoritative server-side copy
 ## Use a built-in storage adapter
 
 The quickest path is one of the adapters exported from `@tanstack/ai-client`.
-Give the chat a stable `id` so a reload finds the same record:
+Give the chat a stable `threadId` so a reload finds the same record:
 
 ```tsx
-import { fetchServerSentEvents, localStoragePersistence } from '@tanstack/ai-client'
-import { useChat } from '@tanstack/ai-react'
-import type { ChatPersistedState } from '@tanstack/ai-client'
-
-const persistence = localStoragePersistence<ChatPersistedState>({
-  serialize: (value) => JSON.stringify(value),
-  deserialize: (value) => JSON.parse(value),
-})
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
 
 function Chat() {
   const { messages, sendMessage } = useChat({
-    id: 'support-chat',
+    threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
-    persistence,
+    persistence: localStoragePersistence(),
   })
   // ...
 }
