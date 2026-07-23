@@ -48,3 +48,16 @@ model Metadata {
   @@id([scope, key])
   @@map("metadata")
 }
+
+/// Persisted sandbox resume records (`@tanstack/ai-sandbox`'s `SandboxStore`).
+model Sandbox {
+  key               String  @id
+  provider          String
+  providerSandboxId String  @map("provider_sandbox_id")
+  latestSnapshotId  String? @map("latest_snapshot_id")
+  threadId          String  @map("thread_id")
+  latestRunId       String? @map("latest_run_id")
+  updatedAt         BigInt  @map("updated_at")
+
+  @@map("sandboxes")
+}

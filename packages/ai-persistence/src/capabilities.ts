@@ -2,9 +2,10 @@
  * Persistence capability tokens.
  *
  * `withPersistence` PROVIDES these so later middleware (and harness adapters)
- * can read durable state. `LocksCapability` is defined in `./locks` (see the note
- * there): sandbox persistence, the only cross-package consumer, is deferred, so
- * the token lives local to this package for now.
+ * can read durable state. The `locks` and `sandbox-store` tokens are shared with
+ * `@tanstack/ai-sandbox` and live in core `@tanstack/ai` (their neutral home);
+ * they are re-exported here so consumers import everything persistence-related
+ * from one place.
  */
 import { createCapability } from '@tanstack/ai'
 import type { AIPersistence, InterruptStore } from './types'
@@ -19,6 +20,10 @@ export const InterruptsCapability = createCapability<InterruptStore>()(
 export const [getPersistence, providePersistence] = PersistenceCapability
 export const [getInterrupts, provideInterrupts] = InterruptsCapability
 
-// Locks token lives in this package (see ./locks); re-export so consumers import
-// everything persistence-related from here.
+// Shared tokens from core (see ./locks for the locks note).
 export { LocksCapability, getLocks, provideLocks } from './locks'
+export {
+  SandboxStoreCapability,
+  getSandboxStore,
+  provideSandboxStore,
+} from '@tanstack/ai'

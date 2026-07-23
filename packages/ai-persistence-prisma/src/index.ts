@@ -12,12 +12,15 @@ import {
   createMetadataStore,
   createRunStore,
 } from './stores'
+import { createPrismaSandboxStore } from './sandbox-store'
 import type { PrismaModelMap } from './model-contract'
 import type { PrismaClient } from '@prisma/client'
 
 export { prismaModels, prismaModelsFilename } from './models'
 export { PrismaModelError } from './model-contract'
 export type { PrismaModelMap } from './model-contract'
+export { createPrismaSandboxStore } from './sandbox-store'
+export type { PrismaSandboxStoreOptions } from './sandbox-store'
 
 export interface PrismaPersistenceOptions {
   /**
@@ -46,12 +49,17 @@ export function prismaPersistence(
   options?: PrismaPersistenceOptions,
 ) {
   const delegates = resolveDelegates(prisma, options?.models)
+  const sandboxModel = options?.models?.sandbox
   return {
     stores: {
       messages: createMessageStore(delegates),
       runs: createRunStore(delegates),
       interrupts: createInterruptStore(delegates),
       metadata: createMetadataStore(delegates),
+      sandbox: createPrismaSandboxStore(
+        prisma,
+        sandboxModel ? { model: sandboxModel } : undefined,
+      ),
     },
   }
 }

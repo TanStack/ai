@@ -47,6 +47,12 @@ export function sqlitePersistence(options: SqlitePersistenceOptions) {
   let closed = false
   return {
     ...persistence,
+    /**
+     * The underlying Drizzle database. Exposed so callers can wire stores that
+     * live outside the chat contract over the same migrated connection — e.g.
+     * `createDrizzleSandboxStore(persistence.db)` for sandbox persistence.
+     */
+    db,
     close() {
       if (closed) return
       sqlite.close()

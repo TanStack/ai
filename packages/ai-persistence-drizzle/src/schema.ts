@@ -69,10 +69,26 @@ export const metadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.scope, table.key] })],
 )
 
+/**
+ * Persisted sandbox resume records (`@tanstack/ai-sandbox`'s `SandboxStore`).
+ * Keyed by the compound sandbox key; small metadata only (no blobs). Used by
+ * `createDrizzleSandboxStore`, independent of the chat stores.
+ */
+export const sandboxes = sqliteTable('sandboxes', {
+  key: text('key').primaryKey(),
+  provider: text('provider').notNull(),
+  providerSandboxId: text('provider_sandbox_id').notNull(),
+  latestSnapshotId: text('latest_snapshot_id'),
+  threadId: text('thread_id').notNull(),
+  latestRunId: text('latest_run_id'),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 /** The full state schema, for `drizzlePersistence(db)` and drizzle-kit. */
 export const schema = {
   messages,
   runs,
   interrupts,
   metadata,
+  sandboxes,
 }

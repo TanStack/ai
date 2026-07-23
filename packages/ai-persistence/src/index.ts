@@ -29,7 +29,9 @@ export { memoryPersistence } from './memory'
 export { createInterruptController } from './interrupts'
 export type { InterruptController } from './interrupts'
 
-// Capabilities (incl. the Locks token, owned by this package)
+// Capabilities. The Locks token is re-exported from core `@tanstack/ai` (its
+// neutral home) so a persistence-provided distributed lock reaches the sandbox
+// layer through the same token reference.
 export {
   PersistenceCapability,
   InterruptsCapability,
@@ -40,8 +42,15 @@ export {
   LocksCapability,
   getLocks,
   provideLocks,
+  SandboxStoreCapability,
+  getSandboxStore,
+  provideSandboxStore,
 } from './capabilities'
 
-// Lock primitive (owned here; sandbox persistence will bridge the token later)
+// Lock primitive (re-exported from core; see ./locks)
 export { InMemoryLockStore } from './locks'
 export type { LockStore } from './locks'
+
+// Sandbox-store primitive (re-exported from core; see @tanstack/ai)
+export { InMemorySandboxStore } from '@tanstack/ai'
+export type { SandboxStore, SandboxRecord } from '@tanstack/ai'

@@ -211,6 +211,42 @@ const policy = defineSandboxPolicy({
 provider + workspace hash + tenant so changing the repo/setup/image starts
 fresh. Ensure order: resume running → restore snapshot → create + bootstrap.
 
+## Persistence (durable resume)
+
+Resume bookkeeping defaults to in-memory (single-process). For cross-process /
+multi-instance resume, `withPersistence` (from `@tanstack/ai-persistence`)
+provides a durable `SandboxStore` (which sandbox to resume) and an optional
+distributed `LockStore` (serialize ensure); `withSandbox` consumes them. Compose
+`withPersistence` **before** `withSandbox`. Same two middlewares whether the
+persistence is for chat, sandboxes, or both. `ai-sandbox` never hardcodes storage.
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { withPersistence } from '@tanstack/ai-persistence'
+import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
+
+// sqlitePersistence carries the sandbox store (+ chat stores) out of the box.
+const persistence = sqlitePersistence({ url: './state.db', migrate: true })
+
+chat({
+  adapter,
+  messages,
+  middleware: [withPersistence(persistence), withSandbox(sandbox)],
+})
+```
+
+- Backends carry the sandbox store in their persistence object:
+  `sqlitePersistence(...)` / `drizzlePersistence(db)`, `prismaPersistence(prisma)`,
+  `cloudflarePersistence({ d1, durableObjects })` (edge). The `sandboxes` table /
+  model ships in the same migration bundle as the chat stores.
+- The lock is the shared core `'locks'` token — `withPersistence` provides it
+  when its store set includes `locks` (e.g. the Cloudflare Durable Object lock),
+  and `withSandbox` picks it up automatically.
+- `SandboxStore`/`LockStore` types live in core `@tanstack/ai`. The store
+  contract is conformance-tested via `runSandboxStoreConformance` from
+  `@tanstack/ai-sandbox/testkit`.
+
 ## File-event hooks
 
 Watch the workspace for create/change/delete events. Provider-agnostic: native

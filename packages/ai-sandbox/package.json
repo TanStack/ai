@@ -32,6 +32,10 @@
     "./ngrok": {
       "types": "./dist/esm/ngrok.d.ts",
       "import": "./dist/esm/ngrok.js"
+    },
+    "./testkit": {
+      "types": "./dist/esm/testkit/conformance.d.ts",
+      "import": "./dist/esm/testkit/conformance.js"
     }
   },
   "files": [
@@ -54,16 +58,21 @@
   },
   "peerDependencies": {
     "@ngrok/ngrok": "^1.0.0",
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {
     "@ngrok/ngrok": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.0.14",
+    "vitest": "^4.1.10"
   }
 }

@@ -133,7 +133,8 @@ hands back a live preview URL, see `examples/sandbox-web` — one app with harne
 (Claude Code / Codex / OpenCode / Grok) and provider (Docker / local / Vercel /
 Daytona) pickers.
 
-> **Persistence-ready:** the sandbox layer ships with in-memory stores for
-> resume bookkeeping. A future persistence package can provide durable
-> `SandboxStore` / `LockStore` implementations (and event-log replay) by
-> supplying those optional capabilities — no changes to the sandbox layer.
+> **Durable resume:** the sandbox layer ships with in-memory stores for resume
+> bookkeeping (single-process). For cross-process / multi-instance resume,
+> [Sandbox Persistence](./persistence) provides durable `SandboxStore` /
+> `LockStore` implementations (SQLite/Drizzle, Prisma, Cloudflare D1 + Durable
+> Object lock) via `withSandboxPersistence` — no changes to the sandbox layer.

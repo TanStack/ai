@@ -30,3 +30,13 @@ CREATE TABLE `runs` (
 	`error` text,
 	`usage_json` text
 );
+--> statement-breakpoint
+CREATE TABLE `sandboxes` (
+	`key` text PRIMARY KEY NOT NULL,
+	`provider` text NOT NULL,
+	`provider_sandbox_id` text NOT NULL,
+	`latest_snapshot_id` text,
+	`thread_id` text NOT NULL,
+	`latest_run_id` text,
+	`updated_at` integer NOT NULL
+);

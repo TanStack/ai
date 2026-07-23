@@ -4,14 +4,15 @@ import type {
   AIPersistence,
   AIPersistenceStores,
   InterruptStore,
+  LockStore,
   MessageStore,
   MetadataStore,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai-persistence'
+import type { SandboxStore } from '@tanstack/ai'
 import type { DurableObjectLockStoreOptions } from './locks'
 
-export { createD1Stores } from './d1'
+export { createD1Stores, createD1SandboxStore } from './d1'
 export {
   CloudflareLockDurableObject,
   createDurableObjectLockStore,
@@ -37,6 +38,7 @@ interface D1Stores {
   runs: RunStore
   interrupts: InterruptStore
   metadata: MetadataStore
+  sandbox: SandboxStore
 }
 
 interface DurableObjectStores {

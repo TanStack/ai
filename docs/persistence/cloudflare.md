@@ -173,3 +173,10 @@ export function createComposedPersistence(env: Env) {
 D1 continues to own messages and metadata, and Durable Objects own locks.
 Cross-backend transactions are not added by composition; design retries and
 consistency explicitly.
+
+## Sandbox persistence
+
+The same D1 binding and Durable Object lock back durable **sandbox** resume at
+the edge: `createD1SandboxStore(env.AI_STATE)` and the same
+`createDurableObjectLockStore(env.AI_LOCKS)` feed `withSandboxPersistence`. See
+[Sandbox Persistence](../sandbox/persistence).

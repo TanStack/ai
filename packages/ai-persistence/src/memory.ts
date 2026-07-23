@@ -1,7 +1,8 @@
 import { InMemoryLockStore } from './locks'
 import { defineAIPersistence } from './types'
+import { InMemorySandboxStore } from '@tanstack/ai'
 import type { LockStore } from './locks'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ModelMessage, SandboxStore } from '@tanstack/ai'
 import type {
   InterruptRecord,
   InterruptStore,
@@ -151,6 +152,7 @@ interface MemoryPersistenceStores {
   interrupts: InterruptStore
   metadata: MetadataStore
   locks: LockStore
+  sandbox: SandboxStore
 }
 
 export function memoryPersistence() {
@@ -160,6 +162,7 @@ export function memoryPersistence() {
     interrupts: new MemoryInterruptStore(),
     metadata: new MemoryMetadataStore(),
     locks: new InMemoryLockStore(),
+    sandbox: new InMemorySandboxStore(),
   }
   return defineAIPersistence({ stores })
 }

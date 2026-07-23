@@ -3,9 +3,11 @@ import {
   InterruptsCapability,
   LocksCapability,
   PersistenceCapability,
+  SandboxStoreCapability,
   provideInterrupts,
   provideLocks,
   providePersistence,
+  provideSandboxStore,
 } from './capabilities'
 import {
   validateChatPersistenceStores,
@@ -149,6 +151,7 @@ interface PersistencePlan {
   wantsMessages: boolean
   wantsInterrupts: boolean
   wantsLocks: boolean
+  wantsSandbox: boolean
   runs: AIPersistence['stores']['runs']
 }
 
@@ -157,6 +160,7 @@ function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
     wantsMessages: persistence.stores.messages !== undefined,
     wantsInterrupts: persistence.stores.interrupts !== undefined,
     wantsLocks: persistence.stores.locks !== undefined,
+    wantsSandbox: persistence.stores.sandbox !== undefined,
     runs: persistence.stores.runs,
   }
 }
@@ -260,12 +264,14 @@ export function withPersistence<TStores extends AIPersistenceStores>(
 export function withPersistence(persistence: AIPersistence): ChatMiddleware {
   validateChatPersistenceStores(persistence)
   const plan = resolvePersistencePlan(persistence)
-  const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
+  const { wantsMessages, wantsInterrupts, wantsLocks, wantsSandbox, runs } =
+    plan
 
   const provides = [
     PersistenceCapability,
     ...(wantsInterrupts ? [InterruptsCapability] : []),
     ...(wantsLocks ? [LocksCapability] : []),
+    ...(wantsSandbox ? [SandboxStoreCapability] : []),
   ]
 
   return defineChatMiddleware({
@@ -284,6 +290,9 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
       }
       if (wantsLocks && persistence.stores.locks) {
         provideLocks(ctx, persistence.stores.locks)
+      }
+      if (wantsSandbox && persistence.stores.sandbox) {
+        provideSandboxStore(ctx, persistence.stores.sandbox)
       }
     },
 

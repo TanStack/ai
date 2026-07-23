@@ -4,6 +4,7 @@ import type {
   AnyTextAdapter,
   ChatMiddlewareContext,
   LockStore,
+  SandboxStore,
   StreamChunk,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
@@ -12,9 +13,11 @@ import {
   InterruptsCapability,
   LocksCapability,
   PersistenceCapability,
+  SandboxStoreCapability,
   getInterrupts,
   getLocks,
   getPersistence,
+  getSandboxStore,
 } from '../src/capabilities'
 import { createInterruptController } from '../src/interrupts'
 import type { AIPersistence, InterruptStore } from '../src'
@@ -40,21 +43,28 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
 }
 
 describe('persistence capabilities', () => {
-  it('provides persistence, interrupts, and locks to downstream middleware', async () => {
+  it('provides persistence, interrupts, locks, and the sandbox store to downstream middleware', async () => {
     const persistence = memoryPersistence()
     const seen: {
       persistence?: AIPersistence
       interrupts?: InterruptStore
       locks?: LockStore
+      sandbox?: SandboxStore
     } = {}
 
     const consumer = defineChatMiddleware({
       name: 'capability-consumer',
-      requires: [PersistenceCapability, InterruptsCapability, LocksCapability],
+      requires: [
+        PersistenceCapability,
+        InterruptsCapability,
+        LocksCapability,
+        SandboxStoreCapability,
+      ],
       setup(ctx: ChatMiddlewareContext) {
         seen.persistence = getPersistence(ctx)
         seen.interrupts = getInterrupts(ctx)
         seen.locks = getLocks(ctx)
+        seen.sandbox = getSandboxStore(ctx)
       },
     })
 
@@ -85,6 +95,7 @@ describe('persistence capabilities', () => {
     expect(seen.persistence).toBe(persistence)
     expect(seen.interrupts).toBe(persistence.stores.interrupts)
     expect(seen.locks).toBe(persistence.stores.locks)
+    expect(seen.sandbox).toBe(persistence.stores.sandbox)
   })
 })
 

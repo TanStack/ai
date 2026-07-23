@@ -18,6 +18,7 @@ describe('memoryPersistence', () => {
       'messages',
       'metadata',
       'runs',
+      'sandbox',
     ])
   })
 

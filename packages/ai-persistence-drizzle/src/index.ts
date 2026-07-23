@@ -8,6 +8,7 @@
  */
 import { schema } from './schema'
 import { assertTanstackAiSchema } from './schema-contract'
+import { createDrizzleSandboxStore } from './sandbox-store'
 import {
   createInterruptStore,
   createMessageStore,
@@ -18,6 +19,7 @@ import type { TanstackAiSqliteSchema } from './schema-contract'
 import type { DrizzleSqliteDb, TanstackAiTables } from './stores'
 
 export { schema } from './schema'
+export { createDrizzleSandboxStore } from './sandbox-store'
 export { sqliteMigrations } from './migrations'
 export { drizzleSchemaFilename, drizzleSchemaSource } from './schema-source'
 export { DrizzleSchemaError } from './schema-contract'
@@ -41,7 +43,8 @@ export interface DrizzlePersistenceOptions {
 }
 
 /**
- * Wire TanStack AI persistence stores over a migrated Drizzle SQLite database.
+ * Wire TanStack AI persistence stores over a migrated Drizzle SQLite database,
+ * including the durable `sandbox` store consumed by `withSandbox`.
  *
  * No `locks` store is returned: this backend has no distributed lock primitive,
  * and bundling an `InMemoryLockStore` would silently hand multi-instance
@@ -61,6 +64,7 @@ export function drizzlePersistence(
       runs: createRunStore(db, tables),
       interrupts: createInterruptStore(db, tables),
       metadata: createMetadataStore(db, tables),
+      sandbox: createDrizzleSandboxStore(db),
     },
   }
 }

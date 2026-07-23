@@ -267,7 +267,8 @@
         {
           "label": "SQL Backends",
           "to": "persistence/sql-backends",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Drizzle",
@@ -282,7 +283,8 @@
         {
           "label": "Cloudflare",
           "to": "persistence/cloudflare",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Migrations",
@@ -454,7 +456,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Quick Start",
@@ -498,6 +500,11 @@
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
           "updatedAt": "2026-07-09"
+        },
+        {
+          "label": "Persistence",
+          "to": "sandbox/persistence",
+          "addedAt": "2026-07-23"
         },
         {
           "label": "Events",

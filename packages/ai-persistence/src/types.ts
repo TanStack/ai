@@ -1,4 +1,4 @@
-import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type { ModelMessage, SandboxStore, TokenUsage } from '@tanstack/ai'
 import type { LockStore } from './locks'
 
 // ===========================================================================
@@ -202,6 +202,12 @@ export interface AIPersistenceStores {
   interrupts?: InterruptStore
   metadata?: MetadataStore
   locks?: LockStore
+  /**
+   * Durable sandbox-resume records for `@tanstack/ai-sandbox`'s `withSandbox`.
+   * Independent of the chat stores; a persistence may carry only this (a
+   * sandbox run with no chat transcript). See `withSandbox`.
+   */
+  sandbox?: SandboxStore
 }
 
 export interface AIPersistence<
@@ -316,6 +322,7 @@ const storeKeys = [
   'interrupts',
   'metadata',
   'locks',
+  'sandbox',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)
