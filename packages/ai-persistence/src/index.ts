@@ -9,14 +9,36 @@ export type {
   InterruptStatus,
   InterruptStore,
   MetadataStore,
+  ArtifactRecord,
+  ArtifactStore,
+  BlobBody,
+  BlobRecord,
+  BlobObject,
+  BlobListPage,
+  BlobPutOptions,
+  BlobListOptions,
+  BlobStore,
   AIPersistence,
   AIPersistenceStores,
   AIPersistenceOverrides,
   ComposedAIPersistenceStores,
 } from './types'
 
+// Core artifact wire types (re-exported for convenience)
+export type {
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+} from '@tanstack/ai'
+
 // Middleware
 export { withPersistence, withGenerationPersistence } from './middleware'
+export type {
+  WithPersistenceOptions,
+  GenerationArtifactDescriptor,
+  GenerationArtifactExtractionInput,
+  GenerationArtifactNameInput,
+} from './middleware'
 
 // Server helper: rehydrate a thread's messages for a client load
 export { reconstructChat } from './reconstruct'

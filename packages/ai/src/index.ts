@@ -202,6 +202,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {

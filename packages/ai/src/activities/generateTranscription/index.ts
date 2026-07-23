@@ -9,6 +9,7 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
@@ -94,6 +95,10 @@ export interface TranscriptionActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 }
 
 // ===========================
@@ -171,8 +176,9 @@ export function generateTranscription<
   options: TranscriptionActivityOptions<TAdapter, TStream>,
 ): TranscriptionActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateTranscription(options),
+    return streamGenerationResult(
+      (resolved) => runGenerateTranscription({ ...options, ...resolved }),
+      options,
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -197,6 +203,8 @@ async function runGenerateTranscription<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
     ...rest
   } = options
   const model = adapter.model
@@ -214,6 +222,14 @@ async function runGenerateTranscription<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    artifactInputs: {
+      audio: rest.audio,
+      language: rest.language,
+      prompt: rest.prompt,
+      responseFormat: rest.responseFormat,
+    },
+    threadId,
+    runId,
     createId,
   })
 
@@ -236,7 +252,8 @@ async function runGenerateTranscription<
   })
 
   try {
-    const result = await adapter.transcribe({ ...rest, model, logger })
+    const rawResult = await adapter.transcribe({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('transcription:request:completed', {

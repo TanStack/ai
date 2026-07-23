@@ -13,6 +13,19 @@ function createId(prefix: string): string {
 }
 
 /**
+ * Persisted artifact refs a middleware may have attached to the result. Read
+ * defensively: the result shape is activity-specific and `artifacts` is only
+ * present when generation persistence is wired with an artifact + blob store.
+ */
+function artifactsFromResult(result: unknown): Array<unknown> | undefined {
+  if (typeof result !== 'object' || result === null) return undefined
+  const artifacts = (result as { artifacts?: unknown }).artifacts
+  return Array.isArray(artifacts) && artifacts.length > 0
+    ? artifacts
+    : undefined
+}
+
+/**
  * Wrap a one-shot generation result as a StreamChunk async iterable.
  *
  * This allows non-streaming activities (image, speech, transcription, summarize)
@@ -23,7 +36,10 @@ function createId(prefix: string): string {
  * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
 export async function* streamGenerationResult<TResult>(
-  generator: () => Promise<TResult>,
+  generator: (resolved: {
+    runId: string
+    threadId: string
+  }) => Promise<TResult>,
   options?: { runId?: string; threadId?: string },
 ): AsyncIterable<StreamChunk> {
   const runId = options?.runId ?? createId('run')
@@ -37,7 +53,19 @@ export async function* streamGenerationResult<TResult>(
   }
 
   try {
-    const result = await generator()
+    const result = await generator({ runId, threadId })
+
+    // Emit persisted artifact refs (if a middleware attached any) before the
+    // result, so the client records them as the run streams.
+    const artifacts = artifactsFromResult(result)
+    if (artifacts) {
+      yield {
+        type: EventType.CUSTOM,
+        name: 'generation:artifacts',
+        value: artifacts,
+        timestamp: Date.now(),
+      }
+    }
 
     yield {
       type: EventType.CUSTOM,

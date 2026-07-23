@@ -2050,6 +2050,10 @@ importers:
         version: 4.3.6
 
   packages/ai-persistence:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -31664,8 +31668,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinypool@2.1.0: {}
 
@@ -31815,7 +31819,7 @@ snapshots:
   tsx@4.21.0:
     dependencies:
       esbuild: 0.27.7
-      get-tsconfig: 4.13.0
+      get-tsconfig: 4.14.0
     optionalDependencies:
       fsevents: 2.3.3
 

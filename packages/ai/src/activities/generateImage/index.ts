@@ -9,6 +9,7 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
@@ -137,6 +138,10 @@ export type ImageActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
@@ -225,8 +230,9 @@ export function generateImage<
   options: ImageActivityOptions<TAdapter, TStream>,
 ): ImageActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateImage(options),
+    return streamGenerationResult(
+      (resolved) => runGenerateImage({ ...options, ...resolved }),
+      options,
     ) as ImageActivityResult<TStream>
   }
 
@@ -247,6 +253,8 @@ async function runGenerateImage<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
     ...rest
   } = options
   const model = adapter.model
@@ -260,6 +268,9 @@ async function runGenerateImage<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    artifactInputs: { prompt: rest.prompt },
     createId,
   })
 
@@ -295,7 +306,8 @@ async function runGenerateImage<
   })
 
   try {
-    const result = await adapter.generateImages({ ...rest, model, logger })
+    const rawResult = await adapter.generateImages({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('image:request:completed', {
