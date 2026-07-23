@@ -1,0 +1,233 @@
+.pc-page {
+  --pc-bg: #0b0c10;
+  --pc-panel: #14161d;
+  --pc-panel-2: #1b1e27;
+  --pc-border: #262a36;
+  --pc-text: #e7e9ee;
+  --pc-muted: #9aa3b2;
+  --pc-accent: #6366f1;
+  --pc-user: #6366f1;
+  --pc-assistant: #1b1e27;
+  --pc-tool: #12261f;
+  --pc-tool-border: #1f5c45;
+
+  max-width: 780px;
+  margin: 20px auto;
+  padding: 22px 22px 0;
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  color: var(--pc-text);
+  background: var(--pc-bg);
+  border: 1px solid var(--pc-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+.pc-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pc-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.pc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--pc-muted);
+}
+
+.pc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
+.pc-dot.connected {
+  background: #22c55e;
+}
+.pc-dot.error {
+  background: #ef4444;
+}
+
+.pc-blurb {
+  margin: 10px 0 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pc-muted);
+}
+.pc-blurb code {
+  background: var(--pc-panel-2);
+  border: 1px solid var(--pc-border);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: var(--pc-text);
+}
+
+.pc-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 4px 2px 20px;
+}
+
+.pc-empty {
+  margin: auto;
+  color: var(--pc-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.pc-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 88%;
+}
+.pc-row.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.pc-row.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.pc-role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pc-muted);
+}
+
+.pc-bubble {
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pc-row.user .pc-bubble {
+  background: var(--pc-user);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.pc-row.assistant .pc-bubble {
+  background: var(--pc-assistant);
+  border: 1px solid var(--pc-border);
+  border-bottom-left-radius: 4px;
+}
+
+.pc-tool {
+  background: var(--pc-tool);
+  border: 1px solid var(--pc-tool-border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  min-width: 220px;
+}
+.pc-tool-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #7fe3b8;
+}
+.pc-tool-io {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 7px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--pc-text);
+  overflow-x: auto;
+  white-space: pre;
+}
+.pc-tool-pending {
+  color: var(--pc-muted);
+  font-style: italic;
+}
+
+.pc-composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  padding: 14px 0 22px;
+  background: linear-gradient(to top, var(--pc-bg) 72%, transparent);
+}
+
+.pc-input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--pc-border);
+  background: var(--pc-panel);
+  color: var(--pc-text);
+  font-size: 14.5px;
+  outline: none;
+}
+.pc-input:focus {
+  border-color: var(--pc-accent);
+}
+.pc-input::placeholder {
+  color: var(--pc-muted);
+}
+
+.pc-send {
+  padding: 0 18px;
+  border-radius: 12px;
+  border: none;
+  background: var(--pc-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pc-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pc-suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.pc-chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--pc-border);
+  background: var(--pc-panel);
+  color: var(--pc-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pc-chip:hover {
+  color: var(--pc-text);
+  border-color: var(--pc-accent);
+}
