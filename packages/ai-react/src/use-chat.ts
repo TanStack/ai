@@ -73,6 +73,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
+  const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -279,8 +280,17 @@ export function useChat<
   useEffect(() => {
     if (options.live) {
       client.subscribe()
-    } else {
+      subscribedRef.current = true
+    } else if (subscribedRef.current) {
+      // Only tear down a subscription we actually started. Calling
+      // `unsubscribe()` on initial mount (when `live` was never enabled) would
+      // abort an in-flight delivery resume — `resumeInFlightRun` is kicked off
+      // in the client constructor, and `unsubscribe()` cancels the shared
+      // in-flight stream — so a mid-stream reload would drop its rejoin before
+      // it delivers a single chunk. This is exactly why a reload froze instead
+      // of continuing.
       client.unsubscribe()
+      subscribedRef.current = false
     }
   }, [client, options.live])
 
