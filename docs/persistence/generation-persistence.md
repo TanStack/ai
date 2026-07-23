@@ -97,8 +97,6 @@ streams and reads it back on load:
 import { localStoragePersistence } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 
-// Any web-storage adapter works here; no type argument needed. The persistence
-// option fixes the stored value type for you.
 const snapshots = localStoragePersistence({ keyPrefix: 'my-app:generation:' })
 
 export function HeroImageGenerator() {
