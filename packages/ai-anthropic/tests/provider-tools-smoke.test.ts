@@ -7,7 +7,7 @@
  *   2. Each factory produces a runtime shape with `name`, `description`, `metadata`.
  *   3. `convertToolsToProviderFormat` transforms those outputs into the SDK shape.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   bashTool,
   codeExecutionTool,
@@ -28,7 +28,7 @@ describe('Anthropic provider tool factories — runtime shape', () => {
     })
     expect(tool.name).toBe('web_search')
     expect(tool).toHaveProperty('description')
-    expect(tool).toHaveProperty('metadata')
+    expect(tool.metadata).toMatchObject({ __kind: 'anthropic.web_search' })
   })
 
   it('codeExecutionTool produces a Tool-shaped object', () => {
@@ -88,31 +88,98 @@ describe('Anthropic provider tool factories — runtime shape', () => {
 describe('convertToolsToProviderFormat — end-to-end shape', () => {
   it('converts webSearchTool output to the SDK web_search shape', () => {
     const [converted] = convertToolsToProviderFormat([
-      webSearchTool({
-        name: 'web_search',
-        type: 'web_search_20250305',
-        max_uses: 2,
-      }) as unknown as Tool,
+      {
+        ...webSearchTool({
+          name: 'web_search',
+          type: 'web_search_20250305',
+          max_uses: 2,
+        }),
+      },
     ])
-    expect(converted).toMatchObject({
+    expect(converted).toEqual({
       name: 'web_search',
       type: 'web_search_20250305',
+      cache_control: null,
     })
+  })
+
+  it('keeps provider identity through a plain-data round trip', () => {
+    const tool = JSON.parse(
+      JSON.stringify(
+        webSearchTool({
+          name: 'web_search',
+          type: 'web_search_20250305',
+        }),
+      ),
+    ) as Tool
+
+    expect(convertToolsToProviderFormat([tool])).toEqual([
+      {
+        name: 'web_search',
+        type: 'web_search_20250305',
+        cache_control: null,
+      },
+    ])
   })
 
   it('converts multiple provider tools in one call', () => {
     const converted = convertToolsToProviderFormat([
       webSearchTool({ name: 'web_search', type: 'web_search_20250305' }),
+      webFetchTool(),
       codeExecutionTool({
         name: 'code_execution',
         type: 'code_execution_20250825',
       }),
       bashTool({ name: 'bash', type: 'bash_20250124' }),
-    ] as unknown as Tool[])
-    expect(converted).toHaveLength(3)
+      computerUseTool({
+        type: 'computer_20250124',
+        name: 'computer',
+        display_width_px: 1024,
+        display_height_px: 768,
+      }),
+      memoryTool(),
+      textEditorTool({
+        type: 'text_editor_20250124',
+        name: 'str_replace_editor',
+      }),
+    ])
+    expect(converted).toHaveLength(7)
+    expect(JSON.stringify(converted)).not.toContain('__kind')
     const names = converted.map((t) => ('name' in t ? t.name : undefined))
     expect(names).toContain('web_search')
     expect(names).toContain('code_execution')
     expect(names).toContain('bash')
+  })
+
+  it.each([
+    'bash',
+    'code_execution',
+    'computer',
+    'memory',
+    'str_replace_editor',
+    'web_fetch',
+    'web_search',
+  ])('keeps an ordinary function named %s as a custom tool', (name) => {
+    const [converted] = convertToolsToProviderFormat([
+      {
+        name,
+        description: 'Run an application function',
+        inputSchema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+      } satisfies Tool,
+    ])
+
+    expect(converted).toMatchObject({
+      name,
+      type: 'custom',
+      description: 'Run an application function',
+      input_schema: {
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
+    })
   })
 })

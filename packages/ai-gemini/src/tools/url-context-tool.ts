@@ -1,4 +1,4 @@
-import { brandProviderTool } from '@tanstack/ai'
+import { brandGeminiProviderTool } from './gemini-provider-tool'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export interface UrlContextToolConfig {}
@@ -15,9 +15,12 @@ export function convertUrlContextToolToAdapterFormat(_tool: Tool) {
 }
 
 export function urlContextTool(): GeminiUrlContextTool {
-  return brandProviderTool<GeminiUrlContextTool>({
-    name: 'url_context',
-    description: '',
-    metadata: {},
-  })
+  return brandGeminiProviderTool<GeminiUrlContextTool>(
+    {
+      name: 'url_context',
+      description: '',
+      metadata: {},
+    },
+    'url_context',
+  )
 }

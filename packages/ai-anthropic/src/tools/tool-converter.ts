@@ -1,3 +1,4 @@
+import { getAnthropicProviderToolKind } from './anthropic-provider-tool'
 import { convertBashToolToAdapterFormat } from './bash-tool'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
@@ -37,24 +38,22 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool>,
 ): Array<AnthropicTool> {
   return tools.map((tool) => {
-    const name = tool.name
-
-    switch (name) {
+    switch (getAnthropicProviderToolKind(tool)) {
       case 'bash':
         return convertBashToolToAdapterFormat(tool)
       case 'code_execution':
         return convertCodeExecutionToolToAdapterFormat(tool)
-      case 'computer':
+      case 'computer_use':
         return convertComputerUseToolToAdapterFormat(tool)
       case 'memory':
         return convertMemoryToolToAdapterFormat(tool)
-      case 'str_replace_editor':
+      case 'text_editor':
         return convertTextEditorToolToAdapterFormat(tool)
       case 'web_fetch':
         return convertWebFetchToolToAdapterFormat(tool)
       case 'web_search':
         return convertWebSearchToolToAdapterFormat(tool)
-      default:
+      case undefined:
         return convertCustomToolToAdapterFormat(tool)
     }
   })

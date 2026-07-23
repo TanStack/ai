@@ -1,4 +1,7 @@
-import { brandProviderTool } from '@tanstack/ai'
+import {
+  brandGeminiProviderTool,
+  getGeminiProviderToolMetadata,
+} from './gemini-provider-tool'
 import type { GoogleSearch } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -10,7 +13,7 @@ export type GoogleSearchTool = GoogleSearchToolConfig
 export type GeminiGoogleSearchTool = ProviderTool<'gemini', 'google_search'>
 
 export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
-  const metadata = tool.metadata as GoogleSearchToolConfig
+  const metadata = getGeminiProviderToolMetadata(tool) as GoogleSearchToolConfig
   return {
     googleSearch: metadata,
   }
@@ -19,9 +22,12 @@ export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
 export function googleSearchTool(
   config?: GoogleSearchToolConfig,
 ): GeminiGoogleSearchTool {
-  return brandProviderTool<GeminiGoogleSearchTool>({
-    name: 'google_search',
-    description: '',
-    metadata: config,
-  })
+  return brandGeminiProviderTool<GeminiGoogleSearchTool>(
+    {
+      name: 'google_search',
+      description: '',
+      metadata: config,
+    },
+    'google_search',
+  )
 }
