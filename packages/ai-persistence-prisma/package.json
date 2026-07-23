@@ -79,12 +79,19 @@
   "peerDependencies": {
     "@prisma/client": ">=6.7.0",
     "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^"
+    "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-sandbox": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@prisma/client": "^6.19.3",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "prisma": "^6.19.3"
   }

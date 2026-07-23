@@ -218,6 +218,15 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+// Shared distributed-mutex primitive — the neutral home for the `'locks'`
+// capability, consumed by both @tanstack/ai-persistence and @tanstack/ai-sandbox.
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+} from './activities/chat/middleware/index'
+export type { LockStore } from './activities/chat/middleware/index'
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

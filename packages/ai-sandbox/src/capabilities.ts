@@ -5,12 +5,13 @@
  * - `SandboxCapability` is PROVIDED by `withSandbox` and REQUIRED by harness
  *   adapters (`requires: [SandboxCapability]`).
  * - `SandboxStoreCapability` / `LocksCapability` are OPTIONALLY required by
- *   `withSandbox`. v1 falls back to in-memory defaults; the future persistence
- *   package PROVIDES durable implementations.
+ *   `withSandbox`. They fall back to in-memory defaults; a persistence backend
+ *   (via `withSandboxPersistence` or `withPersistence`) PROVIDES durable
+ *   implementations.
  */
-import { createCapability } from '@tanstack/ai'
+import { LocksCapability, createCapability } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
-import type { LockStore, SandboxStore } from './store'
+import type { SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { ToolBridgeProvisioner } from './tool-bridge'
 
@@ -19,7 +20,13 @@ export const SandboxCapability = createCapability<SandboxHandle>()('sandbox')
 export const SandboxStoreCapability =
   createCapability<SandboxStore>()('sandbox-store')
 
-export const LocksCapability = createCapability<LockStore>()('locks')
+/**
+ * The `'locks'` token comes from core `@tanstack/ai` — the SAME reference a
+ * persistence middleware provides — so a distributed lock reaches `ensure`
+ * without a sandbox↔persistence dependency. Re-exported here so sandbox
+ * consumers import it alongside the other sandbox capabilities.
+ */
+export { LocksCapability }
 
 /**
  * The active sandbox policy, provided by `withSandbox` from the definition.

@@ -50,6 +50,16 @@ export interface MetadataRow {
   valueJson: string
 }
 
+export interface SandboxRow {
+  key: string
+  provider: string
+  providerSandboxId: string
+  latestSnapshotId: string | null
+  threadId: string
+  latestRunId: string | null
+  updatedAt: bigint
+}
+
 export interface MessageDelegate {
   findUnique: (args: {
     where: { threadId: string }
@@ -123,6 +133,31 @@ export interface MetadataDelegate {
   deleteMany: (args: {
     where: { scope: string; key: string }
   }) => Promise<unknown>
+}
+
+export interface SandboxDelegate {
+  findUnique: (args: { where: { key: string } }) => Promise<SandboxRow | null>
+  upsert: (args: {
+    where: { key: string }
+    create: {
+      key: string
+      provider: string
+      providerSandboxId: string
+      latestSnapshotId: string | null
+      threadId: string
+      latestRunId: string | null
+      updatedAt: bigint
+    }
+    update: {
+      provider: string
+      providerSandboxId: string
+      latestSnapshotId: string | null
+      threadId: string
+      latestRunId: string | null
+      updatedAt: bigint
+    }
+  }) => Promise<unknown>
+  deleteMany: (args: { where: { key: string } }) => Promise<unknown>
 }
 
 /** The delegate set the stores operate over. */
@@ -214,4 +249,24 @@ export function resolveDelegates(
   // per-method argument/result types are pinned by the delegate interfaces,
   // which the generated client's delegates satisfy (asserted in type tests).
   return resolved as TanstackAiDelegates
+}
+
+/**
+ * Resolve the sandbox model delegate off the client. Independent of the four
+ * chat delegates (sandbox persistence is its own store), so it takes the
+ * client accessor name directly (`sandbox` by default).
+ */
+export function resolveSandboxDelegate(
+  client: object,
+  modelName = 'sandbox',
+): SandboxDelegate {
+  const candidate: unknown = Reflect.get(client, modelName)
+  if (!isDelegate(candidate)) {
+    throw new PrismaModelError([
+      `sandbox store maps to \`client.${modelName}\`, which is not a Prisma model delegate.`,
+    ])
+  }
+  // Safe narrowing: same rationale as resolveDelegates — shape verified here,
+  // method signatures pinned by SandboxDelegate and asserted in type tests.
+  return candidate as SandboxDelegate
 }

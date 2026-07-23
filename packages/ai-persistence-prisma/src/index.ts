@@ -18,6 +18,8 @@ import type { PrismaClient } from '@prisma/client'
 export { prismaModels, prismaModelsFilename } from './models'
 export { PrismaModelError } from './model-contract'
 export type { PrismaModelMap } from './model-contract'
+export { createPrismaSandboxStore } from './sandbox-store'
+export type { PrismaSandboxStoreOptions } from './sandbox-store'
 
 export interface PrismaPersistenceOptions {
   /**

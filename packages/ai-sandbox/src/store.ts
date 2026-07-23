@@ -1,11 +1,17 @@
 /**
  * Persistence seams for the sandbox layer.
  *
- * v1 ships ONLY in-memory implementations (single-process resume). These are
- * deliberately pluggable OPTIONAL capabilities so the future persistence
- * package can `provide` durable implementations (D1/Postgres/Durable Objects)
+ * These are deliberately pluggable OPTIONAL capabilities so a persistence
+ * backend can `provide` durable implementations (D1/Postgres/Durable Objects)
  * without the sandbox layer changing. Do NOT hardcode storage here.
+ *
+ * The lock primitive (`LockStore` + `InMemoryLockStore`) is re-exported from
+ * core `@tanstack/ai` — it is the SAME token `@tanstack/ai-persistence` provides,
+ * so a distributed lock supplied by a persistence middleware reaches
+ * `withSandbox` transparently. The `SandboxStore` contract stays owned here.
  */
+export { InMemoryLockStore } from '@tanstack/ai'
+export type { LockStore } from '@tanstack/ai'
 
 /** One persisted sandbox instance, keyed by the compound sandbox instance key. */
 export interface SandboxRecord {
@@ -30,15 +36,6 @@ export interface SandboxStore {
   delete: (key: string) => Promise<void>
 }
 
-/**
- * Mutual exclusion around sandbox ensure so two concurrent runs for the same
- * thread don't both create a sandbox. The in-memory default is single-process;
- * the persistence layer provides a distributed lock (e.g. a Durable Object).
- */
-export interface LockStore {
-  withLock: <T>(key: string, fn: () => Promise<T>) => Promise<T>
-}
-
 /** In-memory {@link SandboxStore}. Resume works only within one process. */
 export class InMemorySandboxStore implements SandboxStore {
   private readonly map = new Map<string, SandboxRecord>()
@@ -55,29 +52,5 @@ export class InMemorySandboxStore implements SandboxStore {
   delete(key: string): Promise<void> {
     this.map.delete(key)
     return Promise.resolve()
-  }
-}
-
-/**
- * In-memory {@link LockStore} — a per-key promise chain. Correct within a
- * single process; multi-instance correctness needs a distributed lock from the
- * persistence layer.
- */
-export class InMemoryLockStore implements LockStore {
-  private readonly chains = new Map<string, Promise<unknown>>()
-
-  withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    const prior = this.chains.get(key) ?? Promise.resolve()
-    // Chain after the prior holder regardless of how it settled.
-    const run = prior.then(fn, fn)
-    // Keep the chain alive but swallow rejections so one failure doesn't poison the lock.
-    this.chains.set(
-      key,
-      run.then(
-        () => undefined,
-        () => undefined,
-      ),
-    )
-    return run
   }
 }

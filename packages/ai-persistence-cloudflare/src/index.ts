@@ -11,7 +11,7 @@ import type {
 import type { LockStore } from '@tanstack/ai-persistence'
 import type { DurableObjectLockStoreOptions } from './locks'
 
-export { createD1Stores } from './d1'
+export { createD1Stores, createD1SandboxStore } from './d1'
 export {
   CloudflareLockDurableObject,
   createDurableObjectLockStore,
