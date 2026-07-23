@@ -1332,6 +1332,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       }
     }
 
+    if (part.type === 'document') {
+      // Documents (PDF) are implemented on the Responses adapter, which maps
+      // them to `input_file`. Model modality arrays are not endpoint-scoped,
+      // so a document part can type-check for a model this adapter serves —
+      // point callers at the supported path instead of a generic error.
+      throw new Error(
+        `${this.name} does not support document parts on the Chat Completions ` +
+          `API; use the Responses adapter, which sends them as input_file.`,
+      )
+    }
+
     // Unsupported content type — subclasses can override to handle more types
     return null
   }

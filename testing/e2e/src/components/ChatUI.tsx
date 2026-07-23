@@ -1,52 +1,56 @@
-import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
-import remarkGfm from 'remark-gfm'
-import type { UIMessage } from '@tanstack/ai-react'
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
+import type { UIMessage } from "@tanstack/ai-react";
 import type {
   AnyClientTool,
   BoundInterrupts,
   QueuedMessage,
-} from '@tanstack/ai-client'
-import { ToolCallDisplay } from '@/components/ToolCallDisplay'
-import { ApprovalPrompt } from '@/components/ApprovalPrompt'
+} from "@tanstack/ai-client";
+import { ToolCallDisplay } from "@/components/ToolCallDisplay";
+import { ApprovalPrompt } from "@/components/ApprovalPrompt";
 
 interface ChatUIProps<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
 > {
-  messages: Array<UIMessage>
-  isLoading: boolean
-  onSendMessage: (text: string) => void
-  onSendMessageWithImage?: (text: string, file: File) => void
+  messages: Array<UIMessage>;
+  isLoading: boolean;
+  onSendMessage: (text: string) => void;
+  onSendMessageWithImage?: (text: string, file: File) => void;
+  /** Sends the prompt plus an attached document content part. */
+  onSendMessageWithDocument?: (text: string, file: File) => void;
   /**
    * Bound AG-UI interrupts from `useChat({ tools })` —
    * `BoundInterrupts<TTools>` (library type, not a harness DTO).
    */
-  interrupts?: BoundInterrupts<TTools>
+  interrupts?: BoundInterrupts<TTools>;
   /** @deprecated Prefer `interrupts` + resolveInterrupt. */
   addToolApprovalResponse?: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
-  showImageInput?: boolean
-  onStop?: () => void
+    id: string;
+    approved: boolean;
+  }) => Promise<void>;
+  showImageInput?: boolean;
+  /** Renders the PDF file input (multimodal-document feature only). */
+  showDocumentInput?: boolean;
+  onStop?: () => void;
   /** When the streaming structured-output CUSTOM event lands, the page
    *  exposes the parsed object here so e2e tests can assert that the event
    *  reached the client (not just that the JSON text was rendered). */
-  structuredObject?: unknown
+  structuredObject?: unknown;
   /** Number of TEXT_MESSAGE_CONTENT chunks observed. Used by streaming e2e
    *  tests to verify the response actually streamed in multiple deltas. */
-  contentDeltaCount?: number
+  contentDeltaCount?: number;
   /** Messages sent while a stream was already in flight — held here by
    *  `useChat` and auto-sent FIFO once the run settles. Rendered in a
    *  region separate from `messages` so e2e tests can assert queued state
    *  distinctly from the delivered conversation. */
-  queue?: Array<QueuedMessage>
+  queue?: Array<QueuedMessage>;
   /** Remove a queued message before it drains. */
-  cancelQueued?: (id: string) => void
+  cancelQueued?: (id: string) => void;
   /** Block new input while pending interrupts await resolution. */
-  hasPendingInterrupt?: boolean
+  hasPendingInterrupt?: boolean;
 }
 
 export function ChatUI<
@@ -56,9 +60,11 @@ export function ChatUI<
   isLoading,
   onSendMessage,
   onSendMessageWithImage,
+  onSendMessageWithDocument,
   interrupts = [],
   addToolApprovalResponse,
   showImageInput,
+  showDocumentInput,
   onStop,
   structuredObject,
   contentDeltaCount,
@@ -66,22 +72,22 @@ export function ChatUI<
   cancelQueued,
   hasPendingInterrupt = false,
 }: ChatUIProps<TTools>) {
-  const [input, setInput] = useState('')
-  const messagesRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [input, setInput] = useState("");
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
-  }, [messages])
+  }, [messages]);
 
   const handleSubmit = () => {
-    if (hasPendingInterrupt) return
-    if (!input.trim()) return
-    onSendMessage(input.trim())
-    setInput('')
-  }
+    if (hasPendingInterrupt) return;
+    if (!input.trim()) return;
+    onSendMessage(input.trim());
+    setInput("");
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
@@ -107,22 +113,22 @@ export function ChatUI<
         {interrupts
           // Only actionable pauses — staged/error are not clickable Approve
           // prompts; submitting is already omitted from the public list.
-          .filter((interrupt) => interrupt.status === 'pending')
+          .filter((interrupt) => interrupt.status === "pending")
           .map((interrupt) => {
             // Tool-approval interrupts expose `toolName` / `originalArgs`.
             // Structural narrow (not only `kind ===`) so this stays valid when
             // `TTools` defaults to a tools array whose `ChatInterrupt` union is
             // generic-only at the type level but still carries approval at runtime.
             if (
-              !('toolName' in interrupt) ||
-              !('originalArgs' in interrupt) ||
+              !("toolName" in interrupt) ||
+              !("originalArgs" in interrupt) ||
               // `unbound` pauses carry no resolver — they belong to another
               // producer on the stream.
-              !('resolveInterrupt' in interrupt)
+              !("resolveInterrupt" in interrupt)
             ) {
-              return null
+              return null;
             }
-            const toolName = String(interrupt.toolName)
+            const toolName = String(interrupt.toolName);
             return (
               <div
                 key={interrupt.id}
@@ -130,7 +136,7 @@ export function ChatUI<
                 className="my-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded"
               >
                 <div className="text-sm text-yellow-300 mb-2">
-                  Tool <span className="font-mono font-bold">{toolName}</span>{' '}
+                  Tool <span className="font-mono font-bold">{toolName}</span>{" "}
                   requires approval
                 </div>
                 <div className="text-xs text-gray-400 mb-2">
@@ -153,22 +159,22 @@ export function ChatUI<
                   </button>
                 </div>
               </div>
-            )
+            );
           })}
         {messages.map((message) => (
           <div
             key={message.id}
             data-testid={
-              message.role === 'user' ? 'user-message' : 'assistant-message'
+              message.role === "user" ? "user-message" : "assistant-message"
             }
             className={`p-3 rounded-lg ${
-              message.role === 'user'
-                ? 'bg-orange-500/10 border border-orange-500/20 ml-12'
-                : 'bg-gray-800/50 border border-gray-700 mr-12'
+              message.role === "user"
+                ? "bg-orange-500/10 border border-orange-500/20 ml-12"
+                : "bg-gray-800/50 border border-gray-700 mr-12"
             }`}
           >
             {message.parts.map((part, i) => {
-              if (part.type === 'text') {
+              if (part.type === "text") {
                 return (
                   <div
                     key={i}
@@ -182,16 +188,16 @@ export function ChatUI<
                       {part.content}
                     </ReactMarkdown>
                   </div>
-                )
+                );
               }
-              if (part.type === 'image') {
-                const imgPart = part as any
+              if (part.type === "image") {
+                const imgPart = part as any;
                 const src =
-                  imgPart.source?.type === 'data'
+                  imgPart.source?.type === "data"
                     ? `data:${imgPart.source.mimeType};base64,${imgPart.source.value}`
-                    : imgPart.source?.type === 'url'
+                    : imgPart.source?.type === "url"
                       ? imgPart.source.value
-                      : undefined
+                      : undefined;
                 return src ? (
                   <img
                     key={i}
@@ -200,9 +206,9 @@ export function ChatUI<
                     data-testid="image-part"
                     className="max-w-xs max-h-48 rounded mt-1"
                   />
-                ) : null
+                ) : null;
               }
-              if (part.type === 'thinking') {
+              if (part.type === "thinking") {
                 return (
                   <div
                     key={i}
@@ -211,14 +217,14 @@ export function ChatUI<
                   >
                     {part.content}
                   </div>
-                )
+                );
               }
               // Prefer bound `interrupts` UI above. Legacy message-part prompts
               // remain only when no interrupt list was provided (compat path).
               if (
                 interrupts.length === 0 &&
-                part.type === 'tool-call' &&
-                (part as any).state === 'approval-requested' &&
+                part.type === "tool-call" &&
+                (part as any).state === "approval-requested" &&
                 addToolApprovalResponse
               ) {
                 return (
@@ -227,12 +233,12 @@ export function ChatUI<
                     part={part}
                     onRespond={addToolApprovalResponse}
                   />
-                )
+                );
               }
-              if (part.type === 'tool-call') {
-                return <ToolCallDisplay key={i} part={part} />
+              if (part.type === "tool-call") {
+                return <ToolCallDisplay key={i} part={part} />;
               }
-              if (part.type === 'tool-result') {
+              if (part.type === "tool-result") {
                 return (
                   <div
                     key={i}
@@ -241,18 +247,18 @@ export function ChatUI<
                   >
                     Result: <code>{(part as any).content}</code>
                   </div>
-                )
+                );
               }
-              if (part.type === 'structured-output') {
+              if (part.type === "structured-output") {
                 // Render the streamed JSON so the assistant message has
                 // visible content for selectors (e.g. `getLastAssistantMessage`).
                 // Previously this content arrived as a `text` part — the new
                 // routing puts it on a `structured-output` part instead.
-                const sop = part as any
+                const sop = part as any;
                 const text =
                   sop.raw ||
-                  (sop.data !== undefined ? JSON.stringify(sop.data) : '')
-                if (text === '') return null
+                  (sop.data !== undefined ? JSON.stringify(sop.data) : "");
+                if (text === "") return null;
                 return (
                   <div
                     key={i}
@@ -261,9 +267,9 @@ export function ChatUI<
                   >
                     {text}
                   </div>
-                )
+                );
               }
-              return null
+              return null;
             })}
           </div>
         ))}
@@ -290,7 +296,7 @@ export function ChatUI<
               className="flex items-center justify-between gap-2 text-xs text-gray-400 bg-gray-800/40 rounded px-2 py-1"
             >
               <span data-testid="queued-message-text">
-                {typeof queued.content === 'string'
+                {typeof queued.content === "string"
                   ? queued.content
                   : JSON.stringify(queued.content)}
               </span>
@@ -317,15 +323,33 @@ export function ChatUI<
             data-testid="image-attachment-input"
             className="text-xs text-gray-400"
             onChange={(e) => {
-              const file = e.target.files?.[0]
+              const file = e.target.files?.[0];
               // Read the prompt from the live input DOM value rather than the
               // `input` React state. Attaching a file auto-sends, and under
               // load a controlled input's state can lag the committed DOM
               // value — reading state here would send an empty/partial prompt.
-              const text = (inputRef.current?.value ?? input).trim()
+              const text = (inputRef.current?.value ?? input).trim();
               if (file && text && onSendMessageWithImage) {
-                onSendMessageWithImage(text, file)
-                setInput('')
+                onSendMessageWithImage(text, file);
+                setInput("");
+              }
+            }}
+          />
+        )}
+        {showDocumentInput && (
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            data-testid="document-attachment-input"
+            className="text-xs text-gray-400"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Same DOM-value read as the image input above.
+              const text = (inputRef.current?.value ?? input).trim();
+              if (file && text && onSendMessageWithDocument) {
+                onSendMessageWithDocument(text, file);
+                setInput("");
+                e.target.value = "";
               }
             }}
           />
@@ -337,9 +361,9 @@ export function ChatUI<
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSubmit()
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
             }
           }}
           placeholder="Type a message..."
@@ -369,5 +393,5 @@ export function ChatUI<
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mmdocument] summarize this pdf"
+      },
+      "response": {
+        "content": "The PDF contains a single blank page with no text content."
+      }
+    }
+  ]
+}

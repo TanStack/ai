@@ -840,222 +840,222 @@ type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 describe('OpenAI Model Input Modality Type Assertions', () => {
   // ===== Models with text + image input =====
 
-  describe('gpt-5.1 (text + image)', () => {
+  describe('gpt-5.1 (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5.1-codex (text + image)', () => {
+  describe('gpt-5.1-codex (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1-codex']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5 (text + image)', () => {
+  describe('gpt-5 (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5-mini (text + image)', () => {
+  describe('gpt-5-mini (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-mini']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5-nano (text + image)', () => {
+  describe('gpt-5-nano (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-nano']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5-pro (text + image)', () => {
+  describe('gpt-5-pro (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-pro']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-5-codex (text + image)', () => {
+  describe('gpt-5-codex (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-5-codex']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-4.1 (text + image)', () => {
+  describe('gpt-4.1 (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-4.1-mini (text + image)', () => {
+  describe('gpt-4.1-mini (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-mini']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })
 
-  describe('gpt-4.1-nano (text + image)', () => {
+  describe('gpt-4.1-nano (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-nano']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })
@@ -1104,46 +1104,46 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
   })
 
-  describe('o3 (text + image)', () => {
+  describe('o3 (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })
 
-  describe('o3-pro (text + image)', () => {
+  describe('o3-pro (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o3-pro']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })
@@ -1192,68 +1192,68 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
   })
 
-  describe('o4-mini (text + image)', () => {
+  describe('o4-mini (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o4-mini']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
       >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
-      >().not.toExtend<Message>()
     })
   })
 
-  describe('o1 (text + image)', () => {
+  describe('o1 (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })
 
-  describe('o1-pro (text + image)', () => {
+  describe('o1-pro (text + image + document)', () => {
     type Modalities = OpenAIModelInputModalitiesByName['o1-pro']
     type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
-    it('should allow TextPart and ImagePart', () => {
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<OpenAITextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<OpenAIImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().toExtend<Message>()
     })
 
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
+    it('should NOT allow AudioPart or VideoPart', () => {
       expectTypeOf<
         MessageWithContent<OpenAIAudioPart>
       >().not.toExtend<Message>()
       expectTypeOf<
         MessageWithContent<OpenAIVideoPart>
-      >().not.toExtend<Message>()
-      expectTypeOf<
-        MessageWithContent<OpenAIDocumentPart>
       >().not.toExtend<Message>()
     })
   })

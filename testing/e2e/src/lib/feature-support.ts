@@ -188,6 +188,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // OpenAI only: this feature exercises the Responses adapter's PDF
+  // `input_file` conversion (base64 `file_data` + filename).
+  'multimodal-document': new Set(['openai']),
   // Bedrock excluded: same text-only default e2e model as multimodal-image above.
   'multimodal-structured': new Set([
     'openai',

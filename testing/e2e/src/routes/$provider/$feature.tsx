@@ -1,108 +1,108 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { uiMessagesToWire } from '@tanstack/ai'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
-import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
-import type { Feature, Mode, Provider } from '@/lib/types'
-import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
-import { isSupported } from '@/lib/feature-support'
-import { addToCartToolDef } from '@/lib/tools'
-import { NotSupported } from '@/components/NotSupported'
-import { ChatUI } from '@/components/ChatUI'
-import { ImageGenUI } from '@/components/ImageGenUI'
-import { TTSUI } from '@/components/TTSUI'
-import { TranscriptionUI } from '@/components/TranscriptionUI'
-import { VideoGenUI } from '@/components/VideoGenUI'
-import { AudioGenUI } from '@/components/AudioGenUI'
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { uiMessagesToWire } from "@tanstack/ai";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+import { clientTools } from "@tanstack/ai-client";
+import type { ChatClientPersistence, UIMessage } from "@tanstack/ai-client";
+import type { GeminiInteractionsCustomEventValue } from "@tanstack/ai-gemini/experimental";
+import type { Feature, Mode, Provider } from "@/lib/types";
+import { ALL_FEATURES, ALL_PROVIDERS } from "@/lib/types";
+import { isSupported } from "@/lib/feature-support";
+import { addToCartToolDef } from "@/lib/tools";
+import { NotSupported } from "@/components/NotSupported";
+import { ChatUI } from "@/components/ChatUI";
+import { ImageGenUI } from "@/components/ImageGenUI";
+import { TTSUI } from "@/components/TTSUI";
+import { TranscriptionUI } from "@/components/TranscriptionUI";
+import { VideoGenUI } from "@/components/VideoGenUI";
+import { AudioGenUI } from "@/components/AudioGenUI";
 
-const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
+const VALID_MODES = new Set<Mode>(["sse", "http-stream", "fetcher"]);
 
-export const Route = createFileRoute('/$provider/$feature')({
+export const Route = createFileRoute("/$provider/$feature")({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
     const port =
-      typeof search.aimockPort === 'number'
+      typeof search.aimockPort === "number"
         ? search.aimockPort
-        : typeof search.aimockPort === 'string'
+        : typeof search.aimockPort === "string"
           ? parseInt(search.aimockPort, 10)
-          : undefined
-    const rawMode = typeof search.mode === 'string' ? search.mode : undefined
+          : undefined;
+    const rawMode = typeof search.mode === "string" ? search.mode : undefined;
     return {
-      testId: typeof search.testId === 'string' ? search.testId : undefined,
+      testId: typeof search.testId === "string" ? search.testId : undefined,
       aimockPort: port != null && !isNaN(port) ? port : undefined,
       mode:
         rawMode && VALID_MODES.has(rawMode as Mode)
           ? (rawMode as Mode)
           : undefined,
       persistence:
-        search.persistence === 'localStorage' ? 'localStorage' : undefined,
+        search.persistence === "localStorage" ? "localStorage" : undefined,
       serverPersistence:
         search.serverPersistence === true ||
         search.serverPersistence === 1 ||
-        search.serverPersistence === '1',
-    }
+        search.serverPersistence === "1",
+    };
   },
-})
+});
 
 const MEDIA_FEATURES = new Set<Feature>([
-  'image-gen',
-  'image-to-image',
-  'tts',
-  'transcription',
-  'transcription-diarization',
-  'video-gen',
-  'image-to-video',
-  'interactions-video',
-  'audio-gen',
-  'sound-effects',
-])
+  "image-gen",
+  "image-to-image",
+  "tts",
+  "transcription",
+  "transcription-diarization",
+  "video-gen",
+  "image-to-video",
+  "interactions-video",
+  "audio-gen",
+  "sound-effects",
+]);
 
 const addToCartClient = addToCartToolDef.client((args) => ({
   success: true,
-  cartId: 'CART_' + Date.now(),
+  cartId: "CART_" + Date.now(),
   guitarId: args.guitarId,
   quantity: args.quantity,
-}))
+}));
 
-type StoredUIMessage = Omit<UIMessage, 'createdAt'> & {
-  createdAt?: Date | string
-}
+type StoredUIMessage = Omit<UIMessage, "createdAt"> & {
+  createdAt?: Date | string;
+};
 
 function serializeJson(value: unknown): string {
-  const serialized = JSON.stringify(value)
+  const serialized = JSON.stringify(value);
   if (serialized === undefined) {
-    throw new TypeError('The persistence value is not JSON serializable')
+    throw new TypeError("The persistence value is not JSON serializable");
   }
-  return serialized
+  return serialized;
 }
 
 const isProvider = (s: string): s is Provider =>
-  (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
+  (ALL_PROVIDERS as ReadonlyArray<string>).includes(s);
 const isFeature = (s: string): s is Feature =>
-  (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+  (ALL_FEATURES as ReadonlyArray<string>).includes(s);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 function isStoredUIMessage(value: unknown): value is StoredUIMessage {
   return (
     isRecord(value) &&
-    typeof value.id === 'string' &&
-    (value.role === 'system' ||
-      value.role === 'user' ||
-      value.role === 'assistant') &&
+    typeof value.id === "string" &&
+    (value.role === "system" ||
+      value.role === "user" ||
+      value.role === "assistant") &&
     Array.isArray(value.parts) &&
     (value.createdAt === undefined ||
       value.createdAt instanceof Date ||
-      typeof value.createdAt === 'string')
-  )
+      typeof value.createdAt === "string")
+  );
 }
 
 function deserializeMessages(raw: string): Array<UIMessage> {
-  const parsed: unknown = JSON.parse(raw)
+  const parsed: unknown = JSON.parse(raw);
   if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
-    throw new TypeError('Stored messages are invalid')
+    throw new TypeError("Stored messages are invalid");
   }
   return parsed.map(({ createdAt, ...message }) => ({
     ...message,
@@ -112,37 +112,37 @@ function deserializeMessages(raw: string): Array<UIMessage> {
             createdAt instanceof Date ? createdAt : new Date(createdAt),
         }
       : {}),
-  }))
+  }));
 }
 
 /** Simple localStorage message adapter (no @tanstack/ai-client storage helpers). */
 const messagePersistence: ChatClientPersistence = {
   getItem(id) {
     try {
-      const raw = localStorage.getItem(id)
-      return raw === null ? null : deserializeMessages(raw)
+      const raw = localStorage.getItem(id);
+      return raw === null ? null : deserializeMessages(raw);
     } catch {
-      return null
+      return null;
     }
   },
   setItem(id, messages) {
-    localStorage.setItem(id, serializeJson(messages))
+    localStorage.setItem(id, serializeJson(messages));
   },
   removeItem(id) {
-    localStorage.removeItem(id)
+    localStorage.removeItem(id);
   },
-}
+};
 
 function FeaturePage() {
-  const { provider, feature } = Route.useParams()
-  const { testId, aimockPort, mode } = Route.useSearch()
+  const { provider, feature } = Route.useParams();
+  const { testId, aimockPort, mode } = Route.useSearch();
 
   if (
     !isProvider(provider) ||
     !isFeature(feature) ||
     !isSupported(provider, feature)
   ) {
-    return <NotSupported provider={provider} feature={feature} />
+    return <NotSupported provider={provider} feature={feature} />;
   }
 
   if (MEDIA_FEATURES.has(feature)) {
@@ -150,14 +150,14 @@ function FeaturePage() {
       <MediaFeature
         provider={provider}
         feature={feature}
-        mode={mode || 'sse'}
+        mode={mode || "sse"}
         testId={testId}
         aimockPort={aimockPort}
       />
-    )
+    );
   }
 
-  return <ChatFeature provider={provider} feature={feature} mode={mode} />
+  return <ChatFeature provider={provider} feature={feature} mode={mode} />;
 }
 
 function MediaFeature({
@@ -167,14 +167,14 @@ function MediaFeature({
   testId,
   aimockPort,
 }: {
-  provider: Provider
-  feature: Feature
-  mode: Mode
-  testId?: string
-  aimockPort?: number
+  provider: Provider;
+  feature: Feature;
+  mode: Mode;
+  testId?: string;
+  aimockPort?: number;
 }) {
   switch (feature) {
-    case 'image-gen':
+    case "image-gen":
       return (
         <ImageGenUI
           provider={provider}
@@ -182,8 +182,8 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
         />
-      )
-    case 'image-to-image':
+      );
+    case "image-to-image":
       return (
         <ImageGenUI
           provider={provider}
@@ -192,8 +192,8 @@ function MediaFeature({
           aimockPort={aimockPort}
           withImageInput
         />
-      )
-    case 'tts':
+      );
+    case "tts":
       return (
         <TTSUI
           provider={provider}
@@ -201,9 +201,9 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
         />
-      )
-    case 'transcription':
-    case 'transcription-diarization':
+      );
+    case "transcription":
+    case "transcription-diarization":
       return (
         <TranscriptionUI
           provider={provider}
@@ -212,8 +212,8 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
         />
-      )
-    case 'video-gen':
+      );
+    case "video-gen":
       return (
         <VideoGenUI
           provider={provider}
@@ -221,8 +221,8 @@ function MediaFeature({
           testId={testId}
           aimockPort={aimockPort}
         />
-      )
-    case 'image-to-video':
+      );
+    case "image-to-video":
       return (
         <VideoGenUI
           provider={provider}
@@ -231,8 +231,8 @@ function MediaFeature({
           aimockPort={aimockPort}
           withImageInput
         />
-      )
-    case 'interactions-video':
+      );
+    case "interactions-video":
       return (
         <VideoGenUI
           provider={provider}
@@ -241,9 +241,9 @@ function MediaFeature({
           aimockPort={aimockPort}
           feature="interactions-video"
         />
-      )
-    case 'audio-gen':
-    case 'sound-effects':
+      );
+    case "audio-gen":
+    case "sound-effects":
       return (
         <AudioGenUI
           provider={provider}
@@ -252,9 +252,9 @@ function MediaFeature({
           aimockPort={aimockPort}
           feature={feature}
         />
-      )
+      );
     default:
-      return <NotSupported provider={provider} feature={feature} />
+      return <NotSupported provider={provider} feature={feature} />;
   }
 }
 
@@ -263,50 +263,51 @@ function ChatFeature({
   feature,
   mode,
 }: {
-  provider: Provider
-  feature: Feature
-  mode?: Mode
+  provider: Provider;
+  feature: Feature;
+  mode?: Mode;
 }) {
-  const needsApproval = feature === 'tool-approval'
+  const needsApproval = feature === "tool-approval";
   const showImageInput =
-    feature === 'multimodal-image' || feature === 'multimodal-structured'
+    feature === "multimodal-image" || feature === "multimodal-structured";
+  const showDocumentInput = feature === "multimodal-document";
 
   // Stable tools tuple so `useChat` / `BoundInterrupts` keep approval typing
   // (and ChatUI can accept `interrupts` without casts).
-  const approvalTools = clientTools(addToCartClient)
-  const tools = needsApproval ? approvalTools : undefined
+  const approvalTools = clientTools(addToCartClient);
+  const tools = needsApproval ? approvalTools : undefined;
 
   const { testId, aimockPort, persistence, serverPersistence } =
-    Route.useSearch()
-  const persistenceEnabled = persistence === 'localStorage'
-  const serverPersistenceEnabled = serverPersistence === true
-  const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
+    Route.useSearch();
+  const persistenceEnabled = persistence === "localStorage";
+  const serverPersistenceEnabled = serverPersistence === true;
+  const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`;
   // When persistence is on, expose a tiny thread switcher so e2e can verify that
   // changing the `id` in place swaps to that id's own persisted history (the
   // render-from-getMessages + activeClientRef path), keyed per thread. Start on
   // thread "a" (not null) so the page loads already on a thread id — switching
   // is then a pure in-place id swap with no initial null→thread transition.
   const [activeThread, setActiveThread] = useState<string | null>(
-    persistenceEnabled ? 'a' : null,
-  )
-  const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId
+    persistenceEnabled ? "a" : null,
+  );
+  const chatId = activeThread ? `${baseChatId}:${activeThread}` : baseChatId;
 
-  const [structuredObject, setStructuredObject] = useState<unknown>(null)
-  const [contentDeltaCount, setContentDeltaCount] = useState(0)
+  const [structuredObject, setStructuredObject] = useState<unknown>(null);
+  const [contentDeltaCount, setContentDeltaCount] = useState(0);
   const [interactionId, setInteractionId] = useState<string | undefined>(
     undefined,
-  )
+  );
 
   const transport =
-    mode === 'fetcher'
+    mode === "fetcher"
       ? {
           fetcher: async (
             input: {
-              messages: Array<UIMessage>
-              data?: unknown
-              threadId: string
-              runId: string
-              resume?: Array<unknown>
+              messages: Array<UIMessage>;
+              data?: unknown;
+              threadId: string;
+              runId: string;
+              resume?: Array<unknown>;
             },
             options: { signal: AbortSignal },
           ) =>
@@ -316,14 +317,14 @@ function ChatFeature({
             // `useChat({ body })` already flowed provider/feature/testId/
             // aimockPort into `input.data`, so it forwards as
             // `forwardedProps`.
-            fetch('/api/chat', {
-              method: 'POST',
+            fetch("/api/chat", {
+              method: "POST",
               headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
                 // Sentinel header so e2e tests can positively assert the
                 // fetcher path executed (and didn't silently fall back to
                 // the connection adapter).
-                'x-tanstack-ai-transport': 'fetcher',
+                "x-tanstack-ai-transport": "fetcher",
               },
               body: JSON.stringify({
                 threadId: input.threadId,
@@ -338,7 +339,7 @@ function ChatFeature({
               signal: options.signal,
             }),
         }
-      : { connection: fetchServerSentEvents('/api/chat') }
+      : { connection: fetchServerSentEvents("/api/chat") };
 
   const {
     messages,
@@ -367,22 +368,22 @@ function ChatFeature({
     // on this branch (durable resume adapters live on feat/persistence).
     persistence: persistenceEnabled ? messagePersistence : undefined,
     onCustomEvent: (eventType, data) => {
-      if (eventType === 'structured-output.complete') {
-        const value = data as { object: unknown; raw: string } | undefined
-        setStructuredObject(value?.object ?? null)
-      } else if (eventType === 'gemini.interactionId') {
+      if (eventType === "structured-output.complete") {
+        const value = data as { object: unknown; raw: string } | undefined;
+        setStructuredObject(value?.object ?? null);
+      } else if (eventType === "gemini.interactionId") {
         const value = data as
-          | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
-          | undefined
-        if (value?.interactionId) setInteractionId(value.interactionId)
+          | GeminiInteractionsCustomEventValue<"gemini.interactionId">
+          | undefined;
+        if (value?.interactionId) setInteractionId(value.interactionId);
       }
     },
     onChunk: (chunk) => {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-        setContentDeltaCount((n) => n + 1)
+      if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+        setContentDeltaCount((n) => n + 1);
       }
     },
-  })
+  });
 
   return (
     <>
@@ -409,14 +410,14 @@ function ChatFeature({
           <button
             type="button"
             data-testid="select-thread-a"
-            onClick={() => setActiveThread('a')}
+            onClick={() => setActiveThread("a")}
           >
             Thread A
           </button>
           <button
             type="button"
             data-testid="select-thread-b"
-            onClick={() => setActiveThread('b')}
+            onClick={() => setActiveThread("b")}
           >
             Thread B
           </button>
@@ -433,37 +434,63 @@ function ChatFeature({
         queue={queue}
         cancelQueued={cancelQueued}
         onSendMessage={(text) => {
-          sendMessage(text)
+          sendMessage(text);
         }}
         onSendMessageWithImage={
           showImageInput
             ? (text, file) => {
-                const reader = new FileReader()
+                const reader = new FileReader();
                 reader.onload = () => {
-                  const base64 = (reader.result as string).split(',')[1]
+                  const base64 = (reader.result as string).split(",")[1];
                   sendMessage({
                     content: [
-                      { type: 'text', content: text },
+                      { type: "text", content: text },
                       {
-                        type: 'image',
+                        type: "image",
                         source: {
-                          type: 'data',
+                          type: "data",
                           value: base64,
                           mimeType: file.type,
                         },
                       },
                     ],
-                  })
-                }
-                reader.readAsDataURL(file)
+                  });
+                };
+                reader.readAsDataURL(file);
+              }
+            : undefined
+        }
+        onSendMessageWithDocument={
+          showDocumentInput
+            ? (text, file) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(",")[1];
+                  sendMessage({
+                    content: [
+                      { type: "text", content: text },
+                      {
+                        type: "document",
+                        source: {
+                          type: "data",
+                          value: base64,
+                          mimeType: file.type,
+                        },
+                        metadata: { filename: file.name },
+                      },
+                    ],
+                  });
+                };
+                reader.readAsDataURL(file);
               }
             : undefined
         }
         interrupts={needsApproval ? interrupts : undefined}
-        hasPendingInterrupt={interrupts.some((i) => i.status === 'pending')}
+        hasPendingInterrupt={interrupts.some((i) => i.status === "pending")}
         showImageInput={showImageInput}
+        showDocumentInput={showDocumentInput}
         onStop={stop}
       />
     </>
-  )
+  );
 }
