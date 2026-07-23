@@ -286,9 +286,7 @@ describe('ChatClient auto-rejoin after reload', () => {
       connection,
       persistence: { store: adapter, messages: false },
       // History the app fetched from the server (reconstructChat) and seeded.
-      initialMessages: [
-        createUIMessage('history-1', 'earlier turn', 'user'),
-      ],
+      initialMessages: [createUIMessage('history-1', 'earlier turn', 'user')],
       onMessagesChange: (messages) => {
         latest = messages
       },
