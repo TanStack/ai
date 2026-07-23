@@ -60,13 +60,10 @@ because `RunStore` is keyed by `runId`.
 ```tsx
 import { localStoragePersistence } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
-import type { GenerationPersistence } from '@tanstack/ai-client'
 
-// The same web-storage adapters the chat client uses work here. Annotating the
-// store with `GenerationPersistence` infers the snapshot type — no generic.
-const snapshots: GenerationPersistence = localStoragePersistence({
-  keyPrefix: 'my-app:generation:',
-})
+// The same web-storage adapters the chat client uses work here — no type
+// argument or annotation needed; the `persistence` option constrains the value.
+const snapshots = localStoragePersistence({ keyPrefix: 'my-app:generation:' })
 
 export function HeroImageGenerator() {
   const image = useGenerateImage({

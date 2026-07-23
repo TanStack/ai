@@ -6,14 +6,13 @@ import {
   fetchServerSentEvents,
   localStoragePersistence,
 } from '@tanstack/ai-client'
-import type { GenerationPersistence } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
 
 // Reuse the shared web-storage adapter for the lightweight, read-only
 // generation resume snapshot. Only run identity, status, errors, and result
 // metadata are stored — never the generated image bytes.
-const imageSnapshots: GenerationPersistence = localStoragePersistence({
+const imageSnapshots = localStoragePersistence({
   keyPrefix: 'example:generation:',
 })
 
