@@ -57,6 +57,7 @@ export type {
   OpenRouterVideoMetadata,
   OpenRouterDocumentMetadata,
   OpenRouterMessageMetadataByModality,
+  OpenRouterResponsesToolCallMetadata,
 } from './message-types'
 export type {
   WebPlugin,

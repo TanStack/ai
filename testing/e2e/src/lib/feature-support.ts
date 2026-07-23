@@ -58,6 +58,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'openrouter-responses',
     'openai-compatible',
     'mistral',
   ]),

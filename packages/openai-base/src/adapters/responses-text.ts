@@ -32,6 +32,27 @@ import type {
 } from '@tanstack/ai'
 
 /**
+ * Provider-specific metadata that preserves the Responses API output item ID.
+ *
+ * Responses function calls have two identifiers: `call_id` correlates the
+ * function output with the call, while `id` identifies the output item itself.
+ * TanStack AI uses `call_id` as the canonical tool-call ID and carries the
+ * item ID here so stateless follow-up requests can replay both values.
+ */
+export interface OpenAIResponsesToolCallMetadata {
+  itemId: string
+}
+
+interface StreamedFunctionCallMetadata {
+  callId: string
+  index: number
+  name: string
+  started: boolean
+  ended?: boolean
+  pendingArguments?: string | undefined
+}
+
+/**
  * Shared implementation of the OpenAI Responses API. Holds the stream-event
  * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
  * (today: ai-openai) construct an OpenAI client with their provider-specific
@@ -49,7 +70,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
-  TToolCapabilities
+  TToolCapabilities,
+  OpenAIResponsesToolCallMetadata
 > {
   override readonly kind = 'text' as const
   readonly name: string
@@ -64,26 +86,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
-    // Track tool call metadata by unique ID
-    // Responses API streams tool calls with deltas — first chunk has ID/name,
-    // subsequent chunks only have args.
-    // We assign our own indices as we encounter unique tool call IDs.
-    const toolCallMetadata = new Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        // Set once TOOL_CALL_END has been emitted (via args.done or the
-        // output_item.done backfill) so the two paths don't double-emit.
-        ended?: boolean
-        // Set when args.done arrives before TOOL_CALL_START could fire
-        // (output_item.added lacked a name). output_item.done picks these
-        // up to emit the missing END. Allow explicit `undefined` so the
-        // emission paths can re-clear the slot after handing it off.
-        pendingArguments?: string
-      }
-    >()
+    // Key streamed state by output item ID because argument deltas reference
+    // `item_id`. The state separately retains `call_id`, which is the public
+    // tool-call ID and the correlation key for function_call_output.
+    const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
     // AG-UI lifecycle tracking
     const aguiState = {
@@ -759,16 +765,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected async *processStreamChunks(
     stream: AsyncIterable<ResponseStreamEvent>,
-    toolCallMetadata: Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        ended?: boolean
-        pendingArguments?: string | undefined
-      }
-    >,
+    toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
     options: TextOptions<TProviderOptions>,
     aguiState: {
       runId: string
@@ -1184,26 +1181,33 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             let metadata = toolCallMetadata.get(item.id)
             if (!metadata) {
               metadata = {
+                callId: item.call_id || item.id,
                 index: chunk.output_index,
                 name: item.name || '',
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              // A later output_item.added for the same id finally carries
-              // the name. Update so the gated emission below can fire.
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) {
+                // A later output_item.added for the same id finally carries
+                // the name. Update so the gated emission below can fire.
+                metadata.name = item.name
+              }
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1240,7 +1244,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
           yield {
             type: EventType.TOOL_CALL_ARGS,
-            toolCallId: chunk.item_id,
+            toolCallId: metadata.callId,
             model: model || options.model,
             timestamp: Date.now(),
             delta: chunk.delta,
@@ -1308,7 +1312,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           yield {
             type: EventType.TOOL_CALL_END,
-            toolCallId: item_id,
+            toolCallId: metadata.callId,
             toolCallName: name,
             toolName: name,
             model: model || options.model,
@@ -1326,26 +1330,31 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.call_id || item.id,
               index: chunk.output_index,
               name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             // Emit gated START if we now have a name and never started.
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1382,7 +1391,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1406,25 +1415,30 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           for (const item of chunk.response.output) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.call_id || item.id,
               index: 0,
               name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1459,7 +1473,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1725,10 +1739,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const itemId = (
+              toolCall.metadata as OpenAIResponsesToolCallMetadata | undefined
+            )?.itemId
 
             result.push({
               type: 'function_call',
               call_id: toolCall.id,
+              ...(itemId && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
             })
