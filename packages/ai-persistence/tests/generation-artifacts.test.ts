@@ -8,6 +8,7 @@ import {
 import { composePersistence, defineAIPersistence } from '../src/types'
 import { memoryPersistence } from '../src/memory'
 import { withGenerationPersistence } from '../src/middleware'
+import { retrieveArtifact, retrieveBlob } from '../src/retrieve'
 import type {
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,
@@ -151,6 +152,37 @@ describe('withGenerationPersistence generation artifacts', () => {
       `artifacts/run-image/${result.artifacts![0]!.artifactId}`,
     )
     await expect(blob?.text()).resolves.toBe('output-image')
+  })
+
+  it('retrieveArtifact / retrieveBlob fetch a persisted artifact and its bytes', async () => {
+    const persistence = memoryPersistence()
+
+    const result = await generateImage({
+      adapter: imageAdapter(),
+      prompt: 'make an image',
+      threadId: 'thread-retrieve',
+      runId: 'run-retrieve',
+      middleware: [withGenerationPersistence(persistence)],
+    })
+    const artifactId = result.artifacts![0]!.artifactId
+
+    const record = await retrieveArtifact(persistence, artifactId)
+    expect(record).toMatchObject({
+      runId: 'run-retrieve',
+      mimeType: 'image/png',
+    })
+
+    // By id (resolves the record first) and by an already-loaded record.
+    await expect(
+      (await retrieveBlob(persistence, artifactId))?.text(),
+    ).resolves.toBe('output-image')
+    await expect(
+      (await retrieveBlob(persistence, record!))?.text(),
+    ).resolves.toBe('output-image')
+
+    // Unknown id resolves to null on both.
+    expect(await retrieveArtifact(persistence, 'missing')).toBeNull()
+    expect(await retrieveBlob(persistence, 'missing')).toBeNull()
   })
 
   it('persists non-image media outputs', async () => {

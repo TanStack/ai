@@ -44,6 +44,9 @@ export type {
 export { reconstructChat } from './reconstruct'
 export type { ReconstructChatOptions } from './reconstruct'
 
+// Server helpers: retrieve a persisted generation artifact + its bytes
+export { retrieveArtifact, retrieveBlob, artifactBlobKey } from './retrieve'
+
 // Reference in-memory implementation
 export { memoryPersistence } from './memory'
 

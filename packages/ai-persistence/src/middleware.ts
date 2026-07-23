@@ -42,6 +42,7 @@ import type {
   InterruptRecord,
   RunStore,
 } from './types'
+import { artifactBlobKey } from './retrieve'
 
 export interface WithPersistenceOptions {
   extractArtifacts?: (
@@ -682,7 +683,7 @@ async function persistGenerationArtifacts(
     const artifactId = ctx.createId('artifact')
     const { body, size, mimeType, externalUrl } =
       await descriptorBody(descriptor)
-    const key = `artifacts/${runId}/${artifactId}`
+    const key = artifactBlobKey({ runId, artifactId })
     const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
       customMetadata: {

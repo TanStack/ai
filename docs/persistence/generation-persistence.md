@@ -113,6 +113,8 @@ import {
 import { openaiImage } from '@tanstack/ai-openai'
 import {
   memoryPersistence,
+  retrieveArtifact,
+  retrieveBlob,
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
 
@@ -143,12 +145,10 @@ export async function GET(request: Request) {
   const artifactId = new URL(request.url).searchParams.get('id')
   if (!artifactId) return new Response('missing id', { status: 400 })
 
-  const artifact = await persistence.stores.artifacts?.get(artifactId)
+  const artifact = await retrieveArtifact(persistence, artifactId)
   if (!artifact) return new Response('not found', { status: 404 })
 
-  const blob = await persistence.stores.blobs?.get(
-    `artifacts/${artifact.runId}/${artifact.artifactId}`,
-  )
+  const blob = await retrieveBlob(persistence, artifact)
   if (!blob) return new Response('not found', { status: 404 })
 
   return new Response(blob.body ?? (await blob.arrayBuffer()), {
