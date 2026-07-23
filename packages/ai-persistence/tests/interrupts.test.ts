@@ -248,14 +248,17 @@ describe('interrupt persistence', () => {
     ).toBe('resolved')
   })
 
-  // TODO(persistence-interrupts): the two-phase approval -> client-tool
-  // continuation depends on the current chat engine's resume-execution semantics
-  // (whether a resume re-invokes the model, and how an approved client tool
-  // advances to its execution interrupt). Single-phase approval and client-tool
-  // resume are covered above; this two-phase chain needs reconciliation with the
-  // engine owner before we can assert the exact call sequence. Skipped, not
-  // silently altered, so the gap is visible.
-  it.skip('applies persisted approval and client-tool resume decisions with empty client messages', async () => {
+  // The full two-phase chain for an approval-required client tool, driven
+  // entirely from persisted server state with empty client `messages`:
+  //   phase 1: model requests the tool  -> approval interrupt pending
+  //   phase 2: resume approves           -> client-execution interrupt pending
+  //   phase 3: resume supplies output    -> tool result fed back, model finishes
+  //
+  // The engine reprocesses the pending tool call from the thread the middleware
+  // rehydrates (not from the omitted client history), so approving does NOT
+  // re-invoke the model — it advances straight to the client-execution
+  // interrupt. Feeding the client output then drives exactly one model call.
+  it('applies persisted approval and client-tool resume decisions with empty client messages', async () => {
     const persistence = memoryPersistence()
     const toolCallChunks = () => [
       runStarted(),
@@ -286,7 +289,7 @@ describe('interrupt persistence', () => {
     )
     expect(approvalInterrupt?.status).toBe('pending')
 
-    const afterApproval = mockAdapter([toolCallChunks()])
+    const afterApproval = mockAdapter([])
     const approvalChunks = await collect(
       chat({
         adapter: afterApproval.adapter,
@@ -305,12 +308,9 @@ describe('interrupt persistence', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    expect(afterApproval.calls).toHaveLength(1)
-    expect(
-      (
-        afterApproval.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
-      ).approvals?.get('approval_tool-call-1'),
-    ).toBe(true)
+    // Approving a client tool does not call the model: the engine reprocesses
+    // the rehydrated tool call and requests client execution directly.
+    expect(afterApproval.calls).toHaveLength(0)
     expect(
       approvalChunks.find(
         (chunk) =>
@@ -322,7 +322,6 @@ describe('interrupt persistence', () => {
         interrupts: [
           {
             id: 'client_tool_tool-call-1',
-            reason: 'client_tool_input',
             toolCallId: 'tool-call-1',
           },
         ],
@@ -338,7 +337,6 @@ describe('interrupt persistence', () => {
     ).toBe('pending')
 
     const afterClientTool = mockAdapter([
-      toolCallChunks(),
       [runStarted(), text('done'), runFinished('r1')],
     ])
     const finalChunks = await collect(
@@ -359,7 +357,9 @@ describe('interrupt persistence', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    expect(afterClientTool.calls).toHaveLength(2)
+    // The client output is fed back as a tool result, then a single model call
+    // produces the final answer.
+    expect(afterClientTool.calls).toHaveLength(1)
     expect(finalChunks).toContainEqual(
       expect.objectContaining({
         type: EventType.TOOL_CALL_RESULT,
@@ -474,9 +474,7 @@ describe('interrupt persistence', () => {
       ),
     ).rejects.toThrow(/missing resume entry.*interrupt-1/i)
 
-    const good = mockAdapter([
-      [runStarted(), interruptFinished('r2')],
-    ])
+    const good = mockAdapter([[runStarted(), interruptFinished('r2')]])
     await collect(
       chat({
         adapter: good.adapter,
