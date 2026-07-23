@@ -58,24 +58,23 @@ because `RunStore` is keyed by `runId`.
 ## Persist the client snapshot
 
 ```tsx
-import { localStoragePersistence } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
-import type { GenerationResumeSnapshot } from '@tanstack/ai-client'
+import type { GenerationServerPersistence } from '@tanstack/ai-client'
 
-function serializeJson(value: unknown): string {
-  const stringify: (input: unknown) => unknown = JSON.stringify
-  const serialized = stringify(value)
-  if (typeof serialized !== 'string') {
-    throw new TypeError('The value is not JSON serializable.')
-  }
-  return serialized
+// `GenerationServerPersistence` already pins the stored value to a
+// `GenerationResumeSnapshot`, so there is no generic to pass at the call site.
+const snapshots: GenerationServerPersistence = {
+  getItem: (id) => {
+    const raw = localStorage.getItem(`my-app:generation:${id}`)
+    return raw ? JSON.parse(raw) : null
+  },
+  setItem: (id, value) => {
+    localStorage.setItem(`my-app:generation:${id}`, JSON.stringify(value))
+  },
+  removeItem: (id) => {
+    localStorage.removeItem(`my-app:generation:${id}`)
+  },
 }
-
-const snapshots = localStoragePersistence<GenerationResumeSnapshot>({
-  keyPrefix: 'my-app:generation:',
-  serialize: serializeJson,
-  deserialize: JSON.parse,
-})
 
 export function HeroImageGenerator() {
   const image = useGenerateImage({
