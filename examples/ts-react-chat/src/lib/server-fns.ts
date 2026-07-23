@@ -8,9 +8,14 @@ import {
   generateTranscription,
   generateVideo,
   getVideoJobStatus,
+  modelMessagesToUIMessages,
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import {
+  PERSISTENT_CHAT_THREAD_ID,
+  persistentChatPersistence,
+} from './persistent-chat-store'
 import {
   openaiImage,
   openaiSummarize,
@@ -414,3 +419,27 @@ export const chatFn = createServerFn({ method: 'POST' })
       }),
     ),
   )
+
+// =============================================================================
+// Persistent-chat history — server-authoritative hydration
+// =============================================================================
+
+/**
+ * Read the durable transcript for the persistent-chat demo and return it as UI
+ * messages, ready to seed `useChat({ initialMessages })`. The page runs
+ * `persistence: { store, messages: false }`, so it caches only the resume
+ * pointer and no transcript — history comes from the server on load. The page
+ * loader calls this instead of `fetch`ing the GET endpoint so it works during
+ * SSR (a relative fetch has no origin server-side); the GET endpoint's
+ * `reconstructChat` branch reads the same store over HTTP for other clients.
+ */
+export const loadPersistentChatHistoryFn = createServerFn().handler(
+  async (): Promise<Array<UIMessage>> => {
+    const persistence = persistentChatPersistence()
+    const stored =
+      (await persistence.stores.messages?.loadThread(
+        PERSISTENT_CHAT_THREAD_ID,
+      )) ?? []
+    return modelMessagesToUIMessages(stored)
+  },
+)

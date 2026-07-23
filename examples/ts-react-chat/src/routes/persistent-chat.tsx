@@ -5,37 +5,39 @@ import {
   localStoragePersistence,
 } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
+import { loadPersistentChatHistoryFn } from '../lib/server-fns'
 
 export const Route = createFileRoute('/persistent-chat')({
+  // Server-authoritative history: the client caches no transcript, so hydrate
+  // it from the server on load. Works during SSR (the server fn reads the store
+  // directly — no relative fetch that would fail without an origin).
+  loader: () => loadPersistentChatHistoryFn(),
   component: PersistentChatPage,
 })
 
 const connection = fetchServerSentEvents('/api/persistent-chat')
 
-// One combined record (messages + resume snapshot) per thread, in localStorage
-// so it survives a full reload and browser restart. Defaults to a JSON codec
-// and the ChatPersistedState shape, so no type argument or codec is needed.
-const store = localStoragePersistence()
+const THREAD_ID = 'persistent-chat'
 
-// Client-authoritative: cache the transcript in localStorage (default).
-const persistence = store
-
-// Server-authoritative alternative — keep big histories OFF the client:
-//
-//   const persistence = { store, messages: false }
-//
-// Only the tiny resume pointer is cached, so reload still rejoins an in-flight
-// run and restores interrupts, but the transcript is NOT in localStorage. Load
-// history from the server instead (a router loader that fetches the GET
-// `/api/persistent-chat?threadId=…` history branch and seeds `initialMessages`).
+// Recommended setup: server-authoritative persistence. The client caches ONLY
+// the resume pointer (which run to rejoin, which interrupts are pending) in
+// localStorage — never the transcript. So a reload still rejoins an in-flight
+// run and restores interrupts, but large histories stay off the client and the
+// server (SQLite) owns the conversation. `localStoragePersistence()` defaults
+// to a JSON codec and the ChatPersistedState shape, so no type arg or codec.
+const persistence = { store: localStoragePersistence(), messages: false }
 
 function PersistentChatPage() {
-  // A stable threadId so a reload rehydrates the SAME conversation from storage
-  // (client) and continues it on the server (SQLite). Persistence keys on it.
+  // The loader hydrated the transcript from the server (server owns history).
+  const initialMessages = Route.useLoaderData()
+
+  // A stable threadId so a reload continues the SAME conversation: the server
+  // keys its stored thread on it, and the client keys its resume pointer on it.
   const { messages, sendMessage, isLoading, connectionStatus } = useChat({
-    threadId: 'persistent-chat',
+    threadId: THREAD_ID,
     connection,
     persistence,
+    initialMessages,
   })
   const [input, setInput] = useState(
     'Tell me a two-sentence story about a lighthouse.',
@@ -53,12 +55,15 @@ function PersistentChatPage() {
     <div style={page}>
       <h1>Persistent chat</h1>
       <p style={{ color: '#555' }}>
-        This chat persists on both ends. The client writes the transcript to
-        <code> localStorage</code>, so a full page reload restores the
-        conversation instantly. The server writes the same transcript, run
-        records, and interrupt state to SQLite via <code>withPersistence</code>,
-        so it survives a server restart too. Send a message, wait for the reply,
-        then reload the page: the conversation is still here.
+        The recommended, server-authoritative setup. The server owns the
+        conversation: it writes the transcript, run records, and interrupt state
+        to SQLite via <code>withPersistence</code>, and the page loader hydrates
+        history from it on load. The client caches only the tiny resume pointer
+        in <code>localStorage</code> (<code>{'{ messages: false }'}</code>) — no
+        transcript in the browser — so a reload still rejoins an in-flight run
+        and restores interrupts. Send a message, wait for the reply, then
+        reload: the conversation is restored from the server, not from your
+        browser.
       </p>
 
       <div style={{ margin: '12px 0', color: '#888', fontSize: 13 }}>

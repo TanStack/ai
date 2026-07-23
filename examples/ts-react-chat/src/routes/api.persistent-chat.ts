@@ -9,7 +9,9 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
-import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
+import { persistentChatPersistence } from '../lib/persistent-chat-store'
+
+const persistence = persistentChatPersistence()
 
 /**
  * Persistent-chat demo endpoint.
@@ -26,14 +28,12 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
  *    (`Last-Event-ID`) and resumes without re-running the model. Swap it for
  *    `durableStream(request, { server })` from `@tanstack/ai-durable-stream` in
  *    production (memoryStream is process-local).
+ *
+ * The store is shared with the page's history server function (see
+ * `../lib/persistent-chat-store`), which the loader calls to hydrate the
+ * transcript on load — the client runs server-authoritative
+ * (`persistence: { store, messages: false }`) and keeps no messages of its own.
  */
-
-// One SQLite-backed store for the whole process. `migrate: true` applies the
-// bundled TanStack AI schema on first open. `.data/` is gitignored.
-const persistence = sqlitePersistence({
-  url: './.data/persistent-chat.db',
-  migrate: true,
-})
 
 export const Route = createFileRoute('/api/persistent-chat')({
   server: {
