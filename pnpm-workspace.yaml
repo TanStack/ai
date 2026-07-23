@@ -5,11 +5,14 @@ blockExoticSubdeps: true
 trustPolicy: 'no-downgrade'
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
-  - 'kiira@0.5.0' # root dev dependency already locked on main
-  - 'kiira-core@0.5.0' # transitive dependency of kiira@0.5.0
+  - 'kiira@0.6.0' # root dev dependency (TS7-native engine); freshly published
+  - 'kiira-core@0.6.0' # transitive dependency of kiira@0.6.0
   # Working closely with the aimock team; the e2e suite often needs fresh
   # releases of this test-only mock as it tracks provider SDK changes.
   - '@copilotkit/aimock'
+  # Build-time devDep; 0.6.0 is the release carrying the dts-5/Vite-8 fix
+  # (TanStack/config#403) this toolchain migration depends on.
+  - '@tanstack/vite-config@0.6.0'
 
 trustPolicyExclude:
   - 'chokidar@4.0.3' # existing transitive from sass/nitro; latest v4 with v5 available
@@ -21,6 +24,37 @@ trustPolicyExclude:
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
 overrides:
   abbrev: ^3.0.0
+
+# TypeScript 7's `typescript` package no longer ships the JS Compiler API
+# (`ts.sys`, `ts.createProgram`, etc.). These framework tools embed that API,
+# have no TS7 fallback, and don't declare `typescript` themselves — so they
+# resolve the root-hoisted TS7 and crash. Inject the API-complete 6.0.2 shim
+# into their own node_modules so they resolve it before walking up to root.
+packageExtensions:
+  '@sveltejs/package':
+    dependencies:
+      typescript: 'npm:@typescript/typescript6@6.0.2'
+  svelte-check:
+    dependencies:
+      typescript: 'npm:@typescript/typescript6@6.0.2'
+  vue-tsc:
+    dependencies:
+      typescript: 'npm:@typescript/typescript6@6.0.2'
+  # knip drives the TS JS API, which TS7 dropped. Inject the 6.0.2 shim into
+  # its node_modules so it resolves it instead of the root-hoisted TS7. knip's
+  # peer range already caps at `<7`. (kiira 0.6.0 type-checks with the project's
+  # native TS7 compiler directly, so it no longer needs the shim.)
+  knip:
+    dependencies:
+      typescript: 'npm:@typescript/typescript6@6.0.2'
+  # @analogjs/vite-plugin-angular (ai-angular's vitest transform) declares no
+  # typescript, so it grabs the root-hoisted TS7 and calls JS-API functions
+  # (ts.createIncrementalCompilerHost) that TS7 dropped. Angular also can't run
+  # on TS7 at all, so pin it to 5.9.3 (ai-angular's own version, Angular-
+  # supported) rather than the 6.0.2 shim.
+  '@analogjs/vite-plugin-angular':
+    dependencies:
+      typescript: 5.9.3
 
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch

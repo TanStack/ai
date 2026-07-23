@@ -604,7 +604,7 @@ export function durableStream(
       })
       return closePromise
     },
-    read: async function* (offset, signal) {
+    read: async function* (offset: DurableStreamOffset, signal?: AbortSignal) {
       let backendOffset: string
       let deliveredThroughSeq = 0
       if (offset === '-1' || offset === 'now') {

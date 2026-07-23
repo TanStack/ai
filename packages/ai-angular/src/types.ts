@@ -2,13 +2,18 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
@@ -142,6 +147,24 @@ interface BaseInjectChatResult<
     id: string
     approved: boolean
   }) => Promise<void>
+  /** Immutable bound interrupts for the current interrupted run. */
+  interrupts: Signal<BoundInterrupts<TTools>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: Signal<BoundInterrupts<TTools>>
+  /** Batch-level interrupt errors. */
+  interruptErrors: Signal<ChatInterruptState<TTools>['interruptErrors']>
+  /** Whether the client is submitting an interrupt batch. */
+  resuming: Signal<boolean>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
   /** Reload the last assistant message. */
   reload: () => Promise<void>
   /** Stop the current response generation. */

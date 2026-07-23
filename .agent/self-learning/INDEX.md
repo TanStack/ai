@@ -11,4 +11,5 @@ If a `Use when ...` condition matches the current task, read the full lesson fil
 - [update-docs-with-new-cases](lessons/2026-05-19-update-docs-with-new-cases.md) — Use when adding a new use case, capability, or behavior change to tanstack/ai — public docs that cover the surface need updating in the same PR
 - [authoring-kiira-doc-snippets](lessons/2026-06-23-authoring-kiira-doc-snippets.md) — Use when writing or fixing TS/TSX code samples in docs/\*\* so they type-check under kiira AND read as idiomatic, type-safe examples (no declare const / ambient magic / group-rename / input:any / as casts)
 - [kiira-ci-setup](lessons/2026-06-23-kiira-ci-setup.md) — Use when running, configuring, or debugging kiira in tanstack/ai — config, CI wiring, source resolution (ai-angular exclusion), reading errors with --verbose
+
 <!-- LESSONS:END -->

@@ -6,6 +6,7 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type {
   ModelMessage,
+  RunAgentResumeItem,
   RunErrorEvent,
   RunFinishedEvent,
   StreamChunk,
@@ -28,9 +29,17 @@ const chunkRunIds = new WeakMap<StreamChunk, string>()
  * run the connect wrapper stamped it with.
  */
 export function getChunkRunId(chunk: StreamChunk): string | undefined {
-  return 'runId' in chunk && typeof chunk.runId === 'string'
-    ? chunk.runId
-    : chunkRunIds.get(chunk)
+  // Prefer the client's request run id (stamped in `chunkRunIds`) over a
+  // provider-assigned `chunk.runId`. Interrupt continuation correlation needs
+  // the client's run identity to win when a provider stamps its own id; for
+  // resumable reconnect/join the two ids match, so precedence is moot there.
+  const requestRunId = chunkRunIds.get(chunk)
+  return (
+    requestRunId ??
+    ('runId' in chunk && typeof chunk.runId === 'string'
+      ? chunk.runId
+      : undefined)
+  )
 }
 
 /**
@@ -630,6 +639,8 @@ export interface RunAgentInputContext {
   threadId: string
   runId: string
   parentRunId?: string
+  /** AG-UI interrupt resume entries returned to the server on a follow-up run. */
+  resume?: Array<RunAgentResumeItem>
   /** Client-declared tools to advertise in the request payload. */
   clientTools?: Array<{
     name: string
@@ -902,6 +913,7 @@ function buildRunAgentInputBody(
     ...(runContext?.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
+    ...(runContext?.resume !== undefined && { resume: runContext.resume }),
     state: {},
     messages: wireMessages,
     tools: runContext?.clientTools ?? [],

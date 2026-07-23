@@ -104,7 +104,7 @@ export async function createMCPClients<
   // because `tools()` is now descriptor-typed (`DescriptorTools<TServer>`), yet
   // the generated descriptor is a compile-time overlay only — the runtime
   // values are identical, so the through-`unknown` cast is sound here.
-  // eslint-disable-next-line no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
   const clients = Object.fromEntries(ok.map((r) => r.value)) as unknown as {
     [K in keyof TServers]: MCPClient<TServers[K]>
   }

@@ -4,15 +4,27 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { QueuedMessage } from '@tanstack/ai-client'
+import type {
+  AnyClientTool,
+  BoundInterrupts,
+  QueuedMessage,
+} from '@tanstack/ai-client'
 import { ToolCallDisplay } from '@/components/ToolCallDisplay'
 import { ApprovalPrompt } from '@/components/ApprovalPrompt'
 
-interface ChatUIProps {
+interface ChatUIProps<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> {
   messages: Array<UIMessage>
   isLoading: boolean
   onSendMessage: (text: string) => void
   onSendMessageWithImage?: (text: string, file: File) => void
+  /**
+   * Bound AG-UI interrupts from `useChat({ tools })` —
+   * `BoundInterrupts<TTools>` (library type, not a harness DTO).
+   */
+  interrupts?: BoundInterrupts<TTools>
+  /** @deprecated Prefer `interrupts` + resolveInterrupt. */
   addToolApprovalResponse?: (response: {
     id: string
     approved: boolean
@@ -33,13 +45,18 @@ interface ChatUIProps {
   queue?: Array<QueuedMessage>
   /** Remove a queued message before it drains. */
   cancelQueued?: (id: string) => void
+  /** Block new input while pending interrupts await resolution. */
+  hasPendingInterrupt?: boolean
 }
 
-export function ChatUI({
+export function ChatUI<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+>({
   messages,
   isLoading,
   onSendMessage,
   onSendMessageWithImage,
+  interrupts = [],
   addToolApprovalResponse,
   showImageInput,
   onStop,
@@ -47,7 +64,8 @@ export function ChatUI({
   contentDeltaCount,
   queue,
   cancelQueued,
-}: ChatUIProps) {
+  hasPendingInterrupt = false,
+}: ChatUIProps<TTools>) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -59,6 +77,7 @@ export function ChatUI({
   }, [messages])
 
   const handleSubmit = () => {
+    if (hasPendingInterrupt) return
     if (!input.trim()) return
     onSendMessage(input.trim())
     setInput('')
@@ -85,6 +104,57 @@ export function ChatUI({
         data-testid="message-list"
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
+        {interrupts
+          // Only actionable pauses — staged/error are not clickable Approve
+          // prompts; submitting is already omitted from the public list.
+          .filter((interrupt) => interrupt.status === 'pending')
+          .map((interrupt) => {
+            // Tool-approval interrupts expose `toolName` / `originalArgs`.
+            // Structural narrow (not only `kind ===`) so this stays valid when
+            // `TTools` defaults to a tools array whose `ChatInterrupt` union is
+            // generic-only at the type level but still carries approval at runtime.
+            if (
+              !('toolName' in interrupt) ||
+              !('originalArgs' in interrupt) ||
+              // `unbound` pauses carry no resolver — they belong to another
+              // producer on the stream.
+              !('resolveInterrupt' in interrupt)
+            ) {
+              return null
+            }
+            const toolName = String(interrupt.toolName)
+            return (
+              <div
+                key={interrupt.id}
+                data-testid={`approval-prompt-${toolName}`}
+                className="my-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded"
+              >
+                <div className="text-sm text-yellow-300 mb-2">
+                  Tool <span className="font-mono font-bold">{toolName}</span>{' '}
+                  requires approval
+                </div>
+                <div className="text-xs text-gray-400 mb-2">
+                  Args: <code>{JSON.stringify(interrupt.originalArgs)}</code>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    data-testid={`approve-button-${toolName}`}
+                    onClick={() => interrupt.resolveInterrupt(true)}
+                    className="px-3 py-1 bg-green-600 text-white rounded text-xs"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    data-testid={`deny-button-${toolName}`}
+                    onClick={() => interrupt.resolveInterrupt(false)}
+                    className="px-3 py-1 bg-red-600 text-white rounded text-xs"
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -143,7 +213,10 @@ export function ChatUI({
                   </div>
                 )
               }
+              // Prefer bound `interrupts` UI above. Legacy message-part prompts
+              // remain only when no interrupt list was provided (compat path).
               if (
+                interrupts.length === 0 &&
                 part.type === 'tool-call' &&
                 (part as any).state === 'approval-requested' &&
                 addToolApprovalResponse

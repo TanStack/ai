@@ -6,9 +6,11 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import type { Signal } from '@angular/core'
+import { toolDefinition } from '@tanstack/ai'
+import { clientTools } from '@tanstack/ai-client'
 import type { AnyClientTool } from '@tanstack/ai'
-import { injectChat } from '../src/inject-chat'
+import type { injectChat } from '../src/inject-chat'
+import type { Signal } from '@angular/core'
 import type { DeepPartial, InjectChatResult } from '../src/types'
 
 type Person = { name: string; age: number; email: string }
@@ -73,5 +75,119 @@ describe('injectChat() return type (angular)', () => {
       void (undefined as unknown as _P)
       void (undefined as unknown as _F)
     })
+  })
+})
+
+describe('injectChat() interrupt types', () => {
+  it('preserves approval, generic, and client-tool inference', () => {
+    const inputSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { cents: 0 },
+          output: { cents: 0 },
+        },
+        validate: (value: unknown) => ({
+          value:
+            value !== null &&
+            typeof value === 'object' &&
+            'cents' in value &&
+            typeof value.cents === 'number'
+              ? { cents: value.cents }
+              : { cents: 0 },
+        }),
+      },
+    }
+    const approveSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { note: '' },
+          output: { note: '' },
+        },
+        validate: () => ({ value: { note: '' } }),
+      },
+    }
+    const rejectSchema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        types: {
+          input: { reason: '' },
+          output: { reason: '' },
+        },
+        validate: () => ({ value: { reason: '' } }),
+      },
+    }
+    const outputSchema = z.object({ accountId: z.string() })
+    const transfer = toolDefinition({
+      name: 'transfer',
+      description: 'Transfer funds',
+      needsApproval: true,
+      inputSchema,
+      approvalSchema: {
+        approve: approveSchema,
+        reject: rejectSchema,
+      },
+    }).client()
+    const confirm = toolDefinition({
+      name: 'confirm',
+      description: 'Confirm without schemas',
+      needsApproval: true,
+    }).client()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Lookup account',
+      outputSchema,
+    }).client(() => ({ accountId: 'account-1' }))
+    const tools = clientTools(transfer, confirm, lookup)
+    type Interrupt = ReturnType<
+      InjectChatResult<typeof tools>['interrupts']
+    >[number]
+    type Transfer = Extract<
+      Interrupt,
+      { kind: 'tool-approval'; toolName: 'transfer' }
+    >
+    type Confirm = Extract<
+      Interrupt,
+      { kind: 'tool-approval'; toolName: 'confirm' }
+    >
+    type Generic = Extract<Interrupt, { kind: 'generic' }>
+
+    const check = (
+      transferInterrupt: Transfer,
+      confirmInterrupt: Confirm,
+      genericInterrupt: Generic,
+    ) => {
+      transferInterrupt.resolveInterrupt(true, {
+        editedArgs: { cents: 100 },
+        payload: { note: 'approved' },
+      })
+      transferInterrupt.resolveInterrupt(false, {
+        payload: { reason: 'declined' },
+      })
+      // @ts-expect-error rejected approvals cannot edit tool input
+      transferInterrupt.resolveInterrupt(false, { editedArgs: { cents: 1 } })
+      transferInterrupt.resolveInterrupt(true, {
+        // @ts-expect-error approve payload uses the approve branch
+        payload: { reason: 'wrong branch' },
+      })
+
+      confirmInterrupt.resolveInterrupt(true)
+      confirmInterrupt.resolveInterrupt(false)
+      // @ts-expect-error omitted input schema forbids edited input
+      confirmInterrupt.resolveInterrupt(true, { editedArgs: { cents: 1 } })
+      // @ts-expect-error omitted approval branches forbid payloads
+      confirmInterrupt.resolveInterrupt(false, {
+        payload: { reason: 'no branch' },
+      })
+
+      expectTypeOf(genericInterrupt.resolveInterrupt)
+        .parameter(0)
+        .toEqualTypeOf<unknown>()
+    }
+    void check
   })
 })

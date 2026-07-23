@@ -19,7 +19,7 @@
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",
     "capnweb": "^0.10.0",
-    "nitro": "3.0.1-alpha.2",
+    "nitro": "3.0.260610-beta",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
@@ -38,7 +38,7 @@
     "jsdom": "^27.2.0",
     "typescript": "5.9.3",
     "vite": "^7.3.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.1.10",
     "web-vitals": "^5.1.0"
   }
 }

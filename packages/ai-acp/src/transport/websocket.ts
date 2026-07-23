@@ -133,7 +133,10 @@ function webSocketNdjsonToAcpStream(ws: WebSocket): AcpJsonRpcStream {
 
   const writable = new WritableStream<Uint8Array>({
     write(chunk) {
-      ws.send(chunk)
+      // TS 5.7+ types Uint8Array as generic over its buffer (ArrayBufferLike),
+      // which no longer structurally matches the DOM `BufferSource` param.
+      // Runtime accepts any typed array; narrow to the lib's expected type.
+      ws.send(chunk as BufferSource)
     },
     close() {
       ws.close()

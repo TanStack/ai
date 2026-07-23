@@ -1,4 +1,4 @@
-import type { ServerTool } from '../tools/tool-definition'
+import type { AnyServerTool } from '../tools/tool-definition'
 import type { ChatMCPOptions, MCPToolSource } from './types'
 
 /**
@@ -18,7 +18,7 @@ import type { ChatMCPOptions, MCPToolSource } from './types'
  * drains. If discovery results were ever cached and reused across runs, this
  * would bind a closure over an already-closed source — bind onto a copy then.
  */
-function bindReadResource(tool: ServerTool, source: MCPToolSource): void {
+function bindReadResource(tool: AnyServerTool, source: MCPToolSource): void {
   if (!source.readResource) return
   const meta = (
     tool.metadata as { mcp?: { uiResourceUri?: string } } | undefined
@@ -71,13 +71,13 @@ export class MCPManager {
    * (no `onDiscoveryError`, or it re-threw) or a duplicate tool name; in that
    * case it first closes any connected sources when the policy is 'close'.
    */
-  async discover(): Promise<Array<ServerTool>> {
+  async discover(): Promise<Array<AnyServerTool>> {
     if (this.#sources.length === 0) return []
     try {
       const settled = await Promise.allSettled(
         this.#sources.map((s) => s.tools({ lazy: this.#lazyTools })),
       )
-      const tools: Array<ServerTool> = []
+      const tools: Array<AnyServerTool> = []
       const zipped = this.#sources.map(
         (source, i) => [source, settled[i]] as const,
       )

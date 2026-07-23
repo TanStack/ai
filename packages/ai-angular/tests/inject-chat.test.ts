@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { EventType } from '@tanstack/ai/client'
 import { Component, signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
 import { ChatClient } from '@tanstack/ai-client'
 import { injectChat } from '../src/inject-chat'
 import {
+  createInterruptResumeSnapshot,
   createMockConnectionAdapter,
   createTextChunks,
   renderInjectChat,
@@ -12,7 +14,85 @@ import {
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('injectChat', () => {
+  describe('interrupt state', () => {
+    it('projects one immutable reactive snapshot with the deprecated pending alias', () => {
+      const onInterruptStateChange = vi.fn()
+      const { result, flush } = renderInjectChat({
+        connection: createMockConnectionAdapter(),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        onInterruptStateChange,
+      })
+
+      expect(Object.isFrozen(result.interrupts())).toBe(true)
+      expect(result.pendingInterrupts()).toBe(result.interrupts())
+      expect(result.interrupts()[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'pending',
+      })
+      expect(result.interrupts()[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'pending',
+      })
+      expect(result.interruptErrors()).toEqual([])
+      expect(result.resuming()).toBe(false)
+      expect(result.interrupts()[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      result.resolveInterrupts(false)
+      TestBed.flushEffects()
+      flush()
+      expect(result.interruptErrors()[0]?.code).toBe(
+        'unsupported-bulk-operation',
+      )
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: result.interrupts(),
+          interruptErrors: result.interruptErrors(),
+        }),
+      )
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const { result } = renderInjectChat({
+        connection: createMockConnectionAdapter(),
+      })
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      result.resolveInterrupts(resolver)
+      result.cancelInterrupts()
+      result.retryInterrupts()
+      await expect(result.resumeInterruptsUnsafe(resume)).resolves.toBe(true)
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
+  })
+
   it('initializes with default state', () => {
     const adapter = createMockConnectionAdapter()
     const { result } = renderInjectChat({ connection: adapter })
@@ -117,6 +197,55 @@ describe('injectChat — reactive options', () => {
     } finally {
       updateSpy.mockRestore()
     }
+  })
+})
+
+describe('injectChat — resume', () => {
+  it('forwards onResumeStateChange to ChatClient', async () => {
+    const onResumeStateChange = vi.fn()
+    const adapter = createMockConnectionAdapter({
+      chunks: [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'Hi',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    })
+    const { result } = renderInjectChat({
+      connection: adapter,
+      threadId: 'thread-1',
+      onResumeStateChange,
+    })
+
+    await result.sendMessage('Hi')
+
+    // A run that pauses on an interrupt forwards interrupt (state) resume —
+    // the thread/run ids to target on a follow-up. No delivery cursor.
+    expect(onResumeStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: expect.any(String),
+      }),
+      expect.arrayContaining([expect.objectContaining({ id: 'interrupt-1' })]),
+    )
   })
 })
 

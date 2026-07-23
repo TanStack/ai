@@ -88,6 +88,95 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 > **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
 
+### Type-Safe Tool Call Events
+
+When you pass typed tools (defined with `toolDefinition()` and Zod schemas) to `chat()`, the stream chunks automatically carry type information for tool call events. Prefer the AG-UI field `toolCallName` (or the deprecated `toolName` alias) — both narrow to the union of your tool name literals. The `input` field on `TOOL_CALL_END` is typed as the union of your tool input schemas (typically set on the adapter-emitted END once arguments are complete):
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const weatherTool = toolDefinition({
+  name: "get_weather",
+  description: "Get weather for a location",
+  inputSchema: z.object({
+    location: z.string(),
+    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+});
+
+const messages = [
+  { role: "user" as const, content: "What's the weather in Paris?" },
+];
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages,
+  tools: [weatherTool],
+});
+
+for await (const chunk of stream) {
+  // `'type' in chunk` is required for control-flow narrowing across the
+  // StreamChunk union (AG-UI event types from `@ag-ui/core` use Zod
+  // passthrough, which otherwise hides the discriminant from property access).
+  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
+    chunk.toolCallName; // ✅ typed as "get_weather" (not string)
+    chunk.input; // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" } | undefined
+  }
+}
+```
+
+Without typed tools, names default to `string` and `input`/`output` default to `unknown` — the same behavior as before. The type narrowing is automatic when you use `toolDefinition()` with Zod schemas.
+
+When multiple tools are provided, tool call events form a **discriminated union** — checking `toolCallName` (or `toolName`) narrows `input` / `output` to that specific tool's type:
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const weatherTool = toolDefinition({
+  name: "get_weather",
+  description: "Get weather for a location",
+  inputSchema: z.object({
+    location: z.string(),
+    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+});
+
+const searchTool = toolDefinition({
+  name: "search",
+  description: "Search the web",
+  inputSchema: z.object({ query: z.string() }),
+});
+
+const messages = [
+  { role: "user" as const, content: "Find the weather for Paris" },
+];
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages,
+  tools: [weatherTool, searchTool],
+});
+
+for await (const chunk of stream) {
+  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
+    if (chunk.toolCallName === "get_weather") {
+      // ✅ input is narrowed to { location: string; unit?: "celsius" | "fahrenheit" }
+      console.log(`Weather in ${chunk.input?.location}`);
+    }
+    if (chunk.toolCallName === "search") {
+      // ✅ input is narrowed to { query: string }
+      console.log(`Searched for: ${chunk.input?.query}`);
+    }
+  }
+}
+```
+
+> **Tip:** The typed stream type is exported as `TypedStreamChunk<TTools>`. The default (no type args) matches `ChatStream`: standard chunks plus the known framework `CUSTOM` event union. Free-form `emitCustomEvent` names still flow at runtime; cast to `StreamChunk` if you need to read them.
+
 ### Thinking Chunks
 
 Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:

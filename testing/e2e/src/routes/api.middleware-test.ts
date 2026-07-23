@@ -7,17 +7,18 @@ import {
   toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
-import type { ChatMiddleware, StreamChunk } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
-import { guitarRecommendationSchema } from '@/lib/schemas'
+import { memoryMiddleware } from '@tanstack/ai-memory'
+import type { MemoryAdapter } from '@tanstack/ai-memory'
 import {
-  getPhaseCapture,
-  recordOnFinish,
-  recordPhase,
-  recordYieldedChunk,
-  resetPhaseCapture,
-} from '@/lib/phase-capture'
+  getMemoryCapture,
+  recordMemoryConfig,
+  recordMemorySave,
+  resetMemoryCapture,
+} from '@/lib/memory-capture'
 import { SpanStatusCode } from '@opentelemetry/api'
+import { z } from 'zod'
+import type { ChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
 import type {
   AttributeValue,
   Attributes,
@@ -30,7 +31,14 @@ import type {
   SpanStatus,
   Tracer,
 } from '@opentelemetry/api'
-import { z } from 'zod'
+import { guitarRecommendationSchema } from '@/lib/schemas'
+import {
+  getPhaseCapture,
+  recordOnFinish,
+  recordPhase,
+  recordYieldedChunk,
+  resetPhaseCapture,
+} from '@/lib/phase-capture'
 import { createTextAdapter } from '@/lib/providers'
 import {
   getOtelCapture,
@@ -165,6 +173,56 @@ async function* teeForPhaseCapture(
   }
 }
 
+/**
+ * Fake memory adapter for `memory` mode. `recall` unconditionally returns a
+ * known system-prompt block plus a memory tool (so the spec can assert both the
+ * prompt injection AND tool injection reach the model config), and `save`
+ * records that the deferred write ran. Deterministic — no real vendor, no
+ * cross-request state.
+ */
+const RECALL_MORE_TOOL: Tool = {
+  name: 'recall_more',
+  description: 'Look up additional long-term memory by query.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+}
+
+function createFakeMemoryAdapter(captureId: string): MemoryAdapter {
+  return {
+    id: 'fake-memory',
+    recall: async () => ({
+      systemPrompt: 'MEMORY: the user previously said they love TanStack.',
+      fragments: [{ text: 'the user loves TanStack', source: 'f1' }],
+      tools: [RECALL_MORE_TOOL],
+      toolGuidance: 'Use recall_more to look up additional memory when needed.',
+    }),
+    save: async () => {
+      recordMemorySave(captureId)
+      return [{ ok: true }]
+    },
+  }
+}
+
+/**
+ * Recorder placed AFTER `memoryMiddleware` so it observes the config the model
+ * actually sees — i.e. WITH the recalled system prompt + tools already merged
+ * in. Records that into the per-testId memory capture.
+ */
+function createMemoryConfigRecorder(captureId: string): ChatMiddleware {
+  return {
+    name: 'memory-config-recorder',
+    onConfig(ctx, config) {
+      if (ctx.phase !== 'init') return
+      recordMemoryConfig(captureId, {
+        systemPrompts: config.systemPrompts.map((p) =>
+          typeof p === 'string' ? p : p.content,
+        ),
+        toolNames: config.tools.map((t) => t.name),
+      })
+      return
+    },
+  }
+}
+
 // Minimal in-memory tracer/meter. Captures into a per-testId bucket so that
 // the Playwright spec can fetch the recorded state via GET after the stream
 // finishes. Not exported — only used to build otelMiddleware for the test.
@@ -175,7 +233,7 @@ function createCaptureTracer(captureId: string): Tracer {
       const id = `span-${spanSeq++}`
       const attrs: Record<string, AttributeValue> = {}
       for (const [k, v] of Object.entries(options.attributes ?? {})) {
-        if (v !== undefined) attrs[k] = v as AttributeValue
+        if (v !== undefined) attrs[k] = v
       }
       recordOtelSpan(captureId, {
         id,
@@ -194,7 +252,7 @@ function createCaptureTracer(captureId: string): Tracer {
           return { traceId: 'capture-trace', spanId: id, traceFlags: 1 }
         },
         setAttribute(key, value) {
-          attrs[key] = value as AttributeValue
+          attrs[key] = value
           recordOtelSpan(captureId, { id, patch: { attributes: { ...attrs } } })
           return span
         },
@@ -251,7 +309,7 @@ function createCaptureTracer(captureId: string): Tracer {
       return span
     },
     // Minimal implementation — our middleware never calls startActiveSpan.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string
@@ -279,7 +337,6 @@ function createCaptureMeter(captureId: string): Meter {
   })
   return {
     createHistogram: histogram,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any as Meter
 }
 
@@ -300,7 +357,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           )
         }
 
-        const fp = params.forwardedProps as Record<string, unknown>
+        const fp = params.forwardedProps
         const scenario =
           typeof fp.scenario === 'string' ? fp.scenario : 'basic-text'
         const middlewareMode =
@@ -352,6 +409,25 @@ export const Route = createFileRoute('/api/middleware-test')({
             }
             resetPhaseCapture(testId)
             middleware.push(createPhaseRecorderMiddleware(testId))
+          }
+          if (middlewareMode === 'memory') {
+            if (!testId) {
+              return new Response(
+                JSON.stringify({ error: 'memory mode requires testId' }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            resetMemoryCapture(testId)
+            middleware.push(
+              memoryMiddleware({
+                adapter: createFakeMemoryAdapter(testId),
+                scope: { sessionId: testId },
+              }),
+              createMemoryConfigRecorder(testId),
+            )
           }
           if (middlewareMode === 'otel') {
             if (!OTEL_TEST_ENABLED) {
@@ -447,6 +523,19 @@ export const Route = createFileRoute('/api/middleware-test')({
             )
           }
           return new Response(JSON.stringify(getPhaseCapture(testId)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Memory capture — like phase capture, available without the OTEL gate.
+        if (kind === 'memory') {
+          if (!testId) {
+            return new Response(
+              JSON.stringify({ error: 'testId query param required' }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+          return new Response(JSON.stringify(getMemoryCapture(testId)), {
             headers: { 'Content-Type': 'application/json' },
           })
         }
