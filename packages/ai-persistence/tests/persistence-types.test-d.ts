@@ -111,9 +111,7 @@ expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 
 withPersistence(messagesOnly)
 withPersistence(defineAIPersistence({ stores: { runs } }))
-withPersistence(
-  defineAIPersistence({ stores: { runs, interrupts, messages } }),
-)
+withPersistence(defineAIPersistence({ stores: { runs, interrupts, messages } }))
 // @ts-expect-error a known interrupt store requires a known run store
 withPersistence(defineAIPersistence({ stores: { interrupts } }))
 

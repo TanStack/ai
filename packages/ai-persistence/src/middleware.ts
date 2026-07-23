@@ -257,9 +257,7 @@ async function interruptRun(
 export function withPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
 ): ChatMiddleware
-export function withPersistence(
-  persistence: AIPersistence,
-): ChatMiddleware {
+export function withPersistence(persistence: AIPersistence): ChatMiddleware {
   validateChatPersistenceStores(persistence)
   const plan = resolvePersistencePlan(persistence)
   const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
