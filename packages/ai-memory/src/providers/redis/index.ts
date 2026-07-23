@@ -15,7 +15,7 @@ import type { MemoryAdapter, MemoryScope } from '../../types'
 /**
  * Minimal subset of the Redis client API the adapter uses. Shaped to match
  * `ioredis` directly (lowercase method names). For node-redis v4+'s camelCase
- * API, wrap the client with {@link nodeRedisAsRedisLike}.
+ * API, wrap the client with {@link fromNodeRedis}.
  */
 export interface RedisLike {
   set: (key: string, value: string) => Promise<unknown>
@@ -27,7 +27,7 @@ export interface RedisLike {
   mget: (...keys: Array<string>) => Promise<Array<string | null>>
 }
 
-/** node-redis v4+ default-mode (camelCase) surface used by {@link nodeRedisAsRedisLike}. */
+/** node-redis v4+ default-mode (camelCase) surface used by {@link fromNodeRedis}. */
 export interface NodeRedisLike {
   get: (key: string) => Promise<string | null>
   set: (key: string, value: string) => Promise<unknown>
@@ -43,7 +43,7 @@ export interface NodeRedisLike {
  * {@link RedisLike} shape this adapter expects. For `ioredis`, no wrapper is
  * needed — pass the client directly.
  */
-export function nodeRedisAsRedisLike(client: NodeRedisLike): RedisLike {
+export function fromNodeRedis(client: NodeRedisLike): RedisLike {
   return {
     get: (key) => client.get(key),
     set: (key, value) => client.set(key, value),
@@ -96,7 +96,7 @@ function warnMalformedRow(id: string, err: unknown): void {
  * Production memory adapter backed by plain Redis (no vector index required).
  * Ranks client-side (lexical + optional cosine + recency + importance), so it's
  * suited to up to ~10k records per scope. Bring your own client (`ioredis`, or
- * node-redis wrapped with {@link nodeRedisAsRedisLike}).
+ * node-redis wrapped with {@link fromNodeRedis}).
  *
  * Storage model:
  * ```text

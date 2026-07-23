@@ -2,7 +2,7 @@
 title: Custom Adapter
 id: memory-custom-adapter
 order: 4
-description: "Write a recall/save MemoryAdapter for a backend that isn't shipped — pgvector, MongoDB, DynamoDB, a hosted memory service. Two methods, one shared contract test."
+description: "Write a recall/save MemoryAdapter for a backend that isn't shipped, such as pgvector, MongoDB, DynamoDB, or a hosted memory service. Two methods, one shared contract test."
 keywords:
   - tanstack ai
   - memory
@@ -14,7 +14,7 @@ keywords:
   - contract suite
 ---
 
-You have a backend in mind — pgvector, MongoDB, DynamoDB, a hosted memory API — and the
+You have a backend in mind (pgvector, MongoDB, DynamoDB, a hosted memory API) and the
 built-in `inMemory()` / `redis()` adapters don't fit. A memory adapter is just an object
 with two methods, `recall` and `save`, so this is a short guide.
 
@@ -28,13 +28,22 @@ with two methods, `recall` and `save`, so this is a short guide.
 import type { MemoryAdapter } from '@tanstack/ai-memory'
 ```
 
-```ts ignore
-// ignore: the shape of the contract, shown for reference.
+```ts
+// The shape of the contract, shown for reference.
+import type {
+  MemoryFact,
+  MemoryScope,
+  MemorySnapshot,
+  MemoryTurn,
+  RecallResult,
+  SaveReceipt,
+} from '@tanstack/ai-memory'
+
 interface MemoryAdapter {
   id: string
   recall(scope: MemoryScope, query: string): Promise<RecallResult>
   save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>>
-  inspect?(scope: MemoryScope): Promise<MemorySnapshot>   // optional (devtools)
+  inspect?(scope: MemoryScope): Promise<MemorySnapshot> // optional (devtools)
   listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>> // optional (devtools)
 }
 ```
@@ -43,18 +52,16 @@ Two rules the middleware relies on:
 
 1. **`recall` decides relevance.** Return a rendered `systemPrompt` (empty string when
    there's nothing), plus optional `fragments`, `tools`, and `toolGuidance`. Ranking
-   strategy is entirely yours — lexical, vector, hybrid, or vendor-native.
+   strategy is entirely yours: lexical, vector, hybrid, or vendor-native.
 2. **`save` owns extraction.** Turn the `{ user, assistant }` turn into whatever you
    persist. Return one `SaveReceipt` per underlying write.
 
 Scope isolation is your responsibility: a `recall` for one `scope` must never surface
 another scope's data.
 
-## Step 1 — Scaffold
+## Step 1: Scaffold
 
-```ts ignore
-// ignore: `pg` is a peer dependency of a real pgvector adapter (not of these docs),
-// and the method bodies are elided — this is a scaffold to copy.
+```ts
 import type {
   MemoryAdapter,
   MemoryScope,
@@ -62,7 +69,18 @@ import type {
   RecallResult,
   SaveReceipt,
 } from '@tanstack/ai-memory'
-import type { Pool } from 'pg'
+
+// node-postgres' Pool, minimally. In your project, use the real type instead:
+//   import type { Pool } from 'pg'
+type Pool = {
+  query: (
+    text: string,
+    values: Array<unknown>,
+  ) => Promise<{ rows: Array<{ text: string }> }>
+}
+
+// Your embedding client. Swap in OpenAI, Cohere, a local model, etc.
+type Embed = (text: string) => Promise<Array<number>>
 
 export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAdapter {
   const { pool, embed } = options
@@ -109,14 +127,14 @@ The shape generalizes: every method takes a `scope`, does its backend-specific w
 and keeps scopes isolated. For a backend without native search, load the scope's
 records and rank them yourself.
 
-## Step 2 — Run the contract suite
+## Step 2: Run the contract suite
 
 `@tanstack/ai-memory/tests/contract` exports `runMemoryAdapterContract`. Point it at a
-factory that returns a fresh adapter — it verifies the save→recall round-trip, scope
+factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
 isolation, empty recall, receipt shape, and the optional introspection methods.
 
 ```ts ignore
-// ignore: depends on `pg` (a peer dep) and a local `../src/pgvector` module.
+// ignore: imports the `../src/pgvector` module you wrote in Step 1.
 // tests/pgvector.test.ts
 import { runMemoryAdapterContract } from '@tanstack/ai-memory/tests/contract'
 import { pgvectorMemory } from '../src/pgvector'
@@ -127,12 +145,12 @@ runMemoryAdapterContract('pgvectorMemory', async () => {
 })
 ```
 
-## Step 3 — Wire it into `memoryMiddleware`
+## Step 3: Wire it into `memoryMiddleware`
 
 Once the suite is green, the adapter is interchangeable with the built-ins:
 
 ```ts ignore
-// ignore: imports `pg` (a peer dep) and a local `./pgvector` module, and assumes
+// ignore: imports the `./pgvector` module you wrote in Step 1, and assumes
 // `messages` / `scope` from your app.
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -148,7 +166,7 @@ const stream = chat({
 })
 ```
 
-The middleware never inspects the adapter's internals — `recall`/`save` is the entire
+The middleware never inspects the adapter's internals. `recall`/`save` is the entire
 interface.
 
 ## Exposing tools (optional)
@@ -163,11 +181,12 @@ recalled prompt. Return `tools: []` (or omit it) when your adapter exposes none.
 - **Keep scopes isolated.** If you serialize scope into a composite key, escape your
   delimiter so a `sessionId`/`userId` containing it can't collide with another scope.
 - **`recall` must not throw for an empty scope.** Return `{ systemPrompt: '' }`.
-- **Extraction lives in `save`.** Don't expect the middleware to derive facts — the raw
+- **Extraction lives in `save`.** Don't expect the middleware to derive facts. The raw
   turn is handed to you; store or summarize it however you like.
 
 ## Where to go next
 
-- [Overview](./overview) — contract, scope, `memoryMiddleware` options, devtools events
-- [Adapters](./adapters) — the built-in and vendor adapters, with every option
-- [Quickstart](./quickstart) — wire `memoryMiddleware` into a real `chat()` call
+- [Overview](./overview): the `recall`/`save` contract, scope, and how a turn flows
+- [Adapters](./adapters): the built-in and vendor adapters, with every option
+- [Quickstart](./quickstart): wire `memoryMiddleware` into a real `chat()` call
+- [Operating memory](./operating): options, telemetry, devtools events, and failures

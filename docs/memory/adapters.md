@@ -2,7 +2,7 @@
 title: Adapters
 id: memory-adapters
 order: 3
-description: "Every built-in and vendor memory adapter in @tanstack/ai-memory, with all of their options and an example of each — inMemory, redis, hindsight, mem0, honcho."
+description: "Every built-in and vendor memory adapter in @tanstack/ai-memory, with all of their options and an example of each: inMemory, redis, hindsight, mem0, honcho."
 keywords:
   - tanstack ai
   - memory
@@ -16,11 +16,11 @@ keywords:
 ---
 
 Every adapter implements the same `recall`/`save` contract, so they're interchangeable
-in `memoryMiddleware`. This page is the exhaustive option reference — each adapter's
-options with an example of each.
+in `memoryMiddleware`. This page is the full option reference: each adapter's options with
+an example of each.
 
-- [Common options](#common-options) — shared by `inMemory()` and `redis()`
-- [`inMemory()`](#inmemory) · [`redis()`](#redis) · [`hindsight()`](#hindsight) · [`mem0()`](#mem0) · [`honcho()`](#honcho)
+- [Common options](#common-options), shared by `inMemory()` and `redis()`
+- Adapters: [`inMemory()`](#inmemory), [`redis()`](#redis), [`hindsight()`](#hindsight), [`mem0()`](#mem0), [`honcho()`](#honcho)
 
 ## Common options
 
@@ -32,8 +32,8 @@ they share these options.
 | `topK` | `number` | `6` | Max hits returned by `recall`. |
 | `minScore` | `number` | `0.15` | Drop hits scoring below this. |
 | `kinds` | `Array<MemoryKind>` | all | Restrict recall to these record kinds (`'message'`, `'summary'`, `'fact'`, `'preference'`). |
-| `embedder` | `{ embed(text): Promise<number[]> }` | — | Enable semantic scoring (embeds on both `recall` and `save`). |
-| `extract` | `(turn, scope) => ExtractedFact[]` | — | Persist derived facts on `save`, alongside the raw turn. |
+| `embedder` | `{ embed(text): Promise<number[]> }` | none | Enable semantic scoring (embeds on both `recall` and `save`). |
+| `extract` | `(turn, scope) => ExtractedFact[]` | none | Persist derived facts on `save`, alongside the raw turn. |
 | `render` | `(hits) => string` | built-in | Replace the prompt renderer. |
 
 Every option, in one adapter:
@@ -59,7 +59,7 @@ const memory = inMemory({
 })
 ```
 
-**`extract`** returns `ExtractedFact[]` — `{ text, kind?, importance?, metadata? }`. Return
+**`extract`** returns `ExtractedFact[]` (`{ text, kind?, importance?, metadata? }`). Return
 `undefined` for a no-op. It's where an LLM-based fact extractor plugs in without the
 adapter taking a hard dependency on any model.
 
@@ -69,7 +69,7 @@ embed stored text). Without it, scoring is lexical + recency only.
 ## `inMemory()`
 
 Zero-dependency, `Map`-backed. Takes only the [common options](#common-options) above.
-Records vanish on restart — use it for dev, tests, and single-process demos.
+Records vanish on restart, so use it for dev, tests, and single-process demos.
 
 ```ts
 import { inMemory } from '@tanstack/ai-memory/in-memory'
@@ -84,18 +84,15 @@ requires a client.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `redis` | `RedisLike` | — (required) | Your Redis client (`ioredis`, or node-redis via `nodeRedisAsRedisLike`). |
+| `redis` | `RedisLike` | (required) | Your Redis client (`ioredis`, or node-redis via `fromNodeRedis`). |
 | `prefix` | `string` | `'tanstack-ai:memory'` | Key namespace. |
 
-```ts ignore
-// ignore: needs a live ioredis client. ioredis's `Redis` type is structurally broader
-// than the minimal `RedisLike` the adapter needs, so it doesn't nominally match — but it
-// works at runtime, which is why the adapter accepts a BYO ioredis client directly.
+```ts
 import Redis from 'ioredis'
 import { redis } from '@tanstack/ai-memory/redis'
 
 const memory = redis({
-  redis: new Redis(process.env.REDIS_URL), // required
+  redis: new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379'), // required
   prefix: 'myapp:memory', // key namespace
   topK: 8, // common options apply here too
   minScore: 0.2,
@@ -103,20 +100,19 @@ const memory = redis({
 ```
 
 Using **node-redis** (`redis` package) instead of `ioredis`? Its camelCase API doesn't
-match `RedisLike` — wrap it with `nodeRedisAsRedisLike`:
+match `RedisLike`, so wrap it with `fromNodeRedis`:
 
-```ts ignore
-// ignore: needs a live node-redis client.
+```ts
 import { createClient } from 'redis'
-import { redis, nodeRedisAsRedisLike } from '@tanstack/ai-memory/redis'
+import { redis, fromNodeRedis } from '@tanstack/ai-memory/redis'
 
 const client = createClient({ url: process.env.REDIS_URL })
 await client.connect()
 
-const memory = redis({ redis: nodeRedisAsRedisLike(client) })
+const memory = redis({ redis: fromNodeRedis(client) })
 ```
 
-`ioredis` and `redis` are both optional peer dependencies — install whichever you use.
+`ioredis` and `redis` are both optional peer dependencies. Install whichever you use.
 
 ## `hindsight()`
 
@@ -129,11 +125,10 @@ is an optional peer, loaded lazily.
 | `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{user}__{sessionId}`). |
 | `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
-| `onToolRetain` | `(receipt) => void` | — | Fired when the model calls `hindsight_retain`. |
-| `onToolRecall` | `(query, result) => void` | — | Fired when the model calls `hindsight_recall`. |
+| `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
+| `onToolRecall` | `(query, result) => void` | none | Fired when the model calls `hindsight_recall`. |
 
-```ts ignore
-// ignore: requires a running Hindsight server + the @vectorize-io/hindsight-client peer.
+```ts
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
 const memory = hindsight({
@@ -159,8 +154,7 @@ mem0 server.
 | `rerank` | `boolean` | `true` | Ask mem0 to rerank search results. |
 | `threshold` | `number` | `0.1` | Minimum search score. |
 
-```ts ignore
-// ignore: requires a running mem0 server.
+```ts
 import { mem0 } from '@tanstack/ai-memory/mem0'
 
 const memory = mem0({
@@ -186,8 +180,7 @@ loaded lazily.
 | `apiKey` | `string` | `HONCHO_API_KEY` / `'dev-no-auth'` | API key. |
 | `assistantId` | `string` | `'assistant'` | Assistant peer id. |
 
-```ts ignore
-// ignore: requires a running Honcho server + the @honcho-ai/sdk peer.
+```ts
 import { honcho } from '@tanstack/ai-memory/honcho'
 
 const memory = honcho({
@@ -201,6 +194,7 @@ const memory = honcho({
 
 ## Where to go next
 
-- [Overview](./overview) — the contract, `memoryMiddleware` options, devtools events
-- [Quickstart](./quickstart) — wire an adapter into a real `chat()` call
-- [Custom Adapter](./custom-adapter) — implement `recall`/`save` for a backend not shipped
+- [Overview](./overview): the `recall`/`save` contract and how a turn flows
+- [Quickstart](./quickstart): wire an adapter into a real `chat()` call
+- [Operating memory](./operating): options, telemetry, devtools events, and failures
+- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped

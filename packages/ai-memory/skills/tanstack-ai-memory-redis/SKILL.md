@@ -1,6 +1,6 @@
 ---
 name: tanstack-ai-memory-redis
-description: Use when wiring redis() from @tanstack/ai-memory/redis in production — covers client setup (ioredis or node-redis via nodeRedisAsRedisLike), the storage model, client-side ranking limits, and troubleshooting.
+description: Use when wiring redis() from @tanstack/ai-memory/redis in production — covers client setup (ioredis or node-redis via fromNodeRedis), the storage model, client-side ranking limits, and troubleshooting.
 ---
 
 # Redis Memory Adapter
@@ -31,20 +31,20 @@ memoryMiddleware({ adapter: memory, scope })
 ```ts
 import { createClient } from 'redis'
 import { memoryMiddleware } from '@tanstack/ai-memory'
-import { redis, nodeRedisAsRedisLike } from '@tanstack/ai-memory/redis'
+import { redis, fromNodeRedis } from '@tanstack/ai-memory/redis'
 
 const client = createClient({ url: process.env.REDIS_URL })
 await client.connect()
 
 const memory = redis({
-  redis: nodeRedisAsRedisLike(client),
+  redis: fromNodeRedis(client),
   prefix: 'myapp:memory',
 })
 
 memoryMiddleware({ adapter: memory, scope })
 ```
 
-node-redis exposes a camelCase API (`sAdd`, `mGet`); `nodeRedisAsRedisLike` translates it
+node-redis exposes a camelCase API (`sAdd`, `mGet`); `fromNodeRedis` translates it
 to the lowercase `RedisLike` shape. Passing a raw node-redis client without the wrapper
 throws `client.sadd is not a function`.
 

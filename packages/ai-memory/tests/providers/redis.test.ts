@@ -2,7 +2,7 @@
 //   the lowercase RedisLike subset ioredis-mock implements (cast below).
 import RedisMock from 'ioredis-mock'
 import { describe, expect, it, vi } from 'vitest'
-import { nodeRedisAsRedisLike, redis } from '../../src/providers/redis'
+import { fromNodeRedis, redis } from '../../src/providers/redis'
 import type { RedisLike } from '../../src/providers/redis'
 import { runMemoryAdapterContract } from '../contract'
 
@@ -71,7 +71,7 @@ describe('redis scope-key hardening', () => {
   })
 })
 
-describe('nodeRedisAsRedisLike', () => {
+describe('fromNodeRedis', () => {
   it('translates camelCase node-redis methods into lowercase RedisLike calls', async () => {
     const calls: Array<{ method: string; args: Array<unknown> }> = []
     const fakeNodeRedis = {
@@ -105,7 +105,7 @@ describe('nodeRedisAsRedisLike', () => {
       },
     }
 
-    const wrapped = nodeRedisAsRedisLike(fakeNodeRedis)
+    const wrapped = fromNodeRedis(fakeNodeRedis)
     await wrapped.set('k', 'v')
     await wrapped.sadd('s', 'a', 'b')
     await wrapped.mget('k1', 'k2')

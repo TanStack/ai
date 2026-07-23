@@ -23,7 +23,7 @@ Extraction, ranking, and rendering live inside each adapter — the middleware i
   `extract` function to persist derived facts.
 - `@tanstack/ai-memory/redis` → `redis({ redis, prefix? })` — production adapter for
   plain Redis. `ioredis` wires in directly; `redis` (node-redis v4+) via the
-  `nodeRedisAsRedisLike(client)` wrapper. Both are optional peer dependencies.
+  `fromNodeRedis(client)` wrapper. Both are optional peer dependencies.
 - `@tanstack/ai-memory/hindsight` → `hindsight()`, `@tanstack/ai-memory/mem0` →
   `mem0()`, `@tanstack/ai-memory/honcho` → `honcho()` — hosted-vendor adapters. Their
   SDKs (`@vectorize-io/hindsight-client`, `@honcho-ai/sdk`) are optional peers loaded
