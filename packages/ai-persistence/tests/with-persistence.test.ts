@@ -112,6 +112,117 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  it('persists the pending user turn at start, so it survives a failed run', async () => {
+    const persistence = memoryPersistence()
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield ev.runStarted()
+          throw new Error('provider boom')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('provider boom')
+
+    // onStart persisted the user turn before the failure, so it is not lost.
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+    ])
+    expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
+  })
+
+  it('snapshots the in-progress reply when snapshotStreaming is on', async () => {
+    const persistence = memoryPersistence()
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'm1',
+            timestamp: 1,
+          }
+          yield ev.text('Half a stor')
+          // Die mid-generation, before any RUN_FINISHED / onFinish.
+          throw new Error('crash mid-stream')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, { snapshotStreaming: true }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    // The partial assistant reply was snapshotted mid-stream, so it survives —
+    // tagged with its stream messageId so a reload resumes the same bubble.
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'Half a stor', id: 'm1' },
+    ])
+  })
+
+  it('stamps the terminal assistant turn with its stream messageId', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'assistant-42',
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // Identity round-trip: the persisted assistant turn keeps the stream id, so
+    // `modelMessagesToUIMessages` reuses it and a reload can resume in place.
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello', id: 'assistant-42' },
+    ])
+  })
+
   it('records an interrupt and marks the run interrupted', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([[ev.runStarted(), ev.interrupted()]])

@@ -50,6 +50,17 @@ interface RunStateEntry {
     pending: Array<InterruptRecord>
     resumeByInterruptId: Map<string, RunAgentResumeItem>
   }
+  /** Accumulated terminal-turn text, for throttled streaming snapshots (B). */
+  streamingText?: string
+  /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
+  lastSnapshotAt?: number
+  /**
+   * The current assistant turn's stream messageId, captured from
+   * `TEXT_MESSAGE_START`. Persisted onto the assistant message so its identity
+   * survives the persist → hydrate round-trip and a reload can resume the same
+   * bubble in place.
+   */
+  streamingMessageId?: string
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -220,6 +231,7 @@ function resumeToolStateFromPending(
 function finishedTranscript(
   messages: ReadonlyArray<ModelMessage>,
   info: FinishInfo,
+  messageId: string | undefined,
 ): Array<ModelMessage> {
   const transcript = [...messages]
   const last = transcript[transcript.length - 1]
@@ -228,7 +240,13 @@ function finishedTranscript(
     last.toolCalls === undefined &&
     last.content === info.content
   if (info.content && !alreadyPresent) {
-    transcript.push({ role: 'assistant', content: info.content })
+    // Stamp the terminal turn with its stream messageId so a hydrated bubble
+    // keeps the same identity as the live stream (in-place resume on reload).
+    transcript.push({
+      role: 'assistant',
+      content: info.content,
+      ...(messageId ? { id: messageId } : {}),
+    })
   }
   return transcript
 }
@@ -352,11 +370,34 @@ async function interruptRun(
  * resending history, pass an empty `messages` array and the stored transcript
  * is loaded and used.
  */
+export interface WithPersistenceOptions {
+  /**
+   * Also persist a throttled snapshot of the in-progress assistant reply while
+   * it streams. Off by default — the transcript is otherwise persisted at the
+   * pending turn (`onStart`), interrupt boundaries, and completion (`onFinish`).
+   * Enable it to recover partial output if the process dies mid-generation, at
+   * the cost of extra writes. Snapshots are throttled to at most one per
+   * {@link WithPersistenceOptions.snapshotIntervalMs}.
+   */
+  snapshotStreaming?: boolean
+  /**
+   * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
+   * is on. Defaults to 1000.
+   */
+  snapshotIntervalMs?: number
+}
+
 export function withPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
+  options?: WithPersistenceOptions,
 ): ChatMiddleware
-export function withPersistence(persistence: AIPersistence): ChatMiddleware {
+export function withPersistence(
+  persistence: AIPersistence,
+  options: WithPersistenceOptions = {},
+): ChatMiddleware {
   validateChatPersistenceStores(persistence)
+  const snapshotStreaming = options.snapshotStreaming ?? false
+  const snapshotIntervalMs = options.snapshotIntervalMs ?? 1000
   const plan = resolvePersistencePlan(persistence)
   const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
 
@@ -438,7 +479,72 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
       return Object.keys(patch).length > 0 ? patch : undefined
     },
 
+    async onStart(ctx: ChatMiddlewareContext) {
+      // (A) Persist the pending turn (the just-submitted user message plus any
+      // prior history) as soon as the run starts, so a reload mid-run rehydrates
+      // it before the assistant reply exists. Best-effort: a failed eager
+      // snapshot must not abort the run — the authoritative save is `onFinish`.
+      if (!wantsMessages || !persistence.stores.messages) return
+      try {
+        await persistence.stores.messages.saveThread(ctx.threadId, [
+          ...ctx.messages,
+        ])
+      } catch {
+        // Eager pre-save is best-effort; the run continues and onFinish saves.
+      }
+    },
+
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
+      // Always capture the current assistant turn's stream messageId (cheap),
+      // regardless of snapshotStreaming — it's persisted onto the assistant
+      // message so its identity survives hydrate and a reload resumes the same
+      // bubble in place.
+      if (chunk.type === 'TEXT_MESSAGE_START') {
+        const s = runState.get(ctx)
+        if (s) {
+          s.streamingMessageId = chunk.messageId
+          s.streamingText = ''
+        }
+      }
+
+      // (B) Optional throttled snapshot of the in-progress assistant reply, so
+      // partial output survives a crash/reload before onFinish. Off unless
+      // `snapshotStreaming` is set. We accumulate the terminal turn's text here
+      // (the engine only appends assistant turns with tool calls to
+      // `ctx.messages`, never a streaming text reply), then persist
+      // `ctx.messages` + that partial assistant message (tagged with its id).
+      if (
+        snapshotStreaming &&
+        wantsMessages &&
+        persistence.stores.messages &&
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        typeof chunk.delta === 'string'
+      ) {
+        const snapshotState = runState.get(ctx)
+        if (snapshotState) {
+          snapshotState.streamingText =
+            (snapshotState.streamingText ?? '') + chunk.delta
+          const now = Date.now()
+          if (now - (snapshotState.lastSnapshotAt ?? 0) >= snapshotIntervalMs) {
+            snapshotState.lastSnapshotAt = now
+            try {
+              await persistence.stores.messages.saveThread(ctx.threadId, [
+                ...ctx.messages,
+                {
+                  role: 'assistant',
+                  content: snapshotState.streamingText,
+                  ...(snapshotState.streamingMessageId
+                    ? { id: snapshotState.streamingMessageId }
+                    : {}),
+                },
+              ])
+            } catch {
+              // Streaming snapshots are best-effort; onFinish persists final.
+            }
+          }
+        }
+      }
+
       // State-only: react to the interrupt boundary (create interrupt records,
       // mark the run interrupted, snapshot thread messages). The chunk stream is
       // never mutated — delivery durability is a transport-layer concern.
@@ -483,7 +589,7 @@ export function withPersistence(persistence: AIPersistence): ChatMiddleware {
       if (wantsMessages && persistence.stores.messages) {
         await persistence.stores.messages.saveThread(
           ctx.threadId,
-          finishedTranscript(ctx.messages, info),
+          finishedTranscript(ctx.messages, info, state?.streamingMessageId),
         )
       }
     },
