@@ -5,7 +5,6 @@ import {
   localStoragePersistence,
 } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
-import type { ChatPersistedState } from '@tanstack/ai-client'
 
 export const Route = createFileRoute('/persistent-chat')({
   component: PersistentChatPage,
@@ -13,17 +12,13 @@ export const Route = createFileRoute('/persistent-chat')({
 
 const connection = fetchServerSentEvents('/api/persistent-chat')
 
-// One combined record (messages + resume snapshot) per chat id, in
-// localStorage so it survives a full reload and browser restart. UIMessage
-// carries a `Date`, which is not JSON-native, so a codec is required; strings
-// round-trip fine for this demo.
-const store = localStoragePersistence<ChatPersistedState>({
-  serialize: (value) => JSON.stringify(value),
-  deserialize: (value) => JSON.parse(value),
-})
+// One combined record (messages + resume snapshot) per thread, in localStorage
+// so it survives a full reload and browser restart. Defaults to a JSON codec
+// and the ChatPersistedState shape, so no type argument or codec is needed.
+const store = localStoragePersistence()
 
 // Client-authoritative: cache the transcript in localStorage (default).
-const persistence = { store }
+const persistence = store
 
 // Server-authoritative alternative — keep big histories OFF the client:
 //
@@ -35,11 +30,10 @@ const persistence = { store }
 // `/api/persistent-chat?threadId=…` history branch and seeds `initialMessages`).
 
 function PersistentChatPage() {
-  // A stable id + threadId so a reload rehydrates the SAME conversation from
-  // storage (client) and continues it on the server (SQLite).
+  // A stable threadId so a reload rehydrates the SAME conversation from storage
+  // (client) and continues it on the server (SQLite). Persistence keys on it.
   const { messages, sendMessage, isLoading, connectionStatus } = useChat({
-    id: 'persistent-chat',
-    threadId: 'persistent-chat-thread',
+    threadId: 'persistent-chat',
     connection,
     persistence,
   })
