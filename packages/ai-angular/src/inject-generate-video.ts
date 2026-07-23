@@ -18,7 +18,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPendingArtifact,
-  GenerationPersistenceOptions,
+  GenerationPersistence,
   GenerationResumeSnapshot,
   GenerationResumeState,
   InferGenerationOutputFromReturn,
@@ -37,7 +37,7 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   body?: ReactiveOption<Record<string, any>>
   devtools?: AIDevtoolsDisplayOptions
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
   initialResumeSnapshot?: GenerationResumeSnapshot
   onResult?: (result: VideoGenerateResult) => TOutput | null | void
   onError?: (error: Error) => void
@@ -203,7 +203,7 @@ export function injectGenerateVideo<TTransformed = void>(
     )
   }
 
-  // Mount devtools only. Generation runs are never auto-started after render —
+  // Mount devtools only. Generation runs are never auto-started after render â€”
   // persisted state is read-only for display.
   afterNextRender(
     () => {

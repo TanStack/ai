@@ -18,7 +18,7 @@ import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,
-  GenerationServerPersistence,
+  GenerationPersistence,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -377,7 +377,7 @@ describe('useGeneration', () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const persistence: GenerationServerPersistence = {
+      const persistence: GenerationPersistence = {
         getItem: vi.fn(() => ({
           resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
           status: 'running' as const,
@@ -390,7 +390,7 @@ describe('useGeneration', () => {
         useGeneration({
           id: 'no-auto-fire',
           connection: adapter,
-          persistence: { server: persistence },
+          persistence: persistence,
           initialResumeSnapshot: {
             resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
             status: 'running',
@@ -825,7 +825,7 @@ describe('useGenerateVideo', () => {
     const { adapter, connect } = createRunContextCaptureAdapter(
       createReplayVideoChunks(),
     )
-    const persistence: GenerationServerPersistence = {
+    const persistence: GenerationPersistence = {
       getItem: vi.fn(() => videoResumeSnapshot),
       setItem: vi.fn(),
       removeItem: vi.fn(),
@@ -835,7 +835,7 @@ describe('useGenerateVideo', () => {
       useGenerateVideo({
         id: 'video-no-auto-fire',
         connection: adapter,
-        persistence: { server: persistence },
+        persistence: persistence,
         initialResumeSnapshot: videoResumeSnapshot,
       }),
     )

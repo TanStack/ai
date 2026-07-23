@@ -7,10 +7,7 @@ import {
 } from '../src'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
-import type {
-  GenerationResumeSnapshot,
-  GenerationServerPersistence,
-} from '../src'
+import type { GenerationResumeSnapshot, GenerationPersistence } from '../src'
 
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
@@ -1332,7 +1329,7 @@ describe('GenerationClient', () => {
     it('reports rejected persistence writes without rejecting generation', async () => {
       const warningSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const persistenceError = new Error('persistence failed')
-      const persistence: GenerationServerPersistence = {
+      const persistence: GenerationPersistence = {
         getItem: vi.fn(),
         setItem: vi.fn(async () => {
           throw persistenceError
@@ -1348,7 +1345,7 @@ describe('GenerationClient', () => {
             timestamp: Date.now(),
           },
         ]),
-        persistence: { server: persistence },
+        persistence: persistence,
       })
 
       await expect(client.generate({ prompt: 'test' })).resolves.toBeUndefined()
@@ -1366,7 +1363,7 @@ describe('GenerationClient', () => {
     it('keeps a delayed running write from overwriting a terminal complete snapshot', async () => {
       const runningWrite = createDeferred()
       let storedSnapshot: GenerationResumeSnapshot | undefined
-      const persistence: GenerationServerPersistence = {
+      const persistence: GenerationPersistence = {
         getItem: vi.fn(),
         setItem: vi.fn(async (_id, snapshot) => {
           if (snapshot.status === 'running') {
@@ -1392,7 +1389,7 @@ describe('GenerationClient', () => {
             timestamp: Date.now(),
           },
         ]),
-        persistence: { server: persistence },
+        persistence: persistence,
       })
 
       await client.generate({ prompt: 'test' })
@@ -1411,7 +1408,7 @@ describe('GenerationClient', () => {
     it('keeps a delayed video running write from overwriting a terminal error snapshot', async () => {
       const runningWrite = createDeferred()
       let storedSnapshot: GenerationResumeSnapshot | undefined
-      const persistence: GenerationServerPersistence = {
+      const persistence: GenerationPersistence = {
         getItem: vi.fn(),
         setItem: vi.fn(async (_id, snapshot) => {
           if (snapshot.status === 'running') {
@@ -1437,7 +1434,7 @@ describe('GenerationClient', () => {
             timestamp: Date.now(),
           },
         ]),
-        persistence: { server: persistence },
+        persistence: persistence,
       })
 
       await client.generate({ prompt: 'test' })

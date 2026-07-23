@@ -58,29 +58,21 @@ because `RunStore` is keyed by `runId`.
 ## Persist the client snapshot
 
 ```tsx
+import { localStoragePersistence } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
-import type { GenerationServerPersistence } from '@tanstack/ai-client'
+import type { GenerationResumeSnapshot } from '@tanstack/ai-client'
 
-// `GenerationServerPersistence` already pins the stored value to a
-// `GenerationResumeSnapshot`, so there is no generic to pass at the call site.
-const snapshots: GenerationServerPersistence = {
-  getItem: (id) => {
-    const raw = localStorage.getItem(`my-app:generation:${id}`)
-    return raw ? JSON.parse(raw) : null
-  },
-  setItem: (id, value) => {
-    localStorage.setItem(`my-app:generation:${id}`, JSON.stringify(value))
-  },
-  removeItem: (id) => {
-    localStorage.removeItem(`my-app:generation:${id}`)
-  },
-}
+// The same web-storage adapters the chat client uses work here — pass the
+// snapshot type so the adapter stores a `GenerationResumeSnapshot`.
+const snapshots = localStoragePersistence<GenerationResumeSnapshot>({
+  keyPrefix: 'my-app:generation:',
+})
 
 export function HeroImageGenerator() {
   const image = useGenerateImage({
     id: 'hero-image',
     connection: fetchServerSentEvents('/api/generate/image'),
-    persistence: { server: snapshots },
+    persistence: snapshots,
   })
 
   return (

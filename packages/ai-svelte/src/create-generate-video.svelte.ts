@@ -7,7 +7,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPendingArtifact,
-  GenerationPersistenceOptions,
+  GenerationPersistence,
   GenerationResumeSnapshot,
   GenerationResumeState,
   InferGenerationOutputFromReturn,
@@ -34,7 +34,7 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
   /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
   /**
@@ -248,7 +248,7 @@ export function createGenerateVideo<TTransformed = void>(
     )
   }
 
-  // Mount devtools only. Generation runs are never auto-started on setup —
+  // Mount devtools only. Generation runs are never auto-started on setup â€”
   // persisted state is read-only for display.
   client.mountDevtools()
 

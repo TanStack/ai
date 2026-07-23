@@ -230,9 +230,7 @@ describe('createGeneration', () => {
       const gen = createGeneration({
         id: 'no-auto-fire',
         connection: adapter,
-        persistence: {
-          server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-        },
+        persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         initialResumeSnapshot: snapshot,
       })
 
@@ -724,9 +722,7 @@ describe('createGenerateVideo', () => {
     const gen = createGenerateVideo({
       id: 'video-no-auto-fire',
       connection: adapter,
-      persistence: {
-        server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-      },
+      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,
     })
 

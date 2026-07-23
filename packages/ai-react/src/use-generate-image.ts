@@ -6,7 +6,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPendingArtifact,
-  GenerationPersistenceOptions,
+  GenerationPersistence,
   GenerationResumeSnapshot,
   GenerationResumeState,
   ImageGenerateInput,
@@ -31,7 +31,7 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
   /** Initial lightweight resume snapshot restored by the app. */
   initialResumeSnapshot?: GenerationResumeSnapshot
   /**
@@ -84,8 +84,8 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  * React hook for generating images using AI models.
  *
  * Supports two transport modes:
- * - **ConnectConnectionAdapter** — Streaming transport (SSE, HTTP stream, custom)
- * - **Fetcher** — Direct async function call
+ * - **ConnectConnectionAdapter** â€” Streaming transport (SSE, HTTP stream, custom)
+ * - **Fetcher** â€” Direct async function call
  *
  * @example
  * ```tsx

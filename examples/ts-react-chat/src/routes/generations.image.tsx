@@ -2,40 +2,20 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
 import type { UseGenerateImageReturn } from '@tanstack/ai-react'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
-import type {
-  GenerationResumeSnapshot,
-  GenerationServerPersistence,
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
 } from '@tanstack/ai-client'
+import type { GenerationResumeSnapshot } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
 
-// Lightweight, read-only generation resume snapshots persisted in the browser.
-// Only run identity, status, errors, and result metadata are stored — never the
-// generated image bytes. On reload the last snapshot is surfaced for
-// observability; generation still only starts when `generate(...)` is called.
-const imageSnapshots: GenerationServerPersistence = {
-  getItem: (id) => {
-    if (typeof window === 'undefined') return null
-    const raw = window.localStorage.getItem(`example:generation:${id}`)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    return parsed && typeof parsed === 'object'
-      ? (parsed as GenerationResumeSnapshot)
-      : null
-  },
-  setItem: (id, value) => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      `example:generation:${id}`,
-      JSON.stringify(value),
-    )
-  },
-  removeItem: (id) => {
-    if (typeof window === 'undefined') return
-    window.localStorage.removeItem(`example:generation:${id}`)
-  },
-}
+// Reuse the shared web-storage adapter for the lightweight, read-only
+// generation resume snapshot. Only run identity, status, errors, and result
+// metadata are stored — never the generated image bytes.
+const imageSnapshots = localStoragePersistence<GenerationResumeSnapshot>({
+  keyPrefix: 'example:generation:',
+})
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -107,7 +87,7 @@ function PersistedImageGeneration() {
   const hookReturn = useGenerateImage({
     id: 'persisted-image',
     connection: fetchServerSentEvents('/api/generate/image'),
-    persistence: { server: imageSnapshots },
+    persistence: imageSnapshots,
   })
 
   return (

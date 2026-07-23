@@ -6,6 +6,7 @@ import type {
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatStorageAdapter } from './types'
 import type {
   GenerationDevtoolsBridgeFactory,
   VideoDevtoolsBridgeFactory,
@@ -101,21 +102,14 @@ export interface GenerationResumeSnapshot {
   lastEvent?: GenerationEventSnapshot
 }
 
-export interface GenerationServerPersistence {
-  getItem: (
-    id: string,
-  ) =>
-    | GenerationResumeSnapshot
-    | null
-    | undefined
-    | Promise<GenerationResumeSnapshot | null | undefined>
-  setItem: (id: string, value: GenerationResumeSnapshot) => void | Promise<void>
-  removeItem: (id: string) => void | Promise<void>
-}
-
-export interface GenerationPersistenceOptions {
-  server?: GenerationServerPersistence
-}
+/**
+ * Storage adapter for the lightweight generation resume snapshot. This is the
+ * same generic {@link ChatStorageAdapter} contract the chat client uses, so the
+ * `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
+ * factories work here too. Only the snapshot is ever written — never the
+ * generated media bytes.
+ */
+export type GenerationPersistence = ChatStorageAdapter<GenerationResumeSnapshot>
 
 // ===========================
 // Event Constants
@@ -208,11 +202,12 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   initialResumeSnapshot?: GenerationResumeSnapshot
 
   /**
-   * Optional persistence adapters for lightweight generation state.
-   * Generation hooks only support `server` persistence; generated media bytes
-   * are never written into browser storage by this client.
+   * Optional storage adapter for the lightweight generation resume snapshot.
+   * Accepts any {@link ChatStorageAdapter} — including the shared
+   * `localStoragePersistence` / `sessionStoragePersistence` /
+   * `indexedDBPersistence` factories. Generated media bytes are never written.
    */
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
 
   /**
    * Factory that constructs the devtools bridge. Default is a no-op

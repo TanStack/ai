@@ -19,7 +19,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPendingArtifact,
-  GenerationPersistenceOptions,
+  GenerationPersistence,
   GenerationResumeSnapshot,
   GenerationResumeState,
   InferGenerationOutputFromReturn,
@@ -41,7 +41,7 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
   /** Initial lightweight resume snapshot restored by the app (read-only state). */
   initialResumeSnapshot?: GenerationResumeSnapshot
   /**
@@ -89,7 +89,7 @@ export interface InjectGenerationResult<TOutput> {
 // inference site that works even for an optional nested property), which types
 // the callback parameter as `TResult` and narrows `result`. Inferring the
 // whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
+// default, leaving the parameter `any` â€” a hard error under `strict`. See
 // issue #848.
 export function injectGeneration<
   TInput extends Record<string, any>,
@@ -214,7 +214,7 @@ export function injectGeneration<
     )
   }
 
-  // Mount devtools only. Generation runs are never auto-started after render —
+  // Mount devtools only. Generation runs are never auto-started after render â€”
   // persisted state is read-only for display.
   afterNextRender(
     () => {

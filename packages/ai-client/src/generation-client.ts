@@ -20,7 +20,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationResumeSnapshot,
-  GenerationServerPersistence,
+  GenerationPersistence,
 } from './generation-types'
 
 /**
@@ -89,7 +89,7 @@ export class GenerationClient<
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
-  private readonly serverPersistence: GenerationServerPersistence | undefined
+  private readonly serverPersistence: GenerationPersistence | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
   private input: TInput | null = null
@@ -120,7 +120,7 @@ export class GenerationClient<
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.body = options.body ?? {}
-    this.serverPersistence = options.persistence?.server
+    this.serverPersistence = options.persistence
     this.resumeSnapshot = options.initialResumeSnapshot
 
     this.callbacksRef = {

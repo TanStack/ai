@@ -131,9 +131,7 @@ describe('injectGeneration', () => {
     const { result } = renderInjectGeneration({
       id: 'no-auto-fire',
       connection: adapter,
-      persistence: {
-        server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-      },
+      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: snapshot,
     })
 
@@ -156,9 +154,7 @@ describe('injectGenerateVideo', () => {
     const { result } = renderInjectGenerateVideo({
       id: 'video-no-auto-fire',
       connection: adapter,
-      persistence: {
-        server: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
-      },
+      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,
     })
 

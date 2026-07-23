@@ -7,7 +7,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPendingArtifact,
-  GenerationPersistenceOptions,
+  GenerationPersistence,
   GenerationResumeSnapshot,
   GenerationResumeState,
   InferGenerationOutputFromReturn,
@@ -31,7 +31,7 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /** Server-side lightweight generation state persistence. */
-  persistence?: GenerationPersistenceOptions
+  persistence?: GenerationPersistence
   /** Initial lightweight resume snapshot restored by the app. */
   initialResumeSnapshot?: GenerationResumeSnapshot
   /**
@@ -84,8 +84,8 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
  * React hook for generating audio (music, sound effects) using AI models.
  *
  * Supports two transport modes:
- * - **ConnectConnectionAdapter** — Streaming transport (SSE, HTTP stream, custom)
- * - **Fetcher** — Direct async function call
+ * - **ConnectConnectionAdapter** â€” Streaming transport (SSE, HTTP stream, custom)
+ * - **Fetcher** â€” Direct async function call
  *
  * @example
  * ```tsx
