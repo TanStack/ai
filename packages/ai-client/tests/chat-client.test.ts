@@ -14,7 +14,11 @@ import type {
   ConnectionAdapter,
 } from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
-import type { ChatClientPersistence, UIMessage } from '../src/types'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '../src/types'
 
 describe('ChatClient', () => {
   const persistedMessage: UIMessage = {
@@ -419,8 +423,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -514,8 +518,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -648,8 +652,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -852,8 +856,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -905,8 +909,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -1023,8 +1027,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -1377,8 +1381,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -2582,8 +2586,8 @@ describe('ChatClient', () => {
       }
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn((_key: string, messages: Array<UIMessage>) => {
-          storedMessages = messages
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -2631,9 +2635,9 @@ describe('ChatClient', () => {
       const releaseSet = createDeferred<void>()
       const persistence = {
         getItem: vi.fn(() => undefined),
-        setItem: vi.fn(async (_key: string, messages: Array<UIMessage>) => {
+        setItem: vi.fn(async (_key: string, state: ChatPersistedState) => {
           await releaseSet.promise
-          storedMessages = messages
+          storedMessages = state.messages
         }),
         removeItem: vi.fn(() => {
           storedMessages = undefined
@@ -2671,10 +2675,9 @@ describe('ChatClient', () => {
       await client.sendMessage('Hello')
 
       expect(persistence.setItem).toHaveBeenCalled()
-      expect(persistence.setItem).toHaveBeenLastCalledWith(
-        'chat-1',
-        client.getMessages(),
-      )
+      expect(persistence.setItem).toHaveBeenLastCalledWith('chat-1', {
+        messages: client.getMessages(),
+      })
     })
 
     it('should save message snapshots when messages are set manually', () => {
@@ -2688,9 +2691,9 @@ describe('ChatClient', () => {
 
       client.setMessagesManually([initialMessage])
 
-      expect(persistence.setItem).toHaveBeenCalledWith('chat-1', [
-        initialMessage,
-      ])
+      expect(persistence.setItem).toHaveBeenCalledWith('chat-1', {
+        messages: [initialMessage],
+      })
     })
 
     it('should swallow async persistence write and remove failures', async () => {

@@ -193,39 +193,66 @@ function imageAdapterThatThrows(thrown: unknown): ImageAdapter<string> {
   }
 }
 
+// A generation activity's only identity is `requestId` (auto-generated), so the
+// integration tests capture it via a probe middleware, and the direct-drive
+// tests set `requestId` to the pre-created run's id.
+function generationContext(requestId: string): GenerationMiddlewareContext {
+  return {
+    requestId,
+    activity: 'image',
+    provider: 'test',
+    model: 'test-model',
+    source: 'server',
+    createId: (prefix) => `${prefix}-1`,
+    context: undefined,
+  }
+}
+
 describe('generation persistence error/abort hooks', () => {
   it('marks the run failed when generation throws', async () => {
     const persistence = memoryPersistence()
+    let requestId = ''
 
     await expect(
       generateImage({
         adapter: imageAdapterThatThrows(new Error('image boom')),
         prompt: 'make an image',
-        threadId: 't-img',
-        runId: 'r-img',
-        middleware: [withGenerationPersistence(persistence)],
+        middleware: [
+          {
+            onStart: (ctx) => {
+              requestId = ctx.requestId
+            },
+          },
+          withGenerationPersistence(persistence),
+        ],
       }),
     ).rejects.toThrow('image boom')
 
-    const run = await persistence.stores.runs!.get('r-img')
+    const run = await persistence.stores.runs!.get(requestId)
     expect(run?.status).toBe('failed')
     expect(run?.error).toBe('image boom')
   })
 
   it('coerces a non-Error generation failure into the run error string', async () => {
     const persistence = memoryPersistence()
+    let requestId = ''
 
     await expect(
       generateImage({
         adapter: imageAdapterThatThrows('image string failure'),
         prompt: 'make an image',
-        threadId: 't-img',
-        runId: 'r-img',
-        middleware: [withGenerationPersistence(persistence)],
+        middleware: [
+          {
+            onStart: (ctx) => {
+              requestId = ctx.requestId
+            },
+          },
+          withGenerationPersistence(persistence),
+        ],
       }),
     ).rejects.toBeDefined()
 
-    const run = await persistence.stores.runs!.get('r-img')
+    const run = await persistence.stores.runs!.get(requestId)
     expect(run?.status).toBe('failed')
     expect(run?.error).toBe('image string failure')
   })
@@ -235,24 +262,20 @@ describe('generation persistence error/abort hooks', () => {
     const middleware = withGenerationPersistence(persistence)
 
     await persistence.stores.runs!.createOrResume({
-      runId: 'r-abort',
-      threadId: 't-abort',
+      runId: 'req-abort',
+      threadId: 'req-abort',
       startedAt: 1,
     })
 
     // Drive the abort hook directly: only long-poll activities (video) route
     // through onAbort at runtime, so exercise the handler in isolation.
-    const ctx = {
-      runId: 'r-abort',
-      threadId: 't-abort',
-      requestId: 'req-abort',
-    } as GenerationMiddlewareContext
-    await middleware.onAbort?.(ctx, {
+    const abortInfo: GenerationAbortInfo = {
       duration: 1,
       reason: 'client cancelled',
-    } as GenerationAbortInfo)
+    }
+    await middleware.onAbort?.(generationContext('req-abort'), abortInfo)
 
-    expect((await persistence.stores.runs!.get('r-abort'))?.status).toBe(
+    expect((await persistence.stores.runs!.get('req-abort'))?.status).toBe(
       'interrupted',
     )
   })
@@ -261,21 +284,17 @@ describe('generation persistence error/abort hooks', () => {
     const persistence = memoryPersistence()
     const middleware = withGenerationPersistence(persistence)
     await persistence.stores.runs!.createOrResume({
-      runId: 'r-err',
-      threadId: 't-err',
+      runId: 'req-err',
+      threadId: 'req-err',
       startedAt: 1,
     })
-    const ctx = {
-      runId: 'r-err',
-      threadId: 't-err',
-      requestId: 'req-err',
-    } as GenerationMiddlewareContext
-    await middleware.onError?.(ctx, {
+    const errorInfo: GenerationErrorInfo = {
       error: { code: 500 },
       duration: 1,
-    } as unknown as GenerationErrorInfo)
+    }
+    await middleware.onError?.(generationContext('req-err'), errorInfo)
 
-    const run = await persistence.stores.runs!.get('r-err')
+    const run = await persistence.stores.runs!.get('req-err')
     expect(run?.status).toBe('failed')
     expect(run?.error).toBe('[object Object]')
   })

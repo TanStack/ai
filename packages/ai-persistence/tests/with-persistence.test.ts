@@ -209,6 +209,8 @@ describe('withPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
         threadId: 't1',
+        // The engine requires the interrupted run's id to correlate the resume.
+        parentRunId: 'r1',
         resume: [
           {
             interruptId: 'interrupt-1',

@@ -3,7 +3,11 @@ import { EventType } from '@tanstack/ai/client'
 import { ChatPersistor } from '../src/client-persistor'
 import { createMockPersistence, createUIMessage } from './test-utils'
 import type { StreamChunk } from '@tanstack/ai/client'
-import type { ChatClientPersistence, UIMessage } from '../src/types'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '../src/types'
 
 const CHAT_ID = 'chat-1'
 
@@ -82,7 +86,8 @@ describe('ChatPersistor', () => {
       const adapter = createMockPersistence(stored)
       const { persistor } = createPersistor(adapter)
 
-      expect(persistor.readInitial()).toBe(stored)
+      // A legacy bare-array record is normalized to the combined shape.
+      expect(persistor.readInitial()).toEqual({ messages: stored })
       expect(adapter.getItem).toHaveBeenCalledWith(CHAT_ID)
     })
 
@@ -107,48 +112,42 @@ describe('ChatPersistor', () => {
   })
 
   describe('hydrateAsync', () => {
-    it('applies messages once the promise resolves to an array', async () => {
+    it('applies messages once the promise resolves to a record', async () => {
       const stored = [createUIMessage('persisted-1')]
       const { persistor, applyMessages } = createPersistor(
         createMockPersistence(),
       )
 
-      persistor.hydrateAsync(Promise.resolve(stored))
+      persistor.hydrateAsync(Promise.resolve({ messages: stored }))
       await flushAsync()
 
       expect(applyMessages).toHaveBeenCalledWith(stored)
     })
 
-    it.each([
-      ['null', null],
-      ['undefined', undefined],
-    ])(
-      'does not apply when the promise resolves to %s',
-      async (_label, value) => {
-        const { persistor, applyMessages } = createPersistor(
-          createMockPersistence(),
-        )
+    it('does not apply when the promise resolves to undefined', async () => {
+      const { persistor, applyMessages } = createPersistor(
+        createMockPersistence(),
+      )
 
-        persistor.hydrateAsync(Promise.resolve(value))
-        await flushAsync()
+      persistor.hydrateAsync(Promise.resolve(undefined))
+      await flushAsync()
 
-        expect(applyMessages).not.toHaveBeenCalled()
-      },
-    )
+      expect(applyMessages).not.toHaveBeenCalled()
+    })
 
     it('does nothing for a synchronous (non-promise) value', async () => {
       const { persistor, applyMessages } = createPersistor(
         createMockPersistence(),
       )
 
-      persistor.hydrateAsync([createUIMessage('m-1')])
+      persistor.hydrateAsync({ messages: [createUIMessage('m-1')] })
       await flushAsync()
 
       expect(applyMessages).not.toHaveBeenCalled()
     })
 
     it('does not apply if messages changed before hydration resolves', async () => {
-      const deferred = createDeferred<Array<UIMessage>>()
+      const deferred = createDeferred<ChatPersistedState>()
       const { persistor, applyMessages } = createPersistor(
         createMockPersistence(),
       )
@@ -156,7 +155,7 @@ describe('ChatPersistor', () => {
       persistor.hydrateAsync(deferred.promise)
       // A local change lands before the slow getItem resolves.
       persistor.notifyMessagesChanged([createUIMessage('local-1')])
-      deferred.resolve([createUIMessage('persisted-1')])
+      deferred.resolve({ messages: [createUIMessage('persisted-1')] })
       await flushAsync()
 
       expect(applyMessages).not.toHaveBeenCalled()
@@ -182,7 +181,7 @@ describe('ChatPersistor', () => {
 
       persistor.notifyMessagesChanged(messages)
 
-      expect(adapter.setItem).toHaveBeenCalledWith(CHAT_ID, messages)
+      expect(adapter.setItem).toHaveBeenCalledWith(CHAT_ID, { messages })
     })
 
     it('persists a snapshot, not the live array reference', () => {
@@ -194,7 +193,7 @@ describe('ChatPersistor', () => {
       messages.push(createUIMessage('m-2'))
 
       const persisted = vi.mocked(adapter.setItem).mock.calls[0]?.[1]
-      expect(persisted).toHaveLength(1)
+      expect(persisted?.messages).toHaveLength(1)
     })
 
     it('skips exactly one write after beginClear, then resumes', () => {
@@ -240,9 +239,9 @@ describe('ChatPersistor', () => {
       await flushAsync()
 
       expect(adapter.setItem).toHaveBeenCalledTimes(2)
-      expect(vi.mocked(adapter.setItem).mock.calls[1]?.[1]).toEqual([
-        createUIMessage('b'),
-      ])
+      expect(vi.mocked(adapter.setItem).mock.calls[1]?.[1]).toEqual({
+        messages: [createUIMessage('b')],
+      })
     })
 
     it('keeps writing after an async write rejects', async () => {

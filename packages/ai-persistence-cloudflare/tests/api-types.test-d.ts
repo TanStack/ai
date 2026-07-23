@@ -7,11 +7,11 @@ import {
 } from '../src/index'
 import type {
   InterruptStore,
+  LockStore,
   MessageStore,
   MetadataStore,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai'
 
 declare const d1: D1Database
 declare const durableObjects: DurableObjectNamespace

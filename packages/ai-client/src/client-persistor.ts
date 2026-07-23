@@ -93,9 +93,16 @@ export class ChatPersistor {
    * written and large histories never hit client storage.
    */
   private writeState(): void {
+    const messages = this.storeMessages ? [...this.lastMessages] : []
+    // Nothing to persist (no transcript, no resume pointer): don't write an
+    // empty record. This keeps a cleared conversation from leaving an empty
+    // `{ messages: [] }` behind, matching the "removed, not emptied" contract.
+    if (messages.length === 0 && !this.lastResume) {
+      return
+    }
     const generation = this.generation
     const state: ChatPersistedState = {
-      messages: this.storeMessages ? [...this.lastMessages] : [],
+      messages,
       ...(this.lastResume ? { resume: this.lastResume } : {}),
     }
     this.runOperation(() => {
