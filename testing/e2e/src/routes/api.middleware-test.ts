@@ -7,7 +7,6 @@ import {
   toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
-import type { ChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import type { MemoryAdapter } from '@tanstack/ai-memory'
@@ -17,15 +16,9 @@ import {
   recordMemorySave,
   resetMemoryCapture,
 } from '@/lib/memory-capture'
-import { guitarRecommendationSchema } from '@/lib/schemas'
-import {
-  getPhaseCapture,
-  recordOnFinish,
-  recordPhase,
-  recordYieldedChunk,
-  resetPhaseCapture,
-} from '@/lib/phase-capture'
 import { SpanStatusCode } from '@opentelemetry/api'
+import { z } from 'zod'
+import type { ChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
 import type {
   AttributeValue,
   Attributes,
@@ -38,7 +31,14 @@ import type {
   SpanStatus,
   Tracer,
 } from '@opentelemetry/api'
-import { z } from 'zod'
+import { guitarRecommendationSchema } from '@/lib/schemas'
+import {
+  getPhaseCapture,
+  recordOnFinish,
+  recordPhase,
+  recordYieldedChunk,
+  resetPhaseCapture,
+} from '@/lib/phase-capture'
 import { createTextAdapter } from '@/lib/providers'
 import {
   getOtelCapture,
@@ -233,7 +233,7 @@ function createCaptureTracer(captureId: string): Tracer {
       const id = `span-${spanSeq++}`
       const attrs: Record<string, AttributeValue> = {}
       for (const [k, v] of Object.entries(options.attributes ?? {})) {
-        if (v !== undefined) attrs[k] = v as AttributeValue
+        if (v !== undefined) attrs[k] = v
       }
       recordOtelSpan(captureId, {
         id,
@@ -252,7 +252,7 @@ function createCaptureTracer(captureId: string): Tracer {
           return { traceId: 'capture-trace', spanId: id, traceFlags: 1 }
         },
         setAttribute(key, value) {
-          attrs[key] = value as AttributeValue
+          attrs[key] = value
           recordOtelSpan(captureId, { id, patch: { attributes: { ...attrs } } })
           return span
         },
@@ -309,7 +309,7 @@ function createCaptureTracer(captureId: string): Tracer {
       return span
     },
     // Minimal implementation — our middleware never calls startActiveSpan.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string
@@ -337,7 +337,6 @@ function createCaptureMeter(captureId: string): Meter {
   })
   return {
     createHistogram: histogram,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any as Meter
 }
 
@@ -358,7 +357,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           )
         }
 
-        const fp = params.forwardedProps as Record<string, unknown>
+        const fp = params.forwardedProps
         const scenario =
           typeof fp.scenario === 'string' ? fp.scenario : 'basic-text'
         const middlewareMode =

@@ -1,12 +1,14 @@
 import type {
   JSONSchema,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
   Tool,
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
+import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   Capability,
   CapabilityHandle,
@@ -90,6 +92,8 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   streamId: string
   /** AG-UI run identifier for correlating client and server events */
   runId: string
+  /** Interrupted or parent run correlated with this continuation. */
+  parentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -133,7 +137,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
-  /** Model identifier (e.g., 'gpt-4o') */
+  /** Model identifier (e.g., 'gpt-5.5') */
   model: string
   /** Source of the chat invocation — always 'server' for server-side chat */
   source: 'client' | 'server'
@@ -208,9 +212,30 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
+  resume?: Array<RunAgentResumeItem> | undefined
+  resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
 }
+
+/**
+ * Tool decisions reconstructed by server-side middleware from validated resume
+ * entries. This lets empty-message interrupt resumes continue tool execution
+ * without relying on client message history.
+ */
+export interface ChatResumeToolState {
+  approvals?: ReadonlyMap<string, ToolApprovalResolution> | undefined
+  clientToolResults?: ReadonlyMap<string, unknown> | undefined
+  genericInterrupts?:
+    | ReadonlyMap<string, ChatResumeGenericResolution>
+    | undefined
+  deniedToolResults?: ReadonlyMap<string, unknown> | undefined
+  cancelledToolCallIds?: ReadonlySet<string> | undefined
+}
+
+export type ChatResumeGenericResolution =
+  | { interruptId: string; status: 'resolved'; payload: unknown }
+  | { interruptId: string; status: 'cancelled'; payload?: never }
 
 /**
  * Config passed to onStructuredOutputConfig.
