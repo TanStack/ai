@@ -7,9 +7,21 @@ id: client-persistence
 
 A `ChatClient` (and every framework `useChat` / `createChat`) keeps messages in
 memory, so a reload or a crashed tab loses the whole conversation and any reply
-that was still streaming. The `persistence` option writes chat state to browser
-storage, so a reload restores it. This is the client half of persistence; the
-authoritative server copy is [Chat persistence](./chat-persistence).
+that was still streaming. The `persistence` option fixes that from the browser
+side: on reload it repaints the transcript, brings back a pending interrupt, and
+rejoins a run that was mid-stream.
+
+You need this whether or not you have a server:
+
+- **The browser owns the chat** (SPA, offline-first, no server store). Client
+  persistence is the only durable copy, so it holds the full transcript.
+- **The server owns the chat** (you use [Chat persistence](./chat-persistence)).
+  The server is the source of truth, but the client still has to come back
+  instantly on reload: rejoin the in-flight run, restore the pending interrupt,
+  and show the conversation. Client persistence caches the small resume pointer
+  that makes that possible and hydrates the transcript from the server. So this
+  page matters even when history lives on the server, that is the
+  `messages: false` mode below.
 
 ## Turn it on
 
