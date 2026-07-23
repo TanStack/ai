@@ -646,4 +646,4 @@ Source: docs/advanced/middleware.md
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
 - See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms
 - See also: **ai-core/ag-ui-protocol/SKILL.md** -- Reading the `sandbox.file` / `sandbox.file.diff` `CUSTOM` chunks the sandbox runtime emits alongside these `sandbox` hooks, via `ChatStream`'s typed `KnownCustomEvent` narrowing
-- See also: **ai-core/chat-experience/SKILL.md** -- `withChatPersistence` is the server (authoritative) half; the client `persistence` option is the browser-refresh half
+- See also: **ai-core/chat-experience/SKILL.md** -- `withChatPersistence` is the server (authoritative) half; the client `persistence` option is the client-persistence half

@@ -37,7 +37,7 @@ Persistence runs on the client, the server, or both. They are independent, and t
 
 | Half | Stores | Survives | Use it for |
 | --- | --- | --- | --- |
-| **Client** ([Browser refresh](./browser-refresh)) | the transcript + a resume pointer, in `localStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
+| **Client** ([Client persistence](./client-persistence)) | the transcript + a resume pointer, in `localStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
 | **Server** ([Chat persistence](./chat-persistence)) | messages, run status, interrupts, in SQL / D1 / your store | a server restart, and reaches every device | multi-device, audit, durable approvals |
 
 A minimal server setup adds one middleware to `chat()`:
@@ -112,14 +112,14 @@ On load, `useChat` reads the client record and acts on what it finds:
 
 A dropped connection while the page is still open is simpler: delivery durability reconnects on its own, no persistence needed. Persistence matters once the page itself is gone.
 
-If you run server-authoritative with the transcript kept off the client (see [Browser refresh](./browser-refresh)), the reload paints from a server read instead of `localStorage`. The delivery log cannot supply that history: it holds one run, not the whole thread.
+If you run server-authoritative with the transcript kept off the client (see [Client persistence](./client-persistence)), the reload paints from a server read instead of `localStorage`. The delivery log cannot supply that history: it holds one run, not the whole thread.
 
 ## When to pick each
 
 | You want | Turn on |
 | --- | --- |
 | A dropped connection to resume the same answer | Delivery durability ([Resumable Streams](../resumable-streams/overview)) |
-| The conversation to still be there after a reload | Client persistence ([Browser refresh](./browser-refresh)) |
+| The conversation to still be there after a reload | [Client persistence](./client-persistence) |
 | Reload durability without caching big histories client-side | Client persistence with `{ store, messages: false }` |
 | The same conversation on another device, or after a server restart | Server persistence ([Chat persistence](./chat-persistence)) |
 | Pause for a human approval and resume it later, durably | Server persistence with an `interrupts` store |
@@ -234,7 +234,7 @@ Server persistence is a set of stores. Middleware activates behavior from whiche
 ## Where to go next
 
 - [Chat persistence](./chat-persistence): the server middleware, the authoritative-history contract, and durable interrupts.
-- [Browser refresh](./browser-refresh): client reload restore, the `messages` lever, and mid-stream rejoin.
+- [Client persistence](./client-persistence): client reload restore, the `messages` lever, storage backends, and mid-stream rejoin.
 - [Controls](./controls): compose backends per store and choose which stores to run.
 - Backends: [Drizzle](./drizzle), [Prisma](./prisma), [Cloudflare](./cloudflare), or your own [Custom stores](./custom-stores).
 - [Resumable streams](../resumable-streams/overview): the delivery-durability layer in full.

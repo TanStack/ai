@@ -5,24 +5,23 @@ id: internals
 
 # Persistence Internals
 
-This page describes the contracts between middleware, state stores, and
-browser storage.
+This page describes the server-side contracts between the persistence
+middleware and the state stores.
 
-## Two separate boundaries
+## Separate boundaries
 
-```text
-Application state        Browser hydration
------------------        -----------------
-AIPersistence stores     ChatStorageAdapter
-middleware lifecycle     UIMessage/snapshot
-server authoritative     client convenience
-```
+Server state persistence is one of three boundaries that intentionally share no
+code:
 
-Stream delivery (replaying an in-flight SSE response) is a third, transport-only
-boundary — [Resumable Streams](../resumable-streams/overview) — and
-intentionally shares nothing with these two. State middleware never mutates
-chunks to add delivery offsets, and browser chat persistence stores rendered
-messages or interrupt resume snapshots, not server event logs.
+- **Server state** (this page): `AIPersistence` stores driven by the middleware
+  lifecycle, the authoritative record.
+- **Client hydration**: the browser restores a rendered conversation, a separate
+  concern covered in [Client persistence](./client-persistence).
+- **Stream delivery**: replaying an in-flight SSE response,
+  [Resumable Streams](../resumable-streams/overview).
+
+State middleware never mutates chunks to add delivery offsets, and it stores
+server event state, not the client's rendered messages.
 
 ## Chat middleware lifecycle
 
@@ -104,14 +103,3 @@ Packaged backends own resources differently:
 `composePersistence` does not add distributed transactions. When related
 stores use different systems, adapter authors must define retry,
 idempotency, and consistency behavior.
-
-## Browser storage
-
-`ChatStorageAdapter<T>` allows synchronous or asynchronous `getItem`,
-`setItem`, and `removeItem`. The chat persistence controller orders writes and
-owns hydration/cleanup independently of the main `ChatClient` stream logic.
-
-Web Storage adapters serialize strings and require a codec for non-JSON values.
-IndexedDB uses structured clone. All three built-ins throw
-`StorageUnavailableError` when their browser API is unavailable, including
-SSR.

@@ -9,18 +9,15 @@ Persistence has no feature flags. What you persist is decided by which stores
 the backend provides, and you compose backends per store. Supply only the
 stores your workflow needs.
 
-## What each need maps to
+## What each store gives you
 
-| Requirement | Store or option |
+| Requirement | Store |
 | --- | --- |
-| Restore messages + interrupts after a browser reload | `useChat({ persistence: store })` (client) |
-| Reload durability without caching the transcript | `useChat({ persistence: { store, messages: false } })` |
 | Authoritative server transcript | `messages` |
 | Run status and usage | `runs` |
 | Durable approvals or human input | `interrupts` (requires `runs`) |
 | App or integration checkpoints | `metadata` |
 | Cross-worker coordination | `locks` |
-| Replay an in-flight response | [Resumable streams](../resumable-streams/overview) (transport feature, not a store) |
 
 `withChatPersistence(persistence)` and `withGenerationPersistence(persistence)`
 inspect the stores that are present. Store presence is the whole capability
