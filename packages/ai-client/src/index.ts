@@ -96,9 +96,6 @@ export {
   StorageUnavailableError,
 } from './storage-adapters'
 export type {
-  JsonPrimitive,
-  JsonValue,
-  StorageCodec,
   WebStoragePersistenceOptions,
   IndexedDBPersistenceOptions,
 } from './storage-adapters'

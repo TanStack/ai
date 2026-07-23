@@ -384,9 +384,13 @@ export class ChatClient<
         'store' in options.persistence
           ? options.persistence.messages !== false
           : true
+      // Persistence keys on `threadId` (the conversation identity) so a reload
+      // with the same `threadId` finds the same record. `id` overrides it only
+      // when set, for apps that key storage separately from the wire thread.
+      const persistenceKey = options.id ?? this.threadId
       this.persistor = new ChatPersistor(
         store,
-        this.uniqueId,
+        persistenceKey,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyResumeSnapshot(snapshot),
         storeMessages,
