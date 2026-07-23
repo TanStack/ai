@@ -1,36 +1,46 @@
 ---
 title: Persistence Overview
 id: overview
+description: "How durability and persistence fit together in TanStack AI: keep a stream alive through a dropped connection, restore a conversation after a reload, and keep an authoritative server record. Learn the two layers and when to pick each."
+keywords:
+  - persistence
+  - durability
+  - resumable streams
+  - rehydrate conversation
+  - page reload
+  - server authoritative
+  - client authoritative
 ---
 
-# Persistence Overview
+# Durability and Persistence
 
-Persistence stores authoritative state — messages, runs, pending interrupts,
-metadata, and locks. It is configured with persistence middleware.
+Three things can go wrong with an AI chat, and they have different fixes:
 
-Reconnecting to an in-flight streaming response is a separate transport-layer
-feature ([Resumable Streams](../resumable-streams/overview)), not part of this
-middleware. Persisting state does not automatically make a live response
-replayable, and a replayable response does not replace authoritative
-application state.
+1. The connection drops mid-answer. The user watched half a reply appear, then the socket died. You don't want to re-run the model and pay for it twice.
+2. The user reloads the page. The whole conversation is gone, because it only lived in memory.
+3. The user opens the app on another device, or your server restarts. There is no record of the conversation anywhere durable.
 
-## Store contract
+TanStack AI solves these with two independent layers. You can use either alone or both together.
 
-An `AIPersistence` object can expose these stores:
+## The two layers
 
-| Store | Purpose |
-| --- | --- |
-| `messages` | Authoritative model-message history per thread. |
-| `runs` | Run status, timing, errors, and usage. |
-| `interrupts` | Pending, resolved, or cancelled human/tool waits. |
-| `metadata` | App and integration key/value state. |
-| `locks` | Cross-worker coordination. |
+| Layer | Answers | Lives | Docs |
+| --- | --- | --- | --- |
+| **Delivery durability** | "how do I reconnect to a stream that's still running?" | a per-run log, keyed by `runId` | [Resumable Streams](../resumable-streams/overview) |
+| **State persistence** | "what is the conversation, and is it still there later?" | a durable store (client and/or server) | this section |
 
-Middleware activates behavior from the stores that are present; there is no
-separate enablement list. When chat persistence sees an `interrupts` store it
-also requires a `runs` store.
+They share no code and solve different problems. Delivery durability replays a live byte stream so a dropped connection resumes exactly where it stopped. State persistence stores the conversation itself, so it survives a reload or exists on another device. A replayable stream is not a saved conversation, and a saved conversation is not a live stream. Real apps usually want both.
 
-## Minimal server state persistence
+## State persistence has two halves
+
+Persistence runs on the client, the server, or both. They are independent, and they answer different questions.
+
+| Half | Stores | Survives | Use it for |
+| --- | --- | --- | --- |
+| **Client** ([Browser refresh](./browser-refresh)) | the transcript + a resume pointer, in `localStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
+| **Server** ([Chat persistence](./chat-persistence)) | messages, run status, interrupts, in SQL / D1 / your store | a server restart, and reaches every device | multi-device, audit, durable approvals |
+
+A minimal server setup adds one middleware to `chat()`:
 
 ```ts
 import {
@@ -57,56 +67,86 @@ export async function POST(request: Request) {
     ...(params.resume ? { resume: params.resume } : {}),
     middleware: [withChatPersistence(persistence)],
   })
-
   return toServerSentEventsResponse(stream)
 }
 ```
 
-The Node convenience factory is SQLite-only. For an existing SQLite-family
-Drizzle database, including Cloudflare D1, use the edge-safe root
-`drizzlePersistence(db)`. For another database engine, implement the
-`AIPersistence` store interfaces or use Prisma.
+The minimal client setup adds one option to `useChat`:
 
-## Compose backends by store
+```tsx
+import { fetchServerSentEvents, localStoragePersistence } from '@tanstack/ai-client'
+import { useChat } from '@tanstack/ai-react'
+import type { ChatPersistedState } from '@tanstack/ai-client'
 
-Use one backend as the first argument and replace only selected stores through
-the second argument. Any `AIPersistence` can be the base — here a
-`memoryPersistence()` base keeps the example self-contained, and two
-application-owned stores are routed elsewhere:
-
-```ts
-import {
-  composePersistence,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
-import { appInterrupts, appRuns } from './stores'
-
-const base = memoryPersistence()
-
-const persistence = composePersistence(base, {
-  overrides: {
-    interrupts: appInterrupts,
-    runs: appRuns,
-  },
+const store = localStoragePersistence<ChatPersistedState>({
+  serialize: (value) => JSON.stringify(value),
+  deserialize: (value) => JSON.parse(value),
 })
+
+function Chat() {
+  const { messages, sendMessage } = useChat({
+    id: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: store,
+  })
+  // ...
+}
 ```
 
-An omitted or explicitly `undefined` override inherits the base store. A store
-object replaces that one store. `false` removes it. The return type tracks the
-resulting keys, and runtime validation rejects unknown keys from untyped
-JavaScript.
+## Who owns the history: client or server
 
-Cross-store consistency remains your responsibility. If `runs` and
-`interrupts` live in separate systems, design for partial failure and retries.
+When both halves are on, one rule decides which copy is authoritative, and you pick it per turn by what the client sends as `messages`:
 
-## Choose a backend
+- **Non-empty `messages`** means "this is the full history." On finish the server overwrites its stored thread with it. The client stays authoritative; the server mirrors.
+- **Empty `messages`** means "continue from your own copy." The server loads its stored transcript and runs from there. The server is authoritative; the client is a cache.
 
-- [Cloudflare](./cloudflare): D1 structured state and Durable Object locks.
-- [Drizzle](./drizzle): SQLite-family Drizzle databases and a Node SQLite
-  convenience factory.
-- [Prisma](./prisma): provider-neutral Prisma models with your migrated client.
-- [Custom Stores](./custom-stores): implement only the store contracts you
-  need.
+That single rule lets the two copies coexist without a merge conflict. Two postures come out of it:
 
-For the shared mechanics behind every backend — the middleware lifecycle and
-composition semantics — see [Persistence Internals](./internals).
+- **Client-authoritative**: keep sending the full transcript. `localStorage` is the truth, the server store is a durable backup. Closest to a pure SPA.
+- **Server-authoritative**: send empty `messages` and let the server own history. The same thread then opens identically on another device, or after the browser cache is cleared.
+
+## What happens on a page reload
+
+On load, `useChat` reads the client record and acts on what it finds:
+
+1. **The run had finished.** The record has the transcript, no resume pointer. The conversation paints instantly from storage. No network. (client persistence alone)
+2. **The run was paused on an interrupt.** The resume pointer carries the pending interrupts. The transcript paints and the approval UI comes back exactly as it was. (client persistence alone)
+3. **The run was still streaming.** The transcript paints from storage, then the client rejoins the live run through the durability log and the reply finishes in place. This is the one case that needs **both** layers: persistence supplies the transcript and the `runId`, durability replays the rest. (client persistence + delivery durability)
+
+A dropped connection while the page is still open is simpler: delivery durability reconnects on its own, no persistence needed. Persistence matters once the page itself is gone.
+
+If you run server-authoritative with the transcript kept off the client (see [Browser refresh](./browser-refresh)), the reload paints from a server read instead of `localStorage`. The delivery log cannot supply that history: it holds one run, not the whole thread.
+
+## When to pick each
+
+| You want | Turn on |
+| --- | --- |
+| A dropped connection to resume the same answer | Delivery durability ([Resumable Streams](../resumable-streams/overview)) |
+| The conversation to still be there after a reload | Client persistence ([Browser refresh](./browser-refresh)) |
+| Reload durability without caching big histories client-side | Client persistence with `{ store, messages: false }` |
+| The same conversation on another device, or after a server restart | Server persistence ([Chat persistence](./chat-persistence)) |
+| Pause for a human approval and resume it later, durably | Server persistence with an `interrupts` store |
+| A mid-stream reload to pick up the live answer | Client persistence + delivery durability together |
+
+Most production chat apps end up with all three: delivery durability on the route, client persistence for instant reload, and server persistence as the record of record.
+
+## The store contract
+
+Server persistence is a set of stores. Middleware activates behavior from whichever stores are present, there is no separate enable list.
+
+| Store | Purpose |
+| --- | --- |
+| `messages` | Authoritative model-message history per thread. |
+| `runs` | Run status, timing, errors, and usage. |
+| `interrupts` | Pending, resolved, or cancelled human/tool waits (needs `runs`). |
+| `metadata` | App and integration key/value state. |
+| `locks` | Cross-worker coordination. |
+
+## Where to go next
+
+- [Chat persistence](./chat-persistence): the server middleware, the authoritative-history contract, and durable interrupts.
+- [Browser refresh](./browser-refresh): client reload restore, the `messages` lever, and mid-stream rejoin.
+- [Controls](./controls): compose backends per store and choose which stores to run.
+- Backends: [Drizzle](./drizzle), [Prisma](./prisma), [Cloudflare](./cloudflare), or your own [Custom stores](./custom-stores).
+- [Resumable streams](../resumable-streams/overview): the delivery-durability layer in full.
+- [Internals](./internals): the middleware lifecycle and composition mechanics behind every backend.
