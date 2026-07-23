@@ -25,6 +25,33 @@ export interface AIDevtoolsDisplayOptions {
   name?: string
 }
 
+/**
+ * Structural mirror of `MemoryStateEventValue` from `@tanstack/ai-memory` — the
+ * payload of the `memory:state` CUSTOM chunk. Kept local so `ai-client` doesn't
+ * depend on `ai-memory`; the memory middleware is the producer.
+ */
+interface MemoryStateEventValue {
+  scope: { sessionId?: string; userId?: string }
+  adapter: string
+  query?: string
+  recall?: {
+    fragmentCount?: number
+    hasTools?: boolean
+    systemPromptChars?: number
+    durationMs?: number
+  }
+  snapshot?: {
+    takenAt: string
+    data: unknown
+    facts?: Array<{
+      id: string
+      text: string
+      source?: string
+      createdAt?: string
+    }>
+  }
+}
+
 export interface AIDevtoolsClientMetadata extends AIDevtoolsDisplayOptions {
   framework?: string
   hookName: string
@@ -626,7 +653,15 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
     this.emitRegistered()
     this.emitToolsRegistered()
     this.emitSnapshot()
+    this.onReplayState()
   }
+
+  /**
+   * Extension hook for subclasses to replay any additional cached state on a
+   * `devtools:request-state` (i.e. when a panel opens). Called only after the
+   * base guards (disposed/superseded/targetHookId) pass. No-op by default.
+   */
+  protected onReplayState(): void {}
 
   private async handleToolFixtureApply(
     event: AIDevtoolsEvent<AIDevtoolsToolFixture>,
@@ -657,13 +692,16 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
     return true
   }
 
-  private createEnvelope(
+  protected createEnvelope(
     eventType:
       | 'hook:registered'
       | 'hook:updated'
       | 'hook:unregistered'
       | 'hook:state-snapshot'
       | 'tools:registered'
+      | 'memory:retrieve:started'
+      | 'memory:retrieve:completed'
+      | 'memory:snapshot'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -740,6 +778,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private currentStreamId: string | null = null
   private lastStreamId: string | null = null
   private lastRunEventContext: ChatClientRunEventContext | undefined
+  /** Last transported `memory:state` value, replayed when a panel opens. */
+  private lastMemoryStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
@@ -827,6 +867,78 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
         this.currentRunId = null
         this.currentRunThreadId = null
       }
+    }
+  }
+
+  /**
+   * Record a transported `memory:state` value (the server memory middleware's
+   * per-turn recall metrics + store snapshot). Called from the chat client's
+   * `onCustomEvent` handler — the designated path for CUSTOM stream events —
+   * NOT from `observeChunk`. Re-emits the browser `memory:*` events the devtools
+   * store consumes, and caches the value so a panel opened later can replay it
+   * (see {@link onReplayState}). Symmetric with the generation bridge's
+   * `recordResultChange` / `recordProgressChange`.
+   */
+  recordMemoryState(rawValue: unknown): void {
+    this.lastMemoryStateValue = rawValue
+    this.emitMemoryState(rawValue)
+  }
+
+  /**
+   * Re-emit the browser-side `memory:*` events from a transported
+   * `memory:state` value. The devtools store consumes these to render the
+   * Memory tab (operations timeline + live contents). The recall pair mirrors
+   * the server middleware's own emits; the snapshot is included only when the
+   * adapter supports introspection.
+   */
+  private emitMemoryState(rawValue: unknown): void {
+    if (!rawValue || typeof rawValue !== 'object') return
+    const value = rawValue as MemoryStateEventValue
+    const scope = value.scope
+    const adapter = value.adapter
+    if (!scope || typeof adapter !== 'string') return
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+
+    emitAIDevtoolsEvent('memory:retrieve:started', {
+      ...this.createEnvelope(
+        'memory:retrieve:started',
+        'client-state',
+        runContext,
+      ),
+      scope,
+      adapter,
+      query: value.query ?? '',
+    })
+    if (value.recall) {
+      emitAIDevtoolsEvent('memory:retrieve:completed', {
+        ...this.createEnvelope(
+          'memory:retrieve:completed',
+          'client-state',
+          runContext,
+        ),
+        scope,
+        adapter,
+        fragmentCount: value.recall.fragmentCount ?? 0,
+        hasTools: Boolean(value.recall.hasTools),
+        systemPromptChars: value.recall.systemPromptChars ?? 0,
+        durationMs: value.recall.durationMs ?? 0,
+      })
+    }
+    if (value.snapshot) {
+      emitAIDevtoolsEvent('memory:snapshot', {
+        ...this.createEnvelope('memory:snapshot', 'client-state', runContext),
+        scope,
+        adapter,
+        takenAt: value.snapshot.takenAt,
+        data: value.snapshot.data,
+        facts: value.snapshot.facts ?? [],
+      })
+    }
+  }
+
+  protected override onReplayState(): void {
+    if (this.lastMemoryStateValue != null) {
+      this.emitMemoryState(this.lastMemoryStateValue)
     }
   }
 

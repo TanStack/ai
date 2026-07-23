@@ -22,6 +22,7 @@ TanStack Devtools is a unified devtools panel for inspecting and debugging TanSt
 - **Tool Call Inspection** - Inspect input and output of tool calls.
 - **Tool Fixture Replay** - Build tool payloads from a tool's standard-schema input, append the result into chat messages, and save fixtures in localStorage for repeated UI iteration.
 - **State Visualization** - Visualize chat state and message history.
+- **Memory Inspector** - For chats wired with `memoryMiddleware`, see what memory recalled and injected each turn plus the current stored records and facts.
 - **Error Tracking** - Monitor errors and exceptions in AI interactions.
 
 ## Hook Dashboard
@@ -73,6 +74,15 @@ export function ImageStudio() {
 When a `useChat` hook receives tools, the devtools panel lists those tools and their schemas. For standard-schema-compatible inputs, the panel renders a small form from the input schema so you can create a tool call payload without hand-writing JSON.
 
 Applying a tool fixture appends the tool call and result into the real chat messages for that hook. Saved fixtures are stored in browser localStorage under the AI devtools namespace so they are available the next time you open the panel.
+
+## Memory Inspector
+
+When a chat is wired with [`memoryMiddleware`](../memory/overview.md), the hook's **Memory** tab shows what the server-side memory backend did for that conversation, grouped by scope (session):
+
+- **Operations timeline** - Each turn's recall: the query, how many fragments came back, how many characters were injected into the system prompt, whether memory-provided tools were exposed, and the recall duration.
+- **Stored records & facts** - The current contents of the memory store for the scope, when the adapter implements the optional `inspect`/`listFacts` methods (the built-in `inMemory()` and `redis()` adapters do). Adapters without introspection still show the operations timeline.
+
+Because memory runs on the server, its state is transported to the panel over the chat stream (a `CUSTOM` event the client re-emits) rather than a separate channel — the same way generation results reach the panel. The snapshot reflects memory as of the start of each turn, so a turn's own writes appear in the next turn's snapshot. Opening the panel after a turn replays the latest memory state, so the tab is populated even when you open devtools mid-conversation.
 
 ## Event Sources
 

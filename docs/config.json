@@ -27,7 +27,8 @@
         {
           "label": "Devtools",
           "to": "getting-started/devtools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Quick Start: Vue",
@@ -457,6 +458,40 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29"
+        }
+      ]
+    },
+    {
+      "label": "Memory",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "memory/overview",
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Quickstart",
+          "to": "memory/quickstart",
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Adapters",
+          "to": "memory/adapters",
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Custom Adapter",
+          "to": "memory/custom-adapter",
+          "addedAt": "2026-07-21",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Operating",
+          "to": "memory/operating",
+          "addedAt": "2026-07-22"
         }
       ]
     },
