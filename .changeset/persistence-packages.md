@@ -11,7 +11,7 @@ Add server-side persistence for `chat()`: durable thread messages, run records, 
 
 - `@tanstack/ai-persistence` — the store contracts, the `withPersistence` / `withGenerationPersistence` middleware, and an in-memory reference store (`memoryPersistence`) plus a conformance testkit.
 - `@tanstack/ai-persistence-drizzle` — Drizzle-backed stores (SQLite via `node:sqlite`, plus a bring-your-own-schema contract) with migration and schema CLIs.
-- `@tanstack/ai-persistence-prisma` — Prisma-backed stores with a models CLI that emits a provider-neutral schema fragment.
+- `@tanstack/ai-persistence-prisma` — Prisma-backed stores with a models CLI that emits a provider-neutral schema fragment. Works with both Prisma 6 (`prisma-client-js`) and Prisma 7 (`prisma-client`): the client argument is typed structurally, so it accepts a client generated to any output path.
 - `@tanstack/ai-persistence-cloudflare` — D1-backed stores (delegating to the Drizzle backend) plus a Durable-Object lock store for cross-instance locking.
 
 Resume reconstruction is delegated to the chat engine: persistence records interrupts and gates new input on a thread with pending interrupts, while the engine rebuilds the resume tool state from the resume batch and the interrupt bindings carried in the (server-loaded) message history.
