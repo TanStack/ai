@@ -145,9 +145,9 @@ describe('localStoragePersistence ergonomics', () => {
       }
       store.setItem('chat-1', record)
       const read = store.getItem('chat-1')
-      expect(
-        read && !(read instanceof Promise) && read.messages[0]?.id,
-      ).toBe('m1')
+      expect(read && !(read instanceof Promise) && read.messages[0]?.id).toBe(
+        'm1',
+      )
     } finally {
       globals.localStorage = previous
     }
