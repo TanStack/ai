@@ -66,6 +66,46 @@ Each throws only lazily, per operation, when its backing store is missing (for
 example during server-side rendering), so constructing one on the server is
 safe.
 
+## Keep large histories off the client
+
+Caching a long transcript in `localStorage` is synchronous and bounded by a
+small quota, so for big conversations you may not want the messages on the
+client at all. Pass the object form and set `messages: false`:
+
+```tsx
+import { fetchServerSentEvents, localStoragePersistence } from '@tanstack/ai-client'
+import { useChat } from '@tanstack/ai-react'
+import type { ChatPersistedState } from '@tanstack/ai-client'
+
+const store = localStoragePersistence<ChatPersistedState>({
+  serialize: (value) => JSON.stringify(value),
+  deserialize: (value) => JSON.parse(value),
+})
+
+function Chat() {
+  const { messages, sendMessage } = useChat({
+    id: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    // Only the tiny resume pointer is cached; the transcript is NOT.
+    persistence: { store, messages: false },
+  })
+  // ...
+}
+```
+
+Now only the resume pointer (which run to rejoin, which interrupts are pending)
+is cached. Durability rejoin and interrupt restore still work, but the transcript
+lives on the server, which is authoritative. On reload the client starts empty,
+so hydrate the history from the server, for example a router loader that reads a
+`GET /thread/:id` endpoint backed by `persistence.stores.messages.loadThread(id)`
+and seeds `initialMessages`. The delivery replay endpoint cannot supply this: its
+log holds one run, not the thread.
+
+`persistence` therefore has two forms:
+
+- a bare adapter, `persistence: store`, caches everything (default `messages: true`).
+- `persistence: { store, messages: false }` caches only the resume pointer.
+
 ## Rejoin an in-flight run
 
 If the run was still streaming when the page reloaded, the client can re-attach

@@ -13,7 +13,8 @@ stores your workflow needs.
 
 | Requirement | Store or option |
 | --- | --- |
-| Restore messages / interrupts after a browser reload | `useChat({ persistence })` (client) |
+| Restore messages + interrupts after a browser reload | `useChat({ persistence: store })` (client) |
+| Reload durability without caching the transcript | `useChat({ persistence: { store, messages: false } })` |
 | Authoritative server transcript | `messages` |
 | Run status and usage | `runs` |
 | Durable approvals or human input | `interrupts` (requires `runs`) |

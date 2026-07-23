@@ -17,10 +17,22 @@ const connection = fetchServerSentEvents('/api/persistent-chat')
 // localStorage so it survives a full reload and browser restart. UIMessage
 // carries a `Date`, which is not JSON-native, so a codec is required; strings
 // round-trip fine for this demo.
-const persistence = localStoragePersistence<ChatPersistedState>({
+const store = localStoragePersistence<ChatPersistedState>({
   serialize: (value) => JSON.stringify(value),
   deserialize: (value) => JSON.parse(value),
 })
+
+// Client-authoritative: cache the transcript in localStorage (default).
+const persistence = { store }
+
+// Server-authoritative alternative — keep big histories OFF the client:
+//
+//   const persistence = { store, messages: false }
+//
+// Only the tiny resume pointer is cached, so reload still rejoins an in-flight
+// run and restores interrupts, but the transcript is NOT in localStorage. Load
+// history from the server instead (a router loader that fetches the GET
+// `/api/persistent-chat?threadId=…` history branch and seeds `initialMessages`).
 
 function PersistentChatPage() {
   // A stable id + threadId so a reload rehydrates the SAME conversation from

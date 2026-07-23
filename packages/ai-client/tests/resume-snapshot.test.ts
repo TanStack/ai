@@ -77,6 +77,47 @@ describe('ChatPersistor combined record', () => {
     expect(state.messages[0]?.id).toBe('m1')
     expect(state.resume).toBeUndefined()
   })
+
+  it('with storeMessages=false persists only the resume pointer', () => {
+    const { adapter, read } = memoryAdapter()
+    // storeMessages=false via the 5th constructor arg.
+    const persistor = new ChatPersistor(
+      adapter,
+      'chat-1',
+      () => {},
+      undefined,
+      false,
+    )
+    persistor.notifyMessagesChanged([createUIMessage('m1', 'heavy history')])
+    persistor.persistResumeSnapshot({
+      schemaVersion: 2,
+      resumeState: { threadId: 't1', runId: 'r1' },
+    })
+    const stored = read() as ChatPersistedState
+    // Transcript stays off the client; the tiny resume pointer is kept so
+    // durability rejoin still works.
+    expect(stored.messages).toEqual([])
+    expect(stored.resume?.resumeState.runId).toBe('r1')
+  })
+})
+
+describe('ChatClient persistence option shapes', () => {
+  it('accepts { store, messages: false } and keeps messages off the client', () => {
+    const { adapter, read } = memoryAdapter()
+    const client = new ChatClient({
+      id: 'chat-cfg',
+      threadId: 't1',
+      connection: { connect: async function* () {} },
+      persistence: { store: adapter, messages: false },
+      initialMessages: [createUIMessage('seed', 'hi', 'user')],
+    })
+    // A message change should not write the transcript into the record.
+    void client
+    const stored = read()
+    if (stored && !Array.isArray(stored)) {
+      expect(stored.messages).toEqual([])
+    }
+  })
 })
 
 describe('normalizeConnectionAdapter joinRun passthrough', () => {

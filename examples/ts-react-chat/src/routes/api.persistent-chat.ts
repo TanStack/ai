@@ -60,12 +60,24 @@ export const Route = createFileRoute('/api/persistent-chat')({
         })
       },
 
-      // Replay a run from the start (`?offset=-1&runId=…`) so a full reload can
-      // re-attach to an in-flight run by id. Read-only: no model call.
-      GET: ({ request }) => {
-        return resumeServerSentEventsResponse({
-          adapter: memoryStream(request),
-        })
+      // GET serves two independent jobs off one route:
+      //
+      // 1. Delivery replay (`?offset=-1&runId=…`) — re-attach to an in-flight
+      //    run by id off the ephemeral, per-run durability log. Read-only.
+      // 2. History hydration (`?threadId=…`) — read the DURABLE thread transcript
+      //    from the persistence store. This is what a server-authoritative
+      //    client (persistence `{ messages: false }`) fetches on reload, since
+      //    the delivery log only holds one run, never prior turns.
+      GET: async ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.has('offset') || url.searchParams.has('runId')) {
+          return resumeServerSentEventsResponse({
+            adapter: memoryStream(request),
+          })
+        }
+        const threadId = url.searchParams.get('threadId') ?? ''
+        const messages = await persistence.stores.messages.loadThread(threadId)
+        return Response.json(messages)
       },
     },
   },

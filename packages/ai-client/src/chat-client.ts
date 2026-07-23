@@ -373,11 +373,23 @@ export class ChatClient<
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
     if (options.persistence) {
+      // The `persistence` option is either a bare adapter (store everything) or
+      // `{ store, messages }`. `messages: false` caches only the resume pointer,
+      // leaving the transcript off the client (server-authoritative history).
+      const store =
+        'store' in options.persistence
+          ? options.persistence.store
+          : options.persistence
+      const storeMessages =
+        'store' in options.persistence
+          ? options.persistence.messages !== false
+          : true
       this.persistor = new ChatPersistor(
-        options.persistence,
+        store,
         this.uniqueId,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyResumeSnapshot(snapshot),
+        storeMessages,
       )
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI

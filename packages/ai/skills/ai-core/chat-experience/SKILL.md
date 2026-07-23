@@ -529,6 +529,15 @@ function Chat() {
 }
 ```
 
+**Keep large transcripts off the client.** `persistence` also accepts the object
+form `{ store, messages?: boolean }`. `messages: false` caches only the tiny
+resume pointer (which run to rejoin, which interrupts are pending), so durability
+rejoin and interrupt restore still work while the transcript stays off the client
+and the server stays authoritative for history. A bare adapter is shorthand for
+`{ store, messages: true }`. With `messages: false`, hydrate the reload display
+from the server (a loader that reads `messages.loadThread(id)`), since the
+delivery log only holds one run.
+
 **Mid-stream reload rejoin.** If the run was still streaming when the page
 reloaded, the client re-attaches instead of showing a frozen half-reply — but
 only when the connection is **resumable**: a delivery-durability-backed route

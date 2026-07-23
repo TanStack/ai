@@ -29,6 +29,8 @@ export type {
   // Client configuration types
   ChatClientPersistence,
   ChatPersistedState,
+  ChatPersistenceConfig,
+  ChatPersistenceOption,
   ChatStorageAdapter,
   ChatClientOptions,
   ChatPendingInterrupt,
