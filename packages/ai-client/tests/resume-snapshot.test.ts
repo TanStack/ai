@@ -305,6 +305,60 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('rebuilds a hydrated in-flight partial in place (no duplicate) on rejoin', async () => {
+    // Server-authoritative reload where a streaming snapshot persisted a PARTIAL
+    // assistant reply carrying the same messageId the live run uses. The rejoin
+    // must rebuild it from the log into ONE clean bubble — not seed+append into
+    // "worworld", and not leave a second bubble.
+    const { adapter } = memoryAdapter({
+      messages: [],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    })
+
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) yield chunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+      initialMessages: [
+        createUIMessage('user-1', 'hi', 'user'),
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'wor' }],
+          createdAt: new Date(),
+        },
+      ],
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+
+    const assistants = latest.filter((m) => m.role === 'assistant')
+    expect(assistants).toHaveLength(1)
+    const text = assistants[0]?.parts.find((p) => p.type === 'text')
+    expect(text && 'content' in text && text.content).toBe('world')
+    expect(latest.some((m) => m.id === 'user-1')).toBe(true)
+    void client
+  })
+
   it('rejoins from an async store (getItem returns a Promise)', async () => {
     // An async adapter (like indexedDBPersistence): readInitial resolves later,
     // so the rejoin must come from the async hydrate path, not the sync read.

@@ -16,7 +16,7 @@ thread.
 Add the middleware to `chat()` and point it at a backend. Here it is a local
 SQLite file via the Drizzle backend:
 
-```ts
+```ts group=chat-persistence
 import {
   chat,
   chatParamsFromRequestBody,
@@ -69,6 +69,31 @@ bundled migrations through your deployment workflow instead. See
 - A request with an **empty** `messages` array continues a stored thread. The
   middleware loads the stored transcript and the run picks up from there, so the
   client does not have to re-send history.
+
+## What gets persisted, and when
+
+`withPersistence` writes at three moments so a reload never loses a turn:
+
+- **At the start of a run** — the pending turn (the just-submitted user
+  message plus any prior history) is saved immediately, so a reload *during*
+  generation still shows what the user asked, before the reply exists.
+- **On finish** — the complete transcript, including the assistant's terminal
+  reply. Each assistant turn keeps its stream `messageId`, so a hydrated
+  message shares identity with its live stream and a mid-stream reload can
+  resume the *same* message in place rather than duplicating it.
+- **Optionally, while streaming** — pass `snapshotStreaming: true` to also
+  persist the in-progress reply on a throttled interval, so even a crash
+  mid-generation leaves the partial text in the thread:
+
+  ```ts group=chat-persistence
+  const streamingMiddleware = [
+    withPersistence(persistence, { snapshotStreaming: true }),
+  ]
+  ```
+
+  It defaults off (finish is the authoritative save); enable it to trade extra
+  writes for partial-output durability. Tune the interval with
+  `snapshotIntervalMs` (default `1000`).
 
 ## Interrupts survive a restart
 

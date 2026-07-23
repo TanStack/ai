@@ -1,16 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import {
+  EventType,
   chat,
   chatParamsFromRequestBody,
   maxIterations,
   memoryStream,
   resumeServerSentEventsResponse,
-  toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
+import type { StreamChunk } from '@tanstack/ai'
 import { persistentChatPersistence } from '../lib/persistent-chat-store'
 
 const persistence = persistentChatPersistence()
@@ -68,21 +69,93 @@ const SYSTEM_PROMPT =
   'weather or to roll dice, use the getWeather / rollDice tools rather than ' +
   'guessing, then summarize the result in a sentence.'
 
+// Detached runs in flight, keyed by runId, so a duplicate POST (a client retry
+// or React strict-mode double render) attaches to the existing run instead of
+// starting a second model call.
+const activeRuns = new Set<string>()
+
+/**
+ * Start the model run **detached from the HTTP connection** and let it run to
+ * completion into the delivery log, regardless of whether the requesting client
+ * stays connected. This is the "don't abort on disconnect, because it's
+ * persisted" policy: because `withPersistence` writes the transcript on finish,
+ * it's safe to keep generating after a reload — the result is captured either
+ * way (the loader rehydrates it, and a rejoining client tails the same log).
+ *
+ * Contrast the plain resumable route (`/api/resumable`), which ties the run to
+ * the request's `abortController`: with no persistence, continuing after a
+ * disconnect would just burn tokens no one reads, so it aborts.
+ */
+function startDetachedRun(
+  runId: string,
+  threadId: string,
+  messages: Awaited<ReturnType<typeof chatParamsFromRequestBody>>['messages'],
+): void {
+  if (activeRuns.has(runId)) return
+  activeRuns.add(runId)
+
+  // Producer-mode durability handle, keyed by runId via the X-Run-Id header.
+  const sink = memoryStream(
+    new Request('http://persistent-chat.internal/', {
+      headers: { 'X-Run-Id': runId },
+    }),
+  )
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    // Snapshot streaming on: even the partial reply is persisted, so a reload
+    // mid-generation (or a crash) still shows the story-so-far, and the detached
+    // run below finishes and persists the rest.
+    middleware: [withPersistence(persistence, { snapshotStreaming: true })],
+    agentLoopStrategy: maxIterations(10),
+    systemPrompts: [SYSTEM_PROMPT],
+    tools: [getWeather, rollDice],
+    messages,
+    threadId,
+    runId,
+    // No client abortController: the run owns its own lifetime.
+  })
+
+  void (async () => {
+    try {
+      for await (const chunk of stream) {
+        await sink.append([chunk])
+      }
+    } catch (error) {
+      // The run threw before emitting a terminal chunk (withPersistence.onError
+      // already recorded the failure). Append a RUN_ERROR so log readers unblock
+      // instead of waiting on a stream that will never finish.
+      await sink.append([
+        {
+          type: EventType.RUN_ERROR,
+          message: error instanceof Error ? error.message : String(error),
+          timestamp: Date.now(),
+        } as StreamChunk,
+      ])
+    } finally {
+      await sink.close()
+      activeRuns.delete(runId)
+    }
+  })()
+}
+
 /**
  * Persistent-chat demo endpoint.
  *
- * Two kinds of durability stack here:
+ * Three kinds of durability stack here:
  *
- * 1. STATE (this file) — `withPersistence` middleware writes the thread
- *    transcript, run records, and interrupt state to SQLite. The store survives
- *    a full server restart, so a reload can continue the same conversation from
- *    the server's own copy even if the client sent no history.
+ * 1. STATE — `withPersistence` writes the thread transcript (including the
+ *    pending user turn at start and throttled streaming snapshots), run records,
+ *    and interrupt state to SQLite. Survives a server restart.
  *
- * 2. DELIVERY — `memoryStream(request)` records each chunk to an ordered log and
- *    tags each SSE event with an `id:` offset, so a dropped connection reconnects
- *    (`Last-Event-ID`) and resumes without re-running the model. Swap it for
+ * 2. DELIVERY — the `memoryStream` log records each chunk so a reconnecting or
+ *    rejoining client replays without re-running the model. Swap it for
  *    `durableStream(request, { server })` from `@tanstack/ai-durable-stream` in
  *    production (memoryStream is process-local).
+ *
+ * 3. RUN LIFETIME — the run is detached from the HTTP request (see
+ *    `startDetachedRun`), so a mid-stream reload does not abort it. It finishes,
+ *    persists, and the reload rehydrates the full conversation.
  *
  * The store is shared with the page's history server function (see
  * `../lib/persistent-chat-store`), which the loader calls to hydrate the
@@ -94,27 +167,19 @@ export const Route = createFileRoute('/api/persistent-chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const abortController = new AbortController()
         const params = await chatParamsFromRequestBody(await request.json())
 
-        const stream = chat({
-          adapter: openaiText('gpt-5.5'),
-          // `withPersistence` loads the stored transcript when `messages` is
-          // empty and overwrites it (authoritative-history contract) on finish.
-          middleware: [withPersistence(persistence)],
-          agentLoopStrategy: maxIterations(10),
-          systemPrompts: [SYSTEM_PROMPT],
-          tools: [getWeather, rollDice],
-          messages: params.messages,
-          threadId: params.threadId,
-          runId: params.runId,
-          abortController,
-        })
+        // Kick off (or attach to) the detached run, then stream it to THIS
+        // client by tailing the delivery log from the start. Cancelling this
+        // response (a reload) cancels only the reader — never the producer.
+        startDetachedRun(params.runId, params.threadId, params.messages)
 
-        return toServerSentEventsResponse(stream, {
-          durability: { adapter: memoryStream(request) },
-          abortController,
-        })
+        const reader = memoryStream(
+          new Request(
+            `http://persistent-chat.internal/?offset=-1&runId=${encodeURIComponent(params.runId)}`,
+          ),
+        )
+        return resumeServerSentEventsResponse({ adapter: reader })
       },
 
       // GET serves two independent jobs off one route:

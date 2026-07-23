@@ -1315,12 +1315,20 @@ export class ChatClient<
   }
 
   /**
-   * Re-attach to an in-flight run after a full page reload, replaying its
-   * stream from the server's delivery-durability log via `joinRun`. Chunks flow
-   * through the normal processing path, so the restored (possibly partial)
-   * assistant message is updated in place by message id rather than duplicated.
-   * Best-effort: a finished, evicted, or unknown run replays to completion or
-   * fails quietly, leaving the restored transcript intact.
+   * Re-attach to an in-flight run after a full page reload, replaying its stream
+   * from the server's delivery-durability log via `joinRun` (which returns the
+   * whole run so far, then tails live to completion).
+   *
+   * The log is the single source of truth for the run, so we rebuild the
+   * in-flight assistant bubble from it rather than trying to reconcile the
+   * server-hydrated partial with the replay: on the FIRST delivered chunk we
+   * drop the hydrated in-flight assistant, and the replay reconstructs one clean
+   * bubble. This is eviction-safe — if `joinRun` never yields (finished+evicted,
+   * or unknown run), we never drop, so the hydrated transcript stays intact.
+   *
+   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
+   * so the buffered prefix snaps in and only the genuinely-live tail streams at
+   * network speed — a reload looks like the run continued, not like it re-typed.
    */
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
@@ -1331,10 +1339,15 @@ export class ChatClient<
     this.setIsLoading(true)
     this.setStatus('streaming')
     void (async () => {
+      let rebuilt = false
       try {
         for await (const chunk of joinRun(runId, controller.signal)) {
           if (controller.signal.aborted) break
-          await this.processIncomingChunk(chunk)
+          if (!rebuilt) {
+            rebuilt = true
+            this.dropTrailingInFlightAssistant()
+          }
+          await this.processIncomingChunk(chunk, { defer: false })
         }
       } catch {
         // Best-effort re-attach: the durable log may be gone or the run
@@ -1349,7 +1362,24 @@ export class ChatClient<
     })()
   }
 
-  private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
+  /**
+   * Drop a hydrated, still-in-flight assistant turn so a resume replay can
+   * rebuild it cleanly. Only touches a trailing assistant message (the shape a
+   * reload-mid-stream leaves); a thread whose last turn is a user message (run
+   * never produced, or already settled) is left untouched.
+   */
+  private dropTrailingInFlightAssistant(): void {
+    const messages = this.processor.getMessages()
+    const last = messages[messages.length - 1]
+    if (last && last.role === 'assistant') {
+      this.processor.setMessages(messages.slice(0, -1))
+    }
+  }
+
+  private async processIncomingChunk(
+    chunk: StreamChunk,
+    options?: { defer?: boolean },
+  ): Promise<void> {
     if (
       chunk.type === 'RUN_ERROR' &&
       this.isActiveInterruptSubmissionFailure(chunk)
@@ -1379,7 +1409,13 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The live path yields a macrotask between chunks so React can paint each
+    // delta progressively. A resume replay passes `defer: false` to skip it, so
+    // the buffered backlog applies in one batch (instant catch-up) instead of
+    // re-typing the whole reply.
+    if (options?.defer !== false) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
     this.resolveJoinedRun(chunk)
   }
 
