@@ -258,4 +258,52 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(latest.some((m) => m.id === 'user-1')).toBe(true)
     void client
   })
+
+  it('messages:false reconstructs history AND rejoins a live run together', async () => {
+    // A prior server-authoritative session persisted only the resume pointer:
+    // messages is [] (not cached), resume carries the in-flight runId.
+    const { adapter } = memoryAdapter({
+      messages: [],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    })
+
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+      // History the app fetched from the server (reconstructChat) and seeded.
+      initialMessages: [
+        createUIMessage('history-1', 'earlier turn', 'user'),
+      ],
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+
+    // Server-reconstructed history is NOT wiped by the empty persisted record...
+    expect(latest.some((m) => m.id === 'history-1')).toBe(true)
+    // ...and the live run was rejoined off the durability log.
+    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    void client
+  })
 })

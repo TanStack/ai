@@ -210,6 +210,14 @@ function Chat() {
 }
 ```
 
+A mid-stream reload does both jobs, and they do not collide because they are two
+separate requests to the same `GET`: the loader fetches history (`?threadId`,
+the reconstruct branch) and seeds it as `initialMessages`, and the client
+separately calls `joinRun` (`?offset=-1&runId`, the resume branch) to finish the
+live run. The `if` in the handler routes each; one request is never asked to do
+both. The replayed run's messages merge into the seeded history by message id,
+so nothing is duplicated or lost.
+
 Why this wins over the alternatives:
 
 - **One source of truth.** History lives on the server, so there is no client/server copy to drift or reconcile. The same conversation opens on any device and survives a server restart.

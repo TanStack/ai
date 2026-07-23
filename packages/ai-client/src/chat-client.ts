@@ -372,6 +372,11 @@ export class ChatClient<
   constructor(options: ChatClientOptions<TTools, TContext>) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    // Whether the persistor caches the transcript. In `{ messages: false }`
+    // mode it does not, so the persisted record's empty transcript must never
+    // override host-provided `initialMessages` (history the app loaded from the
+    // server); see the initialMessages resolution below.
+    let cachesMessages = true
     if (options.persistence) {
       // The `persistence` option is either a bare adapter (store everything) or
       // `{ store, messages }`. `messages: false` caches only the resume pointer,
@@ -380,7 +385,7 @@ export class ChatClient<
         'store' in options.persistence
           ? options.persistence.store
           : options.persistence
-      const storeMessages =
+      cachesMessages =
         'store' in options.persistence
           ? options.persistence.messages !== false
           : true
@@ -393,7 +398,7 @@ export class ChatClient<
         persistenceKey,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyResumeSnapshot(snapshot),
-        storeMessages,
+        cachesMessages,
       )
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
@@ -461,9 +466,14 @@ export class ChatClient<
     const persistedState = this.persistor?.readInitial()
     const syncPersistedState =
       persistedState instanceof Promise ? undefined : persistedState
-    const initialMessages = syncPersistedState
-      ? syncPersistedState.messages
-      : options.initialMessages
+    // Adopt the persisted transcript only when we actually cache it. In
+    // `messages: false` mode the record's empty `messages` is "not stored here",
+    // not "the conversation is empty", so fall back to host `initialMessages`
+    // (e.g. history the app fetched from the server) and take only `resume`.
+    const initialMessages =
+      cachesMessages && syncPersistedState
+        ? syncPersistedState.messages
+        : options.initialMessages
     // A durable snapshot read synchronously from storage wins over the
     // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
     // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
