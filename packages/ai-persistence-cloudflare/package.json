@@ -50,13 +50,20 @@
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
     "@tanstack/ai-persistence-drizzle": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^",
     "drizzle-orm": ">=0.44.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-sandbox": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-persistence-drizzle": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "drizzle-orm": "^0.45.0",
     "miniflare": "^4.20260609.0"

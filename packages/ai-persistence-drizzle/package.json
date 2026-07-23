@@ -54,11 +54,18 @@
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai-sandbox": "workspace:^",
     "drizzle-orm": ">=0.44.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-sandbox": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.45.0"

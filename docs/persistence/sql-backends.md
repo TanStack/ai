@@ -75,3 +75,11 @@ const coordinated = composePersistence(persistence, {
 For Cloudflare-native state, [Cloudflare Persistence](./cloudflare) combines
 D1 and Durable Object locks. For another SQL library, start with
 [Custom Stores](./custom-stores).
+
+## Sandbox persistence
+
+Both adapters also export a durable `SandboxStore` for
+[`@tanstack/ai-sandbox`](../sandbox/persistence) resume —
+`createDrizzleSandboxStore(db)` and `createPrismaSandboxStore(prisma)` — backed
+by a `sandboxes` table that ships in the same schema and migration bundle. See
+[Sandbox Persistence](../sandbox/persistence).

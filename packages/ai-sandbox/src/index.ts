@@ -27,6 +27,8 @@ export type { WorkspaceProjection } from './projection'
 
 // Middleware
 export { withSandbox } from './middleware'
+export { withSandboxPersistence } from './persistence'
+export type { SandboxPersistenceOptions } from './persistence'
 
 // Sandbox definition + lifecycle
 export { defineSandbox } from './sandbox'

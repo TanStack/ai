@@ -32,9 +32,13 @@ export default mergeConfig(
   tanstackViteConfig({
     // Core entry + the optional ngrok tool-bridge provisioner subpath
     // (`@tanstack/ai-sandbox/ngrok`), which lazy-loads the optional `@ngrok/ngrok`
-    // peer dep so the core never pulls in its native binary.
-    entry: ['./src/index.ts', './src/ngrok.ts'],
+    // peer dep so the core never pulls in its native binary + the SandboxStore
+    // conformance testkit (`@tanstack/ai-sandbox/testkit`).
+    entry: ['./src/index.ts', './src/ngrok.ts', './src/testkit/conformance.ts'],
     srcDir: './src',
+    // The conformance testkit imports Vitest; keep it external so the built
+    // artifact references the consumer's Vitest at test time.
+    externalDeps: ['vitest'],
     cjs: false,
   }),
 )

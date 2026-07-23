@@ -33,6 +33,7 @@ describe('drizzle package contract', () => {
       'schema-contract.ts',
       'schema-source.ts',
       'stores.ts',
+      'sandbox-store.ts',
     ]
     for (const filename of rootFiles) {
       const contents = await readFile(

@@ -18,6 +18,7 @@ import type { TanstackAiSqliteSchema } from './schema-contract'
 import type { DrizzleSqliteDb, TanstackAiTables } from './stores'
 
 export { schema } from './schema'
+export { createDrizzleSandboxStore } from './sandbox-store'
 export { sqliteMigrations } from './migrations'
 export { drizzleSchemaFilename, drizzleSchemaSource } from './schema-source'
 export { DrizzleSchemaError } from './schema-contract'
