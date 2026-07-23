@@ -15,3 +15,5 @@ Add server-side persistence for `chat()`: durable thread messages, run records, 
 - `@tanstack/ai-persistence-cloudflare` — D1-backed stores (delegating to the Drizzle backend) plus a Durable-Object lock store for cross-instance locking.
 
 Resume reconstruction is delegated to the chat engine: persistence records interrupts and gates new input on a thread with pending interrupts, while the engine rebuilds the resume tool state from the resume batch and the interrupt bindings carried in the (server-loaded) message history.
+
+`reconstructChat(persistence, request)` is a server helper that returns a thread's stored messages as a JSON `Response`, so a server-authoritative client can hydrate its transcript on load from a one-line `GET` handler.
