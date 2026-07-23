@@ -30,6 +30,15 @@ export interface TranslateContext {
   bridgedToolNames?: ReadonlySet<string>
   /** Called for each raw stream event, for logging. */
   onStreamEvent?: (event: OpencodeStreamEvent) => void
+  /**
+   * Structured-output mode (`chat({ outputSchema })`). When set, the turn was
+   * prompted with a `json_schema` output format, so the schema-constrained
+   * answer arrives on the final message's `structured` field — NOT as
+   * streamed text. The engine harvests the structured result by
+   * `JSON.parse`-ing the run's accumulated text, so we suppress streamed prose
+   * and instead emit exactly ONE terminal text message = the structured JSON.
+   */
+  structuredOutput?: boolean
 }
 
 /**
@@ -334,6 +343,10 @@ export async function* translateOpencodeStream(
     if (event.type === 'message.part.updated') {
       const { part, delta } = event.properties
       if (isTextPart(part)) {
+        // Structured mode: streamed text is natural-language prose; the JSON
+        // answer comes from the final message's `structured` field. Suppress
+        // prose so the harvested text is exactly the structured JSON.
+        if (ctx.structuredOutput === true) return
         yield* handleTextPart(part, delta)
       } else if (isReasoningPart(part)) {
         yield* handleReasoningPart(part, delta)
@@ -371,6 +384,34 @@ export async function* translateOpencodeStream(
         error,
       }
       return
+    }
+
+    // Structured mode: emit the schema-constrained JSON as the single terminal
+    // text message so the engine can harvest it (prose was suppressed above).
+    if (ctx.structuredOutput === true && message.structured !== undefined) {
+      const messageId = genId()
+      const text = JSON.stringify(message.structured)
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        model,
+        timestamp: now(),
+        role: 'assistant',
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model,
+        timestamp: now(),
+        delta: text,
+        content: text,
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        model,
+        timestamp: now(),
+      }
     }
 
     const usage = buildUsage(message.tokens)

@@ -559,7 +559,8 @@ export class GrokBuildTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Grok Build adapter. ' +
+        'Structured output is not supported by the Grok Build harness adapter: the ' +
+          'grok CLI exposes no output-schema mechanism (only --output-format). ' +
           'Use a model adapter (e.g. grok) for structured output, or omit outputSchema.',
       ),
     )

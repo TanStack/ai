@@ -18,6 +18,16 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK thread event, for logging. */
   onThreadEvent?: (event: CodexThreadEvent) => void
+  /**
+   * Structured-output mode (`chat({ outputSchema })`). When set, Codex was run
+   * with `--output-schema`, so every `agent_message` is schema-constrained
+   * JSON — including intermediate progress messages (openai/codex #19816). The
+   * engine harvests the structured result by `JSON.parse`-ing the run's
+   * accumulated text, so we must emit exactly ONE terminal text message = the
+   * final agent message and drop the earlier ones (concatenating multiple JSON
+   * objects would fail to parse). The last `agent_message` is the final answer.
+   */
+  structuredOutput?: boolean
 }
 
 /**
@@ -175,6 +185,11 @@ export async function* translateThreadEvents(
   const unresolvedToolCalls = new Set<string>()
   /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
   const openedToolItems = new Set<string>()
+  /**
+   * In structured-output mode, the latest `agent_message` seen — buffered and
+   * flushed as the single terminal text message at `turn.completed`.
+   */
+  let bufferedAgentMessage: { id: string; text: string } | undefined
 
   function* startRun(): Generator<StreamChunk> {
     if (runStarted) return
@@ -237,30 +252,42 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
+  function* emitAgentText(
+    messageId: string,
+    text: string,
+  ): Generator<StreamChunk> {
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      model,
+      timestamp: now(),
+      role: 'assistant',
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      model,
+      timestamp: now(),
+      delta: text,
+      content: text,
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+      model,
+      timestamp: now(),
+    }
+  }
+
   function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
-      const messageId = item.id
-      yield {
-        type: EventType.TEXT_MESSAGE_START,
-        messageId,
-        model,
-        timestamp: now(),
-        role: 'assistant',
+      // Structured-output mode: defer emission and keep only the latest message
+      // so the harvested text is exactly the final schema-constrained JSON.
+      if (ctx.structuredOutput === true) {
+        bufferedAgentMessage = { id: item.id, text: item.text }
+        return
       }
-      yield {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId,
-        model,
-        timestamp: now(),
-        delta: item.text,
-        content: item.text,
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId,
-        model,
-        timestamp: now(),
-      }
+      yield* emitAgentText(item.id, item.text)
     } else if (item.type === 'reasoning') {
       const reasoningId = item.id
       yield {
@@ -341,6 +368,13 @@ export async function* translateThreadEvents(
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
+        if (bufferedAgentMessage !== undefined) {
+          yield* emitAgentText(
+            bufferedAgentMessage.id,
+            bufferedAgentMessage.text,
+          )
+          bufferedAgentMessage = undefined
+        }
         yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
         yield {

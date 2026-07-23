@@ -107,6 +107,38 @@ describe('translateThreadEvents', () => {
     expect(raw).toEqual(['thread.started', 'turn.completed'])
   })
 
+  it('structured mode emits only the final agent_message as terminal text', async () => {
+    const chunks = await collect(
+      [
+        started,
+        { type: 'turn.started' },
+        {
+          type: 'item.completed',
+          item: {
+            id: 'i1',
+            type: 'agent_message',
+            text: '{"answer":"working"}',
+          },
+        },
+        {
+          type: 'item.completed',
+          item: { id: 'i2', type: 'agent_message', text: '{"answer":"pong"}' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ structuredOutput: true }),
+    )
+
+    // Exactly one text burst, carrying the final message, emitted just before
+    // RUN_FINISHED — so the harvested text is single valid JSON.
+    const textContents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+    expect(textContents).toHaveLength(1)
+    expect(textContents[0]).toMatchObject({ content: '{"answer":"pong"}' })
+    const textEndIdx = chunks.findIndex((c) => c.type === 'TEXT_MESSAGE_END')
+    const finishedIdx = chunks.findIndex((c) => c.type === 'RUN_FINISHED')
+    expect(textEndIdx).toBeLessThan(finishedIdx)
+  })
+
   it('starts the run without a session event on resumed threads', async () => {
     const chunks = await collect([
       { type: 'turn.started' },

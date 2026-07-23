@@ -66,7 +66,49 @@ const resultSuccess: AgentSdkMessage = {
   total_cost_usd: 0.12,
 }
 
+async function collectStructured(
+  messages: Array<AgentSdkMessage>,
+): Promise<Array<StreamChunk>> {
+  const chunks: Array<StreamChunk> = []
+  for await (const chunk of translateSdkStream(fromArray(messages), {
+    ...makeContext(),
+    structuredOutput: true,
+  })) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
 describe('translateSdkStream', () => {
+  it('structured mode suppresses prose and emits structured_output as terminal text', async () => {
+    const chunks = await collectStructured([
+      init,
+      // Natural-language prose the model emits during the run — must be dropped.
+      assistantText('Let me work on that...'),
+      {
+        type: 'result',
+        subtype: 'success',
+        result: 'done',
+        structured_output: { answer: 'pong' },
+        usage,
+        total_cost_usd: 0.01,
+      },
+    ])
+
+    // Exactly one text burst, carrying the structured JSON (not the prose).
+    const textContents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+    expect(textContents).toHaveLength(1)
+    expect(textContents[0]).toMatchObject({ content: '{"answer":"pong"}' })
+    expect(
+      JSON.parse((textContents[0] as { content: string }).content),
+    ).toEqual({ answer: 'pong' })
+    // Emitted before the terminal RUN_FINISHED so it's harvestable.
+    const endIdx = chunks.findIndex((c) => c.type === 'TEXT_MESSAGE_END')
+    const finishedIdx = chunks.findIndex((c) => c.type === 'RUN_FINISHED')
+    expect(endIdx).toBeGreaterThanOrEqual(0)
+    expect(endIdx).toBeLessThan(finishedIdx)
+  })
+
   it('translates a simple text turn into RUN_STARTED → CUSTOM → TEXT_* → RUN_FINISHED(stop)', async () => {
     const chunks = await collect([init, assistantText('Hello!'), resultSuccess])
 

@@ -34,6 +34,16 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK message, for logging. */
   onSdkMessage?: (message: AgentSdkMessage) => void
+  /**
+   * Structured-output mode (`chat({ outputSchema })`). When set, Claude Code
+   * was run with `--json-schema`, so the schema-constrained answer arrives in
+   * the final `result` message's `structured_output` field — NOT as assistant
+   * text. The engine harvests the structured result by `JSON.parse`-ing the
+   * run's accumulated text, so we suppress all assistant/partial text (which
+   * would be natural-language prose) and instead emit exactly ONE terminal
+   * text message = `JSON.stringify(structured_output)`.
+   */
+  structuredOutput?: boolean
 }
 
 /**
@@ -224,6 +234,10 @@ export async function* translateSdkStream(
     for (const block of message.message.content) {
       if (block.type === 'text') {
         if (alreadyStreamed) continue
+        // Structured mode: assistant text is natural-language prose; the JSON
+        // answer comes from the result's `structured_output`. Suppress prose so
+        // the harvested text is exactly the structured JSON.
+        if (ctx.structuredOutput === true) continue
         const messageId = message.message.id ?? genId()
         const text = (block as { text: string }).text
         yield {
@@ -319,6 +333,38 @@ export async function* translateSdkStream(
     yield* closePartialReasoning()
     yield* synthesizeUnresolvedResults()
 
+    // Structured mode: emit the schema-constrained JSON as the single terminal
+    // text message so the engine can harvest it (prose was suppressed above).
+    if (
+      ctx.structuredOutput === true &&
+      message.subtype === 'success' &&
+      message.structured_output !== undefined
+    ) {
+      const messageId = genId()
+      const text = JSON.stringify(message.structured_output)
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        model,
+        timestamp: now(),
+        role: 'assistant',
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model,
+        timestamp: now(),
+        delta: text,
+        content: text,
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        model,
+        timestamp: now(),
+      }
+    }
+
     const usage = buildUsage(message.usage, message.total_cost_usd)
     if (message.subtype === 'success') {
       yield {
@@ -365,6 +411,11 @@ export async function* translateSdkStream(
       streamedMessageIds.add(partialMessageId)
     } else if (event.type === 'content_block_start') {
       partialBlockType = event.content_block.type
+      // Structured mode: suppress streamed prose text (see handleAssistant).
+      // Reasoning still streams; the JSON answer is emitted from the result.
+      if (partialBlockType === 'text' && ctx.structuredOutput === true) {
+        return
+      }
       if (partialBlockType === 'text') {
         partialTextMessageId = partialMessageId ?? genId()
         partialTextContent = ''

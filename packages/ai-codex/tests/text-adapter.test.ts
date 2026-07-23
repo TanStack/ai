@@ -44,6 +44,29 @@ const FAKE_CODEX = [
   `})`,
 ].join('\n')
 
+// Structured-output stand-in: records argv, reads the file passed via
+// --output-schema (proving the adapter wrote it at the exact relative path
+// codex is told to read) and echoes its contents to codex-schema.txt, then
+// emits an intermediate (progress) agent_message AND a final one — both
+// schema-shaped JSON, mirroring codex #19816. Only the final should survive
+// into the harvested text.
+const FAKE_CODEX_STRUCTURED = [
+  `import { writeFileSync, readFileSync } from 'node:fs'`,
+  `const argv = process.argv`,
+  `writeFileSync('codex-argv.txt', argv.join(' '))`,
+  `const si = argv.indexOf('--output-schema')`,
+  `if (si !== -1) writeFileSync('codex-schema.txt', readFileSync(argv[si + 1], 'utf8'))`,
+  `process.stdin.on('data', () => {})`,
+  `process.stdin.on('end', () => {`,
+  `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+  `  w({ type: 'thread.started', thread_id: 'th-1' })`,
+  `  w({ type: 'turn.started' })`,
+  `  w({ type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: '{"answer":"working"}' } })`,
+  `  w({ type: 'item.completed', item: { id: 'i2', type: 'agent_message', text: '{"answer":"pong"}' } })`,
+  `  w({ type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 1 } })`,
+  `})`,
+].join('\n')
+
 const noopLogger = {
   request: () => {},
   provider: () => {},
@@ -140,6 +163,78 @@ describe('codex in-sandbox adapter', () => {
       'mcp_servers.tanstack.http_headers={ "Authorization" = "Bearer secret-token-xyz" }',
     )
     expect(argv).not.toContain('bearer_token')
+    await sbx.destroy()
+  })
+
+  it('passes --output-schema and harvests only the final agent_message', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX_STRUCTURED)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+
+    const schema = {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+      additionalProperties: false,
+    }
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: schema,
+      }),
+    )
+
+    // The schema file was written and referenced via --output-schema.
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--output-schema')
+    const schemaFileArg = argv
+      .split(' ')
+      .find((a) => a.endsWith('.json') && a.includes('output-schema'))
+    expect(schemaFileArg).toBeDefined()
+
+    // The fake read the file at the path codex was given — proves the adapter
+    // wrote the schema to the exact relative path, resolvable from codex's cwd.
+    const writtenSchema = await sbx.fs.read('/workspace/codex-schema.txt')
+    expect(JSON.parse(writtenSchema)).toEqual(schema)
+
+    // Only the FINAL agent_message becomes text, so the harvested content is
+    // valid single JSON (the intermediate progress message is dropped).
+    const text = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c as { delta?: string }).delta ?? '')
+      .join('')
+    expect(text).toBe('{"answer":"pong"}')
+    expect(JSON.parse(text)).toEqual({ answer: 'pong' })
+    await sbx.destroy()
+  })
+
+  it('rejects combining tools with outputSchema (codex #15451)', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: { type: 'object' },
+        tools: [{ name: 'demo' } as unknown as AnyTool],
+      }),
+    )
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect((err as { message?: string }).message).toMatch(
+      /cannot combine tools with outputSchema/i,
+    )
     await sbx.destroy()
   })
 

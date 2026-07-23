@@ -175,7 +175,25 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` is best-effort: OpenCode's prompt API has no native JSON-schema channel, so the schema is embedded as a prompt instruction in a fresh, one-shot session and the final text is parsed (markdown fences are stripped when present). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster, deterministic, and doesn't spawn a harness.
+Pass `outputSchema` to `chat()` and the harness constrains its final answer to your schema in the **same** run — the adapter sends OpenCode's `json_schema` output format on the session prompt, and the schema-conforming result (returned on the message's `structured` field) is harvested by the engine. This works alongside the harness's own tools.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { opencodeText } from "@tanstack/ai-opencode";
+import { z } from "zod";
+
+const result = await chat({
+  adapter: opencodeText("anthropic/claude-sonnet-4-5"),
+  messages: [{ role: "user", content: "List the TODO comments in src/." }],
+  outputSchema: z.object({
+    todos: z.array(z.object({ file: z.string(), text: z.string() })),
+  }),
+});
+
+result.todos; // { file: string; text: string }[] — typed and validated
+```
+
+Requires an `@opencode-ai/sdk` new enough to expose the `json_schema` output format (v1.17+). For plain structured extraction that isn't a coding task, a provider adapter (e.g. `@tanstack/ai-openai`) is faster and doesn't spawn a harness.
 
 ## Limitations
 

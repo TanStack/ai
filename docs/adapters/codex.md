@@ -170,7 +170,26 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses Codex's native `outputSchema` support in a fresh, read-only, one-shot thread whose final message is a JSON string conforming to your schema. It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` to `chat()` and the harness constrains its final answer to your schema in the **same** run — the adapter forwards the JSON Schema to `codex exec --output-schema`, and the engine harvests the schema-conforming final message. No second call, no separate thread.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { codexText } from "@tanstack/ai-codex";
+import { z } from "zod";
+
+const result = await chat({
+  adapter: codexText("gpt-5.1-codex", { sandboxMode: "workspace-write" }),
+  messages: [{ role: "user", content: "Summarize the failing tests." }],
+  outputSchema: z.object({
+    failing: z.array(z.string()),
+    summary: z.string(),
+  }),
+});
+
+result.failing; // string[] — typed and validated
+```
+
+> **Cannot be combined with `tools`.** Codex silently drops the output schema whenever MCP servers / tools are active ([openai/codex#15451](https://github.com/openai/codex/issues/15451)), so the adapter throws if you pass both `tools` and `outputSchema`. Remove one. For plain structured extraction that isn't a coding task, a provider adapter (e.g. `@tanstack/ai-openai`) is faster and doesn't spawn a subprocess.
 
 ## Limitations
 

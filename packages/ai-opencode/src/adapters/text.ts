@@ -280,7 +280,11 @@ export class OpencodeTextAdapter<
       )
 
       session
-        .prompt(promptText)
+        .prompt(promptText, {
+          ...(options.outputSchema !== undefined && {
+            outputSchema: options.outputSchema,
+          }),
+        })
         .then(({ message }) => {
           queue.push({ kind: 'done', message })
           queue.end()
@@ -294,6 +298,9 @@ export class OpencodeTextAdapter<
           threadId,
           ...(options.parentRunId !== undefined && {
             parentRunId: options.parentRunId,
+          }),
+          ...(options.outputSchema !== undefined && {
+            structuredOutput: true,
           }),
           genId: () => this.generateId(),
           bridgedToolNames,
@@ -338,13 +345,29 @@ export class OpencodeTextAdapter<
     }
   }
 
+  /**
+   * OpenCode constrains its final answer to a JSON Schema via the session
+   * prompt's `json_schema` output format in the single harness run; the
+   * schema-conformant result comes back on `message.structured`. `outputSchema`
+   * is wired straight into `chatStream` and the engine harvests it — no
+   * separate finalization round-trip.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  /**
+   * Unreachable via `chat()` — `supportsCombinedToolsAndSchema()` routes every
+   * structured-output request through `chatStream`. Kept as a safety net for
+   * any direct caller of the non-combined path.
+   */
   structuredOutput(
     _options: StructuredOutputOptions<OpencodeTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox OpenCode adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'OpenCode structured output runs through chatStream (combined tools+schema mode); ' +
+          'structuredOutput() should not be called directly.',
       ),
     )
   }
