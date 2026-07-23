@@ -72,6 +72,67 @@ test.describe('persistence durability (browser refresh)', () => {
     await expect(page.getByTestId('loading-indicator')).toHaveCount(0)
   })
 
+  test('keys the persisted record on threadId, not a synthetic per-hook useId', async ({
+    page,
+  }) => {
+    // Regression: `useChat` used to pass its internal `useId()` to ChatClient
+    // as `id`, which ChatClient resolves as `persistenceKey = id ?? threadId`.
+    // That synthetic id shadowed the developer's `threadId`, so persistence was
+    // keyed by an ephemeral per-hook id (e.g. `tanstack-ai:_R_ba_`) instead of
+    // the stable `threadId`. Two conversations mounted at the same component
+    // position would then collide on one key. The persisted record must live
+    // under the `threadId` key alone.
+    await page.goto('/persistence-durability')
+
+    await sendMessage(page, 'tell me about the lighthouse')
+    await waitForResponse(page)
+    await expect(page.getByTestId('assistant-message')).toContainText(
+      'PERSIST_OK',
+    )
+
+    const tanstackKeys = await page.evaluate(() =>
+      Object.keys(window.localStorage).filter((k) =>
+        k.startsWith('tanstack-ai:'),
+      ),
+    )
+    // Exactly one namespaced record, keyed by the threadId — no useId-derived key.
+    expect(tanstackKeys).toEqual(['tanstack-ai:persistence-durability-text'])
+  })
+
+  test('restoring persisted messages on reload does not cause a hydration mismatch', async ({
+    page,
+  }) => {
+    // Restoring the transcript from localStorage must not desync SSR and the
+    // first client render: SSR has no localStorage, so if the client reads the
+    // persisted messages during the initial synchronous render it produces
+    // different HTML than the server sent ("server rendered HTML didn't match
+    // the client"). React recovers by regenerating the tree, but the mismatch
+    // is a real SSR-correctness defect. Persisted state must hydrate in a way
+    // that matches the server's initial (empty) render.
+    const hydrationErrors: Array<string> = []
+    const capture = (text: string) => {
+      if (/hydrat|didn't match|did not match/i.test(text)) {
+        hydrationErrors.push(text)
+      }
+    }
+    page.on('console', (m) => {
+      if (m.type() === 'error') capture(m.text())
+    })
+    page.on('pageerror', (e) => capture(e.message))
+
+    await page.goto('/persistence-durability')
+    await sendMessage(page, 'tell me about the lighthouse')
+    await waitForResponse(page)
+
+    // Reload: the persisted transcript is restored from localStorage.
+    await page.reload()
+    await expect(page.getByTestId('assistant-message')).toContainText(
+      'PERSIST_OK',
+    )
+
+    expect(hydrationErrors).toEqual([])
+  })
+
   test('a pending interrupt survives a reload (rehydrated from the resume snapshot)', async ({
     page,
   }) => {

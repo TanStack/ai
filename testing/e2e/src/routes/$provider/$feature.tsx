@@ -3,7 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
@@ -99,8 +103,7 @@ function isStoredUIMessage(value: unknown): value is StoredUIMessage {
   )
 }
 
-function deserializeMessages(raw: string): Array<UIMessage> {
-  const parsed: unknown = JSON.parse(raw)
+function reviveMessages(parsed: unknown): Array<UIMessage> {
   if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
     throw new TypeError('Stored messages are invalid')
   }
@@ -115,18 +118,30 @@ function deserializeMessages(raw: string): Array<UIMessage> {
   }))
 }
 
-/** Simple localStorage message adapter (no @tanstack/ai-client storage helpers). */
+/** Simple localStorage adapter (no @tanstack/ai-client storage helpers). */
 const messagePersistence: ChatClientPersistence = {
   getItem(id) {
     try {
       const raw = localStorage.getItem(id)
-      return raw === null ? null : deserializeMessages(raw)
+      if (raw === null) return null
+      const parsed: unknown = JSON.parse(raw)
+      // The persistor writes a combined `ChatPersistedState` record
+      // (`{ messages, resume? }`); older records were a bare messages array.
+      // Handle both, and preserve the resume half so it round-trips.
+      if (Array.isArray(parsed)) return reviveMessages(parsed)
+      if (parsed && typeof parsed === 'object' && 'messages' in parsed) {
+        return {
+          ...(parsed as ChatPersistedState),
+          messages: reviveMessages((parsed as { messages: unknown }).messages),
+        }
+      }
+      return null
     } catch {
       return null
     }
   },
-  setItem(id, messages) {
-    localStorage.setItem(id, serializeJson(messages))
+  setItem(id, value) {
+    localStorage.setItem(id, serializeJson(value))
   },
   removeItem(id) {
     localStorage.removeItem(id)

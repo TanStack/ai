@@ -40,11 +40,27 @@ export function useChat<
   options: UseChatOptions<TTools, TSchema, TContext>,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
-  const clientId = options.id || hookId
+  // Persistence keys on the client `id`, which ChatClient derives as
+  // `id ?? threadId`. Fall back to `threadId` before the synthetic `useId()`
+  // so a persisted conversation is keyed by its stable `threadId` (and a
+  // reload finds it) rather than an ephemeral per-hook id. The `useId()`
+  // fallback only applies when neither an explicit `id` nor a `threadId` is
+  // given.
+  const clientId = options.id ?? options.threadId ?? hookId
 
   const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
+  // SSR-safe hydration gate. The server has no `localStorage`, so the client
+  // must not surface persistence-restored messages until after the first
+  // commit — otherwise the initial client render diverges from the server HTML
+  // and React reports a hydration mismatch (then throws the tree away). Stays
+  // `false` on the server and on the first client render, flips `true` in an
+  // effect that only runs post-hydration.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<ChatClientState>('ready')
@@ -465,7 +481,13 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
-  const renderedMessages = client.getMessages()
+  // Until the post-hydration effect runs, render the same messages the server
+  // did (its `initialMessages`, before any localStorage-restored transcript) so
+  // SSR and the first client render agree. After hydration, reflect the live
+  // client state (which includes persistence-restored and streamed messages).
+  const renderedMessages = hydrated
+    ? client.getMessages()
+    : options.initialMessages || []
 
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1

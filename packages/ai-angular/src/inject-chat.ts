@@ -61,7 +61,9 @@ export function injectChat<
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
-  const clientId = options.id || `injectChat-${nextId++}`
+  // Fall back to the stable `threadId` before the synthetic per-hook id so
+  // persistence keys on the conversation identity (ChatClient: `id ?? threadId`).
+  const clientId = options.id ?? options.threadId ?? `injectChat-${nextId++}`
 
   const messages = signal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],

@@ -51,7 +51,9 @@ export function useChat<
   >,
 ): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
-  const clientId = options.id || hookId
+  // Fall back to the stable `threadId` before the synthetic per-hook id so
+  // persistence keys on the conversation identity (ChatClient: `id ?? threadId`).
+  const clientId = options.id ?? options.threadId ?? hookId
 
   const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],

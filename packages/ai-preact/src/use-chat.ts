@@ -39,7 +39,9 @@ export function useChat<
   TContext = InferredClientContext<TTools>,
 >(options: UseChatOptions<TTools, TContext>): UseChatReturn<TTools> {
   const hookId = useId()
-  const clientId = options.id || hookId
+  // Fall back to the stable `threadId` before the synthetic per-hook id so
+  // persistence keys on the conversation identity (ChatClient: `id ?? threadId`).
+  const clientId = options.id ?? options.threadId ?? hookId
 
   const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
     options.initialMessages || [],

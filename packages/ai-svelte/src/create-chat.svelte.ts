@@ -69,8 +69,11 @@ export function createChat<
   options: CreateChatOptions<TTools, TSchema, TContext>,
 ): CreateChatReturn<TTools, TSchema, TContext> {
   // Generate a unique ID for this chat instance
+  // Fall back to the stable `threadId` before the synthetic per-hook id so
+  // persistence keys on the conversation identity (ChatClient: `id ?? threadId`).
   const clientId =
-    options.id ||
+    options.id ??
+    options.threadId ??
     `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
   // Create reactive state using Svelte 5 runes
