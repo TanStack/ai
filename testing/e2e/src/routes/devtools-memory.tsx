@@ -25,7 +25,10 @@ function DevtoolsMemoryRoute() {
           <div className="text-sm font-semibold text-orange-300">
             Memory Chat
           </div>
-          <div data-testid="memory-chat-status" className="text-xs text-gray-400">
+          <div
+            data-testid="memory-chat-status"
+            className="text-xs text-gray-400"
+          >
             {chat.status}
           </div>
         </div>

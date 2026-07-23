@@ -115,9 +115,13 @@ describe('memoryMiddleware', () => {
       ...base,
       inspect: async () => ({
         takenAt: '2026-07-22T00:00:00.000Z',
-        data: { records: [{ id: 'r1', text: 'You like cats!', kind: 'message' }] },
+        data: {
+          records: [{ id: 'r1', text: 'You like cats!', kind: 'message' }],
+        },
       }),
-      listFacts: async () => [{ id: 'r1', text: 'You like cats!', source: 'assistant' }],
+      listFacts: async () => [
+        { id: 'r1', text: 'You like cats!', source: 'assistant' },
+      ],
     }
     const emit = vi.spyOn(aiEventClient, 'emit').mockImplementation(() => {})
     try {
@@ -133,7 +137,9 @@ describe('memoryMiddleware', () => {
       })
       await Promise.all(deferred)
 
-      const snapshotCall = emit.mock.calls.find((c) => c[0] === 'memory:snapshot')
+      const snapshotCall = emit.mock.calls.find(
+        (c) => c[0] === 'memory:snapshot',
+      )
       expect(snapshotCall).toBeTruthy()
       expect(snapshotCall?.[1]).toMatchObject({
         adapter: 'fake',
@@ -153,10 +159,16 @@ describe('memoryMiddleware', () => {
       const config = makeConfig('hi there')
       const ctx = makeCtx(config, deferred)
       await mw.onConfig?.(ctx, config)
-      mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: 'hello' })
+      mw.onFinish?.(ctx, {
+        finishReason: 'stop',
+        duration: 1,
+        content: 'hello',
+      })
       await Promise.all(deferred)
 
-      expect(emit.mock.calls.some((c) => c[0] === 'memory:snapshot')).toBe(false)
+      expect(emit.mock.calls.some((c) => c[0] === 'memory:snapshot')).toBe(
+        false,
+      )
     } finally {
       emit.mockRestore()
     }
@@ -209,10 +221,9 @@ describe('memoryMiddleware', () => {
     const config = makeConfig('hi')
     const ctx = makeCtx(config, [])
     await mw.onConfig?.(ctx, config)
-    const out = (await mw.onChunk?.(
-      ctx,
-      { type: 'RUN_STARTED' } as unknown as StreamChunk,
-    )) as Array<StreamChunk>
+    const out = (await mw.onChunk?.(ctx, {
+      type: 'RUN_STARTED',
+    } as unknown as StreamChunk)) as Array<StreamChunk>
     const custom = out[1] as Extract<StreamChunk, { type: 'CUSTOM' }>
     expect(custom.name).toBe(MEMORY_STATE_EVENT)
     expect((custom.value as { snapshot?: unknown }).snapshot).toBeUndefined()

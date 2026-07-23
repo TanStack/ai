@@ -294,7 +294,9 @@ function emptyScope(): MemoryScope {
 async function gatherSnapshot(
   adapter: MemoryAdapter,
   scope: MemoryScope,
-): Promise<{ takenAt: string; data: unknown; facts: Array<MemoryFact> } | undefined> {
+): Promise<
+  { takenAt: string; data: unknown; facts: Array<MemoryFact> } | undefined
+> {
   if (!adapter.inspect) return undefined
   try {
     const snapshot = await adapter.inspect(scope)

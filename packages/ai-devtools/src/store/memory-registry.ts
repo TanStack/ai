@@ -110,7 +110,11 @@ function ensureScope(
 
 let fallbackCounter = 0
 
-function eventId(payload: { eventId?: string }, type: string, ts: number): string {
+function eventId(
+  payload: { eventId?: string },
+  type: string,
+  ts: number,
+): string {
   if (payload.eventId && payload.eventId.length > 0) return payload.eventId
   return `${type}:${ts}:${fallbackCounter++}`
 }

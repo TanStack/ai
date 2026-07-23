@@ -60,7 +60,9 @@ export const Route = createFileRoute('/api/devtools-memory')({
           const stream = chat({
             ...adapterOptions,
             tools: [],
-            systemPrompts: ['You are a helpful assistant with long-term memory.'],
+            systemPrompts: [
+              'You are a helpful assistant with long-term memory.',
+            ],
             middleware: [memory],
             agentLoopStrategy: maxIterations(5),
             messages: params.messages,

@@ -42,8 +42,6 @@ test('memory middleware surfaces recall + stored records in the devtools Memory 
 
   // Live contents: turn 1's user + assistant messages are stored and shown.
   await expect
-    .poll(async () =>
-      page.getByTestId('ai-devtools-memory-record').count(),
-    )
+    .poll(async () => page.getByTestId('ai-devtools-memory-record').count())
     .toBeGreaterThanOrEqual(2)
 })
