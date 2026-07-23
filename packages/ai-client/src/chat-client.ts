@@ -240,6 +240,28 @@ function readResumeState(
   return { threadId: resumeState.threadId, runId: resumeState.runId }
 }
 
+/**
+ * How long a reload rejoin waits for its first chunk before giving up. A durable
+ * backend keeps a from-start join open waiting for a producer; without this
+ * bound a stale pointer to an unknown/evicted run would pin the UI loading for
+ * the backend's full first-chunk deadline (tens of seconds). Kept short so the
+ * client decides "reachable or not" quickly.
+ */
+const REJOIN_CONNECT_DEADLINE_MS = 2000
+
+/**
+ * Chunk types that (re)build the assistant message on a rejoin. The hydrated
+ * in-flight partial is dropped only when one of these arrives — never on
+ * `RUN_STARTED` alone — so a rejoin that connects but delivers no content cannot
+ * leave an empty assistant bubble.
+ */
+const REJOIN_REBUILD_TRIGGERS = new Set<string>([
+  'TEXT_MESSAGE_START',
+  'TEXT_MESSAGE_CONTENT',
+  'TOOL_CALL_START',
+  'MESSAGES_SNAPSHOT',
+])
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -1321,10 +1343,17 @@ export class ChatClient<
    *
    * The log is the single source of truth for the run, so we rebuild the
    * in-flight assistant bubble from it rather than trying to reconcile the
-   * server-hydrated partial with the replay: on the FIRST delivered chunk we
-   * drop the hydrated in-flight assistant, and the replay reconstructs one clean
-   * bubble. This is eviction-safe — if `joinRun` never yields (finished+evicted,
-   * or unknown run), we never drop, so the hydrated transcript stays intact.
+   * server-hydrated partial with the replay: on the first chunk that actually
+   * (re)builds a message we drop the hydrated in-flight assistant, and the
+   * replay reconstructs one clean bubble. Dropping only on real content (not on
+   * `RUN_STARTED`) means a rejoin that connects but delivers nothing can never
+   * leave an empty bubble behind.
+   *
+   * Bounded connect: a durable backend keeps a from-start join open waiting for
+   * a producer, so a stale pointer to an unknown/evicted run would otherwise pin
+   * the UI in a loading state for the backend's full first-chunk deadline. We
+   * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
+   * clear the dead pointer so it does not retry on the next load.
    *
    * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
    * so the buffered prefix snaps in and only the genuinely-live tail streams at
@@ -1336,14 +1365,29 @@ export class ChatClient<
     const controller = new AbortController()
     this.abortController = controller
     this.currentRunId = runId
+    // Record the resume state in-memory BEFORE replaying. Otherwise the
+    // replayed `RUN_STARTED` (which carries the PROVIDER run id, not the
+    // client/durability-log run id the pointer is keyed by) trips the
+    // `!this.lastResume` guard in `updateRunLifecycle` and rewrites the
+    // persisted pointer with the provider id — so a SECOND reload would
+    // `joinRun` an id the log isn't keyed by and never re-attach.
+    this.lastResume = { threadId: this.threadId, runId }
     this.setIsLoading(true)
     this.setStatus('streaming')
     void (async () => {
       let rebuilt = false
+      let attached = false
+      const connectTimer = setTimeout(() => {
+        if (!attached) controller.abort()
+      }, REJOIN_CONNECT_DEADLINE_MS)
       try {
         for await (const chunk of joinRun(runId, controller.signal)) {
           if (controller.signal.aborted) break
-          if (!rebuilt) {
+          if (!attached) {
+            attached = true
+            clearTimeout(connectTimer)
+          }
+          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
             rebuilt = true
             this.dropTrailingInFlightAssistant()
           }
@@ -1353,6 +1397,14 @@ export class ChatClient<
         // Best-effort re-attach: the durable log may be gone or the run
         // unknown. Keep the restored transcript rather than surfacing an error.
       } finally {
+        clearTimeout(connectTimer)
+        if (!attached) {
+          // Never reached the run (unknown / evicted / unreachable in time): the
+          // pointer is dead. Clear it so it does not retry and re-pin the UI on
+          // the next load. The server's persisted transcript is still loaded.
+          this.lastResume = null
+          this.persistor?.persistResumeSnapshot(null)
+        }
         if (this.abortController === controller) {
           this.abortController = null
           this.setIsLoading(false)

@@ -150,14 +150,22 @@ const COMPLETED_LOG_TTL_MS = 5 * 60_000
  * How long a from-start join (`-1` / `now`) waits for a run's first chunk before
  * failing. Bounds the "joined a run that never produces" case so a consumer
  * gets a surfaced error instead of an indefinitely-open, event-less connection.
+ *
+ * Defaults short: the common from-start join is a reload rejoining a run whose
+ * producer ran in a PRIOR request, so an in-flight run's log already holds
+ * chunks (it streams immediately, deadline never applies) and an empty log means
+ * the run is gone — failing fast lets the client re-enable input near-instantly
+ * instead of hanging. Raise `firstChunkDeadlineMs` for backends where a producer
+ * legitimately starts well after a joiner attaches (a queued/deferred job).
  */
-const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 30_000
+const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 100
 
 /** Options for the in-process delivery-durability backend. */
 export interface MemoryStreamOptions {
   /**
    * Milliseconds a from-start join waits for the run's first chunk before
-   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS}.
+   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
+   * raise it if a producer can legitimately start long after a joiner attaches.
    */
   firstChunkDeadlineMs?: number
 }

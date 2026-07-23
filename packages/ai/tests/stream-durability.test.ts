@@ -229,6 +229,24 @@ describe('memoryStream', () => {
     )
   })
 
+  it('defaults the first-chunk deadline to a short 100ms window', async () => {
+    // A reload rejoin is the common from-start join; its producer ran in a prior
+    // request, so an empty log means the run is gone and should fail fast rather
+    // than hang. The default is short so the client re-enables near-instantly.
+    const joiner = memoryStream(
+      new Request(
+        'https://example.test/api/chat?runId=run-default-deadline&offset=-1',
+        { method: 'POST' },
+      ),
+    )
+    const resumeOffset = joiner.resumeFrom()
+    if (resumeOffset === null) throw new Error('Expected a resume offset')
+
+    await expect(readLabels(joiner.read(resumeOffset))).rejects.toThrow(
+      /produced no data within 100ms/,
+    )
+  })
+
   it('does not apply the first-chunk deadline once a run has produced data', async () => {
     const producer = memoryStream(
       new Request('https://example.test/api/chat?runId=run-slow-tail', {
