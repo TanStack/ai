@@ -33,6 +33,8 @@
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/devtools-event-bus": "^0.4.1",
     "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-ai-devtools": "workspace:*",
