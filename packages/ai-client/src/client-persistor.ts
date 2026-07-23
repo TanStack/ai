@@ -82,13 +82,20 @@ export class ChatPersistor {
     private readonly id: string,
     private readonly applyMessages: (messages: Array<UIMessage>) => void,
     private readonly applyResume?: (snapshot: ChatResumeSnapshot) => void,
+    // When false, the transcript is never cached client-side; only the tiny
+    // resume pointer is persisted (server-authoritative history). Defaults true.
+    private readonly storeMessages: boolean = true,
   ) {}
 
-  /** Persist the current messages + resume snapshot as one combined record. */
+  /**
+   * Persist the current state as one combined record. When `storeMessages` is
+   * false the transcript is omitted (empty), so only the resume pointer is
+   * written and large histories never hit client storage.
+   */
   private writeState(): void {
     const generation = this.generation
     const state: ChatPersistedState = {
-      messages: [...this.lastMessages],
+      messages: this.storeMessages ? [...this.lastMessages] : [],
       ...(this.lastResume ? { resume: this.lastResume } : {}),
     }
     this.runOperation(() => {

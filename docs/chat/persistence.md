@@ -54,6 +54,11 @@ function Chat() {
 [Browser refresh](../persistence/browser-refresh) for choosing between them and
 for rejoining an in-flight run after reload.
 
+To keep large transcripts off the client, pass the object form
+`persistence={{ store, messages: false }}`: only the small resume pointer is
+cached (durability rejoin and interrupt restore still work) and the server owns
+the history. See [Browser refresh](../persistence/browser-refresh).
+
 ## The adapter interface
 
 A persistence adapter is any object with three methods — the same

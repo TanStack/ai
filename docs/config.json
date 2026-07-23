@@ -180,7 +180,7 @@
           "label": "Persistence",
           "to": "chat/persistence",
           "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-23"
         }
       ]
     },
@@ -255,12 +255,14 @@
         {
           "label": "Browser Refresh",
           "to": "persistence/browser-refresh",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Custom Stores",

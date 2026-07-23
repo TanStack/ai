@@ -613,6 +613,31 @@ export interface ChatClientPersistence<
   removeItem: (id: string) => void | Promise<void>
 }
 
+/**
+ * Persistence configuration for the `persistence` option. Pass a bare
+ * {@link ChatClientPersistence} adapter to persist everything (the transcript
+ * plus the resume pointer), or this object form to pull the message lever.
+ *
+ * `messages: false` keeps the transcript OFF the client and persists only the
+ * tiny resume pointer (which run to rejoin, which interrupts are pending), so
+ * durability rejoin and interrupt restore still work while the server stays the
+ * authoritative source of history. Big conversations then never hit
+ * localStorage, avoiding the quota and parse cost. Defaults to `true`
+ * (transcript cached client-side).
+ */
+export interface ChatPersistenceConfig<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  store: ChatClientPersistence<TTools>
+  /** Cache the transcript client-side. Default `true`. `false` = resume pointer only. */
+  messages?: boolean
+}
+
+/** The `persistence` option: a bare adapter, or `{ store, messages? }`. */
+export type ChatPersistenceOption<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> = ChatClientPersistence<TTools> | ChatPersistenceConfig<TTools>
+
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
     ? true
@@ -704,13 +729,19 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapter for durable chat state, keyed by chat id. It
-   * stores one combined {@link ChatPersistedState} record (messages + an
-   * optional resume snapshot), so a full page reload restores the transcript,
-   * rehydrates pending interrupts, and rejoins an in-flight run. Use
-   * `initialResumeSnapshot` instead for a host-supplied in-memory rehydrate.
+   * Optional persistence for durable chat state, keyed by chat id. Pass a
+   * {@link ChatClientPersistence} adapter to store the combined
+   * {@link ChatPersistedState} record (messages + resume pointer), so a full
+   * page reload restores the transcript, rehydrates pending interrupts, and
+   * rejoins an in-flight run.
+   *
+   * To keep large transcripts off the client, pass `{ store, messages: false }`
+   * ({@link ChatPersistenceConfig}) instead: only the tiny resume pointer is
+   * cached, durability rejoin and interrupt restore still work, and the server
+   * is the authoritative source of history. Use `initialResumeSnapshot` for a
+   * host-supplied in-memory rehydrate instead.
    */
-  persistence?: ChatClientPersistence<TTools>
+  persistence?: ChatPersistenceOption<TTools>
 
   /**
    * Unique identifier for this chat instance
