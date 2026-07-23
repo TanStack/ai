@@ -49,7 +49,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 const persistence = sqlitePersistence({
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     threadId: params.threadId,
     runId: params.runId,
     ...(params.resume ? { resume: params.resume } : {}),
-    middleware: [withChatPersistence(persistence)],
+    middleware: [withPersistence(persistence)],
   })
   return toServerSentEventsResponse(stream)
 }
@@ -132,7 +132,7 @@ Most production chat apps end up with all three: delivery durability on the rout
 For a real multi-user app, one combination beats the rest:
 
 1. **Client: cache only the resume pointer** with `persistence: { store, messages: false }`. The browser holds a few bytes (which run to rejoin, which interrupts are pending), never the transcript.
-2. **Server: `withChatPersistence`** owns the authoritative history, run status, and durable interrupts.
+2. **Server: `withPersistence`** owns the authoritative history, run status, and durable interrupts.
 3. **One `GET` endpoint that does two jobs**: rehydrate the conversation from the store, and resume an in-flight durable stream.
 
 The server route:
@@ -148,7 +148,7 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 import {
   reconstructChat,
-  withChatPersistence,
+  withPersistence,
 } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     threadId: params.threadId,
     runId: params.runId,
     ...(params.resume ? { resume: params.resume } : {}),
-    middleware: [withChatPersistence(persistence)],
+    middleware: [withPersistence(persistence)],
   })
   return toServerSentEventsResponse(stream, {
     durability: { adapter: memoryStream(request) },

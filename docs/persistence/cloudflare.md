@@ -90,7 +90,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
 import { createPersistence } from './persistence'
 
 interface Env {
@@ -109,7 +109,7 @@ export default {
         threadId: params.threadId,
         runId: params.runId,
         ...(params.resume ? { resume: params.resume } : {}),
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       })
 
       return toServerSentEventsResponse(stream)

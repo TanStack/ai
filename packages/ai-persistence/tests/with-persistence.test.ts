@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
-import { withChatPersistence } from '../src/middleware'
+import { withPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
 
 // --- minimal mock text adapter ---------------------------------------------
@@ -81,7 +81,7 @@ async function expectCollectRejects(
   await expect(collect(stream)).rejects.toThrow(pattern)
 }
 
-describe('withChatPersistence (state-only)', () => {
+describe('withPersistence (state-only)', () => {
   it('completes the run and saves the transcript', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
@@ -94,7 +94,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -119,7 +119,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -141,7 +141,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -152,7 +152,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'new input' }],
         runId: 'r2',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /pending interrupts.*resume is required/i,
     )
@@ -169,7 +169,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -181,7 +181,7 @@ describe('withChatPersistence (state-only)', () => {
         runId: 'r2',
         threadId: 't1',
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
       /missing resume entry for pending interrupt interrupt-1/i,
     )
@@ -198,7 +198,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -216,7 +216,7 @@ describe('withChatPersistence (state-only)', () => {
             payload: { approved: true },
           },
         ],
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -244,7 +244,7 @@ describe('withChatPersistence (state-only)', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 

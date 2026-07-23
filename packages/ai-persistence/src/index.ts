@@ -16,7 +16,7 @@ export type {
 } from './types'
 
 // Middleware
-export { withChatPersistence, withGenerationPersistence } from './middleware'
+export { withPersistence, withGenerationPersistence } from './middleware'
 
 // Server helper: rehydrate a thread's messages for a client load
 export { reconstructChat } from './reconstruct'

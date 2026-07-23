@@ -10,7 +10,7 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import {
-  withChatPersistence,
+  withPersistence,
   withGenerationPersistence,
 } from '../src/middleware'
 import { composePersistence } from '../src/types'
@@ -87,7 +87,7 @@ describe('chat persistence error/abort hooks', () => {
           messages: [{ role: 'user', content: 'hi' }],
           runId: 'r1',
           threadId: 't1',
-          middleware: [withChatPersistence(persistence)],
+          middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
     ).rejects.toThrow('provider exploded')
@@ -107,7 +107,7 @@ describe('chat persistence error/abort hooks', () => {
           messages: [{ role: 'user', content: 'hi' }],
           runId: 'r1',
           threadId: 't1',
-          middleware: [withChatPersistence(persistence)],
+          middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
     ).rejects.toBeDefined()
@@ -143,7 +143,7 @@ describe('chat persistence error/abort hooks', () => {
           messages: [{ role: 'user', content: 'hi' }],
           runId: 'r1',
           threadId: 't1',
-          middleware: [withChatPersistence(persistence)],
+          middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
     ).rejects.toThrow('interrupts.create failed')
@@ -169,7 +169,7 @@ describe('chat persistence error/abort hooks', () => {
           messages: [{ role: 'user', content: 'hi' }],
           runId: 'r1',
           threadId: 't1',
-          middleware: [withChatPersistence(persistence)],
+          middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
     ).rejects.toThrow('saveThread failed')

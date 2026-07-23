@@ -26,7 +26,7 @@ export interface LockStore {
   ) => Promise<T>
 }
 
-/** The lock capability. Provided by `withChatPersistence` when a `locks` store is present. */
+/** The lock capability. Provided by `withPersistence` when a `locks` store is present. */
 export const LocksCapability = createCapability<LockStore>()('locks')
 
 /** Destructured accessors: `getLocks(ctx)` / `provideLocks(ctx, store)`. */

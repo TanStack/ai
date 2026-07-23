@@ -552,7 +552,7 @@ the framework's `useChat` / `createChat` / `injectChat`; nothing is
 framework-specific.
 
 > **Client vs. server durability.** This is the client (per-browser) half.
-> The authoritative, multi-user, server-side copy is the `withChatPersistence`
+> The authoritative, multi-user, server-side copy is the `withPersistence`
 > middleware — see ai-core/middleware/SKILL.md. The two are independent; use
 > both for instant reload restore plus a durable record of record.
 
@@ -766,4 +766,4 @@ If not handled, the UI appears to hang with no feedback.
 
 - See also: **ai-core/tool-calling/SKILL.md** -- Most chats include tools
 - See also: **ai-core/adapter-configuration/SKILL.md** -- Adapter choice affects available features
-- See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events; `withChatPersistence` is the server (authoritative) half of the client `persistence` option
+- See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events; `withPersistence` is the server (authoritative) half of the client `persistence` option

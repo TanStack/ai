@@ -25,7 +25,7 @@ server event state, not the client's rendered messages.
 
 ## Chat middleware lifecycle
 
-`withChatPersistence(persistence)` derives a plan from store presence:
+`withPersistence(persistence)` derives a plan from store presence:
 
 1. `setup` provides persistence, interrupt, and lock capabilities when their
    stores exist.

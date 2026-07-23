@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
-import { withChatPersistence } from '../src/middleware'
+import { withPersistence } from '../src/middleware'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
   const calls: Array<unknown> = []
@@ -61,7 +61,7 @@ describe('state-only persistence', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence)],
+        middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -78,7 +78,7 @@ describe('state-only persistence', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(memoryPersistence())],
+        middleware: [withPersistence(memoryPersistence())],
       }) as AsyncIterable<StreamChunk>,
     )
 

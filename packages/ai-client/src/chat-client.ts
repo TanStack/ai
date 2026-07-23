@@ -260,6 +260,10 @@ export class ChatClient<
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
+  // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
+  // run is rejoined at most once even when both the sync read and the async
+  // hydrate surface the same resume pointer.
+  private rejoinedRunId: string | null = null
   private readonly interruptManager: InterruptManager<TTools>
   private activeInterruptSubmission: InterruptManagerSubmission | undefined
   private interruptSubmissionFailure:
@@ -397,7 +401,7 @@ export class ChatClient<
         store,
         persistenceKey,
         (messages) => this.processor.setMessages(messages),
-        (snapshot) => this.applyResumeSnapshot(snapshot),
+        (snapshot) => this.applyPersistedResume(snapshot),
         cachesMessages,
       )
     }
@@ -698,11 +702,12 @@ export class ChatClient<
 
     this.persistor?.hydrateAsync(persistedState)
 
-    // Full page reload with an in-flight run persisted: re-attach to it off the
-    // server's delivery-durability log so the stream finishes here. Best-effort
-    // and non-blocking; a finished/evicted run just replays or no-ops.
-    if (rejoinRunId && this.connection.joinRun) {
-      this.resumeInFlightRun(rejoinRunId)
+    // Full page reload with an in-flight run persisted (synchronous store):
+    // re-attach to it off the server's delivery-durability log so the stream
+    // finishes here. Async stores rejoin from `applyPersistedResume` once the
+    // hydrate resolves. Best-effort and non-blocking.
+    if (rejoinRunId) {
+      this.maybeRejoinInFlight(rejoinRunId)
     }
   }
 
@@ -727,6 +732,38 @@ export class ChatClient<
       generation,
       interrupts: pendingInterrupts,
     })
+  }
+
+  /**
+   * Apply a resume snapshot read from durable storage. Restores interrupt state,
+   * and for a bare in-flight run (no pending interrupts) also rejoins it. This is
+   * the async-store counterpart to the synchronous rejoin in the constructor:
+   * `applyResumeSnapshot` alone only handles interrupts, so an async store
+   * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
+   */
+  private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
+    this.applyResumeSnapshot(snapshot)
+    const hasInterrupts =
+      Array.isArray(snapshot.pendingInterrupts) &&
+      snapshot.pendingInterrupts.length > 0
+    const runId = snapshot.resumeState?.runId
+    if (!hasInterrupts && runId) {
+      this.maybeRejoinInFlight(runId)
+    }
+  }
+
+  /**
+   * Rejoin a persisted in-flight run, guarded so it fires at most once and never
+   * while another run is already active. Skipped when the connection is not
+   * resumable (`joinRun` absent), so a non-durable transport is a no-op.
+   */
+  private maybeRejoinInFlight(runId: string): void {
+    if (!this.connection.joinRun) return
+    if (this.rejoinedRunId === runId) return
+    // A fresh send (or an already-running rejoin) owns the client; don't stomp it.
+    if (this.isLoading || this.abortController) return
+    this.rejoinedRunId = runId
+    this.resumeInFlightRun(runId)
   }
 
   mountDevtools(): void {

@@ -7,7 +7,7 @@ id: chat-persistence
 
 You want a conversation to outlive a single request: the transcript, whether
 each run finished or is still waiting on an interrupt, all still there after the
-process restarts. `withChatPersistence` is a chat middleware that writes that
+process restarts. `withPersistence` is a chat middleware that writes that
 state to a store you choose, so the server owns an authoritative copy of every
 thread.
 
@@ -23,7 +23,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 // One store for the whole process. `migrate: true` applies the bundled schema.
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     runId: params.runId,
     // Forward the resume batch so a thread with pending interrupts continues.
     ...(params.resume ? { resume: params.resume } : {}),
-    middleware: [withChatPersistence(persistence)],
+    middleware: [withPersistence(persistence)],
   })
   return toServerSentEventsResponse(stream)
 }
@@ -61,7 +61,7 @@ bundled migrations through your deployment workflow instead. See
 
 ## Send the full transcript, or none of it
 
-`withChatPersistence` follows one rule, the authoritative-history contract:
+`withPersistence` follows one rule, the authoritative-history contract:
 
 - A request with a **non-empty** `messages` array is the full conversation. On
   finish it **overwrites** the stored thread. Post the complete transcript, not

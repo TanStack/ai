@@ -56,7 +56,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { withChatPersistence } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
 import { persistence } from './persistence'
 
 export async function POST(request: Request) {
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     threadId: params.threadId,
     runId: params.runId,
     ...(params.resume ? { resume: params.resume } : {}),
-    middleware: [withChatPersistence(persistence)],
+    middleware: [withPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)

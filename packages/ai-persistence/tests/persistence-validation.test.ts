@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { withChatPersistence } from '../src/middleware'
+import { withPersistence } from '../src/middleware'
 import type { AIPersistence } from '../src'
 import {
   createInterruptStore,
@@ -13,7 +13,7 @@ describe('persistence store dependency validation', () => {
       stores: { interrupts: createInterruptStore() },
     }
 
-    expect(() => withChatPersistence(persistence)).toThrow(
+    expect(() => withPersistence(persistence)).toThrow(
       /interrupts.*stores\.runs/i,
     )
   })
@@ -24,8 +24,8 @@ describe('persistence store dependency validation', () => {
     }
     const runs: AIPersistence = { stores: { runs: createRunStore() } }
 
-    expect(() => withChatPersistence(messages)).not.toThrow()
-    expect(() => withChatPersistence(runs)).not.toThrow()
+    expect(() => withPersistence(messages)).not.toThrow()
+    expect(() => withPersistence(runs)).not.toThrow()
   })
 
   it('allows a dynamic chat persistence with paired run and interrupt stores', () => {
@@ -36,6 +36,6 @@ describe('persistence store dependency validation', () => {
       },
     }
 
-    expect(() => withChatPersistence(persistence)).not.toThrow()
+    expect(() => withPersistence(persistence)).not.toThrow()
   })
 })

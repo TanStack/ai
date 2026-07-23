@@ -7,7 +7,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
-import { withChatPersistence } from '../src/middleware'
+import { withPersistence } from '../src/middleware'
 import {
   InterruptsCapability,
   LocksCapability,
@@ -78,7 +78,7 @@ describe('persistence capabilities', () => {
         messages: [{ role: 'user', content: 'hi' }],
         runId: 'r1',
         threadId: 't1',
-        middleware: [withChatPersistence(persistence), consumer],
+        middleware: [withPersistence(persistence), consumer],
       }) as AsyncIterable<StreamChunk>,
     )
 
