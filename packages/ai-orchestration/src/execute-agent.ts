@@ -33,8 +33,14 @@ export async function executeAgent<TInput, TOutput>(args: {
     })
 
     if (isAgentStreamResult<TOutput>(result)) {
+      // `output` is already in flight, so observe it before draining can throw.
+      // Otherwise a failing stream leaves it rejected and unhandled, which
+      // terminates the worker under Node's default unhandled-rejection policy.
+      const output = Promise.resolve(result.output)
+      output.catch(() => undefined)
+
       await drainAgentStream(definition.name, result.stream, args.emit)
-      return validateOutput(definition, await result.output)
+      return validateOutput(definition, await output)
     }
 
     if (isAsyncIterable<StreamChunk>(result)) {

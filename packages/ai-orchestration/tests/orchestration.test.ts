@@ -8,7 +8,9 @@ import { z } from 'zod'
 import { EventType } from '@tanstack/ai'
 import {
   AgentApprovalUnsupportedError,
+  AgentStreamError,
   agentMiddleware,
+  agentStream,
   createAIEventPublisher,
   defineAgent,
   toAIStream,
@@ -215,6 +217,44 @@ describe('Workflow-backed agent orchestration', () => {
     expect(events.some((event) => event.type === 'RUN_FINISHED')).toBe(false)
   })
 
+  it('fails the step without an unhandled rejection when an agentStream errors', async () => {
+    const unhandled: Array<unknown> = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+
+    const broken = defineAgent({
+      name: 'broken',
+      run: () =>
+        agentStream(
+          errorStream('model exploded'),
+          Promise.reject(new Error('output never settles')),
+        ),
+    })
+    const workflow = createWorkflow({ id: 'broken' })
+      .middleware([agentMiddleware()])
+      .handler((ctx) => ctx.ai.agent('broken', broken, undefined))
+
+    const events = await collect(
+      runWorkflow({
+        workflow,
+        runStore: inMemoryRunStore(),
+        input: {},
+      }),
+    )
+    // Let a rejection scheduled during the run reach the process handler.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    process.off('unhandledRejection', onUnhandled)
+
+    expect(unhandled).toEqual([])
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'STEP_FAILED',
+        error: expect.objectContaining({ name: AgentStreamError.name }),
+      }),
+    )
+    expect(events.some((event) => event.type === 'RUN_FINISHED')).toBe(false)
+  })
+
   it('adapts the Workflow publish hook without changing execution IDs', async () => {
     const published: Array<{ runId: string; chunk: StreamChunk }> = []
     const publisher = createAIEventPublisher({
@@ -276,6 +316,14 @@ async function* streamText(text: string): AsyncIterable<StreamChunk> {
     type: EventType.RUN_FINISHED,
     runId: 'inner-run',
     threadId: 'inner-thread',
+    timestamp: Date.now(),
+  }
+}
+
+async function* errorStream(message: string): AsyncIterable<StreamChunk> {
+  yield {
+    type: EventType.RUN_ERROR,
+    message,
     timestamp: Date.now(),
   }
 }
