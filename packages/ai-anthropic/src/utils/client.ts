@@ -6,6 +6,27 @@ export interface AnthropicClientConfig extends ClientOptions {
   apiKey: string
 }
 
+type AnyAnthropicMessagesCreate = (
+  params: never,
+  ...args: Array<never>
+) => unknown
+
+/**
+ * The minimal Anthropic client surface used by the text adapter.
+ *
+ * The callable is intentionally type-erased because alternative Anthropic
+ * clients can depend on a different 0.x release of the Anthropic SDK. Their
+ * request and response declarations may drift even when the runtime Messages
+ * protocol remains compatible.
+ */
+export interface AnthropicMessagesClient {
+  readonly beta: {
+    readonly messages: {
+      readonly create: AnyAnthropicMessagesCreate
+    }
+  }
+}
+
 /**
  * Creates an Anthropic SDK client instance
  */

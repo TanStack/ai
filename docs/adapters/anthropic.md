@@ -61,7 +61,46 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
- 
+
+## Custom Anthropic Client
+
+Use `createAnthropicChatWithClient` when authentication or transport is
+provided by an Anthropic-compatible client. The adapter only requires the
+client's `beta.messages.create` capability; message mapping, streaming, tools,
+media, usage, and structured output still follow the same TanStack adapter
+path.
+
+For example, Anthropic's Vertex client can discover Google Cloud credentials
+through Application Default Credentials:
+
+```bash
+npm install @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+```
+
+```typescript
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
+import {
+  createAnthropicChatWithClient,
+  type AnthropicMessagesClient,
+} from "@tanstack/ai-anthropic";
+
+const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+
+if (!projectId) {
+  throw new Error("GOOGLE_CLOUD_PROJECT is required");
+}
+
+const client = new AnthropicVertex({
+  projectId,
+  region: "eu",
+}) satisfies AnthropicMessagesClient;
+
+const adapter = createAnthropicChatWithClient("claude-sonnet-5", client);
+```
+
+The injected client must implement the Anthropic Beta Messages protocol.
+Endpoint-specific model and feature support remains the caller's
+responsibility.
 
 ## Example: Chat Completion
 
@@ -257,7 +296,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument.
+Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument. For custom authentication or transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client instead.
 
 ### `anthropicText(model, config?)` / `createAnthropicChat(model, apiKey, config?)`
 
@@ -267,6 +306,15 @@ Creates an Anthropic chat adapter.
 
 - `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
+
+### `createAnthropicChatWithClient(model, client)`
+
+Creates an Anthropic chat adapter using an injected client.
+
+**Parameters:**
+
+- `model` - Claude model id
+- `client` - Client exposing `beta.messages.create`
 
 ### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
 

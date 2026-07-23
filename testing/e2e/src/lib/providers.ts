@@ -1,6 +1,7 @@
 import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import Anthropic from '@anthropic-ai/sdk'
+import { createAnthropicChatWithClient } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
@@ -84,10 +85,14 @@ export function createTextAdapter(
       }),
     anthropic: () =>
       createChatOptions({
-        adapter: createAnthropicChat(model as 'claude-sonnet-4-5', DUMMY_KEY, {
-          baseURL: base,
-          defaultHeaders: testHeaders,
-        }),
+        adapter: createAnthropicChatWithClient(
+          model as 'claude-sonnet-4-5',
+          new Anthropic({
+            apiKey: DUMMY_KEY,
+            baseURL: base,
+            defaultHeaders: testHeaders,
+          }),
+        ),
       }),
     gemini: () =>
       createChatOptions({
