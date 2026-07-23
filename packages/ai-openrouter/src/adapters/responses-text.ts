@@ -984,6 +984,36 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
+        // Some Responses-compatible providers omit text deltas and expose the
+        // completed text only on the dedicated done event.
+        if (
+          chunk.type === 'response.output_text.done' &&
+          chunk.text &&
+          accumulatedContent.length === 0
+        ) {
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+
+          accumulatedContent = chunk.text
+          hasStreamedContentDeltas = true
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            delta: chunk.text,
+            content: accumulatedContent,
+          }
+        }
+
         // Handle reasoning deltas
         if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
           const reasoningDelta = Array.isArray(chunk.delta)
@@ -1061,6 +1091,17 @@ export class OpenRouterResponsesTextAdapter<
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added' && chunk.part) {
           const contentPart = chunk.part
+          // Some Responses-compatible providers announce an empty text part
+          // and put the actual text only on response.completed. Do not count
+          // that placeholder as streamed content; the completion backstop
+          // below must remain eligible to recover the final text.
+          if (
+            (contentPart.type === 'output_text' ||
+              contentPart.type === 'reasoning_text') &&
+            !contentPart.text
+          ) {
+            continue
+          }
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
@@ -1343,6 +1384,45 @@ export class OpenRouterResponsesTextAdapter<
           const outputItems = Array.isArray(responseObj.output)
             ? responseObj.output
             : []
+
+          const outputItemText = outputItems
+            .flatMap((item) =>
+              item.type === 'message' && Array.isArray(item.content)
+                ? item.content
+                : [],
+            )
+            .filter((part) => part.type === 'output_text')
+            .map((part) => part.text)
+            .join('')
+          const completedText =
+            typeof responseObj.outputText === 'string' &&
+            responseObj.outputText.length > 0
+              ? responseObj.outputText
+              : outputItemText
+
+          if (accumulatedContent.length === 0 && completedText.length > 0) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent = completedText
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: completedText,
+              content: accumulatedContent,
+            }
+          }
 
           // Final backstop for function_call lifecycle.
           for (const item of outputItems) {
@@ -1864,6 +1944,7 @@ function camelCaseResponseShape(
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
     out.incompleteDetails = src.incomplete_details
+  if ('output_text' in src) out.outputText = src.output_text
   if (
     'input_tokens' in src ||
     'output_tokens' in src ||

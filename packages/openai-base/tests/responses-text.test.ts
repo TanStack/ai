@@ -1398,6 +1398,77 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(startIdx).toBeLessThan(contentIdx)
     })
 
+    it('recovers final text from response.completed when no text was streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: { type: 'output_text', text: '' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                id: 'msg-completed-text',
+                type: 'message',
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Recovered final answer',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Answer carefully' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const contentChunks = chunks.filter(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(contentChunks).toHaveLength(1)
+      expect(contentChunks[0]).toMatchObject({
+        delta: 'Recovered final answer',
+        content: 'Recovered final answer',
+      })
+
+      const eventTypes = chunks.map((chunk) => chunk.type)
+      const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(contentIndex).toBeGreaterThan(startIndex)
+      expect(endIndex).toBeGreaterThan(contentIndex)
+      expect(finishedIndex).toBeGreaterThan(endIndex)
+    })
+
     it('skips content_part.done when deltas were already streamed', async () => {
       const streamChunks = [
         {

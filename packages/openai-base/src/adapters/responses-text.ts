@@ -1063,6 +1063,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
+          // The Responses API can announce a text part with an empty
+          // placeholder before putting the actual text only on the completed
+          // response. An empty placeholder is not streamed content and must
+          // not suppress the completion backstop below.
+          if (
+            (contentPart.type === 'output_text' ||
+              contentPart.type === 'reasoning_text') &&
+            !contentPart.text
+          ) {
+            continue
+          }
           // Emit TEXT_MESSAGE_START if this is text content
           if (
             contentPart.type === 'output_text' &&
@@ -1396,6 +1407,40 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          // Some Responses API streams, notably reasoning-model responses,
+          // can omit text deltas and carry the successful final text only in
+          // response.completed.output. Recover that text so consumers never
+          // observe an empty result for a successful response.
+          const completedText = chunk.response.output
+            .flatMap((item) => (item.type === 'message' ? item.content : []))
+            .filter((part) => part.type === 'output_text')
+            .map((part) => part.text)
+            .join('')
+
+          if (accumulatedContent.length === 0 && completedText.length > 0) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent = completedText
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: completedText,
+              content: accumulatedContent,
+            }
+          }
+
           // Final backstop for function_call lifecycle: if a function_call
           // appears in `response.output[]` but was never matched by an
           // output_item.added/done with a name, recover the missing START
