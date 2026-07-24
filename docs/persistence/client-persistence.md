@@ -152,6 +152,40 @@ function Chat({
 }
 ```
 
+#### Tail an in-flight run on a fresh client
+
+The resume pointer is per-browser, so a **fresh** client — the same thread opened
+on a second device or in another browser — has no pointer and would stop at the
+hydrated snapshot even while the run is still generating on the server. To tail it
+there too, have the server report which run (if any) is in flight for the thread
+and hand it to `useChat` as `initialResumeSnapshot`. A bare in-flight snapshot is
+rejoined just like a persisted pointer; a client that started the run still rejoins
+via its own pointer, so pass this only when the running client is a different one.
+
+```tsx
+// Server: the loader (or your GET endpoint) reports the active run alongside history.
+loader: async () => ({
+  messages: await loadHistory(threadId), // reconstructChat, etc.
+  activeRunId: activeRunForThread(threadId), // undefined once the run finishes
+})
+
+// Client: tail it if one is running. Harmless when it has finished — the join
+// fast-fails and the hydrated transcript already holds the complete reply.
+const { messages, activeRunId } = Route.useLoaderData()
+useChat({
+  threadId,
+  connection,
+  persistence: { store: localStoragePersistence(), messages: false },
+  initialMessages: messages,
+  ...(activeRunId && {
+    initialResumeSnapshot: {
+      schemaVersion: 2,
+      resumeState: { threadId, runId: activeRunId },
+    },
+  }),
+})
+```
+
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |
 | `persistence: store` | transcript + resume pointer | client | SPA / offline, one device, small to moderate history |

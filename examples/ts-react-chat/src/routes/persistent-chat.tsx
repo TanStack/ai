@@ -41,8 +41,9 @@ function formatValue(value: unknown): string {
 }
 
 function PersistentChatPage() {
-  // The loader hydrated the transcript from the server (server owns history).
-  const initialMessages = Route.useLoaderData()
+  // The loader hydrated the transcript from the server (server owns history),
+  // and reports whether a run is still generating for this thread.
+  const { messages: initialMessages, activeRunId } = Route.useLoaderData()
 
   // A stable threadId so a reload continues the SAME conversation: the server
   // keys its stored thread on it, and the client keys its resume pointer on it.
@@ -51,6 +52,17 @@ function PersistentChatPage() {
     connection,
     persistence,
     initialMessages,
+    // If the server says a run is in flight, tail it — even on a fresh client
+    // (a second device/browser) that has no local resume pointer. A client that
+    // started the run already rejoins via its own persisted pointer; this covers
+    // the one that didn't. Harmless once the run finishes (join fast-fails and
+    // the hydrated transcript already holds the complete reply).
+    ...(activeRunId && {
+      initialResumeSnapshot: {
+        schemaVersion: 2,
+        resumeState: { threadId: THREAD_ID, runId: activeRunId },
+      },
+    }),
   })
   const [input, setInput] = useState('')
   const threadRef = useRef<HTMLDivElement>(null)

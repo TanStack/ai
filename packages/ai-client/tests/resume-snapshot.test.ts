@@ -447,6 +447,45 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('rejoins a live run handed to a fresh client via initialResumeSnapshot', async () => {
+    // A second device/browser opening the thread: no persisted resume pointer of
+    // its own, but the app's hydration reported an in-flight run id and passed it
+    // as `initialResumeSnapshot`. The client must tail it, not just restore
+    // interrupts. Mirrors the server-authoritative page handing over `activeRunId`.
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) yield chunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      // History the app fetched from the server (reconstructChat) and seeded.
+      initialMessages: [createUIMessage('history-1', 'earlier turn', 'user')],
+      initialResumeSnapshot: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+    expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    // Seeded history survives alongside the tailed reply.
+    expect(latest.some((m) => m.id === 'history-1')).toBe(true)
+    void client
+  })
+
   it('rejoins from an async store (getItem returns a Promise)', async () => {
     // An async adapter (like indexedDBPersistence): readInitial resolves later,
     // so the rejoin must come from the async hydrate path, not the sync read.

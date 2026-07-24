@@ -19,3 +19,36 @@ export function persistentChatPersistence() {
     migrate: true,
   }))
 }
+
+/**
+ * In-process registry of detached runs currently generating, keyed by runId
+ * (value = threadId). Shared by the API route (which registers/unregisters a
+ * run around its detached lifetime) and the history loader (which asks whether
+ * a thread has a live run to hand a fresh client for tailing).
+ *
+ * Process-local, like the `memoryStream` delivery log it mirrors: if the server
+ * restarts mid-run the run is gone anyway and the loader simply reports none.
+ * A production delivery backend would answer "active run for this thread" from
+ * shared storage instead.
+ */
+const activeRunsByThread = new Map<string, string>()
+
+export function markRunActive(runId: string, threadId: string): void {
+  activeRunsByThread.set(runId, threadId)
+}
+
+export function markRunDone(runId: string): void {
+  activeRunsByThread.delete(runId)
+}
+
+export function isRunActive(runId: string): boolean {
+  return activeRunsByThread.has(runId)
+}
+
+/** The runId of a live run for `threadId`, or undefined if none is generating. */
+export function activeRunForThread(threadId: string): string | undefined {
+  for (const [runId, tid] of activeRunsByThread) {
+    if (tid === threadId) return runId
+  }
+  return undefined
+}
