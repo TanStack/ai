@@ -66,10 +66,10 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "jiti": "^2.4.2",
+    "jiti": "^2.7.0",
     "json-schema-to-typescript": "^15.0.4",
     "tsup": "^8.5.1",
     "vite": "^8.1.4",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   }
 }

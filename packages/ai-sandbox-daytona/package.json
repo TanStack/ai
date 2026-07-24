@@ -42,7 +42,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@daytona/sdk": "^0.191.0"
+    "@daytona/sdk": "^0.200.1"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

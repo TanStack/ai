@@ -92,9 +92,9 @@
   "dependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-event-client": "workspace:*",
-    "@tanstack/devtools-ui": "^0.5.1",
-    "@tanstack/devtools-utils": "^0.4.0",
-    "goober": "^2.1.18",
+    "@tanstack/devtools-ui": "^0.6.0",
+    "@tanstack/devtools-utils": "^0.6.0",
+    "goober": "^2.1.19",
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
