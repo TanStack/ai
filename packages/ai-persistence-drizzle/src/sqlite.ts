@@ -1,37 +1,77 @@
 /**
  * Node-only SQLite convenience factory for TanStack AI persistence.
  *
+ * Schema-first: pass your schema (or accept {@link createDefaultSqliteSchema}),
+ * and optionally bootstrap tables from that schema at runtime. This package
+ * does **not** ship versioned SQL migrations — production apps should emit the
+ * schema with `tanstack-ai-drizzle-schema` and migrate via their own drizzle-kit
+ * journal.
+ *
  * Uses Node's built-in `node:sqlite` (`DatabaseSync`). That module is still a
- * **release candidate** in current Node versions (not marked stable); pin a
- * Node release that documents the API you rely on, and prefer
- * `drizzlePersistence(db)` with your own driver if you need a fully stable
- * SQLite path.
+ * release candidate in some Node versions; pin a release that documents the API
+ * you rely on, or use {@link drizzlePersistence} with a stable driver.
  */
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
-import { sqliteMigrations } from './migrations'
-import { applySqliteMigrations } from './sqlite-migrations'
+import { createDefaultSqliteSchema } from './default-sqlite-schema'
+import { ensureSqliteTables } from './ensure-sqlite-tables'
 import { drizzlePersistence } from './index'
+import type { TanstackAiSqliteSchema } from './schema-contract'
 
-export { SqliteMigrationError } from './sqlite-migrations'
+export { createDefaultSqliteSchema } from './default-sqlite-schema'
+export { ensureSqliteTables } from './ensure-sqlite-tables'
 
 export interface SqlitePersistenceOptions {
   /** `:memory:`, a filesystem path, or a `file:`-prefixed filesystem path. */
   url: string
-  /** Apply the bundled TanStack AI migrations before creating stores. */
-  migrate?: boolean
+  /**
+   * Schema tables the stores operate on. Defaults to
+   * {@link createDefaultSqliteSchema}. Prefer a project-owned copy emitted by
+   * `tanstack-ai-drizzle-schema` when you use drizzle-kit for migrations.
+   */
+  schema?: TanstackAiSqliteSchema
+  /**
+   * When true (default), create missing tables derived from `schema` via
+   * `CREATE TABLE IF NOT EXISTS`. This is a local bootstrap convenience, not a
+   * migration system — set `false` when your drizzle-kit migrations already
+   * created the tables.
+   */
+  ensureTables?: boolean
 }
 
-/** Build persistence over Node's built-in SQLite driver. */
+/**
+ * Build persistence over Node's built-in SQLite driver with stock defaults.
+ *
+ * @example Zero-config local file
+ * ```ts
+ * const persistence = sqlitePersistence({
+ *   url: 'file:.data/ai.sqlite',
+ * })
+ * ```
+ *
+ * @example Project-owned schema (after `tanstack-ai-drizzle-schema` + kit migrate)
+ * ```ts
+ * import { schema } from './db/tanstack-ai-schema'
+ *
+ * const persistence = sqlitePersistence({
+ *   url: 'file:.data/ai.sqlite',
+ *   schema,
+ *   ensureTables: false,
+ * })
+ * ```
+ */
 export function sqlitePersistence(options: SqlitePersistenceOptions) {
+  const schema = options.schema ?? createDefaultSqliteSchema()
   const filename = normalizeSqliteUrl(options.url)
   ensureParentDirectory(filename)
   const sqlite = new DatabaseSync(filename)
   try {
-    if (options.migrate) applySqliteMigrations(sqlite, sqliteMigrations)
+    if (options.ensureTables !== false) {
+      ensureSqliteTables((sql) => sqlite.exec(sql), schema)
+    }
   } catch (error) {
     sqlite.close()
     throw error
@@ -51,7 +91,7 @@ export function sqlitePersistence(options: SqlitePersistenceOptions) {
     return Promise.resolve({ rows: rows.map((row) => Object.values(row)) })
   })
 
-  const persistence = drizzlePersistence(db)
+  const persistence = drizzlePersistence(db, { provider: 'sqlite', schema })
   let closed = false
   return {
     ...persistence,

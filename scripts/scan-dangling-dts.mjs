@@ -62,6 +62,17 @@ function resolves(fromFile, specifier) {
 
 const IMPORT_RE = /(?:from|import)\s*\(?\s*['"](\.\.?\/[^'"]+)['"]/g
 
+/**
+ * Strip block and line comments so import statements inside JSDoc `@example`
+ * fences (which the declaration emit also rewrites to `.js` specifiers) are
+ * not scanned as real imports.
+ *
+ * @param {string} src
+ */
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
 const packageNames = existsSync(PACKAGES_DIR)
   ? readdirSync(PACKAGES_DIR).filter((name) => {
       try {
@@ -94,7 +105,7 @@ let filesScanned = 0
 for (const dist of dists) {
   for (const file of walkDts(dist)) {
     filesScanned += 1
-    const src = readFileSync(file, 'utf8')
+    const src = stripComments(readFileSync(file, 'utf8'))
     IMPORT_RE.lastIndex = 0
     let match
     while ((match = IMPORT_RE.exec(src))) {

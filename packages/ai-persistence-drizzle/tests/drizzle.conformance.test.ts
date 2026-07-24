@@ -3,7 +3,7 @@ import { sqlitePersistence } from '../src/sqlite'
 
 runPersistenceConformance(
   'drizzle-sqlite',
-  () => sqlitePersistence({ url: ':memory:', migrate: true }),
+  () => sqlitePersistence({ url: ':memory:' }),
   // This backend has no distributed lock primitive.
   { skip: ['locks'] },
 )

@@ -4,7 +4,12 @@ import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
-import { DrizzleSchemaError, drizzlePersistence, schema } from '../src/index'
+import {
+  createDefaultPgSchema,
+  createDefaultSqliteSchema,
+  DrizzleSchemaError,
+  drizzlePersistence,
+} from '../src/index'
 import { variantDdl, variantSchema } from './variant-schema'
 import type { TanstackAiSqliteSchema } from '../src/index'
 import type { DrizzleSqliteDb } from '../src/index'
@@ -29,10 +34,14 @@ function createVariantDb(): { db: DrizzleSqliteDb; sqlite: DatabaseSync } {
 }
 
 // The full store contract must hold when the runtime operates over a schema
-// whose table and column database names all differ from the bundled ones.
+// whose table and column database names all differ from the defaults.
 runPersistenceConformance(
   'drizzle-sqlite (injected variant schema)',
-  () => drizzlePersistence(createVariantDb().db, { schema: variantSchema }),
+  () =>
+    drizzlePersistence(createVariantDb().db, {
+      provider: 'sqlite',
+      schema: variantSchema,
+    }),
   // This backend has no distributed lock primitive.
   { skip: ['locks'] },
 )
@@ -40,7 +49,10 @@ runPersistenceConformance(
 describe('drizzlePersistence with an injected schema', () => {
   it('writes through the injected table and column names', async () => {
     const { db, sqlite } = createVariantDb()
-    const persistence = drizzlePersistence(db, { schema: variantSchema })
+    const persistence = drizzlePersistence(db, {
+      provider: 'sqlite',
+      schema: variantSchema,
+    })
 
     await persistence.stores.messages.saveThread('thread-1', [
       { role: 'user', content: 'hello' },
@@ -57,7 +69,10 @@ describe('drizzlePersistence with an injected schema', () => {
 
   it('coexists with app-owned columns on the same tables', async () => {
     const { db, sqlite } = createVariantDb()
-    const persistence = drizzlePersistence(db, { schema: variantSchema })
+    const persistence = drizzlePersistence(db, {
+      provider: 'sqlite',
+      schema: variantSchema,
+    })
 
     await persistence.stores.messages.saveThread('thread-owned', [
       { role: 'user', content: 'mine' },
@@ -85,29 +100,44 @@ describe('drizzlePersistence with an injected schema', () => {
 
   it('rejects a schema with missing tables or columns', () => {
     const { db } = createVariantDb()
+    const defaults = createDefaultSqliteSchema()
 
-    const { metadata: _dropped, ...withoutMetadata } = schema
+    const { metadata: _dropped, ...withoutMetadata } = defaults
     expect(() =>
       drizzlePersistence(db, {
+        provider: 'sqlite',
         schema: withoutMetadata as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(DrizzleSchemaError)
     expect(() =>
       drizzlePersistence(db, {
+        provider: 'sqlite',
         schema: withoutMetadata as unknown as TanstackAiSqliteSchema,
       }),
-    ).toThrow(/`metadata` is not a Drizzle SQLite table/)
+    ).toThrow(/`metadata` is not a Drizzle SQLite table \(provider 'sqlite'\)/)
 
     const incompleteMessages = sqliteTable('messages', {
       threadId: text('thread_id').primaryKey(),
     })
     expect(() =>
       drizzlePersistence(db, {
+        provider: 'sqlite',
         schema: {
-          ...schema,
+          ...defaults,
           messages: incompleteMessages,
         } as unknown as TanstackAiSqliteSchema,
       }),
     ).toThrow(/`messages\.messagesJson` is missing/)
+  })
+
+  it('rejects a schema whose tables are the wrong dialect for the provider', () => {
+    const { db } = createVariantDb()
+    const pgDefaults = createDefaultPgSchema()
+    expect(() =>
+      drizzlePersistence(db, {
+        provider: 'sqlite',
+        schema: pgDefaults as unknown as TanstackAiSqliteSchema,
+      }),
+    ).toThrow(/`messages` is not a Drizzle SQLite table \(provider 'sqlite'\)/)
   })
 })

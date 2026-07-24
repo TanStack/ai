@@ -26,10 +26,9 @@ import { openaiText } from '@tanstack/ai-openai'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
-// One store for the whole process. `migrate: true` applies the bundled schema.
+// One store for the whole process. Stock defaults + runtime table bootstrap.
 const persistence = sqlitePersistence({
   url: 'file:.data/chat.sqlite',
-  migrate: true,
 })
 
 export async function POST(request: Request) {
@@ -55,9 +54,9 @@ The middleware uses whichever stores the backend provides, no feature flags:
   requires `runs`.
 - `locks` is handed to other middleware for cross-worker coordination.
 
-`migrate: true` is convenient for local development. In production, apply the
-bundled migrations through your deployment workflow instead. See
-[Migrations](./migrations).
+The `/sqlite` factory bootstraps stock tables for local development. In
+production, emit a schema with `tanstack-ai-drizzle-schema` and migrate via
+your own drizzle-kit journal. See [Migrations](./migrations).
 
 ## Send the full transcript, or none of it
 

@@ -1,24 +1,26 @@
 /**
- * AIPersistence store implementations over a Drizzle sqlite database.
+ * AIPersistence store implementations over a Drizzle database.
  *
- * Each method mirrors the reference in-memory backend
- * (`@tanstack/ai-persistence`'s `memory.ts`), including the insert-if-absent
- * `InterruptStore.create` and `RunStore.createOrResume` semantics
- * (`onConflictDoNothing`). JSON columns are handled by Drizzle's
- * `text({ mode: 'json' })`.
+ * Written once against the SQLite builder types; the Postgres path re-faces
+ * its runtime objects onto these signatures in `drizzlePersistence` (see the
+ * comment there). Stores operate on injected table objects from the caller's
+ * schema. JSON columns are expected to use Drizzle's json-decoding column
+ * types (SQLite `text({ mode: 'json' })`, Postgres `jsonb`) so values decode
+ * to the contract data shapes.
  */
 import { and, asc, eq } from 'drizzle-orm'
-import type { interrupts, runs, schema } from './schema'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 import type {
   InterruptRecord,
   InterruptStore,
   MessageStore,
   MetadataStore,
   RunRecord,
+  RunStatus,
   RunStore,
 } from '@tanstack/ai-persistence'
+import type { TanstackAiSqliteSchema } from './schema-contract'
 
 /**
  * Any Drizzle sqlite database (better-sqlite3, libsql, node:sqlite proxy, D1, …).
@@ -32,21 +34,35 @@ export type DrizzleSqliteDb = Pick<
   'select' | 'insert' | 'update' | 'delete'
 >
 
-/**
- * @deprecated Renamed to {@link DrizzleSqliteDb} — this backend is SQLite-only
- * (better-sqlite3, libsql, node:sqlite, D1). The old name did not signal that.
- */
+/** @deprecated Use {@link DrizzleSqliteDb}. */
 export type DrizzleDb = DrizzleSqliteDb
 
 /**
- * The concrete table set the stores are written against. A user-supplied
- * {@link TanstackAiSchema} is validated by `assertTanstackAiSchema` and then
- * used through this type: only column *data* shapes matter to the store code —
- * table/column database names are carried by the runtime objects, so a schema
- * with different names (drizzle `casing` transforms, renamed tables, extra
- * app-owned columns) produces correct SQL through the same code paths.
+ * Table set the stores read/write. Only column *data* shapes matter; table and
+ * column database names are carried by the runtime objects.
  */
-export type TanstackAiTables = typeof schema
+export type TanstackAiTables = TanstackAiSqliteSchema
+
+type RunRow = {
+  runId: string
+  threadId: string
+  status: RunStatus
+  startedAt: number
+  finishedAt: number | null
+  error: string | null
+  usageJson: TokenUsage | null
+}
+
+type InterruptRow = {
+  interruptId: string
+  runId: string
+  threadId: string
+  status: InterruptRecord['status']
+  requestedAt: number
+  resolvedAt: number | null
+  payloadJson: Record<string, unknown>
+  responseJson: unknown | null
+}
 
 export function createMessageStore(
   db: DrizzleSqliteDb,
@@ -72,7 +88,7 @@ export function createMessageStore(
   }
 }
 
-function mapRun(row: typeof runs.$inferSelect): RunRecord {
+function mapRun(row: RunRow): RunRecord {
   return {
     runId: row.runId,
     threadId: row.threadId,
@@ -110,7 +126,12 @@ export function createRunStore(
       return (await store.get(input.runId)) ?? record
     },
     async update(runId, patch) {
-      const set: Partial<typeof runs.$inferInsert> = {}
+      const set: {
+        status?: RunStatus
+        finishedAt?: number | null
+        error?: string | null
+        usageJson?: TokenUsage | null
+      } = {}
       if (patch.status !== undefined) set.status = patch.status
       if (patch.finishedAt !== undefined) set.finishedAt = patch.finishedAt
       if (patch.error !== undefined) set.error = patch.error
@@ -120,14 +141,14 @@ export function createRunStore(
     },
     async get(runId) {
       const rows = await db.select().from(runs).where(eq(runs.runId, runId))
-      const row = rows[0]
+      const row = rows[0] as RunRow | undefined
       return row ? mapRun(row) : null
     },
   }
   return store
 }
 
-function mapInterrupt(row: typeof interrupts.$inferSelect): InterruptRecord {
+function mapInterrupt(row: InterruptRow): InterruptRecord {
   return {
     interruptId: row.interruptId,
     runId: row.runId,
@@ -180,7 +201,7 @@ export function createInterruptStore(
         .select()
         .from(interrupts)
         .where(eq(interrupts.interruptId, interruptId))
-      const row = rows[0]
+      const row = rows[0] as InterruptRow | undefined
       return row ? mapInterrupt(row) : null
     },
     async list(threadId) {
@@ -189,7 +210,7 @@ export function createInterruptStore(
         .from(interrupts)
         .where(eq(interrupts.threadId, threadId))
         .orderBy(asc(interrupts.requestedAt))
-      return rows.map(mapInterrupt)
+      return (rows as Array<InterruptRow>).map(mapInterrupt)
     },
     async listPending(threadId) {
       const rows = await db
@@ -202,7 +223,7 @@ export function createInterruptStore(
           ),
         )
         .orderBy(asc(interrupts.requestedAt))
-      return rows.map(mapInterrupt)
+      return (rows as Array<InterruptRow>).map(mapInterrupt)
     },
     async listByRun(runId) {
       const rows = await db
@@ -210,7 +231,7 @@ export function createInterruptStore(
         .from(interrupts)
         .where(eq(interrupts.runId, runId))
         .orderBy(asc(interrupts.requestedAt))
-      return rows.map(mapInterrupt)
+      return (rows as Array<InterruptRow>).map(mapInterrupt)
     },
     async listPendingByRun(runId) {
       const rows = await db
@@ -220,7 +241,7 @@ export function createInterruptStore(
           and(eq(interrupts.runId, runId), eq(interrupts.status, 'pending')),
         )
         .orderBy(asc(interrupts.requestedAt))
-      return rows.map(mapInterrupt)
+      return (rows as Array<InterruptRow>).map(mapInterrupt)
     },
   }
 }
@@ -249,9 +270,9 @@ export function createMetadataStore(
       return row ? row.valueJson : null
     },
     async set(scope, key, value) {
-      // SQL backends store JSON text in a NOT NULL column and cannot persist a
-      // nullish value: `text({ mode: 'json' })` binds a JS `null` as SQL NULL
-      // (it never serializes it to the text `"null"`), and `undefined` has no
+      // SQL backends store JSON in a NOT NULL column and cannot persist a
+      // nullish value: the json column types bind a JS `null` as SQL NULL
+      // (they never serialize it to the text `"null"`), and `undefined` has no
       // JSON at all — both violate NOT NULL. Reject nullish with a clear error
       // (consistent with the sibling Prisma backend) instead of a cryptic
       // driver failure. Unlike the in-memory reference, which round-trips

@@ -1,23 +1,13 @@
 /**
- * TanStack AI persistence schema — emitted by `tanstack-ai-drizzle-schema`.
+ * Default SQLite table definitions for TanStack AI state stores.
  *
- * This file is yours. Add it to your drizzle-kit `schema` paths so your own
- * migration journal owns the DDL, then pass it back to the runtime:
+ * Prefer owning this shape in your project via `tanstack-ai-drizzle-schema` and
+ * generating DDL with **your** drizzle-kit journal. This factory is the runtime
+ * convenience default used by {@link sqlitePersistence} and by apps that want
+ * the stock tables without copying a file first.
  *
- * ```ts
- * import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
- * import { schema } from './tanstack-ai-schema'
- *
- * const persistence = drizzlePersistence(db, { provider: 'sqlite', schema })
- * ```
- *
- * You may rename tables and columns (or drop the explicit column names below
- * and rely on your drizzle `casing` configuration) and add extra app-owned
- * columns — keep added columns nullable or defaulted so the runtime's inserts
- * succeed, and keep the columns below with these data shapes.
- *
- * This package does not ship SQL migrations. Generate and apply them with
- * drizzle-kit in this project.
+ * This package does **not** ship SQL migrations. Schema ownership and
+ * migration generation live in the application.
  */
 import {
   index,
@@ -28,6 +18,7 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type { TanstackAiSqliteSchema } from './schema-contract'
 
 /** Thread message history (`MessageStore`). */
 export const messages = sqliteTable('messages', {
@@ -63,8 +54,8 @@ export const interrupts = sqliteTable(
       .notNull(),
     responseJson: text('response_json', { mode: 'json' }).$type<unknown>(),
   },
-  // The runtime lists interrupts by thread and by run; keep (or extend) these
-  // lookup indexes to taste — this file is yours.
+  // The stores list interrupts by thread and by run (`list*`,
+  // `listPending*`); index both foreign lookups.
   (table) => [
     index('interrupts_thread_id_idx').on(table.threadId),
     index('interrupts_run_id_idx').on(table.runId),
@@ -82,10 +73,18 @@ export const metadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.scope, table.key] })],
 )
 
-/** The full state schema, for `drizzlePersistence(db, { schema })` and drizzle-kit. */
-export const schema = {
-  messages,
-  runs,
-  interrupts,
-  metadata,
+/**
+ * Build a fresh copy of the default SQLite schema tables.
+ *
+ * Pass the result to {@link drizzlePersistence} or {@link sqlitePersistence},
+ * or prefer the file emitted by `tanstack-ai-drizzle-schema` when you want
+ * drizzle-kit to own DDL in your repo.
+ */
+export function createDefaultSqliteSchema(): TanstackAiSqliteSchema {
+  return {
+    messages,
+    runs,
+    interrupts,
+    metadata,
+  }
 }

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { drizzleSchemaFilename, drizzleSchemaSource } from '../src/index'
+import { drizzleSchemaSources } from '../src/schema-source'
 import { runDrizzleSchemaCli } from '../src/schema-cli'
 
 const temporaryDirectories: Array<string> = []
@@ -31,7 +32,9 @@ describe('Drizzle schema CLI', () => {
     })
     expect(output).toBe(`${drizzleSchemaSource.trimEnd()}\n`)
     expect(output).toContain('sqliteTable')
-    expect(output).toContain('drizzlePersistence(db, { schema })')
+    expect(output).toContain(
+      "drizzlePersistence(db, { provider: 'sqlite', schema })",
+    )
   })
 
   it('copies the schema without overwriting divergent files by default', async () => {
@@ -52,6 +55,35 @@ describe('Drizzle schema CLI', () => {
 
     await runDrizzleSchemaCli(['--out', directory, '--force'])
     expect(await readFile(destination, 'utf8')).toBe(drizzleSchemaSource)
+  })
+
+  it('emits the pg schema with --dialect pg', async () => {
+    let output = ''
+    await runDrizzleSchemaCli(['--stdout', '--dialect', 'pg'], {
+      writeStdout(value) {
+        output += value
+      },
+    })
+    expect(output).toBe(`${drizzleSchemaSources.pg.trimEnd()}\n`)
+    expect(output).toContain('pgTable')
+    expect(output).toContain(
+      "drizzlePersistence(db, { provider: 'pg', schema })",
+    )
+
+    const directory = await createTemporaryDirectory()
+    await runDrizzleSchemaCli(['--out', directory, '--dialect', 'pg'])
+    expect(await readFile(join(directory, drizzleSchemaFilename), 'utf8')).toBe(
+      drizzleSchemaSources.pg,
+    )
+  })
+
+  it('rejects unknown or repeated dialects', async () => {
+    await expect(
+      runDrizzleSchemaCli(['--stdout', '--dialect', 'mysql']),
+    ).rejects.toThrow(/--dialect must be "sqlite" or "pg"/)
+    await expect(
+      runDrizzleSchemaCli(['--stdout', '--dialect', 'pg', '--dialect', 'pg']),
+    ).rejects.toThrow(/--dialect may only be provided once/)
   })
 
   it('fails on ambiguous or incomplete output options', async () => {

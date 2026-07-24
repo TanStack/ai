@@ -6,7 +6,7 @@ type Persistence = ReturnType<typeof sqlitePersistence>
 const open: Array<Persistence> = []
 
 function persistence(): Persistence {
-  const created = sqlitePersistence({ url: ':memory:', migrate: true })
+  const created = sqlitePersistence({ url: ':memory:' })
   open.push(created)
   return created
 }

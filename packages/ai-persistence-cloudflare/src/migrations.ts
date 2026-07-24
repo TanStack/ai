@@ -7,15 +7,13 @@ export interface D1Migration {
 }
 
 /**
- * PROVENANCE: `assets/0000_tanstack_ai_initial.sql` is a byte-for-byte copy of
- * the Drizzle asset
- * (`@tanstack/ai-persistence-drizzle`'s `src/assets/0000_tanstack_ai_initial.sql`).
- * `createD1Stores` runs the Drizzle stores against a D1 database migrated with
- * this SQL, so the copy MUST stay identical to Drizzle's. The test "cloudflare
- * D1 asset matches the drizzle asset" (`tests/migrations.test.ts`) fails on any
- * drift.
+ * Ordered D1 migrations for messages, runs, interrupts, and metadata.
+ *
+ * Owned by this package for Wrangler D1 deploy workflows. Schema evolution for
+ * non-Cloudflare apps goes through the app's own drizzle-kit journal after
+ * emitting a schema with `tanstack-ai-drizzle-schema` — the drizzle package
+ * does not ship SQL migrations.
  */
-/** Ordered D1 migrations for messages, runs, interrupts, and metadata. */
 export const d1Migrations: ReadonlyArray<D1Migration> = [
   {
     id: '0000_tanstack_ai_initial',

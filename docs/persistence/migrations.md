@@ -10,45 +10,50 @@ deploying code that reads or writes the corresponding stores.
 
 ## Drizzle SQLite
 
-The Drizzle package bundles ordered canonical SQLite migrations. Copy them into
-your repository:
+The Drizzle package is **schema-first** and does **not** ship SQL migrations.
+Own the schema in your project, then generate DDL with drizzle-kit:
 
 ```bash
-pnpm exec tanstack-ai-drizzle-migrations --out migrations/tanstack-ai
+pnpm exec tanstack-ai-drizzle-schema --out src/db
 ```
 
-Or print the ordered SQL:
+Point drizzle-kit at the emitted file, generate, and migrate:
 
-```bash
-pnpm exec tanstack-ai-drizzle-migrations --stdout
-```
+```ts ignore
+import { defineConfig } from 'drizzle-kit'
 
-The CLI preserves existing identical files and refuses to overwrite divergent
-files without `--force`. Apply the copied SQL using your normal SQLite,
-Drizzle, or D1 deployment process.
-
-For local Node development, the `/sqlite` factory can apply the same manifest:
-
-```ts
-import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
-
-const persistence = sqlitePersistence({
-  url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
+export default defineConfig({
+  dialect: 'sqlite',
+  schema: ['./src/db/schema.ts', './src/db/tanstack-ai-schema.ts'],
+  out: './drizzle',
 })
 ```
 
-Avoid request-time migrations in production.
+```bash
+pnpm exec drizzle-kit generate
+pnpm exec drizzle-kit migrate
+```
 
-Projects that already run drizzle-kit can skip the bundled SQL entirely: emit
-the schema module with `tanstack-ai-drizzle-schema`, add it to your drizzle-kit
-schema paths, and let your own journal generate the DDL. See
-[Own the schema](./drizzle#own-the-schema). Pick one DDL owner per database —
-bundled SQL or your journal, not both.
+Pass the schema into the runtime:
+
+```ts
+import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
+import { schema } from './db/tanstack-ai-schema'
+import { db } from './db'
+
+export const persistence = drizzlePersistence(db, {
+  provider: 'sqlite',
+  schema,
+})
+```
+
+For local Node development without a kit journal yet, the `/sqlite` factory can
+bootstrap stock tables at runtime (`ensureTables`, default `true`). That is not
+a migration system — see [Drizzle](./drizzle).
 
 ## Cloudflare D1
 
-The Cloudflare package provides D1-specific migration assets:
+The Cloudflare package provides D1-specific migration assets for Wrangler:
 
 ```bash
 pnpm exec tanstack-ai-cloudflare-migrations --out migrations
@@ -83,9 +88,9 @@ TanStack AI does not inspect your table layout.
 
 ## Upgrade discipline
 
-1. Read the package release notes for schema changes.
-2. Refresh copied assets in a reviewable branch.
-3. Inspect the diff rather than using `--force` blindly.
+1. Read the package release notes for schema contract changes.
+2. Refresh emitted schema / models fragments in a reviewable branch.
+3. Inspect the drizzle-kit or Prisma diff rather than forcing overwrites.
 4. Back up production state where required.
 5. Apply migrations before deploying code that depends on them.
 6. Keep rollback and partial-deployment behavior explicit.

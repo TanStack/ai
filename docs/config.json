@@ -270,12 +270,14 @@
         {
           "label": "SQL Backends",
           "to": "persistence/sql-backends",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Drizzle",
           "to": "persistence/drizzle",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Prisma",
@@ -291,12 +293,14 @@
         {
           "label": "Migrations",
           "to": "persistence/migrations",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Internals",
           "to": "persistence/internals",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         }
       ]
     },

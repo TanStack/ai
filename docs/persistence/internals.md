@@ -95,8 +95,9 @@ explicitly widened types can bypass static guarantees.
 
 Packaged backends own resources differently:
 
-- Drizzle accepts a migrated SQLite-family database; its root import is
-  edge-safe. The `/sqlite` entry creates a Node SQLite connection.
+- Drizzle is schema-first: pass a required `schema` (emit via CLI; your
+  drizzle-kit owns migrations). The root import is edge-safe. The `/sqlite`
+  entry creates a Node SQLite connection with stock defaults.
 - Prisma accepts the application's generated and migrated client.
 - Cloudflare maps D1 to structured stores and Durable Objects to locks.
 
