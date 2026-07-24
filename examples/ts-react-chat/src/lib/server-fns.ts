@@ -14,6 +14,7 @@ import {
 } from '@tanstack/ai'
 import {
   PERSISTENT_CHAT_THREAD_ID,
+  activeRunForThread,
   persistentChatPersistence,
 } from './persistent-chat-store'
 import {
@@ -432,14 +433,27 @@ export const chatFn = createServerFn({ method: 'POST' })
  * loader calls this instead of `fetch`ing the GET endpoint so it works during
  * SSR (a relative fetch has no origin server-side); the GET endpoint's
  * `reconstructChat` branch reads the same store over HTTP for other clients.
+ *
+ * Also reports `activeRunId` — the run currently generating for this thread, if
+ * any. A FRESH client (a second device/browser with no local resume pointer)
+ * has no other way to learn a run is in flight; the page hands it to `useChat`
+ * as `initialResumeSnapshot` so it tails the live run instead of stopping at the
+ * hydrated snapshot. Undefined once the run finishes (the transcript then holds
+ * the complete reply).
  */
 export const loadPersistentChatHistoryFn = createServerFn().handler(
-  async (): Promise<Array<UIMessage>> => {
+  async (): Promise<{
+    messages: Array<UIMessage>
+    activeRunId: string | undefined
+  }> => {
     const persistence = persistentChatPersistence()
     const stored =
       (await persistence.stores.messages?.loadThread(
         PERSISTENT_CHAT_THREAD_ID,
       )) ?? []
-    return modelMessagesToUIMessages(stored)
+    return {
+      messages: modelMessagesToUIMessages(stored),
+      activeRunId: activeRunForThread(PERSISTENT_CHAT_THREAD_ID),
+    }
   },
 )

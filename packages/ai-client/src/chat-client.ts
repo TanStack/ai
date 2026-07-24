@@ -516,6 +516,21 @@ export class ChatClient<
         rejoinRunId = snapshot.resumeState.runId
       }
     }
+    // A host-supplied `initialResumeSnapshot` carrying a bare in-flight run is
+    // rejoined too, not just its interrupts (which `applyResumeSnapshot` above
+    // already restored). This is how a server-authoritative app hands a FRESH
+    // client an in-flight run to tail — e.g. opening the thread on a second
+    // device / browser, where hydration reports the active run id but no local
+    // resume pointer exists. A run named by the persisted store wins.
+    if (!rejoinRunId && options.initialResumeSnapshot) {
+      const snapshot = options.initialResumeSnapshot
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (!hasPendingInterrupts && snapshot.resumeState.runId) {
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
 
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy

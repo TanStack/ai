@@ -12,7 +12,12 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
 import type { StreamChunk } from '@tanstack/ai'
-import { persistentChatPersistence } from '../lib/persistent-chat-store'
+import {
+  isRunActive,
+  markRunActive,
+  markRunDone,
+  persistentChatPersistence,
+} from '../lib/persistent-chat-store'
 
 const persistence = persistentChatPersistence()
 
@@ -69,11 +74,6 @@ const SYSTEM_PROMPT =
   'weather or to roll dice, use the getWeather / rollDice tools rather than ' +
   'guessing, then summarize the result in a sentence.'
 
-// Detached runs in flight, keyed by runId, so a duplicate POST (a client retry
-// or React strict-mode double render) attaches to the existing run instead of
-// starting a second model call.
-const activeRuns = new Set<string>()
-
 /**
  * Start the model run **detached from the HTTP connection** and let it run to
  * completion into the delivery log, regardless of whether the requesting client
@@ -91,8 +91,8 @@ function startDetachedRun(
   threadId: string,
   messages: Awaited<ReturnType<typeof chatParamsFromRequestBody>>['messages'],
 ): void {
-  if (activeRuns.has(runId)) return
-  activeRuns.add(runId)
+  if (isRunActive(runId)) return
+  markRunActive(runId, threadId)
 
   // Producer-mode durability handle, keyed by runId via the X-Run-Id header.
   const sink = memoryStream(
@@ -134,7 +134,7 @@ function startDetachedRun(
       ])
     } finally {
       await sink.close()
-      activeRuns.delete(runId)
+      markRunDone(runId)
     }
   })()
 }
