@@ -23,7 +23,7 @@ import {
   openaiText,
   openaiVideo,
 } from '@tanstack/ai-openai'
-import type { UIMessage } from '@tanstack/ai'
+import type { ToolCallState, ToolResultState, UIMessage } from '@tanstack/ai'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -441,18 +441,89 @@ export const chatFn = createServerFn({ method: 'POST' })
  * hydrated snapshot. Undefined once the run finishes (the transcript then holds
  * the complete reply).
  */
+/**
+ * Server functions require a fully serializable payload, but several
+ * `UIMessage` part fields are typed `unknown`/`any` (part `metadata`,
+ * tool-call `input`/`output`). Project the hydrated history onto an explicit
+ * JSON-safe wire shape: keep the fields the page renders, stringify non-string
+ * tool-result content, and drop media parts (this thread never produces
+ * them). Every wire part remains assignable to its `UIMessage` counterpart,
+ * so the result seeds `useChat({ initialMessages })` unchanged.
+ */
+interface WireMessage {
+  id: string
+  role: UIMessage['role']
+  parts: Array<
+    | { type: 'text'; content: string }
+    | { type: 'thinking'; content: string }
+    | {
+        type: 'tool-call'
+        id: string
+        name: string
+        arguments: string
+        state: ToolCallState
+      }
+    | {
+        type: 'tool-result'
+        toolCallId: string
+        content: string
+        state: ToolResultState
+      }
+  >
+  createdAt?: Date
+}
+
+function toSerializableMessages(
+  messages: Array<UIMessage>,
+): Array<WireMessage> {
+  return messages.map(({ id, role, parts, createdAt }) => ({
+    id,
+    role,
+    parts: parts.flatMap((part): WireMessage['parts'] => {
+      switch (part.type) {
+        case 'text':
+          return [{ type: 'text', content: part.content }]
+        case 'thinking':
+          return [{ type: 'thinking', content: part.content }]
+        case 'tool-call':
+          return [
+            {
+              type: 'tool-call',
+              id: part.id,
+              name: part.name,
+              arguments: part.arguments,
+              state: part.state,
+            },
+          ]
+        case 'tool-result':
+          return [
+            {
+              type: 'tool-result',
+              toolCallId: part.toolCallId,
+              content:
+                typeof part.content === 'string'
+                  ? part.content
+                  : JSON.stringify(part.content),
+              state: part.state,
+            },
+          ]
+        default:
+          return []
+      }
+    }),
+    ...(createdAt ? { createdAt } : {}),
+  }))
+}
+
 export const loadPersistentChatHistoryFn = createServerFn().handler(
-  async (): Promise<{
-    messages: Array<UIMessage>
-    activeRunId: string | undefined
-  }> => {
+  async () => {
     const persistence = persistentChatPersistence()
     const stored =
       (await persistence.stores.messages?.loadThread(
         PERSISTENT_CHAT_THREAD_ID,
       )) ?? []
     return {
-      messages: modelMessagesToUIMessages(stored),
+      messages: toSerializableMessages(modelMessagesToUIMessages(stored)),
       activeRunId: activeRunForThread(PERSISTENT_CHAT_THREAD_ID),
     }
   },

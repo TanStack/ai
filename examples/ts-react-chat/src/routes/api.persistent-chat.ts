@@ -61,7 +61,7 @@ const rollDice = toolDefinition({
     rolls: z.array(z.number()),
     total: z.number(),
   }),
-}).server(({ sides, count }) => {
+}).server(({ sides = 6, count = 1 }) => {
   const rolls = Array.from(
     { length: count },
     () => Math.floor(Math.random() * sides) + 1,

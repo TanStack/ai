@@ -195,11 +195,12 @@ describe('normalizeConnectionAdapter joinRun passthrough', () => {
   })
 
   it('omits joinRun when the property is present but not a function', () => {
-    const normalized = normalizeConnectionAdapter({
-      connect: async function* () {},
-      // Explicit undefined must not produce a wrapper that throws on rejoin.
-      joinRun: undefined,
-    } as ResumableConnectConnectionAdapter)
+    // Explicit undefined must not produce a wrapper that throws on rejoin.
+    // Object.assign sidesteps the literal excess-property check to model a JS
+    // caller passing `joinRun: undefined` against the typed interface.
+    const normalized = normalizeConnectionAdapter(
+      Object.assign({ connect: async function* () {} }, { joinRun: undefined }),
+    )
     expect(normalized.joinRun).toBeUndefined()
   })
 })
@@ -582,11 +583,9 @@ describe('ChatClient auto-rejoin after reload', () => {
       if (stored && !Array.isArray(stored)) {
         expect(stored.resume).toBeUndefined()
       } else {
-        // messages may still be present without resume, or key removed only if
-        // messages were also empty — with cached messages, record stays without resume.
-        expect(
-          stored && !Array.isArray(stored) ? stored.resume : undefined,
-        ).toBe(undefined)
+        // A bare message array (or a removed key) carries no resume pointer by
+        // construction — nothing further to assert on the record shape.
+        expect(stored === undefined || Array.isArray(stored)).toBe(true)
       }
     })
     void client

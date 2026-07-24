@@ -198,6 +198,7 @@ describe('withPersistence (state-only)', () => {
         {
           type: EventType.TEXT_MESSAGE_START,
           messageId: 'assistant-42',
+          role: 'assistant' as const,
           timestamp: 1,
         },
         ev.text('hello'),

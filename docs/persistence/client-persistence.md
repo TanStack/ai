@@ -163,7 +163,7 @@ and hand it to `useChat` as `initialResumeSnapshot`. A bare in-flight snapshot i
 rejoined just like a persisted pointer; a client that started the run still rejoins
 via its own pointer, so pass this only when the running client is a different one.
 
-```tsx
+```tsx ignore
 // Server: the loader (or your GET endpoint) reports the active run alongside history.
 loader: async () => ({
   messages: await loadHistory(threadId), // reconstructChat, etc.
