@@ -176,6 +176,58 @@ describe('chat persistence error/abort hooks', () => {
     const pending = await base.stores.interrupts!.listPending('t1')
     expect(pending.map((p) => p.interruptId)).toEqual(['interrupt-1'])
   })
+
+  it('marks the run interrupted when the chat is aborted', async () => {
+    const persistence = memoryPersistence()
+    const controller = new AbortController()
+    // Adapter that hangs after RUN_STARTED so we can abort mid-stream.
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield runStarted()
+          await new Promise<void>((resolve) => {
+            controller.signal.addEventListener('abort', () => resolve(), {
+              once: true,
+            })
+          })
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      runId: 'abort-run',
+      threadId: 't1',
+      abortController: controller,
+      middleware: [withPersistence(persistence)],
+    }) as AsyncIterable<StreamChunk>
+
+    const reader = (async () => {
+      try {
+        for await (const _ of stream) {
+          // drain until abort
+        }
+      } catch {
+        // abort may reject the stream
+      }
+    })()
+
+    // Let onConfig/onStart establish the run row, then abort.
+    await vi.waitFor(async () => {
+      const run = await persistence.stores.runs!.get('abort-run')
+      expect(run?.status).toBe('running')
+    })
+    controller.abort()
+    await reader
+
+    const run = await persistence.stores.runs!.get('abort-run')
+    expect(run?.status).toBe('interrupted')
+  })
 })
 
 function imageAdapterThatThrows(thrown: unknown): ImageAdapter<string> {

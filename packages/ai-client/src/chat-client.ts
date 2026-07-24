@@ -1400,9 +1400,19 @@ export class ChatClient<
           }
           await this.processIncomingChunk(chunk, { defer: false })
         }
-      } catch {
-        // Best-effort re-attach: the durable log may be gone or the run
-        // unknown. Keep the restored transcript rather than surfacing an error.
+      } catch (error) {
+        // Pre-attach failures (unknown/evicted run, connect deadline abort)
+        // stay soft: keep the restored transcript and clear the dead pointer
+        // in `finally`. Post-attach transport/parser failures are real stream
+        // errors and must surface so the UI is not left truncated and silent.
+        const isAbort =
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.name === 'TimeoutError')
+        if (attached && !isAbort) {
+          this.reportStreamError(
+            error instanceof Error ? error : new Error(String(error)),
+          )
+        }
       } finally {
         clearTimeout(connectTimer)
         if (!attached) {

@@ -52,8 +52,8 @@
     "test:oxlint": "oxlint src --type-aware"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "drizzle-orm": ">=0.44.0"
   },
   "devDependencies": {

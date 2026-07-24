@@ -115,6 +115,55 @@ describe('memoryPersistence', () => {
         ),
       ).toEqual(['i1'])
     })
+
+    it('orders list results by requestedAt even when inserts are reverse order', async () => {
+      const { interrupts } = memoryPersistence().stores
+      await interrupts!.create({
+        interruptId: 'late',
+        runId: 'r1',
+        threadId: 't1',
+        requestedAt: 30,
+        payload: {},
+      })
+      await interrupts!.create({
+        interruptId: 'early',
+        runId: 'r1',
+        threadId: 't1',
+        requestedAt: 10,
+        payload: {},
+      })
+      expect(
+        (await interrupts!.list('t1')).map((i) => i.interruptId),
+      ).toEqual(['early', 'late'])
+    })
+  })
+
+  describe('metadata', () => {
+    it('keeps colon-containing namespace and key pairs distinct', async () => {
+      const { metadata } = memoryPersistence().stores
+      await metadata!.set('a:b', 'c', 'left')
+      await metadata!.set('a', 'b:c', 'right')
+      expect(await metadata!.get('a:b', 'c')).toBe('left')
+      expect(await metadata!.get('a', 'b:c')).toBe('right')
+    })
+  })
+
+  describe('locks', () => {
+    it('serializes concurrent withLock calls on the same key and drops settled chains', async () => {
+      const { locks } = memoryPersistence().stores
+      const order: Array<number> = []
+      await Promise.all([
+        locks!.withLock('k', async () => {
+          order.push(1)
+          await Promise.resolve()
+          order.push(2)
+        }),
+        locks!.withLock('k', async () => {
+          order.push(3)
+        }),
+      ])
+      expect(order).toEqual([1, 2, 3])
+    })
   })
 
   describe('metadata', () => {

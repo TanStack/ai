@@ -47,14 +47,19 @@ export class InMemoryLockStore implements LockStore {
     const runCriticalSection = () => fn(new AbortController().signal)
     // Chain after the prior holder regardless of how it settled.
     const run = prior.then(runCriticalSection, runCriticalSection)
-    // Keep the chain alive but swallow rejections so one failure doesn't poison the lock.
-    this.chains.set(
-      key,
-      run.then(
-        () => undefined,
-        () => undefined,
-      ),
+    // Swallow rejections so one failure doesn't poison the lock, then drop the
+    // chain entry once this tail is still the latest — otherwise long-lived
+    // processes accumulate settled promises for every distinct key forever.
+    const settled = run.then(
+      () => undefined,
+      () => undefined,
     )
+    this.chains.set(key, settled)
+    void settled.then(() => {
+      if (this.chains.get(key) === settled) {
+        this.chains.delete(key)
+      }
+    })
     return run
   }
 }

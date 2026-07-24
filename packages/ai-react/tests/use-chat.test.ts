@@ -397,6 +397,90 @@ describe('useChat', () => {
         const text = assistant?.parts.find((p) => p.type === 'text')
         expect(text && 'content' in text && text.content).toBe('resumed reply')
       })
+    })
+
+    it('rejoins under StrictMode remount without aborting the constructor rejoin', async () => {
+      // Soft-dispose cleanup must not call stop() — Strict Mode remount reuses
+      // the same client one tick later, and stop() would abort rejoin + wipe
+      // the resume pointer before the first chunk.
+      let releaseFirstChunk!: () => void
+      const firstChunkGate = new Promise<void>((resolve) => {
+        releaseFirstChunk = resolve
+      })
+      const joinRun = vi.fn(async function* (_runId: string) {
+        await firstChunkGate
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r1',
+            threadId: 't1',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'a1',
+            role: 'assistant',
+            timestamp: 2,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a1',
+            delta: 'strict-ok',
+            timestamp: 3,
+          },
+          { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'r1',
+            threadId: 't1',
+            finishReason: 'stop',
+            timestamp: 5,
+          },
+        ]
+        for (const chunk of chunks) yield chunk
+      })
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun,
+      }
+      const persistence: ChatClientPersistence = {
+        getItem: () => ({
+          messages: [],
+          resume: {
+            schemaVersion: 2,
+            resumeState: { threadId: 't1', runId: 'r1' },
+          },
+        }),
+        setItem: () => {},
+        removeItem: () => {},
+      }
+
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection,
+            threadId: 't1',
+            persistence,
+          }),
+        { wrapper: StrictMode },
+      )
+
+      // Let Strict Mode mount → cleanup → remount complete before chunks flow.
+      await act(async () => {
+        await Promise.resolve()
+        releaseFirstChunk()
+      })
+
+      await waitFor(() => {
+        const assistant = result.current.messages.find(
+          (m) => m.role === 'assistant',
+        )
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('strict-ok')
+      })
+      // Strict Mode may construct more than one client in dev; what matters is
+      // rejoin completed (content above) and was not aborted before attach.
+      expect(joinRun).toHaveBeenCalled()
       expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
     })
   })

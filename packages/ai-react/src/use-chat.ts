@@ -317,18 +317,22 @@ export function useChat<
         }
         cleanupInvalidationRef.current = null
       }, 0)
-      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
-      // effect above. This cleanup only fires on unmount or client swap,
-      // so read `live` through the ref to avoid disposing the client every
-      // time `live` toggles.
-      if (optionsRef.current.live) {
-        client.unsubscribe()
-      } else {
-        client.stop()
-      }
+      // Soft cleanup only: do NOT stop/unsubscribe here. React Strict Mode
+      // remounts fire this cleanup then re-attach the same client one tick
+      // later; calling `stop()` would abort a constructor rejoin
+      // (`resumeInFlightRun`) and can wipe the durable resume pointer before
+      // the first chunk. Real teardown lives in the deferred dispose path
+      // below, which only runs when the client is not remounted.
+      // Subscribe/unsubscribe on `options.live` is still owned by the
+      // dedicated effect above for live toggles.
       const disposal = {
         client,
         timeout: setTimeout(() => {
+          if (optionsRef.current.live) {
+            client.unsubscribe()
+          } else {
+            client.stop()
+          }
           client.dispose()
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null

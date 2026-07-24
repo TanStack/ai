@@ -444,17 +444,19 @@ SQLite-compatible Drizzle database (including Cloudflare D1). `sqlitePersistence
 is Node-only and lives at the `/sqlite` subpath. Compose backends per store with
 `composePersistence(base, { overrides })`.
 
-### Resume reconstruction is the engine's job, not the middleware's
+### Resume reconstruction is the middleware's job (server-authoritative path)
 
-When a thread has pending interrupts, the middleware only **records** the
-interrupts and **gates** new input: a request that carries pending interrupts
-must include a `resume` batch that references them, or `onConfig` throws. The
-middleware does **not** build `ChatResumeToolState`. The chat engine reconstructs
-the actual resume tool state itself, from `config.resume` plus the interrupt
-bindings carried in the server-loaded message history. Resumes accepted in
-`onConfig` are committed (marked resolved/cancelled) only once the run reaches a
-successful boundary, so a provider failure between accepting a resume and
-finishing leaves the interrupt pending and a retry with the same resume succeeds.
+When a thread has pending interrupts, the middleware **records** them and
+**gates** new input: a request that carries pending interrupts must include a
+`resume` batch that references them, or `onConfig` throws. On a valid resume
+batch the middleware also **builds `ChatResumeToolState`** (approvals /
+client-tool results) and **clears `config.resume`** so the chat engine skips
+its ephemeral reconstruction — that path needs client message history the
+persistence flow deliberately omits when the server owns the transcript.
+Resumes accepted in `onConfig` are committed (marked resolved/cancelled) only
+once the run reaches a successful boundary, so a provider failure between
+accepting a resume and finishing leaves the interrupt pending and a retry with
+the same resume succeeds.
 
 > A companion `withGenerationPersistence(persistence)` tracks run records for
 > non-chat generation activities (image, audio, TTS, video, transcription).

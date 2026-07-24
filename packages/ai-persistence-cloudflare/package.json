@@ -47,9 +47,9 @@
   },
   "peerDependencies": {
     "@cloudflare/workers-types": ">=4.20260317.1",
-    "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^",
-    "@tanstack/ai-persistence-drizzle": "workspace:^",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-drizzle": "workspace:*",
     "drizzle-orm": ">=0.44.0"
   },
   "devDependencies": {

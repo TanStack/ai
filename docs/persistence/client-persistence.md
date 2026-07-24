@@ -53,7 +53,10 @@ the chat record shape and a JSON codec. That is the whole opt-in.
 The client stores one record per `threadId`, the transcript plus a small resume
 pointer. On the next load `useChat` reads it and:
 
-- **Repaints the transcript** before the first render, from storage, no network.
+- **Repaints the transcript** from storage with no network. Sync adapters
+  (`localStorage` / `sessionStorage`) hydrate during construction; IndexedDB
+  hydrates asynchronously after the database opens (so the first paint may be
+  empty for a tick).
 - **Rehydrates a pending interrupt**, so an approval prompt comes back exactly as
   it was.
 - **Rejoins an in-flight run**, if a reply was still streaming when the page
@@ -85,8 +88,69 @@ must open on another device, or when you simply do not want message content in
 the browser.
 
 The transcript is not in storage, so hydrate it from the server on load: expose a
-`GET` endpoint with `reconstructChat(persistence, request)` and read it from a
-router loader to seed `initialMessages`. See [Chat persistence](./chat-persistence).
+`GET` endpoint with `reconstructChat` and seed `initialMessages` from a router
+loader (or equivalent). See [Chat persistence](./chat-persistence).
+
+**Server half** (history hydrate; authorize multi-user access):
+
+```ts
+import { reconstructChat } from '@tanstack/ai-persistence'
+import type { Scope } from '@tanstack/ai'
+
+export async function GET(request: Request) {
+  // Scope.threadId is the conversation key. Derive Scope.userId / tenantId from
+  // trusted session state — never from client body alone.
+  return reconstructChat(persistence, request, {
+    authorize: async (threadId, req) => {
+      const scope: Scope = {
+        threadId,
+        // userId: await getSessionUserId(req),
+      }
+      // return scope.userId != null && (await ownsThread(scope))
+      void scope
+      void req
+      return true // demo only
+    },
+  })
+}
+```
+
+**Client half** (resume pointer only + loader-seeded history):
+
+```tsx
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
+
+const store = localStoragePersistence()
+
+function Chat({
+  threadId,
+  initialMessages,
+}: {
+  threadId: string
+  initialMessages: Array<{ id: string; role: 'user' | 'assistant'; parts: Array<{ type: 'text'; content: string }> }>
+}) {
+  const { messages, sendMessage } = useChat({
+    threadId,
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: { store, messages: false },
+    initialMessages,
+  })
+  return (
+    <div>
+      {messages.map((m) => (
+        <div key={m.id}>{m.role}</div>
+      ))}
+      <button type="button" onClick={() => void sendMessage('hi')}>
+        Send
+      </button>
+    </div>
+  )
+}
+```
 
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |

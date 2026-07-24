@@ -72,28 +72,29 @@ bundled migrations through your deployment workflow instead. See
 
 ## What gets persisted, and when
 
-`withPersistence` writes at three moments so a reload never loses a turn:
+`withPersistence` writes at **four** moments so a reload never loses a turn:
 
-- **At the start of a run** — the pending turn (the just-submitted user
-  message plus any prior history) is saved immediately, so a reload *during*
-  generation still shows what the user asked, before the reply exists.
-- **On finish** — the complete transcript, including the assistant's terminal
-  reply. Each assistant turn keeps its stream `messageId`, so a hydrated
-  message shares identity with its live stream and a mid-stream reload can
-  resume the *same* message in place rather than duplicating it.
-- **Optionally, while streaming** — pass `snapshotStreaming: true` to also
-  persist the in-progress reply on a throttled interval, so even a crash
-  mid-generation leaves the partial text in the thread:
+| Moment | What is written | Best-effort? |
+| --- | --- | --- |
+| **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes — failure does not abort the run; finish is authoritative |
+| **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No — store failures propagate |
+| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, and commit of consumed resumes | No — transcript is saved **before** the run is marked completed |
+| **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
 
-  ```ts group=chat-persistence
-  const streamingMiddleware = [
-    withPersistence(persistence, { snapshotStreaming: true }),
-  ]
-  ```
+```ts group=chat-persistence
+const streamingMiddleware = [
+  withPersistence(persistence, { snapshotStreaming: true }),
+]
+```
 
-  It defaults off (finish is the authoritative save); enable it to trade extra
-  writes for partial-output durability. Tune the interval with
-  `snapshotIntervalMs` (default `1000`).
+Streaming snapshots default off (finish is the authoritative save); enable
+them to trade extra writes for partial-output durability. Tune the interval
+with `snapshotIntervalMs` (default `1000`).
+
+On **error**, the run is marked `failed`. On **abort**, the run is marked
+`interrupted`. Resumes accepted in `onConfig` are **not** consumed until a
+success boundary (interrupt or finish), so a failed run leaves pending
+interrupts retryable with the same resume batch.
 
 ## Interrupts survive a restart
 
@@ -101,9 +102,15 @@ When a run pauses on an interrupt (a tool approval, a client-side tool, a
 generic wait), the middleware records it. A later request on that thread must
 carry a `resume` batch that answers the pending interrupts before new input is
 accepted, otherwise it is rejected, which is why the example above forwards
-`params.resume`. The chat engine itself rebuilds the resume state from that
-batch and the interrupt bindings in the loaded history, so the persistence layer
-only records the interrupts and gates the thread.
+`params.resume`.
+
+Persistence is the **server-authoritative resume path**: the middleware
+validates the resume batch against pending interrupts, builds
+`ChatResumeToolState` (approvals / client-tool results), and **clears**
+`config.resume` so the chat engine skips its ephemeral reconstruction (which
+needs client message history the persistence flow deliberately omits). Resumes
+are committed (resolved/cancelled in the store) only once the run reaches a
+successful interrupt or finish boundary.
 
 ## Where to go next
 

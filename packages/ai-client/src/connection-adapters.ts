@@ -872,9 +872,12 @@ export function normalizeConnectionAdapter(
         throw err
       }
     },
-    // Expose joinRun only when the underlying connection is resumable. Returns
-    // the replay iterable directly; the client consumes it like a subscription.
-    ...('joinRun' in connection
+    // Expose joinRun only when the underlying connection is resumable. Require
+    // a real function — `'joinRun' in connection` is true for
+    // `{ joinRun: undefined }`, which would wrap a non-callable and throw on
+    // rehydration rejoin.
+    ...(typeof (connection as ResumableConnectConnectionAdapter).joinRun ===
+    'function'
       ? {
           joinRun: (runId: string, abortSignal?: AbortSignal) =>
             (connection as ResumableConnectConnectionAdapter).joinRun(

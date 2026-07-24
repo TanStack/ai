@@ -208,7 +208,16 @@ export const Route = createFileRoute('/api/persistent-chat')({
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })
         }
-        return reconstructChat(persistence, request)
+        // Demo only: single shared thread, no multi-user auth. Production routes
+        // must authorize ownership (session → allowed thread ids) before load —
+        // without `authorize`, any caller who knows `?threadId=` gets the full
+        // transcript.
+        return reconstructChat(persistence, request, {
+          authorize: async (threadId) => {
+            // e.g. return (await getSessionUser())?.canAccess(threadId) ?? false
+            return threadId.length > 0
+          },
+        })
       },
     },
   },

@@ -26,8 +26,8 @@ type StorageName = 'localStorage' | 'sessionStorage' | 'indexedDB'
  * `indexedDB` do not exist on `globalThis`. The adapters check availability
  * lazily, **per operation**, so constructing an adapter never throws; the error
  * surfaces from `getItem` / `setItem` / `removeItem` (rejected promise for
- * IndexedDB). The chat persistence layer treats it as best-effort and routes it
- * to `onError` / `console.warn` rather than breaking chat.
+ * IndexedDB). The chat persistence layer treats adapter failures as best-effort
+ * (storage errors never break chat setup or streaming).
  */
 export class StorageUnavailableError extends Error {
   constructor(storageName: StorageName) {

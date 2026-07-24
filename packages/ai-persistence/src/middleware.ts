@@ -145,8 +145,11 @@ async function commitPendingResumes(
 ): Promise<void> {
   if (!state?.pendingResumes || !interrupts) return
   const { pending, resumeByInterruptId } = state.pendingResumes
-  state.pendingResumes = undefined
+  // Apply first; only clear the in-memory stash after every resolve/cancel
+  // succeeds so a mid-loop store failure can still re-drive remaining ids
+  // if the hook is retried (or a later boundary re-enters commit).
   await applyPendingResumes(pending, resumeByInterruptId, interrupts)
+  state.pendingResumes = undefined
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -359,8 +362,8 @@ async function interruptRun(
  * Chat-only persistence middleware. Provides durable **state** for `chat()`:
  * thread messages, run records, interrupts, and locks. This middleware never
  * mutates the chunk stream; delivery durability (replaying a
- * disconnected/reloaded stream) is a separate transport-layer concern tracked
- * in PR #955.
+ * disconnected/reloaded stream) is a separate transport-layer concern (see
+ * the resumable-streams docs).
  *
  * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
  * `messages` array it is treated as the FULL conversation history and, on
@@ -583,15 +586,18 @@ export function withPersistence(
     async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
       const state = runState.get(ctx)
       if (state?.interrupted) return
-      // The run completed successfully, so commit the resumes it consumed.
-      await commitPendingResumes(state, persistence.stores.interrupts)
-      await completeRun(runs, ctx.runId, info.usage)
+      // Transcript first: if saveThread fails the run stays non-completed and
+      // resumes stay pending so a retry can re-apply them. Completing the run
+      // or consuming approvals before the durable history lands leaves a
+      // "finished" run whose transcript is missing the terminal turn.
       if (wantsMessages && persistence.stores.messages) {
         await persistence.stores.messages.saveThread(
           ctx.threadId,
           finishedTranscript(ctx.messages, info, state?.streamingMessageId),
         )
       }
+      await completeRun(runs, ctx.runId, info.usage)
+      await commitPendingResumes(state, persistence.stores.interrupts)
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {

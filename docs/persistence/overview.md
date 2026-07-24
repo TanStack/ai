@@ -37,8 +37,25 @@ Persistence runs on the client, the server, or both. They are independent, and t
 
 | Half | Stores | Survives | Use it for |
 | --- | --- | --- | --- |
-| **Client** ([Client persistence](./client-persistence)) | the transcript + a resume pointer, in `localStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
+| **Client** ([Client persistence](./client-persistence)) | the transcript + a resume pointer, in `localStorage` / `sessionStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
 | **Server** ([Chat persistence](./chat-persistence)) | messages, run status, interrupts, in SQL / D1 / your store | a server restart, and reaches every device | multi-device, audit, durable approvals |
+
+### Identity: `Scope` and `threadId`
+
+Server persistence keys conversation history on **`threadId`** — the same
+conversation key as `ChatMiddlewareContext.threadId` and the required field of
+the shared [`Scope`](../getting-started/overview) type from `@tanstack/ai`
+(precursor PR #980). Store APIs take a bare `threadId` string for adapter
+simplicity; multi-user isolation is still required:
+
+- Derive `Scope.userId` / `Scope.tenantId` **server-side** from session state.
+- Authorize before `loadThread` / `saveThread` / `reconstructChat` (use
+  `reconstructChat({ authorize })`).
+- Never treat a client-supplied thread id alone as ownership — thread ids are
+  guessable.
+
+`Scope` is re-exported from `@tanstack/ai-persistence` so apps can import the
+identity type next to the store contracts.
 
 A minimal server setup adds one middleware to `chat()`:
 
@@ -183,7 +200,20 @@ export function GET(request: Request): Response | Promise<Response> {
   }
   // Otherwise rehydrate the conversation from the durable store. `reconstructChat`
   // reads `?threadId` and returns the stored messages as JSON.
-  return reconstructChat(persistence, request)
+  //
+  // Security: without `authorize`, any caller who knows a thread id receives the
+  // full transcript. In multi-user apps, check session ownership here (or only
+  // ever pass a server-validated thread id).
+  return reconstructChat(persistence, request, {
+    authorize: async (threadId, req) => {
+      // Replace with your session + ownership check, e.g.:
+      // const user = await auth(req)
+      // return user != null && (await db.threadOwnedBy(user.id, threadId))
+      void threadId
+      void req
+      return true
+    },
+  })
 }
 ```
 

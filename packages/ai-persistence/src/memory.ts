@@ -56,6 +56,10 @@ class MemoryRunStore implements RunStore {
   }
 }
 
+function byRequestedAt(a: InterruptRecord, b: InterruptRecord): number {
+  return a.requestedAt - b.requestedAt
+}
+
 class MemoryInterruptStore implements InterruptStore {
   private readonly interrupts = new Map<string, InterruptRecord>()
   create(
@@ -97,50 +101,65 @@ class MemoryInterruptStore implements InterruptStore {
   }
   list(threadId: string): Promise<Array<InterruptRecord>> {
     return Promise.resolve(
-      [...this.interrupts.values()].filter(
-        (interrupt) => interrupt.threadId === threadId,
-      ),
+      [...this.interrupts.values()]
+        .filter((interrupt) => interrupt.threadId === threadId)
+        .sort(byRequestedAt),
     )
   }
   listPending(threadId: string): Promise<Array<InterruptRecord>> {
     return Promise.resolve(
-      [...this.interrupts.values()].filter(
-        (interrupt) =>
-          interrupt.threadId === threadId && interrupt.status === 'pending',
-      ),
+      [...this.interrupts.values()]
+        .filter(
+          (interrupt) =>
+            interrupt.threadId === threadId && interrupt.status === 'pending',
+        )
+        .sort(byRequestedAt),
     )
   }
   listByRun(runId: string): Promise<Array<InterruptRecord>> {
     return Promise.resolve(
-      [...this.interrupts.values()].filter(
-        (interrupt) => interrupt.runId === runId,
-      ),
+      [...this.interrupts.values()]
+        .filter((interrupt) => interrupt.runId === runId)
+        .sort(byRequestedAt),
     )
   }
   listPendingByRun(runId: string): Promise<Array<InterruptRecord>> {
     return Promise.resolve(
-      [...this.interrupts.values()].filter(
-        (interrupt) =>
-          interrupt.runId === runId && interrupt.status === 'pending',
-      ),
+      [...this.interrupts.values()]
+        .filter(
+          (interrupt) =>
+            interrupt.runId === runId && interrupt.status === 'pending',
+        )
+        .sort(byRequestedAt),
     )
   }
 }
 
 class MemoryMetadataStore implements MetadataStore {
-  private readonly values = new Map<string, unknown>()
-  get(scope: string, key: string): Promise<unknown | null> {
-    const storageKey = `${scope}:${key}`
-    return Promise.resolve(
-      this.values.has(storageKey) ? this.values.get(storageKey) : null,
-    )
+  // Nested maps so composite identity is `(namespace, key)` without the
+  // `${namespace}:${key}` collision where `('a:b','c')` aliases `('a','b:c')`.
+  // (This parameter is an app-defined metadata namespace string — not the
+  // shared `Scope` identity type from `@tanstack/ai`.)
+  private readonly values = new Map<string, Map<string, unknown>>()
+  get(namespace: string, key: string): Promise<unknown | null> {
+    const bucket = this.values.get(namespace)
+    if (!bucket || !bucket.has(key)) return Promise.resolve(null)
+    return Promise.resolve(bucket.get(key))
   }
-  set(scope: string, key: string, value: unknown): Promise<void> {
-    this.values.set(`${scope}:${key}`, value)
+  set(namespace: string, key: string, value: unknown): Promise<void> {
+    let bucket = this.values.get(namespace)
+    if (!bucket) {
+      bucket = new Map()
+      this.values.set(namespace, bucket)
+    }
+    bucket.set(key, value)
     return Promise.resolve()
   }
-  delete(scope: string, key: string): Promise<void> {
-    this.values.delete(`${scope}:${key}`)
+  delete(namespace: string, key: string): Promise<void> {
+    const bucket = this.values.get(namespace)
+    if (!bucket) return Promise.resolve()
+    bucket.delete(key)
+    if (bucket.size === 0) this.values.delete(namespace)
     return Promise.resolve()
   }
 }

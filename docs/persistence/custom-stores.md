@@ -159,3 +159,52 @@ export function createPersistence(state: D1Database) {
 Only those two stores move to the custom database; D1 still owns messages and
 metadata. Composition does not create a transaction across those systems;
 design related writes accordingly.
+
+## When each store is called
+
+Most apps fold these interfaces into an existing customer database rather than
+running a separate "chat store." Map each middleware hook to your tables so you
+know which writes to co-locate or wrap in a transaction.
+
+### Chat middleware lifecycle (server)
+
+| Hook | `messages` | `runs` | `interrupts` | Notes |
+| --- | --- | --- | --- | --- |
+| `onConfig` (init) | `loadThread` when request `messages` is empty | `createOrResume` | `listPending` + validate resume batch; build `resumeToolState` | Non-empty request `messages` **replace** the stored thread on later saves — never send a delta |
+| `onStart` | best-effort `saveThread` (pending turn) | — | — | Failure does not abort the run |
+| `onChunk` (stream, optional) | throttled `saveThread` if `snapshotStreaming` | — | — | Best-effort partial assistant text |
+| `onChunk` (interrupt boundary) | `saveThread` | status → `interrupted` | create each new interrupt; commit prior resumes | Hard-fail on store errors |
+| `onFinish` | `saveThread(finishedTranscript)` **first** | status → `completed` | commit resumes | Transcript before run completion so a failed save does not leave a "completed" run with a missing turn |
+| `onError` | — | status → `failed` | resumes left pending | Retry can re-send the same resume batch |
+| `onAbort` | — | status → `interrupted` | resumes left pending | Same retry semantics as error for approvals |
+
+### Swimlanes (request → store)
+
+```
+Client POST (messages / resume)
+        │
+        ▼
+   onConfig ──► runs.createOrResume(runId, threadId)
+        │       interrupts.listPending(threadId)  → gate / resumeToolState
+        │       messages.loadThread(threadId)     → only if request messages empty
+        ▼
+   onStart  ──► messages.saveThread (best-effort pending turn)
+        │
+        ├─ stream ──► messages.saveThread (optional throttled snapshots)
+        │
+        ├─ interrupt ──► interrupts.create… + runs.update(interrupted)
+        │                messages.saveThread
+        │                commit prior resume resolve/cancel
+        │
+        └─ finish ──► messages.saveThread(full transcript)
+                      runs.update(completed)
+                      commit resume resolve/cancel
+```
+
+### Invariants custom stores must keep
+
+- **`saveThread` is full overwrite**, not append. A one-message payload wipes history.
+- **`createOrResume` is insert-if-absent** for the same `runId` (idempotent retries).
+- **Interrupt create is insert-if-absent** (cannot clobber a resolved row back to pending).
+- **Scope thread access at the app boundary** — store methods take bare `threadId`s; your route must authorize ownership before load/save (see `reconstructChat({ authorize })`).
+- **`locks`** (when provided) are available on the capability bus for app-level serialization; `withPersistence` does not automatically lock the whole turn — take a per-thread lock yourself if multi-writer is required.

@@ -13,6 +13,9 @@ export type {
   AIPersistenceStores,
   AIPersistenceOverrides,
   ComposedAIPersistenceStores,
+  // Shared conversation identity from @tanstack/ai (#980). Stores key on
+  // Scope.threadId; authorize multi-user access with Scope.userId/tenantId.
+  Scope,
 } from './types'
 
 // Middleware

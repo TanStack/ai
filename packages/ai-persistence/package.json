@@ -47,7 +47,7 @@
     "test:oxlint": "oxlint src --type-aware"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai": "workspace:*",
     "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {

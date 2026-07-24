@@ -100,6 +100,26 @@ describe('ChatPersistor combined record', () => {
     expect(stored.messages).toEqual([])
     expect(stored.resume?.resumeState.runId).toBe('r1')
   })
+
+  it('with storeMessages=false removes the key when resume is cleared', () => {
+    const { adapter, read } = memoryAdapter()
+    const persistor = new ChatPersistor(
+      adapter,
+      'chat-1',
+      () => {},
+      undefined,
+      false,
+    )
+    persistor.persistResumeSnapshot({
+      schemaVersion: 2,
+      resumeState: { threadId: 't1', runId: 'r1' },
+    })
+    expect(read()).toBeDefined()
+    // Finish / dead-pointer cleanup: clearing resume must drop the key so a
+    // reload does not re-rejoin a finished run.
+    persistor.persistResumeSnapshot(null)
+    expect(read()).toBeUndefined()
+  })
 })
 
 describe('ChatClient persistence option shapes', () => {
@@ -171,6 +191,15 @@ describe('normalizeConnectionAdapter joinRun passthrough', () => {
     const normalized = normalizeConnectionAdapter({
       connect: async function* () {},
     })
+    expect(normalized.joinRun).toBeUndefined()
+  })
+
+  it('omits joinRun when the property is present but not a function', () => {
+    const normalized = normalizeConnectionAdapter({
+      connect: async function* () {},
+      // Explicit undefined must not produce a wrapper that throws on rejoin.
+      joinRun: undefined,
+    } as ResumableConnectConnectionAdapter)
     expect(normalized.joinRun).toBeUndefined()
   })
 })
@@ -460,6 +489,152 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(text && 'content' in text && text.content).toBe('world')
     })
     expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    void client
+  })
+
+  it('clears a dead resume pointer when joinRun never attaches', async () => {
+    const { adapter, read } = memoryAdapter({
+      messages: [createUIMessage('user-1', 'hi', 'user')],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'gone-run' },
+      },
+    })
+    // joinRun hangs until aborted by the connect deadline — never yields.
+    const joinRun = vi.fn(async function* (
+      _runId: string,
+      signal?: AbortSignal,
+    ) {
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) {
+          resolve()
+          return
+        }
+        signal?.addEventListener('abort', () => resolve(), { once: true })
+      })
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let status: string | undefined
+    const client = new ChatClient({
+      id: 'chat-dead',
+      threadId: 't1',
+      connection,
+      persistence: adapter,
+      onStatusChange: (s) => {
+        status = s
+      },
+    })
+
+    await vi.waitFor(
+      () => {
+        expect(joinRun).toHaveBeenCalled()
+        expect(status).toBe('ready')
+        expect(client.getIsLoading()).toBe(false)
+      },
+      { timeout: 5_000 },
+    )
+
+    // Dead pointer must be removed so the next load does not re-pin loading.
+    await vi.waitFor(() => {
+      const stored = read()
+      if (stored && !Array.isArray(stored)) {
+        expect(stored.resume).toBeUndefined()
+      } else {
+        // messages may still be present without resume, or key removed only if
+        // messages were also empty — with cached messages, record stays without resume.
+        expect(
+          stored && !Array.isArray(stored) ? stored.resume : undefined,
+        ).toBe(undefined)
+      }
+    })
+    void client
+  })
+
+  it('with messages:false removes the resume-only key after a dead rejoin', async () => {
+    const { adapter, read } = memoryAdapter({
+      messages: [],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'gone-run' },
+      },
+    })
+    const joinRun = vi.fn(async function* (
+      _runId: string,
+      signal?: AbortSignal,
+    ) {
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) {
+          resolve()
+          return
+        }
+        signal?.addEventListener('abort', () => resolve(), { once: true })
+      })
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+      initialMessages: [createUIMessage('history-1', 'seed', 'user')],
+    })
+
+    await vi.waitFor(
+      () => {
+        expect(joinRun).toHaveBeenCalled()
+        expect(client.getIsLoading()).toBe(false)
+        expect(read()).toBeUndefined()
+      },
+      { timeout: 5_000 },
+    )
+    void client
+  })
+
+  it('surfaces post-attach rejoin errors via onError', async () => {
+    const { adapter } = memoryAdapter({
+      messages: [createUIMessage('user-1', 'hi', 'user')],
+      resume: {
+        schemaVersion: 2,
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+    })
+    const joinRun = vi.fn(async function* (_runId: string) {
+      yield {
+        type: 'RUN_STARTED',
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      } as StreamChunk
+      yield {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'a1',
+        role: 'assistant',
+        timestamp: 2,
+      } as StreamChunk
+      throw new Error('transport died mid-replay')
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    const onError = vi.fn()
+    const client = new ChatClient({
+      id: 'chat-err',
+      threadId: 't1',
+      connection,
+      persistence: adapter,
+      onError,
+    })
+
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalled()
+    })
+    expect(String(onError.mock.calls[0]?.[0])).toMatch(/transport died/)
     void client
   })
 })

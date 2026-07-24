@@ -1,4 +1,12 @@
-/** Node-only SQLite convenience factory for TanStack AI persistence. */
+/**
+ * Node-only SQLite convenience factory for TanStack AI persistence.
+ *
+ * Uses Node's built-in `node:sqlite` (`DatabaseSync`). That module is still a
+ * **release candidate** in current Node versions (not marked stable); pin a
+ * Node release that documents the API you rely on, and prefer
+ * `drizzlePersistence(db)` with your own driver if you need a fully stable
+ * SQLite path.
+ */
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

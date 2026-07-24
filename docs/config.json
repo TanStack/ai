@@ -241,19 +241,19 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-23"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-23"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-23"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Controls",
@@ -264,7 +264,8 @@
         {
           "label": "Custom Stores",
           "to": "persistence/custom-stores",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "SQL Backends",

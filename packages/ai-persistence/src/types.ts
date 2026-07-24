@@ -1,5 +1,11 @@
-import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type { ModelMessage, Scope, TokenUsage } from '@tanstack/ai'
 import type { LockStore } from './locks'
+
+// Re-export the shared identity type so app code can import Scope from either
+// `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
+// pair a client-visible `threadId` with a server-trusted `userId`/`tenantId`
+// before authorizing load/save (e.g. via `reconstructChat({ authorize })`).
+export type { Scope }
 
 // ===========================================================================
 // Store contracts
@@ -34,14 +40,22 @@ import type { LockStore } from './locks'
 /**
  * Durable store for a thread's full message transcript.
  *
- * A "thread" is the unit of conversation history. `saveThread` always receives
- * and persists the **complete, authoritative** message list — it is an
- * overwrite, never an append. The middleware snapshots `ctx.messages` (the full
- * running transcript) into it.
+ * A "thread" is the unit of conversation history. The key is
+ * {@link Scope.threadId} (the same conversation id as
+ * `ChatMiddlewareContext.threadId`). Store methods take a bare string for
+ * adapter simplicity; multi-user isolation is the **host's** job — authorize
+ * against `Scope.userId` / `Scope.tenantId` (derived server-side from session)
+ * before calling load/save, and never treat a client-supplied thread id alone
+ * as an ownership proof (see `Scope` security notes in `@tanstack/ai`).
+ *
+ * `saveThread` always receives and persists the **complete, authoritative**
+ * message list — it is an overwrite, never an append. The middleware snapshots
+ * `ctx.messages` (the full running transcript) into it.
  */
 export interface MessageStore {
   /**
-   * Return the full stored transcript for `threadId`, in insertion order.
+   * Return the full stored transcript for `threadId` ({@link Scope.threadId}),
+   * in insertion order.
    *
    * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
    * that was never saved. Callers treat `[]` as "no history".
@@ -175,25 +189,34 @@ export interface InterruptStore {
 }
 
 /**
- * Scoped key/value store for arbitrary JSON metadata.
+ * Namespaced key/value store for arbitrary JSON metadata (app-owned).
  *
- * `(scope, key)` is the composite identity; the same `key` under different
- * scopes is independent.
+ * The first argument is an **app-defined namespace string**, not the shared
+ * {@link Scope} identity type from `@tanstack/ai`. Composite identity is
+ * `(namespace, key)` as two independent fields (SQL backends use a composite
+ * primary key; the in-memory store uses nested maps). Do not encode both into a
+ * single delimited string — `${namespace}:${key}` collides when either part
+ * contains `:`.
+ *
+ * The same `key` under different namespaces is independent.
  */
 export interface MetadataStore {
   /**
-   * Return the stored value for `(scope, key)`, or `null` if absent.
+   * Return the stored value for `(namespace, key)`, or `null` if absent.
    *
    * CAVEAT: the return type is `unknown | null`, where `| null` collapses into
    * `unknown` — a stored value of `null` is therefore **indistinguishable from
    * absence** at the type level. Callers that must persist a real `null`
    * distinctly from "not set" should wrap it (e.g. store `{ value: null }`).
    */
-  get: (scope: string, key: string) => Promise<unknown | null>
-  /** Insert or overwrite the value for `(scope, key)`. */
-  set: (scope: string, key: string, value: unknown) => Promise<void>
-  /** Remove `(scope, key)`. A no-op if absent. Does not affect other scopes. */
-  delete: (scope: string, key: string) => Promise<void>
+  get: (namespace: string, key: string) => Promise<unknown | null>
+  /** Insert or overwrite the value for `(namespace, key)`. */
+  set: (namespace: string, key: string, value: unknown) => Promise<void>
+  /**
+   * Remove `(namespace, key)`. A no-op if absent. Does not affect other
+   * namespaces.
+   */
+  delete: (namespace: string, key: string) => Promise<void>
 }
 
 export interface AIPersistenceStores {

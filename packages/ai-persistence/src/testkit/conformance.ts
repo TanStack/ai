@@ -297,10 +297,49 @@ export function runPersistenceConformance(
         expect(after?.payload).toEqual({ attempt: 1 })
         expect(after?.requestedAt).toBe(100)
       })
+
+      it('lists ordered by requestedAt ascending even when inserts are out of order', async () => {
+        const store = resolveStore('interrupts')
+        if (!store) return
+
+        // Insert later-timestamped first so Map insertion order would reverse
+        // requestedAt order without an explicit sort.
+        await store.create({
+          interruptId: 'int-late',
+          runId: 'run-order',
+          threadId: 'thread-order',
+          requestedAt: 300,
+          payload: {},
+        })
+        await store.create({
+          interruptId: 'int-early',
+          runId: 'run-order',
+          threadId: 'thread-order',
+          requestedAt: 100,
+          payload: {},
+        })
+        await store.create({
+          interruptId: 'int-mid',
+          runId: 'run-order',
+          threadId: 'thread-order',
+          requestedAt: 200,
+          payload: {},
+        })
+
+        expect(
+          (await store.list('thread-order')).map((r) => r.interruptId),
+        ).toEqual(['int-early', 'int-mid', 'int-late'])
+        expect(
+          (await store.listPending('thread-order')).map((r) => r.interruptId),
+        ).toEqual(['int-early', 'int-mid', 'int-late'])
+        expect(
+          (await store.listByRun('run-order')).map((r) => r.interruptId),
+        ).toEqual(['int-early', 'int-mid', 'int-late'])
+      })
     })
 
     describe('metadata', () => {
-      it('sets, gets, scopes, and deletes', async () => {
+      it('sets, gets, namespaces, and deletes without composite-key collisions', async () => {
         const store = resolveStore('metadata')
         if (!store) return
 
@@ -316,8 +355,18 @@ export function runPersistenceConformance(
 
         await store.delete('scope-a', 'k')
         expect(await store.get('scope-a', 'k')).toBeNull()
-        // Delete is scoped: scope-b untouched.
+        // Delete is namespaced: scope-b untouched.
         expect(await store.get('scope-b', 'k')).toEqual({ n: 2 })
+
+        // Composite identity must not alias across colon-containing parts.
+        // ('a:b','c') and ('a','b:c') are distinct pairs.
+        await store.set('a:b', 'c', 'left')
+        await store.set('a', 'b:c', 'right')
+        expect(await store.get('a:b', 'c')).toBe('left')
+        expect(await store.get('a', 'b:c')).toBe('right')
+        await store.delete('a:b', 'c')
+        expect(await store.get('a:b', 'c')).toBeNull()
+        expect(await store.get('a', 'b:c')).toBe('right')
       })
     })
     describe('locks', () => {

@@ -44,10 +44,12 @@ function getChunkParentMessageId(chunk: StreamChunk): string | undefined {
  *
  * Two responsibilities live here:
  *
- * 1. **Storage orchestration** — hydrate from `getItem(id)` on creation, save to
- *    `setItem(id, messages)` on every change through an ordered write queue, and
- *    `removeItem(id)` on clear. A generation counter discards stale writes when a
- *    removal or a newer conversation supersedes an in-flight async operation.
+ * 1. **Storage orchestration** — hydrate from `getItem(id)` on creation, save a
+ *    combined `{ messages, resume? }` record via `setItem` on every change
+ *    through an ordered write queue, and `removeItem(id)` on clear (or when
+ *    both the transcript and resume pointer are empty). A generation counter
+ *    discards stale writes when a removal or a newer conversation supersedes
+ *    an in-flight async operation.
  * 2. **Clear-during-stream suppression** — when a conversation is cleared while a
  *    stream is still producing, late chunks for the cleared run(s) must not
  *    repopulate the now-empty state. The persistor tracks the cleared ids and
@@ -94,10 +96,19 @@ export class ChatPersistor {
    */
   private writeState(): void {
     const messages = this.storeMessages ? [...this.lastMessages] : []
-    // Nothing to persist (no transcript, no resume pointer): don't write an
-    // empty record. This keeps a cleared conversation from leaving an empty
-    // `{ messages: [] }` behind, matching the "removed, not emptied" contract.
+    // Nothing to persist (no transcript, no resume pointer): remove the key
+    // rather than writing an empty `{ messages: [] }`. Critical for
+    // `storeMessages: false` mode, where clearing the resume pointer must
+    // drop the prior resume-only record so a reload does not re-rejoin a
+    // finished run.
     if (messages.length === 0 && !this.lastResume) {
+      const generation = this.generation
+      this.runOperation(() => {
+        if (generation !== this.generation) {
+          return
+        }
+        return this.adapter.removeItem(this.id)
+      })
       return
     }
     const generation = this.generation
