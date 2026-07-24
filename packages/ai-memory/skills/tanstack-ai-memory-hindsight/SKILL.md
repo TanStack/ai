@@ -7,7 +7,7 @@ description: Use when wiring hindsight() from @tanstack/ai-memory/hindsight — 
 
 Hosted `recall`/`save` adapter backed by Hindsight. Hindsight owns extraction and
 ranking server-side, buckets memory into per-conversation "banks"
-(`{userId}__{threadId}`), and — uniquely — exposes LLM **tools** through `recall` so the
+(`{tenantId|_}__{user}__{threadId}`), and — uniquely — exposes LLM **tools** through `recall` so the
 model can retain/recall/reflect directly.
 
 ## Setup

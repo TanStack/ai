@@ -141,7 +141,7 @@ is an optional peer, loaded lazily.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{tenant|_}__{user}__{threadId}`). |
+| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{tenant\|_}__{user}__{threadId}`). |
 | `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
 | `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
