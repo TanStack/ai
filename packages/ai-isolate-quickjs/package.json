@@ -54,7 +54,7 @@
     "code-execution"
   ],
   "dependencies": {
-    "quickjs-emscripten": "^0.31.0"
+    "quickjs-emscripten": "^0.32.0"
   },
   "peerDependencies": {
     "@tanstack/ai-code-mode": "workspace:*"

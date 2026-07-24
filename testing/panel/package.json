@@ -26,9 +26,9 @@
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-ai-devtools": "workspace:*",
-    "@tanstack/react-devtools": "^0.9.10",
-    "@tanstack/react-router": "^1.158.4",
-    "@tanstack/react-start": "^1.159.0",
+    "@tanstack/react-devtools": "^0.10.9",
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-start": "^1.168.32",
     "@tanstack/start": "^1.120.20",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.561.0",
@@ -40,15 +40,15 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "typescript": "5.9.3",
     "vite": "^8.1.4"
   }

@@ -42,7 +42,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@vercel/sandbox": "^2.2.1"
+    "@vercel/sandbox": "^2.8.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

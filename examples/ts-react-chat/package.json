@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
-    "@elevenlabs/elevenlabs-js": "^2.44.0",
+    "@elevenlabs/elevenlabs-js": "^2.59.0",
     "@mcp-ui/client": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@ngrok/ngrok": "^1.7.0",
@@ -43,15 +43,15 @@
     "@tanstack/ai-sandbox-docker": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-sandbox-vercel": "workspace:*",
-    "@tanstack/react-devtools": "^0.9.10",
-    "@tanstack/react-router": "^1.158.4",
-    "@tanstack/react-router-devtools": "^1.158.4",
-    "@tanstack/react-router-ssr-query": "^1.158.4",
-    "@tanstack/react-start": "^1.159.0",
-    "@tanstack/react-store": "^0.8.0",
-    "@tanstack/router-plugin": "^1.158.4",
-    "@tanstack/store": "^0.8.0",
-    "dockerode": "^4.0.2",
+    "@tanstack/react-devtools": "^0.10.9",
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/react-router-ssr-query": "^1.167.1",
+    "@tanstack/react-start": "^1.168.32",
+    "@tanstack/react-store": "^0.11.0",
+    "@tanstack/router-plugin": "^1.168.23",
+    "@tanstack/store": "^0.11.0",
+    "dockerode": "^4.0.12",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.561.0",
     "nitro": "3.0.260610-beta",
@@ -63,10 +63,10 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tanstack/devtools-vite": "^0.5.3",
+    "@tanstack/devtools-vite": "^0.8.3",
     "@tanstack/react-ai-devtools": "workspace:*",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",
@@ -74,11 +74,11 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
-    "concurrently": "^9.1.2",
+    "concurrently": "^9.2.4",
     "jsdom": "^27.2.0",
     "typescript": "5.9.3",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",
-    "web-vitals": "^5.1.0"
+    "web-vitals": "^5.3.0"
   }
 }

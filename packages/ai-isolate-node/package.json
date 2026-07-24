@@ -57,7 +57,7 @@
     "code-execution"
   ],
   "dependencies": {
-    "isolated-vm": "^6.0.2"
+    "isolated-vm": "^6.1.2"
   },
   "peerDependencies": {
     "@tanstack/ai-code-mode": "workspace:*"

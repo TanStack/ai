@@ -25,14 +25,14 @@
     "smoke": "pnpm smoke:server && pnpm smoke:expo"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^1.19.14",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "concurrently": "^9.1.2",
-    "dotenv": "^17.2.3",
-    "expo": "~56.0.5",
-    "hono": "^4.10.6",
+    "concurrently": "^9.2.4",
+    "dotenv": "^17.4.2",
+    "expo": "~56.0.17",
+    "hono": "^4.12.31",
     "react": "^19.2.3",
     "react-native": "0.85.3"
   },
