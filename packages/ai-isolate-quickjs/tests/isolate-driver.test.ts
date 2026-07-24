@@ -152,6 +152,108 @@ describe('createQuickJSIsolateDriver', () => {
     })
   })
 
+  describe('execute - timeout across host calls', () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+    it('enforces the wall-clock timeout while a host call is suspended', async () => {
+      const hostDurationMs = 800
+      const slow = makeBinding('slow', async () => {
+        await sleep(hostDurationMs)
+        return { done: true }
+      })
+      const driver = createQuickJSIsolateDriver({ timeout: 100 })
+      const context = await driver.createContext({ bindings: { slow } })
+
+      const startedAt = Date.now()
+      const result = await context.execute('return await slow({})')
+      const elapsedMs = Date.now() - startedAt
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('TimeoutError')
+      // Returns at the deadline, not after the full host call completes.
+      expect(elapsedMs).toBeLessThan(hostDurationMs / 2)
+    })
+
+    it('still interrupts a CPU-bound loop and keeps the context reusable', async () => {
+      const driver = createQuickJSIsolateDriver({ timeout: 50 })
+      const context = await driver.createContext({ bindings: {} })
+
+      const startedAt = Date.now()
+      const result = await context.execute(`
+        const start = Date.now();
+        while (Date.now() - start < 5000) {
+          // spin
+        }
+        return 1;
+      `)
+      const elapsedMs = Date.now() - startedAt
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('TimeoutError')
+      expect(elapsedMs).toBeLessThan(2000)
+
+      // The in-VM interrupt path leaves the context usable, unlike a
+      // host-call timeout (which must dispose the suspended VM).
+      const reuse = await context.execute('return 7')
+      expect(reuse.success).toBe(true)
+      expect(reuse.value).toBe(7)
+      await context.dispose()
+    })
+
+    it('does not crash, resume, or unhandled-reject when the host call settles after the timeout', async () => {
+      const rejections: Array<unknown> = []
+      const onRejection = (reason: unknown) => rejections.push(reason)
+      process.on('unhandledRejection', onRejection)
+
+      try {
+        let hostSettled = false
+        const slow = makeBinding('slow', async () => {
+          await sleep(300)
+          hostSettled = true
+          return { late: true }
+        })
+        const driver = createQuickJSIsolateDriver({ timeout: 50 })
+        const context = await driver.createContext({ bindings: { slow } })
+
+        const result = await context.execute('return await slow({})')
+        expect(result.success).toBe(false)
+        expect(result.error?.name).toBe('TimeoutError')
+
+        // Let the orphaned host promise settle so the VM resumes and unwinds.
+        await sleep(500)
+        expect(hostSettled).toBe(true)
+
+        // The late resumption disposed the VM; further execution is rejected
+        // cleanly rather than resuming the dead run.
+        const after = await context.execute('return 1')
+        expect(after.success).toBe(false)
+        expect(after.error?.name).toBe('DisposedError')
+
+        await sleep(10)
+      } finally {
+        process.off('unhandledRejection', onRejection)
+      }
+
+      expect(rejections).toEqual([])
+    })
+
+    it('dispose after a host-call timeout waits for the orphaned run and resolves cleanly', async () => {
+      const slow = makeBinding('slow', async () => {
+        await sleep(300)
+        return { late: true }
+      })
+      const driver = createQuickJSIsolateDriver({ timeout: 50 })
+      const context = await driver.createContext({ bindings: { slow } })
+
+      const result = await context.execute('return await slow({})')
+      expect(result.error?.name).toBe('TimeoutError')
+
+      // dispose() must wait for the suspended host call to unwind before
+      // freeing the VM; it resolves without throwing and leaks no context.
+      await expect(context.dispose()).resolves.toBeUndefined()
+    })
+  })
+
   describe('execute - error handling', () => {
     it('returns error for syntax errors', async () => {
       const driver = createQuickJSIsolateDriver()

@@ -2,6 +2,7 @@ import type { NormalizedError } from '@tanstack/ai-code-mode'
 
 const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'
+const TIMEOUT_ERROR = 'TimeoutError'
 
 /**
  * Whether this normalized error indicates the QuickJS VM should not be reused
@@ -20,6 +21,17 @@ export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) {
     const msg = error.message
     const lower = msg.toLowerCase()
+
+    // QuickJS raises `InternalError: interrupted` when the interrupt handler
+    // trips the execution deadline. Surface it as a timeout so a CPU-bound
+    // deadline and a wall-clock (host-call) deadline report the same error.
+    if (lower.includes('interrupted')) {
+      return {
+        name: TIMEOUT_ERROR,
+        message: 'Code execution exceeded timeout',
+        stack: error.stack,
+      }
+    }
 
     if (
       lower.includes('out of memory') ||
