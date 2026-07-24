@@ -1,5 +1,14 @@
 # @tanstack/ai-openrouter
 
+## 0.15.11
+
+### Patch Changes
+
+- [#888](https://github.com/TanStack/ai/pull/888) [`50d7a7d`](https://github.com/TanStack/ai/commit/50d7a7da319bd39c578548390a723302f90068c7) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`3301398`](https://github.com/TanStack/ai/commit/330139878958fc5c5c167a69347c884fa35b792a), [`3301398`](https://github.com/TanStack/ai/commit/330139878958fc5c5c167a69347c884fa35b792a), [`3301398`](https://github.com/TanStack/ai/commit/330139878958fc5c5c167a69347c884fa35b792a), [`347b61b`](https://github.com/TanStack/ai/commit/347b61bc788bb816bbd12287c1a426ca7def00f4), [`7c7aa09`](https://github.com/TanStack/ai/commit/7c7aa09a7402b45e6285ebc78a606131aec3e288), [`4ce7600`](https://github.com/TanStack/ai/commit/4ce7600d5b543d4b7e3bd6d63cdf5ecf91cdeeaa)]:
+  - @tanstack/ai@0.43.0
+
 ## 0.15.10
 
 ### Patch Changes
