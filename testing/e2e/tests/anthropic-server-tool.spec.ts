@@ -86,3 +86,24 @@ test.describe('anthropic — webFetchTool() streaming (#604)', () => {
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
   })
 })
+
+test.describe('anthropic — signed thinking replay (#910)', () => {
+  test('keeps thinking blocks on the correct side of server tool calls', async ({
+    request,
+  }) => {
+    const res = await request.post(
+      '/api/anthropic-bug-test?case=thinking-order',
+    )
+    expect(res.ok()).toBe(true)
+    const { chunks, error } = (await res.json()) as {
+      chunks: Array<Record<string, unknown>>
+      error: string | null
+    }
+
+    // The mounted Anthropic endpoint rejects the request unless the replayed
+    // content blocks are thinking(A) → server tool/result → thinking(B) →
+    // local tool. This mirrors Anthropic's signed-thinking validation.
+    expect(error).toBeNull()
+    expect(chunks.some((chunk) => chunk.type === 'RUN_FINISHED')).toBe(true)
+  })
+})

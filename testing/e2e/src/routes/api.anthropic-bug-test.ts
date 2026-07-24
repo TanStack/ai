@@ -8,6 +8,7 @@ import {
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { webFetchTool } from '@tanstack/ai-anthropic/tools'
 import { z } from 'zod'
+import type { UIMessage } from '@tanstack/ai'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -28,10 +29,107 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 export const Route = createFileRoute('/api/anthropic-bug-test')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
         const adapter = createAnthropicChat('claude-sonnet-4-5', DUMMY_KEY, {
           baseURL: `${LLMOCK_DEFAULT_BASE}/anthropic-bug-test`,
         })
+
+        if (
+          new URL(request.url).searchParams.get('case') === 'thinking-order'
+        ) {
+          const messages: Array<UIMessage> = [
+            {
+              id: 'initial-user-message',
+              role: 'user',
+              parts: [{ type: 'text', content: 'Research top AI companies' }],
+            },
+            {
+              id: 'assistant-message',
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'thinking',
+                  content: 'First signed thinking block',
+                  signature: 'signature-1',
+                },
+                {
+                  type: 'tool-call',
+                  id: 'srvtoolu_search',
+                  name: 'web_search',
+                  arguments: '{"query":"top AI companies"}',
+                  state: 'input-complete',
+                  metadata: {
+                    providerExecuted: true,
+                    anthropic: {
+                      serverToolType: 'web_search',
+                      resultBlockType: 'web_search_tool_result',
+                      result: [
+                        {
+                          type: 'web_search_result',
+                          title: 'Example result',
+                          url: 'https://example.com',
+                          encrypted_content: 'opaque-provider-payload',
+                        },
+                      ],
+                    },
+                  },
+                },
+                {
+                  type: 'thinking',
+                  content: 'Second signed thinking block',
+                  signature: 'signature-2',
+                },
+                {
+                  type: 'tool-call',
+                  id: 'toolu_create_block',
+                  name: 'createBlock',
+                  arguments: '{"block":{"type":"entity-grid"}}',
+                  state: 'complete',
+                  output: { ok: true },
+                },
+                {
+                  type: 'tool-result',
+                  toolCallId: 'toolu_create_block',
+                  content: '{"ok":true}',
+                  state: 'complete',
+                },
+              ],
+            },
+            {
+              id: 'follow-up-user-message',
+              role: 'user',
+              parts: [
+                {
+                  type: 'text',
+                  content: '[thinking-tool-order] continue',
+                },
+              ],
+            },
+          ]
+
+          const chunks: Array<unknown> = []
+          try {
+            for await (const chunk of chat({
+              ...createChatOptions({ adapter }),
+              messages,
+            })) {
+              chunks.push(chunk)
+            }
+          } catch (error) {
+            return new Response(
+              JSON.stringify({
+                chunks,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+
+          return new Response(JSON.stringify({ chunks, error: null }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
 
         // A trivial client tool the user might pair with webFetchTool(). The
         // server lookup just echoes back so the agent loop can settle into

@@ -201,6 +201,208 @@ describe('Message Converters', () => {
       expect(result[0]?.thinking).toEqual([{ content: 'Let me think...' }])
     })
 
+    it('should preserve thinking order around provider-executed tool calls', () => {
+      const providerToolMetadata = {
+        providerExecuted: true,
+        anthropic: {
+          serverToolType: 'web_search',
+          resultBlockType: 'web_search_tool_result',
+          result: [
+            {
+              type: 'web_search_result',
+              title: 'Example result',
+              url: 'https://example.com',
+              encrypted_content: 'opaque-provider-payload',
+            },
+          ],
+        },
+      }
+      const uiMessage: UIMessage = {
+        id: 'assistant-message',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'thinking',
+            content: 'First signed thinking block',
+            signature: 'signature-1',
+          },
+          {
+            type: 'tool-call',
+            id: 'srvtoolu_search',
+            name: 'web_search',
+            arguments: '{"query":"top AI companies"}',
+            state: 'input-complete',
+            metadata: providerToolMetadata,
+          },
+          {
+            type: 'thinking',
+            content: 'Second signed thinking block',
+            signature: 'signature-2',
+          },
+          {
+            type: 'tool-call',
+            id: 'toolu_create_block',
+            name: 'createBlock',
+            arguments: '{"block":{"type":"entity-grid"}}',
+            state: 'complete',
+            output: { ok: true },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'toolu_create_block',
+            content: '{"ok":true}',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const result = convertMessagesToModelMessages([uiMessage])
+
+      expect(result).toEqual([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'srvtoolu_search',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"top AI companies"}',
+              },
+              metadata: providerToolMetadata,
+            },
+          ],
+          thinking: [
+            {
+              content: 'First signed thinking block',
+              signature: 'signature-1',
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'toolu_create_block',
+              type: 'function',
+              function: {
+                name: 'createBlock',
+                arguments: '{"block":{"type":"entity-grid"}}',
+              },
+            },
+          ],
+          thinking: [
+            {
+              content: 'Second signed thinking block',
+              signature: 'signature-2',
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: '{"ok":true}',
+          toolCallId: 'toolu_create_block',
+        },
+      ])
+    })
+
+    it('should keep local tool calls and results in the same assistant turn', () => {
+      const uiMessage: UIMessage = {
+        id: 'assistant-message',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-call-a',
+            name: 'toolA',
+            arguments: '{"value":"a"}',
+            state: 'input-complete',
+          },
+          {
+            type: 'thinking',
+            content: 'Thinking between local tool calls',
+          },
+          {
+            type: 'tool-call',
+            id: 'tool-call-b',
+            name: 'toolB',
+            arguments: '{"value":"b"}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tool-call-a',
+            content: '{"result":"a"}',
+            state: 'complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tool-call-b',
+            content: '{"result":"b"}',
+            state: 'complete',
+          },
+        ],
+      }
+
+      const modelMessages = uiMessageToModelMessages(uiMessage)
+
+      expect(modelMessages).toEqual([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tool-call-a',
+              type: 'function',
+              function: {
+                name: 'toolA',
+                arguments: '{"value":"a"}',
+              },
+            },
+            {
+              id: 'tool-call-b',
+              type: 'function',
+              function: {
+                name: 'toolB',
+                arguments: '{"value":"b"}',
+              },
+            },
+          ],
+          thinking: [{ content: 'Thinking between local tool calls' }],
+        },
+        {
+          role: 'tool',
+          content: '{"result":"a"}',
+          toolCallId: 'tool-call-a',
+        },
+        {
+          role: 'tool',
+          content: '{"result":"b"}',
+          toolCallId: 'tool-call-b',
+        },
+      ])
+
+      const roundTripped = modelMessagesToUIMessages(modelMessages)
+
+      expect(roundTripped).toHaveLength(1)
+      expect(roundTripped[0]?.parts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'tool-call', id: 'tool-call-a' }),
+          expect.objectContaining({ type: 'tool-call', id: 'tool-call-b' }),
+          expect.objectContaining({
+            type: 'tool-result',
+            toolCallId: 'tool-call-a',
+          }),
+          expect.objectContaining({
+            type: 'tool-result',
+            toolCallId: 'tool-call-b',
+          }),
+        ]),
+      )
+    })
+
     it('should skip system messages', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
