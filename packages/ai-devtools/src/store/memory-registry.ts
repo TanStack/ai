@@ -98,22 +98,22 @@ function scopeDim(value: string | undefined): string {
 /**
  * Stable scope key:
  * `{tenantId|_}:{userId|_}:{threadId}:{namespace|_}`.
- * Empty/absent `threadId` (e.g. error scope) buckets to `(unknown)` so broken
- * events do not invent a fake conversation.
+ * Absent scope (e.g. `memory:error` before resolve) buckets to `(unknown)`.
  */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
-  const threadId = scope?.threadId
-  if (!threadId || threadId.length === 0) return '(unknown)'
-  return `${scopeDim(scope?.tenantId)}:${scopeDim(scope?.userId)}:${escapeScopeDim(threadId)}:${scopeDim(scope?.namespace)}`
+  if (!scope) return '(unknown)'
+  return `${scopeDim(scope.tenantId)}:${scopeDim(scope.userId)}:${escapeScopeDim(scope.threadId)}:${scopeDim(scope.namespace)}`
 }
 
 /** Human-readable label for the Memory panel scope picker. */
 export function memoryScopeLabel(entry: MemoryScopeState): string {
-  const thread =
-    entry.threadId && entry.threadId.length > 0 ? entry.threadId : '(unknown)'
-  const parts = [entry.tenantId, entry.userId, thread, entry.namespace].filter(
-    (p): p is string => p != null && p.length > 0,
-  )
+  if (entry.key === '(unknown)' || !entry.threadId) return '(unknown)'
+  const parts = [
+    entry.tenantId,
+    entry.userId,
+    entry.threadId,
+    entry.namespace,
+  ].filter((p): p is string => p != null && p.length > 0)
   return parts.join(' · ')
 }
 
@@ -137,9 +137,12 @@ function ensureScope(
     }
     state.scopes[key] = entry
   }
-  if (scope?.userId) entry.userId = scope.userId
-  if (scope?.tenantId) entry.tenantId = scope.tenantId
-  if (scope?.namespace) entry.namespace = scope.namespace
+  // Only merge metadata when we have a real scope (not the unscoped error bucket).
+  if (scope) {
+    if (scope.userId) entry.userId = scope.userId
+    if (scope.tenantId) entry.tenantId = scope.tenantId
+    if (scope.namespace) entry.namespace = scope.namespace
+  }
   return entry
 }
 

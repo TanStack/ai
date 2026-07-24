@@ -84,7 +84,7 @@ Under the hood the middleware emits these events on `aiEventClient` (from
 | `memory:retrieve:completed` | Recall returns (fragment count, whether tools were injected) |
 | `memory:persist:started` | A deferred save begins |
 | `memory:persist:completed` | A save completes (receipt count) |
-| `memory:error` | A `recall` or `save` threw (`phase: 'recall'` or `'save'`) |
+| `memory:error` | A `recall` or `save` threw (`phase: 'recall'` or `'save'`). Carries `scope` only when it was already resolved; omitted if the resolver failed or never ran. |
 
 ## Failures are non-fatal
 

@@ -95,4 +95,5 @@ fails the turn.
 Five events on `aiEventClient` (from `@tanstack/ai-event-client`):
 `memory:retrieve:started` / `:completed`, `memory:persist:started` / `:completed`,
 `memory:error` (`phase: 'recall' | 'save'`). Payloads carry the adapter id and
-fragment/receipt counts, not full memory text.
+fragment/receipt counts, not full memory text. Error events include `scope` only
+when it was already resolved; if the resolver threw, `scope` is omitted.

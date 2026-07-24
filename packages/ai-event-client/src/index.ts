@@ -825,13 +825,19 @@ export interface VideoUsageEvent extends BaseEventContext {
 // ---------------------------------------------------------------------------
 
 /**
- * Lite scope for devtools payloads. Structural mirror of shared `Scope` /
- * `MemoryScope` field set; every field optional so error/telemetry events can
- * carry a partial identity. Not an isolation authority — adapters own that.
- * Kept structurally minimal so the event client stays decoupled from `@tanstack/ai`.
+ * Wire/devtools payload for a **known** memory scope.
+ *
+ * Structural mirror of `Scope` from `@tanstack/ai` (`threadId` required when
+ * present). Not an isolation authority — adapters use real `MemoryScope` /
+ * `Scope`. Lives here so `@tanstack/ai-event-client` does not import
+ * `@tanstack/ai` (dependency cycle).
+ *
+ * When identity is unknown (e.g. the scope resolver threw before producing a
+ * scope), omit the field entirely on {@link MemoryErrorEvent} — do not send a
+ * partial or empty-string scope.
  */
 export type MemoryScopeLite = {
-  threadId?: string
+  threadId: string
   userId?: string
   tenantId?: string
   /** Reserved on `Scope`; carried for display/identity parity. */
@@ -879,7 +885,11 @@ export interface MemoryPersistCompletedEvent extends BaseEventContext {
 
 /** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
 export interface MemoryErrorEvent extends BaseEventContext {
-  scope: MemoryScopeLite
+  /**
+   * Scope when it was already resolved before the failure. Omitted when the
+   * resolver itself failed or never ran — there is no fake empty scope.
+   */
+  scope?: MemoryScopeLite
   adapter: string
   phase: 'recall' | 'save'
   error: { name: string; message: string }

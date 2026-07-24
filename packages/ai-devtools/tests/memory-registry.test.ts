@@ -107,7 +107,7 @@ describe('memory registry', () => {
     expect(state.scopes[memoryScopeKey(SCOPE)]!.lastActivity).toBe(40)
   })
 
-  it('isolates scopes and buckets missing threadId to (unknown)', () => {
+  it('isolates scopes and buckets omitted error scope to (unknown)', () => {
     const state = createMemoryRegistryState()
     applyMemoryEvent(state, {
       type: 'persist:started',
@@ -117,7 +117,7 @@ describe('memory registry', () => {
     })
     applyMemoryEvent(state, {
       type: 'error',
-      scope: { threadId: '' },
+      // Resolver never produced a scope — omit entirely (no empty-string fake).
       adapter: 'in-memory',
       phase: 'save',
       error: { name: 'Error', message: 'x' },
@@ -127,6 +127,22 @@ describe('memory registry', () => {
       '(unknown)',
       memoryScopeKey({ threadId: 'a' }),
     ])
+    expect(state.scopes['(unknown)']!.events[0]).toMatchObject({
+      type: 'error',
+      phase: 'save',
+    })
+    // Errors that resolved a scope stay in that scope's timeline.
+    applyMemoryEvent(state, {
+      type: 'error',
+      scope: { threadId: 'a' },
+      adapter: 'in-memory',
+      phase: 'recall',
+      error: { name: 'Error', message: 'adapter failed' },
+      timestamp: 3,
+    })
+    expect(state.scopes[memoryScopeKey({ threadId: 'a' })]!.events).toHaveLength(
+      2,
+    )
   })
 
   it('stores full Scope identity and isolates composite scopes', () => {
