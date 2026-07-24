@@ -228,6 +228,46 @@ test.describe('Middleware Lifecycle', () => {
     }
   })
 
+  test('otel middleware rolls up usage across a tool loop', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'tool-loop', testId },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (span: any) => span.kind === SpanKind.CLIENT,
+    )
+    expect(iterationSpans).toHaveLength(2)
+    expect(iterationSpans.every((span: any) => span.ended)).toBe(true)
+
+    const rootSpans = spans.filter(
+      (span: any) =>
+        span.kind === SpanKind.INTERNAL &&
+        span.attributes['tanstack.ai.iterations'] === 2,
+    )
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].ended).toBe(true)
+
+    for (const key of [
+      'gen_ai.usage.input_tokens',
+      'gen_ai.usage.output_tokens',
+      'gen_ai.usage.total_tokens',
+    ]) {
+      expect(rootSpans[0].attributes[key]).toBe(
+        iterationSpans.reduce(
+          (total: number, span: any) => total + span.attributes[key],
+          0,
+        ),
+      )
+    }
+  })
+
   test('otel middleware emits total/cache/reasoning usage details on spans', async ({
     request,
   }) => {
