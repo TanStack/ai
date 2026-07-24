@@ -367,6 +367,15 @@ export interface ModelMessage<
   toolCalls?: Array<ToolCall>
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Optional stable message id. Providers ignore it; it exists so a persisted
+   * transcript can retain the streaming `messageId` and survive the
+   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+   * reuses it instead of generating a fresh id, so a hydrated message keeps the
+   * same identity as its live stream — which is what lets a mid-stream reload
+   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
+   */
+  id?: string
 }
 
 /**

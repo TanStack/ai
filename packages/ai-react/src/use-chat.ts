@@ -39,8 +39,12 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TSchema, TContext>,
 ): UseChatReturn<TTools, TSchema> {
+  // The hook's identity is its `threadId` — also the persistence key, so a
+  // reload with the same `threadId` restores the same conversation. `hookId` is
+  // only a stable fallback for React's client-recreation keying when no
+  // `threadId` is given (an ephemeral chat), never a persistence key.
   const hookId = useId()
-  const clientId = options.id || hookId
+  const clientId = options.threadId ?? hookId
 
   const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -73,6 +77,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const isFirstMountRef = useRef(true)
+  const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -123,7 +128,6 @@ export function useChat<
     const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
-      id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(initialOptions.threadId !== undefined && {
@@ -279,8 +283,17 @@ export function useChat<
   useEffect(() => {
     if (options.live) {
       client.subscribe()
-    } else {
+      subscribedRef.current = true
+    } else if (subscribedRef.current) {
+      // Only tear down a subscription we actually started. Calling
+      // `unsubscribe()` on initial mount (when `live` was never enabled) would
+      // abort an in-flight delivery resume — `resumeInFlightRun` is kicked off
+      // in the client constructor, and `unsubscribe()` cancels the shared
+      // in-flight stream — so a mid-stream reload would drop its rejoin before
+      // it delivers a single chunk. This is exactly why a reload froze instead
+      // of continuing.
       client.unsubscribe()
+      subscribedRef.current = false
     }
   }, [client, options.live])
 
@@ -307,18 +320,22 @@ export function useChat<
         }
         cleanupInvalidationRef.current = null
       }, 0)
-      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
-      // effect above. This cleanup only fires on unmount or client swap,
-      // so read `live` through the ref to avoid disposing the client every
-      // time `live` toggles.
-      if (optionsRef.current.live) {
-        client.unsubscribe()
-      } else {
-        client.stop()
-      }
+      // Soft cleanup only: do NOT stop/unsubscribe here. React Strict Mode
+      // remounts fire this cleanup then re-attach the same client one tick
+      // later; calling `stop()` would abort a constructor rejoin
+      // (`resumeInFlightRun`) and can wipe the durable resume pointer before
+      // the first chunk. Real teardown lives in the deferred dispose path
+      // below, which only runs when the client is not remounted.
+      // Subscribe/unsubscribe on `options.live` is still owned by the
+      // dedicated effect above for live toggles.
       const disposal = {
         client,
         timeout: setTimeout(() => {
+          if (optionsRef.current.live) {
+            client.unsubscribe()
+          } else {
+            client.stop()
+          }
           client.dispose()
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null

@@ -11,7 +11,11 @@ import {
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
-import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ResumableConnectConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions } from '../src/types'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
@@ -169,7 +173,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
+        threadId: 'persisted-chat',
         persistence: persistence,
       })
 
@@ -197,7 +201,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-empty-chat',
+        threadId: 'persisted-empty-chat',
         initialMessages,
         persistence: persistence,
       })
@@ -235,10 +239,10 @@ describe('useChat', () => {
       }
 
       function useChangingChat() {
-        const [id, setId] = useState('old-chat')
+        const [threadId, setId] = useState('old-chat')
         const chat = useChat({
           connection: createMockConnectionAdapter(),
-          id,
+          threadId,
           persistence: persistence,
         })
 
@@ -263,13 +267,13 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(newMessages)
     })
 
-    it('should use provided id', async () => {
+    it('should use provided threadId', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'custom-id',
+        threadId: 'custom-id',
       })
 
       await result.current.sendMessage('Test')
@@ -325,6 +329,159 @@ describe('useChat', () => {
       expect(result.current).not.toHaveProperty('resume')
       expect(typeof result.current.resumeInterrupts).toBe('function')
       expect(result.current.resumeState).toBeNull()
+    })
+
+    it('rejoins an in-flight run on mount without aborting it (live off)', async () => {
+      // Regression: the mount effect used to call `client.unsubscribe()` when
+      // `live` was false, which aborted the delivery resume the constructor had
+      // just kicked off — so a reload dropped the rejoin before it delivered a
+      // chunk. The rejoined run must stream through to the message list.
+      const runChunks: Array<StreamChunk> = [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'a1',
+          role: 'assistant',
+          timestamp: 2,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'a1',
+          delta: 'resumed reply',
+          timestamp: 3,
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'stop',
+          timestamp: 5,
+        },
+      ]
+      const joinRun = vi.fn(async function* (_runId: string) {
+        for (const chunk of runChunks) yield chunk
+      })
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun,
+      }
+      // Server-authoritative store: no cached messages, only a resume pointer.
+      const persistence: ChatClientPersistence = {
+        getItem: () => ({
+          messages: [],
+          resume: {
+            schemaVersion: 2,
+            resumeState: { threadId: 't1', runId: 'r1' },
+          },
+        }),
+        setItem: () => {},
+        removeItem: () => {},
+      }
+
+      const { result } = renderUseChat({
+        connection,
+        threadId: 't1',
+        persistence,
+      })
+
+      await waitFor(() => {
+        const assistant = result.current.messages.find(
+          (m) => m.role === 'assistant',
+        )
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('resumed reply')
+      })
+    })
+
+    it('rejoins under StrictMode remount without aborting the constructor rejoin', async () => {
+      // Soft-dispose cleanup must not call stop() — Strict Mode remount reuses
+      // the same client one tick later, and stop() would abort rejoin + wipe
+      // the resume pointer before the first chunk.
+      let releaseFirstChunk!: () => void
+      const firstChunkGate = new Promise<void>((resolve) => {
+        releaseFirstChunk = resolve
+      })
+      const joinRun = vi.fn(async function* (_runId: string) {
+        await firstChunkGate
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'r1',
+            threadId: 't1',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'a1',
+            role: 'assistant',
+            timestamp: 2,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'a1',
+            delta: 'strict-ok',
+            timestamp: 3,
+          },
+          { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'r1',
+            threadId: 't1',
+            finishReason: 'stop',
+            timestamp: 5,
+          },
+        ]
+        for (const chunk of chunks) yield chunk
+      })
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun,
+      }
+      const persistence: ChatClientPersistence = {
+        getItem: () => ({
+          messages: [],
+          resume: {
+            schemaVersion: 2,
+            resumeState: { threadId: 't1', runId: 'r1' },
+          },
+        }),
+        setItem: () => {},
+        removeItem: () => {},
+      }
+
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection,
+            threadId: 't1',
+            persistence,
+          }),
+        { wrapper: StrictMode },
+      )
+
+      // Let Strict Mode mount → cleanup → remount complete before chunks flow.
+      await act(async () => {
+        await Promise.resolve()
+        releaseFirstChunk()
+      })
+
+      await waitFor(() => {
+        const assistant = result.current.messages.find(
+          (m) => m.role === 'assistant',
+        )
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('strict-ok')
+      })
+      // Strict Mode may construct more than one client in dev; what matters is
+      // rejoin completed (content above) and was not aborted before attach.
+      expect(joinRun).toHaveBeenCalled()
+      expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
     })
   })
 
@@ -1050,7 +1207,7 @@ describe('useChat', () => {
         {
           initialProps: {
             connection: adapter,
-            id: 'old-client',
+            threadId: 'old-client',
             onChunk: oldOnChunk,
           },
         },
@@ -1063,7 +1220,7 @@ describe('useChat', () => {
 
       rerender({
         connection: adapter,
-        id: 'new-client',
+        threadId: 'new-client',
         onChunk: newOnChunk,
       })
 
@@ -1162,8 +1319,8 @@ describe('useChat', () => {
         // Control id via state so setMessages and setId are both React
         // state updates that get batched into a single render.
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1225,8 +1382,8 @@ describe('useChat', () => {
         ]
 
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1454,11 +1611,11 @@ describe('useChat', () => {
 
         const { result: result1 } = renderUseChat({
           connection: adapter1,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter2,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         await result1.current.sendMessage('Hello 1')
@@ -1482,11 +1639,11 @@ describe('useChat', () => {
         const adapter = createMockConnectionAdapter()
         const { result: result1 } = renderUseChat({
           connection: adapter,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         // Should not interfere with each other

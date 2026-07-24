@@ -1,0 +1,657 @@
+import { defineChatMiddleware } from '@tanstack/ai'
+import {
+  InterruptsCapability,
+  LocksCapability,
+  PersistenceCapability,
+  provideInterrupts,
+  provideLocks,
+  providePersistence,
+} from './capabilities'
+import {
+  validateChatPersistenceStores,
+  validatePersistenceStoreKeys,
+} from './types'
+import type {
+  AbortInfo,
+  ChatMiddleware,
+  ChatMiddlewareConfig,
+  ChatMiddlewareContext,
+  ChatResumeToolState,
+  ErrorInfo,
+  FinishInfo,
+  GenerationAbortInfo,
+  GenerationErrorInfo,
+  GenerationFinishInfo,
+  GenerationMiddleware,
+  GenerationMiddlewareContext,
+  ModelMessage,
+  RunAgentResumeItem,
+  StreamChunk,
+  ToolApprovalResolution,
+  TokenUsage,
+} from '@tanstack/ai'
+import type {
+  AIPersistence,
+  AIPersistenceStores,
+  InterruptRecord,
+  RunStore,
+} from './types'
+
+interface RunStateEntry {
+  merged: boolean
+  interrupted: boolean
+  /**
+   * Resumes accepted in `onConfig` but not yet committed to the interrupt
+   * store. They are applied (resolve/cancel) only once the run reaches a
+   * successful boundary — see {@link commitPendingResumes}. Left uncommitted
+   * (still pending in the store) if the run fails or aborts first.
+   */
+  pendingResumes?: {
+    pending: Array<InterruptRecord>
+    resumeByInterruptId: Map<string, RunAgentResumeItem>
+  }
+  /** Accumulated terminal-turn text, for throttled streaming snapshots (B). */
+  streamingText?: string
+  /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
+  lastSnapshotAt?: number
+  /**
+   * The current assistant turn's stream messageId, captured from
+   * `TEXT_MESSAGE_START`. Persisted onto the assistant message so its identity
+   * survives the persist → hydrate round-trip and a reload can resume the same
+   * bubble in place.
+   */
+  streamingMessageId?: string
+}
+
+const runState = new WeakMap<object, RunStateEntry>()
+
+const validResumeStatuses = new Set(['resolved', 'cancelled'])
+
+function validatePendingResumes(
+  pending: Array<InterruptRecord>,
+  resume: Array<RunAgentResumeItem> | undefined,
+): Map<string, RunAgentResumeItem> {
+  const pendingInterruptIds = new Set(
+    pending.map((interrupt) => interrupt.interruptId),
+  )
+  const resumeByInterruptId = new Map(
+    (resume ?? []).map((entry) => [entry.interruptId, entry]),
+  )
+  if (pending.length === 0) {
+    const staleEntry = resume?.[0]
+    if (staleEntry) {
+      throw new Error(
+        `Resume entry references non-pending interrupt ${staleEntry.interruptId}.`,
+      )
+    }
+    return resumeByInterruptId
+  }
+  if (!resume || resume.length === 0) {
+    throw new Error(
+      `Thread has pending interrupts; resume is required before accepting new input.`,
+    )
+  }
+
+  for (const interrupt of pending) {
+    const entry = resumeByInterruptId.get(interrupt.interruptId)
+    if (!entry) {
+      throw new Error(
+        `Missing resume entry for pending interrupt ${interrupt.interruptId}.`,
+      )
+    }
+    if (!validResumeStatuses.has(entry.status)) {
+      throw new Error(
+        `Invalid resume status for pending interrupt ${interrupt.interruptId}: ${entry.status}.`,
+      )
+    }
+  }
+  for (const entry of resume) {
+    if (!pendingInterruptIds.has(entry.interruptId)) {
+      throw new Error(
+        `Resume entry references non-pending interrupt ${entry.interruptId}.`,
+      )
+    }
+  }
+  return resumeByInterruptId
+}
+
+async function applyPendingResumes(
+  pending: Array<InterruptRecord>,
+  resumeByInterruptId: Map<string, RunAgentResumeItem>,
+  interrupts: NonNullable<AIPersistence['stores']['interrupts']>,
+): Promise<void> {
+  for (const interrupt of pending) {
+    const entry = resumeByInterruptId.get(interrupt.interruptId)
+    if (!entry) continue
+    if (entry.status === 'resolved') {
+      await interrupts.resolve(interrupt.interruptId, entry.payload)
+    } else {
+      await interrupts.cancel(interrupt.interruptId)
+    }
+  }
+}
+
+/**
+ * Commit the resumes stashed in `onConfig`, marking each resumed interrupt
+ * resolved/cancelled. Called only from success boundaries (`onFinish`, and the
+ * `onChunk` interrupt boundary) so a provider failure or abort between accepting
+ * the resume and reaching a boundary leaves the interrupts pending — the
+ * approval is not consumed and a retry with the same resume succeeds. Idempotent
+ * and a no-op when nothing is stashed.
+ */
+async function commitPendingResumes(
+  state: RunStateEntry | undefined,
+  interrupts: AIPersistence['stores']['interrupts'],
+): Promise<void> {
+  if (!state?.pendingResumes || !interrupts) return
+  const { pending, resumeByInterruptId } = state.pendingResumes
+  // Apply first; only clear the in-memory stash after every resolve/cancel
+  // succeeds so a mid-loop store failure can still re-drive remaining ids
+  // if the hook is retried (or a later boundary re-enters commit).
+  await applyPendingResumes(pending, resumeByInterruptId, interrupts)
+  state.pendingResumes = undefined
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function stringField(
+  value: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  return typeof value[key] === 'string' ? value[key] : undefined
+}
+
+function interruptKind(interrupt: InterruptRecord): string | undefined {
+  const metadata = objectValue(interrupt.payload.metadata)
+  return metadata ? stringField(metadata, 'kind') : undefined
+}
+
+function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
+  if (entry.status === 'cancelled') return false
+  const payload = objectValue(entry.payload)
+  // Fail closed: persisted resume payloads may be malformed or truncated, so a
+  // missing/non-boolean `approved` denies the tool rather than running it.
+  return typeof payload?.approved === 'boolean' ? payload.approved : false
+}
+
+/**
+ * Translate the persisted pending interrupts + the resume batch into the
+ * `ChatResumeToolState` the chat engine consumes. This is the server-authoritative
+ * counterpart to the engine's ephemeral (client-history) reconstruction: because
+ * the persistence flow sends empty client messages, the engine has no history to
+ * rebuild from, so persistence supplies the resume state directly (and clears
+ * `config.resume` so the ephemeral path is skipped — see `onConfig`).
+ */
+function resumeToolStateFromPending(
+  pending: Array<InterruptRecord>,
+  resumeByInterruptId: Map<string, RunAgentResumeItem>,
+): ChatResumeToolState | undefined {
+  const approvals = new Map<string, ToolApprovalResolution>()
+  const clientToolResults = new Map<string, unknown>()
+
+  for (const interrupt of pending) {
+    const entry = resumeByInterruptId.get(interrupt.interruptId)
+    if (!entry) continue
+
+    const kind = interruptKind(interrupt)
+    const reason = stringField(interrupt.payload, 'reason')
+    const toolCallId = stringField(interrupt.payload, 'toolCallId')
+
+    if (kind === 'approval' || reason === 'approval_required') {
+      approvals.set(interrupt.interruptId, resolvedApprovalDecision(entry))
+      continue
+    }
+
+    if (
+      entry.status === 'resolved' &&
+      toolCallId &&
+      (kind === 'client_tool' || reason === 'client_tool_input')
+    ) {
+      clientToolResults.set(toolCallId, entry.payload)
+    }
+  }
+
+  if (approvals.size === 0 && clientToolResults.size === 0) return undefined
+  return { approvals, clientToolResults }
+}
+
+/**
+ * Build the transcript to persist when a run finishes successfully.
+ *
+ * The chat engine appends an assistant message to the middleware message list
+ * only when that turn carries tool calls (to feed the agent loop); a run's
+ * terminal *text* reply is never appended. So `ctx.messages` at `onFinish` is
+ * missing the assistant's final answer. Reattach it from the finish info —
+ * `info.content` is the last turn's accumulated text (reset each cycle) — so
+ * the stored thread is the complete conversation a server-authoritative client
+ * hydrates on load. A guard avoids duplicating a terminal assistant turn should
+ * the engine ever start appending it itself.
+ */
+function finishedTranscript(
+  messages: ReadonlyArray<ModelMessage>,
+  info: FinishInfo,
+  messageId: string | undefined,
+): Array<ModelMessage> {
+  const transcript = [...messages]
+  const last = transcript[transcript.length - 1]
+  const alreadyPresent =
+    last?.role === 'assistant' &&
+    last.toolCalls === undefined &&
+    last.content === info.content
+  if (info.content && !alreadyPresent) {
+    // Stamp the terminal turn with its stream messageId so a hydrated bubble
+    // keeps the same identity as the live stream (in-place resume on reload).
+    transcript.push({
+      role: 'assistant',
+      content: info.content,
+      ...(messageId ? { id: messageId } : {}),
+    })
+  }
+  return transcript
+}
+
+function interruptPayload(interrupt: unknown): Record<string, unknown> {
+  return interrupt && typeof interrupt === 'object'
+    ? { ...(interrupt as Record<string, unknown>) }
+    : { value: interrupt }
+}
+
+// ---------------------------------------------------------------------------
+// Shared store / feature plan
+// ---------------------------------------------------------------------------
+
+interface PersistencePlan {
+  wantsMessages: boolean
+  wantsInterrupts: boolean
+  wantsLocks: boolean
+  runs: AIPersistence['stores']['runs']
+}
+
+function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
+  return {
+    wantsMessages: persistence.stores.messages !== undefined,
+    wantsInterrupts: persistence.stores.interrupts !== undefined,
+    wantsLocks: persistence.stores.locks !== undefined,
+    runs: persistence.stores.runs,
+  }
+}
+
+type StoreIsDefinitelyPresent<
+  TStores extends AIPersistenceStores,
+  TKey extends keyof AIPersistenceStores,
+> = TKey extends keyof TStores
+  ? object extends Pick<TStores, TKey>
+    ? false
+    : [Exclude<TStores[TKey], undefined>] extends [never]
+      ? false
+      : true
+  : false
+
+type StoreIsDefinitelyAbsent<
+  TStores extends AIPersistenceStores,
+  TKey extends keyof AIPersistenceStores,
+> = TKey extends keyof TStores
+  ? [Exclude<TStores[TKey], undefined>] extends [never]
+    ? true
+    : false
+  : true
+
+type InvalidChatPersistence<TStores extends AIPersistenceStores> =
+  StoreIsDefinitelyPresent<TStores, 'interrupts'> extends true
+    ? StoreIsDefinitelyAbsent<TStores, 'runs'>
+    : false
+
+type ValidChatPersistence<TStores extends AIPersistenceStores> =
+  InvalidChatPersistence<TStores> extends true ? never : unknown
+
+async function createOrResumeRun(
+  runs: RunStore | undefined,
+  runId: string,
+  threadId: string,
+): Promise<void> {
+  await runs?.createOrResume({
+    runId,
+    threadId,
+    startedAt: Date.now(),
+  })
+}
+
+async function completeRun(
+  runs: RunStore | undefined,
+  runId: string,
+  usage?: TokenUsage,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'completed',
+    finishedAt: Date.now(),
+    ...(usage ? { usage } : {}),
+  })
+}
+
+async function failRun(
+  runs: RunStore | undefined,
+  runId: string,
+  error: unknown,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'failed',
+    finishedAt: Date.now(),
+    error: error instanceof Error ? error.message : String(error),
+  })
+}
+
+async function interruptRun(
+  runs: RunStore | undefined,
+  runId: string,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'interrupted',
+    finishedAt: Date.now(),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Chat middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Chat-only persistence middleware. Provides durable **state** for `chat()`:
+ * thread messages, run records, interrupts, and locks. This middleware never
+ * mutates the chunk stream; delivery durability (replaying a
+ * disconnected/reloaded stream) is a separate transport-layer concern (see
+ * the resumable-streams docs).
+ *
+ * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
+ * `messages` array it is treated as the FULL conversation history and, on
+ * finish, **overwrites** the entire stored thread. Post only the complete
+ * transcript, never a delta — sending just the newest message(s) will replace
+ * (and thereby destroy) the stored thread. To continue a stored thread without
+ * resending history, pass an empty `messages` array and the stored transcript
+ * is loaded and used.
+ */
+export interface WithPersistenceOptions {
+  /**
+   * Also persist a throttled snapshot of the in-progress assistant reply while
+   * it streams. Off by default — the transcript is otherwise persisted at the
+   * pending turn (`onStart`), interrupt boundaries, and completion (`onFinish`).
+   * Enable it to recover partial output if the process dies mid-generation, at
+   * the cost of extra writes. Snapshots are throttled to at most one per
+   * {@link WithPersistenceOptions.snapshotIntervalMs}.
+   */
+  snapshotStreaming?: boolean
+  /**
+   * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
+   * is on. Defaults to 1000.
+   */
+  snapshotIntervalMs?: number
+}
+
+export function withPersistence<TStores extends AIPersistenceStores>(
+  persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
+  options?: WithPersistenceOptions,
+): ChatMiddleware
+export function withPersistence(
+  persistence: AIPersistence,
+  options: WithPersistenceOptions = {},
+): ChatMiddleware {
+  validateChatPersistenceStores(persistence)
+  const snapshotStreaming = options.snapshotStreaming ?? false
+  const snapshotIntervalMs = options.snapshotIntervalMs ?? 1000
+  const plan = resolvePersistencePlan(persistence)
+  const { wantsMessages, wantsInterrupts, wantsLocks, runs } = plan
+
+  const provides = [
+    PersistenceCapability,
+    ...(wantsInterrupts ? [InterruptsCapability] : []),
+    ...(wantsLocks ? [LocksCapability] : []),
+  ]
+
+  return defineChatMiddleware({
+    name: 'chat-persistence',
+    provides,
+    setup(ctx: ChatMiddlewareContext) {
+      providePersistence(ctx, persistence)
+
+      runState.set(ctx, {
+        merged: false,
+        interrupted: false,
+      })
+
+      if (wantsInterrupts && persistence.stores.interrupts) {
+        provideInterrupts(ctx, persistence.stores.interrupts)
+      }
+      if (wantsLocks && persistence.stores.locks) {
+        provideLocks(ctx, persistence.stores.locks)
+      }
+    },
+
+    async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
+      if (ctx.phase !== 'init') return
+
+      const patch: Partial<ChatMiddlewareConfig> = {}
+
+      if (wantsInterrupts && persistence.stores.interrupts) {
+        const pending = await persistence.stores.interrupts.listPending(
+          ctx.threadId,
+        )
+        // Gate: a thread with pending interrupts must carry a resume batch that
+        // references them.
+        const resumeByInterruptId = validatePendingResumes(
+          pending,
+          config.resume,
+        )
+        // Persistence is the server-authoritative resume path: translate the
+        // persisted interrupts into the engine's resume tool state and CLEAR
+        // `config.resume`, so the engine skips its ephemeral reconstruction
+        // (which needs a parentRunId and the client message history the
+        // persistence flow deliberately omits).
+        if ((config.resume?.length ?? 0) > 0) {
+          const resumeToolState = resumeToolStateFromPending(
+            pending,
+            resumeByInterruptId,
+          )
+          patch.resume = []
+          if (resumeToolState) patch.resumeToolState = resumeToolState
+        }
+        // Defer marking these interrupts resolved/cancelled until the run
+        // succeeds (see commitPendingResumes). Committing here would consume the
+        // approval even if the run then failed, breaking a retry.
+        const state = runState.get(ctx)
+        if (state && pending.length > 0) {
+          state.pendingResumes = { pending, resumeByInterruptId }
+        }
+      }
+
+      await createOrResumeRun(runs, ctx.runId, ctx.threadId)
+
+      if (wantsMessages && persistence.stores.messages) {
+        const state = runState.get(ctx)
+        if (!state?.merged) {
+          if (state) state.merged = true
+          const stored = await persistence.stores.messages.loadThread(
+            ctx.threadId,
+          )
+          patch.messages = config.messages.length > 0 ? config.messages : stored
+        }
+      }
+
+      return Object.keys(patch).length > 0 ? patch : undefined
+    },
+
+    async onStart(ctx: ChatMiddlewareContext) {
+      // (A) Persist the pending turn (the just-submitted user message plus any
+      // prior history) as soon as the run starts, so a reload mid-run rehydrates
+      // it before the assistant reply exists. Best-effort: a failed eager
+      // snapshot must not abort the run — the authoritative save is `onFinish`.
+      if (!wantsMessages || !persistence.stores.messages) return
+      try {
+        await persistence.stores.messages.saveThread(ctx.threadId, [
+          ...ctx.messages,
+        ])
+      } catch {
+        // Eager pre-save is best-effort; the run continues and onFinish saves.
+      }
+    },
+
+    async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
+      // Always capture the current assistant turn's stream messageId (cheap),
+      // regardless of snapshotStreaming — it's persisted onto the assistant
+      // message so its identity survives hydrate and a reload resumes the same
+      // bubble in place.
+      if (chunk.type === 'TEXT_MESSAGE_START') {
+        const s = runState.get(ctx)
+        if (s) {
+          s.streamingMessageId = chunk.messageId
+          s.streamingText = ''
+        }
+      }
+
+      // (B) Optional throttled snapshot of the in-progress assistant reply, so
+      // partial output survives a crash/reload before onFinish. Off unless
+      // `snapshotStreaming` is set. We accumulate the terminal turn's text here
+      // (the engine only appends assistant turns with tool calls to
+      // `ctx.messages`, never a streaming text reply), then persist
+      // `ctx.messages` + that partial assistant message (tagged with its id).
+      if (
+        snapshotStreaming &&
+        wantsMessages &&
+        persistence.stores.messages &&
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        typeof chunk.delta === 'string'
+      ) {
+        const snapshotState = runState.get(ctx)
+        if (snapshotState) {
+          snapshotState.streamingText =
+            (snapshotState.streamingText ?? '') + chunk.delta
+          const now = Date.now()
+          if (now - (snapshotState.lastSnapshotAt ?? 0) >= snapshotIntervalMs) {
+            snapshotState.lastSnapshotAt = now
+            try {
+              await persistence.stores.messages.saveThread(ctx.threadId, [
+                ...ctx.messages,
+                {
+                  role: 'assistant',
+                  content: snapshotState.streamingText,
+                  ...(snapshotState.streamingMessageId
+                    ? { id: snapshotState.streamingMessageId }
+                    : {}),
+                },
+              ])
+            } catch {
+              // Streaming snapshots are best-effort; onFinish persists final.
+            }
+          }
+        }
+      }
+
+      // State-only: react to the interrupt boundary (create interrupt records,
+      // mark the run interrupted, snapshot thread messages). The chunk stream is
+      // never mutated — delivery durability is a transport-layer concern.
+      if (
+        chunk.type !== 'RUN_FINISHED' ||
+        chunk.outcome?.type !== 'interrupt'
+      ) {
+        return
+      }
+      const state = runState.get(ctx)
+      if (!state) return
+
+      if (wantsInterrupts && persistence.stores.interrupts) {
+        // The run reached a new interrupt boundary, so the resumes it consumed
+        // are committed before the fresh interrupts are recorded.
+        await commitPendingResumes(state, persistence.stores.interrupts)
+        for (const interrupt of chunk.outcome.interrupts) {
+          await persistence.stores.interrupts.create({
+            interruptId: interrupt.id,
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            requestedAt: Date.now(),
+            payload: interruptPayload(interrupt),
+          })
+        }
+      }
+      await interruptRun(runs, ctx.runId)
+      if (wantsMessages && persistence.stores.messages) {
+        await persistence.stores.messages.saveThread(ctx.threadId, [
+          ...ctx.messages,
+        ])
+      }
+      state.interrupted = true
+    },
+
+    async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
+      const state = runState.get(ctx)
+      if (state?.interrupted) return
+      // Transcript first: if saveThread fails the run stays non-completed and
+      // resumes stay pending so a retry can re-apply them. Completing the run
+      // or consuming approvals before the durable history lands leaves a
+      // "finished" run whose transcript is missing the terminal turn.
+      if (wantsMessages && persistence.stores.messages) {
+        await persistence.stores.messages.saveThread(
+          ctx.threadId,
+          finishedTranscript(ctx.messages, info, state?.streamingMessageId),
+        )
+      }
+      await completeRun(runs, ctx.runId, info.usage)
+      await commitPendingResumes(state, persistence.stores.interrupts)
+    },
+
+    async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
+      await failRun(runs, ctx.runId, info.error)
+    },
+
+    async onAbort(ctx: ChatMiddlewareContext, _info: AbortInfo) {
+      await interruptRun(runs, ctx.runId)
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Generation middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Generation-only persistence middleware. Tracks run status (run records) for
+ * image, audio, TTS, video, and transcription activities.
+ */
+export function withGenerationPersistence<TStores extends AIPersistenceStores>(
+  persistence: AIPersistence<TStores>,
+): GenerationMiddleware
+export function withGenerationPersistence(
+  persistence: AIPersistence,
+): GenerationMiddleware {
+  validatePersistenceStoreKeys(persistence)
+  const { runs } = resolvePersistencePlan(persistence)
+
+  // A generation activity has no thread or agent run: its only stable identity
+  // is `requestId`, so the run record is keyed by it on both axes.
+  return {
+    name: 'generation-persistence',
+
+    async onStart(ctx: GenerationMiddlewareContext) {
+      await createOrResumeRun(runs, ctx.requestId, ctx.requestId)
+    },
+
+    async onFinish(
+      ctx: GenerationMiddlewareContext,
+      info: GenerationFinishInfo,
+    ) {
+      await completeRun(runs, ctx.requestId, info.usage)
+    },
+
+    async onError(ctx: GenerationMiddlewareContext, info: GenerationErrorInfo) {
+      await failRun(runs, ctx.requestId, info.error)
+    },
+
+    async onAbort(
+      ctx: GenerationMiddlewareContext,
+      _info: GenerationAbortInfo,
+    ) {
+      await interruptRun(runs, ctx.requestId)
+    },
+  }
+}

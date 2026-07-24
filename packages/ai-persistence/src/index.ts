@@ -1,0 +1,50 @@
+// Store contracts + aggregate
+export { composePersistence, defineAIPersistence } from './types'
+export type {
+  MessageStore,
+  RunStatus,
+  RunRecord,
+  RunStore,
+  InterruptRecord,
+  InterruptStatus,
+  InterruptStore,
+  MetadataStore,
+  AIPersistence,
+  AIPersistenceStores,
+  AIPersistenceOverrides,
+  ComposedAIPersistenceStores,
+  // Shared conversation identity from @tanstack/ai. Stores key on
+  // Scope.threadId; authorize multi-user access with Scope.userId/tenantId.
+  Scope,
+} from './types'
+
+// Middleware
+export { withPersistence, withGenerationPersistence } from './middleware'
+
+// Server helper: rehydrate a thread's messages for a client load
+export { reconstructChat } from './reconstruct'
+export type { ReconstructChatOptions } from './reconstruct'
+
+// Reference in-memory implementation
+export { memoryPersistence } from './memory'
+
+// Interrupt controller
+export { createInterruptController } from './interrupts'
+export type { InterruptController } from './interrupts'
+
+// Capabilities (incl. the Locks token, owned by this package)
+export {
+  PersistenceCapability,
+  InterruptsCapability,
+  getPersistence,
+  providePersistence,
+  getInterrupts,
+  provideInterrupts,
+  LocksCapability,
+  getLocks,
+  provideLocks,
+} from './capabilities'
+
+// Lock primitive (owned here; sandbox persistence will bridge the token later)
+export { InMemoryLockStore } from './locks'
+export type { LockStore } from './locks'

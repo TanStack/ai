@@ -107,6 +107,58 @@ test.describe('delivery durability', () => {
   })
 })
 
+test.describe('delivery durability (agent loop)', () => {
+  test('delivers a full tool-calling run, not truncated at the first RUN_FINISHED', async ({
+    request,
+  }) => {
+    // A tool-calling run emits a RUN_FINISHED per iteration (finishReason
+    // "tool_calls" then "stop"). Regression guard: the durable sink must deliver
+    // the tool result and the second iteration that follow the FIRST terminal —
+    // a sink that ended the log on the first RUN_FINISHED stranded tool-calling
+    // runs at the tool call.
+    const produce = await request.post(
+      '/api/durable-delivery?scenario=agent-loop',
+      { data: {} },
+    )
+    expect(produce.ok()).toBeTruthy()
+    const events = parseSse(await produce.text())
+    const types = events.map(eventType)
+
+    // Both per-iteration terminals arrive (old behaviour stopped after the first).
+    expect(types.filter((t) => t === 'RUN_FINISHED')).toHaveLength(2)
+    // The tool result and the second iteration's reply survive the first terminal.
+    expect(types).toContain('TOOL_CALL_RESULT')
+    expect(contentDeltas(events)).toEqual(['done'])
+    // Every event is offset-tagged, and the log ends on the final 'stop' terminal.
+    expect(events.every((e) => e.id !== undefined)).toBeTruthy()
+    const last = events[events.length - 1]!
+    expect(eventType(last)).toBe('RUN_FINISHED')
+    expect((last.data as { finishReason: string }).finishReason).toBe('stop')
+  })
+
+  test('a second tab joins a finished tool-calling run in full', async ({
+    request,
+  }) => {
+    const produce = await request.post(
+      '/api/durable-delivery?scenario=agent-loop',
+      { data: {} },
+    )
+    const runId = produce.headers()['x-run-id']
+    if (!runId) throw new Error('Missing X-Run-Id response header')
+
+    const join = await request.get(
+      `/api/durable-delivery?offset=-1&runId=${encodeURIComponent(runId)}`,
+    )
+    expect(join.ok()).toBeTruthy()
+    const joined = parseSse(await join.text())
+    const types = joined.map(eventType)
+    // The replayed log is complete: both terminals, the tool result, the reply.
+    expect(types.filter((t) => t === 'RUN_FINISHED')).toHaveLength(2)
+    expect(types).toContain('TOOL_CALL_RESULT')
+    expect(contentDeltas(joined)).toEqual(['done'])
+  })
+})
+
 /**
  * The same delivery-durability guarantees over the NDJSON wire encoding
  * (`?transport=ndjson`). NDJSON has no native event-id, so each durable line is

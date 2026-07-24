@@ -40,7 +40,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 export function SupportChat() {
   const chat = useChat({
-    id: 'support-chat',
+    threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
     devtools: {
       name: 'Support Chat',

@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+﻿import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
   chat,
@@ -396,7 +396,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Chat server function — pairs with useChat({ fetcher })
+// Chat server function â€” pairs with useChat({ fetcher })
 // =============================================================================
 
 export const chatFn = createServerFn({ method: 'POST' })

@@ -1,0 +1,14 @@
+// App datasource + generator. The TanStack AI persistence models live in the
+// sibling `tanstack-ai.prisma` fragment (copied from
+// `@tanstack/ai-persistence-prisma`), so this multi-file schema owns them and
+// Prisma generates the app's migrations for them.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "sqlite"
+}

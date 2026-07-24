@@ -109,7 +109,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -175,12 +175,6 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Persistence",
-          "to": "chat/persistence",
-          "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-14"
         }
       ]
     },
@@ -225,7 +219,8 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-07-17",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Advanced",
@@ -236,6 +231,76 @@
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
           "addedAt": "2026-07-17"
+        }
+      ]
+    },
+    {
+      "label": "Persistence",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "persistence/overview",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Chat Persistence",
+          "to": "persistence/chat-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Client Persistence",
+          "to": "persistence/client-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Controls",
+          "to": "persistence/controls",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-23"
+        },
+        {
+          "label": "Custom Stores",
+          "to": "persistence/custom-stores",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "SQL Backends",
+          "to": "persistence/sql-backends",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Drizzle",
+          "to": "persistence/drizzle",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Prisma",
+          "to": "persistence/prisma",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "persistence/cloudflare",
+          "addedAt": "2026-07-22"
+        },
+        {
+          "label": "Migrations",
+          "to": "persistence/migrations",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
+        },
+        {
+          "label": "Internals",
+          "to": "persistence/internals",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         }
       ]
     },

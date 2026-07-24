@@ -1,0 +1,59 @@
+{
+  "name": "persistent-chat-prisma",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "predev": "prisma migrate deploy && prisma generate",
+    "dev": "vite dev --port 3021",
+    "build": "vite build",
+    "serve": "vite preview",
+    "test": "exit 0",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "^7.0.0",
+    "@prisma/client": "^7.0.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-prisma": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "@tanstack/react-router": "^1.158.4",
+    "@tanstack/react-start": "^1.159.0",
+    "@tanstack/router-plugin": "^1.158.4",
+    "dotenv": "^17.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "nitro": "3.0.260610-beta",
+    "prisma": "^7.0.0",
+    "typescript": "5.9.3",
+    "vite": "^8.1.4"
+  },
+  "nx": {
+    "targets": {
+      "db:generate": {
+        "cache": false
+      },
+      "test:types": {
+        "dependsOn": [
+          "db:generate"
+        ]
+      },
+      "build": {
+        "dependsOn": [
+          "db:generate"
+        ]
+      }
+    }
+  }
+}

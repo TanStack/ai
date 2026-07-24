@@ -6,7 +6,6 @@ import {
   onScopeDispose,
   readonly,
   shallowRef,
-  useId,
   watch,
 } from 'vue'
 import type {
@@ -50,9 +49,6 @@ export function useChat<
     TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
-  const hookId = useId() // Available in Vue 3.5+
-  const clientId = options.id || hookId
-
   const messages = shallowRef<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
@@ -98,10 +94,12 @@ export function useChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),

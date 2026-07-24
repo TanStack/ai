@@ -50,8 +50,12 @@ export function useChat<
     TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
+  // The hook's identity is its `threadId` — also the persistence key, so a
+  // reload with the same `threadId` restores the same conversation. `hookId` is
+  // only a stable fallback for client-recreation keying when no `threadId` is
+  // given (an ephemeral chat), never a persistence key.
   const hookId = createUniqueId()
-  const clientId = options.id || hookId
+  const clientId = options.threadId ?? hookId
 
   const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -105,7 +109,6 @@ export function useChat<
     return new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
-      id: clientId,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),

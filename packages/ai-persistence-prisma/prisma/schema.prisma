@@ -1,0 +1,10 @@
+// Internal test-client configuration. The models live in the provider-neutral
+// sibling fragment that is shipped to package consumers.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}

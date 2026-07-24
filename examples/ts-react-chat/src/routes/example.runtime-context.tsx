@@ -283,7 +283,7 @@ function RuntimeContextExamplePage() {
     ],
   )
   const { messages, sendMessage, isLoading, error, stop } = useChat({
-    id: 'runtime-context-example',
+    threadId: 'runtime-context-example',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools: runtimeContextTools,
     context: runtimeContext,

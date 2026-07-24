@@ -68,11 +68,6 @@ export function createChat<
 >(
   options: CreateChatOptions<TTools, TSchema, TContext>,
 ): CreateChatReturn<TTools, TSchema, TContext> {
-  // Generate a unique ID for this chat instance
-  const clientId =
-    options.id ||
-    `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
@@ -113,10 +108,12 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
