@@ -9,6 +9,11 @@ id: drizzle
 migrations. You own the schema file (or accept stock defaults), generate DDL
 with **your** drizzle-kit journal, and pass the schema into the runtime.
 
+> **Runnable example:** `examples/persistent-chat-drizzle` in this repo is this
+> guide end to end — the persistent-chat demo (streaming, tool calls, durable
+> approval interrupts) backed by SQLite with an emitted schema, committed
+> drizzle-kit migrations, and `ensureTables: false`.
+
 Two entry points:
 
 - the package root accepts an already-created, migrated Drizzle database plus

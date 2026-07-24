@@ -101,3 +101,6 @@ allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
   prisma: true
+  # examples/persistent-chat-prisma uses the Prisma 7 better-sqlite3 driver
+  # adapter, whose native addon must build.
+  better-sqlite3: true

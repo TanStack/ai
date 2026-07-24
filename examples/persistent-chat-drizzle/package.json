@@ -1,0 +1,40 @@
+{
+  "name": "persistent-chat-drizzle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs",
+    "predev": "node scripts/migrate.mjs",
+    "dev": "vite dev --port 3020",
+    "build": "vite build",
+    "serve": "vite preview",
+    "test": "exit 0",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-persistence-drizzle": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "@tanstack/react-router": "^1.158.4",
+    "@tanstack/react-start": "^1.159.0",
+    "@tanstack/router-plugin": "^1.158.4",
+    "drizzle-orm": "^0.45.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "drizzle-kit": "^0.31.0",
+    "nitro": "3.0.260610-beta",
+    "typescript": "5.9.3",
+    "vite": "^8.1.4"
+  }
+}

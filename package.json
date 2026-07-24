@@ -17,7 +17,7 @@
     "test:pr": "pnpm run test:react-native && nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:oxlint,test:lib,test:types,test:build,build && pnpm test:dts",
     "test:ci": "pnpm run test:react-native && nx run-many --targets=test:sherif,test:knip,test:docs,test:kiira,test:oxlint,test:lib,test:types,test:build,build && pnpm test:dts",
     "test:oxlint": "nx affected --target=test:oxlint --exclude=examples/**,testing/**",
-    "test:sherif": "sherif --ignore-dependency typescript --ignore-dependency vite",
+    "test:sherif": "sherif --ignore-dependency typescript --ignore-dependency vite --ignore-dependency prisma --ignore-dependency @prisma/client",
     "test:lib": "nx affected --targets=test:lib --exclude=examples/**,testing/**",
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
     "test:coverage": "nx affected --targets=test:coverage --exclude=examples/**,testing/**",

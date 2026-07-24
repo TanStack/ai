@@ -9,6 +9,12 @@ id: prisma
 `PrismaClient`. The package provides a provider-neutral models fragment, not a
 datasource, generator, connection URL, or prebuilt SQL migration.
 
+> **Runnable example:** `examples/persistent-chat-prisma` in this repo is this
+> guide end to end on **Prisma 7** — the persistent-chat demo (streaming, tool
+> calls, durable approval interrupts) over SQLite with the copied models
+> fragment, `prisma.config.ts`, native migrations, and the better-sqlite3 driver
+> adapter.
+
 ## Prisma 6 and 7
 
 Both major versions are supported. `prismaPersistence` types its argument
