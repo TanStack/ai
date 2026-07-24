@@ -118,6 +118,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
   'structured-output-stream': new Set([
     'openai',
+    'gemini',
     'groq',
     'grok',
     'bedrock',

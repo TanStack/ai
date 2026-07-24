@@ -438,6 +438,148 @@ export class GeminiTextInteractionsAdapter<
       )
     }
   }
+
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const { chatOptions, outputSchema } = options
+    const runId = chatOptions.runId ?? generateId(this.name)
+    const threadId = chatOptions.threadId ?? generateId(this.name)
+    const timestamp = Date.now()
+    const effectivePreviousInteractionId =
+      chatOptions.modelOptions?.previous_interaction_id ??
+      this.interactionIdByThread.get(threadId)
+    const baseRequest = buildInteractionsRequest({
+      ...chatOptions,
+      modelOptions: {
+        ...chatOptions.modelOptions,
+        previous_interaction_id: effectivePreviousInteractionId,
+      },
+    })
+    const request: GeminiInteractionsRequestBody = {
+      ...baseRequest,
+      stream: true,
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: outputSchema,
+      },
+    }
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=gemini-text-interactions model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model, request },
+      )
+      const stream = (await this.client.interactions.create(
+        request as GeminiInteractionsRequestBody &
+          Parameters<typeof this.client.interactions.create>[0],
+        { signal: chatOptions.abortController?.signal },
+      )) as AsyncIterable<InteractionSSEEvent>
+
+      let rawText = ''
+      let finished:
+        | Extract<StreamChunk, { type: typeof EventType.RUN_FINISHED }>
+        | undefined
+      let failed = false
+      for await (const chunk of translateInteractionEvents(
+        stream,
+        chatOptions.model,
+        runId,
+        threadId,
+        chatOptions.parentRunId,
+        timestamp,
+        this.name,
+        chatOptions.logger,
+      )) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+          rawText += chunk.delta
+        if (
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'gemini.interactionId'
+        ) {
+          const value =
+            chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          this.interactionIdByThread.set(threadId, value.interactionId)
+        }
+        if (chunk.type === EventType.RUN_ERROR) failed = true
+        if (chunk.type === EventType.RUN_FINISHED) finished = chunk
+        else yield chunk
+      }
+
+      if (failed) return
+      if (!finished) {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          'Gemini Interactions structured-output stream ended without a terminal event',
+          'truncated-stream',
+        )
+        return
+      }
+      if (!rawText) {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          'Gemini Interactions structured-output stream contained no content',
+          'empty-response',
+        )
+        return
+      }
+      let object: unknown
+      try {
+        object = JSON.parse(rawText)
+      } catch {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          'Failed to parse Gemini Interactions structured-output stream as JSON',
+          'parse-error',
+        )
+        return
+      }
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: { object, raw: rawText },
+        model: chatOptions.model,
+        timestamp,
+      }
+      yield finished
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during structured output streaming.'
+      chatOptions.logger.errors(
+        'gemini-text-interactions.structuredOutputStream fatal',
+        { error, source: 'gemini-text-interactions.structuredOutputStream' },
+      )
+      yield interactionsStructuredStreamError(
+        chatOptions,
+        runId,
+        message,
+        'provider-error',
+      )
+    }
+  }
+}
+
+function interactionsStructuredStreamError(
+  options: TextOptions<GeminiTextInteractionsProviderOptions>,
+  runId: string,
+  message: string,
+  code: string,
+): Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> {
+  return {
+    type: EventType.RUN_ERROR,
+    runId,
+    model: options.model,
+    timestamp: Date.now(),
+    message,
+    code,
+    error: { message, code },
+  }
 }
 
 /** @experimental Interactions API is in Beta. */
