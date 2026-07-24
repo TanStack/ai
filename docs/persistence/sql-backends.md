@@ -10,12 +10,12 @@ models.
 
 | Adapter | Database support | Connection ownership | Schema workflow |
 | --- | --- | --- | --- |
-| `@tanstack/ai-persistence-drizzle` | SQLite-family only | Bring a migrated Drizzle DB, or use Node `/sqlite` | Bundled SQLite migration manifest and CLI |
+| `@tanstack/ai-persistence-drizzle` | SQLite-family | Bring a migrated Drizzle DB, or use Node `/sqlite` | Emit schema via CLI; your drizzle-kit owns migrations |
 | `@tanstack/ai-persistence-prisma` | Providers supported by your Prisma schema | Bring your generated `PrismaClient` | Copy models fragment, then use Prisma migrate |
 
-The Drizzle adapter does not accept a dialect selector. Its schema and stores
-use SQLite APIs. For a non-SQLite Drizzle database, implement the public
-`AIPersistence` store interfaces for that dialect.
+The Drizzle adapter does not ship SQL migrations. Pass a required `schema` to
+`drizzlePersistence`. For a non-SQLite Drizzle database, implement the public
+`AIPersistence` store interfaces for that dialect (or use Prisma).
 
 ## Local SQLite
 
@@ -24,23 +24,30 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 export const persistence = sqlitePersistence({
   url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
 })
 ```
+
+Uses the default schema and runtime table bootstrap. For production, emit the
+schema, migrate with drizzle-kit, and pass `{ schema, ensureTables: false }`.
 
 ## Existing SQLite or D1 Drizzle database
 
 ```ts ignore
 import { drizzle } from 'drizzle-orm/d1'
-import { drizzlePersistence, schema } from '@tanstack/ai-persistence-drizzle'
+import {
+  createDefaultSqliteSchema,
+  drizzlePersistence,
+} from '@tanstack/ai-persistence-drizzle'
 
 export function createPersistence(state: D1Database) {
-  const db = drizzle(state, { schema })
-  return drizzlePersistence(db)
+  const schema = createDefaultSqliteSchema()
+  return drizzlePersistence(drizzle(state, { schema }), { schema })
 }
 ```
 
-The package root is edge-safe; `/sqlite` is Node-only.
+The package root is edge-safe; `/sqlite` is Node-only. Prefer a project-owned
+schema from `tanstack-ai-drizzle-schema` over the default factory when you run
+drizzle-kit.
 
 ## Prisma
 

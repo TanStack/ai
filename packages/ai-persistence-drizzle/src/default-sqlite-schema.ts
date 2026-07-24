@@ -1,29 +1,18 @@
 /**
- * Drizzle schema for the TanStack AI **state** persistence contract.
+ * Default SQLite table definitions for TanStack AI state stores.
  *
- * Each table mirrors the corresponding record in
- * `@tanstack/ai-persistence`'s `types.ts` column-for-column. JSON-valued fields
- * are stored in `*_json` text columns; epoch millisecond timestamps are stored
- * as integers.
+ * Prefer owning this shape in your project via `tanstack-ai-drizzle-schema` and
+ * generating DDL with **your** drizzle-kit journal. This factory is the runtime
+ * convenience default used by {@link sqlitePersistence} and by apps that want
+ * the stock tables without copying a file first.
  *
- * This schema is the single source of truth for migrations: run
- * `pnpm db:generate` (drizzle-kit) after any change here. It is also exported
- * from the package so bring-your-own-drizzle users can drive their own
- * migration workflow against it.
- *
- * PROVENANCE: `db:generate` emits DDL into `drizzle/`, but the runtime's
- * `sqliteMigrations` (and the D1 sibling) load the DUPLICATE at
- * `src/assets/0000_tanstack_ai_initial.sql`. `db:generate` alone does NOT touch
- * that asset — copy the regenerated `drizzle/0000_tanstack_ai_initial.sql` over
- * it, or the shipped migration goes stale. The package-contract test "keeps the
- * shipped drizzle-kit migration equal to the embedded asset" fails on drift.
- *
- * Also keep this in sync with the sibling Prisma schema fragment
- * (`@tanstack/ai-persistence-prisma`'s `src/assets/tanstack-ai.prisma`).
+ * This package does **not** ship SQL migrations. Schema ownership and
+ * migration generation live in the application.
  */
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
+import type { TanstackAiSqliteSchema } from './schema-contract'
 
 /** Thread message history (`MessageStore`). */
 export const messages = sqliteTable('messages', {
@@ -69,10 +58,18 @@ export const metadata = sqliteTable(
   (table) => [primaryKey({ columns: [table.scope, table.key] })],
 )
 
-/** The full state schema, for `drizzlePersistence(db)` and drizzle-kit. */
-export const schema = {
-  messages,
-  runs,
-  interrupts,
-  metadata,
+/**
+ * Build a fresh copy of the default SQLite schema tables.
+ *
+ * Pass the result to {@link drizzlePersistence} or {@link sqlitePersistence},
+ * or prefer the file emitted by `tanstack-ai-drizzle-schema` when you want
+ * drizzle-kit to own DDL in your repo.
+ */
+export function createDefaultSqliteSchema(): TanstackAiSqliteSchema {
+  return {
+    messages,
+    runs,
+    interrupts,
+    metadata,
+  }
 }

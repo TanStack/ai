@@ -2,11 +2,11 @@
  * Structural contract for a user-supplied TanStack AI Drizzle schema.
  *
  * `drizzlePersistence` accepts any schema whose tables and columns carry the
- * required data shapes; table and column **database names are free**. This lets
- * a project own the schema file (emitted by `tanstack-ai-drizzle-schema`),
- * generate DDL through its own drizzle-kit journal — including projects using
- * drizzle's `casing` name transforms — and extend tables with extra columns
- * (for example an ownership `user_id`) without falling out of contract.
+ * required data shapes; table and column **database names are free**. Emit a
+ * starter with `tanstack-ai-drizzle-schema`, generate DDL through your own
+ * drizzle-kit journal — including projects using drizzle's `casing` name
+ * transforms — and extend tables with extra columns (for example an ownership
+ * `user_id`) without falling out of contract.
  *
  * Only the columns listed here are read or written by the stores. Extra
  * columns must therefore be nullable or defaulted so inserts succeed.
@@ -26,10 +26,9 @@ type AiColumn<TData> = AnySQLiteColumn<{ data: TData }>
 type AiTable<TColumns> = SQLiteTable & TColumns
 
 /**
- * The schema shape `drizzlePersistence` can operate over. `schema` exported
- * from this package satisfies it, as does the file emitted by the
- * `tanstack-ai-drizzle-schema` CLI. SQLite-only (the columns are Drizzle
- * SQLite columns), which the name makes explicit.
+ * The schema shape `drizzlePersistence` can operate over. Satisfied by
+ * {@link createDefaultSqliteSchema} and by the file emitted by
+ * `tanstack-ai-drizzle-schema`.
  */
 export interface TanstackAiSqliteSchema {
   messages: AiTable<{
@@ -62,10 +61,7 @@ export interface TanstackAiSqliteSchema {
   }>
 }
 
-/**
- * @deprecated Renamed to {@link TanstackAiSqliteSchema} — the contract is
- * SQLite-only, which the old name did not signal.
- */
+/** @deprecated Use {@link TanstackAiSqliteSchema}. */
 export type TanstackAiSchema = TanstackAiSqliteSchema
 
 const requiredColumns: {

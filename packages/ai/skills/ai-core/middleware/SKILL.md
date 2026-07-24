@@ -394,7 +394,6 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 const persistence = sqlitePersistence({
   url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
 })
 
 export async function POST(request: Request) {
@@ -434,14 +433,16 @@ Every backend returns an `AIPersistence` you pass straight to
 | Backend                                | Factory                                         | Import                                    |
 | -------------------------------------- | ----------------------------------------------- | ----------------------------------------- |
 | In-memory (dev/tests)                  | `memoryPersistence()`                           | `@tanstack/ai-persistence`                |
-| Drizzle SQLite-family (edge-safe)      | `drizzlePersistence(db)`                        | `@tanstack/ai-persistence-drizzle`        |
-| Node SQLite convenience factory        | `sqlitePersistence({ url, migrate })`           | `@tanstack/ai-persistence-drizzle/sqlite` |
+| Drizzle SQLite-family (edge-safe)      | `drizzlePersistence(db, { schema })`            | `@tanstack/ai-persistence-drizzle`        |
+| Node SQLite convenience factory        | `sqlitePersistence({ url })`                    | `@tanstack/ai-persistence-drizzle/sqlite` |
 | Prisma                                 | `prismaPersistence(prisma)`                     | `@tanstack/ai-persistence-prisma`         |
 | Cloudflare (D1 + Durable Object locks) | `cloudflarePersistence({ d1, durableObjects })` | `@tanstack/ai-persistence-cloudflare`     |
 
-`drizzlePersistence(db)` is the edge-safe root — pass an already-migrated
-SQLite-compatible Drizzle database (including Cloudflare D1). `sqlitePersistence`
-is Node-only and lives at the `/sqlite` subpath. Compose backends per store with
+`drizzlePersistence(db, { schema })` is the edge-safe root — pass an
+already-migrated SQLite-compatible Drizzle database (including Cloudflare D1)
+and a required schema (emit via `tanstack-ai-drizzle-schema`, or
+`createDefaultSqliteSchema()`). `sqlitePersistence` is Node-only and lives at
+the `/sqlite` subpath. Compose backends per store with
 `composePersistence(base, { overrides })`.
 
 ### Resume reconstruction is the middleware's job (server-authoritative path)

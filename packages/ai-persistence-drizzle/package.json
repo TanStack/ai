@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-drizzle",
   "version": "0.0.0",
-  "description": "SQLite-family Drizzle persistence for TanStack AI, with an edge-safe bring-your-own database adapter, a Node SQLite factory, and bundled migrations.",
+  "description": "Schema-first Drizzle SQLite persistence for TanStack AI. Emit a schema, own migrations with drizzle-kit, or use the Node SQLite convenience factory with stock defaults.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -30,20 +30,16 @@
     }
   },
   "bin": {
-    "tanstack-ai-drizzle-migrations": "./bin/tanstack-ai-drizzle-migrations.mjs",
     "tanstack-ai-drizzle-schema": "./bin/tanstack-ai-drizzle-schema.mjs"
   },
   "files": [
     "bin",
     "dist",
-    "src",
-    "drizzle",
-    "drizzle.config.ts"
+    "src"
   ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "db:generate": "drizzle-kit generate",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:lib": "vitest",
@@ -60,7 +56,6 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.45.0"
   }
 }

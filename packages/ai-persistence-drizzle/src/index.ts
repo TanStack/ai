@@ -1,12 +1,14 @@
 /**
  * Drizzle-backed SQLite-family persistence for TanStack AI.
  *
- * This root entry is safe to import in edge runtimes. Pass an already-created
- * and migrated SQLite-compatible Drizzle database, including Cloudflare D1, to
- * {@link drizzlePersistence}. Node's built-in SQLite convenience factory lives
- * at `@tanstack/ai-persistence-drizzle/sqlite`.
+ * Schema-first: this package does **not** ship SQL migrations. Emit a schema
+ * into your project with `tanstack-ai-drizzle-schema`, let **your** drizzle-kit
+ * journal own the DDL, then pass the schema into {@link drizzlePersistence}.
+ *
+ * This root entry is safe to import in edge runtimes. Node's convenience
+ * factory (default schema + optional runtime table bootstrap) lives at
+ * `@tanstack/ai-persistence-drizzle/sqlite`.
  */
-import { schema } from './schema'
 import { assertTanstackAiSchema } from './schema-contract'
 import {
   createInterruptStore,
@@ -17,44 +19,50 @@ import {
 import type { TanstackAiSqliteSchema } from './schema-contract'
 import type { DrizzleSqliteDb, TanstackAiTables } from './stores'
 
-export { schema } from './schema'
-export { sqliteMigrations } from './migrations'
+export { createDefaultSqliteSchema } from './default-sqlite-schema'
+export { ensureSqliteTables } from './ensure-sqlite-tables'
 export { drizzleSchemaFilename, drizzleSchemaSource } from './schema-source'
-export { DrizzleSchemaError } from './schema-contract'
+export { DrizzleSchemaError, assertTanstackAiSchema } from './schema-contract'
 export type { TanstackAiSqliteSchema } from './schema-contract'
-export type { SqliteMigration } from './migrations'
 export type { DrizzleSqliteDb } from './stores'
-// Deprecated aliases kept for backward compatibility (both are SQLite-only).
+/** @deprecated Use {@link TanstackAiSqliteSchema}. */
 export type { TanstackAiSchema } from './schema-contract'
+/** @deprecated Use {@link DrizzleSqliteDb}. */
 export type { DrizzleDb } from './stores'
 
 export interface DrizzlePersistenceOptions {
   /**
-   * Operate over your project's own copy of the TanStack AI schema instead of
-   * the bundled one — emit it with `tanstack-ai-drizzle-schema`, add it to
-   * your drizzle-kit schema paths, and pass it here. Table and column database
-   * names are yours to change (drizzle `casing` transforms included), and
-   * tables may carry extra app-owned columns as long as they are nullable or
-   * defaulted. Defaults to the bundled `schema` export.
+   * Your TanStack AI schema tables. Emit a starter with
+   * `tanstack-ai-drizzle-schema`, add it to drizzle-kit, generate migrations in
+   * your project, and pass the module here. Table/column database names are
+   * yours (including drizzle `casing`); extra app-owned columns are fine when
+   * nullable or defaulted.
+   *
+   * For the stock tables without a project file, use
+   * {@link createDefaultSqliteSchema}.
    */
-  schema?: TanstackAiSqliteSchema
+  schema: TanstackAiSqliteSchema
 }
 
 /**
  * Wire TanStack AI persistence stores over a migrated Drizzle SQLite database.
  *
- * No `locks` store is returned: this backend has no distributed lock primitive,
- * and bundling an `InMemoryLockStore` would silently hand multi-instance
- * deployments a lock that does not lock across instances. Consumers that need a
- * lock (e.g. `withSandbox`) transparently fall back to an in-process
- * `InMemoryLockStore`; for cross-instance locking use a distributed backend such
- * as the Cloudflare Durable Object lock (`@tanstack/ai-persistence-cloudflare`).
+ * `schema` is required — this package never applies bundled DDL. Own migrations
+ * via drizzle-kit (after emitting the schema) or call {@link ensureSqliteTables}
+ * for local bootstrap of a known schema.
+ *
+ * No `locks` store is returned: this backend has no distributed lock primitive.
+ * Consumers that need cross-instance locking should compose one in (for example
+ * the Cloudflare Durable Object lock).
  */
 export function drizzlePersistence(
   db: DrizzleSqliteDb,
-  options?: DrizzlePersistenceOptions,
+  options: DrizzlePersistenceOptions,
 ) {
-  const tables = resolveTables(options?.schema)
+  assertTanstackAiSchema(options.schema)
+  // Safe widening: stores depend on column data shapes (pinned by the contract)
+  // and runtime table/column objects (which carry database names into SQL).
+  const tables = options.schema as TanstackAiTables
   return {
     stores: {
       messages: createMessageStore(db, tables),
@@ -63,15 +71,4 @@ export function drizzlePersistence(
       metadata: createMetadataStore(db, tables),
     },
   }
-}
-
-function resolveTables(input?: TanstackAiSqliteSchema): TanstackAiTables {
-  if (!input) return schema
-  assertTanstackAiSchema(input)
-  // Safe widening: the stores only depend on the column *data* shapes, which
-  // `TanstackAiSqliteSchema` pins at the call site, and on the runtime table/column
-  // objects, which carry their own database names into the generated SQL. The
-  // concrete `TanstackAiTables` name literals are phantom types the store code
-  // never relies on.
-  return input as TanstackAiTables
 }

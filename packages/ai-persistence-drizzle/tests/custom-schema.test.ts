@@ -4,7 +4,11 @@ import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
-import { DrizzleSchemaError, drizzlePersistence, schema } from '../src/index'
+import {
+  createDefaultSqliteSchema,
+  DrizzleSchemaError,
+  drizzlePersistence,
+} from '../src/index'
 import { variantDdl, variantSchema } from './variant-schema'
 import type { TanstackAiSqliteSchema } from '../src/index'
 import type { DrizzleSqliteDb } from '../src/index'
@@ -29,7 +33,7 @@ function createVariantDb(): { db: DrizzleSqliteDb; sqlite: DatabaseSync } {
 }
 
 // The full store contract must hold when the runtime operates over a schema
-// whose table and column database names all differ from the bundled ones.
+// whose table and column database names all differ from the defaults.
 runPersistenceConformance(
   'drizzle-sqlite (injected variant schema)',
   () => drizzlePersistence(createVariantDb().db, { schema: variantSchema }),
@@ -85,8 +89,9 @@ describe('drizzlePersistence with an injected schema', () => {
 
   it('rejects a schema with missing tables or columns', () => {
     const { db } = createVariantDb()
+    const defaults = createDefaultSqliteSchema()
 
-    const { metadata: _dropped, ...withoutMetadata } = schema
+    const { metadata: _dropped, ...withoutMetadata } = defaults
     expect(() =>
       drizzlePersistence(db, {
         schema: withoutMetadata as unknown as TanstackAiSqliteSchema,
@@ -104,7 +109,7 @@ describe('drizzlePersistence with an injected schema', () => {
     expect(() =>
       drizzlePersistence(db, {
         schema: {
-          ...schema,
+          ...defaults,
           messages: incompleteMessages,
         } as unknown as TanstackAiSqliteSchema,
       }),

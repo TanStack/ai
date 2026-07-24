@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/sqlite-core'
-import { schema as bundled } from '../src/schema'
+import { createDefaultSqliteSchema } from '../src/default-sqlite-schema'
 import { schema as emitted } from '../src/assets/tanstack-ai-schema'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 
@@ -21,11 +21,12 @@ function normalize(table: SQLiteTable) {
 }
 
 describe('emitted schema asset', () => {
-  it('is structurally identical to the bundled schema', () => {
-    const tableKeys = Object.keys(bundled) as Array<keyof typeof bundled>
-    expect(Object.keys(emitted)).toEqual(Object.keys(bundled))
+  it('is structurally identical to createDefaultSqliteSchema()', () => {
+    const defaults = createDefaultSqliteSchema()
+    const tableKeys = Object.keys(defaults) as Array<keyof typeof defaults>
+    expect(Object.keys(emitted)).toEqual(Object.keys(defaults))
     for (const key of tableKeys) {
-      expect(normalize(emitted[key]), key).toEqual(normalize(bundled[key]))
+      expect(normalize(emitted[key]), key).toEqual(normalize(defaults[key]))
     }
   })
 })

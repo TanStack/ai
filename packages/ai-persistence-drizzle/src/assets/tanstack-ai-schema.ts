@@ -15,6 +15,9 @@
  * and rely on your drizzle `casing` configuration) and add extra app-owned
  * columns — keep added columns nullable or defaulted so the runtime's inserts
  * succeed, and keep the columns below with these data shapes.
+ *
+ * This package does not ship SQL migrations. Generate and apply them with
+ * drizzle-kit in this project.
  */
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'

@@ -15,11 +15,16 @@ export class SchemaCliError extends Error {
 
 const usage = `Usage: tanstack-ai-drizzle-schema (--out <directory> | --stdout) [--force]
 
-Emits the TanStack AI Drizzle schema module so your project owns it: add the
-file to your drizzle-kit schema paths and pass it to drizzlePersistence(db, { schema }).
+Emits the TanStack AI Drizzle schema module so **your** project owns it.
+
+This package does not ship SQL migrations. After emitting:
+
+  1. Add the file to your drizzle-kit schema paths
+  2. Run drizzle-kit generate / migrate in your app
+  3. Pass the schema to drizzlePersistence(db, { schema })
 
 Options:
-  --out <directory>  Copy the schema module into the directory.
+  --out <directory>  Write ${drizzleSchemaFilename} into the directory.
   --stdout           Print the schema module.
   --force            Replace a divergent file when copying.
   --help             Show this help.
@@ -77,7 +82,7 @@ async function readExistingFile(path: string): Promise<string | undefined> {
   }
 }
 
-/** Execute the schema asset CLI. Exported for deterministic CLI tests. */
+/** Execute the schema emit CLI. Exported for deterministic CLI tests. */
 export async function runDrizzleSchemaCli(
   args: ReadonlyArray<string>,
   output: SchemaCliOutput = {

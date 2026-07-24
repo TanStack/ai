@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import packageJson from '../package.json'
 
 describe('drizzle package contract', () => {
-  it('publishes the edge root, Node sqlite subpath, CLI, and migration assets', () => {
+  it('publishes the edge root, Node sqlite subpath, and schema-emit CLI only', () => {
     expect(packageJson.exports).toEqual({
       '.': {
         types: './dist/esm/index.d.ts',
@@ -16,20 +16,28 @@ describe('drizzle package contract', () => {
       },
     })
     expect(packageJson.bin).toEqual({
-      'tanstack-ai-drizzle-migrations':
-        './bin/tanstack-ai-drizzle-migrations.mjs',
       'tanstack-ai-drizzle-schema': './bin/tanstack-ai-drizzle-schema.mjs',
     })
-    expect(packageJson.files).toEqual(
-      expect.arrayContaining(['bin', 'dist', 'src', 'drizzle']),
-    )
+    expect(packageJson.files).toEqual(['bin', 'dist', 'src'])
+    expect(packageJson.bin).not.toHaveProperty('tanstack-ai-drizzle-migrations')
+    expect(packageJson.description.toLowerCase()).toMatch(/schema-first/)
+  })
+
+  it('does not ship SQL migrations or drizzle-kit journals', async () => {
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    await expect(
+      readFile(`${root}/src/assets/0000_tanstack_ai_initial.sql`, 'utf8'),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(
+      readFile(`${root}/drizzle/0000_tanstack_ai_initial.sql`, 'utf8'),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('keeps Node built-ins and Buffer out of the root import graph', async () => {
     const rootFiles = [
       'index.ts',
-      'migrations.ts',
-      'schema.ts',
+      'default-sqlite-schema.ts',
+      'ensure-sqlite-tables.ts',
       'schema-contract.ts',
       'schema-source.ts',
       'stores.ts',
@@ -46,22 +54,9 @@ describe('drizzle package contract', () => {
       fileURLToPath(new URL('../src/index.ts', import.meta.url)),
       'utf8',
     )
-    expect(root).not.toMatch(/from ['"].*sqlite/)
-  })
-
-  it('keeps the shipped drizzle-kit migration equal to the embedded asset', async () => {
-    const embedded = await readFile(
-      fileURLToPath(
-        new URL('../src/assets/0000_tanstack_ai_initial.sql', import.meta.url),
-      ),
-      'utf8',
-    )
-    const shipped = await readFile(
-      fileURLToPath(
-        new URL('../drizzle/0000_tanstack_ai_initial.sql', import.meta.url),
-      ),
-      'utf8',
-    )
-    expect(shipped).toBe(embedded)
+    // Root must not pull the Node-only `/sqlite` entry or `node:sqlite`.
+    expect(root).not.toMatch(/from ['"]\.\/sqlite['"]/)
+    expect(root).not.toMatch(/from ['"]node:sqlite['"]/)
+    expect(root).not.toMatch(/sqliteMigrations/)
   })
 })

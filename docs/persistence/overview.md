@@ -70,7 +70,6 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 const persistence = sqlitePersistence({
   url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
 })
 
 export async function POST(request: Request) {
@@ -170,7 +169,6 @@ import { sqlitePersistence } from '@tanstack/ai-persistence-drizzle/sqlite'
 
 const persistence = sqlitePersistence({
   url: 'file:.tanstack-ai/state.sqlite',
-  migrate: true,
 })
 
 export async function POST(request: Request) {
