@@ -13,6 +13,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
 import type { StreamChunk } from '@tanstack/ai'
 import { persistentChatPersistence } from '../lib/persistent-chat-store'
+import { sendEmailTool } from '../lib/persistent-chat-tools'
 
 const persistence = persistentChatPersistence()
 
@@ -72,10 +73,25 @@ const rollDice = toolDefinition({
   return { rolls, total: rolls.reduce((sum, roll) => sum + roll, 0) }
 })
 
+// A human-in-the-loop tool. The DEFINITION is shared with the client (see
+// `../lib/persistent-chat-tools`); here we attach the server implementation.
+// `needsApproval` pauses the run on an interrupt before the tool runs; the
+// interrupt is persisted by `withPersistence` and survives a reload — approve or
+// reject after refreshing and the run resumes from exactly where it paused.
+const sendEmail = sendEmailTool.server(({ to }) => {
+  // Demo: no real email is sent — the approval pause is the point.
+  return {
+    messageId: `msg-${Math.random().toString(36).slice(2, 10)}`,
+    to,
+  }
+})
+
 const SYSTEM_PROMPT =
   'You are a concise, friendly assistant. When the user asks about the ' +
-  'weather or to roll dice, use the getWeather / rollDice tools rather than ' +
-  'guessing, then summarize the result in a sentence.'
+  'weather or to roll dice, use the getWeather / rollDice tools. When the user ' +
+  'asks to send an email, use the sendEmail tool (it pauses for their ' +
+  'approval). Use tools rather than guessing, then summarize the result in a ' +
+  'sentence.'
 
 /**
  * Start the model run **detached from the HTTP connection** and let it run to
@@ -89,10 +105,17 @@ const SYSTEM_PROMPT =
  * the request's `abortController`: with no persistence, continuing after a
  * disconnect would just burn tokens no one reads, so it aborts.
  */
+type ChatParams = Awaited<ReturnType<typeof chatParamsFromRequestBody>>
+
 function startDetachedRun(
   runId: string,
   threadId: string,
-  messages: Awaited<ReturnType<typeof chatParamsFromRequestBody>>['messages'],
+  messages: ChatParams['messages'],
+  // Present on the follow-up request after the user answers an interrupt: the
+  // parent (interrupted) run and the approval/rejection batch. Forwarded to
+  // chat() so it rebuilds the paused tool call and continues.
+  resume?: ChatParams['resume'],
+  parentRunId?: string,
 ): void {
   if (activeProducers.has(runId)) return
   activeProducers.add(runId)
@@ -119,10 +142,12 @@ function startDetachedRun(
     middleware: [withPersistence(persistence, { snapshotStreaming: true })],
     agentLoopStrategy: maxIterations(10),
     systemPrompts: [SYSTEM_PROMPT],
-    tools: [getWeather, rollDice],
+    tools: [getWeather, rollDice, sendEmail],
     messages,
     threadId,
     runId,
+    ...(parentRunId ? { parentRunId } : {}),
+    ...(resume ? { resume } : {}),
     // No client abortController: the run owns its own lifetime.
   })
 
@@ -183,7 +208,15 @@ export const Route = createFileRoute('/api/persistent-chat')({
         // Kick off (or attach to) the detached run, then stream it to THIS
         // client by tailing the delivery log from the start. Cancelling this
         // response (a reload) cancels only the reader — never the producer.
-        startDetachedRun(params.runId, params.threadId, params.messages)
+        // `resume`/`parentRunId` are set on the follow-up after an interrupt is
+        // answered, so the paused tool call continues.
+        startDetachedRun(
+          params.runId,
+          params.threadId,
+          params.messages,
+          params.resume,
+          params.parentRunId,
+        )
 
         // This reader genuinely races the producer it just started, so give it a
         // generous first-chunk deadline (the default is tuned short for reload

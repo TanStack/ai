@@ -257,6 +257,46 @@
   font-style: italic;
 }
 
+.pc-approval {
+  margin: 0 2px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--pc-accent);
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.08);
+}
+.pc-approval-head {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.pc-approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pc-approve,
+.pc-reject {
+  padding: 7px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--pc-border);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pc-approve {
+  background: #22c55e;
+  color: #05240f;
+  border-color: #22c55e;
+}
+.pc-reject {
+  background: transparent;
+  color: var(--pc-text);
+}
+.pc-approve:disabled,
+.pc-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pc-composer {
   position: sticky;
   bottom: 0;

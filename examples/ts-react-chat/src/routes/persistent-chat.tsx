@@ -5,6 +5,7 @@ import {
   localStoragePersistence,
 } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
+import { sendEmailTool } from '../lib/persistent-chat-tools'
 import './persistent-chat.css'
 
 export const Route = createFileRoute('/persistent-chat')({
@@ -144,10 +145,20 @@ function ChatPane({
 }) {
   // Keyed by threadId in the parent, so a fresh instance mounts per thread and
   // hydrates that thread from the server. Nothing to wire beyond threadId.
-  const { messages, sendMessage, isLoading, connectionStatus } = useChat({
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    connectionStatus,
+    interrupts,
+    resuming,
+  } = useChat({
     threadId,
     connection,
     persistence,
+    // Share the tool definition so the client can bind the approval interrupt
+    // (verify its schema hashes) and resolve it.
+    tools: [sendEmailTool] as const,
   })
   const [input, setInput] = useState('')
   const threadRef = useRef<HTMLDivElement>(null)
@@ -241,6 +252,37 @@ function ChatPane({
           ))
         )}
       </div>
+
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <div key={interrupt.id} className="pc-approval">
+            <div className="pc-approval-head">
+              🔐 Approve <strong>{interrupt.toolName}</strong>?
+            </div>
+            <pre className="pc-tool-io">
+              {formatValue(interrupt.originalArgs)}
+            </pre>
+            <div className="pc-approval-actions">
+              <button
+                type="button"
+                className="pc-approve"
+                disabled={!interrupt.canResolve || resuming}
+                onClick={() => interrupt.resolveInterrupt(true)}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="pc-reject"
+                disabled={!interrupt.canResolve || resuming}
+                onClick={() => interrupt.resolveInterrupt(false)}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        ) : null,
+      )}
 
       <div className="pc-composer">
         <div style={{ flex: 1 }}>
