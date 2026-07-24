@@ -7,9 +7,12 @@ export {
   AnthropicTextAdapter,
   anthropicText,
   createAnthropicChat,
+  createAnthropicChatWithClient,
+  type AnthropicTextAdapterConfig,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'
+export type { AnthropicMessagesClient } from './utils/client'
 export type { AnthropicSystemPromptMetadata } from './text/text-provider-options'
 
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter

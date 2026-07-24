@@ -6,6 +6,7 @@ import {
   type StreamChunk,
   type UIMessage,
 } from '@tanstack/ai'
+import { createAnthropicChatWithClient } from '../src'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
@@ -76,6 +77,35 @@ function createTextStream(text: string) {
     yield { type: 'message_stop' }
   })()
 }
+
+describe('Anthropic client injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('uses the injected messages client instead of constructing one', async () => {
+    const create = vi.fn().mockResolvedValueOnce(createTextStream('Hello'))
+    const client = {
+      beta: {
+        messages: {
+          create,
+        },
+      },
+    }
+
+    const adapter = createAnthropicChatWithClient('claude-opus-4-1', client)
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume stream
+    }
+
+    expect(create).toHaveBeenCalledOnce()
+    expect(mocks.betaMessagesCreate).not.toHaveBeenCalled()
+  })
+})
 
 describe('Anthropic adapter option mapping', () => {
   beforeEach(() => {
