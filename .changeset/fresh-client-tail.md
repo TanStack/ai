@@ -1,16 +1,33 @@
 ---
+'@tanstack/ai-persistence': minor
+'@tanstack/ai-persistence-drizzle': minor
+'@tanstack/ai-persistence-prisma': minor
 '@tanstack/ai-client': minor
 ---
 
-Tail an in-flight run on a fresh client via `initialResumeSnapshot`.
+Server-authoritative reconnect is now automatic and keyed on the thread, not the run.
 
-A `ChatClient`'s resume pointer is per-browser, so a fresh client — the same
-thread opened on a second device or another browser — had no pointer and would
-stop at the hydrated snapshot even while the run was still generating. The
-existing `initialResumeSnapshot` option only restored interrupts; now a snapshot
-carrying a _bare in-flight run_ (a `resumeState.runId` with no pending
-interrupts) is rejoined too, exactly like a persisted pointer. A server-
-authoritative app can report the thread's active run id during hydration and
-hand it over as `initialResumeSnapshot` so the new client live-tails the run to
-completion. A client that started the run still rejoins via its own persisted
-pointer; a run named by the persisted store wins over the passed snapshot.
+A chat's durable identity is its **thread**; run ids are ephemeral (a single turn
+can span several runs via interrupts or tool continuations), so basing reconnect
+on a client-cached run id goes stale the moment a turn rolls to a new run. This
+moves the whole reconnect story onto the stable thread id, resolved by the server.
+
+- **`RunStore.findActiveRun(threadId)`** — new optional, feature-detected store
+  method returning the most recent `'running'` run for a thread (implemented for
+  memory, drizzle/SQLite — which also covers Cloudflare D1 — and prisma).
+- **`reconstructChat` now returns `{ messages, activeRun }`** (was a bare message
+  array): the stored transcript as UI messages plus a cursor to an in-flight run
+  if one exists. It reads the active run before the transcript so observing "no
+  active run" guarantees the transcript is final (closing a finish-window race).
+- **`@tanstack/ai-client` hydrates itself on mount.** In `messages: false`
+  (server-authoritative) mode the client now caches no transcript and no run
+  pointer: on mount `useChat`/`ChatClient` calls the connection's new
+  `hydrate(threadId)` (a JSON GET against the same endpoint), paints the returned
+  transcript, and — if a run is in flight — tails it via the existing `joinRun`
+  durability replay. A reload and the same thread opened on another device are the
+  identical, server-resolved path. No loader, no `initialMessages`, no
+  `initialResumeSnapshot`, no app-side fetching required.
+
+Apps keep the single GET endpoint they already have (durability replay when a
+resume cursor is present, else `reconstructChat`); everything else is handled by
+the hook.

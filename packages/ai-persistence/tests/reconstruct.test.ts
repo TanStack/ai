@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '../src/memory'
 import { reconstructChat } from '../src/reconstruct'
+import type { ReconstructedChat } from '../src/reconstruct'
+
+async function body(response: Response): Promise<ReconstructedChat> {
+  return (await response.json()) as ReconstructedChat
+}
+
+function textOf(message: ReconstructedChat['messages'][number]): string {
+  const part = message.parts.find((p) => p.type === 'text')
+  return part && 'content' in part ? (part.content ?? '') : ''
+}
 
 describe('reconstructChat', () => {
-  it('returns stored messages for a known threadId', async () => {
+  it('returns the stored transcript (as UI messages) for a known threadId', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.messages!.saveThread('t1', [
       { role: 'user', content: 'hello' },
@@ -16,24 +26,60 @@ describe('reconstructChat', () => {
     )
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    const body = (await response.json()) as Array<{ role: string }>
-    expect(body).toHaveLength(2)
-    expect(body[0]?.role).toBe('user')
+    const parsed = await body(response)
+    expect(parsed.messages).toHaveLength(2)
+    expect(parsed.messages[0]?.role).toBe('user')
+    expect(textOf(parsed.messages[0]!)).toBe('hello')
+    // No run is generating for the thread.
+    expect(parsed.activeRun).toBeNull()
   })
 
-  it('returns [] when threadId is missing or unknown', async () => {
+  it('reports the active run for a thread that is still generating', async () => {
     const persistence = memoryPersistence()
-    const missing = await reconstructChat(
-      persistence,
-      new Request('http://example.test/api/chat'),
-    )
-    expect(await missing.json()).toEqual([])
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'write a long story' },
+    ])
+    await persistence.stores.runs!.createOrResume({
+      runId: 'run-live',
+      threadId: 't1',
+      startedAt: 1000,
+    })
 
-    const unknown = await reconstructChat(
+    const response = await reconstructChat(
       persistence,
-      new Request('http://example.test/api/chat?threadId=nope'),
+      new Request('http://example.test/api/chat?threadId=t1'),
     )
-    expect(await unknown.json()).toEqual([])
+    const parsed = await body(response)
+    expect(parsed.activeRun).toEqual({ runId: 'run-live' })
+
+    // Once the run finishes, no active run is reported.
+    await persistence.stores.runs!.update('run-live', { status: 'completed' })
+    const after = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+    expect(after.activeRun).toBeNull()
+  })
+
+  it('returns an empty transcript and no active run when threadId is missing or unknown', async () => {
+    const persistence = memoryPersistence()
+    const missing = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat'),
+      ),
+    )
+    expect(missing).toEqual({ messages: [], activeRun: null })
+
+    const unknown = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=nope'),
+      ),
+    )
+    expect(unknown).toEqual({ messages: [], activeRun: null })
   })
 
   it('returns 403 when authorize returns false', async () => {
@@ -74,7 +120,7 @@ describe('reconstructChat', () => {
       new Request('http://example.test/api/chat?id=custom-id'),
       { param: 'id' },
     )
-    const body = (await response.json()) as Array<{ content: string }>
-    expect(body[0]?.content).toBe('via-param')
+    const parsed = await body(response)
+    expect(textOf(parsed.messages[0]!)).toBe('via-param')
   })
 })

@@ -105,6 +105,13 @@ export function createRunStore({ run }: TanstackAiDelegates): RunStore {
       const row = await run.findUnique({ where: { runId } })
       return row ? mapRun(row) : null
     },
+    async findActiveRun(threadId) {
+      const row = await run.findFirst({
+        where: { threadId, status: 'running' },
+        orderBy: { startedAt: 'desc' },
+      })
+      return row ? mapRun(row) : null
+    },
   }
   return store
 }

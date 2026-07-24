@@ -119,6 +119,19 @@ export interface RunStore {
   ) => Promise<void>
   /** Return the run record for `runId`, or `null` if none exists. */
   get: (runId: string) => Promise<RunRecord | null>
+  /**
+   * The most recent `'running'` run for `threadId`, or `null` if none is active.
+   *
+   * OPTIONAL — callers feature-detect it (`store.findActiveRun?.(threadId)`) and
+   * degrade to "no active run" when a backend has not implemented it.
+   *
+   * This resolves "does this thread have a live run to attach to?" from the
+   * STABLE thread id, which is the durable basis for reconnecting a client (a
+   * reload, or the same thread opened on another device) — independent of the
+   * ephemeral run id, which a single turn may mint several of. When more than
+   * one run is `'running'`, the one with the greatest `startedAt` wins.
+   */
+  findActiveRun?: (threadId: string) => Promise<RunRecord | null>
 }
 
 /** Lifecycle status of a human-in-the-loop interrupt. */

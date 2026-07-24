@@ -198,6 +198,61 @@ export function runPersistenceConformance(
         await store.update('run-absent', { status: 'completed' })
         expect(await store.get('run-absent')).toBeNull()
       })
+
+      // `findActiveRun` is optional on the RunStore contract; backends that have
+      // not implemented it are skipped, but any backend that has must satisfy
+      // these invariants (most-recent-running wins, thread-scoped, null when idle).
+      it('findActiveRun returns the most recent running run for a thread', async () => {
+        const store = resolveStore('runs')
+        if (!store) return
+        if (!store.findActiveRun) return
+
+        const thread = 'thread-active'
+        expect(await store.findActiveRun(thread)).toBeNull()
+
+        await store.createOrResume({
+          runId: 'active-1',
+          threadId: thread,
+          startedAt: 1000,
+        })
+        await store.createOrResume({
+          runId: 'active-2',
+          threadId: thread,
+          startedAt: 2000,
+        })
+        // Most-recent running run wins.
+        expect(await store.findActiveRun(thread)).toMatchObject({
+          runId: 'active-2',
+          status: 'running',
+        })
+
+        // A different thread's running run is not returned.
+        await store.createOrResume({
+          runId: 'other-1',
+          threadId: 'thread-other',
+          startedAt: 3000,
+        })
+        expect(await store.findActiveRun(thread)).toMatchObject({
+          runId: 'active-2',
+        })
+
+        // Once the newest finishes, the older running run becomes active.
+        await store.update('active-2', {
+          status: 'completed',
+          finishedAt: 2500,
+        })
+        expect(await store.findActiveRun(thread)).toMatchObject({
+          runId: 'active-1',
+          status: 'running',
+        })
+
+        // With none running, it is null.
+        await store.update('active-1', {
+          status: 'completed',
+          finishedAt: 1500,
+        })
+        expect(await store.findActiveRun(thread)).toBeNull()
+      })
     })
 
     describe('interrupts', () => {

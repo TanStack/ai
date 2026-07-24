@@ -54,6 +54,12 @@ class MemoryRunStore implements RunStore {
   get(runId: string): Promise<RunRecord | null> {
     return Promise.resolve(this.runs.get(runId) ?? null)
   }
+  findActiveRun(threadId: string): Promise<RunRecord | null> {
+    const active = [...this.runs.values()]
+      .filter((run) => run.threadId === threadId && run.status === 'running')
+      .sort((a, b) => b.startedAt - a.startedAt)
+    return Promise.resolve(active[0] ?? null)
+  }
 }
 
 function byRequestedAt(a: InterruptRecord, b: InterruptRecord): number {

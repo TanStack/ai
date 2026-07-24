@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+﻿import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
   chat,
@@ -8,22 +8,16 @@ import {
   generateTranscription,
   generateVideo,
   getVideoJobStatus,
-  modelMessagesToUIMessages,
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import {
-  PERSISTENT_CHAT_THREAD_ID,
-  activeRunForThread,
-  persistentChatPersistence,
-} from './persistent-chat-store'
 import {
   openaiImage,
   openaiSummarize,
   openaiText,
   openaiVideo,
 } from '@tanstack/ai-openai'
-import type { ToolCallState, ToolResultState, UIMessage } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -402,7 +396,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Chat server function — pairs with useChat({ fetcher })
+// Chat server function â€” pairs with useChat({ fetcher })
 // =============================================================================
 
 export const chatFn = createServerFn({ method: 'POST' })
@@ -420,111 +414,3 @@ export const chatFn = createServerFn({ method: 'POST' })
       }),
     ),
   )
-
-// =============================================================================
-// Persistent-chat history — server-authoritative hydration
-// =============================================================================
-
-/**
- * Read the durable transcript for the persistent-chat demo and return it as UI
- * messages, ready to seed `useChat({ initialMessages })`. The page runs
- * `persistence: { store, messages: false }`, so it caches only the resume
- * pointer and no transcript — history comes from the server on load. The page
- * loader calls this instead of `fetch`ing the GET endpoint so it works during
- * SSR (a relative fetch has no origin server-side); the GET endpoint's
- * `reconstructChat` branch reads the same store over HTTP for other clients.
- *
- * Also reports `activeRunId` — the run currently generating for this thread, if
- * any. A FRESH client (a second device/browser with no local resume pointer)
- * has no other way to learn a run is in flight; the page hands it to `useChat`
- * as `initialResumeSnapshot` so it tails the live run instead of stopping at the
- * hydrated snapshot. Undefined once the run finishes (the transcript then holds
- * the complete reply).
- */
-/**
- * Server functions require a fully serializable payload, but several
- * `UIMessage` part fields are typed `unknown`/`any` (part `metadata`,
- * tool-call `input`/`output`). Project the hydrated history onto an explicit
- * JSON-safe wire shape: keep the fields the page renders, stringify non-string
- * tool-result content, and drop media parts (this thread never produces
- * them). Every wire part remains assignable to its `UIMessage` counterpart,
- * so the result seeds `useChat({ initialMessages })` unchanged.
- */
-interface WireMessage {
-  id: string
-  role: UIMessage['role']
-  parts: Array<
-    | { type: 'text'; content: string }
-    | { type: 'thinking'; content: string }
-    | {
-        type: 'tool-call'
-        id: string
-        name: string
-        arguments: string
-        state: ToolCallState
-      }
-    | {
-        type: 'tool-result'
-        toolCallId: string
-        content: string
-        state: ToolResultState
-      }
-  >
-  createdAt?: Date
-}
-
-function toSerializableMessages(
-  messages: Array<UIMessage>,
-): Array<WireMessage> {
-  return messages.map(({ id, role, parts, createdAt }) => ({
-    id,
-    role,
-    parts: parts.flatMap((part): WireMessage['parts'] => {
-      switch (part.type) {
-        case 'text':
-          return [{ type: 'text', content: part.content }]
-        case 'thinking':
-          return [{ type: 'thinking', content: part.content }]
-        case 'tool-call':
-          return [
-            {
-              type: 'tool-call',
-              id: part.id,
-              name: part.name,
-              arguments: part.arguments,
-              state: part.state,
-            },
-          ]
-        case 'tool-result':
-          return [
-            {
-              type: 'tool-result',
-              toolCallId: part.toolCallId,
-              content:
-                typeof part.content === 'string'
-                  ? part.content
-                  : JSON.stringify(part.content),
-              state: part.state,
-            },
-          ]
-        default:
-          return []
-      }
-    }),
-    ...(createdAt ? { createdAt } : {}),
-  }))
-}
-
-export const loadPersistentChatHistoryFn = createServerFn().handler(
-  async () => {
-    const persistence = persistentChatPersistence()
-    const stored =
-      (await persistence.stores.messages?.loadThread(
-        PERSISTENT_CHAT_THREAD_ID,
-      )) ?? []
-    return {
-      messages: toSerializableMessages(modelMessagesToUIMessages(stored)),
-      activeRunId: activeRunForThread(PERSISTENT_CHAT_THREAD_ID),
-    }
-  },
-)

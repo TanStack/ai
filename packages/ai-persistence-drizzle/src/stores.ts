@@ -8,7 +8,7 @@
  * types (SQLite `text({ mode: 'json' })`, Postgres `jsonb`) so values decode
  * to the contract data shapes.
  */
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 import type {
@@ -141,6 +141,16 @@ export function createRunStore(
     },
     async get(runId) {
       const rows = await db.select().from(runs).where(eq(runs.runId, runId))
+      const row = rows[0] as RunRow | undefined
+      return row ? mapRun(row) : null
+    },
+    async findActiveRun(threadId) {
+      const rows = await db
+        .select()
+        .from(runs)
+        .where(and(eq(runs.threadId, threadId), eq(runs.status, 'running')))
+        .orderBy(desc(runs.startedAt))
+        .limit(1)
       const row = rows[0] as RunRow | undefined
       return row ? mapRun(row) : null
     },

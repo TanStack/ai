@@ -63,6 +63,10 @@ export interface MessageDelegate {
 
 export interface RunDelegate {
   findUnique: (args: { where: { runId: string } }) => Promise<RunRow | null>
+  findFirst: (args: {
+    where: { threadId: string; status: string }
+    orderBy: { startedAt: 'asc' | 'desc' }
+  }) => Promise<RunRow | null>
   upsert: (args: {
     where: { runId: string }
     create: {

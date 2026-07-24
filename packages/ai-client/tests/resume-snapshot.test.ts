@@ -289,16 +289,12 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('messages:false reconstructs history AND rejoins a live run together', async () => {
-    // A prior server-authoritative session persisted only the resume pointer:
-    // messages is [] (not cached), resume carries the in-flight runId.
-    const { adapter } = memoryAdapter({
-      messages: [],
-      resume: {
-        schemaVersion: 2,
-        resumeState: { threadId: 't1', runId: 'r1' },
-      },
-    })
+  it('messages:false hydrates history AND tails a live run from the server on mount', async () => {
+    // Server-authoritative: the client caches no transcript and no run pointer.
+    // On mount it calls connection.hydrate(threadId), which returns the stored
+    // transcript plus a cursor to the in-flight run — the client paints the
+    // history and tails the run via joinRun. No loader, no seeded pointer.
+    const { adapter } = memoryAdapter({ messages: [] })
 
     const joinRun = vi.fn(async function* (_runId: string) {
       for (const chunk of runChunks('r1', 't1')) {
@@ -308,6 +304,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
       joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('history-1', 'earlier turn', 'user')],
+          activeRun: { runId: 'r1' },
+        }),
     }
 
     let latest: Array<UIMessage> = []
@@ -315,8 +316,6 @@ describe('ChatClient auto-rejoin after reload', () => {
       threadId: 't1',
       connection,
       persistence: { store: adapter, messages: false },
-      // History the app fetched from the server (reconstructChat) and seeded.
-      initialMessages: [createUIMessage('history-1', 'earlier turn', 'user')],
       onMessagesChange: (messages) => {
         latest = messages
       },
@@ -328,81 +327,53 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(text && 'content' in text && text.content).toBe('world')
     })
 
-    // Server-reconstructed history is NOT wiped by the empty persisted record...
+    // Server-hydrated history is painted...
     expect(latest.some((m) => m.id === 'history-1')).toBe(true)
-    // ...and the live run was rejoined off the durability log.
+    // ...and the live run was tailed off the durability log, addressed by the
+    // server-resolved run id (the client only ever supplied the threadId).
     expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
     void client
   })
 
-  it('rebuilds a hydrated in-flight partial in place (no duplicate) on rejoin', async () => {
-    // Server-authoritative reload where a streaming snapshot persisted a PARTIAL
-    // assistant reply carrying the same messageId the live run uses. The rejoin
-    // must rebuild it from the log into ONE clean bubble — not seed+append into
-    // "worworld", and not leave a second bubble.
-    const { adapter } = memoryAdapter({
-      messages: [],
-      resume: {
-        schemaVersion: 2,
-        resumeState: { threadId: 't1', runId: 'r1' },
-      },
-    })
-
-    const joinRun = vi.fn(async function* (_runId: string) {
-      for (const chunk of runChunks('r1', 't1')) yield chunk
-    })
+  it('messages:false hydrates a transcript with no active run (no tail)', async () => {
+    const { adapter } = memoryAdapter({ messages: [] })
+    const joinRun = vi.fn(async function* () {})
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
       joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [
+            createUIMessage('u1', 'hi', 'user'),
+            createUIMessage('a1', 'done', 'assistant'),
+          ],
+          activeRun: null,
+        }),
     }
-
     let latest: Array<UIMessage> = []
     const client = new ChatClient({
       threadId: 't1',
       connection,
       persistence: { store: adapter, messages: false },
-      initialMessages: [
-        createUIMessage('user-1', 'hi', 'user'),
-        {
-          id: 'assistant-1',
-          role: 'assistant',
-          parts: [{ type: 'text', content: 'wor' }],
-          createdAt: new Date(),
-        },
-      ],
       onMessagesChange: (messages) => {
         latest = messages
       },
     })
-
     await vi.waitFor(() => {
-      const assistant = latest.find((m) => m.role === 'assistant')
-      const text = assistant?.parts.find((p) => p.type === 'text')
-      expect(text && 'content' in text && text.content).toBe('world')
+      expect(latest.some((m) => m.id === 'a1')).toBe(true)
     })
-
-    const assistants = latest.filter((m) => m.role === 'assistant')
-    expect(assistants).toHaveLength(1)
-    const text = assistants[0]?.parts.find((p) => p.type === 'text')
-    expect(text && 'content' in text && text.content).toBe('world')
-    expect(latest.some((m) => m.id === 'user-1')).toBe(true)
+    // No active run → the transcript is painted and nothing is tailed.
+    expect(joinRun).not.toHaveBeenCalled()
     void client
   })
 
-  it('keeps the resume pointer on the client run id across a rejoin', async () => {
-    // The durability log is keyed by the CLIENT run id (what the pointer holds).
-    // A rejoin replays the run whose events carry the PROVIDER run id — that must
-    // NOT overwrite the persisted pointer, or a SECOND reload would joinRun an id
-    // the log isn't keyed by and never re-attach.
-    const { adapter, read } = memoryAdapter({
-      messages: [],
-      resume: {
-        schemaVersion: 2,
-        resumeState: { threadId: 't1', runId: 'client-run' },
-      },
-    })
+  it('messages:false persists no bare run pointer (server owns reconnect)', async () => {
+    // The stale-run trap: a client-cached run id goes stale the moment a turn
+    // spans a second run. In messages:false the client must persist NO bare run
+    // pointer — reconnect is resolved from the server by threadId. Use an
+    // in-flight run (no terminal) so a wrongly-written pointer would still be present.
+    const { adapter, read } = memoryAdapter({ messages: [] })
     const joinRun = vi.fn(async function* (_runId: string) {
-      // In-flight run (no RUN_FINISHED) whose events carry a different provider id.
       yield {
         type: 'RUN_STARTED',
         runId: 'provider-run',
@@ -426,6 +397,8 @@ describe('ChatClient auto-rejoin after reload', () => {
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
       joinRun,
+      hydrate: () =>
+        Promise.resolve({ messages: [], activeRun: { runId: 'client-run' } }),
     }
     let latest: Array<UIMessage> = []
     const client = new ChatClient({
@@ -443,8 +416,60 @@ describe('ChatClient auto-rejoin after reload', () => {
       expect(t && 'content' in t && t.content).toBe('partial')
     })
 
-    const stored = read() as ChatPersistedState
-    expect(stored.resume?.resumeState.runId).toBe('client-run')
+    const stored = read() as ChatPersistedState | undefined
+    expect(stored?.resume).toBeUndefined()
+    void client
+  })
+
+  it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
+    // The hydrated transcript includes a PARTIAL assistant reply (a streaming
+    // snapshot) carrying the same messageId the live run uses. Tailing it on
+    // mount must rebuild that bubble from the log into ONE clean message — not
+    // seed+append into "worworld", and not leave a second bubble.
+    const { adapter } = memoryAdapter({ messages: [] })
+
+    const joinRun = vi.fn(async function* (_runId: string) {
+      for (const chunk of runChunks('r1', 't1')) yield chunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [
+            createUIMessage('user-1', 'hi', 'user'),
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              parts: [{ type: 'text', content: 'wor' }],
+              createdAt: new Date(),
+            },
+          ],
+          activeRun: { runId: 'r1' },
+        }),
+    }
+
+    let latest: Array<UIMessage> = []
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    await vi.waitFor(() => {
+      const assistant = latest.find((m) => m.role === 'assistant')
+      const text = assistant?.parts.find((p) => p.type === 'text')
+      expect(text && 'content' in text && text.content).toBe('world')
+    })
+
+    const assistants = latest.filter((m) => m.role === 'assistant')
+    expect(assistants).toHaveLength(1)
+    const text = assistants[0]?.parts.find((p) => p.type === 'text')
+    expect(text && 'content' in text && text.content).toBe('world')
+    expect(latest.some((m) => m.id === 'user-1')).toBe(true)
     void client
   })
 
@@ -591,14 +616,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('with messages:false removes the resume-only key after a dead rejoin', async () => {
-    const { adapter, read } = memoryAdapter({
-      messages: [],
-      resume: {
-        schemaVersion: 2,
-        resumeState: { threadId: 't1', runId: 'gone-run' },
-      },
-    })
+  it('with messages:false a dead server-tail frees the input and persists nothing', async () => {
+    // Server hydration reports an active run, but its durability log is gone —
+    // joinRun never attaches. The client must free the input (isLoading false)
+    // and, being server-authoritative, persist no pointer of its own.
+    const { adapter, read } = memoryAdapter({ messages: [] })
     const joinRun = vi.fn(async function* (
       _runId: string,
       signal?: AbortSignal,
@@ -614,12 +636,16 @@ describe('ChatClient auto-rejoin after reload', () => {
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
       joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('history-1', 'seed', 'user')],
+          activeRun: { runId: 'gone-run' },
+        }),
     }
     const client = new ChatClient({
       threadId: 't1',
       connection,
       persistence: { store: adapter, messages: false },
-      initialMessages: [createUIMessage('history-1', 'seed', 'user')],
     })
 
     await vi.waitFor(

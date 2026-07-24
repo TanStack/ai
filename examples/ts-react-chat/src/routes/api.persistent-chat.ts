@@ -12,14 +12,17 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
 import type { StreamChunk } from '@tanstack/ai'
-import {
-  isRunActive,
-  markRunActive,
-  markRunDone,
-  persistentChatPersistence,
-} from '../lib/persistent-chat-store'
+import { persistentChatPersistence } from '../lib/persistent-chat-store'
 
 const persistence = persistentChatPersistence()
+
+// Delivery-layer producer dedup: run ids whose detached producer is currently
+// pumping the memoryStream log. Prevents a duplicate POST (client retry, React
+// strict-mode double render) from starting a second model call / double-writing
+// the same log. Process-local, like the `memoryStream` log it guards — NOT the
+// source of truth for "is this thread active" (that is the persistence runs
+// store, resolved by `reconstructChat` via `findActiveRun(threadId)`).
+const activeProducers = new Set<string>()
 
 // Two server-executed tools so the demo exercises the agent loop AND tool-call
 // persistence: the assistant's tool calls and their results are written to the
@@ -91,8 +94,8 @@ function startDetachedRun(
   threadId: string,
   messages: Awaited<ReturnType<typeof chatParamsFromRequestBody>>['messages'],
 ): void {
-  if (isRunActive(runId)) return
-  markRunActive(runId, threadId)
+  if (activeProducers.has(runId)) return
+  activeProducers.add(runId)
 
   // Producer-mode durability handle, keyed by runId via the X-Run-Id header.
   const sink = memoryStream(
@@ -134,7 +137,7 @@ function startDetachedRun(
       ])
     } finally {
       await sink.close()
-      markRunDone(runId)
+      activeProducers.delete(runId)
     }
   })()
 }
@@ -157,10 +160,11 @@ function startDetachedRun(
  *    `startDetachedRun`), so a mid-stream reload does not abort it. It finishes,
  *    persists, and the reload rehydrates the full conversation.
  *
- * The store is shared with the page's history server function (see
- * `../lib/persistent-chat-store`), which the loader calls to hydrate the
- * transcript on load — the client runs server-authoritative
- * (`persistence: { store, messages: false }`) and keeps no messages of its own.
+ * The client runs server-authoritative (`persistence: { store, messages: false }`)
+ * and keeps no messages — and no run pointer — of its own. On mount `useChat`
+ * hits this GET itself (keyed by threadId) and `reconstructChat` returns the
+ * transcript plus a cursor to any in-flight run, which the client then tails via
+ * the delivery replay branch below. No loader, no client hydration code.
  */
 
 export const Route = createFileRoute('/api/persistent-chat')({
