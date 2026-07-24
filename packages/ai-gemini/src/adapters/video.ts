@@ -15,6 +15,7 @@ import type {
   ImagePart,
   MediaInputMetadata,
   TokenUsage,
+  VideoEditKind,
   VideoGenerationOptions,
   VideoJobResult,
   VideoPart,
@@ -32,6 +33,7 @@ import type {
   GeminiOmniVideoProviderOptions,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
+  GeminiVideoModelEditByName,
   GeminiVideoModelInputModalitiesByName,
   GeminiVideoModelProviderOptionsByName,
   GeminiVideoModelSizeByName,
@@ -235,8 +237,7 @@ function interactionUsageToTokenUsage(
  * Files API URI when the server delivers by reference). Image and video
  * prompt parts are sent as interaction content blocks, grouped as images,
  * then videos, then the text prompt (interleaving is not preserved); pass
- * `modelOptions.previous_interaction_id` to conversationally edit a prior
- * Omni generation.
+ * `previousJobId` to conversationally edit a prior Omni generation.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -248,7 +249,8 @@ export class GeminiVideoAdapter<
   GeminiVideoModelProviderOptionsByName,
   GeminiVideoModelSizeByName,
   GeminiVideoModelInputModalitiesByName,
-  GeminiVideoModelDurationByName
+  GeminiVideoModelDurationByName,
+  GeminiVideoModelEditByName
 > {
   readonly name = 'gemini' as const
 
@@ -259,6 +261,15 @@ export class GeminiVideoAdapter<
     super({}, model)
     this.client = createGeminiClient(config)
     this.allowUrlFetch = config.allowUrlFetch ?? false
+  }
+
+  /**
+   * Omni Flash edits a prior generation by chaining its interaction id
+   * (`previous_interaction_id`); Veo models cannot edit previous
+   * generations.
+   */
+  override supportedEditKind(): VideoEditKind | undefined {
+    return isInteractionsVideoModel(this.model) ? 'job' : undefined
   }
 
   async createVideoJob(
@@ -343,7 +354,7 @@ export class GeminiVideoAdapter<
       GeminiVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
-    const { prompt, size, duration, logger } = options
+    const { prompt, size, duration, logger, previousJobId } = options
     const modelOptions = options.modelOptions as
       | GeminiOmniVideoProviderOptions
       | undefined
@@ -401,6 +412,9 @@ export class GeminiVideoAdapter<
 
       const interaction = await this.client.interactions.create({
         ...modelOptions,
+        // previousJobId chains a follow-up edit onto the prior interaction;
+        // map it onto the wire's previous_interaction_id.
+        ...(previousJobId && { previous_interaction_id: previousJobId }),
         model: this.model,
         input: [{ type: 'user_input', content }],
         response_modalities: ['video'],

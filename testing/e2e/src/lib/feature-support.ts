@@ -251,6 +251,17 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // global-setup.ts) — aimock handles synchronous text interactions natively
   // but not background video jobs (create → poll → inline base64 mp4).
   'interactions-video': new Set(['gemini']),
+  // Follow-up video edits via generateVideo's `previousJobId`. OpenAI runs Sora's
+  // `POST /v1/videos/{id}/remix` through the openaiVideoRemixMount
+  // fall-through; Gemini chains Omni's `previous_interaction_id` through the
+  // geminiOmniVideoMount. Grok's `/v1/videos/edits` and fal's video_url
+  // endpoints remain unit-test-only (no aimock coverage yet).
+  'video-edit': new Set(['openai', 'gemini']),
+  // Follow-up image edits via generateImage's `previousImage` (the prior image is
+  // prepended as an image part). OpenAI routes to the multipart
+  // `/v1/images/edits` aimock mocks natively; the other providers' edit
+  // endpoints are unit-test-only (same coverage note as image-to-image).
+  'image-edit': new Set(['openai']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   'stateful-interactions': new Set(['gemini']),

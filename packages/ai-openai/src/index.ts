@@ -52,6 +52,7 @@ export {
 export type {
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelEditByName,
   OpenAIVideoSize,
   // OpenAIVideoDuration,
 } from './video/video-provider-options'

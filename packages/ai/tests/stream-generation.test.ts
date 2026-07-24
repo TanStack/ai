@@ -172,6 +172,7 @@ describe('generateVideo({ stream: true })', () => {
 
       availableDurations: () => ({ kind: 'none' as const }),
       snapDuration: () => undefined,
+      supportedEditKind: () => undefined,
 
       createVideoJob: vi.fn(async () => ({
         jobId: 'job-123',

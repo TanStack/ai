@@ -75,6 +75,8 @@ export {
   generateImage,
   type ImageActivityOptions,
   type ImageActivityResult,
+  type ImagePreviousImageForModel,
+  type ImagePreviousSource,
   type ImageProviderOptionsForModel,
   type ImageSizeForModel,
 } from './generateImage/index'
@@ -120,6 +122,7 @@ export {
   type VideoStatusOptions,
   type VideoUrlOptions,
   type VideoDurationForAdapter,
+  type VideoPreviousJobIdForAdapter,
 } from './generateVideo/index'
 
 export {

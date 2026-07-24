@@ -27,6 +27,7 @@ import type {
   MediaPromptFor,
   StreamChunk,
   TokenUsage,
+  VideoEditKind,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
@@ -47,7 +48,7 @@ export const kind = 'video' as const
  * Extract provider options from a VideoAdapter via ~types.
  */
 export type VideoProviderOptions<TAdapter> =
-  TAdapter extends VideoAdapter<any, any, any, any, any, any>
+  TAdapter extends VideoAdapter<any, any, any, any, any, any, any>
     ? TAdapter['~types']['providerOptions']
     : object
 
@@ -60,6 +61,7 @@ export type VideoSizeForAdapter<TAdapter> =
     any,
     any,
     infer TSizeMap,
+    any,
     any,
     any
   >
@@ -81,6 +83,7 @@ export type VideoPromptForAdapter<TAdapter> =
     any,
     any,
     infer ModsByName,
+    any,
     any
   >
     ? string extends keyof ModsByName
@@ -102,12 +105,45 @@ export type VideoDurationForAdapter<TAdapter> =
     any,
     any,
     any,
-    infer TDurationMap
+    infer TDurationMap,
+    any
   >
     ? TModel extends keyof TDurationMap
       ? TDurationMap[TModel]
       : number
     : number
+
+/**
+ * Extract the `previousJobId` type for a VideoAdapter's model via ~types.
+ *
+ * Models that support follow-up edits (any declared `VideoEditKind`) accept
+ * a prior generation's job id as a string. `'media'`-kind adapters resolve
+ * a URL from it via `getVideoUrl`. Models declared uneditable (`undefined`
+ * in the map) resolve to `never`, rejecting `previousJobId` at compile
+ * time. Adapters without a declared map — and open-world model unions
+ * (e.g. fal's arbitrary endpoint strings) — fall back to `string`, gated
+ * at runtime instead.
+ */
+export type VideoPreviousJobIdForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<
+    infer TModel,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TEditMap
+  >
+    ? string extends keyof TEditMap
+      ? string
+      : TModel extends keyof TEditMap
+        ? TEditMap[TModel] extends VideoEditKind
+          ? string
+          : VideoEditKind extends TEditMap[TModel]
+            ? string
+            : never
+        : never
+    : never
 
 // ===========================
 // Activity Options Types
@@ -122,7 +158,7 @@ function createId(prefix: string): string {
  * The model is extracted from the adapter's model property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -138,7 +174,7 @@ interface VideoActivityBaseOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoCreateOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
   TStream extends boolean = false,
 > = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
@@ -197,6 +233,21 @@ export type VideoCreateOptions<
       }
     : {
         /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter>
+      }) &
+  ([VideoPreviousJobIdForAdapter<TAdapter>] extends [never]
+    ? {
+        /** This model does not support editing previous generations. */
+        previousJobId?: never
+      }
+    : {
+        /**
+         * Edit a previously generated video instead of generating from
+         * scratch. Pass the prior generation's job id. `'job'`-kind models
+         * reference it server-side; `'media'`-kind models resolve the
+         * finished clip via `getVideoUrl`. Only offered for models that
+         * support follow-up edits.
+         */
+        previousJobId?: VideoPreviousJobIdForAdapter<TAdapter>
       })
 
 /**
@@ -205,7 +256,7 @@ export type VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
@@ -219,7 +270,7 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
@@ -234,7 +285,7 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
   TStream extends boolean = false,
 > = TRequest extends 'status'
@@ -310,7 +361,7 @@ export type VideoActivityResult<
  * ```
  */
 export function generateVideo<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
   TStream extends boolean = false,
 >(
   options: VideoCreateOptions<TAdapter, TStream>,
@@ -325,10 +376,39 @@ export function generateVideo<
 }
 
 /**
+ * Validate a `previousJobId` against the adapter's declared edit support
+ * before the adapter is called, so every provider surfaces the same clear
+ * errors. Media-kind adapters resolve a URL from the id themselves. Returns
+ * the validated id (or undefined when absent).
+ */
+function validatePreviousJobId(
+  adapter: {
+    name: string
+    model: string
+    supportedEditKind: () => VideoEditKind | undefined
+  },
+  previousJobId: string | undefined,
+): string | undefined {
+  if (previousJobId === undefined) return undefined
+  const kind = adapter.supportedEditKind()
+  if (kind === undefined) {
+    throw new Error(
+      `${adapter.name}: model "${adapter.model}" does not support editing previous generations (previousJobId).`,
+    )
+  }
+  if (!previousJobId) {
+    throw new Error(
+      `${adapter.name}: previousJobId is required to edit a previous generation with model "${adapter.model}".`,
+    )
+  }
+  return previousJobId
+}
+
+/**
  * Internal implementation of non-streaming video job creation.
  */
 async function runCreateVideoJob<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions, middleware } = options
   const model = adapter.model
@@ -357,6 +437,7 @@ async function runCreateVideoJob<
   })
 
   try {
+    const previousJobId = validatePreviousJobId(adapter, options.previousJobId)
     const result = await adapter.createVideoJob({
       model,
       prompt,
@@ -364,6 +445,7 @@ async function runCreateVideoJob<
       duration,
       modelOptions,
       logger,
+      ...(previousJobId ? { previousJobId } : {}),
     })
     logger.output(`activity=generateVideo jobId=${result.jobId}`, {
       jobId: result.jobId,
@@ -397,7 +479,7 @@ function sleep(ms: number): Promise<void> {
  * Handles the full job lifecycle: create job → poll for status → stream updates → yield final result.
  */
 async function* runStreamingVideoGeneration<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
   const { adapter, prompt, size, duration, modelOptions, middleware } = options
   const model = adapter.model
@@ -445,6 +527,7 @@ async function* runStreamingVideoGeneration<
   let settled = false
   try {
     // Create the video generation job
+    const previousJobId = validatePreviousJobId(adapter, options.previousJobId)
     const jobResult = await adapter.createVideoJob({
       model,
       prompt,
@@ -452,6 +535,7 @@ async function* runStreamingVideoGeneration<
       duration,
       modelOptions,
       logger,
+      ...(previousJobId ? { previousJobId } : {}),
     })
 
     yield {
@@ -596,7 +680,7 @@ async function* runStreamingVideoGeneration<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
   jobId: string
@@ -706,7 +790,7 @@ export async function getVideoJobStatus<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+  TAdapter extends VideoAdapter<string, any, any, any, any, any, any>,
   TStream extends boolean = false,
 >(
   options: VideoCreateOptions<TAdapter, TStream>,

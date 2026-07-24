@@ -16,6 +16,8 @@ interface VideoGenUIProps {
   aimockPort?: number
   /** Show a file input and send the prompt as multimodal parts (image-to-video). */
   withImageInput?: boolean
+  /** Show an edit box on the completed video (follow-up edit via previousJobId). */
+  withEditInput?: boolean
   /** Video feature variant — selects the adapter server-side (e.g. 'interactions-video' → Gemini Omni Flash). */
   feature?: Feature
 }
@@ -47,9 +49,11 @@ export function VideoGenUI({
   testId,
   aimockPort,
   withImageInput,
+  withEditInput,
   feature,
 }: VideoGenUIProps) {
   const [prompt, setPrompt] = useState('')
+  const [editPrompt, setEditPrompt] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
 
   const connectionOptions = () => {
@@ -62,9 +66,21 @@ export function VideoGenUI({
       return { connection: fetchHttpStream('/api/video/stream'), body }
     }
     return {
-      fetcher: async (input: { prompt: MediaPrompt }) => {
+      fetcher: async (input: {
+        prompt: MediaPrompt
+        previousJobId?: string
+      }) => {
         return generateVideoFn({
-          data: { prompt: input.prompt, provider, aimockPort, testId, feature },
+          data: {
+            prompt: input.prompt,
+            provider,
+            aimockPort,
+            testId,
+            feature,
+            ...(input.previousJobId
+              ? { previousJobId: input.previousJobId }
+              : {}),
+          },
         }) as Promise<VideoGenerateResult>
       },
     }
@@ -72,6 +88,16 @@ export function VideoGenUI({
 
   const { generate, result, videoStatus, isLoading, error, status } =
     useGenerateVideo(connectionOptions())
+
+  // Follow-up edit of the completed generation: always pass the prior jobId;
+  // adapters resolve a URL themselves when their provider needs one.
+  const handleEdit = async () => {
+    if (!result?.url) return
+    await generate({
+      prompt: editPrompt,
+      previousJobId: result.jobId,
+    })
+  }
 
   const handleGenerate = async () => {
     if (!imageFile) {
@@ -148,6 +174,26 @@ export function VideoGenUI({
           controls
           className="rounded border border-gray-700 max-w-lg"
         />
+      )}
+      {withEditInput && result && result.url && (
+        <div className="flex gap-2">
+          <input
+            data-testid="edit-prompt-input"
+            type="text"
+            value={editPrompt}
+            onChange={(e) => setEditPrompt(e.target.value)}
+            placeholder="Describe an edit..."
+            className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+          />
+          <button
+            data-testid="edit-button"
+            onClick={handleEdit}
+            disabled={!editPrompt.trim() || isLoading}
+            className="px-4 py-2 bg-purple-500 text-white rounded text-sm font-medium disabled:opacity-50"
+          >
+            Edit
+          </button>
+        </div>
       )}
     </div>
   )

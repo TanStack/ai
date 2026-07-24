@@ -219,6 +219,31 @@ export type GrokVideoModelInputModalitiesByName = {
 }
 
 /**
+ * Per-model follow-up edit support. `grok-imagine-video` edits a previously
+ * generated clip via `POST /v1/videos/edits`. Callers pass `previousJobId`;
+ * the adapter resolves the finished clip via `getVideoUrl`. The edit
+ * endpoint is documented for `grok-imagine-video` only.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GrokVideoModelEditByName = {
+  'grok-imagine-video': 'media'
+  'grok-imagine-video-1.5': undefined
+}
+
+/**
+ * Runtime table backing `supportedEditKind()`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export const GROK_VIDEO_EDIT_KINDS: {
+  readonly [TModel in GrokVideoModel]: GrokVideoModelEditByName[TModel]
+} = {
+  'grok-imagine-video': 'media',
+  'grok-imagine-video-1.5': undefined,
+}
+
+/**
  * Models that only support image-to-video — a starting-frame image is
  * required and text-to-video is rejected by the Imagine API. Used by the
  * adapter to fail fast with a clear message instead of surfacing the raw

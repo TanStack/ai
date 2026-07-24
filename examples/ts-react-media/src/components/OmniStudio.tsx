@@ -31,7 +31,7 @@ type AspectRatio = '16:9' | '9:16'
  * One turn of an Omni session: the prompt (plus attachments and generation
  * settings) and the clip it produced. `parentLocalId` records which earlier
  * turn this one continued from — the session is a tree, not a line, since
- * `previous_interaction_id` can point at any prior generation. `duration`
+ * `previousJobId` can point at any prior generation. `duration`
  * is null for edit requests, which follow the source clip's length.
  */
 interface OmniTurn {
@@ -62,7 +62,7 @@ const TASK_OPTIONS: Array<{ value: OmniTaskMode | 'auto'; label: string }> = [
  * Chat-style session view for Gemini Omni Flash. Unlike the one-shot job
  * form in VideoGenerator, every generation here is an interaction you can
  * continue from: sending a new prompt chains it onto the selected clip via
- * `previous_interaction_id`, and "Continue from here" on any earlier clip
+ * `previousJobId`, and "Continue from here" on any earlier clip
  * branches the session from that point.
  */
 export default function OmniStudio() {
@@ -238,7 +238,7 @@ export default function OmniStudio() {
         data: {
           prompt: builtPrompt,
           model: OMNI_MODEL,
-          ...(parentJobId ? { previousInteractionId: parentJobId } : {}),
+          ...(parentJobId ? { previousJobId: parentJobId } : {}),
           omniOptions: {
             ...(durationLocked ? {} : { duration }),
             aspectRatio,

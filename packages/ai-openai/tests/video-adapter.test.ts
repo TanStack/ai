@@ -12,10 +12,11 @@ const testLogger = resolveDebugOption(false)
 function mockedAdapter() {
   const adapter = createOpenaiVideo('sora-2', 'test-api-key')
   const mockCreate = vi.fn().mockResolvedValue({ id: 'video-job-1' })
+  const mockRemix = vi.fn().mockResolvedValue({ id: 'video-job-remix-1' })
   ;(adapter as unknown as { client: { videos: unknown } }).client = {
-    videos: { create: mockCreate },
+    videos: { create: mockCreate, remix: mockRemix },
   }
-  return { adapter, mockCreate }
+  return { adapter, mockCreate, mockRemix }
 }
 
 describe('OpenAI Video Adapter', () => {
@@ -163,6 +164,94 @@ describe('OpenAI Video Adapter', () => {
         }),
       ).rejects.toThrow(/audio prompt parts/)
       expect(mockCreate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('previousJobId (Sora remix)', () => {
+    it('reports job-kind edit support', () => {
+      const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+      expect(adapter.supportedEditKind()).toBe('job')
+    })
+
+    it('remixes the source video with the new prompt', async () => {
+      const { adapter, mockCreate, mockRemix } = mockedAdapter()
+
+      const result = await adapter.createVideoJob({
+        model: 'sora-2',
+        prompt: 'Make the sky stormy',
+        previousJobId: 'video-job-1',
+        logger: testLogger,
+      })
+
+      expect(mockRemix).toHaveBeenCalledWith('video-job-1', {
+        prompt: 'Make the sky stormy',
+      })
+      expect(mockCreate).not.toHaveBeenCalled()
+      expect(result).toEqual({ jobId: 'video-job-remix-1', model: 'sora-2' })
+    })
+
+    it('rejects size and duration options on remix', async () => {
+      const { adapter, mockRemix } = mockedAdapter()
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: 'x',
+          size: '1280x720',
+          previousJobId: 'video-job-1',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherits the source video's size/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: 'x',
+          duration: 8,
+          previousJobId: 'video-job-1',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherits the source video's duration/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: 'x',
+          modelOptions: { seconds: '8' },
+          previousJobId: 'video-job-1',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/inherits the source video's duration/)
+      expect(mockRemix).not.toHaveBeenCalled()
+    })
+
+    it('rejects media prompt parts and empty prompts on remix', async () => {
+      const { adapter, mockRemix } = mockedAdapter()
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: [
+            { type: 'text', content: 'x' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          previousJobId: 'video-job-1',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/media prompt parts are not supported/)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: '',
+          previousJobId: 'video-job-1',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/requires a text prompt/)
+      expect(mockRemix).not.toHaveBeenCalled()
     })
   })
 })

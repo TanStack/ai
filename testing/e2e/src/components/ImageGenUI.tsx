@@ -15,6 +15,8 @@ interface ImageGenUIProps {
   aimockPort?: number
   /** Show a file input and send the prompt as multimodal parts (image-to-image). */
   withImageInput?: boolean
+  /** Show an edit box on the generated image (follow-up edit via previousImage). */
+  withEditInput?: boolean
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -39,8 +41,10 @@ export function ImageGenUI({
   testId,
   aimockPort,
   withImageInput,
+  withEditInput,
 }: ImageGenUIProps) {
   const [prompt, setPrompt] = useState('')
+  const [editPrompt, setEditPrompt] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
 
   const connectionOptions = () => {
@@ -53,7 +57,10 @@ export function ImageGenUI({
       return { connection: fetchHttpStream('/api/image/stream'), body }
     }
     return {
-      fetcher: async (input: { prompt: MediaPrompt }) => {
+      fetcher: async (input: {
+        prompt: MediaPrompt
+        previousImage?: { url?: string; b64Json?: string }
+      }) => {
         return generateImageFn({
           data: {
             prompt: input.prompt,
@@ -61,6 +68,9 @@ export function ImageGenUI({
             numberOfImages: 1,
             aimockPort,
             testId,
+            ...(input.previousImage
+              ? { previousImage: input.previousImage }
+              : {}),
           },
         }) as Promise<ImageGenerationResult>
       },
@@ -69,6 +79,19 @@ export function ImageGenUI({
 
   const { generate, result, isLoading, error, status } =
     useGenerateImage(connectionOptions())
+
+  // Follow-up edit: the previously generated image rides previousImage and the
+  // server prepends it to the prompt as an image input (adapter edit path).
+  const handleEdit = async () => {
+    const image = result?.images[0]
+    if (!image) return
+    await generate({
+      prompt: editPrompt,
+      previousImage: image.url
+        ? { url: image.url }
+        : { b64Json: image.b64Json },
+    })
+  }
 
   const handleGenerate = async () => {
     if (!imageFile) {
@@ -143,6 +166,26 @@ export function ImageGenUI({
               className="rounded border border-gray-700"
             />
           ))}
+        </div>
+      )}
+      {withEditInput && result && result.images.length > 0 && (
+        <div className="flex gap-2">
+          <input
+            data-testid="edit-prompt-input"
+            type="text"
+            value={editPrompt}
+            onChange={(e) => setEditPrompt(e.target.value)}
+            placeholder="Describe an edit..."
+            className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+          />
+          <button
+            data-testid="edit-button"
+            onClick={handleEdit}
+            disabled={!editPrompt.trim() || isLoading}
+            className="px-4 py-2 bg-purple-500 text-white rounded text-sm font-medium disabled:opacity-50"
+          >
+            Edit
+          </button>
         </div>
       )}
     </div>

@@ -161,8 +161,14 @@ export function createVideoAdapter(
   // Gemini Omni Flash only serves the Interactions API; its background
   // video jobs run through a dedicated aimock mount (see geminiOmniVideoMount
   // in global-setup.ts) addressed via a distinct baseUrl prefix so aimock's
-  // native /v1beta/interactions text handling is untouched.
-  if (feature === 'interactions-video') {
+  // native /v1beta/interactions text handling is untouched. The video-edit
+  // feature reuses the same mount for Gemini (previousJobId chains
+  // previous_interaction_id); OpenAI video-edit falls through to the Sora
+  // adapter below (remix rides the openaiVideoRemixMount).
+  if (
+    feature === 'interactions-video' ||
+    (feature === 'video-edit' && provider === 'gemini')
+  ) {
     if (provider !== 'gemini') {
       throw new Error(`No interactions-video adapter for provider: ${provider}`)
     }

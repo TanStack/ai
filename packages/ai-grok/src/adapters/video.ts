@@ -3,6 +3,7 @@ import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
+  GROK_VIDEO_EDIT_KINDS,
   getGrokVideoDurationOptions,
   isImageToVideoOnlyModel,
   parseGrokVideoSize,
@@ -13,6 +14,7 @@ import type {
   ImagePart,
   MediaInputMetadata,
   TokenUsage,
+  VideoEditKind,
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
@@ -21,6 +23,7 @@ import type {
 import type { GrokVideoModel } from '../model-meta'
 import type {
   GrokVideoModelDurationByName,
+  GrokVideoModelEditByName,
   GrokVideoModelInputModalitiesByName,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
@@ -119,7 +122,8 @@ export class GrokVideoAdapter<
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelInputModalitiesByName,
-  GrokVideoModelDurationByName
+  GrokVideoModelDurationByName,
+  GrokVideoModelEditByName
 > {
   readonly name = 'grok' as const
 
@@ -172,6 +176,14 @@ export class GrokVideoAdapter<
     return body
   }
 
+  /**
+   * `grok-imagine-video` edits a prior clip by URL via `/videos/edits`;
+   * `grok-imagine-video-1.5` has no documented edit endpoint.
+   */
+  override supportedEditKind(): VideoEditKind | undefined {
+    return GROK_VIDEO_EDIT_KINDS[this.model]
+  }
+
   async createVideoJob(
     options: VideoGenerationOptions<
       GrokVideoProviderOptions,
@@ -180,6 +192,10 @@ export class GrokVideoAdapter<
     >,
   ): Promise<VideoJobResult> {
     const { model, size, modelOptions, logger } = options
+
+    if (options.previousJobId) {
+      return this.editVideoJob(options)
+    }
 
     validateVideoSize(model, size)
 
@@ -272,6 +288,99 @@ export class GrokVideoAdapter<
       logger.errors(`${this.name}.createVideoJob fatal`, {
         error: toRunErrorPayload(error, `${this.name}.createVideoJob failed`),
         source: `${this.name}.createVideoJob`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Edit a previously generated clip via `POST /videos/edits`. The endpoint
+   * takes the source video by URL (public URL or base64 data URI) plus an
+   * edit prompt, and returns the same `{ request_id }` polled by
+   * `getVideoStatus` / `getVideoUrl`. The output inherits its duration and
+   * aspect ratio from the input (capped at 720p, truncated to 8 seconds),
+   * so conflicting options are rejected up front instead of being silently
+   * ignored by the API.
+   */
+  private async editVideoJob(
+    options: VideoGenerationOptions<
+      GrokVideoProviderOptions,
+      GrokVideoModelSizeByName[TModel],
+      GrokVideoModelDurationByName[TModel]
+    >,
+  ): Promise<VideoJobResult> {
+    const { model, size, duration, modelOptions, logger, previousJobId } =
+      options
+
+    if (this.supportedEditKind() === undefined) {
+      throw new Error(
+        `${this.name}: model "${model}" does not support editing previous generations (previousJobId).`,
+      )
+    }
+    if (!previousJobId) {
+      throw new Error(
+        `${this.name}: previousJobId is required to edit a previous generation with model "${model}".`,
+      )
+    }
+    if (
+      size !== undefined ||
+      duration !== undefined ||
+      modelOptions?.aspect_ratio !== undefined ||
+      modelOptions?.resolution !== undefined ||
+      modelOptions?.duration !== undefined
+    ) {
+      throw new Error(
+        `${this.name}: video edits inherit duration and aspect ratio from the source video — remove the size/duration options when using previousJobId.`,
+      )
+    }
+
+    const resolved = resolveMediaPrompt(options.prompt)
+    if (
+      resolved.images.length > 0 ||
+      resolved.videos.length > 0 ||
+      resolved.audios.length > 0
+    ) {
+      throw new Error(
+        `${this.name}: video edits accept only a text prompt; media prompt parts are not supported when previousJobId is set.`,
+      )
+    }
+    if (!resolved.text) {
+      throw new Error(
+        `${this.name}: video edits require a text prompt describing the edit.`,
+      )
+    }
+
+    const sourceUrl = await this.resolvePreviousJobUrl(previousJobId)
+
+    try {
+      logger.request(
+        `activity=video.edit provider=${this.name} model=${model}`,
+        { provider: this.name, model },
+      )
+
+      const response = await this.request('/videos/edits', {
+        method: 'POST',
+        body: JSON.stringify({
+          model,
+          prompt: resolved.text,
+          video_url: sourceUrl,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(
+          `grok: video edit request failed (${response.status} ${response.statusText}): ${await this.errorMessage(response)}`,
+        )
+      }
+
+      const result = (await response.json()) as GrokVideoCreateResponse
+      if (!result.request_id) {
+        throw new Error('grok: video edit response contained no request_id')
+      }
+      return { jobId: result.request_id, model }
+    } catch (error: unknown) {
+      logger.errors(`${this.name}.editVideoJob fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.editVideoJob failed`),
+        source: `${this.name}.editVideoJob`,
       })
       throw error
     }

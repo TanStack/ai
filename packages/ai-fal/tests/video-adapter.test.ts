@@ -259,6 +259,103 @@ describe('Fal Video Adapter', () => {
     })
   })
 
+  describe('previousJobId (video-to-video endpoints)', () => {
+    it('reports media-kind edit support', () => {
+      const adapter = createAdapter()
+      expect(adapter.supportedEditKind()).toBe('media')
+    })
+
+    it('resolves previousJobId and routes onto video_url', async () => {
+      mockQueueResult.mockResolvedValueOnce({
+        data: { video: { url: 'https://example.com/source.mp4' } },
+      })
+      mockQueueSubmit.mockResolvedValueOnce({ request_id: 'job-edit' })
+
+      const adapter = falVideo('xai/grok-imagine-video/edit-video', {
+        apiKey: 'test-key',
+      })
+
+      await adapter.createVideoJob({
+        model: 'xai/grok-imagine-video/edit-video',
+        prompt: 'Give the rider a red scarf',
+        previousJobId: 'prior-job',
+        logger: testLogger,
+      })
+
+      expect(mockQueueResult).toHaveBeenCalledWith(
+        'xai/grok-imagine-video/edit-video',
+        { requestId: 'prior-job' },
+      )
+      const [, options] = mockQueueSubmit.mock.calls[0]!
+      expect(options.input).toEqual({
+        prompt: 'Give the rider a red scarf',
+        video_url: 'https://example.com/source.mp4',
+      })
+    })
+
+    it('routes previousJobId onto the video_urls list for Seedance reference-to-video', async () => {
+      mockQueueResult.mockResolvedValueOnce({
+        data: { video: { url: 'https://example.com/source.mp4' } },
+      })
+      mockQueueSubmit.mockResolvedValueOnce({ request_id: 'job-seedance' })
+
+      const adapter = falVideo('bytedance/seedance-2.0/reference-to-video', {
+        apiKey: 'test-key',
+      })
+
+      await adapter.createVideoJob({
+        model: 'bytedance/seedance-2.0/reference-to-video',
+        prompt: 'Replace the background with a beach (@Video1)',
+        previousJobId: 'prior-job',
+        logger: testLogger,
+      })
+
+      const [, options] = mockQueueSubmit.mock.calls[0]!
+      expect(options.input).toEqual({
+        prompt: 'Replace the background with a beach (@Video1)',
+        video_urls: ['https://example.com/source.mp4'],
+      })
+    })
+
+    it('routes generate-model edits onto the mapped edit-video endpoint', async () => {
+      mockQueueResult.mockResolvedValueOnce({
+        data: { video: { url: 'https://example.com/resolved.mp4' } },
+      })
+      mockQueueSubmit.mockResolvedValueOnce({ request_id: 'job-edit' })
+
+      const adapter = falVideo('xai/grok-imagine-video/text-to-video', {
+        apiKey: 'test-key',
+      })
+
+      const result = await adapter.createVideoJob({
+        model: 'xai/grok-imagine-video/text-to-video',
+        prompt: 'Make it rain',
+        previousJobId: 'prior-job',
+        logger: testLogger,
+      })
+
+      // Resolve against the generate endpoint that produced the job.
+      expect(mockQueueResult).toHaveBeenCalledWith(
+        'xai/grok-imagine-video/text-to-video',
+        { requestId: 'prior-job' },
+      )
+      // Submit to the edit sibling.
+      expect(mockQueueSubmit).toHaveBeenCalledWith(
+        'xai/grok-imagine-video/edit-video',
+        expect.objectContaining({
+          input: {
+            prompt: 'Make it rain',
+            video_url: 'https://example.com/resolved.mp4',
+          },
+        }),
+      )
+      expect(result).toEqual({
+        jobId: 'job-edit',
+        model: 'xai/grok-imagine-video/edit-video',
+      })
+    })
+  })
+
   describe('getVideoStatus', () => {
     it('returns pending status for queued jobs', async () => {
       mockQueueStatus.mockResolvedValueOnce({

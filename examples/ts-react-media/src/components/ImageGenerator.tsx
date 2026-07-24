@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { ImageIcon, Loader2, Plus, Shuffle, X } from 'lucide-react'
+import { ImageIcon, Loader2, Plus, Shuffle, Wand2, X } from 'lucide-react'
 import type { ImageGenerationResult } from '@tanstack/ai'
-import type { MediaPrompt } from '@tanstack/ai/client'
+import type { GeneratedImage, MediaPrompt } from '@tanstack/ai/client'
 
 import { generateImageFn } from '@/lib/server-functions'
 import { getRandomImagePrompt } from '@/lib/prompts'
@@ -37,6 +37,7 @@ export default function ImageGenerator({
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<Record<string, ModelResult>>({})
   const [images, setImages] = useState<Array<AttachedMedia>>([])
+  const [editPrompts, setEditPrompts] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentModel = IMAGE_MODELS.find((m) => m.id === selectedModel)
@@ -62,6 +63,40 @@ export default function ImageGenerator({
 
   const removeImage = (id: string) => {
     setImages((prev) => prev.filter((image) => image.id !== id))
+  }
+
+  /**
+   * Follow-up edit of a generated image: the prior image rides `previousImage`
+   * and the server prepends it to the prompt as an image input for the
+   * model's edit path.
+   */
+  const handleEditImage = async (modelId: string, image: GeneratedImage) => {
+    const editPrompt = editPrompts[modelId]?.trim()
+    if (!editPrompt) return
+
+    setResults((prev) => ({ ...prev, [modelId]: { status: 'loading' } }))
+    try {
+      const response = await generateImageFn({
+        data: { prompt: editPrompt, model: modelId, previousImage: image },
+      })
+      setResults((prev) => ({
+        ...prev,
+        [modelId]: { status: 'success', result: response },
+      }))
+      setEditPrompts((prev) => ({ ...prev, [modelId]: '' }))
+      const edited = response.images[0]
+      if (edited) {
+        onImageGenerated?.(getImageSrc(edited))
+      }
+    } catch (err) {
+      setResults((prev) => ({
+        ...prev,
+        [modelId]: {
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Failed to edit image',
+        },
+      }))
+    }
   }
 
   const handleGenerate = async () => {
@@ -312,6 +347,45 @@ export default function ImageGenerator({
                             : 's'}{' '}
                           — multiply by the endpoint unit price for USD cost
                         </p>
+                      )}
+                      {model?.editable && (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editPrompts[modelId] ?? ''}
+                            onChange={(e) =>
+                              setEditPrompts((prev) => ({
+                                ...prev,
+                                [modelId]: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter')
+                                handleEditImage(
+                                  modelId,
+                                  modelResult.result!.images[0]!,
+                                )
+                            }}
+                            placeholder="Describe an edit — e.g. 'make it night time'..."
+                            disabled={isLoading}
+                            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
+                          />
+                          <button
+                            onClick={() =>
+                              handleEditImage(
+                                modelId,
+                                modelResult.result!.images[0]!,
+                              )
+                            }
+                            disabled={
+                              isLoading || !editPrompts[modelId]?.trim()
+                            }
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                            Edit
+                          </button>
+                        </div>
                       )}
                     </>
                   )}

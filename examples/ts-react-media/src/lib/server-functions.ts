@@ -5,6 +5,7 @@ import { grokImage, grokVideo } from '@tanstack/ai-grok'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
 import type {
+  GeneratedImage,
   ImagePart,
   MediaInputMetadata,
   MediaPrompt,
@@ -109,12 +110,28 @@ function videoAdapterForModel(model: string) {
 }
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
-    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
-    if (!data.model) throw new Error('Model is required')
-    return data
-  })
+  .inputValidator(
+    (data: {
+      prompt: MediaPrompt
+      model: string
+      /**
+       * A previously generated image to edit — prepended to the prompt as an
+       * image input by `generateImage`. Only supported by image-conditioned
+       * models (Gemini native image, grok-imagine).
+       */
+      previousImage?: GeneratedImage
+    }) => {
+      if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+      if (!data.model) throw new Error('Model is required')
+      return data
+    },
+  )
   .handler(async ({ data }) => {
+    // Follow-up edit of a previous generation: pass the prior image through
+    // generateImage's previousImage for the image-conditioned models below.
+    const previousImage = data.previousImage
+      ? { previousImage: data.previousImage }
+      : {}
     // NOTE: Use string literals when instantiating adapters to preserve type safety
     // The Fal adapater also accepts any string for very latest models which is why new models appear to accept any paramater
     // Pass size information in modelOptions for the Fal adapter instead of size to be sure you are using the correct resolution
@@ -155,6 +172,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9',
+          ...previousImage,
         })
       }
       case 'grok-imagine-image-quality': {
@@ -163,6 +181,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9',
+          ...previousImage,
         })
       }
       case 'fal-ai/flux-2/klein/9b': {
@@ -192,6 +211,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
+          ...previousImage,
         })
       }
       case 'gemini-3-pro-image-preview': {
@@ -200,6 +220,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
+          ...previousImage,
         })
       }
       case 'imagen-4.0-ultra-generate-001': {
@@ -237,10 +258,10 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       prompt: MediaPrompt
       model: string
       /**
-       * Gemini Omni Flash conversational editing: the jobId (interaction id)
-       * of a prior Omni generation to refine. Ignored by other models.
+       * Prior generation's job id to edit instead of generating from scratch.
+       * Adapters that need a URL resolve it via `getVideoUrl`.
        */
-      previousInteractionId?: string
+      previousJobId?: string
       /**
        * Gemini Omni Flash generation controls (ignored by other models):
        * clip duration in seconds (3-10, fractional OK, default 10), output
@@ -259,6 +280,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
     },
   )
   .handler(async ({ data }) => {
+    const previousJobId = data.previousJobId
     // Image-to-video models receive the start frame as a prompt part
     // (role: 'start_frame') — the fal adapter routes it to the endpoint's
     // start-image field. Text-to-video models take the text prompt only.
@@ -287,13 +309,17 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         })
       }
       case 'xai/grok-imagine-video/text-to-video': {
+        // Follow-up edits: the fal adapter resolves the prior clip from
+        // previousJobId on this generate endpoint, then submits to edit-video.
         return generateVideo({
           adapter: falVideo('xai/grok-imagine-video/text-to-video'),
           prompt: asTextPrompt(data.prompt),
-          size: '16:9_720p',
-          modelOptions: {
-            duration: 5,
-          },
+          ...(previousJobId
+            ? { previousJobId }
+            : {
+                size: '16:9_720p' as const,
+                modelOptions: { duration: 5 },
+              }),
         })
       }
       case 'grok-imagine-video': {
@@ -301,6 +327,18 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         // grok-imagine-video (v1.0) supports text-to-video; durations are
         // 1-15 integer seconds. Completed jobs report usage.unitsBilled
         // (billed seconds) and usage.cost (exact USD).
+        //
+        // Follow-up edits go through `/videos/edits`. Pass previousJobId;
+        // the adapter resolves the finished clip URL. Edits inherit
+        // duration/aspect ratio from the source, so size/duration options
+        // are only sent on creation.
+        if (previousJobId) {
+          return generateVideo({
+            adapter: grokVideo('grok-imagine-video'),
+            prompt: asTextPrompt(data.prompt),
+            previousJobId,
+          })
+        }
         return generateVideo({
           adapter: grokVideo('grok-imagine-video'),
           prompt: asTextPrompt(data.prompt),
@@ -340,10 +378,12 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         return generateVideo({
           adapter: falVideo('xai/grok-imagine-video/image-to-video'),
           prompt: asImageToVideoPrompt(data.prompt),
-          size: '16:9_720p',
-          modelOptions: {
-            duration: 5,
-          },
+          ...(previousJobId
+            ? { previousJobId }
+            : {
+                size: '16:9_720p' as const,
+                modelOptions: { duration: 5 },
+              }),
         })
       }
       case 'grok-imagine-video-1.5/image-to-video': {
@@ -368,15 +408,15 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
       // serves both UI entries; it accepts text, image, AND video prompt
       // parts (sent as interaction content blocks: images, then videos,
       // then text). Clips are 3–10s at 720p (default 10s when `duration`
-      // is omitted); `size` is the output aspect ratio. Passing
-      // `previous_interaction_id` chains a prompt onto a prior generation
-      // for conversational editing.
+      // is omitted); `size` is the output aspect ratio. `previousJobId`
+      // chains a prompt onto a prior generation (its interaction id) for
+      // conversational editing.
       case 'gemini-omni-flash-preview':
       case 'gemini-omni-flash-preview/image-to-video': {
         const prompt = asOmniPrompt(data.prompt)
         if (
           data.model.endsWith('/image-to-video') &&
-          !data.previousInteractionId &&
+          !previousJobId &&
           (typeof prompt === 'string' ||
             !prompt.some((part) => part.type === 'image'))
         ) {
@@ -388,15 +428,11 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           prompt,
           size: aspectRatio ?? '16:9',
           ...(duration !== undefined ? { duration } : {}),
-          ...(data.previousInteractionId || task
+          ...(previousJobId ? { previousJobId } : {}),
+          ...(task
             ? {
                 modelOptions: {
-                  ...(data.previousInteractionId
-                    ? { previous_interaction_id: data.previousInteractionId }
-                    : {}),
-                  ...(task
-                    ? { generation_config: { video_config: { task } } }
-                    : {}),
+                  generation_config: { video_config: { task } },
                 },
               }
             : {}),

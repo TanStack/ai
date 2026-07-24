@@ -6,6 +6,7 @@ export const IMAGE_MODELS = [
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'xai/grok-imagine-image',
@@ -14,6 +15,7 @@ export const IMAGE_MODELS = [
     defaultSize: '16:9' as const,
     sizeType: 'aspect_ratio' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'grok-imagine-image',
@@ -22,6 +24,7 @@ export const IMAGE_MODELS = [
     defaultSize: '16:9' as const,
     sizeType: 'aspect_ratio' as const,
     provider: 'xai' as const,
+    editable: true as const,
   },
   {
     id: 'grok-imagine-image-quality',
@@ -30,6 +33,7 @@ export const IMAGE_MODELS = [
     defaultSize: '16:9' as const,
     sizeType: 'aspect_ratio' as const,
     provider: 'xai' as const,
+    editable: true as const,
   },
   {
     id: 'fal-ai/flux-2/klein/9b',
@@ -38,6 +42,7 @@ export const IMAGE_MODELS = [
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/z-image/turbo',
@@ -46,6 +51,7 @@ export const IMAGE_MODELS = [
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'gemini-3.1-flash-image-preview',
@@ -54,6 +60,7 @@ export const IMAGE_MODELS = [
     defaultSize: '16:9_4K' as const,
     sizeType: 'native' as const,
     provider: 'gemini' as const,
+    editable: true as const,
   },
   {
     id: 'gemini-3-pro-image-preview',
@@ -62,6 +69,7 @@ export const IMAGE_MODELS = [
     defaultSize: '16:9_4K' as const,
     sizeType: 'native' as const,
     provider: 'gemini' as const,
+    editable: true as const,
   },
   {
     id: 'imagen-4.0-ultra-generate-001',
@@ -70,6 +78,7 @@ export const IMAGE_MODELS = [
     defaultSize: '1024x1024' as const,
     sizeType: 'standard' as const,
     provider: 'gemini' as const,
+    editable: false as const,
   },
   {
     id: 'imagen-4.0-generate-001',
@@ -78,6 +87,7 @@ export const IMAGE_MODELS = [
     defaultSize: '1024x1024' as const,
     sizeType: 'standard' as const,
     provider: 'gemini' as const,
+    editable: false as const,
   },
   {
     id: 'imagen-4.0-fast-generate-001',
@@ -86,6 +96,7 @@ export const IMAGE_MODELS = [
     defaultSize: '1024x1024' as const,
     sizeType: 'standard' as const,
     provider: 'gemini' as const,
+    editable: false as const,
   },
 ] as const
 
@@ -96,6 +107,7 @@ export const VIDEO_MODELS = [
     description: 'High-quality text-to-video generation',
     mode: 'text-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/kling-video/v3/pro/image-to-video',
@@ -103,6 +115,7 @@ export const VIDEO_MODELS = [
     description: 'Animate images with Kling',
     mode: 'image-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/veo3.1',
@@ -110,6 +123,7 @@ export const VIDEO_MODELS = [
     description: 'Google Veo text-to-video',
     mode: 'text-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/veo3.1/image-to-video',
@@ -117,6 +131,7 @@ export const VIDEO_MODELS = [
     description: 'Google Veo image-to-video',
     mode: 'image-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'xai/grok-imagine-video/text-to-video',
@@ -124,6 +139,7 @@ export const VIDEO_MODELS = [
     description: 'xAI video generation from text',
     mode: 'text-to-video' as const,
     provider: 'fal' as const,
+    editable: true as const,
   },
   {
     id: 'xai/grok-imagine-video/image-to-video',
@@ -131,6 +147,7 @@ export const VIDEO_MODELS = [
     description: 'xAI animate images to video',
     mode: 'image-to-video' as const,
     provider: 'fal' as const,
+    editable: true as const,
   },
   {
     id: 'grok-imagine-video',
@@ -139,6 +156,7 @@ export const VIDEO_MODELS = [
       'xAI Imagine API via the native grokVideo adapter (v1.0 supports text-to-video)',
     mode: 'text-to-video' as const,
     provider: 'xai' as const,
+    editable: true as const,
   },
   {
     id: 'grok-imagine-video-1.5/image-to-video',
@@ -147,6 +165,7 @@ export const VIDEO_MODELS = [
       'Animate a starting frame via the native grokVideo adapter (1.5 is image-to-video only)',
     mode: 'image-to-video' as const,
     provider: 'xai' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/ltx-2.3/text-to-video/fast',
@@ -154,6 +173,7 @@ export const VIDEO_MODELS = [
     description: 'Fast text-to-video generation',
     mode: 'text-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'fal-ai/ltx-2.3/image-to-video/fast',
@@ -161,6 +181,7 @@ export const VIDEO_MODELS = [
     description: 'Fast image-to-video animation',
     mode: 'image-to-video' as const,
     provider: 'fal' as const,
+    editable: false as const,
   },
   {
     id: 'gemini-omni-flash-preview',
@@ -169,6 +190,7 @@ export const VIDEO_MODELS = [
       'Google multimodal video generation with conversational editing, via the Interactions API (3-10s, 720p)',
     mode: 'text-to-video' as const,
     provider: 'gemini' as const,
+    editable: true as const,
   },
   {
     id: 'gemini-omni-flash-preview/image-to-video',
@@ -177,6 +199,7 @@ export const VIDEO_MODELS = [
       'Animate an image with Gemini Omni Flash via the Interactions API',
     mode: 'image-to-video' as const,
     provider: 'gemini' as const,
+    editable: true as const,
   },
 ] as const
 

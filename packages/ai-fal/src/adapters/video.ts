@@ -1,5 +1,5 @@
 import { fal } from '@fal-ai/client'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import { generatedVideoUrlToVideoPart, resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import {
   configureFalClient,
@@ -8,9 +8,11 @@ import {
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
 import { mapImageInputsToFalVideoFields } from '../image/image-inputs'
+import { FAL_VIDEO_EDIT_BY_SOURCE } from '../model-meta'
 import type {
   AudioPart,
   MediaInputMetadata,
+  VideoEditKind,
   VideoGenerationOptions,
   VideoJobResult,
   VideoPart,
@@ -21,18 +23,35 @@ import type {
   FalModel,
   FalModelInput,
   FalModelVideoSize,
+  FalVideoEditKindFor,
   FalVideoPromptModalitiesFor,
   FalVideoProviderOptions,
 } from '../model-meta'
 import type { FalClientConfig } from '../utils/client'
 
 /**
+ * Endpoints whose source-video field deviates from the `video_url` default.
+ * Seedance 2.0's reference-to-video endpoints take reference clips as a
+ * `video_urls` list (referenced from the prompt as `@Video1`, `@Video2`, …)
+ * and have no singular `video_url` field.
+ */
+const FAL_VIDEO_SOURCE_FIELD_OVERRIDES: Record<
+  string,
+  'video_url' | 'video_urls'
+> = {
+  'bytedance/seedance-2.0/reference-to-video': 'video_urls',
+  'bytedance/seedance-2.0/fast/reference-to-video': 'video_urls',
+}
+
+/**
  * Map video conditioning inputs onto fal field names.
  * Video-to-video endpoints on fal almost universally use `video_url`; the
- * occasional model takes `video_urls` (rare). Mirror the image-input logic
+ * occasional model takes `video_urls` (list-only endpoints live in
+ * `FAL_VIDEO_SOURCE_FIELD_OVERRIDES`). Mirror the image-input logic
  * positionally with a `reference` role escape hatch via `reference_video_urls`.
  */
 function mapVideoInputsToFalFields(
+  model: string,
   videoInputs?: ReadonlyArray<VideoPart<MediaInputMetadata>>,
 ): Record<string, unknown> {
   if (!videoInputs || videoInputs.length === 0) return {}
@@ -51,7 +70,10 @@ function mapVideoInputsToFalFields(
   }
   const out: Record<string, unknown> = {}
   if (references.length > 0) out.reference_video_urls = references
-  if (sources.length === 1) {
+  const sourceField = FAL_VIDEO_SOURCE_FIELD_OVERRIDES[model]
+  if (sourceField === 'video_urls') {
+    if (sources.length > 0) out.video_urls = sources
+  } else if (sources.length === 1) {
     out.video_url = sources[0]
   } else if (sources.length > 1) {
     out.video_urls = sources
@@ -132,7 +154,9 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   FalVideoProviderOptions<TModel>,
   Record<TModel, FalVideoProviderOptions<TModel>>,
   Record<TModel, FalModelVideoSize<TModel>>,
-  Record<TModel, FalVideoPromptModalitiesFor<TModel>>
+  Record<TModel, FalVideoPromptModalitiesFor<TModel>>,
+  Record<string, number>,
+  Record<TModel, FalVideoEditKindFor<TModel>>
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
@@ -142,13 +166,26 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     configureFalClient(config)
   }
 
+  /**
+   * fal endpoints consume a previously generated video by URL. Callers pass
+   * `previousJobId`; the adapter resolves the finished clip via
+   * `getVideoUrl`. Generate endpoints with a known edit sibling (see
+   * `FAL_VIDEO_EDIT_BY_SOURCE`) resolve on the generate model, then submit
+   * to the edit endpoint. The endpoint set is open-world, so this always
+   * reports `'media'` at runtime; per-endpoint support is narrowed at the
+   * type level via `FalVideoEditKindFor`.
+   */
+  override supportedEditKind(): VideoEditKind {
+    return 'media'
+  }
+
   async createVideoJob(
     options: VideoGenerationOptions<
       FalVideoProviderOptions<TModel>,
       FalModelVideoSize<TModel>
     >,
   ): Promise<VideoJobResult> {
-    const { size, duration, modelOptions, logger } = options
+    const { size, duration, modelOptions, logger, previousJobId } = options
 
     logger.request(`activity=generateVideo provider=fal model=${this.model}`, {
       provider: 'fal',
@@ -157,12 +194,29 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
 
     try {
       const resolved = resolveMediaPrompt(options.prompt)
+      // Resolve the prior clip from previousJobId on this (generate) model, then
+      // submit to the edit sibling when one is mapped.
+      const editUrl = previousJobId
+        ? await this.resolvePreviousJobUrl(previousJobId)
+        : undefined
+      const submitModel =
+        previousJobId && this.model in FAL_VIDEO_EDIT_BY_SOURCE
+          ? FAL_VIDEO_EDIT_BY_SOURCE[
+              this.model as keyof typeof FAL_VIDEO_EDIT_BY_SOURCE
+            ]
+          : this.model
+      // The edited video rides the endpoint's regular video input: prepend
+      // it as a video part so the field mapping below routes it (video_url,
+      // or the endpoint's list field), ahead of any explicit video parts.
+      const videos = editUrl
+        ? [generatedVideoUrlToVideoPart(editUrl), ...resolved.videos]
+        : resolved.videos
       const sizeParams = mapVideoSizeToFalFormat(size)
       const inputImageFields = mapImageInputsToFalVideoFields(
-        this.model,
+        submitModel,
         resolved.images,
       )
-      const videoFields = mapVideoInputsToFalFields(resolved.videos)
+      const videoFields = mapVideoInputsToFalFields(submitModel, videos)
       const audioFields = mapAudioInputsToFalFields(resolved.audios)
 
       const input = {
@@ -180,13 +234,13 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       } as FalModelInput<TModel>
 
       // Submit to queue and get request ID
-      const { request_id } = await fal.queue.submit(this.model, {
+      const { request_id } = await fal.queue.submit(submitModel, {
         input,
       })
 
       return {
         jobId: request_id,
-        model: this.model,
+        model: submitModel,
       }
     } catch (error) {
       logger.errors('fal.createVideoJob fatal', {

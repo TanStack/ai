@@ -109,17 +109,29 @@ export default function VideoGenerator({
     if (videoInputRef.current) videoInputRef.current.value = ''
   }
 
-  const pollStatus = async (jobId: string, model: string) => {
+  // `cardId` keys the UI card (the entry the user picked); `pollModel` is
+  // the model id the server resolves an adapter from. They differ for
+  // follow-up edits that run on a dedicated endpoint (fal's
+  // `xai/grok-imagine-video/edit-video`).
+  const pollStatus = async (
+    cardId: string,
+    jobId: string,
+    pollModel: string,
+  ) => {
     try {
-      const status = await getVideoStatusFn({ data: { jobId, model } })
+      const status = await getVideoStatusFn({
+        data: { jobId, model: pollModel },
+      })
 
       if (status.status === 'completed') {
-        const interval = pollingRefs.current.get(model)
+        const interval = pollingRefs.current.get(cardId)
         if (interval) {
           clearInterval(interval)
-          pollingRefs.current.delete(model)
+          pollingRefs.current.delete(cardId)
         }
-        const urlResult = await getVideoUrlFn({ data: { jobId, model } })
+        const urlResult = await getVideoUrlFn({
+          data: { jobId, model: pollModel },
+        })
         if (!urlResult.url) {
           throw new Error('No URL found')
         }
@@ -127,7 +139,7 @@ export default function VideoGenerator({
 
         setJobStates((prev) => ({
           ...prev,
-          [model]: {
+          [cardId]: {
             status: 'completed',
             url: url,
             jobId,
@@ -138,22 +150,22 @@ export default function VideoGenerator({
       } else if (status.status === 'processing') {
         setJobStates((prev) => ({
           ...prev,
-          [model]: {
+          [cardId]: {
             status: 'processing',
             jobId,
-            model,
+            model: pollModel,
             progress: status.progress,
           },
         }))
       } else if (status.status === 'failed') {
-        const interval = pollingRefs.current.get(model)
+        const interval = pollingRefs.current.get(cardId)
         if (interval) {
           clearInterval(interval)
-          pollingRefs.current.delete(model)
+          pollingRefs.current.delete(cardId)
         }
         setJobStates((prev) => ({
           ...prev,
-          [model]: {
+          [cardId]: {
             status: 'error',
             message: status.error ?? 'Video generation failed',
           },
@@ -161,18 +173,18 @@ export default function VideoGenerator({
       } else {
         setJobStates((prev) => ({
           ...prev,
-          [model]: { status: 'pending', jobId, model },
+          [cardId]: { status: 'pending', jobId, model: pollModel },
         }))
       }
     } catch (err) {
-      const interval = pollingRefs.current.get(model)
+      const interval = pollingRefs.current.get(cardId)
       if (interval) {
         clearInterval(interval)
-        pollingRefs.current.delete(model)
+        pollingRefs.current.delete(cardId)
       }
       setJobStates((prev) => ({
         ...prev,
-        [model]: {
+        [cardId]: {
           status: 'error',
           message: err instanceof Error ? err.message : 'Failed to get status',
         },
@@ -183,11 +195,11 @@ export default function VideoGenerator({
   // Poll keyed by the UI model id, not result.model: the direct-xAI
   // entries share one adapter model ('grok-imagine-video-1.5'),
   // so result.model wouldn't identify the card (or the adapter) uniquely.
-  const beginPolling = (modelId: string, jobId: string) => {
+  const beginPolling = (cardId: string, jobId: string, pollModel = cardId) => {
     const interval = setInterval(() => {
-      pollStatus(jobId, modelId)
+      pollStatus(cardId, jobId, pollModel)
     }, 4000)
-    pollingRefs.current.set(modelId, interval)
+    pollingRefs.current.set(cardId, interval)
   }
 
   const startJobForModel = async (modelId: string) => {
@@ -242,13 +254,17 @@ export default function VideoGenerator({
   }
 
   /**
-   * Gemini Omni Flash conversational editing: chain a new prompt onto a
-   * completed generation via its interaction id (the jobId). The model
-   * applies the change while preserving everything else in the video.
+   * Follow-up edit of a completed generation. Always pass the prior jobId;
+   * adapters that need a URL resolve it via getVideoUrl.
    */
-  const handleEditVideo = async (modelId: string, previousJobId: string) => {
+  const handleEditVideo = async (
+    modelId: string,
+    previous: { jobId: string; url: string },
+  ) => {
     const editPrompt = editPrompts[modelId]?.trim()
     if (!editPrompt) return
+    const model = VIDEO_MODELS.find((m) => m.id === modelId)
+    if (!model?.editable) return
 
     setJobStates((prev) => ({
       ...prev,
@@ -260,7 +276,7 @@ export default function VideoGenerator({
         data: {
           prompt: editPrompt,
           model: modelId,
-          previousInteractionId: previousJobId,
+          previousJobId: previous.jobId,
         },
       })
 
@@ -274,7 +290,9 @@ export default function VideoGenerator({
       }))
       setEditPrompts((prev) => ({ ...prev, [modelId]: '' }))
 
-      beginPolling(modelId, result.jobId)
+      // fal generate→edit routing may return a different model id (the edit
+      // sibling endpoint) — poll against that.
+      beginPolling(modelId, result.jobId, result.model)
     } catch (err) {
       setJobStates((prev) => ({
         ...prev,
@@ -587,7 +605,7 @@ export default function VideoGenerator({
                         </p>
                       )
                     )}
-                    {model?.provider === 'gemini' && (
+                    {model?.editable && (
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -600,14 +618,22 @@ export default function VideoGenerator({
                           }
                           onKeyDown={(e) => {
                             if (e.key === 'Enter')
-                              handleEditVideo(modelId, state.jobId)
+                              handleEditVideo(modelId, {
+                                jobId: state.jobId,
+                                url: state.url,
+                              })
                           }}
                           placeholder="Describe an edit — e.g. 'make it nighttime'..."
                           disabled={isGenerating}
                           className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
                         />
                         <button
-                          onClick={() => handleEditVideo(modelId, state.jobId)}
+                          onClick={() =>
+                            handleEditVideo(modelId, {
+                              jobId: state.jobId,
+                              url: state.url,
+                            })
+                          }
                           disabled={
                             isGenerating || !editPrompts[modelId]?.trim()
                           }

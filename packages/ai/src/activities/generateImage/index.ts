@@ -15,15 +15,20 @@ import {
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
-import { resolveMediaPrompt } from '../../utilities/media-prompt'
+import {
+  generatedImageToImagePart,
+  resolveMediaPrompt,
+} from '../../utilities/media-prompt'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
 import type { ImageAdapter } from './adapter'
 import type {
+  GeneratedImage,
   ImageGenerationResult,
   MediaPrompt,
   MediaPromptFor,
+  MediaPromptPart,
   StreamChunk,
 } from '../../types'
 
@@ -85,6 +90,35 @@ export type ImagePromptForModel<TAdapter, TModel extends string> =
         ? MediaPromptFor<ModsByName[TModel][number]>
         : MediaPrompt
     : MediaPrompt
+
+/**
+ * Previously generated image(s) accepted by `generateImage`'s `previousImage`:
+ * a single {@link GeneratedImage}, an array of them, or the whole prior
+ * {@link ImageGenerationResult} (its `images` are used).
+ */
+export type ImagePreviousSource =
+  | GeneratedImage
+  | ReadonlyArray<GeneratedImage>
+  | Pick<ImageGenerationResult, 'images'>
+
+/**
+ * Extract the `previousImage` type for an ImageAdapter's model via ~types.
+ * Follow-up image edits work by re-passing the generated image as an image
+ * prompt part, so the option is offered exactly when the model accepts
+ * image inputs (`'image'` in its input-modality map); text-only models
+ * (DALL·E 3, Imagen) reject it at compile time. Adapters without a map fall
+ * back to accepting it, gated by the adapter's own runtime errors.
+ */
+export type ImagePreviousImageForModel<TAdapter, TModel extends string> =
+  TAdapter extends ImageAdapter<any, any, any, any, infer ModsByName>
+    ? string extends keyof ModsByName
+      ? ImagePreviousSource
+      : TModel extends keyof ModsByName
+        ? 'image' extends ModsByName[TModel][number]
+          ? ImagePreviousSource
+          : never
+        : ImagePreviousSource
+    : ImagePreviousSource
 
 // ===========================
 // Activity Options Type
@@ -149,7 +183,22 @@ export type ImageActivityOptions<
         TAdapter,
         TAdapter['model']
       >
-    })
+    }) &
+  ([ImagePreviousImageForModel<TAdapter, TAdapter['model']>] extends [never]
+    ? {
+        /** This model does not accept image inputs, so it cannot edit previous generations. */
+        previousImage?: never
+      }
+    : {
+        /**
+         * Previously generated image(s) to edit instead of generating from
+         * scratch — pass a `GeneratedImage`, an array of them, or the whole
+         * prior `ImageGenerationResult`. They are prepended to the prompt as
+         * image parts and consumed by the model's existing edit path. Only
+         * offered for models that accept image inputs.
+         */
+        previousImage?: ImagePreviousImageForModel<TAdapter, TAdapter['model']>
+      })
 
 // ===========================
 // Activity Result Type
@@ -234,6 +283,30 @@ export function generateImage<
 }
 
 /**
+ * Normalize a `previousImage` value to the images it references and prepend
+ * them to the prompt as image parts, so the adapter's existing
+ * image-conditioned path (edit endpoint, `inlineData`, ...) consumes them.
+ */
+function prependPreviousImages(
+  prompt: MediaPrompt,
+  previousImage: ImagePreviousSource,
+): Array<MediaPromptPart> {
+  const images: ReadonlyArray<GeneratedImage> =
+    'images' in previousImage
+      ? previousImage.images
+      : Array.isArray(previousImage)
+        ? previousImage
+        : [previousImage]
+  if (images.length === 0) {
+    throw new Error('generateImage: previousImage contained no images.')
+  }
+  const imageParts = images.map(generatedImageToImagePart)
+  const promptParts: Array<MediaPromptPart> =
+    typeof prompt === 'string' ? [{ type: 'text', content: prompt }] : prompt
+  return [...imageParts, ...promptParts]
+}
+
+/**
  * Internal implementation of image generation (always non-streaming).
  * Contains all devtools event emission logic.
  */
@@ -247,8 +320,12 @@ async function runGenerateImage<
     stream: _stream,
     debug: _debug,
     middleware,
+    previousImage,
     ...rest
   } = options
+  const prompt: MediaPrompt = previousImage
+    ? prependPreviousImages(rest.prompt, previousImage)
+    : rest.prompt
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
@@ -267,7 +344,7 @@ async function runGenerateImage<
 
   // Devtools events carry the flattened prompt text plus media-part counts —
   // the wire payload stays `prompt: string` regardless of the prompt shape.
-  const resolved = resolveMediaPrompt(rest.prompt)
+  const resolved = resolveMediaPrompt(prompt)
 
   aiEventClient.emit('image:request:started', {
     requestId,
@@ -295,7 +372,12 @@ async function runGenerateImage<
   })
 
   try {
-    const result = await adapter.generateImages({ ...rest, model, logger })
+    const result = await adapter.generateImages({
+      ...rest,
+      prompt,
+      model,
+      logger,
+    })
     const duration = Date.now() - startTime
 
     aiEventClient.emit('image:request:completed', {
