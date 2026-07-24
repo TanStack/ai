@@ -14,11 +14,7 @@ export function createUIMessage(
   return { id, role, parts: [{ type: 'text', content: text }] }
 }
 
-/**
- * Create a persistence adapter whose three methods are vitest spies. `getItem`
- * synchronously returns `initial` (defaults to `undefined`); override individual
- * methods via the returned object's `.mock*` helpers for async/error scenarios.
- */
+/** Mock message persistence adapter for ChatPersistor / ChatClient tests. */
 export function createMockPersistence(
   initial?: Array<UIMessage> | null,
 ): ChatClientPersistence {
@@ -28,6 +24,7 @@ export function createMockPersistence(
     removeItem: vi.fn(),
   }
 }
+
 /**
  * Options for creating a mock connection adapter
  */

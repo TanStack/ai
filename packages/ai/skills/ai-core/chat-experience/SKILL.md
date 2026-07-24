@@ -16,6 +16,7 @@ sources:
   - 'TanStack/ai:docs/chat/connection-adapters.md'
   - 'TanStack/ai:docs/chat/thinking-content.md'
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
+  - 'TanStack/ai:docs/resumable-streams/overview.md'
 ---
 
 # Chat Experience
@@ -41,7 +42,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = body
 
         const stream = chat({
-          adapter: openaiText('gpt-5.2'),
+          adapter: openaiText('gpt-5.5'),
           messages,
           systemPrompts: ['You are a helpful assistant.'],
           abortController,
@@ -147,6 +148,16 @@ const stream = chat({
 
 return toServerSentEventsResponse(stream, { abortController })
 ```
+
+To make the SSE response resumable (reconnect after a drop/refresh without
+re-running the provider), pass a delivery-durability adapter:
+`toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`
+(`memoryStream` from `@tanstack/ai` is process-local, for dev/tests) or
+`durableStream(request, { server })` from `@tanstack/ai-durable-stream`
+(Durable Streams protocol, production). Each SSE event gets an opaque
+adapter-owned `id:`; `fetchServerSentEvents` auto-reconnects with
+`Last-Event-ID` and exposes `joinRun(runId)` to replay a run from the start.
+See `docs/resumable-streams/overview.md`.
 
 **Client:**
 
@@ -317,7 +328,7 @@ import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   abortController,
 })
@@ -337,6 +348,13 @@ const { messages, sendMessage } = useChat({
 
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
+
+This includes resumability: pass the same `durability` adapter to
+`toHttpResponse(stream, { durability: { adapter: memoryStream(request) } })` and
+each NDJSON line becomes an `{ id, chunk }` envelope. `fetchHttpStream`
+auto-reconnects with `Last-Event-ID`, de-dupes the replayed prefix, and exposes
+`joinRun(runId)` — the same guarantees as resumable SSE. The XHR adapters
+(`xhrServerSentEvents` / `xhrHttpStream`) are resumable too.
 
 ### 6. MCP Tool Discovery via `chat({ mcp })`
 
@@ -409,6 +427,64 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+### 7. Queueing Messages Sent While Streaming
+
+By default, a `sendMessage` call that arrives while a stream is in flight is
+**queued** and sent automatically once the run settles **successfully** —
+this is a behavior change: such sends used to be silently dropped. Configure
+it with the `queue` option on `useChat`:
+
+```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  queue: { whenBusy: 'queue', drain: 'fifo', maxSize: 5, onOverflow: 'reject' },
+})
+```
+
+- **`whenBusy`** — `'queue'` (default) holds the message until a successful
+  settle; `'drop'` ignores the send (never appears in `queue`/`messages`);
+  `'interrupt'` aborts the current stream and sends immediately (unlike
+  `stop()`, does **not** flush already-queued items — they drain after the
+  interrupting send **succeeds**).
+- **`drain`** — `'fifo'` (default) sends queued items one at a time in
+  order; `'batch'` merges everything queued into a single send once the
+  run settles successfully.
+- **`maxSize`** / **`onOverflow`** — cap the queue length; `'reject'`
+  (default) silently ignores overflow sends (does not throw),
+  `'drop-oldest'` evicts the oldest queued item to make room.
+
+The top-level `queue` option also accepts a plain `WhenBusy` string
+shorthand (e.g. `queue: 'interrupt'`) or a `QueueStrategy` function for
+per-send action control. Strategy form always drains FIFO; actions are
+`'queue' | 'drop' | 'interrupt'`.
+
+**Drain vs flush:** queued messages auto-send only after a **successful**
+settle. They are **discarded** on stream error/abort of the active
+generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
+`interrupt` does not flush.
+
+`queue: Array<QueuedMessage>` (`{ id, content, createdAt }`) is separate
+from `messages` — render pending sends distinctly and cancel with
+`cancelQueued(id)`:
+
+```typescript
+{queue.map((q) => (
+  <div key={q.id}>
+    {typeof q.content === 'string' ? q.content : '[attachment]'}
+    <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+  </div>
+))}
+```
+
+Override the configured policy for a single send with the second argument
+to `sendMessage`:
+
+```typescript
+sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
+```
+
 ## Common Mistakes
 
 ### a. CRITICAL: Using Vercel AI SDK patterns (streamText, generateText)
@@ -417,12 +493,12 @@ export const Route = createFileRoute('/api/chat')({
 // WRONG
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-const result = streamText({ model: openai('gpt-4o'), messages })
+const result = streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
+const stream = chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
@@ -431,12 +507,12 @@ const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
 // WRONG
 import { createOpenAI } from '@ai-sdk/openai'
 const openai = createOpenAI({ apiKey })
-streamText({ model: openai('gpt-4o'), messages })
+streamText({ model: openai('gpt-5.5'), messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
@@ -444,11 +520,11 @@ chat({ adapter: openaiText('gpt-5.2'), messages })
 ```typescript
 // WRONG
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.2', messages })
+chat({ adapter: openai(), model: 'gpt-5.5', messages })
 
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The monolithic `openai()` adapter is deprecated. Use tree-shakeable adapters:
@@ -470,10 +546,10 @@ return toServerSentEventsResponse(stream, { abortController })
 
 ```typescript
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.2', messages })
+chat({ adapter: openaiText(), model: 'gpt-5.5', messages })
 
 // CORRECT
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openaiText('gpt-5.5'), messages })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.

@@ -2,24 +2,45 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
@@ -67,6 +88,8 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
+  | 'onResumeStateChange'
   | 'context'
   | 'devtools'
 > & {
@@ -118,10 +141,27 @@ interface BaseUseChatReturn<
   messages: Accessor<Array<UIMessage<TTools, TData>>>
 
   /**
+   * Pending messages queued while the client is busy (streaming, claiming a
+   * send, or draining). Separate from `messages` until they drain.
+   */
+  queue: Accessor<Array<QueuedMessage>>
+
+  /**
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
+  cancelQueued: (id: string) => void
+
+  /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * By default, sends while busy are queued until the run settles successfully
+   * (`queue: 'drop'` restores the old drop-while-busy behavior).
+   * Pass `{ whenBusy }` to override the policy for a single send.
    */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
 
   /**
    * Append a message to the conversation
@@ -146,6 +186,28 @@ interface BaseUseChatReturn<
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
+
+  resumeState: Accessor<ChatResumeState | null>
+  interrupts: Accessor<BoundInterrupts<TTools>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: Accessor<BoundInterrupts<TTools>>
+  interruptErrors: Accessor<ChatInterruptState<TTools>['interruptErrors']>
+  resuming: Accessor<boolean>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
+  resumeInterrupts: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
 
   /**
    * Reload the last assistant message

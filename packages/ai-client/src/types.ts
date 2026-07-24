@@ -1,13 +1,24 @@
 import type {
   AnyClientTool,
+  ApprovalCapabilityOf,
+  ApprovalSchemaOf,
   AudioPart,
+  BatchInterruptError,
   ChunkStrategy,
   ContentPart,
   DocumentPart,
   ImagePart,
+  InferSchemaType,
   InferToolInput,
   InferToolOutput,
+  InputSchemaOf,
+  Interrupt,
+  InterruptBinding,
+  ItemInterruptError,
   ModelMessage,
+  NoSchema,
+  RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
   StructuredOutputPart,
   UIResourcePart,
@@ -17,7 +28,184 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart } from '@tanstack/ai/client'
+export type { StructuredOutputPart }
+
+export interface ChatResumeState {
+  threadId: string
+  runId: string
+}
+
+export type ChatPendingInterrupt = Interrupt
+
+export interface ChatResumeSnapshotV1 {
+  schemaVersion?: 1
+  resumeState: ChatResumeState
+  pendingInterrupts?: Array<ChatPendingInterrupt>
+}
+
+export interface ChatResumeSnapshotV2 {
+  schemaVersion: 2
+  resumeState: ChatResumeState
+  pendingInterrupts?: Array<ChatPendingInterrupt>
+}
+
+export type ChatResumeSnapshot = ChatResumeSnapshotV1 | ChatResumeSnapshotV2
+
+export type InterruptItemStatus =
+  | 'pending'
+  | 'validating'
+  | 'staged'
+  | 'submitting'
+  | 'error'
+
+export interface BoundInterruptBase {
+  readonly id: string
+  readonly interruptId: string
+  readonly reason: string
+  readonly message?: string
+  readonly responseSchema?: Readonly<Record<string, unknown>>
+  readonly expiresAt?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly threadId: string
+  readonly interruptedRunId: string
+  readonly generation: number
+  readonly status: InterruptItemStatus
+  readonly errors: ReadonlyArray<ItemInterruptError>
+  /** @deprecated Use `errors[0]`. */
+  readonly error?: ItemInterruptError
+  /**
+   * Whether the binding/schema allows resolution at hydrate time.
+   * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
+   * `errors` for those lifecycle states.
+   */
+  readonly canResolve: boolean
+  cancel: () => void
+  clearResolution: () => void
+}
+
+export interface GenericAGUIInterrupt extends BoundInterruptBase {
+  readonly kind: 'generic'
+  readonly binding: Readonly<Extract<InterruptBinding, { kind: 'generic' }>>
+  resolveInterrupt: (payload: unknown) => void
+}
+
+/**
+ * An interrupt that arrived on the stream carrying no resume binding this
+ * client understands — no `tanstack:interruptBinding`, or one written at a
+ * protocol version we don't recognise.
+ *
+ * These are surfaced rather than hidden so a UI can show that the run is
+ * paused, but they are never resolvable here: something else owns them. A
+ * workflow engine's durable approval projected into the same AG-UI stream
+ * lands in this bucket, and resolving it through the chat resume path would
+ * send an answer no one is waiting for. Render it, or route it to whatever
+ * actually owns the pause.
+ */
+export interface UnboundInterrupt extends BoundInterruptBase {
+  readonly kind: 'unbound'
+  readonly binding?: undefined
+  readonly canResolve: false
+}
+
+type ApprovalBranchSchema<TTool, TBranch extends 'approve' | 'reject'> =
+  ApprovalSchemaOf<TTool> extends infer TApproval
+    ? TApproval extends { approve?: SchemaInput; reject?: SchemaInput }
+      ? Exclude<TApproval[TBranch], undefined>
+      : TApproval extends SchemaInput
+        ? TApproval
+        : never
+    : never
+
+type ApprovalEdits<TTool> =
+  InputSchemaOf<TTool> extends NoSchema
+    ? { editedArgs?: never }
+    : { editedArgs?: InferToolInput<TTool> }
+
+type ApprovalPayload<TSchema> = [TSchema] extends [never]
+  ? { payload?: never }
+  : TSchema extends SchemaInput
+    ? { payload: InferSchemaType<TSchema> }
+    : { payload?: never }
+
+type ApproveArguments<TTool> = [
+  ApprovalBranchSchema<TTool, 'approve'>,
+] extends [never]
+  ? InputSchemaOf<TTool> extends NoSchema
+    ? [options?: never]
+    : [options?: ApprovalEdits<TTool> & { payload?: never }]
+  : [
+      options: ApprovalEdits<TTool> &
+        ApprovalPayload<ApprovalBranchSchema<TTool, 'approve'>>,
+    ]
+
+type RejectArguments<TTool> = [ApprovalBranchSchema<TTool, 'reject'>] extends [
+  never,
+]
+  ? [options?: never]
+  : [
+      options: { editedArgs?: never } & ApprovalPayload<
+        ApprovalBranchSchema<TTool, 'reject'>
+      >,
+    ]
+
+export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
+  TTool extends AnyClientTool
+    ? BoundInterruptBase & {
+        readonly kind: 'tool-approval'
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'tool-approval' }>
+        >
+        readonly toolName: TTool['name']
+        readonly toolCallId: string
+        readonly originalArgs: InferToolInput<TTool>
+        // A single generic call signature — not two overloads. Overloads break
+        // editor autocomplete: a half-typed options literal (e.g.
+        // `resolveInterrupt(true, { payload: {` ) satisfies neither overload,
+        // so TS resolves no signature and offers no contextual completions.
+        // Making `approved` a generic discriminant lets TS infer it from the
+        // first argument and pick the matching branch for the rest params, so
+        // `payload` / `editedArgs` / the correct schema's fields complete
+        // per-branch (a plain union-of-tuples would offer both branches'
+        // fields) while still enforcing the right shape.
+        resolveInterrupt: <TApproved extends boolean>(
+          approved: TApproved,
+          ...args: TApproved extends true
+            ? ApproveArguments<TTool>
+            : RejectArguments<TTool>
+        ) => void
+      }
+    : never
+
+type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
+  TTools[number] extends infer TTool
+    ? TTool extends AnyClientTool
+      ? ApprovalCapabilityOf<TTool> extends true
+        ? ToolApprovalInterrupt<TTool>
+        : never
+      : never
+    : never
+
+// Client tools resolve through their `.client()` implementation (auto-run) or
+// `addToolResult` — never as a bound interrupt. The `client-tool-execution`
+// pause is handled internally and is intentionally absent from this public
+// union.
+export type ChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> = GenericAGUIInterrupt | UnboundInterrupt | ApprovalInterrupts<TTools>
+
+export type BoundInterrupts<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> = ReadonlyArray<ChatInterrupt<TTools>>
+
+export interface ChatInterruptState<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> {
+  readonly interrupts: BoundInterrupts<TTools>
+  /** @deprecated Use `interrupts`. Same snapshot today. */
+  readonly pendingInterrupts: BoundInterrupts<TTools>
+  readonly interruptErrors: ReadonlyArray<BatchInterruptError>
+  readonly resuming: boolean
+}
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
@@ -31,6 +219,8 @@ export interface ChatFetcherInput {
   data?: Record<string, unknown>
   threadId: string
   runId: string
+  parentRunId?: string
+  resume?: Array<RunAgentResumeItem>
 }
 
 export interface ChatFetcherOptions {
@@ -142,6 +332,88 @@ export interface MultimodalContent {
    * If not provided, a unique ID will be generated.
    */
   id?: string
+}
+
+/**
+ * Action taken when `sendMessage` is called while the client is busy
+ * (streaming, claiming a send, or draining the queue).
+ * - `queue`: hold the message; it auto-sends when the current run settles
+ *   **successfully**.
+ * - `drop`: ignore the send (promise still resolves; does not throw).
+ * - `interrupt`: abort the current stream and send immediately. Unlike
+ *   `stop()`, does **not** flush already-queued messages — they still drain
+ *   after the interrupting send settles successfully.
+ */
+export type WhenBusy = 'queue' | 'drop' | 'interrupt'
+
+/**
+ * Why the client is busy when a {@link QueueStrategy} runs.
+ * - `streaming` — an LLM stream is active (`isLoading`).
+ * - `sendInFlight` — a send has claimed the client but is not yet loading.
+ * - `draining` — the queue drain loop is delivering pending messages.
+ */
+export type QueueBusyReason = 'streaming' | 'sendInFlight' | 'draining'
+
+/**
+ * A user message held in the send queue while a stream is active.
+ * Rendered separately from `messages`; cancellable via `cancelQueued(id)`
+ * until it drains.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string | MultimodalContent
+  createdAt: number
+}
+
+/**
+ * Declarative queue policy.
+ */
+export interface QueueConfig {
+  /**
+   * Action when the client is busy (streaming, claiming a send, or draining).
+   * Default `'queue'`.
+   */
+  whenBusy?: WhenBusy
+  /**
+   * How queued items leave the queue.
+   * - `'fifo'`: one at a time, in order (default).
+   * - `'batch'`: merge all queued items into one send when the run settles
+   *   successfully.
+   */
+  drain?: 'fifo' | 'batch'
+  /** Max queued items. Unlimited when omitted. `0` means never queue. */
+  maxSize?: number
+  /**
+   * Behavior when `maxSize` is reached. Default `'reject'`.
+   * `'reject'` silently discards the new send (does not throw);
+   * `'drop-oldest'` evicts the oldest queued item to make room.
+   * Only meaningful when `maxSize` is set.
+   */
+  onOverflow?: 'reject' | 'drop-oldest'
+}
+
+/**
+ * Escape hatch: decide the action for a single send. Drain stays FIFO for the
+ * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
+ * overrides the strategy for that send.
+ *
+ * Actions match {@link WhenBusy}: `'queue' | 'drop' | 'interrupt'`. Concurrent
+ * streams are not supported. `pending.id` is the id that will be stored if the
+ * action is `'queue'` (safe to pass to `cancelQueued`).
+ */
+export type QueueStrategy = (ctx: {
+  pending: QueuedMessage
+  busyReason: QueueBusyReason
+  queued: ReadonlyArray<QueuedMessage>
+}) => { action: WhenBusy }
+
+/** A `WhenBusy` shorthand, a full config, or a strategy function. */
+export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
+
+/** Per-call overrides for `sendMessage`. */
+export interface SendMessageOptions {
+  /** Overrides the configured `whenBusy` for this one send. */
+  whenBusy?: WhenBusy
 }
 
 /**
@@ -389,7 +661,9 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapter for chat messages.
+   * Optional persistence adapter for chat messages (UIMessage[] by chat id).
+   * Durable interrupt resume storage is not part of this surface — use
+   * `initialResumeSnapshot` for in-memory rehydrate after a host-managed load.
    */
   persistence?: ChatClientPersistence<TTools>
 
@@ -404,6 +678,13 @@ export interface ChatClientBaseOptions<
    * the session. If omitted, a unique thread ID is generated.
    */
   threadId?: string
+
+  /**
+   * Initial resumable run state, useful when rehydrating a persisted client
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
+   */
+  initialResumeSnapshot?: ChatResumeSnapshot
 
   /**
    * Arbitrary client-controlled JSON forwarded to the server in the
@@ -491,6 +772,34 @@ export interface ChatClientBaseOptions<
    * activity visible to all subscribers (e.g. across tabs/devices).
    */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Policy for messages sent while the client is busy (streaming, claiming
+   * a send, or draining the queue). Accepts a `WhenBusy` string, a
+   * `QueueConfig`, or a `QueueStrategy` function.
+   * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   * Queued items auto-send only after a **successful** settle; they are
+   * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
+   * `reload()`.
+   */
+  queue?: QueueOption
+
+  /**
+   * Callback when the pending send queue changes (enqueue, cancel, drain,
+   * or flush).
+   */
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
+
+  /**
+   * Callback when resumable run state or pending interrupts change.
+   */
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools>,
+  ) => void
+
+  /** Callback when the immutable interrupt state snapshot changes. */
+  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

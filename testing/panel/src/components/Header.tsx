@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   Beaker,
+  BrainCircuit,
   ChefHat,
   FileText,
   FlaskConical,
@@ -116,6 +117,24 @@ export default function Header() {
               <span className="font-medium">Tool Simulator</span>
               <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
                 Mock
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/memory"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <BrainCircuit size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Memory</span>
+              <span className="text-xs px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
+                recall/save
               </span>
             </div>
           </Link>

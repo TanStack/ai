@@ -1,15 +1,96 @@
-import type { ModelMessage } from '@tanstack/ai'
+import { ChatClient } from '@tanstack/ai-client'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  createInterruptResumeSnapshot,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import type { UIMessage } from '../src/types'
+import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  describe('interrupt state', () => {
+    it('projects one immutable reactive snapshot with the deprecated pending alias', async () => {
+      const onInterruptStateChange = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        onInterruptStateChange,
+      })
+
+      expect(Object.isFrozen(result.current.interrupts)).toBe(true)
+      expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
+      expect(result.current.interrupts[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interrupts[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interruptErrors).toEqual([])
+      expect(result.current.resuming).toBe(false)
+      expect(result.current.interrupts[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      result.current.resolveInterrupts(false)
+      await flushPromises()
+      expect(result.current.interruptErrors[0]?.code).toBe(
+        'unsupported-bulk-operation',
+      )
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: result.current.interrupts,
+          interruptErrors: result.current.interruptErrors,
+        }),
+      )
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+      })
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      result.current.resolveInterrupts(resolver)
+      result.current.cancelInterrupts()
+      result.current.retryInterrupts()
+      await expect(result.current.resumeInterruptsUnsafe(resume)).resolves.toBe(
+        true,
+      )
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
+  })
+
   describe('initialization', () => {
     it('should initialize with default state', () => {
       const adapter = createMockConnectionAdapter()
@@ -73,7 +154,7 @@ describe('useChat', () => {
       const { result } = renderUseChat({
         connection: adapter,
         id: 'persisted-chat',
-        persistence,
+        persistence: persistence,
       })
       await flushPromises()
 
@@ -101,7 +182,7 @@ describe('useChat', () => {
         connection: adapter,
         id: 'persisted-chat',
         initialMessages,
-        persistence,
+        persistence: persistence,
       })
       await flushPromises()
 
@@ -289,7 +370,7 @@ describe('useChat', () => {
       expect(result.current.messages.length).toBe(0)
     })
 
-    it('should not send message while loading', async () => {
+    it('should queue a message sent while loading and send it after', async () => {
       const adapter = createMockConnectionAdapter({
         chunks: createTextChunks('Response'),
         chunkDelay: 100,
@@ -302,11 +383,16 @@ describe('useChat', () => {
       await Promise.all([promise1, promise2])
       await flushPromises()
 
-      // Should only have one user message since second was blocked
+      // The second send is queued (default `whenBusy: 'queue'`) while the
+      // first stream is in flight, then auto-drains once it settles — both
+      // end up sent, in order.
       const userMessages = result.current.messages.filter(
         (m) => m.role === 'user',
       )
-      expect(userMessages.length).toBe(1)
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+        { type: 'text', content: 'Second' },
+      ])
     })
 
     it('should handle errors during sendMessage', async () => {
@@ -872,7 +958,7 @@ describe('useChat', () => {
     })
 
     describe('concurrent operations', () => {
-      it('should handle multiple sendMessage calls', async () => {
+      it('should queue and then deliver multiple sendMessage calls in order', async () => {
         const adapter = createMockConnectionAdapter({
           chunks: createTextChunks('Response'),
           chunkDelay: 50,
@@ -885,11 +971,15 @@ describe('useChat', () => {
         await Promise.all([promise1, promise2])
         await flushPromises()
 
-        // Should only have one user message (second should be blocked)
+        // The second call is queued while the first stream is in flight,
+        // then auto-sent once it settles — both land, in order.
         const userMessages = result.current.messages.filter(
           (m) => m.role === 'user',
         )
-        expect(userMessages.length).toBe(1)
+        expect(userMessages.map((m) => m.parts[0])).toEqual([
+          { type: 'text', content: 'First' },
+          { type: 'text', content: 'Second' },
+        ])
       })
 
       it('should handle stop during sendMessage', async () => {

@@ -1,0 +1,251 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "jsPlugins": [
+    "eslint-plugin-unused-imports",
+    { "name": "eslint-js", "specifier": "oxlint-plugin-eslint" }
+  ],
+  "categories": {
+    "correctness": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    "**/.nx/**",
+    "**/.svelte-kit/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/snap/**",
+    "**/vite.config.*.timestamp-*.*"
+  ],
+  "rules": {
+    "unused-imports/no-unused-imports": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{js,ts,tsx}"],
+      "rules": {
+        "for-direction": "error",
+        "no-async-promise-executor": "error",
+        "no-case-declarations": "error",
+        "no-class-assign": "error",
+        "no-compare-neg-zero": "error",
+        "no-cond-assign": "error",
+        "no-constant-binary-expression": "error",
+        "no-constant-condition": "error",
+        "no-control-regex": "error",
+        "no-debugger": "error",
+        "no-delete-var": "error",
+        "no-dupe-else-if": "error",
+        "no-duplicate-case": "error",
+        "no-empty-character-class": "error",
+        "no-empty-pattern": "error",
+        "no-empty-static-block": "error",
+        "no-ex-assign": "error",
+        "no-extra-boolean-cast": "error",
+        "no-fallthrough": "error",
+        "no-global-assign": "error",
+        "no-invalid-regexp": "error",
+        "no-irregular-whitespace": "error",
+        "no-loss-of-precision": "error",
+        "no-misleading-character-class": "error",
+        "no-nonoctal-decimal-escape": "error",
+        "no-regex-spaces": "error",
+        "no-self-assign": "error",
+        "no-shadow": "warn",
+        "no-shadow-restricted-names": "error",
+        "no-sparse-arrays": "error",
+        "no-unsafe-finally": "error",
+        "no-unsafe-optional-chaining": "error",
+        "no-unused-labels": "error",
+        "no-unused-private-class-members": "error",
+        "no-useless-backreference": "error",
+        "no-useless-catch": "error",
+        "no-useless-escape": "error",
+        "no-var": "error",
+        "no-with": "error",
+        "prefer-const": "error",
+        "require-yield": "error",
+        "use-isnan": "error",
+        "valid-typeof": "error",
+        "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+        "import/first": "error",
+        "import/newline-after-import": "error",
+        "import/no-commonjs": "error",
+        "import/no-duplicates": "error",
+        "@stylistic/spaced-comment": "error",
+        "typescript/array-type": [
+          "error",
+          {
+            "default": "generic",
+            "readonly": "generic"
+          }
+        ],
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-expect-error": false,
+            "ts-ignore": "allow-with-description"
+          }
+        ],
+        "typescript/consistent-type-imports": [
+          "error",
+          {
+            "prefer": "type-imports"
+          }
+        ],
+        "typescript/method-signature-style": ["error", "property"],
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-inferrable-types": [
+          "error",
+          {
+            "ignoreParameters": true
+          }
+        ],
+        "typescript/no-misused-new": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-for-of": "warn",
+        "typescript/triple-slash-reference": "error"
+      },
+      "jsPlugins": ["@stylistic/eslint-plugin"],
+      "env": {
+        "es2020": true,
+        "browser": true
+      },
+      "plugins": ["typescript", "import"]
+    },
+    {
+      "files": ["**/*.vue"],
+      "rules": {
+        "for-direction": "error",
+        "no-async-promise-executor": "error",
+        "no-case-declarations": "error",
+        "no-class-assign": "error",
+        "no-compare-neg-zero": "error",
+        "no-cond-assign": "error",
+        "no-constant-binary-expression": "error",
+        "no-constant-condition": "error",
+        "no-control-regex": "error",
+        "no-debugger": "error",
+        "no-delete-var": "error",
+        "no-dupe-else-if": "error",
+        "no-duplicate-case": "error",
+        "no-empty-character-class": "error",
+        "no-empty-pattern": "error",
+        "no-empty-static-block": "error",
+        "no-ex-assign": "error",
+        "no-extra-boolean-cast": "error",
+        "no-fallthrough": "error",
+        "no-global-assign": "error",
+        "no-invalid-regexp": "error",
+        "no-irregular-whitespace": "error",
+        "no-loss-of-precision": "error",
+        "no-misleading-character-class": "error",
+        "no-nonoctal-decimal-escape": "error",
+        "no-regex-spaces": "error",
+        "no-self-assign": "error",
+        "no-shadow": "warn",
+        "no-shadow-restricted-names": "error",
+        "no-sparse-arrays": "error",
+        "no-unsafe-finally": "error",
+        "no-unsafe-optional-chaining": "error",
+        "no-unused-labels": "error",
+        "no-unused-private-class-members": "error",
+        "no-useless-backreference": "error",
+        "no-useless-catch": "error",
+        "no-useless-escape": "error",
+        "no-var": "error",
+        "no-with": "error",
+        "prefer-const": "error",
+        "require-yield": "error",
+        "use-isnan": "error",
+        "valid-typeof": "error",
+        "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+        "import/first": "error",
+        "import/newline-after-import": "error",
+        "import/no-commonjs": "error",
+        "import/no-duplicates": "error",
+        "@stylistic/spaced-comment": "error",
+        "typescript/array-type": [
+          "error",
+          {
+            "default": "generic",
+            "readonly": "generic"
+          }
+        ],
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-expect-error": false,
+            "ts-ignore": "allow-with-description"
+          }
+        ],
+        "typescript/consistent-type-imports": [
+          "error",
+          {
+            "prefer": "type-imports"
+          }
+        ],
+        "typescript/method-signature-style": ["error", "property"],
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-inferrable-types": [
+          "error",
+          {
+            "ignoreParameters": true
+          }
+        ],
+        "typescript/no-misused-new": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-for-of": "warn",
+        "typescript/triple-slash-reference": "error"
+      },
+      "jsPlugins": ["@stylistic/eslint-plugin"],
+      "plugins": ["typescript", "import"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["packages/*/src/**/*.{ts,tsx}"],
+      "rules": {
+        "typescript/no-non-null-assertion": "error",
+        "typescript/no-explicit-any": "warn",
+        "typescript/no-floating-promises": "error",
+        "typescript/no-misused-promises": "error",
+        "typescript/await-thenable": "error",
+        "typescript/switch-exhaustiveness-check": "error",
+        "typescript/consistent-type-exports": "error",
+        "typescript/prefer-readonly": "error",
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-expect-error": "allow-with-description",
+            "ts-ignore": false,
+            "ts-nocheck": true,
+            "ts-check": false
+          }
+        ],
+        "eslint-js/no-restricted-syntax": [
+          "error",
+          {
+            "selector": "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+            "message": "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// oxlint-disable-next-line eslint-js/no-restricted-syntax -- <reason>`."
+          }
+        ]
+      },
+      "plugins": ["typescript"]
+    }
+  ]
+}

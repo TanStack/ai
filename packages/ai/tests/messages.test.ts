@@ -138,6 +138,46 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     // Metadata round-trips so the adapter can replay the server tool blocks.
     expect(assistant?.toolCalls?.[0]?.metadata).toMatchObject(metadata)
   })
+
+  it('preserves approval-requested tool calls as assistant toolCalls', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'assistant-approval',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call_1',
+            name: 'dangerousTool',
+            arguments: '{"action":"delete"}',
+            input: { action: 'delete' },
+            state: 'approval-requested',
+            approval: {
+              id: 'approval_call_1',
+              needsApproval: true,
+            },
+          },
+        ],
+      },
+    ]
+
+    expect(convertMessagesToModelMessages(messages)).toEqual([
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: {
+              name: 'dangerousTool',
+              arguments: '{"action":"delete"}',
+            },
+          },
+        ],
+      },
+    ])
+  })
 })
 
 describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', () => {

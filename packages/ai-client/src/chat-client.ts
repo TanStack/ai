@@ -13,10 +13,14 @@ import {
   normalizeConnectionAdapter,
 } from './connection-adapters'
 import { ChatPersistor } from './client-persistor'
+import { ClearedStreamTracker } from './cleared-stream-tracker'
+import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
+  InterruptSubmissionError,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
@@ -33,15 +37,33 @@ import type {
   ChatDevtoolsBridgeOptions,
 } from './devtools'
 import type {
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
   ChatFetcher,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatPendingInterrupt,
+  ChatResumeSnapshot,
+  ChatResumeState,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
+  QueueBusyReason,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   ToolCallPart,
   UIMessage,
+  WhenBusy,
 } from './types'
+import type { InterruptManagerSubmission } from './interrupt-manager'
+
+/** Internal queue entry — public {@link QueuedMessage} plus optional per-send body. */
+interface InternalQueuedMessage extends QueuedMessage {
+  body?: Record<string, any>
+}
 
 type ChatClientUpdateOptionsWithoutContext<
   TTools extends ReadonlyArray<AnyClientTool>,
@@ -52,6 +74,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   tools?: TTools
+  queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
   onChunk?: (chunk: StreamChunk) => void
   onFinish?: (message: UIMessage) => void
@@ -59,6 +82,12 @@ type ChatClientUpdateOptionsWithoutContext<
   onSubscriptionChange?: (isSubscribed: boolean) => void
   onConnectionStatusChange?: (status: ConnectionStatus) => void
   onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools>,
+  ) => void
+  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
   onCustomEvent?: (
     eventType: string,
     data: unknown,
@@ -89,6 +118,128 @@ function resolveTransport(transport: {
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
+export interface NormalizedQueueConfig {
+  whenBusy: WhenBusy
+  drain: 'fifo' | 'batch'
+  onOverflow: 'reject' | 'drop-oldest'
+  maxSize?: number
+  strategy?: QueueStrategy
+}
+
+export function normalizeQueueOption(
+  option: QueueOption | undefined,
+): NormalizedQueueConfig {
+  const base: NormalizedQueueConfig = {
+    whenBusy: 'queue',
+    drain: 'fifo',
+    onOverflow: 'reject',
+  }
+  if (!option) return base
+  if (typeof option === 'string') return { ...base, whenBusy: option }
+  if (typeof option === 'function') return { ...base, strategy: option }
+
+  const maxSize = option.maxSize
+  if (maxSize !== undefined) {
+    if (!Number.isInteger(maxSize) || maxSize < 0) {
+      throw new Error(
+        'ChatClient: queue.maxSize must be a non-negative integer',
+      )
+    }
+  }
+
+  return {
+    whenBusy: option.whenBusy ?? 'queue',
+    drain: option.drain ?? 'fifo',
+    onOverflow: option.onOverflow ?? 'reject',
+    ...(maxSize !== undefined ? { maxSize } : {}),
+  }
+}
+
+/**
+ * Merge a run of queued messages into a single send for `drain: 'batch'`.
+ * All-string content is joined with newlines; mixed/multimodal content is
+ * flattened into a single `ContentPart` array. The last item's `body` wins.
+ */
+function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
+  content: string | MultimodalContent
+  body?: Record<string, any>
+} {
+  const body = items.at(-1)?.body
+  const stringContents: Array<string> = []
+  for (const item of items) {
+    if (typeof item.content !== 'string') {
+      break
+    }
+    stringContents.push(item.content)
+  }
+  if (stringContents.length === items.length) {
+    return {
+      content: stringContents.join('\n'),
+      ...(body !== undefined ? { body } : {}),
+    }
+  }
+  const parts: Array<ContentPart> = []
+  for (const item of items) {
+    if (typeof item.content === 'string') {
+      parts.push({ type: 'text', content: item.content })
+    } else if (typeof item.content.content === 'string') {
+      parts.push({ type: 'text', content: item.content.content })
+    } else {
+      parts.push(...item.content.content)
+    }
+  }
+  return {
+    content: { content: parts },
+    ...(body !== undefined ? { body } : {}),
+  }
+}
+
+/**
+ * Extract a boolean approval decision from an AG-UI resume payload, if present.
+ * Tool-approval resolutions carry `{ approved: boolean, ... }`; generic
+ * interrupt payloads do not.
+ */
+function readApprovalApproved(payload: unknown): boolean | undefined {
+  if (
+    payload === null ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
+    return undefined
+  }
+  if (!('approved' in payload) || typeof payload.approved !== 'boolean') {
+    return undefined
+  }
+  return payload.approved
+}
+
+function readResumeState(
+  snapshot: ChatResumeSnapshot,
+): ChatResumeState | undefined {
+  const value: unknown = snapshot
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('resumeState' in value)
+  ) {
+    return undefined
+  }
+  const resumeState = value.resumeState
+  if (
+    resumeState === null ||
+    typeof resumeState !== 'object' ||
+    !('threadId' in resumeState) ||
+    typeof resumeState.threadId !== 'string' ||
+    resumeState.threadId.length === 0 ||
+    !('runId' in resumeState) ||
+    typeof resumeState.runId !== 'string' ||
+    resumeState.runId.length === 0
+  ) {
+    return undefined
+  }
+  return { threadId: resumeState.threadId, runId: resumeState.runId }
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -97,11 +248,29 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
-  // All persistence concerns (hydrate / save / clear, plus suppression of late
-  // chunks after a mid-stream clear) live in ChatPersistor so this class stays
-  // focused on streaming. Undefined when no `persistence` adapter is configured.
+  // Message persistence (optional). Clear-during-stream suppression is always
+  // on via ClearedStreamTracker so `clear()` works without a storage adapter.
+  // Durable resume-snapshot storage is not wired here (feat/persistence).
   private readonly persistor?: ChatPersistor
+  private readonly clearedStreamTracker = new ClearedStreamTracker()
   private currentRunId: string | null = null
+  // Interrupt-resume tracking: the run/thread of the most recent interrupted
+  // run, so approvals/client-tool results can be sent back. Cleared when the
+  // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
+  private lastResume: ChatResumeState | null = null
+  private readonly interruptManager: InterruptManager<TTools>
+  private activeInterruptSubmission: InterruptManagerSubmission | undefined
+  private interruptSubmissionFailure:
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
+    | undefined
+  private readonly joinedRunWaiters = new Map<string, () => void>()
+  // When set, the next streamResponse() continues this interrupted run instead
+  // of starting a fresh run (consumed once).
+  private pendingResumeParentRunId: string | null = null
+  private pendingResumeThreadId: string | null = null
+  private pendingResumeItems: Array<RunAgentResumeItem> | null = null
+  private activeResumeThreadId: string | null = null
+  private activeResumeRunId: string | null = null
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -110,6 +279,31 @@ export class ChatClient<
   private forwardedPropsOption: Record<string, any> = {}
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
+  private queueConfig: NormalizedQueueConfig
+  private messageQueue: Array<InternalQueuedMessage> = []
+  /**
+   * True from the moment `sendMessage` claims the client until its
+   * `streamResponse` settles. Closes the race where concurrent callers both
+   * see `isLoading === false`, both append a user message, and only one stream
+   * actually runs (leaving stranded user messages with no reply).
+   */
+  private sendInFlight = false
+  /**
+   * True while `drainQueue` is delivering queued messages. Concurrent
+   * `sendMessage` calls during a drain are treated as busy and follow
+   * `whenBusy` (default: queue).
+   */
+  private messageQueueDraining = false
+  /**
+   * Set by `whenBusy: 'interrupt'` so an in-progress FIFO drain loop stops
+   * before starting the next queued item (the interrupting send owns the client).
+   */
+  private stopMessageQueueDrain = false
+  /**
+   * Sync claim held for the duration of `deliverMessage` so concurrent
+   * deliverers cannot both append a user message before only one stream runs.
+   */
+  private deliverClaim = false
   private isLoading = false
   private isSubscribed = false
   private error: Error | undefined = undefined
@@ -159,6 +353,12 @@ export class ChatClient<
       onSubscriptionChange: (isSubscribed: boolean) => void
       onConnectionStatusChange: (status: ConnectionStatus) => void
       onSessionGeneratingChange: (isGenerating: boolean) => void
+      onQueueChange: (queue: Array<QueuedMessage>) => void
+      onResumeStateChange: (
+        resumeState: ChatResumeState | null,
+        pendingInterrupts: BoundInterrupts<TTools>,
+      ) => void
+      onInterruptStateChange: (state: ChatInterruptState<TTools>) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -185,6 +385,7 @@ export class ChatClient<
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
     this.context = options.context
+    this.queueConfig = normalizeQueueOption(options.queue)
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
 
     // Build client tools map
@@ -215,8 +416,24 @@ export class ChatClient<
           options.onConnectionStatusChange || (() => {}),
         onSessionGeneratingChange:
           options.onSessionGeneratingChange || (() => {}),
+        onQueueChange: options.onQueueChange || (() => {}),
+        onResumeStateChange: options.onResumeStateChange || (() => {}),
+        onInterruptStateChange: options.onInterruptStateChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
+    }
+
+    this.interruptManager = new InterruptManager({
+      ...(options.tools !== undefined ? { tools: options.tools } : {}),
+      submit: (submission) => this.submitInterruptBatch(submission),
+      onChange: () => this.notifyResumeStateChange(),
+    })
+
+    // In-memory rehydrate of interrupt descriptors (e.g. after a page reload
+    // when the host supplies a snapshot). Durable storage of that snapshot is
+    // a persistence-stack concern — not wired here.
+    if (options.initialResumeSnapshot) {
+      this.applyResumeSnapshot(options.initialResumeSnapshot)
     }
 
     // Create StreamProcessor with event handlers.
@@ -427,12 +644,42 @@ export class ChatClient<
           data: unknown,
           context: { toolCallId?: string },
         ) => {
+          // Server-side memory middleware transports its state as a `memory:state`
+          // CUSTOM event (its own event bus never reaches this browser runtime).
+          // Route it to the devtools bridge here — the designated custom-event
+          // path — then still forward to the app's callback.
+          if (eventType === 'memory:state') {
+            this.devtoolsBridge.recordMemoryState(data)
+          }
           this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
       },
     })
 
     this.persistor?.hydrateAsync(persistedMessages)
+  }
+
+  private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
+    const resumeState = readResumeState(snapshot)
+    if (resumeState === undefined) {
+      this.interruptManager.reset()
+      return
+    }
+    this.lastResume = resumeState
+    const pendingInterrupts = Array.isArray(snapshot.pendingInterrupts)
+      ? snapshot.pendingInterrupts
+      : []
+    if (pendingInterrupts.length === 0) {
+      this.interruptManager.reset()
+      return
+    }
+    const generation = this.interruptGeneration(pendingInterrupts)
+    this.interruptManager.hydrate({
+      threadId: resumeState.threadId,
+      interruptedRunId: resumeState.runId,
+      generation,
+      interrupts: pendingInterrupts,
+    })
   }
 
   mountDevtools(): void {
@@ -451,11 +698,23 @@ export class ChatClient<
    */
   private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
     if (chunk.type !== 'RUN_ERROR') return
-    const runId = this.persistor?.takeRunlessRunId()
+    const runId = this.clearedStreamTracker.takeRunlessRunId()
     if (!runId) return
     this.activeRunIds.delete(runId)
     this.setSessionGenerating(this.activeRunIds.size > 0)
     this.resolveProcessing()
+  }
+
+  private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId =
+      getChunkRunId(chunk) ?? this.clearedStreamTracker.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    if (!getChunkRunId(chunk)) {
+      this.resolveProcessing()
+    }
   }
 
   private updateRunLifecycle(
@@ -464,8 +723,13 @@ export class ChatClient<
   ): void {
     if (chunk.type === 'RUN_STARTED') {
       const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      this.activeResumeThreadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      this.activeResumeRunId = chunkRunId
       this.activeRunIds.add(chunkRunId)
-      this.persistor?.onRunStarted(chunkRunId)
+      this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
       return
     }
@@ -477,16 +741,250 @@ export class ChatClient<
     const runId = getChunkRunId(chunk)
     if (runId) {
       this.activeRunIds.delete(runId)
-      this.persistor?.onRunSettled(runId)
+      this.clearedStreamTracker.onRunSettled(runId)
     } else if (chunk.type === 'RUN_ERROR') {
       // RUN_ERROR without runId is a session-level error; clear all runs.
       this.activeRunIds.clear()
-      this.persistor?.onSessionRunError()
+      this.clearedStreamTracker.onSessionRunError()
     }
     this.setSessionGenerating(this.activeRunIds.size > 0)
     if (options?.resolveProcessing !== false) {
       this.resolveProcessing()
     }
+  }
+
+  /**
+   * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
+   * an interrupt outcome records the pending interrupts + the run/thread to
+   * resume; any other terminal event for the tracked/current run clears that
+   * state. This is interrupt (state) resume — there is no delivery cursor.
+   */
+  private observeInterruptState(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    if (this.activeInterruptSubmission && chunk.type === 'RUN_ERROR') {
+      return
+    }
+    const runId = getChunkRunId(chunk)
+    const threadId =
+      'threadId' in chunk && typeof chunk.threadId === 'string'
+        ? chunk.threadId
+        : this.activeResumeThreadId
+
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      // Track the REQUEST run id (what the client sent) so a resume targets the
+      // same run even when provider events carry their own run id.
+      const interruptedRunId =
+        this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      this.lastResume = {
+        threadId: threadId ?? this.threadId,
+        runId: interruptedRunId,
+      }
+      this.interruptManager.hydrate({
+        threadId: this.lastResume.threadId,
+        interruptedRunId,
+        generation: this.interruptGeneration(chunk.outcome.interrupts),
+        interrupts: chunk.outcome.interrupts,
+      })
+      return
+    }
+
+    const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
+    const isTrackedRunTerminal = Boolean(
+      runId && this.lastResume?.runId === runId,
+    )
+    const isCurrentRunTerminal = Boolean(
+      (runId && this.currentRunId === runId) ||
+      (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+    )
+    // Provider adapters sometimes stamp a different run id on continuation
+    // events than the client-generated request id. RUN_STARTED updates
+    // `activeResumeRunId`, so match that too.
+    const isActiveStreamRunTerminal = Boolean(
+      this.isLoading &&
+      runId &&
+      (runId === this.activeResumeRunId || runId === this.currentRunId),
+    )
+    const isCurrentStreamTerminal =
+      this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+    // A resume batch that finishes successfully (or with a non-interrupt
+    // terminal) must always clear pending interrupts — even when the provider
+    // run id does not correlate. Otherwise Approve works once but the UI
+    // keeps showing a stale prompt and blocks follow-up turns.
+    const isActiveInterruptSubmissionTerminal = Boolean(
+      this.activeInterruptSubmission &&
+      this.isLoading &&
+      chunk.type === 'RUN_FINISHED' &&
+      chunk.outcome?.type !== 'interrupt',
+    )
+    if (
+      isRunlessSessionError ||
+      isTrackedRunTerminal ||
+      isCurrentRunTerminal ||
+      isActiveStreamRunTerminal ||
+      isCurrentStreamTerminal ||
+      isActiveInterruptSubmissionTerminal
+    ) {
+      this.lastResume = null
+      this.interruptManager.reset()
+      return
+    }
+    this.notifyResumeStateChange()
+  }
+
+  /**
+   * The interrupt-resume state for the active/interrupted run (its run/thread
+   * ids), or null when there is nothing to resume. Apps can persist this to
+   * resume interrupts across a full reload.
+   */
+  getResumeState(): ChatResumeState | null {
+    return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  getInterruptState(): ChatInterruptState<TTools> {
+    return this.interruptManager.getState()
+  }
+
+  getInterrupts(): BoundInterrupts<TTools> {
+    return this.interruptManager.getInterrupts()
+  }
+
+  /** @deprecated Use getInterrupts(). */
+  getPendingInterrupts(): BoundInterrupts<TTools> {
+    return this.interruptManager.getInterrupts()
+  }
+
+  resolveInterrupts(approved: boolean): void
+  resolveInterrupts(
+    resolver: (interrupt: ChatInterrupt<TTools>) => undefined,
+  ): void
+  resolveInterrupts(
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ): void {
+    // Branch so TypeScript can select the InterruptManager.resolve overloads.
+    if (typeof resolution === 'boolean') {
+      this.interruptManager.resolve(resolution)
+      return
+    }
+    this.interruptManager.resolve(resolution)
+  }
+
+  cancelInterrupts(): void {
+    this.interruptManager.cancel()
+  }
+
+  retryInterrupts(): void {
+    this.interruptManager.retry()
+  }
+
+  /** Unsafe low-level resume escape hatch. Prefer bound interrupt methods. */
+  resumeInterruptsUnsafe(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    const target = state ?? this.lastResume
+    if (!target) return Promise.resolve(false)
+    // Auto-executed client tools resolve during the parent stream's
+    // `pendingToolExecutions` wait — while `isLoading` is still true.
+    // Defer the child continuation until that stream settles so we do not
+    // race the parent cleanup or return a false "could not start" failure.
+    if (this.isLoading) {
+      return new Promise<boolean>((resolve, reject) => {
+        this.queuePostStreamAction(async () => {
+          try {
+            resolve(await this.resumeInterruptsUnsafe(resume, target))
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+    }
+    this.pendingResumeThreadId = target.threadId
+    this.pendingResumeParentRunId = target.runId
+    this.pendingResumeItems = [...resume]
+    return this.streamResponse()
+  }
+
+  /** @deprecated Use bound interrupt methods or resumeInterruptsUnsafe(). */
+  resumeInterrupts(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    return this.resumeInterruptsUnsafe(resume, state)
+  }
+
+  private async submitInterruptBatch(
+    submission: InterruptManagerSubmission,
+  ): Promise<void> {
+    this.activeInterruptSubmission = submission
+    this.interruptSubmissionFailure = undefined
+    // Reflect approval decisions in the local message tree immediately so a
+    // follow-up turn does not re-serialize tool-calls still stuck in
+    // `approval-requested` (issue #532).
+    for (const resolution of submission.resolutions) {
+      const approved = readApprovalApproved(resolution.payload)
+      if (approved === undefined) continue
+      const approvalId = resolution.interruptId
+      this.processor.addToolApprovalResponse(approvalId, approved)
+    }
+    const resumed = await this.resumeInterruptsUnsafe(
+      [...submission.resolutions],
+      {
+        threadId: submission.threadId,
+        runId: submission.interruptedRunId,
+      },
+    ).finally(() => {
+      this.activeInterruptSubmission = undefined
+    })
+    const failure = this.takeInterruptSubmissionFailure()
+    if (failure !== undefined) {
+      throw { errors: failure.errors }
+    }
+    if (!resumed) {
+      throw new Error('Interrupt continuation could not be started.')
+    }
+    // Belt-and-suspenders: if the continuation stream finished successfully
+    // but correlation failed to clear resume state, drop it now so the next
+    // user turn is not blocked by a stale interrupt prompt.
+    if (this.lastResume?.runId === submission.interruptedRunId) {
+      this.lastResume = null
+      this.interruptManager.reset()
+    }
+  }
+
+  private takeInterruptSubmissionFailure():
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
+    | undefined {
+    const failure = this.interruptSubmissionFailure
+    this.interruptSubmissionFailure = undefined
+    return failure
+  }
+
+  private interruptGeneration(
+    interrupts: ReadonlyArray<ChatPendingInterrupt>,
+  ): number {
+    let generation: number | undefined
+    for (const interrupt of interrupts) {
+      const candidate: unknown =
+        interrupt.metadata?.['tanstack:interruptBinding']
+      if (
+        candidate === null ||
+        typeof candidate !== 'object' ||
+        !('generation' in candidate) ||
+        typeof candidate.generation !== 'number' ||
+        !Number.isInteger(candidate.generation) ||
+        candidate.generation < 0
+      ) {
+        return 0
+      }
+      if (generation !== undefined && generation !== candidate.generation) {
+        return 0
+      }
+      generation = candidate.generation
+    }
+    return generation ?? 0
   }
 
   private generateUniqueId(prefix: string): string {
@@ -524,9 +1022,24 @@ export class ChatClient<
     this.devtoolsBridge.emitSnapshot()
   }
 
-  private resetSessionGenerating(): void {
+  private notifyResumeStateChange(): void {
+    const resumeState = this.getResumeState()
+    this.callbacksRef.current.onResumeStateChange(
+      resumeState,
+      this.interruptManager.getInterrupts(),
+    )
+    this.callbacksRef.current.onInterruptStateChange(
+      this.interruptManager.getState(),
+    )
+  }
+
+  private resetSessionGenerating(options?: {
+    preserveClearedStreamTracking?: boolean
+  }): void {
     this.activeRunIds.clear()
-    this.persistor?.resetIgnored()
+    if (!options?.preserveClearedStreamTracking) {
+      this.clearedStreamTracker.resetActiveRuns()
+    }
     this.setSessionGenerating(false)
   }
 
@@ -571,6 +1084,7 @@ export class ChatClient<
       connectionStatus: this.connectionStatus,
       sessionGenerating: this.sessionGenerating,
       activeRunIds: Array.from(this.activeRunIds),
+      queue: this.getQueue(),
       ...(this.error ? { error: this.error.message } : {}),
     }
   }
@@ -608,6 +1122,9 @@ export class ChatClient<
     }
     this.resolveProcessing()
     this.setIsLoading(false)
+    // Release deliver claim so an interrupting `deliverMessage` can append
+    // after abort (the superseded deliver's finally also clears the claim).
+    this.deliverClaim = false
     if (options?.setReadyStatus) {
       this.setStatus('ready')
     }
@@ -672,33 +1189,74 @@ export class ChatClient<
     const stream = this.connection.subscribe(signal)
     for await (const chunk of stream) {
       if (signal.aborted) break
-      if (this.connectionStatus === 'connecting') {
-        this.setConnectionStatus('connected')
-      }
-      const shouldIgnore = this.persistor?.shouldIgnoreChunk(chunk) ?? false
-      if (shouldIgnore) {
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-          if (getChunkRunId(chunk)) {
-            this.updateRunLifecycle(chunk, { resolveProcessing: false })
-          } else {
-            this.drainIgnoredRunlessChunk(chunk)
-          }
-        }
-        continue
-      }
-      this.callbacksRef.current.onChunk(chunk)
-      this.devtoolsBridge.observeChunk(chunk)
-      this.processor.processChunk(chunk)
-      // Run lifecycle (active-run tracking, session-generating state, and
-      // processing resolution for RUN_FINISHED / RUN_ERROR) is handled in a
-      // single place so the ignored-chunk path above and this path can't
-      // diverge. RUN_ERROR carries its runId via the AG-UI passthrough so a
-      // per-run error only clears that run, while a runId-less RUN_ERROR is
-      // treated as a session-level error that clears every active run.
-      this.updateRunLifecycle(chunk)
-      // Yield control back to event loop for UI updates
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await this.processIncomingChunk(chunk)
     }
+  }
+
+  private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
+    if (
+      chunk.type === 'RUN_ERROR' &&
+      this.isActiveInterruptSubmissionFailure(chunk)
+    ) {
+      this.interruptSubmissionFailure = {
+        errors: chunk['tanstack:interruptErrors'] ?? [],
+      }
+    }
+    if (this.connectionStatus === 'connecting') {
+      this.setConnectionStatus('connected')
+    }
+    const shouldIgnore = this.clearedStreamTracker.shouldIgnoreChunk(chunk)
+    if (shouldIgnore) {
+      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (getChunkRunId(chunk)) {
+          this.updateRunLifecycle(chunk, { resolveProcessing: false })
+        } else {
+          this.drainIgnoredRunlessChunk(chunk)
+        }
+        this.retireIgnoredClearedTerminalChunk(chunk)
+        this.resolveJoinedRun(chunk)
+      }
+      return
+    }
+    this.callbacksRef.current.onChunk(chunk)
+    this.devtoolsBridge.observeChunk(chunk)
+    this.processor.processChunk(chunk)
+    this.updateRunLifecycle(chunk)
+    this.observeInterruptState(chunk)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    this.resolveJoinedRun(chunk)
+  }
+
+  private isActiveInterruptSubmissionFailure(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): boolean {
+    const submission = this.activeInterruptSubmission
+    const errors = chunk['tanstack:interruptErrors']
+    if (!submission || !errors || errors.length === 0) return false
+    const runId = getChunkRunId(chunk)
+    if (runId !== undefined && runId !== this.currentRunId) return false
+    if (
+      typeof chunk.threadId === 'string' &&
+      chunk.threadId !== submission.threadId
+    ) {
+      return false
+    }
+    return errors.every(
+      (error) =>
+        error.threadId === submission.threadId &&
+        error.interruptedRunId === submission.interruptedRunId &&
+        error.generation === submission.generation,
+    )
+  }
+
+  private resolveJoinedRun(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId = getChunkRunId(chunk)
+    if (runId === undefined) return
+    const resolve = this.joinedRunWaiters.get(runId)
+    if (resolve === undefined) return
+    this.joinedRunWaiters.delete(runId)
+    resolve()
   }
 
   /**
@@ -738,6 +1296,8 @@ export class ChatClient<
    *   - A MultimodalContent object with content array and optional custom ID
    * @param body - Optional body parameters to merge with the client's base body for this request.
    *               Uses shallow merge with per-message body taking priority.
+   * @param sendOptions - Per-call overrides, e.g. `{ whenBusy: 'interrupt' }` to
+   *                      override the configured queue policy for this one send.
    *
    * @example
    * ```ts
@@ -746,6 +1306,9 @@ export class ChatClient<
    *
    * // Text message with custom body params
    * await client.sendMessage('Hello!', { temperature: 0.7 })
+   *
+   * // Per-call whenBusy override (body must still be the 2nd arg on ChatClient)
+   * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
    *
    * // Multimodal message with image
    * await client.sendMessage({
@@ -764,33 +1327,167 @@ export class ChatClient<
    *     ],
    *     id: 'custom-message-id'
    *   },
-   *   { model: 'gpt-4-audio' }
+   *   { model: 'gpt-5.5' }
    * )
    * ```
    */
   async sendMessage(
     content: string | MultimodalContent,
     body?: Record<string, any>,
+    sendOptions?: SendMessageOptions,
   ): Promise<void> {
     this.mountDevtools()
     const emptyMessage = typeof content === 'string' && !content.trim()
-    if (emptyMessage || this.isLoading) {
+    if (emptyMessage) {
       return
     }
-    // Normalize input to extract content, id, and validate
-    const normalizedContent = this.normalizeMessageInput(content)
+    if (this.hasBlockingInterrupts()) {
+      throw new Error(
+        'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
+    }
 
-    // Store the per-message body for use in streamResponse
-    this.pendingMessageBody = body
+    if (this.isSendBusy()) {
+      const { action, id } = this.decideWhenBusy(content, sendOptions)
+      if (action === 'drop') {
+        return
+      }
+      if (action === 'queue') {
+        this.enqueueMessage(content, body, id)
+        return
+      }
+      // 'interrupt': abort the current stream, then send now.
+      // Unlike stop(), does not flush already-queued messages — they drain
+      // after this interrupting send settles successfully.
+      // Claim sendInFlight *before* cancelling so a concurrent send cannot
+      // slip in between cancel and the deliver below.
+      this.stopMessageQueueDrain = true
+      this.sendInFlight = true
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating()
+    } else {
+      this.sendInFlight = true
+    }
 
-    // Add user message via processor
-    const userMessage = this.processor.addUserMessage(
-      normalizedContent.content,
-      normalizedContent.id,
-    )
-    this.events.messageSent(userMessage.id, normalizedContent.content)
+    try {
+      await this.deliverMessage(content, body)
+    } finally {
+      this.sendInFlight = false
+    }
+  }
 
-    await this.streamResponse()
+  /**
+   * True when the client still has user-actionable interrupts (or is mid
+   * resume submission). Staged/submitting items that are already being
+   * continued do not block a later turn once the resume stream has cleared
+   * resume state.
+   */
+  private hasBlockingInterrupts(): boolean {
+    if (!this.lastResume && !this.activeInterruptSubmission) {
+      return false
+    }
+    if (this.activeInterruptSubmission) {
+      return true
+    }
+    return this.interruptManager
+      .getInterrupts()
+      .some(
+        (item) =>
+          item.status === 'pending' ||
+          item.status === 'validating' ||
+          item.status === 'error' ||
+          item.status === 'staged',
+      )
+  }
+
+  /** True while a stream is active, a send is claiming the client, or the queue is draining. */
+  private isSendBusy(): boolean {
+    return this.isLoading || this.sendInFlight || this.messageQueueDraining
+  }
+
+  private resolveBusyReason(): QueueBusyReason {
+    if (this.isLoading) return 'streaming'
+    if (this.messageQueueDraining) return 'draining'
+    return 'sendInFlight'
+  }
+
+  /**
+   * Append a user message and run the stream. Used by both direct sends and
+   * queue drains — callers are responsible for busy/queue policy.
+   *
+   * Claims delivery synchronously before appending so concurrent callers
+   * cannot both add a user message when only one stream can run.
+   */
+  private async deliverMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+  ): Promise<boolean> {
+    if (this.isLoading || this.deliverClaim) {
+      return false
+    }
+    this.deliverClaim = true
+    try {
+      const normalizedContent = this.normalizeMessageInput(content)
+      this.pendingMessageBody = body
+      const userMessage = this.processor.addUserMessage(
+        normalizedContent.content,
+        normalizedContent.id,
+      )
+      this.events.messageSent(userMessage.id, normalizedContent.content)
+      return await this.streamResponse()
+    } finally {
+      this.deliverClaim = false
+    }
+  }
+
+  /**
+   * Resolve the effective action for a send that arrives while busy.
+   * The returned `id` is the id that will be stored if the action is `queue`.
+   */
+  private decideWhenBusy(
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ): { action: WhenBusy; id: string } {
+    const id = this.generateUniqueId('queued')
+    if (sendOptions?.whenBusy) {
+      return { action: sendOptions.whenBusy, id }
+    }
+    const { strategy, whenBusy } = this.queueConfig
+    if (strategy) {
+      const { action } = strategy({
+        pending: {
+          id,
+          content,
+          createdAt: Date.now(),
+        },
+        busyReason: this.resolveBusyReason(),
+        queued: this.getQueue(),
+      })
+      return { action, id }
+    }
+    return { action: whenBusy, id }
+  }
+
+  private enqueueMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+    id?: string,
+  ): void {
+    const { maxSize, onOverflow } = this.queueConfig
+    if (maxSize !== undefined && this.messageQueue.length >= maxSize) {
+      // maxSize 0 is a hard cap (never queue). drop-oldest cannot make room.
+      if (onOverflow === 'reject' || maxSize === 0) {
+        return
+      }
+      this.messageQueue.shift() // drop-oldest
+    }
+    this.messageQueue.push({
+      id: id ?? this.generateUniqueId('queued'),
+      content,
+      createdAt: Date.now(),
+      ...(body !== undefined ? { body } : {}),
+    })
+    this.emitQueueChange()
   }
 
   /**
@@ -812,6 +1509,11 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
+    if (this.hasBlockingInterrupts()) {
+      throw new Error(
+        'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
+      )
+    }
     // Normalize the message to ensure it has id and createdAt
     const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
 
@@ -854,10 +1556,24 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    // Native interrupt continuation is a fresh child run. The interrupted run
+    // is carried as parentRunId and the complete resolution batch as resume.
+    const resumeThreadId = this.pendingResumeThreadId
+    const resumeParentRunId = this.pendingResumeParentRunId
+    const resumeItems = this.pendingResumeItems
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     this.currentRunId = runId
+    this.activeResumeThreadId = resumeThreadId ?? this.threadId
+    this.activeResumeRunId = runId
 
     this.setIsLoading(true)
+    // Hand off from deliverClaim to isLoading so nested drain can call
+    // deliverMessage after this stream settles (while the outer deliver
+    // is still on the stack).
+    this.deliverClaim = false
     this.setStatus('submitted')
     this.setError(undefined)
     this.errorReportedGeneration = null
@@ -935,8 +1651,11 @@ export class ChatClient<
       // JSON Schema; sending a Standard Schema instance directly would
       // serialize to an unusable shape.
       const runContext = {
-        threadId: this.threadId,
+        threadId: resumeThreadId ?? this.threadId,
         runId,
+        ...(resumeParentRunId !== null
+          ? { parentRunId: resumeParentRunId }
+          : {}),
         clientTools: Array.from(clientTools.values()).map((t) => ({
           name: t.name,
           description: t.description,
@@ -945,8 +1664,9 @@ export class ChatClient<
             : { type: 'object' },
         })),
         forwardedProps: { ...mergedBody },
+        ...(resumeItems ? { resume: resumeItems } : {}),
       }
-      this.devtoolsBridge.beginRun(runContext.runId, this.threadId)
+      this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
       this.devtoolsBridge.emitRunLifecycle(
         'run:created',
@@ -962,6 +1682,11 @@ export class ChatClient<
 
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(messages, mergedBody, signal, runContext)
+
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (generation !== this.streamGeneration || signal.aborted) {
+        return false
+      }
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
@@ -1072,13 +1797,33 @@ export class ChatClient<
               await this.checkForContinuation()
             } catch (error) {
               console.error('Failed to continue flow after tool result:', error)
+              // Continuation failed without starting a new stream — don't
+              // leave queued user messages stranded forever. (isLoading is
+              // already false in this finally block.)
+              await this.drainQueue()
             }
-          } else if (this.status !== 'ready') {
-            // Terminal run, but onStreamEnd never fired: the processor had no
-            // assistant message to emit it for (e.g. a bare RUN_FINISHED{stop},
-            // #421). The normal path already set 'ready', so this is a no-op.
-            this.setStatus('ready')
+          } else {
+            if (this.status !== 'ready') {
+              // Terminal run, but onStreamEnd never fired: the processor had
+              // no assistant message to emit it for (e.g. a bare
+              // RUN_FINISHED{stop}, #421). The normal path already set
+              // 'ready', so this is a no-op.
+              this.setStatus('ready')
+            }
+            // Auto-send queued messages once the run fully settles. When a
+            // continuation runs instead (tool-result branch above), that
+            // continuation's own finally drains the queue. Skip if a drain
+            // loop is already walking the queue (avoids nested re-entry).
+            if (!this.messageQueueDraining) {
+              await this.drainQueue()
+            }
           }
+        } else {
+          // Error/abort settle for the active generation: don't strand or
+          // later mis-order queued messages. A failed turn flushes the queue
+          // (consistent with stop()); it must NOT auto-drain into a likely
+          // broken endpoint.
+          this.flushQueue()
         }
       }
     }
@@ -1114,6 +1859,7 @@ export class ChatClient<
       setReadyStatus: true,
       abortSubscription: true,
     })
+    this.discardPendingSends()
     this.resetSessionGenerating()
     this.setIsSubscribed(false)
     this.setConnectionStatus('disconnected')
@@ -1137,6 +1883,9 @@ export class ChatClient<
     if (this.isLoading) {
       this.cancelInFlightStream()
     }
+    // Discard pending follow-ups so "regenerate last answer" does not also
+    // auto-send messages that were typed during the previous stream.
+    this.discardPendingSends()
 
     this.events.reloaded(lastUserMessageIndex)
 
@@ -1154,6 +1903,7 @@ export class ChatClient<
   stop(): void {
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
+    this.discardPendingSends()
     if (hadLocalStream) {
       this.resetSessionGenerating()
     }
@@ -1164,24 +1914,30 @@ export class ChatClient<
    * Clear all messages
    */
   clear(): void {
-    if (this.persistor) {
-      this.persistor.snapshotClear({
-        messages: this.processor.getMessages(),
-        activeRunIds: this.activeRunIds,
-        currentRunId: this.currentRunId,
-      })
-      if (this.isLoading) {
-        this.cancelInFlightStream({ setReadyStatus: true })
-        this.resetSessionGenerating()
-      } else if (this.activeRunIds.size > 0) {
-        this.resetSessionGenerating()
-      }
-      // Suppress persisting the empty snapshot that clearMessages emits, then
-      // remove the stored conversation outright.
-      this.persistor.beginClear()
+    const hadLocalStream = this.abortController !== null
+    this.clearedStreamTracker.snapshotClear({
+      messages: this.processor.getMessages(),
+      activeRunIds: this.activeRunIds,
+      currentRunId: this.currentRunId,
+    })
+    // Always cancel in-flight work so clear works without message persistence.
+    if (this.isLoading || hadLocalStream) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
+    } else if (this.activeRunIds.size > 0) {
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
     }
+    // Suppress persisting the empty snapshot that clearMessages emits, then
+    // remove the stored conversation outright.
+    this.persistor?.beginClear()
     this.processor.clearMessages()
+    this.discardPendingSends()
     this.persistor?.remove()
+    this.lastResume = null
+    this.interruptManager.reset()
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
     this.setError(undefined)
     this.events.messagesCleared()
   }
@@ -1223,9 +1979,8 @@ export class ChatClient<
       context,
     )
 
-    // Forward an error message only for output-error results (with a fallback so
-    // a message-less `throw new Error()` still reaches the terminal 'error'
-    // state); a stray errorText on a successful result must not signal an error.
+    // Always update local message state so the tool-call part is terminal in
+    // the UI even when the AG-UI interrupt path owns server continuation.
     this.processor.addToolResult(
       result.toolCallId,
       result.output,
@@ -1233,6 +1988,19 @@ export class ChatClient<
         ? result.errorText || 'Tool execution failed'
         : undefined,
     )
+    this.devtoolsBridge.emitSnapshot()
+
+    const resolvedViaInterrupt = this.interruptManager.resolveClientToolOutput(
+      result.toolCallId,
+      result.state === 'output-error'
+        ? { error: result.errorText || 'Tool execution failed' }
+        : result.output,
+    )
+    if (resolvedViaInterrupt) {
+      // Interrupt manager stages/submits the resume batch (deferred until the
+      // parent stream settles when still loading). Skip legacy continuation.
+      return
+    }
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
@@ -1261,6 +2029,21 @@ export class ChatClient<
     id: string // approval.id, not toolCallId
     approved: boolean
   }): Promise<void> {
+    // Reflect the decision on the tool-call part so approval UIs that render
+    // from `part.state` (the deprecated pre-interrupt pattern) clear the prompt
+    // and show the response. The bound interrupt resolution below drives the
+    // actual continuation; this keeps the legacy message-state surface in sync.
+    this.processor.addToolApprovalResponse(response.id, response.approved)
+    this.devtoolsBridge.emitSnapshot()
+
+    if (
+      this.interruptManager.resolveToolApprovalDecision(
+        response.id,
+        response.approved,
+      )
+    ) {
+      return
+    }
     // Find the tool call ID from the approval ID
     const messages = this.processor.getMessages()
     let foundToolCallId: string | undefined
@@ -1377,6 +2160,129 @@ export class ChatClient<
   }
 
   /**
+   * True when an interrupt (or another direct send) claimed the client during
+   * a drain. Read via a method so cross-await mutations are not constant-folded
+   * by control-flow analysis.
+   */
+  private shouldAbortMessageQueueDrain(): boolean {
+    return this.isLoading || this.stopMessageQueueDrain
+  }
+
+  /**
+   * Deliver queued messages after a successful settle.
+   * - `batch`: merge everything currently queued into one send, looping so
+   *   messages enqueued during that batch stream are not stranded.
+   * - `fifo`: walk the queue in a loop, one stream at a time, until empty
+   *   (or until another send claims the client via interrupt).
+   *
+   * Uses `deliverMessage` directly so drains do not re-enter `sendMessage`'s
+   * busy/queue policy (which would re-queue items and strand the rest).
+   */
+  private async drainQueue(): Promise<void> {
+    // Note: do not gate on `sendInFlight`. Normal sends still hold
+    // `sendInFlight` while `streamResponse`'s finally invokes drain; blocking
+    // on it would permanently strand the queue.
+    if (
+      this.messageQueueDraining ||
+      this.isLoading ||
+      this.messageQueue.length === 0
+    ) {
+      return
+    }
+
+    this.messageQueueDraining = true
+    this.stopMessageQueueDrain = false
+    try {
+      if (this.queueConfig.drain === 'batch') {
+        while (this.messageQueue.length > 0) {
+          if (this.shouldAbortMessageQueueDrain()) {
+            return
+          }
+          const items = this.messageQueue.splice(0)
+          this.emitQueueChange()
+          const merged = mergeQueuedMessages(items)
+          const completed = await this.deliverMessage(
+            merged.content,
+            merged.body,
+          )
+          // Failed/aborted deliver flushes the rest of the queue in streamResponse.
+          if (!completed || this.shouldAbortMessageQueueDrain()) {
+            return
+          }
+        }
+        return
+      }
+
+      while (this.messageQueue.length > 0) {
+        // Interrupt (or a new direct send) claimed the client — stop draining;
+        // remaining items stay queued and will drain after that send settles.
+        if (this.shouldAbortMessageQueueDrain()) {
+          return
+        }
+        const next = this.messageQueue.shift()
+        if (next === undefined) {
+          return
+        }
+        this.emitQueueChange()
+        const completed = await this.deliverMessage(next.content, next.body)
+        // Failed/aborted deliver flushes the rest of the queue in streamResponse.
+        if (!completed || this.shouldAbortMessageQueueDrain()) {
+          return
+        }
+      }
+    } finally {
+      this.messageQueueDraining = false
+      this.stopMessageQueueDrain = false
+    }
+  }
+
+  /**
+   * Drop any in-flight send claim and discard pending queued messages
+   * (stop / error / clear / unsubscribe / reload).
+   */
+  private discardPendingSends(): void {
+    this.sendInFlight = false
+    this.flushQueue()
+  }
+
+  /**
+   * Get the current send queue (messages held while a stream was in flight).
+   */
+  getQueue(): Array<QueuedMessage> {
+    return this.messageQueue.map(({ id, content, createdAt }) => ({
+      id,
+      content,
+      createdAt,
+    }))
+  }
+
+  private emitQueueChange(): void {
+    this.callbacksRef.current.onQueueChange(this.getQueue())
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  /**
+   * Remove a queued message by id before it drains.
+   */
+  cancelQueued(id: string): void {
+    const index = this.messageQueue.findIndex((m) => m.id === id)
+    if (index === -1) return
+    this.messageQueue.splice(index, 1)
+    this.emitQueueChange()
+  }
+
+  /**
+   * Discard all pending queued messages (stop / error / clear / unsubscribe /
+   * reload). Does not send them. Emits `onQueueChange([])` when anything was
+   * removed.
+   */
+  private flushQueue(): void {
+    if (this.messageQueue.length === 0) return
+    this.messageQueue = []
+    this.emitQueueChange()
+  }
+
+  /**
    * Get loading state
    */
   getIsLoading(): boolean {
@@ -1482,11 +2388,15 @@ export class ChatClient<
       this.context = options.context
     }
     if (options.tools !== undefined) {
+      this.interruptManager.updateTools(options.tools)
       this.clientToolsRef.current = new Map()
       for (const tool of options.tools) {
         this.clientToolsRef.current.set(tool.name, tool)
       }
       this.devtoolsBridge.notifyToolsChanged()
+    }
+    if (options.queue !== undefined) {
+      this.queueConfig = normalizeQueueOption(options.queue)
     }
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
@@ -1511,6 +2421,17 @@ export class ChatClient<
     if (options.onSessionGeneratingChange !== undefined) {
       this.callbacksRef.current.onSessionGeneratingChange =
         options.onSessionGeneratingChange
+    }
+    if (options.onQueueChange !== undefined) {
+      this.callbacksRef.current.onQueueChange = options.onQueueChange
+    }
+    if (options.onResumeStateChange !== undefined) {
+      this.callbacksRef.current.onResumeStateChange =
+        options.onResumeStateChange
+    }
+    if (options.onInterruptStateChange !== undefined) {
+      this.callbacksRef.current.onInterruptStateChange =
+        options.onInterruptStateChange
     }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent

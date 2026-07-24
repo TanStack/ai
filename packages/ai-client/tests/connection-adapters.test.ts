@@ -107,6 +107,57 @@ describe('connection-adapters', () => {
       })
     })
 
+    it('does not truncate an agentic run at the first RUN_FINISHED (multiple terminals per run)', async () => {
+      // An agent loop emits one RUN_STARTED/RUN_FINISHED pair PER turn, so a
+      // tool-calling run streams several RUN_FINISHED events in a single
+      // non-durable (untagged) response: turn 1 ends with RUN_FINISHED, then the
+      // tool result + turn 2 (the final answer) follow. Regression guard: the
+      // client must forward EVERY event and stop only when the source closes,
+      // never returning early on the first terminal.
+      const body =
+        'data: {"type":"RUN_STARTED","timestamp":1}\n\n' +
+        'data: {"type":"TOOL_CALL_END","timestamp":2}\n\n' +
+        'data: {"type":"RUN_FINISHED","timestamp":3}\n\n' +
+        'data: {"type":"TOOL_CALL_RESULT","timestamp":4}\n\n' +
+        'data: {"type":"RUN_STARTED","timestamp":5}\n\n' +
+        'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"m","model":"t","timestamp":6,"delta":"final","content":"final"}\n\n' +
+        'data: {"type":"RUN_FINISHED","timestamp":7}\n\n'
+
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(body),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      } as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.map((c) => c.type)).toEqual([
+        EventType.RUN_STARTED,
+        EventType.TOOL_CALL_END,
+        EventType.RUN_FINISHED,
+        EventType.TOOL_CALL_RESULT,
+        EventType.RUN_STARTED,
+        EventType.TEXT_MESSAGE_CONTENT,
+        EventType.RUN_FINISHED,
+      ])
+    })
+
     it('should handle SSE format without data: prefix', async () => {
       const mockReader = {
         read: vi

@@ -67,9 +67,7 @@ chat({
     // Tool choice
     tool_choice: { type: 'auto' },
     // Context management
-    context_management: {
-      /* BetaContextManagementConfig */
-    },
+    context_management: {/* BetaContextManagementConfig */},
     // MCP servers (max 20)
     mcp_servers: [
       {

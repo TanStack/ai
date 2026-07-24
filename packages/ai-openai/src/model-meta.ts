@@ -1697,7 +1697,7 @@ const GPT_4 = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
-/* 
+/*
 const GPT_4O_MINI_TRANSCRIBE = {
   name: 'gpt-4o-mini-transcribe',
   context_window: 16_000,
@@ -1766,7 +1766,7 @@ const GPT_4O_TRANSCRIBE = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 > */
-/* 
+/*
 const GPT_4O_TRANSCRIBE_DIARIZE = {
   name: 'gpt-4o-transcribe-diarize',
   context_window: 16_000,

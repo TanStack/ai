@@ -9,6 +9,7 @@ Choose an example based on your use case:
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
+- **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
 
@@ -119,6 +120,45 @@ pnpm start
 ```
 
 📖 [Full Documentation](vanilla-chat/README.md)
+
+---
+
+### AG-UI Polyglot Echo (ag-ui)
+
+A React SPA that connects to **Go, Rust, PHP, Zig, Bash, and Python chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions. Toolchain detection writes `public/servers.json`; unavailable backends show setup instructions in the UI.
+
+**Tech Stack:**
+
+- React + Vite (SPA)
+- `@tanstack/ai-react` + `@tanstack/ai-react-ui`
+- Go chat server (`net/http`, `:8001`)
+- Rust chat server (Axum, `:8002`)
+- PHP chat server (built-in server + curl, `:8003`)
+- Zig chat server (stdlib HTTP, `:8004`)
+- Bash chat server (socat + curl + jq, `:8005`)
+- Python chat server (stdlib HTTP + urllib, `:8006`)
+
+**Features:**
+
+- ✅ Backend picker (Go | Rust | PHP | Zig | Bash | Python)
+- ✅ Toolchain-gated `dev:all` + `servers.json` availability
+- ✅ Setup instructions when a runtime is missing (or disabled via `AGUI_DISABLE_SERVERS`)
+- ✅ Provider picker (OpenAI | Anthropic)
+- ✅ Hand-rolled AG-UI SSE in six languages
+- ✅ Streaming LLM responses via env API keys
+
+**Getting Started:**
+
+```bash
+cd examples/ag-ui
+pnpm install
+cp .env.example .env
+pnpm dev:all
+```
+
+Install whichever backends you want to run locally (Go, Rust, PHP, Zig, Bash, Python) plus provider API keys. The Bash server uses Bash 4+, curl, jq, and socat (`brew install bash jq socat`). To simulate missing runtimes: `AGUI_DISABLE_SERVERS=php,zig,bash,python pnpm dev:all`.
+
+📖 [Full Documentation](ag-ui/README.md)
 
 ---
 

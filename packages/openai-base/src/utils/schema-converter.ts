@@ -115,6 +115,9 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  * 2. It contains a *typeless* schema node — a property/items/anyOf entry with
  *    no `type` (nor `enum`/`const`/combinator), e.g. the `{}` that `z.any()`
  *    produces. Strict mode rejects typeless schemas.
+ * 3. It contains an open object schema. OpenAI strict mode requires objects to
+ *    set `additionalProperties: false`, which would change the semantics of a
+ *    free-form map rather than merely normalizing it.
  *
  * Conservative by design: for (1) keywords are matched as object keys, so a
  * property literally named e.g. `oneOf` also trips it. That only costs that one
@@ -123,8 +126,47 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  */
 export function isStrictModeCompatible(schema: unknown): boolean {
   return (
-    !containsStrictUnsupportedKeyword(schema) && !containsTypelessSchema(schema)
+    !containsStrictUnsupportedKeyword(schema) &&
+    !containsTypelessSchema(schema) &&
+    !containsOpenObject(schema)
   )
+}
+
+/**
+ * Reports object schemas that cannot be closed without changing their input
+ * semantics. Objects with `properties` and no explicit
+ * `additionalProperties` are safe because `coerceStrictSchema` closes them.
+ */
+function containsOpenObject(node: unknown): boolean {
+  if (Array.isArray(node)) {
+    return node.some(containsOpenObject)
+  }
+  if (node === null || typeof node !== 'object') return false
+
+  const schema = node as Record<string, unknown>
+  const type = schema['type']
+  const isObjectSchema =
+    type === 'object' || (Array.isArray(type) && type.includes('object'))
+
+  if (isObjectSchema) {
+    if (
+      'additionalProperties' in schema &&
+      schema['additionalProperties'] !== false
+    ) {
+      return true
+    }
+
+    const properties = schema['properties']
+    const hasProperties =
+      properties !== null &&
+      typeof properties === 'object' &&
+      !Array.isArray(properties)
+    if (!hasProperties && schema['additionalProperties'] !== false) {
+      return true
+    }
+  }
+
+  return Object.values(schema).some(containsOpenObject)
 }
 
 function containsStrictUnsupportedKeyword(node: unknown): boolean {

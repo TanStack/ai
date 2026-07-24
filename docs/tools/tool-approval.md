@@ -15,6 +15,11 @@ keywords:
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. A tool call moves through the `ToolCallState` lifecycle:
 
+The current client API exposes approvals as bound AG-UI interrupts. For the
+complete server/client lifecycle, atomic batch controls, generic interrupts,
+and recovery, see [Interrupts](../interrupts/overview). For deprecated API mapping,
+see [Migrate to AG-UI interrupts](../interrupts/migration).
+
 1. **`awaiting-input`** — Tool call started, no arguments yet
 2. **`input-streaming`** — Arguments arriving incrementally
 3. **`input-complete`** — All arguments received
@@ -23,6 +28,10 @@ The tool approval flow allows you to require user approval before executing sens
 
 After `approval-responded` the call executes (if approved). Although `complete` exists in the `ToolCallState` union, the runtime never transitions the tool-call part to it — the result surfaces as a populated `part.output` plus a sibling `tool-result` part whose own state is `complete` or `error`.
 
+Approvals run ephemerally: the run resumes from the full client message
+history that the browser sends back, so a stateless route needs no server
+storage to rebuild the paused call.
+
 When a tool requires approval, the typical flow is:
 
 1. Model calls the tool
@@ -30,6 +39,69 @@ When a tool requires approval, the typical flow is:
 3. User is prompted to approve or deny
 4. Tool executes (if approved) or is cancelled (if denied)
 5. Conversation continues with the result
+
+## Resolve an approval interrupt
+
+Without an `approvalSchema`, use the boolean shorthand. Approval uses the
+original tool input by default:
+
+```ts ignore
+const approval = interrupts.find(
+  (interrupt) => interrupt.kind === 'tool-approval',
+)
+
+if (approval?.kind === 'tool-approval') {
+  approval.resolveInterrupt(true)
+}
+```
+
+An `approvalSchema` can define separate application payloads for approval and
+rejection:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferDefinition = toolDefinition({
+  name: 'transfer',
+  description: 'Transfer funds',
+  needsApproval: true,
+  inputSchema: z.object({
+    amount: z.number().positive(),
+    recipient: z.string(),
+  }),
+  approvalSchema: {
+    approve: z.object({ note: z.string() }),
+    reject: z.object({ reason: z.string() }),
+  },
+})
+```
+
+Keep branch data under `payload`. Approved arguments can optionally be replaced
+in full with `editedArgs`; rejection never accepts edits:
+
+```ts ignore
+approval.resolveInterrupt(true, {
+  editedArgs: { amount: 12, recipient: 'Ada' },
+  payload: { note: 'Reviewed' },
+})
+
+approval.resolveInterrupt(false, {
+  payload: { reason: 'Policy limit' },
+})
+```
+
+Denial and cancellation are different. `resolveInterrupt(false, ...)` records a
+resolved rejection for the continuation. `cancel()` is payloadless and
+does not select the reject schema:
+
+```ts ignore
+approval.cancel()
+```
+
+A singleton submits after its valid resolution. Multiple items stage until all
+are valid, then submit atomically. Use root `resolveInterrupts(...)` for one
+synchronous batch transaction. See [Multiple Interrupts](../interrupts/multiple).
 
 ## Enabling Approval
 
@@ -86,9 +158,11 @@ export async function POST(request: Request) {
 }
 ```
 
-## Client-Side Approval Handling
+## Deprecated approval response compatibility
 
-The client receives approval requests and can respond:
+`addToolApprovalResponse` remains temporarily available for old approval UIs,
+but new code should use the bound interrupt API above. A compatibility
+`approved: false` is a denial, not a cancellation.
 
 ```tsx
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -181,7 +255,7 @@ const listData = toolDefinition({
   name: 'list_data',
   description: 'List available keys',
   inputSchema: z.object({}),
-}).client(async () => ({ keys: [] as Array<string> }))
+}).client(async () => ({ keys: new Array<string>() }))
 
 function ApprovalHandler() {
   const { messages, addToolApprovalResponse } = useChat({

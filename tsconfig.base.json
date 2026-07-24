@@ -25,6 +25,7 @@
     "strict": true,
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "noErrorTruncation": true
+    "noErrorTruncation": true,
+    "types": ["node"]
   }
 }

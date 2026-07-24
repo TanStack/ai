@@ -5,7 +5,7 @@ title: StructuredOutputPart
 
 # Interface: StructuredOutputPart\<TData\>
 
-Defined in: [packages/ai/src/types.ts:427](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L427)
+Defined in: [packages/ai/src/types.ts:436](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L436)
 
 StructuredOutputPart — a typed structured response attached to the assistant
 message that produced it. Generic over the schema-inferred data type so
@@ -27,7 +27,7 @@ to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
 optional data: TData;
 ```
 
-Defined in: [packages/ai/src/types.ts:433](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L433)
+Defined in: [packages/ai/src/types.ts:442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L442)
 
 Validated final object — only set when `status === 'complete'`.
 
@@ -39,7 +39,7 @@ Validated final object — only set when `status === 'complete'`.
 optional errorMessage: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:439](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L439)
+Defined in: [packages/ai/src/types.ts:448](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L448)
 
 Populated when `status === 'error'`.
 
@@ -51,7 +51,7 @@ Populated when `status === 'error'`.
 optional partial: DeepPartial<TData>;
 ```
 
-Defined in: [packages/ai/src/types.ts:431](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L431)
+Defined in: [packages/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L440)
 
 Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete.
 
@@ -63,7 +63,7 @@ Progressive parse of `raw` via parsePartialJSON — populated while streaming an
 raw: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:435](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L435)
+Defined in: [packages/ai/src/types.ts:444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L444)
 
 Accumulating JSON buffer. Source of truth for wire round-trip.
 
@@ -75,7 +75,7 @@ Accumulating JSON buffer. Source of truth for wire round-trip.
 optional reasoning: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:437](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L437)
+Defined in: [packages/ai/src/types.ts:446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L446)
 
 Optional chain-of-thought surfaced by reasoning models alongside the structured output.
 
@@ -87,7 +87,7 @@ Optional chain-of-thought surfaced by reasoning models alongside the structured 
 status: "error" | "complete" | "streaming";
 ```
 
-Defined in: [packages/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L429)
+Defined in: [packages/ai/src/types.ts:438](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L438)
 
 ***
 
@@ -97,4 +97,4 @@ Defined in: [packages/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/m
 type: "structured-output";
 ```
 
-Defined in: [packages/ai/src/types.ts:428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L428)
+Defined in: [packages/ai/src/types.ts:437](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L437)

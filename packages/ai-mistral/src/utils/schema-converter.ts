@@ -7,7 +7,7 @@
  */
 export function transformNullsToUndefined<T>(obj: T): T {
   if (obj === null) {
-    // eslint-disable-next-line no-restricted-syntax -- generic T has no structural overlap with undefined; null→undefined conversion is this function's documented contract
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- generic T has no structural overlap with undefined; null→undefined conversion is this function's documented contract
     return undefined as unknown as T
   }
 
@@ -15,7 +15,7 @@ export function transformNullsToUndefined<T>(obj: T): T {
     // Preserve array length and indices — converting null elements to
     // undefined slots rather than dropping them. `Array<T | null>` schemas
     // depend on positional alignment.
-    // eslint-disable-next-line no-restricted-syntax -- the mapped array (unknown[]) has no structural overlap with generic T; positional null→undefined transform preserves the array shape T describes
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the mapped array (unknown[]) has no structural overlap with generic T; positional null→undefined transform preserves the array shape T describes
     return obj.map((item) => transformNullsToUndefined(item)) as unknown as T
   }
 

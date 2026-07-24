@@ -57,10 +57,15 @@ describe('sandbox runtime emit', () => {
       type: EventType.CUSTOM,
       name: 'sandbox.file',
     })
-    expect(queue[0]?.value).toEqual({
-      type: 'change',
-      path: '/workspace/x.ts',
-      timestamp: 1,
-    })
+    // Narrow: StreamChunk is a closed union — `value` is only on CUSTOM.
+    const chunk = queue[0]
+    expect(chunk?.type).toBe('CUSTOM')
+    if (chunk?.type === 'CUSTOM') {
+      expect(chunk.value).toEqual({
+        type: 'change',
+        path: '/workspace/x.ts',
+        timestamp: 1,
+      })
+    }
   })
 })

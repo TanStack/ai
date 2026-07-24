@@ -77,10 +77,14 @@ const dists = packageNames
   .filter((dir) => existsSync(dir))
 
 if (dists.length === 0) {
-  console.error(
-    'scan-dangling-dts: no packages/*/dist directories found. Build packages first (e.g. pnpm build:all).',
+  // No built declarations to scan. This is the normal state when `nx affected`
+  // built nothing — e.g. a docs / skill / CI-only PR that touches no package.
+  // There are no `.d.ts` files, so nothing could have regressed; skip cleanly.
+  // (Running standalone? Build first — `pnpm build:all` — then re-run.)
+  console.log(
+    'scan-dangling-dts: no packages/*/dist directories found — nothing to scan (no packages built). Skipping.',
   )
-  process.exit(1)
+  process.exit(0)
 }
 
 /** @type {string[]} */

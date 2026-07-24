@@ -40,6 +40,21 @@ const gnarlyTool: Tool = {
   } as unknown as Tool['inputSchema'],
 }
 
+const freeFormMapTool: Tool = {
+  name: 'store_labels',
+  description: 'Store arbitrary labels',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      labels: {
+        type: 'object',
+        additionalProperties: { type: 'string' },
+      },
+    },
+    required: ['labels'],
+  },
+}
+
 describe('responses tool converter — strict fallback', () => {
   it('uses strict:true for strict-subset schemas', () => {
     const out = convertFunctionToolToResponsesFormat(strictSafeTool)
@@ -59,6 +74,14 @@ describe('responses tool converter — strict fallback', () => {
     expect(params.properties.site.format).toBeUndefined()
     expect(params.properties.user_id.format).toBe('uuid')
   })
+
+  it('falls back to strict:false without closing free-form maps', () => {
+    const out = convertFunctionToolToResponsesFormat(freeFormMapTool)
+    expect(out.strict).toBe(false)
+    expect(
+      (out.parameters as any).properties.labels.additionalProperties,
+    ).toEqual({ type: 'string' })
+  })
 })
 
 describe('chat-completions tool converter — strict fallback', () => {
@@ -73,6 +96,11 @@ describe('chat-completions tool converter — strict fallback', () => {
     const params = out.function.parameters as any
     expect(params.$defs.parent.oneOf).toBeDefined()
     expect(params.properties.site.format).toBeUndefined()
+  })
+
+  it('falls back to strict:false for free-form maps', () => {
+    const out = convertFunctionToolToChatCompletionsFormat(freeFormMapTool)
+    expect(out.function.strict).toBe(false)
   })
 })
 
@@ -97,5 +125,10 @@ describe('function-tool adapter converter — strict fallback', () => {
     // ...but unsupported `format` keywords are still stripped.
     expect(params.properties.site.format).toBeUndefined()
     expect(params.properties.user_id.format).toBe('uuid')
+  })
+
+  it('falls back to strict:false for free-form maps', () => {
+    const out = convertFunctionToolToAdapterFormat(freeFormMapTool)
+    expect(out.strict).toBe(false)
   })
 })

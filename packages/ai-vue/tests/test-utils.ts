@@ -1,8 +1,8 @@
-import type { UIMessage } from '@tanstack/ai-client'
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import type { UseChatOptions } from '../src/types'
 import { useChat } from '../src/use-chat'
+import type { UseChatOptions } from '../src/types'
+import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 // Re-export test utilities from ai-client
 export {
@@ -10,6 +10,43 @@ export {
   createTextChunks,
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
+
+export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
+  const pendingInterrupts = [
+    {
+      id: 'staged-interrupt',
+      reason: 'confirmation',
+      metadata: {
+        'tanstack:interruptBinding': {
+          kind: 'generic' as const,
+          interruptId: 'staged-interrupt',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          responseSchemaHash: 'none',
+        },
+      },
+    },
+    {
+      id: 'invalid-interrupt',
+      reason: 'confirmation',
+      metadata: {
+        'tanstack:interruptBinding': {
+          kind: 'generic' as const,
+          interruptId: 'invalid-interrupt',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          responseSchemaHash: 'none',
+        },
+      },
+    },
+  ]
+
+  return {
+    schemaVersion: 2,
+    resumeState: { threadId: 'thread-1', runId: 'run-1' },
+    pendingInterrupts,
+  }
+}
 
 /**
  * Render the useChat hook with testing utilities
@@ -39,7 +76,7 @@ export function renderUseChat(options?: UseChatOptions) {
     const hook = wrapper.vm
     return {
       // Asserting to fix "cannot be named without a reference" error
-      messages: hook.messages as Array<UIMessage>,
+      messages: hook.messages,
       isLoading: hook.isLoading,
       error: hook.error,
       status: hook.status,
@@ -54,6 +91,14 @@ export function renderUseChat(options?: UseChatOptions) {
       setMessages: hook.setMessages,
       addToolResult: hook.addToolResult,
       addToolApprovalResponse: hook.addToolApprovalResponse,
+      interrupts: hook.interrupts,
+      pendingInterrupts: hook.pendingInterrupts,
+      interruptErrors: hook.interruptErrors,
+      resuming: hook.resuming,
+      resolveInterrupts: hook.resolveInterrupts,
+      cancelInterrupts: hook.cancelInterrupts,
+      retryInterrupts: hook.retryInterrupts,
+      resumeInterruptsUnsafe: hook.resumeInterruptsUnsafe,
     }
   }
 

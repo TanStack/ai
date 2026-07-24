@@ -2,24 +2,45 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
@@ -68,6 +89,8 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
+  | 'onResumeStateChange'
   | 'context'
   | 'devtools'
 > & {
@@ -124,7 +147,20 @@ interface BaseUseChatReturn<
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
    */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
+
+  /**
+   * Pending messages queued while a stream is in flight.
+   */
+  queue: Readonly<ShallowRef<Array<QueuedMessage>>>
+
+  /**
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
+  cancelQueued: (id: string) => void
 
   /**
    * Append a message to the conversation
@@ -149,6 +185,30 @@ interface BaseUseChatReturn<
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
+
+  resumeState: DeepReadonly<ShallowRef<ChatResumeState | null>>
+  interrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  interruptErrors: DeepReadonly<
+    ShallowRef<ChatInterruptState<TTools>['interruptErrors']>
+  >
+  resuming: DeepReadonly<ShallowRef<boolean>>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
+  resumeInterrupts: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
 
   /**
    * Reload the last assistant message

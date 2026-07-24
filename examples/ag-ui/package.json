@@ -1,0 +1,39 @@
+{
+  "name": "ag-ui",
+  "private": true,
+  "type": "module",
+  "version": "0.0.2",
+  "scripts": {
+    "detect-servers": "node scripts/detect-servers.mjs",
+    "predev": "node scripts/detect-servers.mjs",
+    "dev": "vite --port 3000",
+    "dev:go": "go run -C servers/go .",
+    "dev:rust": "cargo run --manifest-path servers/rust/Cargo.toml",
+    "dev:php": "php -S 127.0.0.1:8003 -t servers/php servers/php/router.php",
+    "dev:zig": "zig build run --build-file servers/zig/build.zig",
+    "dev:bash": "bash servers/bash/server.sh",
+    "dev:python": "python3 servers/python/server.py",
+    "dev:all": "node scripts/dev-all.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "@tanstack/ai-react-ui": "workspace:*",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.1.2",
+    "dotenv": "^17.2.3",
+    "tailwindcss": "^4.1.18",
+    "typescript": "5.9.3",
+    "vite": "^7.3.3"
+  }
+}

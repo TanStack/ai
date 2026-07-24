@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 80,
+  "sortPackageJson": false,
+  "svelte": {},
+  "ignorePatterns": [
+    "**/.nx/",
+    "**/.nx/cache",
+    "**/.svelte-kit",
+    "**/build",
+    "**/coverage",
+    "**/dist",
+    "**/docs",
+    "packages/ai-fal/src/image/generated/",
+    "pnpm-lock.yaml",
+    ".angular",
+    ".github"
+  ]
+}

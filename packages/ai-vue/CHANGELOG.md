@@ -1,5 +1,45 @@
 # @tanstack/ai-vue
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+  - @tanstack/ai-client@0.22.1
+
+## 0.15.0
+
+### Minor Changes
+
+- [#900](https://github.com/TanStack/ai/pull/900) [`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c) - Messages sent while a stream is already in flight are now queued by default and automatically sent once the in-flight stream settles, instead of being silently dropped. **This is a behavior change.** Restore the previous drop-while-busy behavior with `queue: 'drop'`.
+
+  The behavior is configurable via a new `queue` option, which accepts `whenBusy: 'queue' | 'drop' | 'interrupt'`, `drain: 'fifo' | 'batch'`, `maxSize`, and `onOverflow`, or a custom strategy function for full control.
+
+  Queued messages are exposed on the hook as `queue` and can be cancelled before they send via `cancelQueued(id)`. `sendMessage` also accepts a per-call `{ whenBusy }` override.
+
+### Patch Changes
+
+- Updated dependencies [[`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c)]:
+  - @tanstack/ai-client@0.22.0
+
+## 0.14.4
+
+### Patch Changes
+
+- [#918](https://github.com/TanStack/ai/pull/918) [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589) - Add the `const` modifier to the `TTools` type parameter of `useChat`
+  (`createChat` in Svelte, `injectChat` in Angular) so a plain inline `tools` array
+  now yields full type-safe message chunks. Previously the array widened to
+  `Array<Union>` and lost the literal tool `name`s that drive the
+  discriminated `tool-call` part union, so callers had to wrap their tools in
+  `clientTools(...)` (or add `as const`) to get narrowing. That wrapper is now
+  optional — `tools: [toolA, toolB]` narrows `part.name`, `part.input`, and
+  `part.output` on its own. `clientTools(...)` still works and remains useful
+  for defining a shared tuple outside the hook call.
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+  - @tanstack/ai-client@0.21.0
+
 ## 0.14.3
 
 ### Patch Changes

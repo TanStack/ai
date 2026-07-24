@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+
+@layer base {
+  html {
+    @apply bg-slate-950;
+  }
+
+  body {
+    @apply min-h-screen antialiased;
+  }
+}

@@ -5,7 +5,7 @@ title: SandboxFileCustomEvent
 
 # Interface: SandboxFileCustomEvent
 
-Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1385)
+Defined in: [packages/ai/src/types.ts:1426](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1426)
 
 Custom event for extensibility.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
 
 Model identifier for multi-model support
 
@@ -46,7 +46,7 @@ Model identifier for multi-model support
 name: "sandbox.file";
 ```
 
-Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1386)
+Defined in: [packages/ai/src/types.ts:1427](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1427)
 
 #### Overrides
 
@@ -62,7 +62,7 @@ CustomEvent.name
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1387)
+Defined in: [packages/ai/src/types.ts:1428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1428)
 
 #### path
 

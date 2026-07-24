@@ -15,6 +15,7 @@ keywords:
   - perplexity
   - lm studio
   - vllm
+  - litellm
   - adapter
 ---
 
@@ -183,6 +184,29 @@ const ollama = openaiCompatible({
 ```
 
 > Ollama also has a dedicated adapter, [`@tanstack/ai-ollama`](./ollama), which understands its native API. Use `openaiCompatible` only if you specifically want Ollama's OpenAI-compatible surface.
+
+## LiteLLM Proxy
+
+[LiteLLM](https://github.com/BerriAI/litellm) is a self-hosted gateway that exposes a single OpenAI Chat Completions endpoint in front of 100+ providers (OpenAI, Anthropic, Google, Azure, AWS Bedrock, Mistral, Groq, and more). Because the proxy speaks the OpenAI wire format, it needs no dedicated package — point `openaiCompatible` at your proxy's `baseURL` (default `http://localhost:4000/v1`) and route to a provider with LiteLLM's `provider/model` naming:
+
+```typescript
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
+const litellm = openaiCompatible({
+  name: "litellm",
+  baseURL: "http://localhost:4000/v1", // your LiteLLM proxy
+  apiKey: process.env.LITELLM_API_KEY!, // a virtual key issued by the proxy
+  models: [
+    "anthropic/claude-sonnet-5",
+    "openai/gpt-5.5",
+    "gemini/gemini-3.5-flash",
+  ],
+});
+```
+
+`litellm("anthropic/claude-sonnet-5")` selects the Anthropic route; `litellm("openai/gpt-5.5")` selects OpenAI — all through the one proxy. Declare only the model routes you configured on the proxy; for precise per-model capabilities (e.g. a reasoning route without image input), use `createModel` as shown under [Declaring Models](#declaring-models).
+
+> The proxy holds each upstream provider's real credentials; the `apiKey` here is the proxy's own virtual/master key, not the upstream provider's.
 
 ## Azure OpenAI
 

@@ -459,7 +459,7 @@ async function* runStreamingVideoGeneration<
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
       timestamp: Date.now(),
-    } as StreamChunk
+    }
 
     // Poll for completion
     const startTime = Date.now()
@@ -478,7 +478,7 @@ async function* runStreamingVideoGeneration<
           error: statusResult.error,
         },
         timestamp: Date.now(),
-      } as StreamChunk
+      }
 
       if (statusResult.status === 'completed') {
         const urlResult = await adapter.getVideoUrl(jobResult.jobId)
@@ -514,7 +514,7 @@ async function* runStreamingVideoGeneration<
             ...(urlResult.usage ? { usage: urlResult.usage } : {}),
           },
           timestamp: Date.now(),
-        } as StreamChunk
+        }
 
         yield {
           type: 'RUN_FINISHED',
