@@ -102,7 +102,7 @@
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@vitest/coverage-v8": "4.0.14",
-    "arktype": "^2.1.28",
-    "zod": "^4.2.0"
+    "arktype": "^2.2.3",
+    "zod": "^4.4.3"
   }
 }

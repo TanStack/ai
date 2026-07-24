@@ -85,8 +85,8 @@
     "@tanstack/ai-openai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "commander": "^13.1.0",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "tsx": "^4.21.0",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   }
 }

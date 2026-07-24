@@ -64,7 +64,7 @@
     "@testing-library/preact": "^3.2.4",
     "@vitest/coverage-v8": "4.0.14",
     "jsdom": "^27.2.0",
-    "preact": "^10.26.9",
+    "preact": "^10.29.7",
     "vite": "^8.1.4"
   },
   "peerDependencies": {
