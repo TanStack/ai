@@ -132,9 +132,10 @@ describe('memoryPersistence', () => {
         requestedAt: 10,
         payload: {},
       })
-      expect(
-        (await interrupts!.list('t1')).map((i) => i.interruptId),
-      ).toEqual(['early', 'late'])
+      expect((await interrupts!.list('t1')).map((i) => i.interruptId)).toEqual([
+        'early',
+        'late',
+      ])
     })
   })
 
