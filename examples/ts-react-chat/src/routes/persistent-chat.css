@@ -204,6 +204,28 @@
   border-bottom-left-radius: 4px;
 }
 
+.pc-reasoning {
+  align-self: stretch;
+  border-left: 2px solid var(--pc-border);
+  padding: 4px 0 4px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pc-muted);
+  font-style: italic;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pc-reasoning-label {
+  display: block;
+  font-size: 10.5px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pc-muted);
+  opacity: 0.7;
+  margin-bottom: 3px;
+}
+
 .pc-tool {
   background: var(--pc-tool);
   border: 1px solid var(--pc-tool-border);

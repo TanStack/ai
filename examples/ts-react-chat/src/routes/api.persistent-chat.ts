@@ -106,6 +106,13 @@ function startDetachedRun(
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
+    // Reasoning on, effort "low" so it stays fast. `summary: 'auto'` asks OpenAI
+    // for a readable reasoning summary; when returned it streams as REASONING
+    // events, is persisted, and reconstructs like text/tool calls (the pane
+    // renders it as a "reasoning" block). NOTE: OpenAI only returns reasoning
+    // summary text to organizations verified for it — unverified keys still
+    // reason (you see reasoning tokens in usage) but get no summary to display.
+    modelOptions: { reasoning: { effort: 'low', summary: 'auto' } },
     // Snapshot streaming on: even the partial reply is persisted, so a reload
     // mid-generation (or a crash) still shows the story-so-far, and the detached
     // run below finishes and persists the rest.

@@ -202,6 +202,14 @@ function ChatPane({
               <span className="pc-role">{message.role}</span>
               {message.parts.map((part, index) => {
                 const key = `${message.id}-${index}`
+                if (part.type === 'thinking' && part.content) {
+                  return (
+                    <div key={key} className="pc-reasoning">
+                      <span className="pc-reasoning-label">reasoning</span>
+                      {part.content}
+                    </div>
+                  )
+                }
                 if (part.type === 'text' && part.content) {
                   return (
                     <div key={key} className="pc-bubble">
