@@ -117,10 +117,6 @@ function memoryThreshold(offset: string, runId: string, tail: number): number {
   return decoded.seq
 }
 
-function isTerminalChunk(chunk: StreamChunk): boolean {
-  return chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-}
-
 interface MemoryEntry {
   seq: number
   offset: string
@@ -244,7 +240,6 @@ export function memoryStream(
         const seq = firstSeq + index
         const offset = encodeMemoryOffset(runId, seq)
         log.entries.push({ seq, offset, chunk })
-        if (isTerminalChunk(chunk)) markComplete(log)
         return offset
       })
       wakeWaiters(log)
@@ -292,9 +287,14 @@ export function memoryStream(
           index += 1
           if (entry && entry.seq > threshold) {
             yield { offset: entry.offset, chunk: entry.chunk }
-            if (isTerminalChunk(entry.chunk)) return
           }
         }
+        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
+        // agent-loop run emits one per iteration (finishReason "tool_calls" then
+        // "stop"), so stopping on the first would truncate a tool-calling run at
+        // its first tool call. The producer signals true completion by calling
+        // `close()` (it does so on every exit — see StreamDurability.close), which
+        // sets `log.complete`. Read tails until then, or until the caller aborts.
         if (log.complete || signal?.aborted) return
 
         // Bound only the wait for the very first chunk: once a run has produced
