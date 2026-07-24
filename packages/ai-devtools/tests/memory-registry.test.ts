@@ -140,9 +140,9 @@ describe('memory registry', () => {
       error: { name: 'Error', message: 'adapter failed' },
       timestamp: 3,
     })
-    expect(state.scopes[memoryScopeKey({ threadId: 'a' })]!.events).toHaveLength(
-      2,
-    )
+    expect(
+      state.scopes[memoryScopeKey({ threadId: 'a' })]!.events,
+    ).toHaveLength(2)
   })
 
   it('stores full Scope identity and isolates composite scopes', () => {
