@@ -14,6 +14,14 @@ describe('drizzle package contract', () => {
         types: './dist/esm/sqlite.d.ts',
         import: './dist/esm/sqlite.js',
       },
+      './sqlite-schema': {
+        types: './dist/esm/default-sqlite-schema.d.ts',
+        import: './dist/esm/default-sqlite-schema.js',
+      },
+      './pg-schema': {
+        types: './dist/esm/default-pg-schema.d.ts',
+        import: './dist/esm/default-pg-schema.js',
+      },
     })
     expect(packageJson.bin).toEqual({
       'tanstack-ai-drizzle-schema': './bin/tanstack-ai-drizzle-schema.mjs',
@@ -37,7 +45,9 @@ describe('drizzle package contract', () => {
     const rootFiles = [
       'index.ts',
       'default-sqlite-schema.ts',
+      'default-pg-schema.ts',
       'ensure-sqlite-tables.ts',
+      'ensure-pg-tables.ts',
       'schema-contract.ts',
       'schema-source.ts',
       'stores.ts',

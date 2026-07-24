@@ -12,7 +12,10 @@ import {
  */
 export function createD1Stores(d1: D1Database) {
   const schema = createDefaultSqliteSchema()
-  const persistence = drizzlePersistence(drizzle(d1, { schema }), { schema })
+  const persistence = drizzlePersistence(drizzle(d1, { schema }), {
+    provider: 'sqlite',
+    schema,
+  })
   return {
     messages: persistence.stores.messages,
     runs: persistence.stores.runs,

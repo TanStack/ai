@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { drizzleSchemaFilename, drizzleSchemaSource } from './schema-source'
+import { drizzleSchemaFilename, drizzleSchemaSources } from './schema-source'
+import type { DrizzleSchemaDialect } from './schema-source'
 
 export interface SchemaCliOutput {
   writeStdout: (value: string) => void
@@ -13,7 +14,7 @@ export class SchemaCliError extends Error {
   }
 }
 
-const usage = `Usage: tanstack-ai-drizzle-schema (--out <directory> | --stdout) [--force]
+const usage = `Usage: tanstack-ai-drizzle-schema (--out <directory> | --stdout) [--dialect <sqlite|pg>] [--force]
 
 Emits the TanStack AI Drizzle schema module so **your** project owns it.
 
@@ -21,23 +22,33 @@ This package does not ship SQL migrations. After emitting:
 
   1. Add the file to your drizzle-kit schema paths
   2. Run drizzle-kit generate / migrate in your app
-  3. Pass the schema to drizzlePersistence(db, { schema })
+  3. Pass the schema to drizzlePersistence(db, { provider, schema })
 
 Options:
-  --out <directory>  Write ${drizzleSchemaFilename} into the directory.
-  --stdout           Print the schema module.
-  --force            Replace a divergent file when copying.
-  --help             Show this help.
+  --out <directory>    Write ${drizzleSchemaFilename} into the directory.
+  --stdout             Print the schema module.
+  --dialect <dialect>  Schema dialect: sqlite (default) or pg.
+  --force              Replace a divergent file when copying.
+  --help               Show this help.
 `
 
 interface ParsedArguments {
+  dialect: DrizzleSchemaDialect
   force: boolean
   help: boolean
   outDirectory?: string
   stdout: boolean
 }
 
+function parseDialect(value: string | undefined): DrizzleSchemaDialect {
+  if (value === 'sqlite' || value === 'pg') return value
+  throw new SchemaCliError(
+    `--dialect must be "sqlite" or "pg"; received: ${value ?? ''}`,
+  )
+}
+
 function parseArguments(args: ReadonlyArray<string>): ParsedArguments {
+  let dialect: DrizzleSchemaDialect | undefined
   let force = false
   let help = false
   let outDirectory: string | undefined
@@ -51,6 +62,12 @@ function parseArguments(args: ReadonlyArray<string>): ParsedArguments {
       help = true
     } else if (argument === '--stdout') {
       stdout = true
+    } else if (argument === '--dialect') {
+      if (dialect !== undefined) {
+        throw new SchemaCliError('--dialect may only be provided once.')
+      }
+      dialect = parseDialect(args[index + 1])
+      index++
     } else if (argument === '--out') {
       const value = args[index + 1]
       if (!value || value.startsWith('-')) {
@@ -66,7 +83,7 @@ function parseArguments(args: ReadonlyArray<string>): ParsedArguments {
     }
   }
 
-  return { force, help, outDirectory, stdout }
+  return { dialect: dialect ?? 'sqlite', force, help, outDirectory, stdout }
 }
 
 function isMissingFileError(error: unknown): boolean {
@@ -104,11 +121,12 @@ export async function runDrizzleSchemaCli(
       'Provide exactly one output mode: --out <directory> or --stdout.',
     )
   }
+  const source = drizzleSchemaSources[parsed.dialect]
   if (parsed.stdout) {
     if (parsed.force) {
       throw new SchemaCliError('--force can only be used with --out.')
     }
-    output.writeStdout(`${drizzleSchemaSource.trimEnd()}\n`)
+    output.writeStdout(`${source.trimEnd()}\n`)
     return
   }
 
@@ -119,11 +137,11 @@ export async function runDrizzleSchemaCli(
   await mkdir(outDirectory, { recursive: true })
   const destination = join(outDirectory, drizzleSchemaFilename)
   const existing = await readExistingFile(destination)
-  if (existing === drizzleSchemaSource) return
+  if (existing === source) return
   if (existing !== undefined && !parsed.force) {
     throw new SchemaCliError(
       `Refusing to overwrite divergent schema file: ${destination}. Re-run with --force to replace it.`,
     )
   }
-  await writeFile(destination, drizzleSchemaSource, 'utf8')
+  await writeFile(destination, source, 'utf8')
 }

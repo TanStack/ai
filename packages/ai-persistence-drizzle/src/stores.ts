@@ -1,9 +1,12 @@
 /**
- * AIPersistence store implementations over a Drizzle SQLite database.
+ * AIPersistence store implementations over a Drizzle database.
  *
- * Stores operate on injected table objects from the caller's schema. JSON
- * columns are expected to use Drizzle's `text({ mode: 'json' })` (or equivalent
- * that decodes to the contract data shapes).
+ * Written once against the SQLite builder types; the Postgres path re-faces
+ * its runtime objects onto these signatures in `drizzlePersistence` (see the
+ * comment there). Stores operate on injected table objects from the caller's
+ * schema. JSON columns are expected to use Drizzle's json-decoding column
+ * types (SQLite `text({ mode: 'json' })`, Postgres `jsonb`) so values decode
+ * to the contract data shapes.
  */
 import { and, asc, eq } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
@@ -267,9 +270,9 @@ export function createMetadataStore(
       return row ? row.valueJson : null
     },
     async set(scope, key, value) {
-      // SQL backends store JSON text in a NOT NULL column and cannot persist a
-      // nullish value: `text({ mode: 'json' })` binds a JS `null` as SQL NULL
-      // (it never serializes it to the text `"null"`), and `undefined` has no
+      // SQL backends store JSON in a NOT NULL column and cannot persist a
+      // nullish value: the json column types bind a JS `null` as SQL NULL
+      // (they never serialize it to the text `"null"`), and `undefined` has no
       // JSON at all — both violate NOT NULL. Reject nullish with a clear error
       // (consistent with the sibling Prisma backend) instead of a cryptic
       // driver failure. Unlike the in-memory reference, which round-trips

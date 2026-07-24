@@ -1,21 +1,18 @@
 /**
  * Derive `CREATE TABLE IF NOT EXISTS` statements from a user-supplied (or
- * default) SQLite schema. Used by the Node convenience factory so local/dev
- * can bootstrap without shipping versioned migrations from this package.
- *
- * Production apps should emit the schema with `tanstack-ai-drizzle-schema` and
- * generate migrations via their own drizzle-kit journal instead of relying on
- * runtime table creation for schema evolution.
+ * default) Postgres schema. A local/dev bootstrap convenience — production
+ * apps should emit the schema with `tanstack-ai-drizzle-schema --dialect pg`
+ * and generate migrations via their own drizzle-kit journal.
  */
-import { getTableConfig } from 'drizzle-orm/sqlite-core'
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
-import type { TanstackAiSqliteSchema } from './schema-contract'
+import { getTableConfig } from 'drizzle-orm/pg-core'
+import type { PgTable } from 'drizzle-orm/pg-core'
+import type { TanstackAiPgSchema } from './schema-contract'
 
 function quoteIdent(name: string): string {
   return `"${name.replaceAll('"', '""')}"`
 }
 
-function createTableSql(table: SQLiteTable): string {
+function createTableSql(table: PgTable): string {
   const config = getTableConfig(table)
   const columnSql = config.columns.map((column) => {
     const parts = [`${quoteIdent(column.name)} ${column.getSQLType()}`]
@@ -32,13 +29,14 @@ function createTableSql(table: SQLiteTable): string {
   return `CREATE TABLE IF NOT EXISTS ${quoteIdent(config.name)} (${columnSql.join(', ')})`
 }
 
-function createIndexSql(table: SQLiteTable): Array<string> {
+function createIndexSql(table: PgTable): Array<string> {
   const config = getTableConfig(table)
   const statements: Array<string> = []
   for (const index of config.indexes) {
     const name = index.config.name
-    // Emit only plain named-column indexes (not raw SQL expressions); leave
-    // anything fancier to drizzle-kit migrations.
+    // Index columns are `IndexedColumn` wrappers (or raw SQL, which a
+    // bootstrap can't reproduce); emit only plain named-column indexes and
+    // leave anything fancier to drizzle-kit migrations.
     const cols = index.config.columns
       .map((column) =>
         'name' in column && typeof column.name === 'string'
@@ -60,12 +58,12 @@ function createIndexSql(table: SQLiteTable): Array<string> {
  * Idempotent. Does not alter existing tables — use drizzle-kit migrations for
  * evolution.
  */
-export function ensureSqliteTables(
-  exec: (sql: string) => void,
-  schema: TanstackAiSqliteSchema,
-): void {
+export async function ensurePgTables(
+  exec: (sql: string) => Promise<unknown> | unknown,
+  schema: TanstackAiPgSchema,
+): Promise<void> {
   for (const table of Object.values(schema)) {
-    exec(createTableSql(table))
-    for (const indexSql of createIndexSql(table)) exec(indexSql)
+    await exec(createTableSql(table))
+    for (const indexSql of createIndexSql(table)) await exec(indexSql)
   }
 }

@@ -9,7 +9,13 @@
  * This package does **not** ship SQL migrations. Schema ownership and
  * migration generation live in the application.
  */
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 import type { TanstackAiSqliteSchema } from './schema-contract'
@@ -34,18 +40,27 @@ export const runs = sqliteTable('runs', {
 })
 
 /** Interrupt / approval records (`InterruptStore`). */
-export const interrupts = sqliteTable('interrupts', {
-  interruptId: text('interrupt_id').primaryKey(),
-  runId: text('run_id').notNull(),
-  threadId: text('thread_id').notNull(),
-  status: text('status').$type<InterruptRecord['status']>().notNull(),
-  requestedAt: integer('requested_at').notNull(),
-  resolvedAt: integer('resolved_at'),
-  payloadJson: text('payload_json', { mode: 'json' })
-    .$type<Record<string, unknown>>()
-    .notNull(),
-  responseJson: text('response_json', { mode: 'json' }).$type<unknown>(),
-})
+export const interrupts = sqliteTable(
+  'interrupts',
+  {
+    interruptId: text('interrupt_id').primaryKey(),
+    runId: text('run_id').notNull(),
+    threadId: text('thread_id').notNull(),
+    status: text('status').$type<InterruptRecord['status']>().notNull(),
+    requestedAt: integer('requested_at').notNull(),
+    resolvedAt: integer('resolved_at'),
+    payloadJson: text('payload_json', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    responseJson: text('response_json', { mode: 'json' }).$type<unknown>(),
+  },
+  // The stores list interrupts by thread and by run (`list*`,
+  // `listPending*`); index both foreign lookups.
+  (table) => [
+    index('interrupts_thread_id_idx').on(table.threadId),
+    index('interrupts_run_id_idx').on(table.runId),
+  ],
+)
 
 /** Scoped key/value metadata (`MetadataStore`). */
 export const metadata = sqliteTable(

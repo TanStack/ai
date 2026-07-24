@@ -95,6 +95,7 @@ loader (or equivalent). See [Chat persistence](./chat-persistence).
 
 ```ts
 import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
 import type { Scope } from '@tanstack/ai'
 
 export async function GET(request: Request) {

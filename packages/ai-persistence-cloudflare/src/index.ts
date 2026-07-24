@@ -4,11 +4,11 @@ import type {
   AIPersistence,
   AIPersistenceStores,
   InterruptStore,
+  LockStore,
   MessageStore,
   MetadataStore,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { LockStore } from '@tanstack/ai-persistence'
 import type { DurableObjectLockStoreOptions } from './locks'
 
 export { createD1Stores } from './d1'

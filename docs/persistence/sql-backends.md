@@ -41,7 +41,10 @@ import {
 
 export function createPersistence(state: D1Database) {
   const schema = createDefaultSqliteSchema()
-  return drizzlePersistence(drizzle(state, { schema }), { schema })
+  return drizzlePersistence(drizzle(state, { schema }), {
+    provider: 'sqlite',
+    schema,
+  })
 }
 ```
 

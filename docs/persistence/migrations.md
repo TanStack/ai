@@ -41,7 +41,10 @@ import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
 import { schema } from './db/tanstack-ai-schema'
 import { db } from './db'
 
-export const persistence = drizzlePersistence(db, { schema })
+export const persistence = drizzlePersistence(db, {
+  provider: 'sqlite',
+  schema,
+})
 ```
 
 For local Node development without a kit journal yet, the `/sqlite` factory can

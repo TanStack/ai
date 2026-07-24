@@ -433,16 +433,20 @@ Every backend returns an `AIPersistence` you pass straight to
 | Backend                                | Factory                                         | Import                                    |
 | -------------------------------------- | ----------------------------------------------- | ----------------------------------------- |
 | In-memory (dev/tests)                  | `memoryPersistence()`                           | `@tanstack/ai-persistence`                |
-| Drizzle SQLite-family (edge-safe)      | `drizzlePersistence(db, { schema })`            | `@tanstack/ai-persistence-drizzle`        |
+| Drizzle SQLite/Postgres (edge-safe)    | `drizzlePersistence(db, { provider, schema })`  | `@tanstack/ai-persistence-drizzle`        |
 | Node SQLite convenience factory        | `sqlitePersistence({ url })`                    | `@tanstack/ai-persistence-drizzle/sqlite` |
 | Prisma                                 | `prismaPersistence(prisma)`                     | `@tanstack/ai-persistence-prisma`         |
 | Cloudflare (D1 + Durable Object locks) | `cloudflarePersistence({ d1, durableObjects })` | `@tanstack/ai-persistence-cloudflare`     |
 
-`drizzlePersistence(db, { schema })` is the edge-safe root — pass an
-already-migrated SQLite-compatible Drizzle database (including Cloudflare D1)
-and a required schema (emit via `tanstack-ai-drizzle-schema`, or
-`createDefaultSqliteSchema()`). `sqlitePersistence` is Node-only and lives at
-the `/sqlite` subpath. Compose backends per store with
+`drizzlePersistence(db, { provider, schema })` is the edge-safe root —
+`provider` is `'sqlite'` (any SQLite-compatible Drizzle database, including
+Cloudflare D1) or `'pg'` (node-postgres, postgres.js, Neon, PGlite), and `db`
+plus the required `schema` must match it (enforced by overloads and a runtime
+dialect check). Get the schema by re-exporting the `/sqlite-schema` or
+`/pg-schema` subpath (stock tables), emitting an owned copy via
+`tanstack-ai-drizzle-schema [--dialect pg]`, or `createDefaultSqliteSchema()` /
+`createDefaultPgSchema()`. `sqlitePersistence` is Node-only and lives at the
+`/sqlite` subpath. Compose backends per store with
 `composePersistence(base, { overrides })`.
 
 ### Resume reconstruction is the middleware's job (server-authoritative path)

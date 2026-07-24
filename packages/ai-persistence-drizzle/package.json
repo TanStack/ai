@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-persistence-drizzle",
   "version": "0.0.0",
-  "description": "Schema-first Drizzle SQLite persistence for TanStack AI. Emit a schema, own migrations with drizzle-kit, or use the Node SQLite convenience factory with stock defaults.",
+  "description": "Schema-first Drizzle persistence for TanStack AI (SQLite and Postgres). Emit a schema, own migrations with drizzle-kit, or use the Node SQLite convenience factory with stock defaults.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,8 @@
     "tanstack",
     "persistence",
     "drizzle",
-    "sqlite"
+    "sqlite",
+    "postgres"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -27,6 +28,14 @@
     "./sqlite": {
       "types": "./dist/esm/sqlite.d.ts",
       "import": "./dist/esm/sqlite.js"
+    },
+    "./sqlite-schema": {
+      "types": "./dist/esm/default-sqlite-schema.d.ts",
+      "import": "./dist/esm/default-sqlite-schema.js"
+    },
+    "./pg-schema": {
+      "types": "./dist/esm/default-pg-schema.d.ts",
+      "import": "./dist/esm/default-pg-schema.js"
     }
   },
   "bin": {
@@ -53,6 +62,7 @@
     "drizzle-orm": ">=0.44.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",

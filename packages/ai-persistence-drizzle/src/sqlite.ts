@@ -91,7 +91,7 @@ export function sqlitePersistence(options: SqlitePersistenceOptions) {
     return Promise.resolve({ rows: rows.map((row) => Object.values(row)) })
   })
 
-  const persistence = drizzlePersistence(db, { schema })
+  const persistence = drizzlePersistence(db, { provider: 'sqlite', schema })
   let closed = false
   return {
     ...persistence,

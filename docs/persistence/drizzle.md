@@ -11,14 +11,40 @@ with **your** drizzle-kit journal, and pass the schema into the runtime.
 
 Two entry points:
 
-- the package root accepts an already-created, migrated `DrizzleSqliteDb` plus
-  a required `schema` and is safe to import in edge runtimes;
+- the package root accepts an already-created, migrated Drizzle database plus
+  a required `provider` (`'sqlite'` or `'pg'`) and matching `schema`, and is
+  safe to import in edge runtimes;
 - `/sqlite` is a Node-only convenience factory built on `node:sqlite` with stock
   defaults and optional runtime table bootstrap for local/dev.
 
+The `provider` discriminates the whole call: with `provider: 'sqlite'` the
+compiler only accepts a SQLite Drizzle database and a SQLite schema, with
+`provider: 'pg'` only a Postgres database and schema, and the runtime assert
+verifies the passed tables really are that dialect.
+
 ## Schema first
 
-Emit a starter schema into your project:
+There are two ways to get the tables into **your** drizzle-kit journal:
+
+### Stock tables: re-export the package schema
+
+If you don't need to rename or extend the tables, don't copy anything — create
+a one-line module the package keeps up to date across upgrades:
+
+```ts
+// src/db/tanstack-ai-schema.ts
+export * from '@tanstack/ai-persistence-drizzle/sqlite-schema'
+```
+
+Add that file to your drizzle-kit `schema` paths and generate migrations as
+usual. When a package upgrade adds a column or index, `drizzle-kit generate`
+picks it up automatically — there is no copied file to go stale. Use
+`@tanstack/ai-persistence-drizzle/pg-schema` for Postgres.
+
+### Custom tables: emit an owned starter
+
+To rename tables or columns, add app-owned columns, or tune indexes, own the
+definition instead. Emit a starter schema into your project:
 
 ```bash
 pnpm exec tanstack-ai-drizzle-schema --out src/db
@@ -48,7 +74,10 @@ import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
 import { schema } from './db/tanstack-ai-schema'
 import { db } from './db'
 
-export const persistence = drizzlePersistence(db, { schema })
+export const persistence = drizzlePersistence(db, {
+  provider: 'sqlite',
+  schema,
+})
 ```
 
 Because the runtime operates on the table objects you pass, the file is yours
@@ -60,6 +89,9 @@ to shape:
 - **Add app-owned columns** — for example a `userId` column on `messages` to
   scope threads to users. Keep added columns nullable or defaulted so the
   store inserts succeed; the TanStack AI stores never read or write them.
+- **Tune indexes** — the starter ships lookup indexes on
+  `interrupts.thread_id` and `interrupts.run_id` (the columns the stores list
+  by); add composite or partial indexes as your query patterns demand.
 - **Keep the contract columns** with their data shapes. The
   `TanstackAiSqliteSchema` type enforces the shapes at compile time, and
   `drizzlePersistence` validates the tables and columns exist at construction.
@@ -106,13 +138,61 @@ import {
 export function createPersistence(state: D1Database) {
   const schema = createDefaultSqliteSchema()
   const db = drizzle(state, { schema })
-  return drizzlePersistence(db, { schema })
+  return drizzlePersistence(db, { provider: 'sqlite', schema })
 }
 ```
 
 Prefer emitting and owning the schema in production. The root entry does not
 import Node built-ins and works with Cloudflare D1 and other SQLite-compatible
 Drizzle drivers. The application owns connection lifecycle and migration timing.
+
+## Postgres
+
+Postgres uses the same root entry with `provider: 'pg'`: bring your own
+migrated Drizzle Postgres database (node-postgres, postgres.js, Neon,
+PGlite, …) and your schema. For stock tables, re-export
+`@tanstack/ai-persistence-drizzle/pg-schema` as shown above; to own the
+definition, emit the Postgres starter:
+
+```bash
+pnpm exec tanstack-ai-drizzle-schema --out src/db --dialect pg
+```
+
+Add it to your drizzle-kit config (`dialect: 'postgresql'`), generate and run
+migrations, then wire the runtime:
+
+```ts ignore
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { drizzlePersistence } from '@tanstack/ai-persistence-drizzle'
+import { schema } from './db/tanstack-ai-schema'
+
+const db = drizzle(process.env.DATABASE_URL!)
+export const persistence = drizzlePersistence(db, { provider: 'pg', schema })
+```
+
+The same schema freedoms apply: rename tables and columns, lean on drizzle
+`casing`, and add nullable or defaulted app-owned columns. The
+`TanstackAiPgSchema` type enforces the contract's column data shapes at compile
+time. For local development without migrations, `createDefaultPgSchema()`
+provides the stock tables and `ensurePgTables` bootstraps them with
+`CREATE TABLE IF NOT EXISTS`:
+
+```ts ignore
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { pool } from './db'
+import {
+  createDefaultPgSchema,
+  drizzlePersistence,
+  ensurePgTables,
+} from '@tanstack/ai-persistence-drizzle'
+
+const schema = createDefaultPgSchema()
+await ensurePgTables((sql) => pool.query(sql), schema)
+export const persistence = drizzlePersistence(drizzle(pool), {
+  provider: 'pg',
+  schema,
+})
+```
 
 ## Use the middleware
 
