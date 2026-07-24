@@ -136,9 +136,14 @@ function hasMarkerComment(
   timeline: Array<TimelineEvent>,
   marker: string,
 ): boolean {
+  // Only bot comments count — a contributor pasting the marker must not
+  // suppress the automation.
   return timeline.some(
     (e) =>
-      e.kind === 'comment' && e.body !== undefined && e.body.includes(marker),
+      e.kind === 'comment' &&
+      e.isBot &&
+      e.body !== undefined &&
+      e.body.includes(marker),
   )
 }
 
@@ -165,7 +170,14 @@ export function classifyPR(
   const hasConflicts = pr.mergeable === 'CONFLICTING'
   const ciFailing = pr.ciState === 'failure'
   const approved = pr.reviewDecision === 'APPROVED'
-  const readyToMerge = approved && !hasConflicts && !ciFailing && !pr.isDraft
+  // Mergeability must be explicit and CI must not be mid-run; 'unknown' CI
+  // (no checks configured) still counts as ready.
+  const readyToMerge =
+    approved &&
+    pr.mergeable === 'MERGEABLE' &&
+    !ciFailing &&
+    pr.ciState !== 'pending' &&
+    !pr.isDraft
 
   // Outstanding changes-requested: the decision stands and the contributor
   // hasn't commented or pushed since the last maintainer response.
@@ -247,10 +259,7 @@ export function classifyPR(
   const missingE2E =
     touchesPublished && !pr.files.some((f) => matchesAnyGlob(f, E2E_GLOBS))
 
-  const freshContributorReply =
-    state.lastContributorActivityAt !== null &&
-    (state.lastMaintainerResponseAt === null ||
-      state.lastContributorActivityAt > state.lastMaintainerResponseAt)
+  const freshContributorReply = hasFreshContributorReply(state)
 
   const staleAuthor =
     waitingOn === 'author' &&
@@ -283,6 +292,18 @@ export function classifyPR(
     hasAckComment: hasMarkerComment(pr.timeline, ACK_MARKER),
     suggestedAssignee: null,
   }
+}
+
+/**
+ * A contributor replied after our last response — not merely "a maintainer
+ * hasn't answered yet". New never-answered items don't count.
+ */
+function hasFreshContributorReply(state: ResponseState): boolean {
+  return (
+    state.lastMaintainerResponseAt !== null &&
+    state.lastContributorActivityAt !== null &&
+    state.lastContributorActivityAt > state.lastMaintainerResponseAt
+  )
 }
 
 function bodyHasReproSignal(body: string): boolean {
@@ -337,6 +358,7 @@ export function classifyIssue(
     unansweredHours,
     slaBreached: !bot && !rosterAuthor && slaBreached,
     firstResponseHours: state.firstResponseHours,
+    freshContributorReply: hasFreshContributorReply(state),
     staleAuthor,
     hasReproComment: hasMarkerComment(issue.timeline, REPRO_MARKER),
     suggestedAssignee: null,

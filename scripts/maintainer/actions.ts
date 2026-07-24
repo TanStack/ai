@@ -27,6 +27,11 @@ export const MANAGED_LABELS: Array<{
     description: 'Approved, CI green, no conflicts',
   },
   {
+    name: 'merge-conflicts',
+    color: 'b60205',
+    description: 'Conflicts with the base branch — needs a rebase',
+  },
+  {
     name: 'needs-repro',
     color: 'e99695',
     description: 'Needs a minimal reproduction before it can be worked on',
@@ -101,42 +106,70 @@ export async function ensureManagedLabels(
   }
 }
 
+async function executeOne(
+  client: GitHubClient,
+  repo: string,
+  m: Mutation,
+): Promise<void> {
+  switch (m.kind) {
+    case 'assign':
+      await client.rest('POST', `/repos/${repo}/issues/${m.number}/assignees`, {
+        assignees: [m.assignee],
+      })
+      break
+    case 'comment':
+      await client.rest('POST', `/repos/${repo}/issues/${m.number}/comments`, {
+        body: m.body,
+      })
+      break
+    case 'add-labels':
+      await client.rest('POST', `/repos/${repo}/issues/${m.number}/labels`, {
+        labels: m.labels,
+      })
+      break
+    case 'remove-label':
+      await client.rest(
+        'DELETE',
+        `/repos/${repo}/issues/${m.number}/labels/${encodeURIComponent(m.label)}`,
+      )
+      break
+  }
+}
+
+function isRateLimitError(error: unknown): boolean {
+  return error instanceof Error && /HTTP (403|429)/.test(error.message)
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+export interface ExecuteOptions {
+  /** Pause between mutations — GitHub's secondary rate limit wants ≥1s between content-creating requests. */
+  pacingMs?: number
+  sleepImpl?: (ms: number) => Promise<void>
+}
+
 export async function executeMutations(
   client: GitHubClient,
   repo: string,
   mutations: Array<Mutation>,
+  options: ExecuteOptions = {},
 ): Promise<void> {
-  for (const m of mutations) {
-    switch (m.kind) {
-      case 'assign':
-        await client.rest(
-          'POST',
-          `/repos/${repo}/issues/${m.number}/assignees`,
-          {
-            assignees: [m.assignee],
-          },
-        )
-        break
-      case 'comment':
-        await client.rest(
-          'POST',
-          `/repos/${repo}/issues/${m.number}/comments`,
-          {
-            body: m.body,
-          },
-        )
-        break
-      case 'add-labels':
-        await client.rest('POST', `/repos/${repo}/issues/${m.number}/labels`, {
-          labels: m.labels,
-        })
-        break
-      case 'remove-label':
-        await client.rest(
-          'DELETE',
-          `/repos/${repo}/issues/${m.number}/labels/${encodeURIComponent(m.label)}`,
-        )
-        break
+  const pacingMs = options.pacingMs ?? 1000
+  const sleepImpl = options.sleepImpl ?? sleep
+  for (const [i, m] of mutations.entries()) {
+    if (i > 0) await sleepImpl(pacingMs)
+    try {
+      await executeOne(client, repo, m)
+    } catch (error) {
+      if (!isRateLimitError(error)) throw error
+      // Likely the secondary rate limit; back off once and retry before
+      // giving up (an aborted run converges on the next sweep anyway).
+      console.log(`  ⏳ rate limited, backing off 60s (${describeMutation(m)})`)
+      await sleepImpl(60_000)
+      await executeOne(client, repo, m)
     }
+    // Per-mutation progress keeps watchdogs (and humans) from presuming death.
+    console.log(`  ✔ [${i + 1}/${mutations.length}] ${describeMutation(m)}`)
   }
 }

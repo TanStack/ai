@@ -180,7 +180,7 @@ export interface PRTriage {
   slaBreached: boolean
   /** Hours from creation to first maintainer response; null if none yet. */
   firstResponseHours: number | null
-  /** Contributor activity newer than the last maintainer response. */
+  /** Contributor activity newer than the last maintainer response (which must exist). */
   freshContributorReply: boolean
   staleAuthor: boolean
   hasAckComment: boolean
@@ -201,6 +201,8 @@ export interface IssueTriage {
   unansweredHours: number | null
   slaBreached: boolean
   firstResponseHours: number | null
+  /** Contributor comment newer than the last maintainer response. */
+  freshContributorReply: boolean
   staleAuthor: boolean
   hasReproComment: boolean
   suggestedAssignee: string | null

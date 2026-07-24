@@ -107,6 +107,48 @@ describe('classifyPR — waiting-on state machine', () => {
     expect(t.waitingReason).toBe('ready-to-merge')
   })
 
+  it('pending CI is not ready to merge', () => {
+    const t = classifyPR(
+      makePR({ reviewDecision: 'APPROVED', ciState: 'pending' }),
+      config,
+      NOW,
+    )
+    expect(t.readyToMerge).toBe(false)
+  })
+
+  it('unknown mergeability is not ready to merge', () => {
+    const t = classifyPR(
+      makePR({
+        reviewDecision: 'APPROVED',
+        ciState: 'success',
+        mergeable: 'UNKNOWN',
+      }),
+      config,
+      NOW,
+    )
+    expect(t.readyToMerge).toBe(false)
+  })
+
+  it('no CI checks at all (unknown state) can still be ready to merge', () => {
+    const t = classifyPR(
+      makePR({ reviewDecision: 'APPROVED', ciState: 'unknown' }),
+      config,
+      NOW,
+    )
+    expect(t.readyToMerge).toBe(true)
+  })
+
+  it('a contributor pasting the ack marker does not suppress the ack', () => {
+    const t = classifyPR(
+      makePR({
+        timeline: [comment('contributor', hoursAgo(2), `sneaky ${ACK_MARKER}`)],
+      }),
+      config,
+      NOW,
+    )
+    expect(t.hasAckComment).toBe(false)
+  })
+
   it('conflicts beat CI and last-mover: waiting on author', () => {
     const t = classifyPR(
       makePR({
@@ -347,6 +389,36 @@ describe('classifyIssue', () => {
     )
     expect(t.waitingOn).toBe('maintainer')
     expect(t.slaBreached).toBe(true)
+  })
+
+  it('a never-answered issue is not a fresh contributor reply', () => {
+    const t = classifyIssue(
+      makeIssue({
+        createdAt: hoursAgo(30),
+        timeline: [comment('contributor', hoursAgo(2), 'any update?')],
+      }),
+      config,
+      NOW,
+      new Set(),
+    )
+    expect(t.freshContributorReply).toBe(false)
+  })
+
+  it('a contributor reply after a maintainer response is fresh', () => {
+    const t = classifyIssue(
+      makeIssue({
+        createdAt: daysAgo(3),
+        timeline: [
+          comment('alem', daysAgo(2), 'can you share a repro?'),
+          comment('contributor', daysAgo(1), 'here you go'),
+        ],
+      }),
+      config,
+      NOW,
+      new Set(),
+    )
+    expect(t.freshContributorReply).toBe(true)
+    expect(t.waitingOn).toBe('maintainer')
   })
 })
 

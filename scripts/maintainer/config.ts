@@ -15,7 +15,7 @@ export function parseConfig(raw: unknown): ToolsetConfig {
   if (!isRecord(raw)) fail('root must be an object')
   const { repo, maintainers, sla, spam, botAllowlist, maxCommentsPerRun } = raw
 
-  if (typeof repo !== 'string' || !repo.includes('/')) {
+  if (typeof repo !== 'string' || !/^[^/\s]+\/[^/\s]+$/.test(repo)) {
     fail('"repo" must be an "owner/name" string')
   }
   if (!Array.isArray(maintainers) || maintainers.length === 0) {

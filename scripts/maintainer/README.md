@@ -3,10 +3,12 @@
 Automation that keeps on top of open PRs, issues, and discussions:
 
 - **Sweep** (`.github/workflows/maintainer-sweep.yml`, every 3h): assigns each
-  open PR/issue to a maintainer, posts a one-time ack comment with a
-  deterministic pre-review checklist, asks for a reproduction on bug reports
-  that lack one, and reconciles `waiting-on: *` / `ready-to-merge` /
-  `needs-repro` / `has-pr` labels.
+  eligible open PR/issue to a maintainer (drafts and suspected drive-by PRs
+  are skipped, and routing stops when everyone is at their assignment cap),
+  posts a one-time ack comment with a deterministic pre-review checklist, asks
+  for a reproduction on bug reports that lack one, and reconciles
+  `waiting-on: *` / `ready-to-merge` / `merge-conflicts` / `needs-repro` /
+  `has-pr` labels.
 - **Scorecard** (`.github/workflows/maintainer-scorecard.yml`, daily): posts a
   to-do digest to Discord — SLA breaches, ready-to-merge PRs, per-maintainer
   queues (including which items got fresh contributor replies), new/flagged/

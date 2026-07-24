@@ -16,11 +16,14 @@ export interface GitHubClientOptions {
   token: string
   fetchImpl?: typeof fetch
   baseUrl?: string
+  /** Per-request deadline; a stalled connection aborts instead of hanging the job. */
+  timeoutMs?: number
 }
 
 export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
   const fetchImpl = options.fetchImpl ?? fetch
   const baseUrl = options.baseUrl ?? 'https://api.github.com'
+  const timeoutMs = options.timeoutMs ?? 30_000
   const headers = {
     authorization: `Bearer ${options.token}`,
     accept: 'application/vnd.github+json',
@@ -38,6 +41,7 @@ export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
         method: 'POST',
         headers,
         body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(timeoutMs),
       })
       const payload: unknown = await response.json()
       if (!response.ok) {
@@ -64,6 +68,7 @@ export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       })
       const text = await response.text()
       if (!response.ok) {

@@ -4,6 +4,7 @@
  */
 
 import { deriveResponseState } from './classify'
+import { isRosterMaintainer } from './config'
 import { computeLoad, routePR } from './route'
 import type {
   DiscussionTriage,
@@ -124,10 +125,7 @@ export function computeScorecard(
       assignedPRs,
       assignedIssues,
       freshReplies: [...assignedPRs, ...assignedIssues].filter(
-        (t) =>
-          ('freshContributorReply' in t
-            ? t.freshContributorReply
-            : t.waitingOn === 'maintainer') && t.waitingOn === 'maintainer',
+        (t) => t.freshContributorReply && t.waitingOn === 'maintainer',
       ),
     }
   })
@@ -222,7 +220,13 @@ export function computeScorecard(
     else awaitingFirstResponse++
   }
   for (const c of snapshot.recentlyClosed) {
-    if (c.authorIsBot || new Date(c.createdAt) < weekAgo) continue
+    if (
+      c.authorIsBot ||
+      isRosterMaintainer(c.author, config) ||
+      new Date(c.createdAt) < weekAgo
+    ) {
+      continue
+    }
     const state = deriveResponseState(
       c.timeline,
       c.author,
@@ -235,7 +239,11 @@ export function computeScorecard(
     }
   }
 
-  const assignablePRs = humanPRs.filter((t) => !t.item.isDraft)
+  // Drafts and suspected drive-by PRs are never routed, so they don't count
+  // against assignment coverage.
+  const assignablePRs = humanPRs.filter(
+    (t) => !t.item.isDraft && !t.suspectedSpam,
+  )
   const pctPRsAssigned =
     assignablePRs.length === 0
       ? 100

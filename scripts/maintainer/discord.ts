@@ -116,10 +116,11 @@ export function buildScorecardEmbeds(
   const flaggedLines = scorecard.flagged.map((t) =>
     itemLine(t, `⚠️ needs human judgment: ${t.spamReasons.join(', ')}`),
   )
+  // Flagged entries lead so a busy day can't truncate them out of the section.
   embeds.push({
-    title: `🆕 New in the last 24h (${newLines.length})`,
+    title: `🆕 New (${newLines.length}) · ⚠️ Flagged (${flaggedLines.length})`,
     color: 0x5319e7,
-    description: section([...newLines, ...flaggedLines]),
+    description: section([...flaggedLines, ...newLines]),
   })
 
   const staleLines = scorecard.stale.map((t) =>
@@ -206,6 +207,7 @@ export async function postToDiscord(
         embeds: chunk,
         allowed_mentions: { parse: ['users'] },
       }),
+      signal: AbortSignal.timeout(15_000),
     })
     if (!response.ok) {
       throw new Error(

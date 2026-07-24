@@ -32,12 +32,7 @@ import { createGitHubClient } from './github'
 import { computeLoad, routeIssue, routePR } from './route'
 import { isDryRun, resolveToken, writeStepSummary } from './env'
 import type { Mutation } from './actions'
-import type {
-  IssueTriage,
-  PRTriage,
-  RepoSnapshot,
-  ToolsetConfig,
-} from './types'
+import type { RepoSnapshot, ToolsetConfig } from './types'
 
 export interface SweepPlan {
   mutations: Array<Mutation>
@@ -99,6 +94,7 @@ export function planSweep(
 
     const desired: Array<string> = []
     if (t.readyToMerge) desired.push('ready-to-merge')
+    if (t.hasConflicts) desired.push('merge-conflicts')
     if (t.waitingOn === 'maintainer') desired.push('waiting-on: maintainer')
     if (t.waitingOn === 'author') desired.push('waiting-on: author')
     mutations.push(...planLabelChanges(pr.number, pr.labels, desired))
