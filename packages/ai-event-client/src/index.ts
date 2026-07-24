@@ -825,14 +825,17 @@ export interface VideoUsageEvent extends BaseEventContext {
 // ---------------------------------------------------------------------------
 
 /**
- * Lite scope for devtools payloads. Mirrors the shared `Scope` /
- * `MemoryScope` contract (`threadId`-centric); kept structurally minimal so the
- * event client stays decoupled from the memory package.
+ * Lite scope for devtools payloads. Structural mirror of shared `Scope` /
+ * `MemoryScope` field set; every field optional so error/telemetry events can
+ * carry a partial identity. Not an isolation authority — adapters own that.
+ * Kept structurally minimal so the event client stays decoupled from `@tanstack/ai`.
  */
 export type MemoryScopeLite = {
   threadId?: string
   userId?: string
   tenantId?: string
+  /** Reserved on `Scope`; carried for display/identity parity. */
+  namespace?: string
 }
 
 /** Emitted when the middleware begins a `recall` for the current turn. */

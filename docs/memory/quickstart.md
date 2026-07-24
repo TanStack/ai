@@ -148,8 +148,23 @@ const stream = chat({
 })
 ```
 
-On the client, nothing changes. `useChat` (or your connection adapter) consumes the
-stream exactly as before. Memory is entirely server-side.
+On the client, nothing changes for memory wiring — consume the same stream as any
+other `chat()` endpoint:
+
+```ts
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function Chat() {
+  const { messages, sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+  // Memory is entirely server-side; the client only sees the usual message stream.
+  return (
+    // render messages, input, sendMessage, isLoading…
+    null
+  )
+}
+```
 
 ## Where to go next
 

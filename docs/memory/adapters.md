@@ -124,15 +124,14 @@ you previously wrote under a different index shape, reindex or wipe.
 
 | Adapter | `threadId` | `userId` | `tenantId` | `namespace` |
 |---------|------------|----------|------------|-------------|
-| `inMemory()` | yes | yes (filter when present) | yes (filter when present) | ignored |
+| `inMemory()` | yes (exact) | yes (exact) | yes (exact) | ignored |
 | `redis()` | yes (key segment) | yes (key segment) | yes (key segment) | ignored |
-| `hindsight()` | yes (bank id) | yes (bank id / `user` option) | **no** | ignored |
-| `mem0()` | **no** (user-scoped only) | yes (`user_id` / `user` option) | **no** | ignored |
-| `honcho()` | yes (Honcho session id) | yes (peer id / `user` option) | **no** | ignored |
+| `hindsight()` | yes (bank id) | yes (bank id / `user` option) | yes (bank prefix; unset → `_`) | ignored |
+| `mem0()` | yes (`run_id`) | yes (`user_id` / `user` option) | **no** | ignored |
+| `honcho()` | yes (session key) | yes (peer id / `user` option) | yes (session/peer prefix) | ignored |
 
-Vendor backends that do not model tenants will share memory across tenants when
-`userId`+`threadId` (or just `userId` for mem0) collide — use a tenant-aware adapter
-or encode the tenant into `user`/`threadId` yourself.
+Optional dims are exact-match (omit ≠ match any). mem0 does not model tenants —
+encode multi-tenant isolation into `user` if needed.
 
 ## `hindsight()`
 
@@ -142,7 +141,7 @@ is an optional peer, loaded lazily.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{user}__{threadId}`). |
+| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{tenant|_}__{user}__{threadId}`). |
 | `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
 | `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
@@ -152,7 +151,7 @@ is an optional peer, loaded lazily.
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
 const memory = hindsight({
-  user: 'alice', // bank = alice__{threadId}
+  user: 'alice', // bank = {_}__alice__{threadId} (or tenant__alice__{threadId})
   baseUrl: 'https://hindsight.internal', // default: HINDSIGHT_URL
   budget: 'high', // deeper recall
   onToolRetain: (receipt) => console.log('model retained', receipt.ok),
@@ -161,7 +160,7 @@ const memory = hindsight({
 })
 ```
 
-Bank id is `{user}__{threadId}`. `tenantId` is not part of the bank key.
+Bank id is `{tenantId|_}__{user}__{threadId}`.
 
 ## `mem0()`
 
@@ -188,7 +187,7 @@ const memory = mem0({
 })
 ```
 
-mem0 is **user-scoped only** — `threadId` and `tenantId` are not sent to the server.
+mem0 requests send `user_id` and `run_id` (`threadId`). `tenantId` is not sent.
 
 ## `honcho()`
 
@@ -216,8 +215,8 @@ const memory = honcho({
 })
 ```
 
-Honcho sessions are keyed by `threadId`; peers by `user` / `scope.userId`. `tenantId` is
-not sent.
+Honcho session key is `{tenantId|_}__{threadId}`; peers are `{tenantId}__{user}` when
+`tenantId` is set, otherwise the bare user id.
 
 ## Where to go next
 

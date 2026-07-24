@@ -1,6 +1,7 @@
 /**
  * Hindsight memory adapter. Hindsight owns extraction/ranking server-side and
- * buckets memory into per-conversation "banks" (`{userId}__{threadId}`). Recall
+ * buckets memory into per-conversation "banks"
+ * (`{tenantId|_}__{userId}__{threadId}`). Recall
  * returns a rendered prompt block AND a set of LLM tools (retain/recall/reflect)
  * that let the model take direct control of memory.
  *
@@ -113,7 +114,11 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
 
   function bankId(scope: MemoryScope): string {
     const user = options.user ?? scope.userId ?? 'demo-user'
-    return `${user}__${scope.threadId}`
+    // Include tenant so multi-tenant deploys cannot share banks when user+thread
+    // collide. Unset tenant uses `_` (same placeholder convention as redis).
+    const tenant =
+      scope.tenantId != null && scope.tenantId !== '' ? scope.tenantId : '_'
+    return `${tenant}__${user}__${scope.threadId}`
   }
 
   return {

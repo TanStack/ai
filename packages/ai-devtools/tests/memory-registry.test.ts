@@ -129,17 +129,24 @@ describe('memory registry', () => {
     ])
   })
 
-  it('stores userId/tenantId and isolates composite scopes', () => {
+  it('stores full Scope identity and isolates composite scopes', () => {
     const state = createMemoryRegistryState()
     const tenantA = {
       threadId: 'shared',
       userId: 'u',
       tenantId: 'tenant-a',
+      namespace: 'bank-a',
     }
     const tenantB = {
       threadId: 'shared',
       userId: 'u',
       tenantId: 'tenant-b',
+      namespace: 'bank-a',
+    }
+    const sameThreadOtherUser = {
+      threadId: 'shared',
+      userId: 'other',
+      tenantId: 'tenant-a',
     }
     applyMemoryEvent(state, {
       type: 'persist:started',
@@ -153,14 +160,22 @@ describe('memory registry', () => {
       adapter: 'redis',
       timestamp: 2,
     })
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: sameThreadOtherUser,
+      adapter: 'in-memory',
+      timestamp: 3,
+    })
 
     const keyA = memoryScopeKey(tenantA)
     const keyB = memoryScopeKey(tenantB)
-    expect(keyA).not.toBe(keyB)
+    const keyOtherUser = memoryScopeKey(sameThreadOtherUser)
+    expect(new Set([keyA, keyB, keyOtherUser]).size).toBe(3)
     expect(state.scopes[keyA]).toMatchObject({
       threadId: 'shared',
       userId: 'u',
       tenantId: 'tenant-a',
+      namespace: 'bank-a',
       adapter: 'in-memory',
     })
     expect(state.scopes[keyB]).toMatchObject({
@@ -169,7 +184,13 @@ describe('memory registry', () => {
       tenantId: 'tenant-b',
       adapter: 'redis',
     })
-    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe('tenant-a · u · shared')
+    // Literal `_` must not collide with the unset sentinel.
+    expect(memoryScopeKey({ threadId: 't', userId: '_' })).not.toBe(
+      memoryScopeKey({ threadId: 't' }),
+    )
+    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe(
+      'tenant-a · u · shared · bank-a',
+    )
   })
 
   it('clears the registry', () => {

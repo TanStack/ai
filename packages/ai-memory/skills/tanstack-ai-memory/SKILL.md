@@ -77,13 +77,11 @@ BEFORE using it.
 
 ## Adapters
 
-- `inMemory()` from `@tanstack/ai-memory/in-memory` — dev, tests, single-process demos.
-  Honors `threadId` + optional `userId`/`tenantId` (`namespace` ignored).
-- `redis({ redis })` from `@tanstack/ai-memory/redis` — production, plain Redis. Index
-  keys include `tenantId`/`userId`/`threadId`; no dual-read of older layouts.
-- `hindsight()` — bank `{user}__{threadId}`; does **not** use `tenantId`.
-- `mem0()` — **user-scoped only** (`user_id`); `threadId`/`tenantId` are not sent.
-- `honcho()` — session = `threadId`, peer = user; does **not** use `tenantId`.
+- `inMemory()` / `redis()` — exact match on `threadId` + optional `userId`/`tenantId`
+  (`namespace` ignored). Redis index keys include all three segments.
+- `hindsight()` — bank `{tenant|_}__{user}__{threadId}`.
+- `mem0()` — `user_id` + `run_id` (`threadId`); no `tenantId`.
+- `honcho()` — session `{tenant|_}__{threadId}`; peer tenant-prefixed when set.
 - Custom — implement `recall`/`save` and run `@tanstack/ai-memory/tests/contract`.
 
 ## Failure modes

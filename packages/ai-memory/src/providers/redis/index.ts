@@ -104,8 +104,8 @@ function warnMalformedRow(id: string, err: unknown): void {
  * {prefix}:index:{tenantId or _}:{userId or _}:{threadId}       -> Set<id>
  * ```
  * Segments are escaped (so `:`, `\\`, `_` in values cannot collide). Missing
- * optional dims become `_` (omit ≠ match any). No dual-read of older index
- * layouts.
+ * optional dims become `_` (omit ≠ match any — same exact-match model as the
+ * built-in `sameScope` helper). No dual-read of older index layouts.
  */
 export function redis(options: RedisOptions): MemoryAdapter {
   const client = options.redis

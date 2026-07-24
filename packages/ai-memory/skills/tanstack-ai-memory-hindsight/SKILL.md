@@ -31,8 +31,7 @@ first use — install it where you use `hindsight()`.
 - `budget` — recall budget: `'low' | 'mid' | 'high'` (default `'mid'`).
 - `onToolRetain` / `onToolRecall` — callbacks fired when the model uses the memory tools.
 
-**Scope fields:** bank id is `{user}__{threadId}`. `tenantId` and `namespace` are not
-part of the bank key — multi-tenant isolation must be encoded into `user` if needed.
+**Scope fields:** bank id is `{tenantId|_}__{user}__{threadId}`. `namespace` is ignored.
 
 ## Tools
 

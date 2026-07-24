@@ -70,11 +70,27 @@ describe('mem0 save', () => {
     expect(calls[0]?.method).toBe('POST')
     expect(calls[0]?.body).toMatchObject({
       user_id: 'u1',
+      run_id: 's1',
       messages: [
         { role: 'user', content: 'I live in Berlin' },
         { role: 'assistant', content: 'noted' },
       ],
     })
+  })
+
+  it('scopes save by threadId (run_id) so same-user threads stay separate', async () => {
+    const calls = stubFetch(() => ({ data: { id: 'mem-1' } }))
+    const adapter = mem0({ baseUrl: 'http://mem0.test', user: 'u1' })
+    await adapter.save(
+      { threadId: 'thread-a', userId: 'u1' },
+      { user: 'secret for thread A', assistant: 'ok' },
+    )
+    await adapter.save(
+      { threadId: 'thread-b', userId: 'u1' },
+      { user: 'secret for thread B', assistant: 'ok' },
+    )
+    expect(calls[0]?.body).toMatchObject({ user_id: 'u1', run_id: 'thread-a' })
+    expect(calls[1]?.body).toMatchObject({ user_id: 'u1', run_id: 'thread-b' })
   })
 })
 
@@ -97,6 +113,7 @@ describe('mem0 recall', () => {
     expect(calls[0]?.body).toMatchObject({
       query: 'where do I live',
       user_id: 'u1',
+      run_id: 's1',
     })
     expect(result.fragments).toHaveLength(2)
     expect(result.fragments?.[0]).toMatchObject({

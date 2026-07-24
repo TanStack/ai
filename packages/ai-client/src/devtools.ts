@@ -6,7 +6,10 @@ import {
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import { DefaultChatClientEventEmitter } from './events'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
-import type { AIDevtoolsEventVisibility } from '@tanstack/ai-event-client'
+import type {
+  AIDevtoolsEventVisibility,
+  MemoryScopeLite,
+} from '@tanstack/ai-event-client'
 import type {
   ChatClientEventContext,
   ChatClientEventEmitter,
@@ -31,7 +34,7 @@ export interface AIDevtoolsDisplayOptions {
  * depend on `ai-memory`; the memory middleware is the producer.
  */
 interface MemoryStateEventValue {
-  scope: { threadId?: string; userId?: string; tenantId?: string }
+  scope: MemoryScopeLite
   adapter: string
   query?: string
   recall?: {

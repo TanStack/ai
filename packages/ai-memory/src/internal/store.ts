@@ -92,20 +92,25 @@ export interface RecordStore {
 // ===========================
 
 /**
- * Scope match for built-in stores. `threadId` must always match. Optional
- * `userId` / `tenantId` are filter-when-present: when the query supplies a
- * non-empty value, the record must match it; when the query omits them, any
- * record value is accepted. Callers must pass the same dims they wrote with
- * (the middleware does). Redis keys unset dims as `_` instead — omit ≠ match
- * any there. `namespace` is reserved and ignored until a subsystem keys on it.
+ * Normalize an optional scope dimension: empty string is treated as unset so
+ * `''` and `undefined` compare equal.
+ */
+function scopeDimValue(value: string | undefined): string | undefined {
+  return value != null && value !== '' ? value : undefined
+}
+
+/**
+ * Exact scope match for built-in stores. `threadId` must match, and optional
+ * `userId` / `tenantId` must match exactly on both sides (including both
+ * unset). A query that omits `tenantId` does **not** match a record written
+ * with a tenant — same isolation model as Redis composite index keys.
+ * `namespace` is reserved and ignored until a subsystem keys on it.
  */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   if (record.threadId !== query.threadId) return false
-  if (query.userId != null && query.userId !== '') {
-    if (record.userId !== query.userId) return false
-  }
-  if (query.tenantId != null && query.tenantId !== '') {
-    if (record.tenantId !== query.tenantId) return false
+  if (scopeDimValue(record.userId) !== scopeDimValue(query.userId)) return false
+  if (scopeDimValue(record.tenantId) !== scopeDimValue(query.tenantId)) {
+    return false
   }
   return true
 }

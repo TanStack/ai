@@ -66,6 +66,7 @@ export interface MemoryScopeState {
   threadId: string
   userId?: string
   tenantId?: string
+  namespace?: string
   /** Most recent adapter id seen for this scope. */
   adapter?: string
   events: Array<MemoryEventRecord>
@@ -82,11 +83,11 @@ export function createMemoryRegistryState(): MemoryRegistryState {
 }
 
 /**
- * Escape `:` / `\` so composite keys cannot collide when a dim contains the
- * separator (mirrors redis scope-key hardening).
+ * Escape `:` / `\` / `_` so composite keys cannot collide when a dim contains
+ * the separator or the unset sentinel (mirrors redis scope-key hardening).
  */
 function escapeScopeDim(value: string): string {
-  return value.replace(/[\\:]/g, '\\$&')
+  return value.replace(/[\\:_]/g, '\\$&')
 }
 
 /** Unset optional dims serialize as `_` (same convention as the redis adapter). */
@@ -95,21 +96,22 @@ function scopeDim(value: string | undefined): string {
 }
 
 /**
- * Stable scope key: `{tenantId|_}:{userId|_}:{threadId}`. Empty/absent
- * `threadId` (e.g. error scope) buckets to `(unknown)` so broken events do not
- * invent a fake conversation.
+ * Stable scope key:
+ * `{tenantId|_}:{userId|_}:{threadId}:{namespace|_}`.
+ * Empty/absent `threadId` (e.g. error scope) buckets to `(unknown)` so broken
+ * events do not invent a fake conversation.
  */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
   const threadId = scope?.threadId
   if (!threadId || threadId.length === 0) return '(unknown)'
-  return `${scopeDim(scope?.tenantId)}:${scopeDim(scope?.userId)}:${escapeScopeDim(threadId)}`
+  return `${scopeDim(scope?.tenantId)}:${scopeDim(scope?.userId)}:${escapeScopeDim(threadId)}:${scopeDim(scope?.namespace)}`
 }
 
 /** Human-readable label for the Memory panel scope picker. */
 export function memoryScopeLabel(entry: MemoryScopeState): string {
   const thread =
     entry.threadId && entry.threadId.length > 0 ? entry.threadId : '(unknown)'
-  const parts = [entry.tenantId, entry.userId, thread].filter(
+  const parts = [entry.tenantId, entry.userId, thread, entry.namespace].filter(
     (p): p is string => p != null && p.length > 0,
   )
   return parts.join(' · ')
@@ -129,6 +131,7 @@ function ensureScope(
       threadId: scope?.threadId ?? '',
       userId: scope?.userId,
       tenantId: scope?.tenantId,
+      namespace: scope?.namespace,
       events: [],
       lastActivity: 0,
     }
@@ -136,6 +139,7 @@ function ensureScope(
   }
   if (scope?.userId) entry.userId = scope.userId
   if (scope?.tenantId) entry.tenantId = scope.tenantId
+  if (scope?.namespace) entry.namespace = scope.namespace
   return entry
 }
 
