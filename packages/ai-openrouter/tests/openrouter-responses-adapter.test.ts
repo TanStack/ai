@@ -1045,6 +1045,18 @@ describe('OpenRouter responses adapter — structured output', () => {
     setupMockSdkClient([], {
       id: 'resp_1',
       model: 'openai/gpt-4o-mini',
+      openrouterMetadata: {
+        endpoints: {
+          available: [
+            {
+              model: 'openai/gpt-4o-mini',
+              provider: 'DeepInfra',
+              selected: true,
+            },
+          ],
+          total: 1,
+        },
+      },
       output: [
         {
           type: 'message',
@@ -1090,6 +1102,8 @@ describe('OpenRouter responses adapter — structured output', () => {
     })
     // Critical: nickname should be `null`, not `undefined`.
     expect((result.data as any).nickname).toBeNull()
+    expect(result.generationId).toBe('resp_1')
+    expect(result.provider).toBe('DeepInfra')
   })
 })
 
@@ -1168,15 +1182,20 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     vi.clearAllMocks()
   })
 
-  const runFinishedFor = async (usage: Record<string, unknown>) => {
+  const runFinishedFor = async (
+    usage: Record<string, unknown>,
+    metadata?: Record<string, unknown>,
+  ) => {
     setupMockSdkClient([
       {
         type: 'response.completed',
         sequenceNumber: 1,
         response: {
+          id: 'gen-responses-stream',
           model: 'openai/gpt-4o-mini',
           output: [],
           usage,
+          ...metadata,
         },
       },
     ])
@@ -1219,6 +1238,32 @@ describe('OpenRouter responses adapter — cost tracking', () => {
           upstreamOutputCost: 0.0026,
         },
       },
+    })
+  })
+
+  it('forwards generation id and selected provider', async () => {
+    const runFinishedChunk = await runFinishedFor(
+      { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+      {
+        openrouterMetadata: {
+          endpoints: {
+            available: [
+              {
+                model: 'openai/gpt-4o-mini',
+                provider: 'DeepInfra',
+                selected: true,
+              },
+            ],
+            total: 1,
+          },
+        },
+      },
+    )
+
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      generationId: 'gen-responses-stream',
+      provider: 'DeepInfra',
     })
   })
 

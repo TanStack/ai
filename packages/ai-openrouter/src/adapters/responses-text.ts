@@ -13,6 +13,7 @@ import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { extractUsageCost } from './cost'
+import { extractServedProvider } from './metadata'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
@@ -256,10 +257,13 @@ export class OpenRouterResponsesTextAdapter<
 
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
+      const provider = extractServedProvider(response)
 
       return {
         data: transformed,
         rawText,
+        generationId: response.id,
+        ...(provider && { provider }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -318,6 +322,8 @@ export class OpenRouterResponsesTextAdapter<
           totalTokens?: number
         }
       | undefined
+    let lastId: string | undefined
+    let lastProvider: string | undefined
 
     const closeReasoning = function* (this: {
       name: string
@@ -407,6 +413,9 @@ export class OpenRouterResponsesTextAdapter<
 
       for await (const rawEvent of rawStream) {
         const chunk = normalizeStreamEvent(rawEvent)
+        if (chunk.response?.id) lastId = chunk.response.id
+        const provider = extractServedProvider(chunk.response)
+        if (provider) lastProvider = provider
 
         chatOptions.logger.provider(
           `provider=${this.name} type=${chunk.type}`,
@@ -636,6 +645,8 @@ export class OpenRouterResponsesTextAdapter<
             ...extractUsageCost(usage),
           },
         }),
+        ...(lastId && { generationId: lastId }),
+        ...(lastProvider && { provider: lastProvider }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -802,6 +813,8 @@ export class OpenRouterResponsesTextAdapter<
     let hasStreamedReasoningDeltas = false
 
     let model: string = options.model
+    let lastId: string | undefined
+    let lastProvider: string | undefined
 
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
@@ -811,6 +824,9 @@ export class OpenRouterResponsesTextAdapter<
     try {
       for await (const rawEvent of stream) {
         const chunk = normalizeStreamEvent(rawEvent)
+        if (chunk.response?.id) lastId = chunk.response.id
+        const provider = extractServedProvider(chunk.response)
+        if (provider) lastProvider = provider
         options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
           provider: this.name,
           type: chunk.type,
@@ -1451,6 +1467,8 @@ export class OpenRouterResponsesTextAdapter<
               totalTokens: responseObj.usage?.totalTokens || 0,
               ...extractUsageCost(responseObj.usage),
             },
+            ...(lastId && { generationId: lastId }),
+            ...(lastProvider && { provider: lastProvider }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1491,6 +1509,8 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
+          ...(lastId && { generationId: lastId }),
+          ...(lastProvider && { provider: lastProvider }),
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
         }
       }
