@@ -355,20 +355,16 @@ const CHAT_BODY = { provider: 'openrouter', model: 'openai/gpt-5.1' } as const
 const REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize, rehypeHighlight]
 const REMARK_PLUGINS = [remarkGfm]
 
-/** Render a single UIMessage part: reasoning, text, approval prompt, or guitar card. */
+/** Render a single UIMessage part: reasoning, text, or guitar card. Approval
+ * prompts are surfaced separately from the `interrupts` array (see ThreadChat). */
 function MessagePart({
   part,
   index,
   message,
-  addToolApprovalResponse,
 }: {
   part: UIMessage['parts'][number]
   index: number
   message: UIMessage
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
 }) {
   if (part.type === 'thinking') {
     // "Complete" once any text part follows it in the same message.
@@ -399,44 +395,6 @@ function MessagePart({
 
   if (
     part.type === 'tool-call' &&
-    part.state === 'approval-requested' &&
-    part.approval
-  ) {
-    return (
-      <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
-        <p className="mb-2 font-medium text-white">
-          🔒 Approval required: {part.name}
-        </p>
-        <pre className="mb-3 overflow-x-auto rounded bg-gray-800 p-2 text-xs text-gray-300">
-          {JSON.stringify(JSON.parse(part.arguments), null, 2)}
-        </pre>
-        <div className="flex gap-2">
-          <button
-            onClick={() =>
-              addToolApprovalResponse({ id: part.approval!.id, approved: true })
-            }
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
-          >
-            ✓ Approve
-          </button>
-          <button
-            onClick={() =>
-              addToolApprovalResponse({
-                id: part.approval!.id,
-                approved: false,
-              })
-            }
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-          >
-            ✗ Deny
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (
-    part.type === 'tool-call' &&
     part.name === 'recommendGuitar' &&
     part.output
   ) {
@@ -460,9 +418,10 @@ function ThreadChat({
     sendMessage,
     isLoading,
     error,
-    addToolApprovalResponse,
+    interrupts,
+    resuming,
     stop,
-  } = useChat({
+  } = useChat<typeof tools>({
     threadId,
     connection: fetchServerSentEvents('/api/tanchat'),
     persistence: threadPersistence,
@@ -522,12 +481,42 @@ function ThreadChat({
                     part={part}
                     index={index}
                     message={message}
-                    addToolApprovalResponse={addToolApprovalResponse}
                   />
                 ))}
               </div>
             </div>
           ))}
+          {interrupts.map((interrupt) =>
+            interrupt.kind === 'tool-approval' ? (
+              <div
+                key={interrupt.id}
+                className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4"
+              >
+                <p className="mb-2 font-medium text-white">
+                  🔒 Approval required: {interrupt.toolName}
+                </p>
+                <pre className="mb-3 overflow-x-auto rounded bg-gray-800 p-2 text-xs text-gray-300">
+                  {JSON.stringify(interrupt.originalArgs, null, 2)}
+                </pre>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => interrupt.resolveInterrupt(true)}
+                    disabled={!interrupt.canResolve || resuming}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    onClick={() => interrupt.resolveInterrupt(false)}
+                    disabled={!interrupt.canResolve || resuming}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  >
+                    ✗ Deny
+                  </button>
+                </div>
+              </div>
+            ) : null,
+          )}
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
               {error.message}

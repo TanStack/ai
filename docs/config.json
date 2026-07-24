@@ -109,7 +109,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Lazy Tool Discovery",
