@@ -7,6 +7,7 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -620,6 +621,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<StreamChunk> {
+    const normalizeToolInput = createToolInputNormalizer(options.tools)
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
@@ -888,8 +890,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               if (toolCall.arguments) {
                 try {
                   const parsed: unknown = JSON.parse(toolCall.arguments)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    toolCall.name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -960,7 +964,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           if (toolCall.arguments) {
             try {
               const parsed: unknown = JSON.parse(toolCall.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = normalizeToolInput(
+                toolCall.name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
             } catch (parseError) {
               // Mirror the finish_reason path's logger call — a truncated
               // stream emitting malformed tool-call JSON would otherwise

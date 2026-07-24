@@ -670,6 +670,87 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      const argumentsJson =
+        '{"question":"Which one?","options":null,"nullableNote":null}'
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call-null-input',
+            name: 'ask_user',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call-null-input',
+          delta: argumentsJson,
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call-null-input',
+          arguments: argumentsJson,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call-null-input',
+                name: 'ask_user',
+                arguments: argumentsJson,
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(
+        chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
+      ).toMatchObject({
+        input: { question: 'Which one?', nullableNote: null },
+      })
+    })
+
     it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
       const streamChunks = [
         {
