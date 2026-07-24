@@ -173,7 +173,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
+        threadId: 'persisted-chat',
         persistence: persistence,
       })
 
@@ -201,7 +201,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-empty-chat',
+        threadId: 'persisted-empty-chat',
         initialMessages,
         persistence: persistence,
       })
@@ -239,10 +239,10 @@ describe('useChat', () => {
       }
 
       function useChangingChat() {
-        const [id, setId] = useState('old-chat')
+        const [threadId, setId] = useState('old-chat')
         const chat = useChat({
           connection: createMockConnectionAdapter(),
-          id,
+          threadId,
           persistence: persistence,
         })
 
@@ -267,13 +267,13 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(newMessages)
     })
 
-    it('should use provided id', async () => {
+    it('should use provided threadId', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'custom-id',
+        threadId: 'custom-id',
       })
 
       await result.current.sendMessage('Test')
@@ -1207,7 +1207,7 @@ describe('useChat', () => {
         {
           initialProps: {
             connection: adapter,
-            id: 'old-client',
+            threadId: 'old-client',
             onChunk: oldOnChunk,
           },
         },
@@ -1220,7 +1220,7 @@ describe('useChat', () => {
 
       rerender({
         connection: adapter,
-        id: 'new-client',
+        threadId: 'new-client',
         onChunk: newOnChunk,
       })
 
@@ -1319,8 +1319,8 @@ describe('useChat', () => {
         // Control id via state so setMessages and setId are both React
         // state updates that get batched into a single render.
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1382,8 +1382,8 @@ describe('useChat', () => {
         ]
 
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1611,11 +1611,11 @@ describe('useChat', () => {
 
         const { result: result1 } = renderUseChat({
           connection: adapter1,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter2,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         await result1.current.sendMessage('Hello 1')
@@ -1639,11 +1639,11 @@ describe('useChat', () => {
         const adapter = createMockConnectionAdapter()
         const { result: result1 } = renderUseChat({
           connection: adapter,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         // Should not interfere with each other

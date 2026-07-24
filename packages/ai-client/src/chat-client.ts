@@ -403,8 +403,12 @@ export class ChatClient<
   }
 
   constructor(options: ChatClientOptions<TTools, TContext>) {
-    this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
+    // The instance/devtools id defaults to the threadId (the chat's identity),
+    // falling back to a generated id only when neither is set. `id` overrides it
+    // only for direct ChatClient users who key storage separately from the wire
+    // thread; the framework hooks never pass it.
+    this.uniqueId = options.id || this.threadId
     // Whether the persistor caches the transcript. In `{ messages: false }`
     // mode it does not, so the persisted record's empty transcript must never
     // override host-provided `initialMessages` (history the app loaded from the
@@ -862,6 +866,20 @@ export class ChatClient<
       }
       if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
+      } else if (result.interrupts && result.interrupts.pending.length > 0) {
+        // The run paused on an interrupt (not running, so no tail). Restore the
+        // pending approval/wait from the SERVER — identical to reconstructing it
+        // from a resume snapshot — so the reload re-prompts the decision and the
+        // resume targets the run it paused. This is what makes interrupts
+        // server-authoritative, not dependent on client storage.
+        this.applyResumeSnapshot({
+          schemaVersion: 2,
+          resumeState: {
+            threadId: this.threadId,
+            runId: result.interrupts.runId,
+          },
+          pendingInterrupts: result.interrupts.pending,
+        })
       }
     })()
   }

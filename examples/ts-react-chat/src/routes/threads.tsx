@@ -463,7 +463,7 @@ function ThreadChat({
     addToolApprovalResponse,
     stop,
   } = useChat({
-    id: threadId,
+    threadId,
     connection: fetchServerSentEvents('/api/tanchat'),
     persistence: threadPersistence,
     tools,

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
 import { ChatPersistor } from '../src/client-persistor'
 import { normalizeConnectionAdapter } from '../src/connection-adapters'
 import { ChatClient } from '../src/chat-client'
@@ -308,6 +309,7 @@ describe('ChatClient auto-rejoin after reload', () => {
         Promise.resolve({
           messages: [createUIMessage('history-1', 'earlier turn', 'user')],
           activeRun: { runId: 'r1' },
+          interrupts: null,
         }),
     }
 
@@ -348,6 +350,7 @@ describe('ChatClient auto-rejoin after reload', () => {
             createUIMessage('a1', 'done', 'assistant'),
           ],
           activeRun: null,
+          interrupts: null,
         }),
     }
     let latest: Array<UIMessage> = []
@@ -365,6 +368,57 @@ describe('ChatClient auto-rejoin after reload', () => {
     // No active run → the transcript is painted and nothing is tailed.
     expect(joinRun).not.toHaveBeenCalled()
     void client
+  })
+
+  it('messages:false restores a pending interrupt from the server on mount', async () => {
+    // Regression: a run paused on an interrupt is not "running", so there is no
+    // tail — but a reload must still re-prompt the approval. The client restores
+    // it from the server hydrate result (not client storage), so a fresh client
+    // (or another device) shows a resolvable interrupt keyed to the run it paused.
+    const { adapter } = memoryAdapter({ messages: [] })
+    const joinRun = vi.fn(async function* () {})
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'send an email', 'user')],
+          activeRun: null,
+          interrupts: {
+            runId: 'run-paused',
+            pending: [
+              {
+                id: 'int-1',
+                reason: 'confirmation',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId: 'int-1',
+                    interruptedRunId: 'run-paused',
+                    generation: 1,
+                    responseSchemaHash: 'none',
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: { store: adapter, messages: false },
+    })
+    await vi.waitFor(() => {
+      expect(client.getInterrupts()).toHaveLength(1)
+    })
+    const [item] = client.getInterrupts()
+    expect(item?.kind).toBe('generic')
+    // Restored bound and resolvable, keyed to the run it paused — not tailed.
+    expect(item?.canResolve).toBe(true)
+    expect(item?.interruptedRunId).toBe('run-paused')
+    expect(joinRun).not.toHaveBeenCalled()
   })
 
   it('messages:false persists no bare run pointer (server owns reconnect)', async () => {
@@ -398,7 +452,11 @@ describe('ChatClient auto-rejoin after reload', () => {
       connect: async function* () {},
       joinRun,
       hydrate: () =>
-        Promise.resolve({ messages: [], activeRun: { runId: 'client-run' } }),
+        Promise.resolve({
+          messages: [],
+          activeRun: { runId: 'client-run' },
+          interrupts: null,
+        }),
     }
     let latest: Array<UIMessage> = []
     const client = new ChatClient({
@@ -446,6 +504,7 @@ describe('ChatClient auto-rejoin after reload', () => {
             },
           ],
           activeRun: { runId: 'r1' },
+          interrupts: null,
         }),
     }
 
@@ -640,6 +699,7 @@ describe('ChatClient auto-rejoin after reload', () => {
         Promise.resolve({
           messages: [createUIMessage('history-1', 'seed', 'user')],
           activeRun: { runId: 'gone-run' },
+          interrupts: null,
         }),
     }
     const client = new ChatClient({

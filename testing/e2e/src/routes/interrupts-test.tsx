@@ -117,7 +117,7 @@ function InterruptsTestPage() {
     cancelInterrupts,
     error,
   } = useChat({
-    id: `interrupts-test-${scenario}`,
+    threadId: `interrupts-test-${scenario}`,
     connection: fetchServerSentEvents('/api/interrupts-test'),
     forwardedProps: { scenario, testId, aimockPort },
     tools: clientTools,

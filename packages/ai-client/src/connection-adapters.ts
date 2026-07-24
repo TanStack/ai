@@ -12,7 +12,7 @@ import type {
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
-import type { ChatFetcher } from './types'
+import type { ChatFetcher, ChatPendingInterrupt } from './types'
 
 /**
  * Associates connect-wrapped chunks with the run they were produced under.
@@ -430,14 +430,26 @@ async function fetchThreadHydration(
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
+    interrupts?: { runId?: unknown; pending?: unknown } | null
   }
   const activeRun =
     data.activeRun && typeof data.activeRun.runId === 'string'
       ? { runId: data.activeRun.runId }
       : null
+  const interrupts =
+    data.interrupts &&
+    typeof data.interrupts.runId === 'string' &&
+    Array.isArray(data.interrupts.pending) &&
+    data.interrupts.pending.length > 0
+      ? {
+          runId: data.interrupts.runId,
+          pending: data.interrupts.pending as Array<ChatPendingInterrupt>,
+        }
+      : null
   return {
     messages: Array.isArray(data.messages) ? data.messages : [],
     activeRun,
+    interrupts,
   }
 }
 
@@ -706,6 +718,12 @@ export interface ConnectConnectionAdapter {
 export interface ChatHydrationResult {
   messages: Array<UIMessage>
   activeRun: { runId: string } | null
+  /**
+   * Pending human-in-the-loop interrupts for the thread and the run they paused,
+   * so a reload (or another device) re-prompts the approval from the server. The
+   * client restores them exactly as a persisted resume snapshot would.
+   */
+  interrupts: { runId: string; pending: Array<ChatPendingInterrupt> } | null
 }
 
 /**

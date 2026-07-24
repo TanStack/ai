@@ -17,7 +17,7 @@ import type { StreamChunk } from '@tanstack/ai'
  * connection resumable — but streams a FIXED AG-UI sequence instead of calling
  * an LLM, so the e2e is deterministic with nothing to mock.
  *
- * Two scenarios (`?scenario=`):
+ * Three scenarios (`?scenario=`):
  *
  * - `text` (default) — a run that streams one assistant text message and
  *   finishes cleanly (`outcome: success`). The client persists the transcript
@@ -28,6 +28,11 @@ import type { StreamChunk } from '@tanstack/ai'
  *   client folds the pending-interrupt resume snapshot into the SAME combined
  *   record, so a reload rehydrates the interrupt from `localStorage` alone
  *   (no server round-trip).
+ * - `server-interrupt` — the SERVER-authoritative counterpart. The client runs
+ *   `messages: false` (caches no transcript), so on mount it hydrates from the
+ *   GET below, which returns a `reconstructChat`-shaped JSON carrying a pending
+ *   interrupt. Proves a fresh client (empty `localStorage`) re-prompts the
+ *   approval from the server alone — the path that was previously broken.
  *
  * Exempt from the aimock policy: this route streams a fixed AG-UI sequence and
  * never reaches an LLM provider's HTTP layer, so there is nothing to mock.
@@ -128,13 +133,56 @@ function stringField(body: unknown, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-function scenarioOf(request: Request): 'text' | 'interrupt' {
+function scenarioOf(
+  request: Request,
+): 'text' | 'interrupt' | 'server-interrupt' {
   try {
-    return new URL(request.url).searchParams.get('scenario') === 'interrupt'
-      ? 'interrupt'
-      : 'text'
+    const value = new URL(request.url).searchParams.get('scenario')
+    if (value === 'interrupt') return 'interrupt'
+    if (value === 'server-interrupt') return 'server-interrupt'
+    return 'text'
   } catch {
     return 'text'
+  }
+}
+
+// The pending interrupt a server-authoritative client rehydrates from the GET
+// below. It is the same BOUND generic interrupt shape the `interrupt` run ends
+// on, but delivered as `reconstructChat`'s `interrupts.pending[]` payload rather
+// than a live terminal — so the client restores it from the server on mount.
+const SERVER_INTERRUPT_RUN_ID = 'server-interrupt-run'
+
+function serverInterruptReconstruction(): {
+  messages: []
+  activeRun: null
+  interrupts: { runId: string; pending: Array<Record<string, unknown>> }
+} {
+  return {
+    messages: [],
+    activeRun: null,
+    interrupts: {
+      runId: SERVER_INTERRUPT_RUN_ID,
+      pending: [
+        {
+          id: 'confirm-shipment',
+          reason: 'confirmation',
+          message: 'Confirm the shipment?',
+          responseSchema: confirmSchema,
+          metadata: {
+            [INTERRUPT_BINDING_METADATA_KEY]: {
+              v: INTERRUPT_BINDING_VERSION,
+              kind: 'generic',
+              interruptId: 'confirm-shipment',
+              interruptedRunId: SERVER_INTERRUPT_RUN_ID,
+              generation: 0,
+              responseSchemaHash: digestInterruptJson(
+                canonicalInterruptJson(confirmSchema),
+              ),
+            },
+          },
+        },
+      ],
+    },
   }
 }
 
@@ -154,11 +202,29 @@ export const Route = createFileRoute('/api/persistence-durability')({
         })
       },
 
-      // Replay a run from the log so a full reload can re-attach to an in-flight
-      // run by id (`?offset=-1&runId=…`). Read-only: no producer stream is built.
+      // GET serves two jobs off one route, mirroring the production wiring:
+      //
+      // 1. Delivery replay — re-attach to an in-flight run by id
+      //    (`?offset=-1&runId=…`). Detected via the durability adapter's
+      //    `resumeFrom()`. Read-only: no producer stream is built.
+      // 2. Server-authoritative hydration — the `messages: false` client's mount
+      //    probe (a plain `?threadId=` GET, no resume cursor). Returns a
+      //    `reconstructChat`-shaped JSON; the `server-interrupt` scenario carries
+      //    a pending approval so a fresh client re-prompts it from the server.
       GET: ({ request }) => {
-        return resumeServerSentEventsResponse({
-          adapter: memoryStream(request),
+        const durability = memoryStream(request)
+        if (durability.resumeFrom() !== null) {
+          return resumeServerSentEventsResponse({ adapter: durability })
+        }
+        const body =
+          scenarioOf(request) === 'server-interrupt'
+            ? serverInterruptReconstruction()
+            : { messages: [], activeRun: null, interrupts: null }
+        return new Response(JSON.stringify(body), {
+          headers: {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          },
         })
       },
     },

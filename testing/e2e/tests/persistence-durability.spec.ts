@@ -106,4 +106,41 @@ test.describe('persistence durability (browser refresh)', () => {
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
   })
+
+  test('restores a pending interrupt from the SERVER on a fresh load (messages:false)', async ({
+    page,
+  }) => {
+    // Server-authoritative: the client caches no transcript, only a resume
+    // pointer. On mount it hydrates from the GET, which returns a pending
+    // approval. This is the path that was broken — a fresh client showed the
+    // paused tool call with no way to approve/reject. Clear localStorage before
+    // the asserting load so the interrupt can ONLY have come from the server.
+    await page.goto('/persistence-durability?scenario=server-interrupt')
+    await page.evaluate(() => window.localStorage.clear())
+    await page.reload()
+
+    await expect(page.getByTestId('persistence-durability-page')).toBeVisible()
+    // localStorage is empty, so a visible interrupt proves server-side restore.
+    await expect
+      .poll(() => interruptCount(page), { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(1)
+    await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
+    await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
+    // Restored bound and resolvable — the reload can approve/reject, not just
+    // view a dead paused tool call.
+    await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')
+
+    // And nothing in localStorage held the interrupt: the record, if any, is a
+    // resume pointer written AFTER the server hydrate, never the source of it.
+    const stored = await page.evaluate(() =>
+      window.localStorage.getItem(
+        'tanstack-ai:persistence-durability-server-interrupt',
+      ),
+    )
+    if (stored !== null) {
+      const record = JSON.parse(stored) as { messages?: Array<unknown> }
+      // messages:false caches no transcript.
+      expect(record.messages ?? []).toEqual([])
+    }
+  })
 })

@@ -351,7 +351,6 @@ function ChatFeature({
     queue,
     cancelQueued,
   } = useChat({
-    id: chatId,
     threadId: chatId,
     ...transport,
     tools,

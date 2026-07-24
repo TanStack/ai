@@ -91,7 +91,7 @@ function MiddlewareTestPage() {
   }>({ configs: [], saveCount: 0 })
 
   const { messages, sendMessage, isLoading } = useChat({
-    id: `mw-test-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
+    threadId: `mw-test-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
     connection: fetchServerSentEvents('/api/middleware-test'),
     body: { scenario, middlewareMode, testId, aimockPort, provider, model },
     onFinish: () => {

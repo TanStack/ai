@@ -226,7 +226,7 @@ function ToolsTestPage() {
   const { messages, sendMessage, isLoading, stop, interrupts, error } = useChat(
     {
       // Include scenario in ID so client is recreated when scenario changes
-      id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
+      threadId: `tools-test-${scenario}-${historyFixture || 'empty'}`,
       connection: fetchServerSentEvents('/api/tools-test'),
       // History fixtures are untyped model-message replays; cast to the typed
       // message shape so they don't fight the concrete `tools` tuple inference.

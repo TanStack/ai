@@ -748,6 +748,10 @@ export interface ChatClientBaseOptions<
    * instance id. Persistence keys on `threadId` by default; set `id` only when
    * you need the persisted record keyed separately from the wire thread.
    * Prefer a stable `threadId` for the common case.
+   *
+   * The framework hooks (`useChat` / `createChat`) do NOT expose `id`: a hook's
+   * identity is its `threadId`. This lower-level escape hatch exists only for
+   * direct `ChatClient` construction.
    */
   id?: string
 

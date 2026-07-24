@@ -247,7 +247,7 @@ function StructuredOutputPage() {
   }
 
   const chat = useChat({
-    id: 'structured-output:useChat',
+    threadId: 'structured-output:useChat',
     outputSchema: GuitarRecommendationSchema,
     connection: fetchServerSentEvents('/api/structured-output'),
     forwardedProps: { provider, model, stream },

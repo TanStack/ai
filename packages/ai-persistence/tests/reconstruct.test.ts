@@ -71,7 +71,7 @@ describe('reconstructChat', () => {
         new Request('http://example.test/api/chat'),
       ),
     )
-    expect(missing).toEqual({ messages: [], activeRun: null })
+    expect(missing).toEqual({ messages: [], activeRun: null, interrupts: null })
 
     const unknown = await body(
       await reconstructChat(
@@ -79,7 +79,38 @@ describe('reconstructChat', () => {
         new Request('http://example.test/api/chat?threadId=nope'),
       ),
     )
-    expect(unknown).toEqual({ messages: [], activeRun: null })
+    expect(unknown).toEqual({ messages: [], activeRun: null, interrupts: null })
+  })
+
+  it('reports pending interrupts so a reload re-prompts the approval', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'send an email' },
+    ])
+    const payload = {
+      id: 'int-1',
+      type: 'tool-approval',
+      toolName: 'sendEmail',
+      toolCallId: 'call-1',
+    }
+    await persistence.stores.interrupts!.create({
+      interruptId: 'int-1',
+      runId: 'run-paused',
+      threadId: 't1',
+      requestedAt: 1000,
+      payload,
+    })
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+    expect(parsed.interrupts).toEqual({
+      runId: 'run-paused',
+      pending: [payload],
+    })
   })
 
   it('returns 403 when authorize returns false', async () => {

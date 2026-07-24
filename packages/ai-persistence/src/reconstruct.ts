@@ -10,10 +10,18 @@ import type { AIPersistence } from './types'
  * `activeRun` is a cursor to a run still generating for the thread, or `null` —
  * resolved from the STABLE thread id via `stores.runs.findActiveRun`, so the
  * client learns "there is a live run to tail" without ever handling a run id.
+ * `interrupts` is the thread's pending human-in-the-loop interrupts (tool
+ * approvals, client-tool/generic waits) and the run they paused, or `null` —
+ * so a reload (or another device) re-prompts the approval from the SERVER, not
+ * from client storage. Resolved via `stores.interrupts.listPending`.
  */
 export interface ReconstructedChat {
   messages: Array<UIMessage>
   activeRun: { runId: string } | null
+  interrupts: {
+    runId: string
+    pending: Array<Record<string, unknown>>
+  } | null
 }
 
 export interface ReconstructChatOptions {
@@ -42,17 +50,21 @@ export interface ReconstructChatOptions {
 /**
  * Build the JSON `Response` a server-authoritative client hydrates from on load
  * (see the client-persistence guide). Reads the thread id from the request query
- * (`?threadId=` by default) and returns `{ messages, activeRun }`
+ * (`?threadId=` by default) and returns `{ messages, activeRun, interrupts }`
  * ({@link ReconstructedChat}):
  *
  * - `messages` — the stored transcript as UI messages.
  * - `activeRun` — `{ runId }` if a run is still generating for the thread (so the
  *   client tails it via the durability stream), else `null`. Resolved via the
  *   optional `stores.runs.findActiveRun`; `null` when that store/method is absent.
+ * - `interrupts` — `{ runId, pending }` if the thread has pending human-in-the-loop
+ *   interrupts (a paused approval / wait) and the run they paused, else `null`, so
+ *   a reload re-prompts the decision from the server. Resolved via the optional
+ *   `stores.interrupts.listPending`; `null` when that store is absent.
  *
- * Returns an empty transcript with no active run when the thread id is missing,
- * no `messages` store is configured, or the thread is unknown, so the caller
- * never has to special-case a first load.
+ * Returns an empty transcript with no active run and no interrupts when the thread
+ * id is missing, no `messages` store is configured, or the thread is unknown, so
+ * the caller never has to special-case a first load.
  *
  * This helper does **not** enforce tenancy by itself. Pass
  * {@link ReconstructChatOptions.authorize} (or wrap the call in your own
@@ -106,9 +118,22 @@ export async function reconstructChat(
     threadId && persistence.stores.messages
       ? await persistence.stores.messages.loadThread(threadId)
       : []
+  // Pending interrupts for the thread, so a reload re-prompts the approval from
+  // the server. Each stored `payload` is the full interrupt descriptor the
+  // client hydrates; they share the run they paused.
+  const pending = threadId
+    ? ((await persistence.stores.interrupts?.listPending(threadId)) ?? [])
+    : []
+  const firstPending = pending[0]
   const body: ReconstructedChat = {
     messages: modelMessagesToUIMessages(stored),
     activeRun: active ? { runId: active.runId } : null,
+    interrupts: firstPending
+      ? {
+          runId: firstPending.runId,
+          pending: pending.map((record) => record.payload),
+        }
+      : null,
   }
   return new Response(JSON.stringify(body), {
     headers: {

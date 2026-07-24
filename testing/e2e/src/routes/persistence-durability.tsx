@@ -18,15 +18,26 @@ import {
  * `?scenario=interrupt` points the connection at the interrupt variant of the
  * endpoint and uses a distinct threadId, so the two scenarios never share a
  * storage key.
+ *
+ * `?scenario=server-interrupt` is the SERVER-authoritative counterpart: the
+ * client runs `messages: false` (caches no transcript, only a resume pointer),
+ * so on mount it hydrates from the endpoint's GET, which returns a pending
+ * interrupt. Proves a fresh client re-prompts the approval from the server, not
+ * from `localStorage`.
  */
 
-// Defaults to the ChatPersistedState shape and a JSON codec, so no type
-// argument or serialize/deserialize is needed.
-const persistence = localStoragePersistence()
+// The store instance both modes share. `text`/`interrupt` pass it directly
+// (messages:true default — transcript cached to localStorage). `server-interrupt`
+// wraps it with `messages: false`, so the server owns the transcript and the
+// client hydrates on mount.
+const store = localStoragePersistence()
 
 const textConnection = fetchServerSentEvents('/api/persistence-durability')
 const interruptConnection = fetchServerSentEvents(
   '/api/persistence-durability?scenario=interrupt',
+)
+const serverInterruptConnection = fetchServerSentEvents(
+  '/api/persistence-durability?scenario=server-interrupt',
 )
 
 export const Route = createFileRoute('/persistence-durability')({
@@ -35,21 +46,33 @@ export const Route = createFileRoute('/persistence-durability')({
     scenario:
       search.scenario === 'interrupt'
         ? ('interrupt' as const)
-        : ('text' as const),
+        : search.scenario === 'server-interrupt'
+          ? ('server-interrupt' as const)
+          : ('text' as const),
   }),
 })
 
 function PersistenceDurabilityPage() {
   const { scenario } = Route.useSearch()
   const isInterrupt = scenario === 'interrupt'
-  const chatId = isInterrupt
-    ? 'persistence-durability-interrupt'
-    : 'persistence-durability-text'
+  const isServerInterrupt = scenario === 'server-interrupt'
+  const chatId = isServerInterrupt
+    ? 'persistence-durability-server-interrupt'
+    : isInterrupt
+      ? 'persistence-durability-interrupt'
+      : 'persistence-durability-text'
 
   const { messages, sendMessage, isLoading, interrupts } = useChat({
+    // The threadId IS the hook's identity and its persistence key, so the
+    // localStorage record lives under `tanstack-ai:<chatId>` and a reload with
+    // the same threadId restores it.
     threadId: chatId,
-    connection: isInterrupt ? interruptConnection : textConnection,
-    persistence,
+    connection: isServerInterrupt
+      ? serverInterruptConnection
+      : isInterrupt
+        ? interruptConnection
+        : textConnection,
+    persistence: isServerInterrupt ? { store, messages: false } : store,
   })
 
   const [input, setInput] = useState('')
@@ -98,6 +121,12 @@ function PersistenceDurabilityPage() {
           <span data-testid="interrupt-kind">{interrupt.kind}</span>
           <span data-testid="interrupt-message">
             {interrupt.message ?? interrupt.reason}
+          </span>
+          <span
+            data-testid="interrupt-can-resolve"
+            data-can-resolve={String(interrupt.canResolve)}
+          >
+            {String(interrupt.canResolve)}
           </span>
         </div>
       ))}

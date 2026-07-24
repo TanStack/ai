@@ -23,6 +23,13 @@ const connection = fetchServerSentEvents('/api/persistent-chat')
 // resume. The server (SQLite) owns every conversation.
 const persistence = { store: localStoragePersistence(), messages: false }
 
+// Share the tool DEFINITION with the client via an argless `.client()`: the
+// browser gets no implementation (the server runs sendEmail), but it learns the
+// tool's approval shape so it can bind the pending approval interrupt and type
+// it as `tool-approval`. Defined once at module scope so the array identity is
+// stable across renders.
+const chatTools = [sendEmailTool.client()] as const
+
 // The thread INDEX (which threads exist and their titles) is small app state,
 // kept in localStorage. The transcripts themselves live on the server, one per
 // thread id — this list is only how the UI enumerates and labels them.
@@ -152,13 +159,13 @@ function ChatPane({
     connectionStatus,
     interrupts,
     resuming,
-  } = useChat({
+  } = useChat<typeof chatTools>({
     threadId,
     connection,
     persistence,
     // Share the tool definition so the client can bind the approval interrupt
     // (verify its schema hashes) and resolve it.
-    tools: [sendEmailTool] as const,
+    tools: chatTools,
   })
   const [input, setInput] = useState('')
   const threadRef = useRef<HTMLDivElement>(null)
@@ -170,7 +177,7 @@ function ChatPane({
   useEffect(() => {
     const firstUser = messages.find((m) => m.role === 'user')
     const part = firstUser?.parts.find((p) => p.type === 'text' && p.content)
-    if (part && 'content' in part && part.content) {
+    if (part && 'content' in part && typeof part.content === 'string') {
       onFirstMessage(part.content.slice(0, 40))
     }
   }, [messages, onFirstMessage])
