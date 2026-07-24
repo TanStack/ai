@@ -110,7 +110,7 @@ function MemoryPage() {
     refreshInspect()
   }, [refreshInspect])
 
-  const startNewSession = () => {
+  const startNewThread = () => {
     const next = crypto.randomUUID()
     localStorage.setItem(THREAD_STORAGE_KEY, next)
     setThreadId(next)
@@ -227,11 +227,11 @@ function MemoryPage() {
               Refresh
             </button>
             <button
-              onClick={startNewSession}
+              onClick={startNewThread}
               className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800"
             >
               <RotateCcw size={14} />
-              New session
+              New thread
             </button>
           </div>
         </div>

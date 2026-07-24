@@ -32,5 +32,9 @@ it where you use `honcho()`.
 - `apiKey` — default `HONCHO_API_KEY`.
 - `assistantId` — assistant peer id (default `'assistant'`).
 
+**Scope fields:** Honcho session id = `scope.threadId`; peer id = `user` /
+`scope.userId`. `tenantId` and `namespace` are not sent — encode multi-tenant
+isolation into `user` or `workspaceId` if needed.
+
 `recall` calls the user peer's dialectic `chat()` and injects the answer as the system
 prompt; Honcho exposes no LLM tools.

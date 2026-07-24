@@ -114,6 +114,26 @@ const memory = redis({ redis: fromNodeRedis(client) })
 
 `ioredis` and `redis` are both optional peer dependencies. Install whichever you use.
 
+**Scope fields:** index keys are `{prefix}:index:{tenantId|_}:{userId|_}:{threadId}`
+(each segment escaped so `:`, `\`, and `_` in values cannot collide). Missing optional
+dims become `_`, so a write with `tenantId` and a read without it hit **different** keys
+— always pass the same dims you wrote with. There is no dual-read of older layouts; if
+you previously wrote under a different index shape, reindex or wipe.
+
+## Which `Scope` fields each adapter honors
+
+| Adapter | `threadId` | `userId` | `tenantId` | `namespace` |
+|---------|------------|----------|------------|-------------|
+| `inMemory()` | yes | yes (filter when present) | yes (filter when present) | ignored |
+| `redis()` | yes (key segment) | yes (key segment) | yes (key segment) | ignored |
+| `hindsight()` | yes (bank id) | yes (bank id / `user` option) | **no** | ignored |
+| `mem0()` | **no** (user-scoped only) | yes (`user_id` / `user` option) | **no** | ignored |
+| `honcho()` | yes (Honcho session id) | yes (peer id / `user` option) | **no** | ignored |
+
+Vendor backends that do not model tenants will share memory across tenants when
+`userId`+`threadId` (or just `userId` for mem0) collide — use a tenant-aware adapter
+or encode the tenant into `user`/`threadId` yourself.
+
 ## `hindsight()`
 
 Hosted adapter backed by Hindsight. Owns extraction/ranking server-side and exposes
@@ -141,6 +161,8 @@ const memory = hindsight({
 })
 ```
 
+Bank id is `{user}__{threadId}`. `tenantId` is not part of the bank key.
+
 ## `mem0()`
 
 Hosted adapter backed by a mem0 server, over plain HTTP (no SDK peer). Requires a running
@@ -165,6 +187,8 @@ const memory = mem0({
   threshold: 0.2, // stricter score floor
 })
 ```
+
+mem0 is **user-scoped only** — `threadId` and `tenantId` are not sent to the server.
 
 ## `honcho()`
 
@@ -191,6 +215,9 @@ const memory = honcho({
   assistantId: 'support-bot', // default: 'assistant'
 })
 ```
+
+Honcho sessions are keyed by `threadId`; peers by `user` / `scope.userId`. `tenantId` is
+not sent.
 
 ## Where to go next
 

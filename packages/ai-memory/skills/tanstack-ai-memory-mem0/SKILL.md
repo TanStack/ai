@@ -29,5 +29,9 @@ Requires a running mem0 server (self-hosted or hosted). Point it via `baseUrl` (
 - `apiKey` — bearer token (default `MEM0_ADMIN_API_KEY`).
 - `rerank` (default `true`), `threshold` (default `0.1`) — search tuning.
 
+**Scope fields:** mem0 is **user-scoped only** — only `user_id` is sent. `threadId`,
+`tenantId`, and `namespace` are ignored. Encode tenant/thread isolation into `user`
+if the backend must not share memory across those dims.
+
 `save` posts the `{ user, assistant }` turn to `/memories`; `recall` queries `/search`
 and renders the results into the system prompt. mem0 exposes no LLM tools.

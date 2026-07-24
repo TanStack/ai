@@ -5,10 +5,11 @@ import {
   clearMemoryRegistry,
   createMemoryRegistryState,
   memoryScopeKey,
+  memoryScopeLabel,
 } from '../src/store/memory-registry'
 import type { MemorySnapshotEvent } from '@tanstack/ai-event-client'
 
-const SCOPE = { threadId: 'session-1' }
+const SCOPE = { threadId: 'thread-1' }
 
 describe('memory registry', () => {
   it('accumulates the operation timeline per scope', () => {
@@ -122,7 +123,55 @@ describe('memory registry', () => {
       error: { name: 'Error', message: 'x' },
       timestamp: 2,
     })
-    expect(Object.keys(state.scopes).sort()).toEqual(['(unknown)', 'a'])
+    expect(Object.keys(state.scopes).sort()).toEqual([
+      '(unknown)',
+      memoryScopeKey({ threadId: 'a' }),
+    ])
+  })
+
+  it('stores userId/tenantId and isolates composite scopes', () => {
+    const state = createMemoryRegistryState()
+    const tenantA = {
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-a',
+    }
+    const tenantB = {
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-b',
+    }
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: tenantA,
+      adapter: 'in-memory',
+      timestamp: 1,
+    })
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: tenantB,
+      adapter: 'redis',
+      timestamp: 2,
+    })
+
+    const keyA = memoryScopeKey(tenantA)
+    const keyB = memoryScopeKey(tenantB)
+    expect(keyA).not.toBe(keyB)
+    expect(state.scopes[keyA]).toMatchObject({
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-a',
+      adapter: 'in-memory',
+    })
+    expect(state.scopes[keyB]).toMatchObject({
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-b',
+      adapter: 'redis',
+    })
+    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe(
+      'tenant-a · u · shared',
+    )
   })
 
   it('clears the registry', () => {

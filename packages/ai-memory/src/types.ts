@@ -28,8 +28,9 @@ import type { Scope, Tool } from '@tanstack/ai'
  * Opaque to the middleware — each adapter interprets it (vendors map it to
  * bank/user ids; the built-in stores key their internal record space by it).
  *
- * Derive scope server-side from trusted session state — never from client
- * input, or one user's request can read or write another user's memory.
+ * Resolve every field server-side from trusted session/auth state. A client-
+ * originated `threadId` is only safe after you validate it belongs to the
+ * session user; never accept bare `userId`/`tenantId` from the request body.
  */
 export type MemoryScope = Scope
 

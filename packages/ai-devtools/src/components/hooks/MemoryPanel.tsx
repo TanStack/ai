@@ -2,15 +2,17 @@ import { For, Show, createMemo, createSignal } from 'solid-js'
 import { useAIStore } from '../../store/ai-context'
 import { useStyles } from '../../styles/use-styles'
 import type { Component } from 'solid-js'
+import { memoryScopeLabel } from '../../store/memory-registry'
 import type {
   MemoryEventRecord,
   MemoryScopeState,
 } from '../../store/memory-registry'
 
 /**
- * DevTools "Memory" tab. Memory is per-scope (threadId), not per-hook, so this
- * panel reads the whole `state.memory` registry and lets the user pick a scope
- * (defaulting to the most recently active). It renders two things:
+ * DevTools "Memory" tab. Memory is per composite scope (tenant/user/thread),
+ * not per-hook, so this panel reads the whole `state.memory` registry and lets
+ * the user pick a scope (defaulting to the most recently active). It renders
+ * two things:
  *   1. Live contents — the latest `inspect()` records + `listFacts()` facts,
  *      pushed via `memory:snapshot` (only for adapters that support inspection).
  *   2. Operations timeline — the `memory:*` recall/save/error events (always
@@ -134,14 +136,18 @@ export const MemoryPanel: Component = () => {
                     data-testid="ai-devtools-memory-scope-select"
                   >
                     <For each={scopeKeys()}>
-                      {(key) => (
-                        <option value={key}>
-                          {state.memory.scopes[key]?.adapter
-                            ? `${state.memory.scopes[key].adapter} · `
-                            : ''}
-                          {key.slice(0, 12)}
-                        </option>
-                      )}
+                      {(key) => {
+                        const entry = state.memory.scopes[key]
+                        const label = entry
+                          ? memoryScopeLabel(entry)
+                          : key
+                        return (
+                          <option value={key}>
+                            {entry?.adapter ? `${entry.adapter} · ` : ''}
+                            {label.length > 40 ? `${label.slice(0, 40)}…` : label}
+                          </option>
+                        )
+                      }}
                     </For>
                   </select>
                 </Show>

@@ -12,7 +12,7 @@ import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { openRouterText } from '@tanstack/ai-openrouter'
-import { lastRecallBySession, memoryAdapter } from '@/lib/memory-store'
+import { lastRecallByThread, memoryAdapter } from '@/lib/memory-store'
 import type { Provider } from '@/lib/model-selection'
 
 const SYSTEM_PROMPT = `You are a helpful, friendly assistant with long-term memory.
@@ -27,7 +27,8 @@ memory rather than saying you don't know.`
  * minus the guitar tools and trace recording, plus a `memoryMiddleware` wired
  * to the shared {@link memoryAdapter} singleton so recall/save persist across
  * requests. The middleware is built per request with a static scope derived
- * from the client-supplied `threadId`.
+ * from the client-supplied `threadId` (demo-only — production must derive
+ * scope from trusted server session state, not bare client input).
  */
 export const Route = createFileRoute('/api/memory-chat')({
   server: {
@@ -86,7 +87,7 @@ export const Route = createFileRoute('/api/memory-chat')({
             adapter: memoryAdapter,
             scope: { threadId },
             onRecall: (info) => {
-              lastRecallBySession.set(threadId, info.result)
+              lastRecallByThread.set(threadId, info.result)
             },
           })
 

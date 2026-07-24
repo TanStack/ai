@@ -92,11 +92,12 @@ export interface RecordStore {
 // ===========================
 
 /**
- * Exact scope match. In the recall/save model the scope is always fully
- * specified at both write and read (same middleware, same resolver), so a
- * record is in-scope iff its `threadId` matches and — when the query carries a
- * `userId` / `tenantId` — those dimensions match too. `namespace` is reserved
- * and ignored until a subsystem keys on it.
+ * Scope match for built-in stores. `threadId` must always match. Optional
+ * `userId` / `tenantId` are filter-when-present: when the query supplies a
+ * non-empty value, the record must match it; when the query omits them, any
+ * record value is accepted. Callers must pass the same dims they wrote with
+ * (the middleware does). Redis keys unset dims as `_` instead — omit ≠ match
+ * any there. `namespace` is reserved and ignored until a subsystem keys on it.
  */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   if (record.threadId !== query.threadId) return false

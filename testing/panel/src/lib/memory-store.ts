@@ -21,4 +21,4 @@ export const memoryAdapter = inMemory()
  * show "what memory fed into this turn". Populated from the middleware's
  * `onRecall` callback in the chat route; read by the inspect route.
  */
-export const lastRecallBySession = new Map<string, RecallResult>()
+export const lastRecallByThread = new Map<string, RecallResult>()

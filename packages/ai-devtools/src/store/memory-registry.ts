@@ -13,9 +13,9 @@ import type {
  * pure reducers (mirroring `hook-registry.ts`) so the mapping from events →
  * view state is unit-testable in isolation, without a Solid store.
  *
- * Memory is keyed by scope (threadId), NOT by hook — several hooks can share
- * one thread. The `MemoryPanel` reads a single `MemoryScopeState` by key; the
- * per-hook tab just resolves which key to show.
+ * Memory is keyed by composite scope (`tenantId`/`userId`/`threadId`), NOT by
+ * hook — several hooks can share one scope. The `MemoryPanel` reads a single
+ * `MemoryScopeState` by key; the per-hook tab just resolves which key to show.
  */
 
 /** One row in a scope's operations timeline. */
@@ -60,7 +60,7 @@ export interface MemorySnapshotRecord {
   facts: Array<MemoryFactRecord>
 }
 
-/** Everything known about memory for a single scope (threadId). */
+/** Everything known about memory for a single composite scope. */
 export interface MemoryScopeState {
   key: string
   threadId: string
@@ -81,10 +81,38 @@ export function createMemoryRegistryState(): MemoryRegistryState {
   return { scopes: {} }
 }
 
-/** Stable scope key. Empty/absent threadId (e.g. error scope) buckets to `(unknown)`. */
+/**
+ * Escape `:` / `\` so composite keys cannot collide when a dim contains the
+ * separator (mirrors redis scope-key hardening).
+ */
+function escapeScopeDim(value: string): string {
+  return value.replace(/[\\:]/g, '\\$&')
+}
+
+/** Unset optional dims serialize as `_` (same convention as the redis adapter). */
+function scopeDim(value: string | undefined): string {
+  return value != null && value.length > 0 ? escapeScopeDim(value) : '_'
+}
+
+/**
+ * Stable scope key: `{tenantId|_}:{userId|_}:{threadId}`. Empty/absent
+ * `threadId` (e.g. error scope) buckets to `(unknown)` so broken events do not
+ * invent a fake conversation.
+ */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
   const threadId = scope?.threadId
-  return threadId && threadId.length > 0 ? threadId : '(unknown)'
+  if (!threadId || threadId.length === 0) return '(unknown)'
+  return `${scopeDim(scope?.tenantId)}:${scopeDim(scope?.userId)}:${escapeScopeDim(threadId)}`
+}
+
+/** Human-readable label for the Memory panel scope picker. */
+export function memoryScopeLabel(entry: MemoryScopeState): string {
+  const thread =
+    entry.threadId && entry.threadId.length > 0 ? entry.threadId : '(unknown)'
+  const parts = [entry.tenantId, entry.userId, thread].filter(
+    (p): p is string => p != null && p.length > 0,
+  )
+  return parts.join(' · ')
 }
 
 const MAX_EVENTS_PER_SCOPE = 200

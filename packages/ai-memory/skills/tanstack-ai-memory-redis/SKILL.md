@@ -59,8 +59,14 @@ as `inMemory()`.
 ```
 
 `save` writes the record and adds it to the scope's index set; `recall` loads the set,
-scores, and renders. Scope values are escaped so a `:` in a `tenantId`/`userId`/`threadId`
-can't collide two scopes.
+scores, and renders. Scope values are escaped (`:`, `\`, and `_`) so a delimiter or the
+unset placeholder inside a dim can't collide two scopes.
+
+**Hard cut:** there is no dual-read of older index layouts. If you previously wrote under
+a different shape (e.g. without `tenantId`), reindex or wipe — old keys are orphaned.
+
+Always pass the same `tenantId`/`userId`/`threadId` on write and read: missing optional
+dims become `_`, so omit ≠ "match any".
 
 ## Ranking limits
 

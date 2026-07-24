@@ -48,5 +48,11 @@ describe('inMemory options', () => {
       'apples',
     )
     expect(otherTenant.systemPrompt).toBe('')
+
+    const sameTenant = await adapter.recall(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-a' },
+      'apples',
+    )
+    expect(sameTenant.systemPrompt.toLowerCase()).toContain('apples')
   })
 })

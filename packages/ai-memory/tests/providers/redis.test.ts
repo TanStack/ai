@@ -48,6 +48,50 @@ describe('redis malformed rows', () => {
   })
 })
 
+describe('redis scope isolation', () => {
+  it('respects the tenantId dimension of scope', async () => {
+    const prefix = `test:${crypto.randomUUID()}`
+    const adapter = redis({ redis: mockClient(), prefix })
+    await adapter.save(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-a' },
+      {
+        user: 'tenant A confidential penguins',
+        assistant: 'ok',
+      },
+    )
+    const otherTenant = await adapter.recall(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-b' },
+      'penguins',
+    )
+    expect(otherTenant.systemPrompt).toBe('')
+    expect(otherTenant.fragments ?? []).toHaveLength(0)
+
+    const sameTenant = await adapter.recall(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-a' },
+      'penguins',
+    )
+    expect(sameTenant.systemPrompt.toLowerCase()).toContain('penguins')
+  })
+
+  it('does not hit a tenant-scoped index when tenantId is omitted on recall', async () => {
+    // Redis keys missing dims as `_`, so omit ≠ "match any".
+    const prefix = `test:${crypto.randomUUID()}`
+    const adapter = redis({ redis: mockClient(), prefix })
+    await adapter.save(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-a' },
+      {
+        user: 'tenant-scoped only',
+        assistant: 'ok',
+      },
+    )
+    const withoutTenant = await adapter.recall(
+      { threadId: 's', userId: 'u' },
+      'tenant-scoped',
+    )
+    expect(withoutTenant.systemPrompt).toBe('')
+  })
+})
+
 describe('redis scope-key hardening', () => {
   it('escapes the delimiter so scope values containing ":" cannot collide', async () => {
     const prefix = `test:${crypto.randomUUID()}`
@@ -66,6 +110,27 @@ describe('redis scope-key hardening', () => {
     const other = await adapter.recall(
       { userId: 'a', threadId: 'b:c' },
       'confidential',
+    )
+    expect(other.systemPrompt).toBe('')
+    expect(other.fragments ?? []).toHaveLength(0)
+  })
+
+  it('escapes ":" inside tenantId so 3-segment keys cannot collide', async () => {
+    const prefix = `test:${crypto.randomUUID()}`
+    const adapter = redis({ redis: mockClient(), prefix })
+    // Without escaping, { tenantId: 'a:b', userId: 'c', threadId: 'd' } and
+    // { tenantId: 'a', userId: 'b:c', threadId: 'd' } both serialize to
+    // `a:b:c:d`.
+    await adapter.save(
+      { tenantId: 'a:b', userId: 'c', threadId: 'd' },
+      {
+        user: 'escape-tenant-a secret',
+        assistant: 'ok',
+      },
+    )
+    const other = await adapter.recall(
+      { tenantId: 'a', userId: 'b:c', threadId: 'd' },
+      'escape-tenant',
     )
     expect(other.systemPrompt).toBe('')
     expect(other.fragments ?? []).toHaveLength(0)

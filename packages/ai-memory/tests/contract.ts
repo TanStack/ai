@@ -58,6 +58,38 @@ export function runMemoryAdapterContract(
         expect(other.systemPrompt).toBe('')
         expect(other.fragments ?? []).toHaveLength(0)
       })
+
+      it('isolates same threadId across different userId', async () => {
+        await adapter.save(
+          { threadId: 'shared-thread', userId: 'alice' },
+          {
+            user: 'Alice secret token is red-fox',
+            assistant: 'Understood.',
+          },
+        )
+        const otherUser = await adapter.recall(
+          { threadId: 'shared-thread', userId: 'bob' },
+          'secret token',
+        )
+        expect(otherUser.systemPrompt).toBe('')
+        expect(otherUser.fragments ?? []).toHaveLength(0)
+      })
+
+      it('isolates same threadId+userId across different tenantId', async () => {
+        await adapter.save(
+          { threadId: 'shared-thread', userId: 'u', tenantId: 'tenant-a' },
+          {
+            user: 'Tenant A vault code is blue-jay',
+            assistant: 'Understood.',
+          },
+        )
+        const otherTenant = await adapter.recall(
+          { threadId: 'shared-thread', userId: 'u', tenantId: 'tenant-b' },
+          'vault code',
+        )
+        expect(otherTenant.systemPrompt).toBe('')
+        expect(otherTenant.fragments ?? []).toHaveLength(0)
+      })
     })
 
     describe('optional introspection', () => {
