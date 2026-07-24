@@ -196,7 +196,8 @@ export function GET(request: Request): Response | Promise<Response> {
     return resumeServerSentEventsResponse({ adapter: durability })
   }
   // Otherwise rehydrate the conversation from the durable store. `reconstructChat`
-  // reads `?threadId` and returns the stored messages as JSON.
+  // reads `?threadId` and returns `{ messages, activeRun }` — the transcript plus
+  // a cursor to any run still generating.
   //
   // Security: without `authorize`, any caller who knows a thread id receives the
   // full transcript. In multi-user apps, check session ownership here (or only
@@ -214,7 +215,7 @@ export function GET(request: Request): Response | Promise<Response> {
 }
 ```
 
-The client caches only the pointer and loads history from that `GET`:
+The client caches only the pointer. `useChat` calls that `GET` for you on mount:
 
 ```tsx
 import {
@@ -231,19 +232,19 @@ function Chat() {
     connection: fetchServerSentEvents('/api/chat'),
     persistence: { store, messages: false },
   })
-  // On mount, fetch GET /api/chat?threadId=support-chat and seed the thread
-  // (a router loader is the natural place). The resume pointer in localStorage
-  // then rejoins any run that was still streaming.
+  // Nothing else to wire. On mount useChat fetches GET /api/chat?threadId=...,
+  // paints the returned transcript, and tails any run still generating.
 }
 ```
 
-A mid-stream reload does both jobs, and they do not collide because they are two
-separate requests to the same `GET`: the loader fetches history (`?threadId`,
-the reconstruct branch) and seeds it as `initialMessages`, and the client
-separately calls `joinRun` (`?offset=-1&runId`, the resume branch) to finish the
-live run. The `if` in the handler routes each; one request is never asked to do
-both. The replayed run's messages merge into the seeded history by message id,
-so nothing is duplicated or lost.
+A mid-stream reload does both jobs off the same `GET`, and `useChat` drives both
+for you: it fetches the transcript (`?threadId`, the reconstruct branch), then,
+when `reconstructChat` reports an `activeRun`, tails that run
+(`?offset=-1&runId`, the resume branch). The `if` in the handler routes each
+request; one is never asked to do both. The replayed run's messages merge into
+the transcript by message id, so nothing is duplicated or lost. Because the
+reconnect is resolved from the stable `threadId` on the server, a reload and the
+same thread opened on another device resume the same way.
 
 Why this wins over the alternatives:
 

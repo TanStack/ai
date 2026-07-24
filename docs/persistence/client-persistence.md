@@ -87,36 +87,14 @@ large (localStorage is synchronous and quota-bound), when the same conversation
 must open on another device, or when you simply do not want message content in
 the browser.
 
-The transcript is not in storage, so hydrate it from the server on load: expose a
-`GET` endpoint with `reconstructChat` and seed `initialMessages` from a router
-loader (or equivalent). See [Chat persistence](./chat-persistence).
+You do not fetch or seed the transcript yourself. On mount `useChat` hydrates the
+thread from the server by its `threadId`: it paints the stored transcript and, if
+a run is still generating, tails it to completion. A reload and the same thread
+opened on another device follow the identical path, because the thread id is the
+stable key and the server resolves everything from it. No loader, no
+`initialMessages`, no extra props.
 
-**Server half** (history hydrate; authorize multi-user access):
-
-```ts
-import { reconstructChat } from '@tanstack/ai-persistence'
-import { persistence } from './persistence'
-import type { Scope } from '@tanstack/ai'
-
-export async function GET(request: Request) {
-  // Scope.threadId is the conversation key. Derive Scope.userId / tenantId from
-  // trusted session state — never from client body alone.
-  return reconstructChat(persistence, request, {
-    authorize: async (threadId, req) => {
-      const scope: Scope = {
-        threadId,
-        // userId: await getSessionUserId(req),
-      }
-      // return scope.userId != null && (await ownsThread(scope))
-      void scope
-      void req
-      return true // demo only
-    },
-  })
-}
-```
-
-**Client half** (resume pointer only + loader-seeded history):
+**Client** — the store, a connection, and a stable `threadId`:
 
 ```tsx
 import {
@@ -125,21 +103,11 @@ import {
   useChat,
 } from '@tanstack/ai-react'
 
-const store = localStoragePersistence()
+const connection = fetchServerSentEvents('/api/chat')
+const persistence = { store: localStoragePersistence(), messages: false }
 
-function Chat({
-  threadId,
-  initialMessages,
-}: {
-  threadId: string
-  initialMessages: Array<{ id: string; role: 'user' | 'assistant'; parts: Array<{ type: 'text'; content: string }> }>
-}) {
-  const { messages, sendMessage } = useChat({
-    threadId,
-    connection: fetchServerSentEvents('/api/chat'),
-    persistence: { store, messages: false },
-    initialMessages,
-  })
+function Chat({ threadId }: { threadId: string }) {
+  const { messages, sendMessage } = useChat({ threadId, connection, persistence })
   return (
     <div>
       {messages.map((m) => (
@@ -153,39 +121,34 @@ function Chat({
 }
 ```
 
-#### Tail an in-flight run on a fresh client
+**Server** — one `GET` endpoint next to your chat `POST`. Replay the durability
+log when the request carries a resume cursor, otherwise return the stored
+conversation with `reconstructChat`:
 
-The resume pointer is per-browser, so a **fresh** client — the same thread opened
-on a second device or in another browser — has no pointer and would stop at the
-hydrated snapshot even while the run is still generating on the server. To tail it
-there too, have the server report which run (if any) is in flight for the thread
-and hand it to `useChat` as `initialResumeSnapshot`. A bare in-flight snapshot is
-rejoined just like a persisted pointer; a client that started the run still rejoins
-via its own pointer, so pass this only when the running client is a different one.
+```ts
+import { memoryStream, resumeServerSentEventsResponse } from '@tanstack/ai'
+import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
 
-```tsx ignore
-// Server: the loader (or your GET endpoint) reports the active run alongside history.
-loader: async () => ({
-  messages: await loadHistory(threadId), // reconstructChat, etc.
-  activeRunId: activeRunForThread(threadId), // undefined once the run finishes
-})
-
-// Client: tail it if one is running. Harmless when it has finished — the join
-// fast-fails and the hydrated transcript already holds the complete reply.
-const { messages, activeRunId } = Route.useLoaderData()
-useChat({
-  threadId,
-  connection,
-  persistence: { store: localStoragePersistence(), messages: false },
-  initialMessages: messages,
-  ...(activeRunId && {
-    initialResumeSnapshot: {
-      schemaVersion: 2,
-      resumeState: { threadId, runId: activeRunId },
-    },
-  }),
-})
+export function GET(request: Request): Response | Promise<Response> {
+  const durability = memoryStream(request)
+  // A reconnecting client carries a resume cursor (Last-Event-ID / ?offset and
+  // X-Run-Id / ?runId). Replay the log so the run finishes in place.
+  if (durability.resumeFrom() !== null) {
+    return resumeServerSentEventsResponse({ adapter: durability })
+  }
+  // Otherwise return the stored transcript plus a cursor to any in-flight run.
+  // Guard access in multi-user apps (see authorize in Chat persistence).
+  return reconstructChat(persistence, request)
+}
 ```
+
+`reconstructChat` returns `{ messages, activeRun }`: the transcript as UI
+messages, and `activeRun` when a run is still generating for the thread. The
+client calls this endpoint on mount and, when `activeRun` is set, tails the run
+through the replay branch above. You never handle a run id, and a second device
+resumes the live run the same way the original tab does. See
+[Chat persistence](./chat-persistence).
 
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |

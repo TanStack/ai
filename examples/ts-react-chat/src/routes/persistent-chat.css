@@ -11,17 +11,16 @@
   --pc-tool: #12261f;
   --pc-tool-border: #1f5c45;
 
-  max-width: 780px;
-  margin: 20px auto;
-  padding: 22px 22px 0;
-  height: calc(100vh - 40px);
+  width: 100%;
+  /* Fill the viewport below the app header (h-72px / p-4 logo bar). */
+  height: calc(100dvh - 72px);
+  margin: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   color: var(--pc-text);
   background: var(--pc-bg);
-  border: 1px solid var(--pc-border);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  border: none;
+  border-radius: 0;
   overflow: hidden;
   font-family:
     ui-sans-serif,
@@ -30,6 +29,71 @@
     'Segoe UI',
     Roboto,
     sans-serif;
+}
+
+.pc-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--pc-border);
+  background: var(--pc-panel);
+  overflow: hidden;
+}
+
+.pc-new {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--pc-border);
+  background: var(--pc-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pc-new:hover {
+  filter: brightness(1.08);
+}
+
+.pc-threadlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.pc-threaditem {
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pc-muted);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-threaditem:hover {
+  background: var(--pc-panel-2);
+  color: var(--pc-text);
+}
+.pc-threaditem.active {
+  background: var(--pc-panel-2);
+  border-color: var(--pc-accent);
+  color: var(--pc-text);
+}
+
+.pc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 0;
+  overflow: hidden;
 }
 
 .pc-header {
