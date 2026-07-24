@@ -35,10 +35,11 @@ export const kind = 'tts' as const
 /**
  * Extract provider options from a TTSAdapter via ~types.
  */
-export type TTSProviderOptions<TAdapter> =
-  TAdapter extends TTSAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+export type TTSProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P extends object }
+}
+  ? P
+  : object
 
 // ===========================
 // Activity Options Type
