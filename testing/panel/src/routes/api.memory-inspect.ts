@@ -17,8 +17,7 @@ export const Route = createFileRoute('/api/memory-inspect')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const threadId =
-          new URL(request.url).searchParams.get('threadId') ?? ''
+        const threadId = new URL(request.url).searchParams.get('threadId') ?? ''
         const scope = panelMemoryScope(threadId)
 
         const snapshot = await memoryAdapter.inspect?.(scope)
