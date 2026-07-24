@@ -169,9 +169,7 @@ describe('memory registry', () => {
       tenantId: 'tenant-b',
       adapter: 'redis',
     })
-    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe(
-      'tenant-a · u · shared',
-    )
+    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe('tenant-a · u · shared')
   })
 
   it('clears the registry', () => {

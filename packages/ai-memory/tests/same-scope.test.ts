@@ -10,9 +10,9 @@ describe('sameScope', () => {
 
   it('matches when threadId and present dims agree', () => {
     expect(sameScope(full, full)).toBe(true)
-    expect(
-      sameScope(full, { threadId: 's', userId: 'u', tenantId: 'a' }),
-    ).toBe(true)
+    expect(sameScope(full, { threadId: 's', userId: 'u', tenantId: 'a' })).toBe(
+      true,
+    )
   })
 
   it('rejects different threadId', () => {
@@ -47,9 +47,9 @@ describe('sameScope', () => {
   })
 
   it('matches records that also lack optional dims', () => {
-    expect(
-      sameScope({ threadId: 's' }, { threadId: 's', userId: 'u' }),
-    ).toBe(false)
+    expect(sameScope({ threadId: 's' }, { threadId: 's', userId: 'u' })).toBe(
+      false,
+    )
     expect(sameScope({ threadId: 's' }, { threadId: 's' })).toBe(true)
   })
 })

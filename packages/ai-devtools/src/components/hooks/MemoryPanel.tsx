@@ -138,13 +138,13 @@ export const MemoryPanel: Component = () => {
                     <For each={scopeKeys()}>
                       {(key) => {
                         const entry = state.memory.scopes[key]
-                        const label = entry
-                          ? memoryScopeLabel(entry)
-                          : key
+                        const label = entry ? memoryScopeLabel(entry) : key
                         return (
                           <option value={key}>
                             {entry?.adapter ? `${entry.adapter} · ` : ''}
-                            {label.length > 40 ? `${label.slice(0, 40)}…` : label}
+                            {label.length > 40
+                              ? `${label.slice(0, 40)}…`
+                              : label}
                           </option>
                         )
                       }}
