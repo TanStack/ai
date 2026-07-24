@@ -44,9 +44,8 @@ Persistence runs on the client, the server, or both. They are independent, and t
 
 Server persistence keys conversation history on **`threadId`** — the same
 conversation key as `ChatMiddlewareContext.threadId` and the required field of
-the shared [`Scope`](../getting-started/overview) type from `@tanstack/ai`
-(precursor PR #980). Store APIs take a bare `threadId` string for adapter
-simplicity; multi-user isolation is still required:
+the shared `Scope` type from `@tanstack/ai`. Store APIs take a bare `threadId`
+string for adapter simplicity; multi-user isolation is still required:
 
 - Derive `Scope.userId` / `Scope.tenantId` **server-side** from session state.
 - Authorize before `loadThread` / `saveThread` / `reconstructChat` (use
