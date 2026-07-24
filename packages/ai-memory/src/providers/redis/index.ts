@@ -111,7 +111,8 @@ export function redis(options: RedisOptions): MemoryAdapter {
   const scopeKey = (scope: MemoryScope): string => {
     const tenant =
       scope.tenantId != null && scope.tenantId !== '' ? scope.tenantId : '_'
-    const user = scope.userId != null && scope.userId !== '' ? scope.userId : '_'
+    const user =
+      scope.userId != null && scope.userId !== '' ? scope.userId : '_'
     return `${escapeScopeValue(tenant)}:${escapeScopeValue(user)}:${escapeScopeValue(scope.threadId)}`
   }
   const indexKey = (scope: MemoryScope): string =>
