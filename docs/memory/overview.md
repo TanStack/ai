@@ -89,14 +89,17 @@ failures, see [Operating memory](./operating).
 
 ## Scope and security
 
-`MemoryScope` is the isolation boundary. It is session-centric, with an optional durable
-user id:
+`MemoryScope` is the isolation boundary. It is an alias of the shared `Scope` identity
+type from `@tanstack/ai` — the same vocabulary used by persistence — so memory and chat
+center on one conversation key:
 
 ```ts
-// The MemoryScope type, from `@tanstack/ai-memory`:
+// MemoryScope = Scope, from `@tanstack/ai` (re-exported by `@tanstack/ai-memory`):
 type MemoryScope = {
-  sessionId: string
+  threadId: string // required — same as ChatMiddlewareContext.threadId
   userId?: string
+  tenantId?: string
+  namespace?: string // reserved
 }
 ```
 
@@ -115,7 +118,7 @@ memoryMiddleware({
   adapter,
   scope: (ctx) => {
     const session = getSession(ctx) // your server-validated session
-    return { sessionId: session.threadId, userId: session.userId }
+    return { threadId: session.threadId, userId: session.userId }
   },
 })
 ```

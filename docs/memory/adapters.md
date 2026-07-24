@@ -122,7 +122,7 @@ is an optional peer, loaded lazily.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{user}__{sessionId}`). |
+| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{user}__{threadId}`). |
 | `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
 | `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
@@ -132,7 +132,7 @@ is an optional peer, loaded lazily.
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
 const memory = hindsight({
-  user: 'alice', // bank = alice__{sessionId}
+  user: 'alice', // bank = alice__{threadId}
   baseUrl: 'https://hindsight.internal', // default: HINDSIGHT_URL
   budget: 'high', // deeper recall
   onToolRetain: (receipt) => console.log('model retained', receipt.ok),

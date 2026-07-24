@@ -53,7 +53,7 @@ function fakeAdapter(
   }
 }
 
-const scope: MemoryScope = { sessionId: 's1', userId: 'u1' }
+const scope: MemoryScope = { threadId: 's1', userId: 'u1' }
 
 describe('memoryMiddleware', () => {
   it('injects recalled systemPrompt + toolGuidance + tools at init', async () => {

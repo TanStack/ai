@@ -13,8 +13,8 @@ export function runMemoryAdapterContract(
 ) {
   describe(label, () => {
     let adapter: MemoryAdapter
-    const scopeA: MemoryScope = { sessionId: 's1', userId: 'u1' }
-    const scopeB: MemoryScope = { sessionId: 's2', userId: 'u2' }
+    const scopeA: MemoryScope = { threadId: 's1', userId: 'u1' }
+    const scopeB: MemoryScope = { threadId: 's2', userId: 'u2' }
 
     beforeEach(async () => {
       adapter = await factory()

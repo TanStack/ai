@@ -133,9 +133,9 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     }
     return assistantPeerPromise
   }
-  function getSession(sessionId: string): Promise<Session> {
-    return cached(sessionCache, sessionId, async () =>
-      (await getClient()).session(sessionId),
+  function getSession(threadId: string): Promise<Session> {
+    return cached(sessionCache, threadId, async () =>
+      (await getClient()).session(threadId),
     )
   }
 
@@ -151,7 +151,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
         const [userPeer, assistantPeer, session] = await Promise.all([
           getUserPeer(userIdFor(scope)),
           getAssistantPeer(),
-          getSession(scope.sessionId),
+          getSession(scope.threadId),
         ])
         return session.addMessages([
           userPeer.message(turn.user),
@@ -172,7 +172,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
       const result = await timed(async () => {
         const [userPeer, session] = await Promise.all([
           getUserPeer(userIdFor(scope)),
-          getSession(scope.sessionId),
+          getSession(scope.threadId),
         ])
         return userPeer.chat(query, { session })
       })
@@ -184,7 +184,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     },
 
     async inspect(scope): Promise<MemorySnapshot> {
-      const session = await getSession(scope.sessionId).catch(() => null)
+      const session = await getSession(scope.threadId).catch(() => null)
       if (!session) {
         return {
           takenAt: new Date().toISOString(),

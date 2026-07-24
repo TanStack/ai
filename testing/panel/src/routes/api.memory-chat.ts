@@ -27,7 +27,7 @@ memory rather than saying you don't know.`
  * minus the guitar tools and trace recording, plus a `memoryMiddleware` wired
  * to the shared {@link memoryAdapter} singleton so recall/save persist across
  * requests. The middleware is built per request with a static scope derived
- * from the client-supplied `sessionId`.
+ * from the client-supplied `threadId`.
  */
 export const Route = createFileRoute('/api/memory-chat')({
   server: {
@@ -45,7 +45,7 @@ export const Route = createFileRoute('/api/memory-chat')({
 
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
-        const sessionId: string = data.sessionId || 'panel-default-session'
+        const threadId: string = data.threadId || 'panel-default-thread'
 
         try {
           const adapterConfig = {
@@ -79,14 +79,14 @@ export const Route = createFileRoute('/api/memory-chat')({
           const { adapter } = options
 
           console.log(
-            `>> memory chat: model ${model} on ${provider} (session ${sessionId})`,
+            `>> memory chat: model ${model} on ${provider} (thread ${threadId})`,
           )
 
           const memory = memoryMiddleware({
             adapter: memoryAdapter,
-            scope: { sessionId },
+            scope: { threadId },
             onRecall: (info) => {
-              lastRecallBySession.set(sessionId, info.result)
+              lastRecallBySession.set(threadId, info.result)
             },
           })
 

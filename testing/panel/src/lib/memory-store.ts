@@ -17,7 +17,7 @@ import type { RecallResult } from '@tanstack/ai-memory'
 export const memoryAdapter = inMemory()
 
 /**
- * Records what the last `recall` injected for each session, so the page can
+ * Records what the last `recall` injected for each thread, so the page can
  * show "what memory fed into this turn". Populated from the middleware's
  * `onRecall` callback in the chat route; read by the inspect route.
  */

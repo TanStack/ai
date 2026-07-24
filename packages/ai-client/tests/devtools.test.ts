@@ -1285,7 +1285,7 @@ describe('ChatClient devtools bridge', () => {
         timestamp: Date.now(),
         name: 'memory:state',
         value: {
-          scope: { sessionId: 'sess-1' },
+          scope: { threadId: 'sess-1' },
           adapter: 'in-memory',
           query: 'what is my name?',
           recall: {
@@ -1324,7 +1324,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'memory:retrieve:started',
         expect.objectContaining({
-          scope: { sessionId: 'sess-1' },
+          scope: { threadId: 'sess-1' },
           adapter: 'in-memory',
           query: 'what is my name?',
         }),

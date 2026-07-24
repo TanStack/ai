@@ -39,7 +39,7 @@ const stream = chat({
       // Derive scope server-side from trusted session state.
       scope: (ctx) => {
         const session = getSession(ctx)
-        return { sessionId: session.threadId, userId: session.userId }
+        return { threadId: session.threadId, userId: session.userId }
       },
     }),
   ],
@@ -68,10 +68,12 @@ interface MemoryAdapter {
 
 ## Scope security
 
-`MemoryScope` is `{ sessionId, userId? }` and is the isolation boundary. **Never trust a
-client-supplied `userId`/`sessionId`.** Resolve scope server-side from session/auth and
-pass the validated session through `chat({ context: { session } })`. If you accept a
-thread id from the request body, validate it belongs to the session user BEFORE using it.
+`MemoryScope` is an alias of the shared `Scope` type from `@tanstack/ai`:
+`{ threadId, userId?, tenantId?, namespace? }`. It is the isolation boundary. **Never
+trust a client-supplied `userId`/`threadId`.** Resolve scope server-side from
+session/auth and pass the validated session through `chat({ context: { session } })`. If
+you accept a thread id from the request body, validate it belongs to the session user
+BEFORE using it.
 
 ## Adapters
 

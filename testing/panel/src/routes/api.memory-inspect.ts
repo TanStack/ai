@@ -11,13 +11,13 @@ export const Route = createFileRoute('/api/memory-inspect')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const sessionId =
-          new URL(request.url).searchParams.get('sessionId') ?? ''
-        const scope = { sessionId }
+        const threadId =
+          new URL(request.url).searchParams.get('threadId') ?? ''
+        const scope = { threadId }
 
         const snapshot = await memoryAdapter.inspect?.(scope)
         const facts = await memoryAdapter.listFacts?.(scope)
-        const lastRecall = lastRecallBySession.get(sessionId) ?? null
+        const lastRecall = lastRecallBySession.get(threadId) ?? null
 
         return new Response(
           JSON.stringify({

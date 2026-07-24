@@ -13,8 +13,8 @@ import type {
  * pure reducers (mirroring `hook-registry.ts`) so the mapping from events →
  * view state is unit-testable in isolation, without a Solid store.
  *
- * Memory is keyed by scope (sessionId), NOT by hook — several hooks can share
- * one session. The `MemoryPanel` reads a single `MemoryScopeState` by key; the
+ * Memory is keyed by scope (threadId), NOT by hook — several hooks can share
+ * one thread. The `MemoryPanel` reads a single `MemoryScopeState` by key; the
  * per-hook tab just resolves which key to show.
  */
 
@@ -60,11 +60,12 @@ export interface MemorySnapshotRecord {
   facts: Array<MemoryFactRecord>
 }
 
-/** Everything known about memory for a single scope (sessionId). */
+/** Everything known about memory for a single scope (threadId). */
 export interface MemoryScopeState {
   key: string
-  sessionId: string
+  threadId: string
   userId?: string
+  tenantId?: string
   /** Most recent adapter id seen for this scope. */
   adapter?: string
   events: Array<MemoryEventRecord>
@@ -80,10 +81,10 @@ export function createMemoryRegistryState(): MemoryRegistryState {
   return { scopes: {} }
 }
 
-/** Stable scope key. Empty/absent sessionId (e.g. error scope) buckets to `(unknown)`. */
+/** Stable scope key. Empty/absent threadId (e.g. error scope) buckets to `(unknown)`. */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
-  const sessionId = scope?.sessionId
-  return sessionId && sessionId.length > 0 ? sessionId : '(unknown)'
+  const threadId = scope?.threadId
+  return threadId && threadId.length > 0 ? threadId : '(unknown)'
 }
 
 const MAX_EVENTS_PER_SCOPE = 200
@@ -97,14 +98,16 @@ function ensureScope(
   if (!entry) {
     entry = {
       key,
-      sessionId: scope?.sessionId ?? '',
+      threadId: scope?.threadId ?? '',
       userId: scope?.userId,
+      tenantId: scope?.tenantId,
       events: [],
       lastActivity: 0,
     }
     state.scopes[key] = entry
   }
   if (scope?.userId) entry.userId = scope.userId
+  if (scope?.tenantId) entry.tenantId = scope.tenantId
   return entry
 }
 

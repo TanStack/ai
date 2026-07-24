@@ -11,7 +11,7 @@ describe('inMemory options', () => {
         { text: `fact: ${turn.user}`, kind: 'fact', importance: 1 },
       ],
     })
-    const scope = { sessionId: 's1', userId: 'u1' }
+    const scope = { threadId: 's1', userId: 'u1' }
     await adapter.save(scope, { user: 'I live in Berlin', assistant: 'ok' })
     const result = await adapter.recall(scope, 'Berlin')
     expect(result.systemPrompt).toContain('fact:')
@@ -21,16 +21,32 @@ describe('inMemory options', () => {
   it('respects the userId dimension of scope', async () => {
     const adapter = inMemory()
     await adapter.save(
-      { sessionId: 's', userId: 'a' },
+      { threadId: 's', userId: 'a' },
       {
         user: 'apples are red',
         assistant: 'ok',
       },
     )
-    const sameSessionOtherUser = await adapter.recall(
-      { sessionId: 's', userId: 'b' },
+    const sameThreadOtherUser = await adapter.recall(
+      { threadId: 's', userId: 'b' },
       'apples',
     )
-    expect(sameSessionOtherUser.systemPrompt).toBe('')
+    expect(sameThreadOtherUser.systemPrompt).toBe('')
+  })
+
+  it('respects the tenantId dimension of scope', async () => {
+    const adapter = inMemory()
+    await adapter.save(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-a' },
+      {
+        user: 'apples are red',
+        assistant: 'ok',
+      },
+    )
+    const otherTenant = await adapter.recall(
+      { threadId: 's', userId: 'u', tenantId: 'tenant-b' },
+      'apples',
+    )
+    expect(otherTenant.systemPrompt).toBe('')
   })
 })

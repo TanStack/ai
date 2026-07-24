@@ -31,7 +31,7 @@ export interface AIDevtoolsDisplayOptions {
  * depend on `ai-memory`; the memory middleware is the producer.
  */
 interface MemoryStateEventValue {
-  scope: { sessionId?: string; userId?: string }
+  scope: { threadId?: string; userId?: string; tenantId?: string }
   adapter: string
   query?: string
   recall?: {

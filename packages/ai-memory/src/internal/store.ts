@@ -94,13 +94,17 @@ export interface RecordStore {
 /**
  * Exact scope match. In the recall/save model the scope is always fully
  * specified at both write and read (same middleware, same resolver), so a
- * record is in-scope iff its `sessionId` matches and — when the query carries a
- * `userId` — its `userId` matches too.
+ * record is in-scope iff its `threadId` matches and — when the query carries a
+ * `userId` / `tenantId` — those dimensions match too. `namespace` is reserved
+ * and ignored until a subsystem keys on it.
  */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
-  if (record.sessionId !== query.sessionId) return false
+  if (record.threadId !== query.threadId) return false
   if (query.userId != null && query.userId !== '') {
-    return record.userId === query.userId
+    if (record.userId !== query.userId) return false
+  }
+  if (query.tenantId != null && query.tenantId !== '') {
+    if (record.tenantId !== query.tenantId) return false
   }
   return true
 }

@@ -54,13 +54,13 @@ as `inMemory()`.
 ## Storage model
 
 ```text
-{prefix}:record:{id}                       -> JSON record
-{prefix}:index:{userId or _}:{sessionId}   -> Set<id>
+{prefix}:record:{id}                                          -> JSON record
+{prefix}:index:{tenantId or _}:{userId or _}:{threadId}       -> Set<id>
 ```
 
 `save` writes the record and adds it to the scope's index set; `recall` loads the set,
-scores, and renders. Scope values are escaped so a `:` in a `userId`/`sessionId` can't
-collide two scopes.
+scores, and renders. Scope values are escaped so a `:` in a `tenantId`/`userId`/`threadId`
+can't collide two scopes.
 
 ## Ranking limits
 

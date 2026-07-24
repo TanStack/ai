@@ -8,7 +8,7 @@ import type {
 } from '../../store/memory-registry'
 
 /**
- * DevTools "Memory" tab. Memory is per-scope (sessionId), not per-hook, so this
+ * DevTools "Memory" tab. Memory is per-scope (threadId), not per-hook, so this
  * panel reads the whole `state.memory` registry and lets the user pick a scope
  * (defaulting to the most recently active). It renders two things:
  *   1. Live contents — the latest `inspect()` records + `listFacts()` facts,

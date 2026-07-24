@@ -1208,7 +1208,7 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     // Memory: the 5 `memory:*` operation events feed the timeline; `memory:snapshot`
-    // replaces the per-scope stored-state view. Keyed by scope (sessionId).
+    // replaces the per-scope stored-state view. Keyed by scope (threadId).
     type MemoryEventInput = Parameters<typeof applyMemoryEvent>[1]
     const recordMemoryEvent = (
       type: MemoryEventInput['type'],

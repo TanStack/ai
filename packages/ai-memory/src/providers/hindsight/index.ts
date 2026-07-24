@@ -1,6 +1,6 @@
 /**
  * Hindsight memory adapter. Hindsight owns extraction/ranking server-side and
- * buckets memory into per-conversation "banks" (`{userId}__{sessionId}`). Recall
+ * buckets memory into per-conversation "banks" (`{userId}__{threadId}`). Recall
  * returns a rendered prompt block AND a set of LLM tools (retain/recall/reflect)
  * that let the model take direct control of memory.
  *
@@ -113,7 +113,7 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
 
   function bankId(scope: MemoryScope): string {
     const user = options.user ?? scope.userId ?? 'demo-user'
-    return `${user}__${scope.sessionId}`
+    return `${user}__${scope.threadId}`
   }
 
   return {

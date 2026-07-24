@@ -8,7 +8,7 @@ import {
 } from '../src/store/memory-registry'
 import type { MemorySnapshotEvent } from '@tanstack/ai-event-client'
 
-const SCOPE = { sessionId: 'session-1' }
+const SCOPE = { threadId: 'session-1' }
 
 describe('memory registry', () => {
   it('accumulates the operation timeline per scope', () => {
@@ -106,17 +106,17 @@ describe('memory registry', () => {
     expect(state.scopes[memoryScopeKey(SCOPE)]!.lastActivity).toBe(40)
   })
 
-  it('isolates scopes and buckets missing sessionId to (unknown)', () => {
+  it('isolates scopes and buckets missing threadId to (unknown)', () => {
     const state = createMemoryRegistryState()
     applyMemoryEvent(state, {
       type: 'persist:started',
-      scope: { sessionId: 'a' },
+      scope: { threadId: 'a' },
       adapter: 'in-memory',
       timestamp: 1,
     })
     applyMemoryEvent(state, {
       type: 'error',
-      scope: { sessionId: '' },
+      scope: { threadId: '' },
       adapter: 'in-memory',
       phase: 'save',
       error: { name: 'Error', message: 'x' },

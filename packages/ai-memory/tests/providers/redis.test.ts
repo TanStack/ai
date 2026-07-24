@@ -19,7 +19,7 @@ describe('redis malformed rows', () => {
     const prefix = `test:${crypto.randomUUID()}`
     const client = mockClient()
     const adapter = redis({ redis: client, prefix })
-    const scope = { sessionId: 's', userId: 'u' }
+    const scope = { threadId: 's', userId: 'u', tenantId: 't' }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       await adapter.save(scope, {
@@ -27,7 +27,8 @@ describe('redis malformed rows', () => {
         assistant: 'noted',
       })
       // Find the stored record ids from the scope index and corrupt one.
-      const indexKey = `${prefix}:index:u:s`
+      // Index key is {tenantId}:{userId}:{threadId} (unset dims use escaped `_`).
+      const indexKey = `${prefix}:index:t:u:s`
       const ids = await client.smembers(indexKey)
       expect(ids.length).toBeGreaterThan(0)
       const badId = ids[0] as string
@@ -53,17 +54,17 @@ describe('redis scope-key hardening', () => {
     const client = mockClient()
     const adapter = redis({ redis: client, prefix })
 
-    // Without escaping, { userId: 'a:b', sessionId: 'c' } and
-    // { userId: 'a', sessionId: 'b:c' } both serialize to key `a:b:c`.
+    // Without escaping, { userId: 'a:b', threadId: 'c' } and
+    // { userId: 'a', threadId: 'b:c' } both serialize to key `_:a:b:c`.
     await adapter.save(
-      { userId: 'a:b', sessionId: 'c' },
+      { userId: 'a:b', threadId: 'c' },
       {
         user: 'confidential tenant one data',
         assistant: 'ok',
       },
     )
     const other = await adapter.recall(
-      { userId: 'a', sessionId: 'b:c' },
+      { userId: 'a', threadId: 'b:c' },
       'confidential',
     )
     expect(other.systemPrompt).toBe('')

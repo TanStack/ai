@@ -40,7 +40,7 @@ const mw = memoryMiddleware({
   adapter: inMemory(),
   // Function form derives scope per request. `ctx.threadId` is the stable
   // per-conversation id; add `userId` from your server-validated session.
-  scope: (ctx) => ({ sessionId: ctx.threadId }),
+  scope: (ctx) => ({ threadId: ctx.threadId }),
   role: 'recall+save', // or 'save-only' to persist without injecting
   onRecall: ({ query, result }) => {
     console.log('recalled', result.fragments?.length ?? 0, 'hits for', query)

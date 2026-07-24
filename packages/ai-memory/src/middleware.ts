@@ -282,7 +282,7 @@ export function memoryMiddleware(
 // ===========================
 
 function emptyScope(): MemoryScope {
-  return { sessionId: '' }
+  return { threadId: '' }
 }
 
 /**
