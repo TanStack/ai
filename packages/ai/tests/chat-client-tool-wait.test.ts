@@ -139,6 +139,62 @@ describe('client-tool wait lifecycle', () => {
     })
   })
 
+  it('stops before the agent loop when a pending interrupt boundary fails', async () => {
+    const { adapter, calls } = createMockAdapter({ iterations: [] })
+    const terminal = createTerminalSpy()
+    const interruptFailure = new Error('Interrupt persistence failed')
+    const failInterruptBoundary: ChatMiddleware = {
+      name: 'fail-interrupt-boundary',
+      onChunk(_context, chunk) {
+        if (
+          chunk.type === EventType.RUN_FINISHED &&
+          chunk.outcome?.type === 'interrupt'
+        ) {
+          throw interruptFailure
+        }
+      },
+    }
+
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Ask the client' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call-1',
+                type: 'function' as const,
+                function: { name: 'ask_client', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [clientTool('ask_client')],
+        middleware: [failInterruptBoundary, terminal.middleware],
+      }),
+    )
+
+    expect(calls).toHaveLength(0)
+    expect(chunks).toEqual([
+      expect.objectContaining({ type: EventType.RUN_STARTED }),
+      expect.objectContaining({
+        type: EventType.RUN_ERROR,
+        message: interruptFailure.message,
+      }),
+    ])
+    expect(terminal.onError).toHaveBeenCalledOnce()
+    expect(terminal.onError.mock.calls[0]?.[1].error).toMatchObject({
+      message: interruptFailure.message,
+      code: 'server',
+      cause: interruptFailure,
+    })
+    expect(terminal.onFinish).not.toHaveBeenCalled()
+    expect(terminal.onAbort).not.toHaveBeenCalled()
+  })
+
   it('ends OpenTelemetry spans and records duration while waiting', async () => {
     const { adapter } = createMockAdapter({ iterations: [clientToolTurn()] })
     const fakeTracer = createFakeTracer()
