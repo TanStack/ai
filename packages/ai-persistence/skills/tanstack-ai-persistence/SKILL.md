@@ -53,12 +53,12 @@ the result to `withPersistence`. The core never inspects your tables.
 
 ## Sub-skills
 
-| Need to...                                      | Read                                    |
-| ----------------------------------------------- | --------------------------------------- |
-| Wire server-side chat history, runs, interrupts | tanstack-ai-persistence-server/SKILL.md |
+| Need to...                                      | Read                                                  |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| Wire server-side chat history, runs, interrupts | tanstack-ai-persistence-server/SKILL.md               |
 | Survive reloads in the browser                  | ai-core/client-persistence/SKILL.md in `@tanstack/ai` |
-| Implement the store interfaces for your DB      | tanstack-ai-persistence-stores/SKILL.md |
-| Multi-instance locks (separate from state)      | tanstack-ai-persistence-locks/SKILL.md  |
+| Implement the store interfaces for your DB      | tanstack-ai-persistence-stores/SKILL.md               |
+| Multi-instance locks (separate from state)      | tanstack-ai-persistence-locks/SKILL.md                |
 
 Adding persistence to an app? Pick the recipe that matches what it already
 runs — each one writes a single `chat-persistence.ts` against the app's
