@@ -47,28 +47,44 @@ test.describe('Client-tool wait lifecycle', () => {
     expect(prematureStructuredParts).toHaveLength(0)
 
     if (!testId) throw new Error('client-tool wait test requires testId')
-    const captureResponse = await page.request.get(
-      `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`,
-    )
-    expect(captureResponse.ok()).toBe(true)
-    const capture = await captureResponse.json()
+    await expect
+      .poll(
+        async () => {
+          const captureResponse = await page.request.get(
+            `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`,
+          )
+          expect(captureResponse.ok()).toBe(true)
+          const capture = await captureResponse.json()
 
-    const rootSpans = capture.spans.filter(
-      (span: any) => span.kind === SpanKind.INTERNAL,
-    )
-    expect(rootSpans).toHaveLength(1)
-    expect(rootSpans[0].ended).toBe(true)
+          const rootSpans = capture.spans.filter(
+            (span: any) => span.kind === SpanKind.INTERNAL,
+          )
+          const iterationSpans = capture.spans.filter(
+            (span: any) => span.kind === SpanKind.CLIENT,
+          )
+          const durationRecords = capture.histograms.filter(
+            (record: any) => record.name === 'gen_ai.client.operation.duration',
+          )
 
-    const iterationSpans = capture.spans.filter(
-      (span: any) => span.kind === SpanKind.CLIENT,
-    )
-    expect(iterationSpans).toHaveLength(1)
-    expect(iterationSpans[0].ended).toBe(true)
+          if (
+            rootSpans.length === 0 ||
+            rootSpans.some((span: any) => !span.ended) ||
+            iterationSpans.length === 0 ||
+            iterationSpans.some((span: any) => !span.ended) ||
+            durationRecords.length === 0
+          ) {
+            return null
+          }
 
-    const durationRecords = capture.histograms.filter(
-      (record: any) => record.name === 'gen_ai.client.operation.duration',
-    )
-    expect(durationRecords).toHaveLength(1)
+          return {
+            rootSpans: rootSpans.length,
+            iterationSpans: iterationSpans.length,
+            durationRecords: durationRecords.length,
+          }
+        },
+        { timeout: 15000 },
+      )
+      .toEqual({ rootSpans: 1, iterationSpans: 1, durationRecords: 1 })
 
     await page.locator('#mw-client-tool-resolve').click()
 
