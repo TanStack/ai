@@ -1,14 +1,15 @@
 ---
-name: tanstack-ai-persistence-client
+name: ai-core/client-persistence
 description: >
   Browser chat persistence on useChat / ChatClient: localStoragePersistence,
   sessionStoragePersistence, indexedDBPersistence. Client-authoritative
   (full transcript) vs server-authoritative (messages: false resume pointer).
   Reload restore, pending interrupts, mid-stream rejoin with delivery
   durability. Use for SPA reload durability — NOT server history alone.
+  No extra package: the adapters ship in the framework packages.
 type: sub-skill
-library: tanstack-ai-persistence
-library_version: '0.0.0'
+library: tanstack-ai
+library_version: '0.10.0'
 sources:
   - 'TanStack/ai:docs/persistence/client-persistence.md'
   - 'TanStack/ai:docs/persistence/overview.md'
@@ -16,13 +17,13 @@ sources:
 
 # Client Persistence
 
-> Builds on **tanstack-ai-persistence** and `ai-core/chat-experience` in
-> `@tanstack/ai`.
+> Builds on ai-core, and on `ai-core/chat-experience` for `useChat` itself.
 >
-> **Package note:** the browser adapters below ship in the **framework**
-> packages (`@tanstack/ai-react` and friends), not in
-> `@tanstack/ai-persistence`. This skill lives beside the server persistence
-> skills because the two halves are one story.
+> **No extra package.** The adapters below ship in the **framework** packages
+> (`@tanstack/ai-react` and friends, re-exported from `@tanstack/ai-client`),
+> so browser persistence needs nothing installed beyond what a chat UI already
+> has. The **server** half is a separate package — see
+> `@tanstack/ai-persistence` and its `tanstack-ai-persistence-server` skill.
 
 A `ChatClient` / `useChat` keeps messages in memory. The `persistence` option
 stores one record per `threadId` so a reload can repaint the transcript,
@@ -137,6 +138,6 @@ IndexedDB with care.
 
 ## Cross-references
 
-- **tanstack-ai-persistence-server** — authoritative server half
-- **ai-core/chat-experience** (`@tanstack/ai`) — `useChat`, resumable connections
+- **tanstack-ai-persistence-server** (`@tanstack/ai-persistence`) — authoritative server half
+- **ai-core/chat-experience** — `useChat`, resumable connections
 - Resumable streams docs — mid-stream rejoin

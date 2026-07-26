@@ -5,7 +5,8 @@ description: >
   Authoritative transcript, run lifecycle, durable interrupts/approvals,
   chatParamsFromRequest, reconstructChat, snapshotStreaming. Use when the
   server owns history, multi-device, or durable tool approvals. NOT client
-  localStorage (see tanstack-ai-persistence-client) and NOT stream reconnect
+  localStorage (see ai-core/client-persistence in @tanstack/ai) and NOT
+  stream reconnect
   alone.
 type: sub-skill
 library: tanstack-ai-persistence
@@ -173,5 +174,5 @@ That is delivery durability (resumable streams), not state persistence.
 
 - **tanstack-ai-persistence** — layers and recommended stack
 - **tanstack-ai-persistence-stores** — implement the store interfaces
-- **tanstack-ai-persistence-client** — browser half
+- **ai-core/client-persistence** (`@tanstack/ai`) — browser half
 - **tanstack-ai-persistence-locks** — multi-instance coordination

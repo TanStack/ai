@@ -59,7 +59,8 @@
     "tanstack",
     "memory",
     "redis",
-    "rag"
+    "rag",
+    "tanstack-intent"
   ],
   "dependencies": {
     "@tanstack/ai-event-client": "workspace:*"

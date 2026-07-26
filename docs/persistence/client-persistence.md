@@ -175,6 +175,51 @@ const persistence = indexedDBPersistence()
 Each throws only lazily, per operation, when its backing store is missing (for
 example during server-side rendering), so constructing one on the server is safe.
 
+### Writing your own
+
+Any object with `getItem` / `setItem` / `removeItem` works. The record is one
+`{ messages, resume? }` blob per chat id — the transcript plus the pointer that
+lets a reload rejoin an in-flight run — so `setItem` receives that whole record,
+not a bare message array:
+
+```ts
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+} from '@tanstack/ai-client'
+
+function isPersistedState(value: unknown): value is ChatPersistedState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'messages' in value &&
+    Array.isArray(value.messages)
+  )
+}
+
+const persistence: ChatClientPersistence = {
+  getItem(id) {
+    const raw = localStorage.getItem(id)
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    // A bare array is the legacy messages-only format, still accepted.
+    if (Array.isArray(parsed)) return { messages: parsed }
+    return isPersistedState(parsed) ? parsed : null
+  },
+  setItem(id, state) {
+    localStorage.setItem(id, JSON.stringify(state))
+  },
+  removeItem(id) {
+    localStorage.removeItem(id)
+  },
+}
+```
+
+Reads are best-effort: a `getItem` that throws or returns `null` is treated as
+"nothing stored", so an adapter that parses the wrong shape fails **silently** —
+the conversation just does not come back. Round-trip your adapter once against a
+real reload before shipping it.
+
 ## Client and server are independent
 
 Client persistence restores what one browser rendered. Server persistence

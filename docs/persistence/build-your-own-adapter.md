@@ -450,13 +450,16 @@ matching skill loads itself into context:
 | -------------------------------------------------- | ---------------------------------------------------------------- |
 | `tanstack-ai-persistence`                          | Entry point — routes to everything below                        |
 | `tanstack-ai-persistence-server`                   | `withPersistence`, run lifecycle, interrupts, `reconstructChat` |
-| `tanstack-ai-persistence-client`                   | Browser persistence on `useChat`                                |
 | `tanstack-ai-persistence-stores`                   | The store contracts and their invariants                        |
 | `tanstack-ai-persistence-locks`                    | `LockStore` / `withLocks` coordination                          |
 | `tanstack-ai-persistence-build-drizzle-adapter`    | `chat-persistence.ts` for a Drizzle app (SQLite / Postgres / MySQL) |
 | `tanstack-ai-persistence-build-prisma-adapter`     | `chat-persistence.ts` for a Prisma app                          |
 | `tanstack-ai-persistence-build-cloudflare-adapter` | `chat-persistence.ts` for a Worker on D1, plus Durable Object locks |
 | `tanstack-ai-persistence-build-custom-adapter`     | `chat-persistence.ts` for anything else — raw `pg`, Kysely, SQLite, Mongo, Supabase |
+
+Browser-side persistence is not in this package — its skill ships with
+`@tanstack/ai` as `ai-core/client-persistence`, alongside the framework code it
+teaches.
 
 They are plain Markdown at
 `node_modules/@tanstack/ai-persistence/skills/<skill-name>/SKILL.md` if you

@@ -25,6 +25,7 @@ Always import from the framework package on the client — never from
 | Need to...                                        | Read                                          |
 | ------------------------------------------------- | --------------------------------------------- |
 | Build a chat UI with streaming                    | ai-core/chat-experience/SKILL.md              |
+| Survive a browser reload (no extra package)       | ai-core/client-persistence/SKILL.md           |
 | Add tool calling (server, client, or both)        | ai-core/tool-calling/SKILL.md                 |
 | Generate images, video, speech, or transcriptions | ai-core/media-generation/SKILL.md             |
 | Get typed JSON responses from the LLM             | ai-core/structured-outputs/SKILL.md           |
@@ -33,7 +34,7 @@ Always import from the framework package on the client — never from
 | Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                   |
 | Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md   |
 | Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                |
-| Persist chats (server, browser, adapters, locks)  | See `@tanstack/ai-persistence` package skills |
+| Persist chats server-side (history, runs, locks)  | See `@tanstack/ai-persistence` package skills |
 | Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills   |
 
 ## Companion packages
@@ -56,17 +57,24 @@ skills walk you through it (including Drizzle, Prisma, and Cloudflare recipes).
 
 ```bash
 pnpm add @tanstack/ai-persistence
+npx @tanstack/intent@latest install
 ```
+
+The skills ship **inside** the package, so they only exist on disk once it is
+installed — the second command re-scans `node_modules` and wires them into the
+agent config. Until then the paths below resolve to nothing.
 
 Entry point: `node_modules/@tanstack/ai-persistence/skills/tanstack-ai-persistence/SKILL.md`
 
 | Need to...                                      | Read                                             |
 | ----------------------------------------------- | ------------------------------------------------ |
 | Wire server-side chat history, runs, interrupts | tanstack-ai-persistence-server/SKILL.md          |
-| Survive reloads in the browser                  | tanstack-ai-persistence-client/SKILL.md          |
 | Implement the store interfaces for your DB      | tanstack-ai-persistence-stores/SKILL.md          |
 | Multi-instance locks (separate from state)      | tanstack-ai-persistence-locks/SKILL.md           |
-| Build a Drizzle / Prisma / Cloudflare adapter   | tanstack-ai-persistence-build-*-adapter/SKILL.md |
+| Write the adapter for the DB your app runs      | tanstack-ai-persistence-build-*-adapter/SKILL.md |
+
+Browser-side persistence is **not** in this package — it ships with the
+framework packages, so read **ai-core/client-persistence** instead.
 
 ### `@tanstack/ai-code-mode` — LLM code execution
 

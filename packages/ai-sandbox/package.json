@@ -19,7 +19,8 @@
     "agent",
     "coding-agent",
     "isolation",
-    "workspace"
+    "workspace",
+    "tanstack-intent"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
