@@ -179,7 +179,7 @@ route** — derive the user from the session, never trust a client-supplied id.
 
 ## 7. Durable Object lock store (only if needed)
 
-Implement `LockStore` from `@tanstack/ai`. `withLock(key, fn)`
+Implement `LockStore` from `@tanstack/ai/locks`. `withLock(key, fn)`
 routes each key to a Durable Object instance (`idFromName(key)`) that serializes
 owners. Use **leases** so a crashed owner cannot block forever: the DO grants a
 lease with an expiry, an alarm reclaims it, and the lock passes the callback an
@@ -195,7 +195,7 @@ export { ChatLockDurableObject } from './locks'
 Then wire both middlewares:
 
 ```ts ignore
-import { withLocks } from '@tanstack/ai'
+import { withLocks } from '@tanstack/ai/locks'
 import { withPersistence } from '@tanstack/ai-persistence'
 
 const middleware = [

@@ -451,7 +451,7 @@ matching skill loads itself into context:
 | `ai-persistence`                          | Entry point — routes to everything below                            |
 | `ai-persistence/server`                   | `withPersistence`, run lifecycle, interrupts, `reconstructChat`     |
 | `ai-persistence/stores`                   | The store contracts and their invariants                            |
-| `ai-core/locks`                           | `LockStore` / `withLocks` coordination (ships in `@tanstack/ai`)    |
+| `ai-core/locks`                           | `LockStore` / `withLocks` coordination (ships in `@tanstack/ai/locks`) |
 | `ai-persistence/build-drizzle-adapter`    | `chat-persistence.ts` for a Drizzle app (SQLite / Postgres / MySQL) |
 | `ai-persistence/build-prisma-adapter`     | `chat-persistence.ts` for a Prisma app                              |
 | `ai-persistence/build-cloudflare-adapter` | `chat-persistence.ts` for a Worker on D1, plus Durable Object locks |
@@ -552,7 +552,7 @@ reject nullish values outright the way the SQLite store above does.
 ## Not a store: `LockStore`
 
 Mutual exclusion is **not** part of `AIPersistence.stores`. Wire it with
-`withLocks` from `@tanstack/ai`. Full guide: [Locks](../advanced/locks).
+`withLocks` from `@tanstack/ai/locks`. Full guide: [Locks](../advanced/locks).
 
 ## Where to go next
 

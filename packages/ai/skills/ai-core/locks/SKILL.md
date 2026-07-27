@@ -35,7 +35,7 @@ per-thread (or other) lock yourself when multi-writer races matter.
 ## Wire locks
 
 ```ts
-import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 
 middleware: [
   withLocks(new InMemoryLockStore()), // single process
@@ -45,7 +45,7 @@ middleware: [
 Alongside persistence — optional, locks do not require it:
 
 ```ts
-import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { withPersistence } from '@tanstack/ai-persistence'
 
 middleware: [withPersistence(persistence), withLocks(new InMemoryLockStore())]
@@ -63,7 +63,7 @@ interface LockStore {
 }
 ```
 
-`InMemoryLockStore` ships in **`@tanstack/ai`**: a per-key promise chain,
+`InMemoryLockStore` ships in **`@tanstack/ai/locks`**: a per-key promise chain,
 correct **within a single process only**. Multi-instance deployments need a
 distributed implementation — you write it. The Cloudflare Durable Object recipe
 is in **ai-persistence/build-cloudflare-adapter** (`@tanstack/ai-persistence`).
@@ -83,7 +83,7 @@ cannot be lost.
 
 ## Capability identity
 
-The `'locks'` capability token lives in core `@tanstack/ai`. Capability identity
+The `'locks'` capability token lives in `@tanstack/ai/locks`. Capability identity
 is by **object reference**, so one shared token means a `withLocks` in the chain
 reaches `withSandbox` automatically.
 

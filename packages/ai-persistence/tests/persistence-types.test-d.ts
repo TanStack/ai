@@ -6,8 +6,8 @@ import {
   withPersistence,
   withGenerationPersistence,
 } from '../src'
-import { InMemoryLockStore, withLocks } from '@tanstack/ai'
-import type { LockStore } from '@tanstack/ai'
+import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AIPersistence,
   ChatPersistence,

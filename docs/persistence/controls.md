@@ -99,12 +99,12 @@ for the store contracts.
 
 ## Locks (coordination)
 
-Locks are **not** state stores. They live in `@tanstack/ai` (`withLocks`,
+Locks are **not** state stores. They live in `@tanstack/ai/locks` (`withLocks`,
 `LockStore`) and cannot be composed with `composePersistence`. Full guide:
 [Locks](../advanced/locks).
 
 ```ts
-import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { withPersistence, memoryPersistence } from '@tanstack/ai-persistence'
 
 const middleware = [

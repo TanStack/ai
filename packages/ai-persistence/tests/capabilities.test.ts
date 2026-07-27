@@ -1,19 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { EventType, chat, defineChatMiddleware } from '@tanstack/ai'
 import {
-  EventType,
   InMemoryLockStore,
   LocksCapability,
-  chat,
-  defineChatMiddleware,
   getLocks,
   withLocks,
-} from '@tanstack/ai'
+} from '@tanstack/ai/locks'
 import type {
   AnyTextAdapter,
   ChatMiddlewareContext,
-  LockStore,
   StreamChunk,
 } from '@tanstack/ai'
+import type { LockStore } from '@tanstack/ai/locks'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import {

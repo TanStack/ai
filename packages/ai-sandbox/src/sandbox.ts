@@ -6,8 +6,9 @@
  * into a stable instance key and coordinates through the (optional) lock +
  * sandbox stores.
  */
-import { InMemoryLockStore } from '@tanstack/ai'
-import type { LockStore, SandboxFileHookEvent } from '@tanstack/ai'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
+import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'

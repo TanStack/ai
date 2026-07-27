@@ -65,7 +65,7 @@ mistake when writing an adapter.
 **`stores` accepts exactly four keys** — `messages`, `runs`, `interrupts`,
 `metadata`. Anything else (notably `locks` or sandbox instance maps) throws
 `Unknown AIPersistence store key` at runtime and fails to type-check. Locks:
-**ai-core/locks** / `@tanstack/ai`. Sandbox instance resume:
+**ai-core/locks** / `@tanstack/ai/locks`. Sandbox instance resume:
 `@tanstack/ai-sandbox`.
 
 ## Contracts and invariants

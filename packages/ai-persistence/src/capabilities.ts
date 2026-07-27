@@ -2,7 +2,7 @@
  * Persistence capability tokens.
  *
  * `withPersistence` PROVIDES persistence/interrupts so later middleware can
- * read durable chat state. Locks live in `@tanstack/ai` (`withLocks`).
+ * read durable chat state. Locks live in `@tanstack/ai/locks` (`withLocks`).
  */
 import { createCapability } from '@tanstack/ai'
 import type { AIPersistence, InterruptStore } from './types'

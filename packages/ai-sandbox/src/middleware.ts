@@ -14,7 +14,8 @@
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
  * chunks), not from here — middleware setup runs before streaming begins.
  */
-import { LocksCapability, defineChatMiddleware } from '@tanstack/ai'
+import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
   SandboxCapability,

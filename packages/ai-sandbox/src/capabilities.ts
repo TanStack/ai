@@ -5,7 +5,7 @@
  *   adapters (`requires: [SandboxCapability]`).
  * - `SandboxStoreCapability` is OPTIONALLY required by `withSandbox` (in-memory
  *   fallback when absent).
- * - `LocksCapability` lives in `@tanstack/ai` and is not re-exported here.
+ * - `LocksCapability` lives in `@tanstack/ai/locks` and is not re-exported here.
  */
 import { createCapability } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'

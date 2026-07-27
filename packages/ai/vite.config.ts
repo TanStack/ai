@@ -32,6 +32,7 @@ export default mergeConfig(
     entry: [
       './src/index.ts',
       './src/client.ts',
+      './src/locks.ts',
       './src/activities/index.ts',
       './src/middlewares/index.ts',
       './src/middlewares/otel.ts',

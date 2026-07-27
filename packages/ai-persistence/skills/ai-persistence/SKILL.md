@@ -42,14 +42,14 @@ drives them, an in-memory reference backend, and a conformance testkit. It does
 stores against whatever you already run — Postgres, SQLite, D1, Mongo — and hand
 the result to `withPersistence`. The core never inspects your tables.
 
-| Ships in the package                                                  | What it is                                             |
-| --------------------------------------------------------------------- | ------------------------------------------------------ |
-| `MessageStore` / `RunStore` / `InterruptStore` / `MetadataStore`      | The four state contracts                               |
-| `withPersistence` / `withGenerationPersistence`                       | Chat + generation middleware                           |
-| `memoryPersistence()`                                                 | In-process reference backend (dev, tests)              |
-| `reconstructChat`                                                     | Server hydrate route helper                            |
-| `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai`) | Coordination, **not** this package — see ai-core/locks |
-| `@tanstack/ai-persistence/testkit`                                    | `runPersistenceConformance` compatibility gate         |
+| Ships in the package                                                        | What it is                                             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `MessageStore` / `RunStore` / `InterruptStore` / `MetadataStore`            | The four state contracts                               |
+| `withPersistence` / `withGenerationPersistence`                             | Chat + generation middleware                           |
+| `memoryPersistence()`                                                       | In-process reference backend (dev, tests)              |
+| `reconstructChat`                                                           | Server hydrate route helper                            |
+| `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai/locks`) | Coordination, **not** this package — see ai-core/locks |
+| `@tanstack/ai-persistence/testkit`                                          | `runPersistenceConformance` compatibility gate         |
 
 ## Sub-skills
 
@@ -109,7 +109,7 @@ Never post a delta as `messages` — that wipes history down to the delta.
 1. **Client:** `persistence: { store, messages: false }` — resume pointer only.
 2. **Server:** `withPersistence(backend)` — messages + runs + interrupts.
 3. **Route:** delivery durability if mid-stream reconnect matters.
-4. **Optional:** `withLocks(distributedLockStore)` from `@tanstack/ai` when other middleware needs multi-instance coordination (not part of the state bag).
+4. **Optional:** `withLocks(distributedLockStore)` from `@tanstack/ai/locks` when other middleware needs multi-instance coordination (not part of the state bag).
 
 ## Minimal end-to-end sketch
 
@@ -171,7 +171,7 @@ mount (thread id is the key). Pair with a server load path such as
 2. **`saveThread` is full overwrite**, never append.
 3. **`createOrResume` is insert-if-absent** for the same `runId`.
 4. **Interrupt `create` is insert-if-absent** — never clobber resolved → pending.
-5. **Locks ≠ state.** Import `withLocks` from `@tanstack/ai`. Sandbox resume is a sandbox-package concern — not a `stores` key. `stores` accepts only `messages`, `runs`, `interrupts`, `metadata`.
+5. **Locks ≠ state.** Import `withLocks` from `@tanstack/ai/locks`. Sandbox resume is a sandbox-package concern — not a `stores` key. `stores` accepts only `messages`, `runs`, `interrupts`, `metadata`.
 6. **You own the schema.** No package invents migrations for you.
 7. **Run the conformance testkit** against any adapter you write.
 8. **Authorize thread access** at the route boundary.

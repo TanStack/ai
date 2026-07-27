@@ -47,7 +47,8 @@ You do **not** need locks for:
 ## Wire it up
 
 ```ts
-import { chat, withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { grokBuildText } from '@tanstack/ai-grok-build'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -71,7 +72,7 @@ Capability identity is by **object reference**. `withLocks` provides the shared
 Typical order when composing with sandbox:
 
 ```ts
-import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import type { SandboxDefinition } from '@tanstack/ai-sandbox'
 
@@ -86,7 +87,7 @@ const middleware = [
 ## The contract
 
 ```ts
-import type { LockStore } from '@tanstack/ai'
+import type { LockStore } from '@tanstack/ai/locks'
 
 declare const locks: LockStore
 
@@ -145,11 +146,8 @@ separate seams: `withPersistence` for the bag, `withLocks` for the mutex.
 ## Consume in custom middleware
 
 ```ts
-import {
-  LocksCapability,
-  defineChatMiddleware,
-  getLocks,
-} from '@tanstack/ai'
+import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability, getLocks } from '@tanstack/ai/locks'
 
 const serializePerThread = defineChatMiddleware({
   name: 'serialize-per-thread',
