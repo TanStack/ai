@@ -12,5 +12,6 @@ export {
   provideLocks,
   InMemoryLockStore,
   withLocks,
+  defineLock,
 } from './activities/chat/middleware/index'
 export type { LockStore } from './activities/chat/middleware/index'

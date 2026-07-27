@@ -68,6 +68,28 @@ correct **within a single process only**. Multi-instance deployments need a
 distributed implementation — you write it. The Cloudflare Durable Object recipe
 is in **ai-persistence/build-cloudflare-adapter** (`@tanstack/ai-persistence`).
 
+Type your own store with `defineLock` (autocomplete, no `: LockStore`
+annotation), then hand it to `withLocks`. Acquire the key, run `fn`, release when
+`fn` settles:
+
+```ts
+import { defineLock, withLocks } from '@tanstack/ai/locks'
+import { acquire } from './my-lock-backend'
+
+const locks = defineLock({
+  async withLock(key, fn) {
+    const { release, signal } = await acquire(key)
+    try {
+      return await fn(signal)
+    } finally {
+      release()
+    }
+  },
+})
+
+middleware: [withLocks(locks)]
+```
+
 ## Lease semantics
 
 A good `LockStore`:

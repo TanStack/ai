@@ -48,5 +48,6 @@ export {
   provideLocks,
   InMemoryLockStore,
   withLocks,
+  defineLock,
 } from './locks'
 export type { LockStore } from './locks'

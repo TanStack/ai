@@ -605,13 +605,23 @@ interface MessageStore {
 ### RunStore
 
 ```ts
-import type { RunRecord } from '@tanstack/ai-persistence'
+import type { TokenUsage } from '@tanstack/ai'
+
+interface RunRecord {
+  runId: string
+  threadId: string
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
+  startedAt: number // epoch ms
+  finishedAt?: number // epoch ms, set once the run reaches a terminal status
+  error?: string
+  usage?: TokenUsage // token counts, from @tanstack/ai
+}
 
 interface RunStore {
   createOrResume(input: {
     runId: string
     threadId: string
-    status?: 'running' | 'completed' | 'failed' | 'interrupted'
+    status?: RunRecord['status']
     startedAt: number
   }): Promise<RunRecord>
   update(
@@ -632,7 +642,16 @@ id.
 ### InterruptStore
 
 ```ts
-import type { InterruptRecord } from '@tanstack/ai-persistence'
+interface InterruptRecord {
+  interruptId: string
+  runId: string
+  threadId: string
+  status: 'pending' | 'resolved' | 'cancelled'
+  requestedAt: number // epoch ms
+  resolvedAt?: number // epoch ms, set once resolved or cancelled
+  payload: Record<string, unknown>
+  response?: unknown
+}
 
 interface InterruptStore {
   create(record: Omit<InterruptRecord, 'status' | 'resolvedAt'>): Promise<void>

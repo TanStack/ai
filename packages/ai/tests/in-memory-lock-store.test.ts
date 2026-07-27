@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InMemoryLockStore } from '../src/locks'
+import { InMemoryLockStore, defineLock } from '../src/locks'
 
 describe('InMemoryLockStore', () => {
   it('serializes concurrent withLock calls on the same key', async () => {
@@ -34,5 +34,16 @@ describe('InMemoryLockStore', () => {
     const locks = new InMemoryLockStore()
     const result = await locks.withLock('v', () => Promise.resolve(42))
     expect(result).toBe(42)
+  })
+})
+
+describe('defineLock', () => {
+  it('types and returns a LockStore implementation inline', async () => {
+    const base = new InMemoryLockStore()
+    const locks = defineLock({
+      withLock: (key, fn) => base.withLock(key, fn),
+    })
+    const result = await locks.withLock('k', async () => 'done')
+    expect(result).toBe('done')
   })
 })

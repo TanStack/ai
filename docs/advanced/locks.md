@@ -109,6 +109,33 @@ await locks.withLock('thread:abc', async (signal) => {
 callers for the same key, does not poison the chain when a critical section
 throws, and never aborts its signal (ownership cannot be lost in-process).
 
+## Implement a lock
+
+Wrap your own mutual-exclusion primitive with `defineLock`. It types the object
+against the contract inline (autocomplete, no `: LockStore` annotation). Acquire
+the key, run `fn`, and release when `fn` settles (whether it resolves or throws):
+
+```ts
+import { defineLock } from '@tanstack/ai/locks'
+// Your distributed primitive. `acquire` waits until the key is free and returns
+// a `release` (plus, for leases, a `signal` that fires when ownership is lost).
+import { acquire } from './my-lock-backend'
+
+export const locks = defineLock({
+  async withLock(key, fn) {
+    const { release, signal } = await acquire(key)
+    try {
+      return await fn(signal)
+    } finally {
+      release()
+    }
+  },
+})
+```
+
+Wire it as middleware with `withLocks(locks)`. The requirements a production
+store must meet are covered below.
+
 ## Distributed locks and leases
 
 Multi-instance deployments need a **distributed** implementation (Durable Object,

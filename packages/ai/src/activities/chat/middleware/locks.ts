@@ -4,8 +4,7 @@
  * Capability identity is by object reference (see `createCapability`). Any
  * middleware may PROVIDE a {@link LockStore} via {@link withLocks} /
  * {@link provideLocks}; consumers (notably `@tanstack/ai-sandbox` `ensure`)
- * read it with {@link getLocks}. Not a state-persistence concern — do not put
- * locks on a stores bag.
+ * read it with {@link getLocks}. Coordination, not state persistence.
  */
 import { createCapability } from './capabilities'
 import { defineChatMiddleware } from './define'
@@ -26,6 +25,15 @@ export interface LockStore {
     key: string,
     fn: (signal: AbortSignal) => Promise<T>,
   ) => Promise<T>
+}
+
+/**
+ * Type a {@link LockStore} implementation inline: pass the object and get
+ * autocomplete + contract checking, with no separate `: LockStore` annotation.
+ * Hand the result to {@link withLocks}.
+ */
+export function defineLock(lock: LockStore): LockStore {
+  return lock
 }
 
 /**
