@@ -57,7 +57,7 @@ Persistence runs on the client, the server, or both. They are independent, and t
 
 | Half | Stores | Survives | Use it for |
 | --- | --- | --- | --- |
-| **Client** ([Client persistence](./client-persistence)) | the transcript + a resume pointer, in `localStorage` / `sessionStorage` / `IndexedDB` | a page reload in that browser | instant restore on reload, SPA / offline apps |
+| **Client** ([Client persistence](./client-persistence)) | with a storage adapter, the transcript + a resume pointer in `localStorage` / `sessionStorage` / `IndexedDB`; with `persistence: true`, nothing (hydrates from the server on mount) | a page reload in that browser | instant restore on reload, SPA / offline apps |
 | **Server** ([Chat persistence](./chat-persistence)) | messages, run status, interrupts, in your own store | a server restart, and reaches every device | multi-device, audit, durable approvals |
 
 ### Identity: `Scope` and `threadId`
@@ -139,7 +139,7 @@ That single rule lets the two copies coexist without a merge conflict. Two postu
 
 ## What happens on a page reload
 
-On load, `useChat` reads the client record and acts on what it finds:
+With a client store adapter, on load `useChat` reads the client record and acts on what it finds:
 
 1. **The run had finished.** The record has the transcript, no resume pointer. The conversation paints instantly from storage. No network. (client persistence alone)
 2. **The run was paused on an interrupt.** The resume pointer carries the pending interrupts. The transcript paints and the approval UI comes back exactly as it was. (client persistence alone)
@@ -300,7 +300,7 @@ matching your database loads itself. The full skill list is in
 ## Where to go next
 
 - [Chat persistence](./chat-persistence): the server middleware, the authoritative-history contract, and durable interrupts.
-- [Client persistence](./client-persistence): client reload restore, the `messages` lever, storage backends, and mid-stream rejoin.
+- [Client persistence](./client-persistence): client- vs server-authoritative modes (`persistence: true`), reload restore, storage backends, and mid-stream rejoin.
 - [Controls](./controls): compose backends per store and choose which stores to run.
 - [Build your own adapter](./build-your-own-adapter): a complete SQLite example on the core, plus the store interface reference.
 - [Resumable streams](../resumable-streams/overview): the delivery-durability layer in full.
