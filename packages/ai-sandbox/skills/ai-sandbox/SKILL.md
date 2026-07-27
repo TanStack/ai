@@ -211,6 +211,38 @@ const policy = defineSandboxPolicy({
 provider + workspace hash + tenant so changing the repo/setup/image starts
 fresh. Ensure order: resume running → restore snapshot → create + bootstrap.
 
+## Instance durability (durable resume)
+
+Resume bookkeeping defaults to in-memory (single-process). For cross-process /
+multi-instance resume, implement a durable `SandboxInstanceStore` (BYO) and
+provide it with `withSandboxInstanceStore`. Pair multi-instance with
+`withLocks` from `@tanstack/ai`. Order: providers **before** `withSandbox`.
+
+```typescript
+import { chat, InMemoryLockStore, withLocks } from '@tanstack/ai'
+import {
+  InMemorySandboxInstanceStore,
+  withSandbox,
+  withSandboxInstanceStore,
+} from '@tanstack/ai-sandbox'
+// Production: your BYO store — docs/sandbox/durability.md
+import { instanceStore } from './sandbox-instance-store'
+
+chat({
+  adapter,
+  messages,
+  middleware: [
+    withSandboxInstanceStore(instanceStore),
+    withLocks(new InMemoryLockStore()), // multi-instance: distributed lock
+    withSandbox(sandbox),
+  ],
+})
+```
+
+Chat transcript durability (`withPersistence`) is independent — compose both
+when the app needs history _and_ instance reuse. Prove adapters with
+`runSandboxInstanceStoreConformance` from `@tanstack/ai-sandbox/testkit`.
+
 ## File-event hooks
 
 Watch the workspace for create/change/delete events. Provider-agnostic: native

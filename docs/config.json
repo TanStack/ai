@@ -515,6 +515,11 @@
           "updatedAt": "2026-07-09"
         },
         {
+          "label": "Instance Durability",
+          "to": "sandbox/durability",
+          "addedAt": "2026-07-27"
+        },
+        {
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",

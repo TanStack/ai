@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { defineSandbox } from '../src/sandbox'
 import { defineWorkspace, githubRepo } from '../src/workspace'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
-import { InMemorySandboxStore } from '../src/store'
+import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { FULL_CAPS, makeFakeProvider } from './fakes'
 import type { SandboxCapabilities } from '../src/contracts'
 
 const baseCtx = () => ({
   threadId: 'thread-1',
   runId: 'run-1',
-  store: new InMemorySandboxStore(),
+  store: new InMemorySandboxInstanceStore(),
   locks: new InMemoryLockStore(),
 })
 

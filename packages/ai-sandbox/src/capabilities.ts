@@ -3,20 +3,16 @@
  *
  * - `SandboxCapability` is PROVIDED by `withSandbox` and REQUIRED by harness
  *   adapters (`requires: [SandboxCapability]`).
- * - `SandboxStoreCapability` is OPTIONALLY required by `withSandbox` (in-memory
- *   fallback when absent).
- * - `LocksCapability` lives in `@tanstack/ai/locks` and is not re-exported here.
+ * - `SandboxInstanceStoreCapability` / `withSandboxInstanceStore` live in
+ *   `./instance-store` (same package). `LocksCapability` / `withLocks` stay in
+ *   `@tanstack/ai` and are not re-exported here.
  */
 import { createCapability } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
-import type { SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { ToolBridgeProvisioner } from './tool-bridge'
 
 export const SandboxCapability = createCapability<SandboxHandle>()('sandbox')
-
-export const SandboxStoreCapability =
-  createCapability<SandboxStore>()('sandbox-store')
 
 /**
  * The active sandbox policy, provided by `withSandbox` from the definition.
@@ -37,7 +33,6 @@ export const ToolBridgeProvisionerCapability =
 
 /** Destructured accessors for adapters: `getSandbox(ctx)` reads the handle. */
 export const [getSandbox, provideSandbox] = SandboxCapability
-export const [getSandboxStore, provideSandboxStore] = SandboxStoreCapability
 export const [getSandboxPolicy, provideSandboxPolicy] = SandboxPolicyCapability
 export const [getToolBridgeProvisioner, provideToolBridgeProvisioner] =
   ToolBridgeProvisionerCapability

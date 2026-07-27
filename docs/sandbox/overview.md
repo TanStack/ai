@@ -133,7 +133,8 @@ hands back a live preview URL, see `examples/sandbox-web` — one app with harne
 (Claude Code / Codex / OpenCode / Grok) and provider (Docker / local / Vercel /
 Daytona) pickers.
 
-> **Persistence-ready:** the sandbox layer ships with in-memory stores for
-> resume bookkeeping. A future persistence package can provide durable
-> `SandboxStore` / `LockStore` implementations (and event-log replay) by
-> supplying those optional capabilities — no changes to the sandbox layer.
+> **Durable instance resume:** bookkeeping defaults to in-memory (single-process).
+> For cross-process / multi-instance reuse, see
+> [Sandbox Instance Durability](./durability): implement a
+> `SandboxInstanceStore`, provide it with `withSandboxInstanceStore`, and pair a
+> distributed `LockStore` via `withLocks` from `@tanstack/ai/locks`.

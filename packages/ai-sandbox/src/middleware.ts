@@ -3,10 +3,11 @@
  * {@link SandboxCapability} a harness adapter requires.
  *
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
- *   algorithm), provide the handle, using optional SandboxStoreCapability /
- *   LocksCapability when provided earlier (in-memory fallback otherwise).
- *   If `fileEvents` is not false, starts a watcher that dispatches to
- *   sandbox-scoped hooks and forwards to the runtime sink.
+ *   algorithm), provide the handle, using optional
+ *   SandboxInstanceStoreCapability / LocksCapability when provided earlier
+ *   (in-memory fallback otherwise). If `fileEvents` is not false, starts a
+ *   watcher that dispatches to sandbox-scoped hooks and forwards to the runtime
+ *   sink.
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
@@ -19,10 +20,10 @@ import { LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
   SandboxCapability,
-  SandboxStoreCapability,
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
+import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
@@ -98,7 +99,7 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
   return {
     threadId: ctx.threadId,
     runId: ctx.runId,
-    store: ctx.getOptional(SandboxStoreCapability),
+    store: ctx.getOptional(SandboxInstanceStoreCapability),
     locks: ctx.getOptional(LocksCapability),
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
@@ -154,7 +155,7 @@ export function withSandbox(
     // SandboxPolicyCapability is provided conditionally (only when the
     // definition has a policy), so it is intentionally NOT declared here —
     // consumers read it via `getOptional`.
-    optionalRequires: [SandboxStoreCapability, LocksCapability],
+    optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
       const ensureCtx = buildEnsureCtx(ctx)
