@@ -218,6 +218,17 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+// Distributed-mutex primitive — coordination, not state persistence.
+// Consumers (e.g. @tanstack/ai-sandbox ensure) read LocksCapability; provide
+// via withLocks. Import from @tanstack/ai — not from @tanstack/ai-persistence.
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+  withLocks,
+} from './activities/chat/middleware/index'
+export type { LockStore } from './activities/chat/middleware/index'
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

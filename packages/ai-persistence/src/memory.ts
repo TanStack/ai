@@ -173,8 +173,8 @@ class MemoryMetadataStore implements MetadataStore {
  * In-process reference backend for **chat** state stores.
  *
  * Returns {@link ChatPersistence} (messages + runs + interrupts + metadata).
- * Locks are not included — use {@link InMemoryLockStore} + {@link withLocks}
- * when a test or single-process app needs coordination.
+ * Locks are not included — use `InMemoryLockStore` + `withLocks` from
+ * `@tanstack/ai` when a test or single-process app needs coordination.
  */
 export function memoryPersistence(): ChatPersistence {
   return defineAIPersistence({

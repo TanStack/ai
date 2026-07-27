@@ -23,7 +23,7 @@ sources:
 > (`@tanstack/ai-react` and friends, re-exported from `@tanstack/ai-client`),
 > so browser persistence needs nothing installed beyond what a chat UI already
 > has. The **server** half is a separate package — see
-> `@tanstack/ai-persistence` and its `tanstack-ai-persistence-server` skill.
+> `@tanstack/ai-persistence` and its `ai-persistence/server` skill.
 
 A `ChatClient` / `useChat` keeps messages in memory. The `persistence` option
 stores one record per `threadId` so a reload can repaint the transcript,
@@ -138,6 +138,6 @@ IndexedDB with care.
 
 ## Cross-references
 
-- **tanstack-ai-persistence-server** (`@tanstack/ai-persistence`) — authoritative server half
+- **ai-persistence/server** (`@tanstack/ai-persistence`) — authoritative server half
 - **ai-core/chat-experience** — `useChat`, resumable connections
 - Resumable streams docs — mid-stream rejoin

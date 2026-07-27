@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-stores
+name: ai-persistence/stores
 description: >
   Implement the MessageStore, RunStore, InterruptStore, MetadataStore contracts
   for @tanstack/ai-persistence against any database. defineAIPersistence,
@@ -8,7 +8,7 @@ description: >
   access, runPersistenceConformance testkit. Use whenever you need server
   persistence — the package ships contracts, not a backend for your database.
 type: sub-skill
-library: tanstack-ai-persistence
+library: tanstack-ai
 library_version: '0.0.0'
 sources:
   - 'TanStack/ai:docs/persistence/build-your-own-adapter.md'
@@ -18,7 +18,7 @@ sources:
 
 # Persistence Stores
 
-> Builds on **tanstack-ai-persistence** and **tanstack-ai-persistence-server**.
+> Builds on **ai-persistence** and **ai-persistence/server**.
 
 `@tanstack/ai-persistence` ships **contracts**, not a backend for your
 database. An adapter is an object with a `stores` map; implement the stores you
@@ -28,7 +28,7 @@ need against whatever you already run and hand the result to
 Use `memoryPersistence()` for dev and tests. Everything durable is an adapter
 you write. This skill is the contract reference; the per-stack recipes that
 write a `chat-persistence.ts` into an app are
-`tanstack-ai-persistence-build-{drizzle,prisma,cloudflare,custom}-adapter`, and
+`ai-persistence/build-{drizzle,prisma,cloudflare,custom}-adapter`, and
 a complete `node:sqlite` implementation lives in
 `examples/ts-react-chat/src/lib/sqlite-persistence.ts`.
 
@@ -53,7 +53,7 @@ export const persistence: ChatWithInterruptsPersistence = defineAIPersistence({
 | ------------------------------- | ------------------------------------------------ |
 | `ChatTranscriptPersistence`     | `messages` (+ optional runs/interrupts/metadata) |
 | `ChatWithInterruptsPersistence` | `messages` + `runs` + `interrupts`               |
-| `ChatPersistence`               | all four                                         |
+| `ChatPersistence`               | all four chat stores                             |
 
 `defineAIPersistence` preserves exact keys and rejects unknown keys at runtime.
 
@@ -63,9 +63,10 @@ all-optional sparse bag, so `withPersistence` and `reconstructChat` reject it
 mistake when writing an adapter.
 
 **`stores` accepts exactly four keys** — `messages`, `runs`, `interrupts`,
-`metadata`. Anything else (notably `locks`) throws
-`Unknown AIPersistence store key` at runtime and fails to type-check. Locks are
-a separate concern; see **tanstack-ai-persistence-locks**.
+`metadata`. Anything else (notably `locks` or sandbox instance maps) throws
+`Unknown AIPersistence store key` at runtime and fails to type-check. Locks:
+**ai-persistence/locks** / `@tanstack/ai`. Sandbox instance resume:
+`@tanstack/ai-sandbox`.
 
 ## Contracts and invariants
 
@@ -196,7 +197,8 @@ There is **no cross-store transaction** — if `messages` lives in Postgres and
 invariants (idempotent `createOrResume`, insert-if-absent `create`) are exactly
 what make those retries safe.
 
-`composePersistence` accepts only the four state keys. Locks are not composable.
+`composePersistence` accepts the four state keys. Locks and sandbox instance
+maps are not composable here.
 
 ## Map onto an existing schema
 
@@ -267,6 +269,6 @@ Silent semantic drift shows up as stuck approvals or wiped history in prod.
 
 ## Cross-references
 
-- **tanstack-ai-persistence-server** — when middleware calls each store
-- **tanstack-ai-persistence-build-drizzle-adapter** / **-prisma-** / **-cloudflare-** / **-custom-** — per-stack recipes
-- **tanstack-ai-persistence-locks** — not a state store
+- **ai-persistence/server** — when middleware calls each store
+- **ai-persistence/build-drizzle-adapter** / **-prisma-** / **-cloudflare-** / **-custom-** — per-stack recipes
+- **ai-persistence/locks** — not a state store

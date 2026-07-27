@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-build-cloudflare-adapter
+name: ai-persistence/build-cloudflare-adapter
 description: Use when a Cloudflare Worker needs TanStack AI chat persistence — writes a chat-persistence.ts into the app against its D1 binding (raw or via Drizzle), plus a Durable Object LockStore. Covers per-request bindings, wrangler config, D1 migrations, and lease-based locks.
 ---
 
@@ -16,7 +16,7 @@ migrations; a second bookkeeping table only creates drift.
 
 Read the **Build Your Own Adapter** guide
 (`docs/persistence/build-your-own-adapter.md`) for the store contracts, and
-**tanstack-ai-persistence-stores** for the shape rules. This skill covers only
+**ai-persistence/stores** for the shape rules. This skill covers only
 the Cloudflare-specific parts.
 
 ## 1. Read the app before writing anything
@@ -79,7 +79,7 @@ Two routes, same invariants:
 
 - **Drizzle over D1** — if the app already runs Drizzle, wrap the binding with
   `drizzle(env.DB, { schema })` and follow
-  **tanstack-ai-persistence-build-drizzle-adapter** verbatim (its "if `db` is
+  **ai-persistence/build-drizzle-adapter** verbatim (its "if `db` is
   per-request" section is exactly this case). Stop reading here.
 - **Raw D1** — implement the four stores against `d1.prepare(sql).bind(...)`:
   `.first()` for `get`, `.all()` for `list*`, `.run()` for writes. D1 speaks
@@ -179,7 +179,7 @@ route** — derive the user from the session, never trust a client-supplied id.
 
 ## 7. Durable Object lock store (only if needed)
 
-Implement `LockStore` from `@tanstack/ai-persistence`. `withLock(key, fn)`
+Implement `LockStore` from `@tanstack/ai`. `withLock(key, fn)`
 routes each key to a Durable Object instance (`idFromName(key)`) that serializes
 owners. Use **leases** so a crashed owner cannot block forever: the DO grants a
 lease with an expiry, an alarm reclaims it, and the lock passes the callback an
@@ -195,7 +195,8 @@ export { ChatLockDurableObject } from './locks'
 Then wire both middlewares:
 
 ```ts ignore
-import { withLocks, withPersistence } from '@tanstack/ai-persistence'
+import { withLocks } from '@tanstack/ai'
+import { withPersistence } from '@tanstack/ai-persistence'
 
 const middleware = [
   withPersistence(chatPersistence(env.AI_STATE)),
@@ -246,6 +247,7 @@ touches it. Cover at minimum: two concurrent `withLock` calls on the same key
 serialize; different keys do not block each other; a lease that expires aborts
 the signal handed to the critical section; and a callback that throws still
 releases the lock.
+
 
 ## Only if you are publishing this as a package
 

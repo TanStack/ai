@@ -99,27 +99,16 @@ for the store contracts.
 
 ## Locks (coordination)
 
-Locks are **not** state stores. They do not live on `AIPersistence` and cannot
-be composed with `composePersistence`. Provide them with a separate middleware:
+Locks are **not** state stores. They live in `@tanstack/ai` (`withLocks`,
+`LockStore`) and cannot be composed with `composePersistence`. Full guide:
+[Locks](../advanced/locks).
 
 ```ts
-import {
-  withPersistence,
-  withLocks,
-  InMemoryLockStore,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
-
-const persistence = memoryPersistence()
+import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withPersistence, memoryPersistence } from '@tanstack/ai-persistence'
 
 const middleware = [
-  withPersistence(persistence),
-  // Single process. Multi-instance deployments swap in a distributed
-  // LockStore — see the build-your-own-adapter guide.
-  withLocks(new InMemoryLockStore()),
+  withPersistence(memoryPersistence()),
+  withLocks(new InMemoryLockStore()), // multi-instance: distributed LockStore
 ]
 ```
-
-`withLocks` provides `LocksCapability` for downstream middleware (e.g. sandbox).
-It does not lock the whole chat turn automatically — take a per-thread lock in
-your own middleware when multi-writer coordination is required.

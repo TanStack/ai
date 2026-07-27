@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-build-custom-adapter
+name: ai-persistence/build-custom-adapter
 description: Use when an app needs TanStack AI chat persistence on a database with no dedicated recipe — raw Postgres (pg/postgres.js), Kysely, node:sqlite, MongoDB, Supabase, Redis. Writes a chat-persistence.ts against the app's existing client, covering the four stores, the idempotency invariants, and the conformance gate. Route to the Drizzle, Prisma, or Cloudflare skills instead when one of those matches.
 ---
 
@@ -15,14 +15,14 @@ Do not create a package, a second client, or a migration runner.
 **Route first.** If the app already runs one of these, stop and use that skill —
 it has the driver-specific code:
 
-| App runs                  | Use                                              |
-| ------------------------- | ------------------------------------------------ |
-| Drizzle ORM (any dialect) | tanstack-ai-persistence-build-drizzle-adapter    |
-| Prisma                    | tanstack-ai-persistence-build-prisma-adapter     |
-| Cloudflare Workers + D1   | tanstack-ai-persistence-build-cloudflare-adapter |
+| App runs                  | Use                                     |
+| ------------------------- | --------------------------------------- |
+| Drizzle ORM (any dialect) | ai-persistence/build-drizzle-adapter    |
+| Prisma                    | ai-persistence/build-prisma-adapter     |
+| Cloudflare Workers + D1   | ai-persistence/build-cloudflare-adapter |
 
 Everything else lands here. The full contracts and their invariants are in
-**tanstack-ai-persistence-stores**; the complete worked `node:sqlite` walkthrough
+**ai-persistence/stores**; the complete worked `node:sqlite` walkthrough
 is `docs/persistence/build-your-own-adapter.md` and
 `examples/ts-react-chat/src/lib/sqlite-persistence.ts`.
 
@@ -169,7 +169,7 @@ Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
 `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
 `messages`, `runs`, `interrupts`, `metadata`, and anything else throws
 `Unknown AIPersistence store key`. Coordination is wired separately with
-`withLocks` (see **tanstack-ai-persistence-locks**).
+`withLocks` (see **ai-persistence/locks**).
 
 If the client is per-request (Workers bindings, request-scoped transactions),
 export a `chatPersistence()` factory instead of a const and call it inside the
@@ -274,3 +274,6 @@ Point it at a throwaway database and reset between runs. Declare intentional
 omissions with `skip: ['metadata']` — it accepts only
 `'messages' | 'runs' | 'interrupts' | 'metadata'`, never `'locks'`, which is not
 a state store.
+
+
+

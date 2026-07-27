@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-build-prisma-adapter
+name: ai-persistence/build-prisma-adapter
 description: Use when an app already runs Prisma and needs TanStack AI chat persistence — writes a chat-persistence.ts into the app against its existing PrismaClient and schema.prisma. Covers the four models, BigInt timestamps, JSON-as-string columns, upsert-with-empty-update idempotency, and model renaming.
 ---
 
@@ -15,7 +15,7 @@ hand-written SQL migration. The app has those.
 
 Read the **Build Your Own Adapter** guide
 (`docs/persistence/build-your-own-adapter.md`) for the store contracts and
-invariants, and **tanstack-ai-persistence-stores** for the shape rules. Every
+invariants, and **ai-persistence/stores** for the shape rules. Every
 store below mirrors the reference in-memory backend in
 `@tanstack/ai-persistence` (`memory.ts`); the shared conformance testkit is the
 proof.
@@ -366,7 +366,7 @@ Notes that bite:
 - Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
   `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
   those four keys, and coordination is wired separately with `withLocks` (see
-  **tanstack-ai-persistence-locks**).
+  **ai-persistence/locks**).
 - If the app renamed the models, the delegate accessors are **camelCase**
   (`prisma.chatThread` for `model ChatThread`), and the row types imported from
   the client are PascalCase.
@@ -413,6 +413,7 @@ Point the client at a throwaway database with the migration applied (a scratch
 SQLite file is enough) and reset it between runs. All four state stores are
 provided, so pass no `skip` — and `skip` never accepts `'locks'`, which is not
 a state store.
+
 
 ## Only if you are publishing this as a package
 

@@ -288,7 +288,8 @@ Named shapes: `ChatTranscriptStores` (messages floor), `ChatPersistenceStores`
 (all four), `ChatWithInterruptsStores`. See [Controls](./controls).
 
 **Locks** (cross-worker coordination) are a separate concern: use `withLocks`
-and a `LockStore` implementation, not a fifth state store.
+and a `LockStore` from `@tanstack/ai` — see [Locks](../advanced/locks) — not a
+fifth state store.
 
 `@tanstack/ai-persistence` ships the contracts, the middleware, an in-memory
 reference backend, and a conformance testkit — not a backend for your database.

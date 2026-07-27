@@ -1,10 +1,8 @@
 import { defineChatMiddleware } from '@tanstack/ai'
 import {
   InterruptsCapability,
-  LocksCapability,
   PersistenceCapability,
   provideInterrupts,
-  provideLocks,
   providePersistence,
 } from './capabilities'
 import {
@@ -30,7 +28,6 @@ import type {
   ToolApprovalResolution,
   TokenUsage,
 } from '@tanstack/ai'
-import type { LockStore } from './locks'
 import type {
   AIPersistence,
   AIPersistenceStores,
@@ -376,7 +373,7 @@ async function interruptRun(
 /**
  * Chat-only **state** persistence middleware. Provides durable transcript,
  * run records, and interrupts for `chat()`. Does **not** provide locks —
- * use {@link withLocks} for multi-instance coordination.
+ * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
  *
  * This middleware never mutates the chunk stream; delivery durability
  * (replaying a disconnected/reloaded stream) is a separate transport-layer
@@ -616,34 +613,6 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
     async onAbort(ctx: ChatMiddlewareContext, _info: AbortInfo) {
       await interruptRun(runs, ctx.runId)
-    },
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Locks middleware (coordination — not state persistence)
-// ---------------------------------------------------------------------------
-
-/**
- * Provide a {@link LockStore} on the chat middleware capability bus.
- *
- * Locks are independent of {@link withPersistence}: state backends (Drizzle,
- * Prisma, D1, memory) do not ship locks, and multi-instance apps compose a
- * distributed lock separately (e.g. Cloudflare Durable Objects).
- *
- * ```ts
- * middleware: [
- *   withPersistence(drizzlePersistence(db, opts)),
- *   withLocks(createDurableObjectLockStore(env.AI_LOCKS)),
- * ]
- * ```
- */
-export function withLocks(locks: LockStore): ChatMiddleware {
-  return defineChatMiddleware({
-    name: 'locks',
-    provides: [LocksCapability],
-    setup(ctx: ChatMiddlewareContext) {
-      provideLocks(ctx, locks)
     },
   })
 }

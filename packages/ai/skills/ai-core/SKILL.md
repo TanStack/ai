@@ -64,14 +64,14 @@ The skills ship **inside** the package, so they only exist on disk once it is
 installed — the second command re-scans `node_modules` and wires them into the
 agent config. Until then the paths below resolve to nothing.
 
-Entry point: `node_modules/@tanstack/ai-persistence/skills/tanstack-ai-persistence/SKILL.md`
+Entry point: `node_modules/@tanstack/ai-persistence/skills/ai-persistence/SKILL.md`
 
-| Need to...                                      | Read                                             |
-| ----------------------------------------------- | ------------------------------------------------ |
-| Wire server-side chat history, runs, interrupts | tanstack-ai-persistence-server/SKILL.md          |
-| Implement the store interfaces for your DB      | tanstack-ai-persistence-stores/SKILL.md          |
-| Multi-instance locks (separate from state)      | tanstack-ai-persistence-locks/SKILL.md           |
-| Write the adapter for the DB your app runs      | tanstack-ai-persistence-build-*-adapter/SKILL.md |
+| Need to...                                      | Read                                    |
+| ----------------------------------------------- | --------------------------------------- |
+| Wire server-side chat history, runs, interrupts | ai-persistence/server/SKILL.md          |
+| Implement the store interfaces for your DB      | ai-persistence/stores/SKILL.md          |
+| Multi-instance locks (separate from state)      | ai-persistence/locks/SKILL.md           |
+| Write the adapter for the DB your app runs      | ai-persistence/build-*-adapter/SKILL.md |
 
 Browser-side persistence is **not** in this package — it ships with the
 framework packages, so read **ai-core/client-persistence** instead.

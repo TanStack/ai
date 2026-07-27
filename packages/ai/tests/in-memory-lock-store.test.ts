@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InMemoryLockStore } from '../src/locks'
+import { InMemoryLockStore } from '../src'
 
 describe('InMemoryLockStore', () => {
   it('serializes concurrent withLock calls on the same key', async () => {

@@ -1,24 +1,26 @@
 ---
-name: tanstack-ai-persistence-locks
+name: ai-persistence/locks
 description: >
   LockStore and withLocks for multi-instance coordination in TanStack AI.
-  Separate from AIPersistence state stores — not a stores key, not composable.
+  Lives in @tanstack/ai — NOT in @tanstack/ai-persistence. Separate from
+  AIPersistence state stores — not a stores key, not composable.
   InMemoryLockStore vs a distributed (e.g. Cloudflare Durable Object) lock,
   lease recovery, AbortSignal in critical sections. Use when sandbox or other
   middleware needs cross-worker mutual exclusion — NOT for storing
   messages/runs (use withPersistence).
 type: sub-skill
-library: tanstack-ai-persistence
+library: tanstack-ai
 library_version: '0.0.0'
 sources:
-  - 'TanStack/ai:docs/persistence/controls.md'
-  - 'TanStack/ai:packages/ai-persistence/src/locks.ts'
+  - 'TanStack/ai:docs/advanced/locks.md'
+  - 'TanStack/ai:packages/ai/src/activities/chat/middleware/locks.ts'
 ---
 
-# Persistence Locks
+# Locks (coordination — not persistence)
 
-> Builds on **tanstack-ai-persistence**. Locks are **not** part of
-> `AIPersistence.stores` and are **not** composed with `composePersistence`.
+> Builds on **ai-persistence** for composition only. Locks are **not**
+> part of `AIPersistence.stores` and are **not** composed with
+> `composePersistence`. Import them from **`@tanstack/ai`**.
 
 ## Why separate?
 
@@ -31,11 +33,8 @@ per-thread (or other) lock yourself when multi-writer races matter.
 ## Wire locks
 
 ```ts
-import {
-  withPersistence,
-  withLocks,
-  InMemoryLockStore,
-} from '@tanstack/ai-persistence'
+import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withPersistence } from '@tanstack/ai-persistence'
 
 middleware: [
   withPersistence(persistence),
@@ -55,11 +54,10 @@ interface LockStore {
 }
 ```
 
-`InMemoryLockStore` ships in `@tanstack/ai-persistence`: a per-key promise
-chain, correct **within a single process only**. Multi-instance deployments
-need a distributed implementation — you write it, the same way you write a
-state adapter. The Cloudflare Durable Object recipe is in
-**tanstack-ai-persistence-build-cloudflare-adapter**.
+`InMemoryLockStore` ships in **`@tanstack/ai`**: a per-key promise chain,
+correct **within a single process only**. Multi-instance deployments need a
+distributed implementation — you write it. The Cloudflare Durable Object recipe
+is in **ai-persistence/build-cloudflare-adapter**.
 
 ## Lease semantics
 
@@ -76,18 +74,20 @@ cannot be lost.
 
 ## Capability identity
 
-The `'locks'` capability token is defined **locally** in
-`@tanstack/ai-persistence`. Capability identity is by object reference, not by
-name, so it does not interoperate with the identically-named capability owned
-by `@tanstack/ai-sandbox`.
+The `'locks'` capability token lives in core `@tanstack/ai`. Capability identity
+is by **object reference**, so one shared token means a `withLocks` in the chain
+reaches `withSandbox` automatically.
 
 ## Common mistakes
+
+### HIGH: Importing locks from `@tanstack/ai-persistence`
+
+They are not exported there. Use `@tanstack/ai`.
 
 ### HIGH: Putting `locks` on `AIPersistence.stores`
 
 Not supported. `stores` accepts only `messages`, `runs`, `interrupts`,
-`metadata` and throws `Unknown AIPersistence store key: locks`. Use
-`withLocks`.
+`metadata` — never `locks`. Use `withLocks`.
 
 ### HIGH: Passing `locks` to `composePersistence` overrides
 
@@ -95,8 +95,8 @@ Same rejection, at the override layer. Locks are not state.
 
 ### HIGH: Passing `'locks'` to the conformance testkit's `skip`
 
-`skip` accepts only the four state store keys. The suite does not cover locks
-at all, so there is nothing to skip — test lease expiry and abort separately.
+`skip` accepts only chat state store keys. The suite does not cover locks
+at all — test lease expiry and abort separately.
 
 ### HIGH: `InMemoryLockStore` across multiple processes
 
@@ -108,5 +108,5 @@ Continuing work after losing the lease races other owners.
 
 ## Cross-references
 
-- **tanstack-ai-persistence-server** — state middleware
-- **tanstack-ai-persistence-build-cloudflare-adapter** — Durable Object lock recipe
+- **ai-persistence/server** — state middleware
+- **ai-persistence/build-cloudflare-adapter** — Durable Object lock recipe

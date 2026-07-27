@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-build-drizzle-adapter
+name: ai-persistence/build-drizzle-adapter
 description: Use when an app already runs Drizzle ORM and needs TanStack AI chat persistence — writes a chat-persistence.ts into the app against its existing db handle, schema file, and drizzle-kit journal. Covers the four tables (SQLite/Postgres/MySQL), the onConflict idempotency rules, JSON columns, and per-request bindings like D1.
 ---
 
@@ -15,7 +15,7 @@ Do not create a package, a second `db` instance, a migration runner, or a
 
 Read the **Build Your Own Adapter** guide
 (`docs/persistence/build-your-own-adapter.md`) for the store contracts and
-invariants, and **tanstack-ai-persistence-stores** for the shape rules. Every
+invariants, and **ai-persistence/stores** for the shape rules. Every
 store below mirrors the reference in-memory backend in
 `@tanstack/ai-persistence` (`memory.ts`); the shared conformance testkit is the
 proof.
@@ -371,7 +371,7 @@ export const chatPersistence: ChatPersistence = defineAIPersistence({
 Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
 `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
 those four keys, and coordination is wired separately with `withLocks` (see
-**tanstack-ai-persistence-locks**).
+**ai-persistence/locks**).
 
 ### If `db` is per-request
 
@@ -396,7 +396,7 @@ export function chatPersistence(): ChatPersistence {
 
 The store factories are unchanged — only the export flips from a const to a
 function. For D1 specifically, see
-**tanstack-ai-persistence-build-cloudflare-adapter**.
+**ai-persistence/build-cloudflare-adapter**.
 
 ## 4. Wire it into the chat route
 
@@ -440,6 +440,7 @@ Point it at a throwaway database (`:memory:` SQLite, a scratch schema, PGlite)
 that has the migration applied, and reset between runs. Every store is
 provided, so there is nothing to `skip` — and `skip` never accepts `'locks'`,
 which is not a state store.
+
 
 ## Only if you are publishing this as a package
 

@@ -1,5 +1,5 @@
 ---
-name: tanstack-ai-persistence-server
+name: ai-persistence/server
 description: >
   Server chat state with withPersistence from @tanstack/ai-persistence.
   Authoritative transcript, run lifecycle, durable interrupts/approvals,
@@ -9,7 +9,7 @@ description: >
   stream reconnect
   alone.
 type: sub-skill
-library: tanstack-ai-persistence
+library: tanstack-ai
 library_version: '0.0.0'
 sources:
   - 'TanStack/ai:docs/persistence/chat-persistence.md'
@@ -19,7 +19,7 @@ sources:
 
 # Server Chat Persistence
 
-> Builds on **tanstack-ai-persistence**. Package: `@tanstack/ai-persistence`.
+> Builds on **ai-persistence**. Package: `@tanstack/ai-persistence`.
 
 `withPersistence(persistence)` is a `ChatMiddleware` that writes chat **state**
 to a backend: messages, runs, interrupts (optional metadata). It does not
@@ -35,7 +35,7 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { withPersistence } from '@tanstack/ai-persistence'
-// Your adapter — see tanstack-ai-persistence-stores.
+// Your adapter — see ai-persistence/stores.
 import { persistence } from './persistence'
 
 export async function POST(request: Request) {
@@ -172,7 +172,7 @@ That is delivery durability (resumable streams), not state persistence.
 
 ## Cross-references
 
-- **tanstack-ai-persistence** — layers and recommended stack
-- **tanstack-ai-persistence-stores** — implement the store interfaces
+- **ai-persistence** — layers and recommended stack
+- **ai-persistence/stores** — implement the store interfaces
 - **ai-core/client-persistence** (`@tanstack/ai`) — browser half
-- **tanstack-ai-persistence-locks** — multi-instance coordination
+- **ai-persistence/locks** — multi-instance coordination

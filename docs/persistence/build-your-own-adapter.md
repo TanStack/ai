@@ -446,16 +446,16 @@ npx @tanstack/intent@latest install
 Then ask for what you want — "add chat persistence to this app" — and the
 matching skill loads itself into context:
 
-| Skill                                              | Covers                                                          |
-| -------------------------------------------------- | ---------------------------------------------------------------- |
-| `tanstack-ai-persistence`                          | Entry point — routes to everything below                        |
-| `tanstack-ai-persistence-server`                   | `withPersistence`, run lifecycle, interrupts, `reconstructChat` |
-| `tanstack-ai-persistence-stores`                   | The store contracts and their invariants                        |
-| `tanstack-ai-persistence-locks`                    | `LockStore` / `withLocks` coordination                          |
-| `tanstack-ai-persistence-build-drizzle-adapter`    | `chat-persistence.ts` for a Drizzle app (SQLite / Postgres / MySQL) |
-| `tanstack-ai-persistence-build-prisma-adapter`     | `chat-persistence.ts` for a Prisma app                          |
-| `tanstack-ai-persistence-build-cloudflare-adapter` | `chat-persistence.ts` for a Worker on D1, plus Durable Object locks |
-| `tanstack-ai-persistence-build-custom-adapter`     | `chat-persistence.ts` for anything else — raw `pg`, Kysely, SQLite, Mongo, Supabase |
+| Skill                                     | Covers                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| `ai-persistence`                          | Entry point — routes to everything below                            |
+| `ai-persistence/server`                   | `withPersistence`, run lifecycle, interrupts, `reconstructChat`     |
+| `ai-persistence/stores`                   | The store contracts and their invariants                            |
+| `ai-persistence/locks`                    | `LockStore` / `withLocks` coordination (lives in `@tanstack/ai`)    |
+| `ai-persistence/build-drizzle-adapter`    | `chat-persistence.ts` for a Drizzle app (SQLite / Postgres / MySQL) |
+| `ai-persistence/build-prisma-adapter`     | `chat-persistence.ts` for a Prisma app                              |
+| `ai-persistence/build-cloudflare-adapter` | `chat-persistence.ts` for a Worker on D1, plus Durable Object locks |
+| `ai-persistence/build-custom-adapter`     | `chat-persistence.ts` for anything else — raw `pg`, Kysely, SQLite, Mongo, Supabase |
 
 Browser-side persistence is not in this package — its skill ships with
 `@tanstack/ai` as `ai-core/client-persistence`, alongside the framework code it
@@ -551,31 +551,12 @@ reject nullish values outright the way the SQLite store above does.
 
 ## Not a store: `LockStore`
 
-`LockStore` serializes work that may run on multiple workers. It is **not** part
-of `AIPersistence.stores` and is not composed with `composePersistence` — state
-persistence and mutual exclusion are separate concerns. Wire it with `withLocks`
-instead:
-
-```ts
-import { withLocks, InMemoryLockStore } from '@tanstack/ai-persistence'
-
-const locks = withLocks(new InMemoryLockStore())
-```
-
-A lock implementation should use leases or another recovery mechanism so a
-crashed owner cannot block forever. `withLock` passes an `AbortSignal` to the
-critical section; lease-backed implementations abort that signal when ownership
-can no longer be guaranteed, and callbacks must then stop starting external
-mutations and pass the signal to cancellable dependencies. The package ships an
-in-process `InMemoryLockStore` for single-process use; multi-instance
-deployments need a distributed implementation, and the Cloudflare Durable Object
-recipe is in the `tanstack-ai-persistence-build-cloudflare-adapter` skill.
-
-The conformance testkit covers state stores only, so a lock store needs its own
-tests.
+Mutual exclusion is **not** part of `AIPersistence.stores`. Wire it with
+`withLocks` from `@tanstack/ai`. Full guide: [Locks](../advanced/locks).
 
 ## Where to go next
 
-- [Controls](./controls): compose stores from different systems, add a distributed lock.
+- [Controls](./controls): compose stores from different systems.
+- [Locks](../advanced/locks): `LockStore` / `withLocks` coordination.
 - [Migrations](./migrations): who owns the schema and when to apply changes.
 - [Internals](./internals): the middleware lifecycle your stores plug into.

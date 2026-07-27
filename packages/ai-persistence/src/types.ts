@@ -243,8 +243,8 @@ export interface MetadataStore {
  *
  * **Not a public product shape.** Prefer the named chat shapes below
  * ({@link ChatTranscriptStores}, {@link ChatPersistenceStores},
- * {@link ChatWithInterruptsStores}). Locks are not included (see
- * {@link withLocks}).
+ * {@link ChatWithInterruptsStores}). Locks are not included — use
+ * `withLocks` from `@tanstack/ai`.
  *
  * @internal Exported from this module for generics; the package root does not
  * re-export this type — use a named shape or `AIPersistence<{ … }>` instead.

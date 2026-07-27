@@ -26,12 +26,8 @@ export type {
 // AIPersistenceStores is intentionally NOT re-exported — use a named chat
 // shape or AIPersistence<{ messages: MessageStore, … }>.
 
-// Middleware (state + separate locks)
-export {
-  withPersistence,
-  withGenerationPersistence,
-  withLocks,
-} from './middleware'
+// Middleware (state only — locks live in @tanstack/ai as withLocks)
+export { withPersistence, withGenerationPersistence } from './middleware'
 
 // Server helper: rehydrate a thread's messages for a client load
 export { reconstructChat } from './reconstruct'
@@ -44,7 +40,7 @@ export { memoryPersistence } from './memory'
 export { createInterruptController } from './interrupts'
 export type { InterruptController } from './interrupts'
 
-// Capabilities
+// Persistence-owned capabilities only. Locks: @tanstack/ai.
 export {
   PersistenceCapability,
   InterruptsCapability,
@@ -52,11 +48,4 @@ export {
   providePersistence,
   getInterrupts,
   provideInterrupts,
-  LocksCapability,
-  getLocks,
-  provideLocks,
 } from './capabilities'
-
-// Lock primitive (separate from state stores; provide via withLocks)
-export { InMemoryLockStore } from './locks'
-export type { LockStore } from './locks'
