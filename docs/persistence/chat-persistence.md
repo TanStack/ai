@@ -62,8 +62,8 @@ flags. `messages` is required; the rest are optional:
 - `interrupts` records pending tool-approval / client-tool / generic waits, and
   requires `runs`.
 
-Cross-worker locks are **not** part of this middleware — add `withLocks` when
-other middleware needs multi-instance coordination.
+Need a mutex across workers? Add `withLocks` when other middleware needs
+multi-instance coordination; see [Locks](../advanced/locks).
 
 Creating tables on open is convenient for local development. In production, apply
 schema changes through your deployment workflow instead. See

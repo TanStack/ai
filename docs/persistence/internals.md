@@ -98,8 +98,6 @@ Middleware adds entrypoint validation:
 - generation requires `runs`.
 - `reconstructChat` requires `messages`.
 
-Locks are not state stores and are not composed here — use `withLocks`.
-
 The runtime checks are required because JavaScript, configuration loading, and
 explicitly widened types can bypass static guarantees.
 
@@ -108,7 +106,7 @@ explicitly widened types can bypass static guarantees.
 An adapter owns its own resources: connection lifecycle, when migrations run, and
 how each store record maps to rows. The middleware only calls the store methods;
 it never opens a connection or inspects a table. A backend may provide any subset
-of the stores (for example, no `locks`), and the return type reflects exactly the
+of the stores (for example, no `metadata`), and the return type reflects exactly the
 stores it exposes. [Build your own adapter](./build-your-own-adapter) shows this
 end to end for SQLite.
 

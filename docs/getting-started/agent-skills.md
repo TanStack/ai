@@ -55,7 +55,7 @@ sub-skills (`server`, `stores`, and the
 `build-{drizzle,prisma,cloudflare,custom}-adapter` recipes) under
 `skills/ai-persistence/`, same nesting style as `ai-core`. Multi-instance locks
 ship with the code they teach, so `ai-core/locks` lives in `@tanstack/ai`
-alongside `withLocks` — not in the persistence package.
+alongside `withLocks`.
 
 Each skill ships with the code it teaches. Browser persistence lives in the
 framework packages, so `ai-core/client-persistence` is in `@tanstack/ai` rather

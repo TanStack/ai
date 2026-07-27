@@ -287,9 +287,8 @@ from whichever stores are present (with entrypoint requirements — see
 Named shapes: `ChatTranscriptStores` (messages floor), `ChatPersistenceStores`
 (all four), `ChatWithInterruptsStores`. See [Controls](./controls).
 
-**Locks** (cross-worker coordination) are a separate concern: use `withLocks`
-and a `LockStore` from `@tanstack/ai/locks` — see [Locks](../advanced/locks) — not a
-fifth state store.
+Need a mutex across instances (cross-worker coordination)? Use `withLocks` and a
+`LockStore` from `@tanstack/ai/locks`; see [Locks](../advanced/locks).
 
 `@tanstack/ai-persistence` ships the contracts, the middleware, an in-memory
 reference backend, and a conformance testkit — not a backend for your database.

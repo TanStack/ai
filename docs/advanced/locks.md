@@ -130,19 +130,6 @@ backend. The Cloudflare Durable Object recipe lives in the
 `ai-persistence/build-cloudflare-adapter` agent skill (app-owned file,
 not a shipped package).
 
-## Not a persistence store
-
-```ts ignore
-// Wrong — throws Unknown AIPersistence store key: locks
-// defineAIPersistence({ stores: { messages, locks } })
-
-// Wrong — composePersistence rejects locks
-// composePersistence(base, { overrides: { locks: myLocks } })
-```
-
-State stores answer durability; locks answer mutual exclusion. Keep them on
-separate seams: `withPersistence` for the bag, `withLocks` for the mutex.
-
 ## Consume in custom middleware
 
 ```ts
@@ -169,5 +156,5 @@ Or provide without `withLocks` by calling `provideLocks` in your own
 
 - [Middleware](./middleware) — capability bus and lifecycle
 - [Sandboxes](../sandbox/overview) — primary product consumer of locks today
-- [Persistence Controls](../persistence/controls) — compose state stores (not locks)
+- [Persistence Controls](../persistence/controls) — compose state stores from different systems
 - [Build Your Own Adapter](../persistence/build-your-own-adapter) — chat store contracts

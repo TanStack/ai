@@ -43,9 +43,8 @@ behavior for whatever stores it finds, so a `messages`-only adapter is a valid
 adapter.
 
 Those four are the *only* keys `stores` accepts — anything else throws
-`Unknown AIPersistence store key` at construction. Cross-worker coordination is
-a separate concern with its own seam (`LockStore` + `withLocks`); see
-[Controls](./controls).
+`Unknown AIPersistence store key` at construction. Need a mutex across
+instances? That is `withLocks`; see [Locks](../advanced/locks).
 
 Type each store with its `define*Store` helper — `defineMessageStore`,
 `defineRunStore`, `defineInterruptStore`, `defineMetadataStore` — as the sections
@@ -440,9 +439,8 @@ export function sqlitePersistence(options: {
 }
 ```
 
-That is a complete backend. Work coordinated across multiple workers also needs
-a `LockStore`, which is wired separately with `withLocks` rather than added to
-`stores` (see [Controls](./controls)).
+That is a complete backend. If you also need a mutex across workers, add
+`withLocks` alongside it; see [Locks](../advanced/locks).
 
 Wire it into `chat()` exactly like any other persistence:
 
@@ -668,11 +666,6 @@ Namespaces and value schemas are application-owned, and `(scope, key)` is the
 composite identity. A stored `null` is indistinguishable from absence at the type
 level, so wrap a value you must persist as `null` (e.g. `{ value: null }`), or
 reject nullish values outright the way the SQLite store above does.
-
-## Not a store: `LockStore`
-
-Mutual exclusion is **not** part of `AIPersistence.stores`. Wire it with
-`withLocks` from `@tanstack/ai/locks`. Full guide: [Locks](../advanced/locks).
 
 ## Where to go next
 

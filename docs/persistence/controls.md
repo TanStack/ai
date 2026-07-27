@@ -9,7 +9,7 @@ Persistence has no feature flags. What you persist is decided by which **state**
 stores the backend provides, and you compose backends per store. Supply only the
 stores your workflow needs.
 
-Locks are a **separate** concern — see [Locks](#locks-coordination) below.
+Need a mutex across instances? See [Locks](#locks-coordination) below.
 
 ## Named shapes (prefer these)
 
@@ -99,9 +99,9 @@ for the store contracts.
 
 ## Locks (coordination)
 
-Locks are **not** state stores. They live in `@tanstack/ai/locks` (`withLocks`,
-`LockStore`) and cannot be composed with `composePersistence`. Full guide:
-[Locks](../advanced/locks).
+Locks coordinate work across instances (a distributed mutex). They live in
+`@tanstack/ai/locks` and apply as their own middleware with `withLocks`,
+alongside `withPersistence`. Full guide: [Locks](../advanced/locks).
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
