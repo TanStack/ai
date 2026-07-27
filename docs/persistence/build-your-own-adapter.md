@@ -126,25 +126,25 @@ function createMessageStore(db: DatabaseSync) {
      ON CONFLICT(thread_id) DO UPDATE SET messages_json = excluded.messages_json`,
   )
   return defineMessageStore({
-    loadThread(threadId) {
+    async loadThread(threadId) {
       const json = select.get(threadId)?.messages_json
       // Unknown thread → [] (never null). `node:sqlite` types columns as a
       // SQL-value union, so narrow to string before parsing (no cast).
-      if (typeof json !== 'string') return Promise.resolve([])
+      if (typeof json !== 'string') return []
       const parsed: Array<ModelMessage> = JSON.parse(json)
-      return Promise.resolve(parsed)
+      return parsed
     },
-    saveThread(threadId, messages) {
+    async saveThread(threadId, messages) {
       upsert.run(threadId, JSON.stringify(messages))
-      return Promise.resolve()
     },
   })
 }
 ```
 
-The store methods are async in the interface, but SQLite here is synchronous, so
-each method wraps its result in `Promise.resolve`. On an async driver you would
-`await` the query instead.
+The methods are `async`, so `node:sqlite` (a synchronous driver) needs no
+`Promise.resolve` wrapper: `async` promotes the returned value to a promise, and
+a method that returns nothing resolves to `void`. On an async driver, `await` the
+query instead.
 
 ### 3. Runs: idempotent create, patch, get
 
@@ -194,19 +194,19 @@ function createRunStore(db: DatabaseSync) {
      ON CONFLICT(run_id) DO NOTHING`,
   )
   return defineRunStore({
-    createOrResume(input) {
+    async createOrResume(input) {
       const existing = select.get(input.runId)
-      if (existing) return Promise.resolve(mapRun(existing))
+      if (existing) return mapRun(existing)
       const status: RunStatus = input.status ?? 'running'
       insert.run(input.runId, input.threadId, status, input.startedAt)
-      return Promise.resolve({
+      return {
         runId: input.runId,
         threadId: input.threadId,
         status,
         startedAt: input.startedAt,
-      })
+      }
     },
-    update(runId, patch) {
+    async update(runId, patch) {
       const sets: Array<string> = []
       const params: Array<string | number> = []
       if (patch.status !== undefined) {
@@ -225,16 +225,15 @@ function createRunStore(db: DatabaseSync) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
       }
-      if (sets.length === 0) return Promise.resolve()
+      if (sets.length === 0) return
       params.push(runId)
       db.prepare(`UPDATE runs SET ${sets.join(', ')} WHERE run_id = ?`).run(
         ...params,
       )
-      return Promise.resolve()
     },
-    get(runId) {
+    async get(runId) {
       const row = select.get(runId)
-      return Promise.resolve(row ? mapRun(row) : null)
+      return row ? mapRun(row) : null
     },
   })
 }
@@ -317,7 +316,7 @@ function createInterruptStore(db: DatabaseSync) {
      ORDER BY requested_at ASC`,
   )
   return defineInterruptStore({
-    create(record) {
+    async create(record) {
       // Insert-if-absent: a duplicate id must never clobber an already-resolved
       // interrupt back to pending.
       insert.run(
@@ -328,35 +327,32 @@ function createInterruptStore(db: DatabaseSync) {
         JSON.stringify(record.payload),
         record.response === undefined ? null : JSON.stringify(record.response),
       )
-      return Promise.resolve()
     },
-    resolve(interruptId, response) {
+    async resolve(interruptId, response) {
       resolveRow.run(
         Date.now(),
         response === undefined ? null : JSON.stringify(response),
         interruptId,
       )
-      return Promise.resolve()
     },
-    cancel(interruptId) {
+    async cancel(interruptId) {
       cancelRow.run(Date.now(), interruptId)
-      return Promise.resolve()
     },
-    get(interruptId) {
+    async get(interruptId) {
       const row = selectOne.get(interruptId)
-      return Promise.resolve(row ? mapInterrupt(row) : null)
+      return row ? mapInterrupt(row) : null
     },
-    list(threadId) {
-      return Promise.resolve(byThread.all(threadId).map(mapInterrupt))
+    async list(threadId) {
+      return byThread.all(threadId).map(mapInterrupt)
     },
-    listPending(threadId) {
-      return Promise.resolve(pendingByThread.all(threadId).map(mapInterrupt))
+    async listPending(threadId) {
+      return pendingByThread.all(threadId).map(mapInterrupt)
     },
-    listByRun(runId) {
-      return Promise.resolve(byRun.all(runId).map(mapInterrupt))
+    async listByRun(runId) {
+      return byRun.all(runId).map(mapInterrupt)
     },
-    listPendingByRun(runId) {
-      return Promise.resolve(pendingByRun.all(runId).map(mapInterrupt))
+    async listPendingByRun(runId) {
+      return pendingByRun.all(runId).map(mapInterrupt)
     },
   })
 }
@@ -381,25 +377,23 @@ function createMetadataStore(db: DatabaseSync) {
      ON CONFLICT(scope, key) DO UPDATE SET value_json = excluded.value_json`,
   )
   return defineMetadataStore({
-    get(scope, key) {
+    async get(scope, key) {
       const json = select.get(scope, key)?.value_json
-      return Promise.resolve(typeof json === 'string' ? JSON.parse(json) : null)
+      return typeof json === 'string' ? JSON.parse(json) : null
     },
-    set(scope, key, value) {
+    async set(scope, key, value) {
       if (value == null) {
         throw new TypeError(
           'Metadata values must be defined, non-null JSON. Use delete() to clear.',
         )
       }
       upsert.run(scope, key, JSON.stringify(value))
-      return Promise.resolve()
     },
-    delete(scope, key) {
+    async delete(scope, key) {
       db.prepare('DELETE FROM metadata WHERE scope = ? AND key = ?').run(
         scope,
         key,
       )
-      return Promise.resolve()
     },
   })
 }
