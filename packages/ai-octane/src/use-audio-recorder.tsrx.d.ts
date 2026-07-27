@@ -47,7 +47,7 @@ export interface UseAudioRecorderReturn<TOutput> {
 export declare function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: UseAudioRecorderOptions<TOnComplete>,
+  options: UseAudioRecorderOptions<TOnComplete> & { onComplete: TOnComplete },
 ): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
 export declare function useAudioRecorder(
   options?: UseAudioRecorderOptions<undefined>,

@@ -45,11 +45,18 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
 /**
  * Return type for the useGeneration hook.
  *
+ * @template TInput - The input type accepted by `generate`
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseGenerationReturn<TOutput> {
-  /** Trigger a generation request */
-  generate: (input: Record<string, any>) => Promise<void>
+export interface UseGenerationReturn<TInput, TOutput> {
+  /**
+   * Trigger a generation request.
+   *
+   * Typed as `TInput` rather than `Record<string, any>` so required and narrow
+   * input fields are actually checked at the call site. (Upstream
+   * `@tanstack/ai-react` widens this; see status.json.)
+   */
+  generate: (input: TInput) => Promise<void>
   /** The generation result, or null if not yet generated */
   result: TOutput | null
   /** Whether a generation is currently in progress */
@@ -90,4 +97,7 @@ export declare function useGeneration<
   options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
   },
-): UseGenerationReturn<InferGenerationOutputFromReturn<TResult, TTransformed>>
+): UseGenerationReturn<
+  TInput,
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+>

@@ -109,11 +109,35 @@ initial message snapshot without browser-only setup.
   place and preserves conversation state; upstream 0.17.0 captures the initial
   transport.
 
+### Fixed here, still present upstream
+
+Three defects were found during review of the port and fixed rather than
+mirrored. All are documented in [`status.json`](./status.json) and covered by
+tests, and each is tracked upstream so the other adapters can catch up.
+
+- `useAudioRecorder`'s transforming overload requires `onComplete`. Upstream,
+  passing any unrelated option (`useAudioRecorder({ onError })`) matched the
+  transforming overload, inferred `TOnComplete` as `unknown`, and silently
+  collapsed `recording` and `stop()` to `unknown`.
+  ([#1001](https://github.com/TanStack/ai/issues/1001))
+- `useGeneration` spreads caller `devtools` metadata _before_ the hardcoded
+  `framework`/`hookName`, so a caller can't misattribute the binding in the
+  devtools. `ai-react` spreads it after; `ai-vue` and `ai-solid` already order it
+  this way. ([#1002](https://github.com/TanStack/ai/issues/1002))
+- `UseGenerationReturn<TInput, TOutput>` types `generate` as `(input: TInput)`.
+  Upstream declares `UseGenerationReturn<TOutput>` and widens `generate` to
+  `(input: Record<string, any>)`, so narrow or required input fields go
+  unchecked. **This is the one place the public type surface differs in shape
+  from `@tanstack/ai-react`** — the runtime surface is unchanged, so the
+  "change the import" migration still holds.
+  ([#1003](https://github.com/TanStack/ai/issues/1003))
+
 ## Status
 
 This binding was developed as `@octanejs/tanstack-ai` in the
 [octanejs/octane](https://github.com/octanejs/octane) repo as a temporary
-stopgap, and moved here unchanged apart from the rename.
+stopgap, and moved here — apart from the rename, the only changes are the three
+fixes listed above and the test-helper hardening noted in `status.json`.
 
 It is baselined against `@tanstack/ai-react@0.17.0`. Current scope, divergences,
 and verification state are tracked in [`status.json`](./status.json) — including

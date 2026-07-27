@@ -50,7 +50,7 @@
     "test:oxlint": "oxlint src --type-aware --ignore-pattern '**/*.tsrx.d.ts'",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
-    "test:types": "tsc"
+    "test:types": "tsc && tsc -p typetests/tsconfig.json"
   },
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"
@@ -67,6 +67,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "happy-dom": "^20.0.10",
     "octane": "0.1.17",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "zod": "^4.2.0"
   }
 }

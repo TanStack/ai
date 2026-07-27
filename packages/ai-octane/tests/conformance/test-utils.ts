@@ -25,9 +25,12 @@ import { useChat } from '../../src/use-chat.tsrx'
  * ```
  */
 export function renderUseChat(
-  options?: UseChatOptions,
+  // Defaulted rather than asserted with `options!`: `useChat` reads its options
+  // eagerly, so a no-arg call would otherwise pass `undefined` straight through
+  // and crash instead of failing at the type level.
+  options: UseChatOptions = {},
 ): RenderHookResult<UseChatReturn, UseChatOptions> {
   return renderHook((hookOptions: UseChatOptions) => useChat(hookOptions), {
-    initialProps: options!,
+    initialProps: options,
   })
 }

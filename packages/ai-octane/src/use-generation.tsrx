@@ -50,11 +50,18 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
 /**
  * Return type for the useGeneration hook.
  *
+ * @template TInput - The input type accepted by `generate`
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseGenerationReturn<TOutput> {
-  /** Trigger a generation request */
-  generate: (input: Record<string, any>) => Promise<void>
+export interface UseGenerationReturn<TInput, TOutput> {
+  /**
+   * Trigger a generation request.
+   *
+   * Typed as `TInput` rather than `Record<string, any>` so required and narrow
+   * input fields are actually checked at the call site. (Upstream
+   * `@tanstack/ai-react` widens this; see status.json.)
+   */
+  generate: (input: TInput) => Promise<void>
   /** The generation result, or null if not yet generated */
   result: TOutput | null
   /** Whether a generation is currently in progress */
@@ -102,7 +109,10 @@ export function useGeneration<
   options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
   },
-): UseGenerationReturn<InferGenerationOutputFromReturn<TResult, TTransformed>> {
+): UseGenerationReturn<
+  TInput,
+  InferGenerationOutputFromReturn<TResult, TTransformed>
+> {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
   const clientId = options.id || hookId
@@ -127,10 +137,13 @@ export function useGeneration<
       body: opts.body,
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
-        hookName: 'useGeneration',
-        // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.
-        framework: 'octane',
         ...opts.devtools,
+        // OCTANE DIVERGENCE: identify this binding as Octane (not 'react') in TanStack AI Devtools.
+        // The spread comes first so a caller-supplied `devtools.framework` can't
+        // silently misidentify the binding — `useGeneration` is public API, and
+        // the sibling hooks (useChat, useGenerateVideo) already order it this way.
+        framework: 'octane',
+        hookName: 'useGeneration',
       },
       // The transform's raw return type (`TTransformed`) and the stored output
       // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
@@ -205,7 +218,7 @@ export function useGeneration<
   }, [client])
 
   return {
-    generate: generate as (input: Record<string, any>) => Promise<void>,
+    generate,
     result,
     isLoading,
     error,

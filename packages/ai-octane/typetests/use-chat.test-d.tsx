@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 
 import { useChat } from '../src/index'
 import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/index'
@@ -8,12 +9,11 @@ type Person = { name: string; age: number; email: string }
 
 /**
  * A hand-rolled shape matching `@standard-schema/spec`'s `StandardSchemaV1`
- * interface (version/vendor/validate/types). `@standard-schema/spec` is only
- * a transitive dependency of `@tanstack/ai` (nested under its own
- * `node_modules`, not hoisted for direct resolution here), so this test
- * reproduces the structural contract instead of importing it directly.
- * `SchemaInput`'s `StandardSchemaV1` branch is a plain structural interface,
- * so this type satisfies it identically for `InferSchemaType`.
+ * interface (version/vendor/validate/types), used deliberately rather than a
+ * concrete library: `SchemaInput`'s `StandardSchemaV1` branch is a plain
+ * structural interface, so this proves `outputSchema` inference works for *any*
+ * spec-conforming validator, not just the one we happen to depend on. Tool
+ * inputs below use real Zod, which is what consumers actually pass.
  */
 type StandardSchemaLike<Input, Output = Input> = {
   readonly '~standard': {
@@ -27,25 +27,6 @@ type StandardSchemaLike<Input, Output = Input> = {
     readonly types?: {
       readonly input: Input
       readonly output: Output
-    }
-  }
-}
-
-type StandardJSONSchemaLike<Input, Output = Input> = {
-  readonly '~standard': {
-    readonly version: 1
-    readonly vendor: string
-    readonly types?: {
-      readonly input: Input
-      readonly output: Output
-    }
-    readonly jsonSchema: {
-      readonly input: (options: {
-        readonly target: string
-      }) => Record<string, unknown>
-      readonly output: (options: {
-        readonly target: string
-      }) => Record<string, unknown>
     }
   }
 }
@@ -158,12 +139,12 @@ describe('useChat() return type', () => {
         const guitarTool = toolDefinition({
           name: 'getGuitar',
           description: 'Get guitar info',
-          inputSchema: {} as StandardJSONSchemaLike<{ id: string }>,
+          inputSchema: z.object({ id: z.string() }),
         }).client((input) => ({ id: input.id }))
         const approvalTool = toolDefinition({
           name: 'deleteAccount',
           description: 'Delete an account',
-          inputSchema: {} as StandardJSONSchemaLike<{ accountId: string }>,
+          inputSchema: z.object({ accountId: z.string() }),
           needsApproval: true,
         }).client(() => ({ deleted: true }))
 
