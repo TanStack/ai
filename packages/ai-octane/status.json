@@ -19,6 +19,7 @@
     "FIXED HERE — the `renderUseChat` test helper defaults its options to `{}` instead of asserting `options!`, which would have passed `undefined` into a hook that reads options eagerly."
   ],
   "ssr": "Supported and tested: useChat renders its initial message snapshot through octane/server without a DOM.",
+  "e2e": "None, deliberately. E2E coverage in this repo runs against a demo app under testing/e2e, which is TanStack Start-based; an Octane build of TanStack Start exists but is not officially released yet, so the app cannot be built. Held until that ships rather than worked around — this is a known external blocker, not an oversight.",
   "notes": [
     "Hook modules are authored as TSRX with checked declaration companions; no ported hook renders JSX or references React types in its public signature.",
     "Ported into the TanStack AI monorepo from @octanejs/tanstack-ai@0.0.11, which was a temporary stopgap home. Renamed to @tanstack/ai-octane; the runtime surface is unchanged.",
