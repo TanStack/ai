@@ -13,15 +13,13 @@ rejoins a run that was mid-stream.
 
 You need this whether or not you have a server:
 
-- **The browser owns the chat** (SPA, offline-first, no server store). Client
-  persistence is the only durable copy, so it holds the full transcript.
+- **The browser owns the chat** (SPA, offline-first, no server store). Pass a
+  storage adapter and it holds the full transcript, restored on reload with no
+  network.
 - **The server owns the chat** (you use [Chat persistence](./chat-persistence)).
-  The server is the source of truth, but the client still has to come back
-  instantly on reload: rejoin the in-flight run, restore the pending interrupt,
-  and show the conversation. Client persistence caches the small resume pointer
-  that makes that possible and hydrates the transcript from the server. So this
-  page matters even when history lives on the server, that is the
-  `messages: false` mode below.
+  Set `persistence: true` and the client caches nothing: on reload it hydrates
+  the thread from the server by its `threadId`, painting the conversation and
+  rejoining any run still streaming. That is the server-authoritative mode below.
 
 ## Turn it on
 
@@ -64,12 +62,15 @@ pointer. On the next load `useChat` reads it and:
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
-## Choose what to cache
+## Choose a mode
 
-`persistence` takes either a bare adapter (cache everything) or
-`{ store, messages }` (pull the message lever).
+`persistence` takes a storage adapter or a boolean:
 
-### Cache everything (default): client-authoritative
+- an **adapter** (`persistence: localStoragePersistence()`) is client-authoritative.
+- **`true`** is server-authoritative.
+- **`false`** (or omitted) is off: messages live in memory only and a reload starts empty.
+
+### An adapter: client-authoritative
 
 Pass the adapter directly, `persistence: localStoragePersistence()`. The
 transcript and the resume pointer both live in the browser. The client owns the
@@ -77,37 +78,34 @@ history; the server, if any, mirrors it. Best when the browser is the source of
 truth: single-page apps, offline-first, one device, small to moderate
 conversations.
 
-### Resume pointer only: server-authoritative
+### `true`: server-authoritative
 
-Pass the object form, `persistence: { store, messages: false }`, where `store`
-is your adapter. Only the tiny resume pointer is cached (which run to rejoin,
-which interrupts are pending). Reload durability still works, but the transcript
-stays off the client and the server owns history. Best when transcripts are
-large (localStorage is synchronous and quota-bound), when the same conversation
-must open on another device, or when you simply do not want message content in
-the browser.
+Pass `persistence: true`. The client stores nothing, no transcript and no resume
+pointer. On mount `useChat` hydrates the thread from the server by its
+`threadId`: it paints the stored transcript and, if a run is still generating,
+tails it to completion. Best when transcripts are large (localStorage is
+synchronous and quota-bound), when the same conversation must open on another
+device, or when you simply do not want message content in the browser.
 
-You do not fetch or seed the transcript yourself. On mount `useChat` hydrates the
-thread from the server by its `threadId`: it paints the stored transcript and, if
-a run is still generating, tails it to completion. A reload and the same thread
+You do not fetch or seed the transcript yourself. A reload and the same thread
 opened on another device follow the identical path, because the thread id is the
 stable key and the server resolves everything from it. No loader, no
-`initialMessages`, no extra props.
+`initialMessages`, no extra props. It needs a connection with a `hydrate` handler
+(every built-in connection has one) and the server `GET` endpoint below.
 
-**Client** — the store, a connection, and a stable `threadId`:
+**Client** — a connection, a stable `threadId`, and `persistence: true`:
 
 ```tsx
-import {
-  fetchServerSentEvents,
-  localStoragePersistence,
-  useChat,
-} from '@tanstack/ai-react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 const connection = fetchServerSentEvents('/api/chat')
-const persistence = { store: localStoragePersistence(), messages: false }
 
 function Chat({ threadId }: { threadId: string }) {
-  const { messages, sendMessage } = useChat({ threadId, connection, persistence })
+  const { messages, sendMessage } = useChat({
+    threadId,
+    connection,
+    persistence: true,
+  })
   return (
     <div>
       {messages.map((m) => (
@@ -153,7 +151,7 @@ resumes the live run the same way the original tab does. See
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |
 | `persistence: store` | transcript + resume pointer | client | SPA / offline, one device, small to moderate history |
-| `{ store, messages: false }` | resume pointer only | server | large histories, multi-device, no transcripts in the browser |
+| `persistence: true` | nothing | server | large histories, multi-device, no transcripts in the browser |
 
 ## Choose a storage backend
 

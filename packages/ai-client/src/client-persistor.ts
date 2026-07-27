@@ -84,23 +84,14 @@ export class ChatPersistor {
     private readonly id: string,
     private readonly applyMessages: (messages: Array<UIMessage>) => void,
     private readonly applyResume?: (snapshot: ChatResumeSnapshot) => void,
-    // When false, the transcript is never cached client-side; only the tiny
-    // resume pointer is persisted (server-authoritative history). Defaults true.
-    private readonly storeMessages: boolean = true,
   ) {}
 
-  /**
-   * Persist the current state as one combined record. When `storeMessages` is
-   * false the transcript is omitted (empty), so only the resume pointer is
-   * written and large histories never hit client storage.
-   */
+  /** Persist the current state as one combined `{ messages, resume? }` record. */
   private writeState(): void {
-    const messages = this.storeMessages ? [...this.lastMessages] : []
+    const messages = [...this.lastMessages]
     // Nothing to persist (no transcript, no resume pointer): remove the key
-    // rather than writing an empty `{ messages: [] }`. Critical for
-    // `storeMessages: false` mode, where clearing the resume pointer must
-    // drop the prior resume-only record so a reload does not re-rejoin a
-    // finished run.
+    // rather than writing an empty `{ messages: [] }`, so a cleared
+    // conversation does not leave a stale record behind.
     if (messages.length === 0 && !this.lastResume) {
       const generation = this.generation
       this.runOperation(() => {
@@ -173,13 +164,8 @@ export class ChatPersistor {
           return
         }
         this.lastResume = state.resume ?? null
-        // Only apply the persisted transcript when we cache it. In
-        // `messages: false` mode the record's empty `messages` must not wipe
-        // host-provided initialMessages; still apply the resume snapshot.
-        if (this.storeMessages) {
-          this.lastMessages = state.messages
-          this.applyMessages(state.messages)
-        }
+        this.lastMessages = state.messages
+        this.applyMessages(state.messages)
         if (state.resume && this.applyResume) {
           this.applyResume(state.resume)
         }

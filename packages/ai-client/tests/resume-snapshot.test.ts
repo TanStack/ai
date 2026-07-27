@@ -79,67 +79,6 @@ describe('ChatPersistor combined record', () => {
     expect(state.messages[0]?.id).toBe('m1')
     expect(state.resume).toBeUndefined()
   })
-
-  it('with storeMessages=false persists only the resume pointer', () => {
-    const { adapter, read } = memoryAdapter()
-    // storeMessages=false via the 5th constructor arg.
-    const persistor = new ChatPersistor(
-      adapter,
-      'chat-1',
-      () => {},
-      undefined,
-      false,
-    )
-    persistor.notifyMessagesChanged([createUIMessage('m1', 'heavy history')])
-    persistor.persistResumeSnapshot({
-      schemaVersion: 2,
-      resumeState: { threadId: 't1', runId: 'r1' },
-    })
-    const stored = read() as ChatPersistedState
-    // Transcript stays off the client; the tiny resume pointer is kept so
-    // durability rejoin still works.
-    expect(stored.messages).toEqual([])
-    expect(stored.resume?.resumeState.runId).toBe('r1')
-  })
-
-  it('with storeMessages=false removes the key when resume is cleared', () => {
-    const { adapter, read } = memoryAdapter()
-    const persistor = new ChatPersistor(
-      adapter,
-      'chat-1',
-      () => {},
-      undefined,
-      false,
-    )
-    persistor.persistResumeSnapshot({
-      schemaVersion: 2,
-      resumeState: { threadId: 't1', runId: 'r1' },
-    })
-    expect(read()).toBeDefined()
-    // Finish / dead-pointer cleanup: clearing resume must drop the key so a
-    // reload does not re-rejoin a finished run.
-    persistor.persistResumeSnapshot(null)
-    expect(read()).toBeUndefined()
-  })
-})
-
-describe('ChatClient persistence option shapes', () => {
-  it('accepts { store, messages: false } and keeps messages off the client', () => {
-    const { adapter, read } = memoryAdapter()
-    const client = new ChatClient({
-      id: 'chat-cfg',
-      threadId: 't1',
-      connection: { connect: async function* () {} },
-      persistence: { store: adapter, messages: false },
-      initialMessages: [createUIMessage('seed', 'hi', 'user')],
-    })
-    // A message change should not write the transcript into the record.
-    void client
-    const stored = read()
-    if (stored && !Array.isArray(stored)) {
-      expect(stored.messages).toEqual([])
-    }
-  })
 })
 
 describe('localStoragePersistence ergonomics', () => {
@@ -290,12 +229,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('messages:false hydrates history AND tails a live run from the server on mount', async () => {
+  it('persistence:true hydrates history AND tails a live run from the server on mount', async () => {
     // Server-authoritative: the client caches no transcript and no run pointer.
     // On mount it calls connection.hydrate(threadId), which returns the stored
     // transcript plus a cursor to the in-flight run — the client paints the
     // history and tails the run via joinRun. No loader, no seeded pointer.
-    const { adapter } = memoryAdapter({ messages: [] })
 
     const joinRun = vi.fn(async function* (_runId: string) {
       for (const chunk of runChunks('r1', 't1')) {
@@ -317,7 +255,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     const client = new ChatClient({
       threadId: 't1',
       connection,
-      persistence: { store: adapter, messages: false },
+      persistence: true,
       onMessagesChange: (messages) => {
         latest = messages
       },
@@ -337,8 +275,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('messages:false hydrates a transcript with no active run (no tail)', async () => {
-    const { adapter } = memoryAdapter({ messages: [] })
+  it('persistence:true hydrates a transcript with no active run (no tail)', async () => {
     const joinRun = vi.fn(async function* () {})
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
@@ -357,7 +294,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     const client = new ChatClient({
       threadId: 't1',
       connection,
-      persistence: { store: adapter, messages: false },
+      persistence: true,
       onMessagesChange: (messages) => {
         latest = messages
       },
@@ -370,12 +307,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('messages:false restores a pending interrupt from the server on mount', async () => {
+  it('persistence:true restores a pending interrupt from the server on mount', async () => {
     // Regression: a run paused on an interrupt is not "running", so there is no
     // tail — but a reload must still re-prompt the approval. The client restores
     // it from the server hydrate result (not client storage), so a fresh client
     // (or another device) shows a resolvable interrupt keyed to the run it paused.
-    const { adapter } = memoryAdapter({ messages: [] })
     const joinRun = vi.fn(async function* () {})
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
@@ -408,7 +344,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     const client = new ChatClient({
       threadId: 't1',
       connection,
-      persistence: { store: adapter, messages: false },
+      persistence: true,
     })
     await vi.waitFor(() => {
       expect(client.getInterrupts()).toHaveLength(1)
@@ -421,70 +357,11 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).not.toHaveBeenCalled()
   })
 
-  it('messages:false persists no bare run pointer (server owns reconnect)', async () => {
-    // The stale-run trap: a client-cached run id goes stale the moment a turn
-    // spans a second run. In messages:false the client must persist NO bare run
-    // pointer — reconnect is resolved from the server by threadId. Use an
-    // in-flight run (no terminal) so a wrongly-written pointer would still be present.
-    const { adapter, read } = memoryAdapter({ messages: [] })
-    const joinRun = vi.fn(async function* (_runId: string) {
-      yield {
-        type: 'RUN_STARTED',
-        runId: 'provider-run',
-        threadId: 't1',
-        timestamp: 1,
-      } as StreamChunk
-      yield {
-        type: 'TEXT_MESSAGE_START',
-        messageId: 'a1',
-        role: 'assistant',
-        timestamp: 2,
-      } as StreamChunk
-      yield {
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'a1',
-        delta: 'partial',
-        content: 'partial',
-        timestamp: 3,
-      } as StreamChunk
-    })
-    const connection: ResumableConnectConnectionAdapter = {
-      connect: async function* () {},
-      joinRun,
-      hydrate: () =>
-        Promise.resolve({
-          messages: [],
-          activeRun: { runId: 'client-run' },
-          interrupts: null,
-        }),
-    }
-    let latest: Array<UIMessage> = []
-    const client = new ChatClient({
-      threadId: 't1',
-      connection,
-      persistence: { store: adapter, messages: false },
-      onMessagesChange: (m) => {
-        latest = m
-      },
-    })
-
-    await vi.waitFor(() => {
-      const a = latest.find((m) => m.role === 'assistant')
-      const t = a?.parts.find((p) => p.type === 'text')
-      expect(t && 'content' in t && t.content).toBe('partial')
-    })
-
-    const stored = read() as ChatPersistedState | undefined
-    expect(stored?.resume).toBeUndefined()
-    void client
-  })
-
   it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
     // The hydrated transcript includes a PARTIAL assistant reply (a streaming
     // snapshot) carrying the same messageId the live run uses. Tailing it on
     // mount must rebuild that bubble from the log into ONE clean message — not
     // seed+append into "worworld", and not leave a second bubble.
-    const { adapter } = memoryAdapter({ messages: [] })
 
     const joinRun = vi.fn(async function* (_runId: string) {
       for (const chunk of runChunks('r1', 't1')) yield chunk
@@ -512,7 +389,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     const client = new ChatClient({
       threadId: 't1',
       connection,
-      persistence: { store: adapter, messages: false },
+      persistence: true,
       onMessagesChange: (messages) => {
         latest = messages
       },
@@ -675,11 +552,10 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('with messages:false a dead server-tail frees the input and persists nothing', async () => {
-    // Server hydration reports an active run, but its durability log is gone —
-    // joinRun never attaches. The client must free the input (isLoading false)
-    // and, being server-authoritative, persist no pointer of its own.
-    const { adapter, read } = memoryAdapter({ messages: [] })
+  it('with persistence:true a dead server-tail frees the input', async () => {
+    // Server hydration reports an active run, but its durability log is gone, so
+    // joinRun never attaches. The client must free the input (isLoading false).
+    // Being server-authoritative it has no client store to write to at all.
     const joinRun = vi.fn(async function* (
       _runId: string,
       signal?: AbortSignal,
@@ -705,14 +581,13 @@ describe('ChatClient auto-rejoin after reload', () => {
     const client = new ChatClient({
       threadId: 't1',
       connection,
-      persistence: { store: adapter, messages: false },
+      persistence: true,
     })
 
     await vi.waitFor(
       () => {
         expect(joinRun).toHaveBeenCalled()
         expect(client.getIsLoading()).toBe(false)
-        expect(read()).toBeUndefined()
       },
       { timeout: 5_000 },
     )

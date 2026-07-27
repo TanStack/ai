@@ -106,7 +106,7 @@ Never post a delta as `messages` — that wipes history down to the delta.
 
 ## Recommended production stack
 
-1. **Client:** `persistence: { store, messages: false }` — resume pointer only.
+1. **Client:** `persistence: true` — server-authoritative, no client cache.
 2. **Server:** `withPersistence(backend)` — messages + runs + interrupts.
 3. **Route:** delivery durability if mid-stream reconnect matters.
 4. **Optional:** `withLocks(distributedLockStore)` from `@tanstack/ai/locks` when other middleware needs multi-instance coordination (not part of the state bag).
@@ -140,30 +140,24 @@ export async function POST(request: Request) {
 }
 ```
 
-**Client (server-authoritative resume pointer)**
+**Client (server-authoritative)**
 
 ```tsx
-import {
-  useChat,
-  fetchServerSentEvents,
-  localStoragePersistence,
-} from '@tanstack/ai-react'
-
-const store = localStoragePersistence()
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 function Chat({ threadId }: { threadId: string }) {
   const { messages, sendMessage } = useChat({
     threadId,
     connection: fetchServerSentEvents('/api/chat'),
-    persistence: { store, messages: false },
+    persistence: true,
   })
   // ...
 }
 ```
 
-With `messages: false`, the client hydrates the transcript from the server on
-mount (thread id is the key). Pair with a server load path such as
-`reconstructChat` when you need an explicit GET.
+With `persistence: true`, the client caches nothing and hydrates the transcript
+from the server on mount (thread id is the key). Pair with a server load path
+such as `reconstructChat` for the GET.
 
 ## Critical rules
 

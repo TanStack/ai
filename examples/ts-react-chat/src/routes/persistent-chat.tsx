@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
-import {
-  fetchServerSentEvents,
-  localStoragePersistence,
-} from '@tanstack/ai-client'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 import { sendEmailTool } from '../lib/persistent-chat-tools'
 import './persistent-chat.css'
@@ -16,12 +13,12 @@ export const Route = createFileRoute('/persistent-chat')({
 // server GET (?threadId) on the thread id, so switching threads reuses it.
 const connection = fetchServerSentEvents('/api/persistent-chat')
 
-// Server-authoritative persistence: the client caches only resume pointers,
-// never transcripts. On mount useChat hydrates a thread from the server by its
-// id — the stored transcript plus a cursor to any run still generating — so
-// switching threads, reloading, or opening a thread on another device all just
-// resume. The server (SQLite) owns every conversation.
-const persistence = { store: localStoragePersistence(), messages: false }
+// Server-authoritative persistence: the client caches nothing. On mount useChat
+// hydrates a thread from the server by its id (the stored transcript plus a
+// cursor to any run still generating), so switching threads, reloading, or
+// opening a thread on another device all just resume. The server (SQLite) owns
+// every conversation.
+const persistence = true
 
 // Share the tool DEFINITION with the client via an argless `.client()`: the
 // browser gets no implementation (the server runs sendEmail), but it learns the
@@ -202,10 +199,10 @@ function ChatPane({
       <p className="pc-blurb">
         The server owns every conversation (transcript, runs, interrupts, tool
         calls) in SQLite via <code>withPersistence</code>. The client caches
-        only a resume pointer (<code>messages: false</code>); on mount{' '}
-        <code>useChat</code> hydrates this thread from the server by its id — no
-        loader, no props. Start a long reply, then switch threads or reload: it
-        resumes exactly where it was.
+        nothing (<code>persistence: true</code>); on mount <code>useChat</code>{' '}
+        hydrates this thread from the server by its id, no loader, no props.
+        Start a long reply, then switch threads or reload: it resumes exactly
+        where it was.
       </p>
 
       <div className="pc-thread" ref={threadRef}>

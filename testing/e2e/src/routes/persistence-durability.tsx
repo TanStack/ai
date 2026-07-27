@@ -20,15 +20,14 @@ import {
  * storage key.
  *
  * `?scenario=server-interrupt` is the SERVER-authoritative counterpart: the
- * client runs `messages: false` (caches no transcript, only a resume pointer),
- * so on mount it hydrates from the endpoint's GET, which returns a pending
- * interrupt. Proves a fresh client re-prompts the approval from the server, not
- * from `localStorage`.
+ * client runs `persistence: true` (caches nothing), so on mount it hydrates from
+ * the endpoint's GET, which returns a pending interrupt. Proves a fresh client
+ * re-prompts the approval from the server, not from `localStorage`.
  */
 
-// The store instance both modes share. `text`/`interrupt` pass it directly
-// (messages:true default — transcript cached to localStorage). `server-interrupt`
-// wraps it with `messages: false`, so the server owns the transcript and the
+// The store the client-authoritative scenarios use. `text`/`interrupt` pass it
+// directly, caching the transcript to localStorage. `server-interrupt` instead
+// runs `persistence: true` (no store), so the server owns the transcript and the
 // client hydrates on mount.
 const store = localStoragePersistence()
 
@@ -72,7 +71,7 @@ function PersistenceDurabilityPage() {
       : isInterrupt
         ? interruptConnection
         : textConnection,
-    persistence: isServerInterrupt ? { store, messages: false } : store,
+    persistence: isServerInterrupt ? true : store,
   })
 
   const [input, setInput] = useState('')

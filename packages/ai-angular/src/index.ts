@@ -83,7 +83,6 @@ export {
   StorageUnavailableError,
   type ChatClientPersistence,
   type ChatPersistedState,
-  type ChatPersistenceConfig,
   type ChatPersistenceOption,
   type ChatStorageAdapter,
   type WebStoragePersistenceOptions,

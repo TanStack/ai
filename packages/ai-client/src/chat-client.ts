@@ -283,12 +283,6 @@ export class ChatClient<
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
-  // Whether this client caches the transcript (client-authoritative). In
-  // `messages: false` (server-authoritative) mode it is false: the client holds
-  // no transcript and no cached run pointer, and re-hydrates from the server on
-  // mount keyed by threadId (see `hydrateFromServer`). Assigned once in the
-  // constructor from the resolved `persistence` option.
-  private readonly cachesMessages: boolean
   // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
   // run is rejoined at most once even when both the sync read and the async
   // hydrate surface the same resume pointer.
@@ -409,36 +403,29 @@ export class ChatClient<
     // only for direct ChatClient users who key storage separately from the wire
     // thread; the framework hooks never pass it.
     this.uniqueId = options.id || this.threadId
-    // Whether the persistor caches the transcript. In `{ messages: false }`
-    // mode it does not, so the persisted record's empty transcript must never
-    // override host-provided `initialMessages` (history the app loaded from the
-    // server); see the initialMessages resolution below.
+    // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
+    // (server-authoritative: cache nothing client-side, hydrate the thread from
+    // the server by `threadId` on mount), or a storage adapter
+    // (client-authoritative: cache the transcript plus resume pointer). Only the
+    // server-authoritative mode turns transcript caching off; that is what gates
+    // the mount hydration and keeps a client record from shadowing server history.
     let cachesMessages = true
-    if (options.persistence) {
-      // The `persistence` option is either a bare adapter (store everything) or
-      // `{ store, messages }`. `messages: false` caches only the resume pointer,
-      // leaving the transcript off the client (server-authoritative history).
-      const store =
-        'store' in options.persistence
-          ? options.persistence.store
-          : options.persistence
-      cachesMessages =
-        'store' in options.persistence
-          ? options.persistence.messages !== false
-          : true
-      // Persistence keys on `threadId` (the conversation identity) so a reload
-      // with the same `threadId` finds the same record. `id` overrides it only
-      // when set, for apps that key storage separately from the wire thread.
+    if (options.persistence === true) {
+      cachesMessages = false
+    } else if (options.persistence) {
+      // A storage adapter: keep the combined record (transcript + resume pointer)
+      // in the browser. Persistence keys on `threadId` (the conversation
+      // identity) so a reload with the same `threadId` finds the same record;
+      // `id` overrides it only when set, for apps that key storage separately
+      // from the wire thread.
       const persistenceKey = options.id ?? this.threadId
       this.persistor = new ChatPersistor(
-        store,
+        options.persistence,
         persistenceKey,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyPersistedResume(snapshot),
-        cachesMessages,
       )
     }
-    this.cachesMessages = cachesMessages
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
     // separately so `updateOptions` can replace one without touching the
@@ -504,14 +491,13 @@ export class ChatClient<
     const persistedState = this.persistor?.readInitial()
     const syncPersistedState =
       persistedState instanceof Promise ? undefined : persistedState
-    // Adopt the persisted transcript only when we actually cache it. In
-    // `messages: false` mode the record's empty `messages` is "not stored here",
-    // not "the conversation is empty", so fall back to host `initialMessages`
-    // (e.g. history the app fetched from the server) and take only `resume`.
-    const initialMessages =
-      cachesMessages && syncPersistedState
-        ? syncPersistedState.messages
-        : options.initialMessages
+    // A persistor exists only in client-authoritative mode, so a synchronously
+    // read record's transcript is the conversation; adopt it over host
+    // `initialMessages`. (Server-authoritative mode has no persistor and instead
+    // hydrates from the server on mount, keyed by threadId.)
+    const initialMessages = syncPersistedState
+      ? syncPersistedState.messages
+      : options.initialMessages
     // A durable snapshot read synchronously from storage wins over the
     // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
     // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
@@ -523,13 +509,10 @@ export class ChatClient<
         Array.isArray(snapshot.pendingInterrupts) &&
         snapshot.pendingInterrupts.length > 0
       if (hasPendingInterrupts) {
-        // Interrupts are restored in BOTH modes — they are run-scoped state, not
-        // a reconnect cursor.
+        // Interrupts are run-scoped state, restored from the cached snapshot.
         this.applyResumeSnapshot(snapshot)
-      } else if (snapshot.resumeState.runId && cachesMessages) {
-        // A bare in-flight run pointer only drives rejoin in client-authoritative
-        // mode. In `messages: false`, reconnect is resolved from the server by
-        // threadId (`hydrateFromServer`), so a cached run id is never trusted.
+      } else if (snapshot.resumeState.runId) {
+        // A bare in-flight run pointer drives a client-authoritative rejoin.
         rejoinRunId = snapshot.resumeState.runId
       }
     }
@@ -771,8 +754,8 @@ export class ChatClient<
       this.maybeRejoinInFlight(rejoinRunId)
     }
 
-    // Server-authoritative (messages:false): the client caches no transcript and
-    // no run pointer — it re-hydrates from the server on mount, keyed by the
+    // Server-authoritative (`persistence: true`): the client caches no transcript
+    // and no run pointer — it re-hydrates from the server on mount, keyed by the
     // stable threadId. `hydrate` returns the stored transcript plus a cursor to
     // any in-flight run, which is tailed via the same joinRun path. This is what
     // makes reload AND a fresh device work with zero app glue (no loader/prop).
@@ -817,10 +800,11 @@ export class ChatClient<
       Array.isArray(snapshot.pendingInterrupts) &&
       snapshot.pendingInterrupts.length > 0
     const runId = snapshot.resumeState?.runId
-    // Bare in-flight rejoin from a cached pointer is client-authoritative only;
-    // `messages: false` reconnect is server-resolved by threadId (see
-    // `hydrateFromServer`). Interrupts (above) restore in both modes.
-    if (!hasInterrupts && runId && this.cachesMessages) {
+    // A cached run pointer only reaches here through the persistor, which exists
+    // only in client-authoritative mode, so a bare in-flight run rejoins here.
+    // (Server-authoritative reconnect is resolved from the server by threadId in
+    // `hydrateFromServer`.)
+    if (!hasInterrupts && runId) {
       this.maybeRejoinInFlight(runId)
     }
   }
@@ -840,7 +824,7 @@ export class ChatClient<
   }
 
   /**
-   * Server-authoritative mount hydration (`messages: false`). The client holds
+   * Server-authoritative mount hydration (`persistence: true`). The client holds
    * no transcript and no run pointer; on mount it asks the server — keyed by the
    * stable threadId — for the stored transcript and whether a run is still
    * generating. The transcript repaints immediately; an in-flight run is tailed
@@ -934,17 +918,13 @@ export class ChatClient<
       this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
       // Persist a live-run resume snapshot so a full page reload can rejoin this
-      // in-flight run via joinRun. CLIENT-AUTHORITATIVE only: in
-      // `messages: false` mode the server owns reconnect (resolved from threadId
-      // via `hydrateFromServer` on mount), so a client-cached run pointer — which
-      // goes stale the moment a turn spans a second run — must never be written.
-      // Interrupt/terminal handling overwrites or clears it in observeInterruptState.
-      if (
-        this.persistor &&
-        this.connection.joinRun &&
-        !this.lastResume &&
-        this.cachesMessages
-      ) {
+      // in-flight run via joinRun. Only a persistor writes it, and a persistor
+      // exists only in client-authoritative mode; server-authoritative reconnect
+      // is resolved from the server by threadId in `hydrateFromServer`, so no
+      // client-cached run pointer (which goes stale the moment a turn spans a
+      // second run) is ever written. Interrupt/terminal handling overwrites or
+      // clears it in observeInterruptState.
+      if (this.persistor && this.connection.joinRun && !this.lastResume) {
         this.persistResumeSnapshot({
           threadId: this.activeResumeThreadId ?? this.threadId,
           runId: chunkRunId,

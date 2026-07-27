@@ -107,14 +107,14 @@ test.describe('persistence durability (browser refresh)', () => {
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
   })
 
-  test('restores a pending interrupt from the SERVER on a fresh load (messages:false)', async ({
+  test('restores a pending interrupt from the SERVER on a fresh load (persistence: true)', async ({
     page,
   }) => {
-    // Server-authoritative: the client caches no transcript, only a resume
-    // pointer. On mount it hydrates from the GET, which returns a pending
-    // approval. This is the path that was broken — a fresh client showed the
-    // paused tool call with no way to approve/reject. Clear localStorage before
-    // the asserting load so the interrupt can ONLY have come from the server.
+    // Server-authoritative: the client caches nothing. On mount it hydrates from
+    // the GET, which returns a pending approval. This is the path that was
+    // broken — a fresh client showed the paused tool call with no way to
+    // approve/reject. Clear localStorage before the asserting load so the
+    // interrupt can ONLY have come from the server.
     await page.goto('/persistence-durability?scenario=server-interrupt')
     await page.evaluate(() => window.localStorage.clear())
     await page.reload()
@@ -130,17 +130,13 @@ test.describe('persistence durability (browser refresh)', () => {
     // view a dead paused tool call.
     await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')
 
-    // And nothing in localStorage held the interrupt: the record, if any, is a
-    // resume pointer written AFTER the server hydrate, never the source of it.
+    // And the client wrote nothing to localStorage: `persistence: true` keeps no
+    // record at all, so the interrupt could only have come from the server.
     const stored = await page.evaluate(() =>
       window.localStorage.getItem(
         'tanstack-ai:persistence-durability-server-interrupt',
       ),
     )
-    if (stored !== null) {
-      const record = JSON.parse(stored) as { messages?: Array<unknown> }
-      // messages:false caches no transcript.
-      expect(record.messages ?? []).toEqual([])
-    }
+    expect(stored).toBeNull()
   })
 })

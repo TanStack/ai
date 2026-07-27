@@ -29,7 +29,7 @@ import type { StreamChunk } from '@tanstack/ai'
  *   record, so a reload rehydrates the interrupt from `localStorage` alone
  *   (no server round-trip).
  * - `server-interrupt` — the SERVER-authoritative counterpart. The client runs
- *   `messages: false` (caches no transcript), so on mount it hydrates from the
+ *   `persistence: true` (caches nothing), so on mount it hydrates from the
  *   GET below, which returns a `reconstructChat`-shaped JSON carrying a pending
  *   interrupt. Proves a fresh client (empty `localStorage`) re-prompts the
  *   approval from the server alone — the path that was previously broken.
@@ -207,7 +207,7 @@ export const Route = createFileRoute('/api/persistence-durability')({
       // 1. Delivery replay — re-attach to an in-flight run by id
       //    (`?offset=-1&runId=…`). Detected via the durability adapter's
       //    `resumeFrom()`. Read-only: no producer stream is built.
-      // 2. Server-authoritative hydration — the `messages: false` client's mount
+      // 2. Server-authoritative hydration — the `persistence: true` client's mount
       //    probe (a plain `?threadId=` GET, no resume cursor). Returns a
       //    `reconstructChat`-shaped JSON; the `server-interrupt` scenario carries
       //    a pending approval so a fresh client re-prompts it from the server.

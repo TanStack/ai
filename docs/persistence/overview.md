@@ -155,7 +155,7 @@ If you run server-authoritative with the transcript kept off the client (see [Cl
 | --- | --- |
 | A dropped connection to resume the same answer | Delivery durability ([Resumable Streams](../resumable-streams/overview)) |
 | The conversation to still be there after a reload | [Client persistence](./client-persistence) |
-| Reload durability without caching big histories client-side | Client persistence with `{ store, messages: false }` |
+| Reload durability without caching big histories client-side | Client persistence with `persistence: true` |
 | The same conversation on another device, or after a server restart | Server persistence ([Chat persistence](./chat-persistence)) |
 | Pause for a human approval and resume it later, durably | Server persistence with an `interrupts` store |
 | A mid-stream reload to pick up the live answer | Client persistence + delivery durability together |
@@ -166,7 +166,7 @@ Most production chat apps end up with all three: delivery durability on the rout
 
 For a real multi-user app, one combination beats the rest:
 
-1. **Client: cache only the resume pointer** with `persistence: { store, messages: false }`. The browser holds a few bytes (which run to rejoin, which interrupts are pending), never the transcript.
+1. **Client: cache nothing** with `persistence: true`. The browser holds no transcript and no resume pointer; on mount it hydrates the thread from the server by its `threadId`.
 2. **Server: `withPersistence`** owns the authoritative history, run status, and durable interrupts.
 3. **One `GET` endpoint that does two jobs**: rehydrate the conversation from the store, and resume an in-flight durable stream.
 
@@ -231,22 +231,19 @@ export function GET(request: Request): Response | Promise<Response> {
 }
 ```
 
-The client caches only the pointer. `useChat` calls that `GET` for you on mount:
+The client caches nothing. `useChat` calls that `GET` for you on mount:
 
 ```tsx
 import {
   fetchServerSentEvents,
-  localStoragePersistence,
   useChat,
 } from '@tanstack/ai-react'
-
-const store = localStoragePersistence()
 
 function Chat() {
   const { messages, sendMessage } = useChat({
     threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
-    persistence: { store, messages: false },
+    persistence: true,
   })
   // Nothing else to wire. On mount useChat fetches GET /api/chat?threadId=...,
   // paints the returned transcript, and tails any run still generating.
@@ -266,10 +263,10 @@ Why this wins over the alternatives:
 
 - **One source of truth.** History lives on the server, so there is no client/server copy to drift or reconcile. The same conversation opens on any device and survives a server restart.
 - **A cheap client.** The browser never parses or stores a long transcript, so there is no `localStorage` quota or startup-parse cost, even for huge threads.
-- **Full reload durability anyway.** The tiny resume pointer is enough to rejoin a mid-stream run and restore pending interrupts instantly, so dropping the transcript costs nothing on reload.
+- **Full reload durability anyway.** The mount `GET` re-paints the transcript and, when a run is still generating, reports its `activeRun` so the client rejoins it and restores pending interrupts. A reload picks up exactly where it left off.
 - **No wasted work.** The `GET` reuses the same route as the durable-stream resume, and `loadThread` returns ready-made messages instead of replaying a stream to reconstruct them.
 
-Client-only persistence can't do multi-device and bloats storage. Caching everything client-side duplicates the source of truth. Server-only without the resume pointer can't rejoin a live run after a reload without a round-trip. This combination avoids all three.
+Client-only persistence can't do multi-device and bloats storage. Caching everything client-side duplicates the source of truth. This combination avoids both: one server-resolved `GET` on mount restores history and rejoins any live run, so a reload and a second device follow the identical path.
 
 ## The store contract
 

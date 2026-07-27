@@ -242,7 +242,7 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-26"
+          "updatedAt": "2026-07-27"
         },
         {
           "label": "Chat Persistence",
@@ -254,7 +254,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-26"
+          "updatedAt": "2026-07-27"
         },
         {
           "label": "Controls",

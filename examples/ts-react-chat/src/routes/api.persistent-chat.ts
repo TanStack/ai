@@ -192,8 +192,8 @@ function startDetachedRun(
  *    `startDetachedRun`), so a mid-stream reload does not abort it. It finishes,
  *    persists, and the reload rehydrates the full conversation.
  *
- * The client runs server-authoritative (`persistence: { store, messages: false }`)
- * and keeps no messages — and no run pointer — of its own. On mount `useChat`
+ * The client runs server-authoritative (`persistence: true`) and keeps no
+ * messages, and no run pointer, of its own. On mount `useChat`
  * hits this GET itself (keyed by threadId) and `reconstructChat` returns the
  * transcript plus a cursor to any in-flight run, which the client then tails via
  * the delivery replay branch below. No loader, no client hydration code.
@@ -240,8 +240,8 @@ export const Route = createFileRoute('/api/persistent-chat')({
       //    sniffing query params.
       // 2. History hydration — read the DURABLE thread transcript from the
       //    persistence store. This is what a server-authoritative client
-      //    (persistence `{ messages: false }`) fetches on reload, since the
-      //    delivery log only holds one run, never prior turns.
+      //    (`persistence: true`) fetches on reload, since the delivery log only
+      //    holds one run, never prior turns.
       GET: ({ request }) => {
         // `memoryStream` fails a from-start join to a gone/empty run fast (its
         // ~100ms default first-chunk deadline), so an unresumable reload frees

@@ -21,8 +21,8 @@ moves the whole reconnect story onto the stable thread id, resolved by the serve
   approvals / waits) plus the run they paused. It reads the active run before the
   transcript so observing "no active run" guarantees the transcript is final
   (closing a finish-window race).
-- **`@tanstack/ai-client` hydrates itself on mount.** In `messages: false`
-  (server-authoritative) mode the client now caches no transcript and no run
+- **`@tanstack/ai-client` hydrates itself on mount.** In server-authoritative
+  mode (`persistence: true`) the client caches no transcript and no run
   pointer: on mount `useChat`/`ChatClient` calls the connection's new
   `hydrate(threadId)` (a JSON GET against the same endpoint), paints the returned
   transcript, and — if a run is in flight — tails it via the existing `joinRun`
