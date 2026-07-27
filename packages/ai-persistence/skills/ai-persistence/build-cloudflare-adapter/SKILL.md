@@ -88,15 +88,15 @@ Two routes, same invariants:
 
 The invariants are the whole game, whichever route you take:
 
-| Store        | Rule                                                                                |
-| ------------ | ----------------------------------------------------------------------------------- |
-| `messages`   | `saveThread` is a full replace (`INSERT … ON CONFLICT(thread_id) DO UPDATE`)        |
-| `runs`       | `createOrResume` reads first, else `INSERT … ON CONFLICT DO NOTHING`, then re-reads |
-| `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts           |
+| Store        | Rule                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `messages`   | `saveThread` is a full replace (`INSERT … ON CONFLICT(thread_id) DO UPDATE`)                                      |
+| `runs`       | `createOrResume` reads first, else `INSERT … ON CONFLICT DO NOTHING`, then re-reads                               |
+| `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts                                         |
 | `runs`       | `findActiveRun` returns the latest `'running'` run for the thread, else null — required for reload/switch tailing |
-| `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending    |
-| `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                      |
-| `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`         |
+| `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending                                  |
+| `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                                                    |
+| `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                       |
 
 Row mappers omit absent optionals (`...(row.error != null ? { error: row.error } : {})`)
 so records compare cleanly against the reference in-memory backend. JSON columns
