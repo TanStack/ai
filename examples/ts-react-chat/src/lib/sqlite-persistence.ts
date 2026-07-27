@@ -158,6 +158,10 @@ function createRunStore(db: DatabaseSync) {
     `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
+  const activeStmt = db.prepare(
+    `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
+     ORDER BY started_at DESC LIMIT 1`,
+  )
   return defineRunStore({
     createOrResume(input) {
       // INVARIANT (idempotency): an existing run is returned unchanged; the
@@ -208,6 +212,14 @@ function createRunStore(db: DatabaseSync) {
     },
     get(runId) {
       const row = selectStmt.get(runId) as RunRow | undefined
+      return Promise.resolve(row ? mapRun(row) : null)
+    },
+    // The most recent still-running run for the thread, so `reconstructChat`
+    // reports `activeRun` and a hydrating client (reload / another device /
+    // switching back to this thread) tails it via the durability replay. Without
+    // this method the contract treats the thread as having no live run.
+    findActiveRun(threadId) {
+      const row = activeStmt.get(threadId) as RunRow | undefined
       return Promise.resolve(row ? mapRun(row) : null)
     },
   })

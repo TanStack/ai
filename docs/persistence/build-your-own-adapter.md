@@ -193,6 +193,10 @@ function createRunStore(db: DatabaseSync) {
     `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
+  const active = db.prepare(
+    `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
+     ORDER BY started_at DESC LIMIT 1`,
+  )
   return defineRunStore({
     async createOrResume(input) {
       const existing = select.get(input.runId)
@@ -233,6 +237,15 @@ function createRunStore(db: DatabaseSync) {
     },
     async get(runId) {
       const row = select.get(runId)
+      return row ? mapRun(row) : null
+    },
+    // The most recent still-running run for a thread. `reconstructChat` calls
+    // this so a hydrating client (a reload, another device, or switching back to
+    // a generating thread) learns there is a live run and tails it. Skip it and
+    // the thread always looks idle on hydrate: the transcript restores, but a
+    // reply that was mid-stream never resumes.
+    async findActiveRun(threadId) {
+      const row = active.get(threadId)
       return row ? mapRun(row) : null
     },
   })
@@ -625,13 +638,21 @@ interface RunStore {
     >,
   ): Promise<void>
   get(runId: string): Promise<RunRecord | null>
+  // The most recent 'running' run for a thread (greatest `startedAt` wins), or
+  // null when the thread is idle. Optional on the contract, but implement it:
+  // `reconstructChat` feature-detects it to report `activeRun`, which is how a
+  // hydrating client tails a run that is still generating.
+  findActiveRun?(threadId: string): Promise<RunRecord | null>
 }
 ```
 
 Implement `createOrResume` idempotently: a second call for an existing `runId`
 returns the stored record unchanged, which is what makes resuming a run safe.
 `update` against an unknown `runId` is a no-op. Retries may repeat the same run
-id.
+id. Implement `findActiveRun` too unless you never tail in-flight runs on
+reload: without it, `reconstructChat` always reports `activeRun: null`, so a
+client that reloads (or switches back to) a still-generating thread restores the
+transcript but never resumes the live reply.
 
 ### InterruptStore
 
