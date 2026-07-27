@@ -1,5 +1,12 @@
 // Store contracts + named chat shapes
-export { composePersistence, defineAIPersistence } from './types'
+export {
+  composePersistence,
+  defineAIPersistence,
+  defineMessageStore,
+  defineRunStore,
+  defineInterruptStore,
+  defineMetadataStore,
+} from './types'
 export type {
   MessageStore,
   RunStatus,

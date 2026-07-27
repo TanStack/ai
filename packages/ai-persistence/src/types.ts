@@ -238,6 +238,45 @@ export interface MetadataStore {
   delete: (namespace: string, key: string) => Promise<void>
 }
 
+// ===========================================================================
+// Store typers
+// ===========================================================================
+//
+// Identity helpers that type a store implementation inline: pass an object
+// literal and get autocomplete + contract checking, with no separate
+// `: MessageStore` return annotation. They compose into `defineAIPersistence`,
+// which infers **exact presence** — a store you define becomes a defined,
+// non-optional, autocompleted key on `persistence.stores`, and accessing a store
+// you did not define is a compile error.
+//
+// ```ts
+// const persistence = defineAIPersistence({
+//   stores: {
+//     messages: defineMessageStore({ loadThread, saveThread }),
+//     runs: defineRunStore({ createOrResume, update, get }),
+//   },
+// })
+// persistence.stores.runs        // RunStore (defined)
+// persistence.stores.interrupts  // compile error — not provided
+// ```
+
+/** Type a {@link MessageStore} implementation inline. */
+export function defineMessageStore(store: MessageStore): MessageStore {
+  return store
+}
+/** Type a {@link RunStore} implementation inline. */
+export function defineRunStore(store: RunStore): RunStore {
+  return store
+}
+/** Type an {@link InterruptStore} implementation inline. */
+export function defineInterruptStore(store: InterruptStore): InterruptStore {
+  return store
+}
+/** Type a {@link MetadataStore} implementation inline. */
+export function defineMetadataStore(store: MetadataStore): MetadataStore {
+  return store
+}
+
 /**
  * Sparse bag of **state** store keys — composition / validation only.
  *

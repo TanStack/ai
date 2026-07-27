@@ -159,20 +159,25 @@ two on one field.
 
 ## Minimal message store example
 
+Type each store with its `define*Store` helper (`defineMessageStore`,
+`defineRunStore`, `defineInterruptStore`, `defineMetadataStore`): pass the object
+literal and get autocomplete + contract checking inline, with no `: MessageStore`
+annotation. The result composes into `defineAIPersistence` with exact presence.
+
 ```ts
-import type { MessageStore } from '@tanstack/ai-persistence'
+import { defineMessageStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
 
 const threads = new Map<string, Array<ModelMessage>>()
 
-export const messages: MessageStore = {
+export const messages = defineMessageStore({
   async loadThread(threadId) {
     return [...(threads.get(threadId) ?? [])]
   },
   async saveThread(threadId, next) {
     threads.set(threadId, [...next])
   },
-}
+})
 ```
 
 For durable DBs, preserve the same semantics with upserts / full-row replace.

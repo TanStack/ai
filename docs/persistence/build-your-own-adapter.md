@@ -47,6 +47,13 @@ Those four are the *only* keys `stores` accepts — anything else throws
 a separate concern with its own seam (`LockStore` + `withLocks`); see
 [Controls](./controls).
 
+Type each store with its `define*Store` helper — `defineMessageStore`,
+`defineRunStore`, `defineInterruptStore`, `defineMetadataStore` — as the sections
+below do. Each checks the object against the contract inline (autocomplete, no
+`: MessageStore` annotation) and composes into `defineAIPersistence`, which
+tracks **exact presence**: the stores you pass are defined, autocompleted keys on
+`persistence.stores`, and accessing one you did not pass is a compile error.
+
 Annotate the value with a named shape — `ChatPersistence` for all four,
 `ChatTranscriptPersistence` for the floor. Bare `AIPersistence` is the
 all-optional bag, and `withPersistence` rejects it because `stores.messages` is
@@ -106,10 +113,12 @@ saved, never `null`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
+import { defineMessageStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
-import type { MessageStore } from '@tanstack/ai-persistence'
 
-function createMessageStore(db: DatabaseSync): MessageStore {
+// `defineMessageStore` types the object inline against the contract — you get
+// autocomplete and checking with no separate `: MessageStore` annotation.
+function createMessageStore(db: DatabaseSync) {
   const select = db.prepare(
     'SELECT messages_json FROM messages WHERE thread_id = ?',
   )
@@ -117,7 +126,7 @@ function createMessageStore(db: DatabaseSync): MessageStore {
     `INSERT INTO messages (thread_id, messages_json) VALUES (?, ?)
      ON CONFLICT(thread_id) DO UPDATE SET messages_json = excluded.messages_json`,
   )
-  return {
+  return defineMessageStore({
     loadThread(threadId) {
       const json = select.get(threadId)?.messages_json
       // Unknown thread → [] (never null). `node:sqlite` types columns as a
@@ -130,7 +139,7 @@ function createMessageStore(db: DatabaseSync): MessageStore {
       upsert.run(threadId, JSON.stringify(messages))
       return Promise.resolve()
     },
-  }
+  })
 }
 ```
 
@@ -147,11 +156,8 @@ status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
-import type {
-  RunRecord,
-  RunStatus,
-  RunStore,
-} from '@tanstack/ai-persistence'
+import { defineRunStore } from '@tanstack/ai-persistence'
+import type { RunRecord, RunStatus } from '@tanstack/ai-persistence'
 
 // The `status` column is text; validate it back into the union (no cast).
 function toRunStatus(value: unknown): RunStatus {
@@ -182,13 +188,13 @@ function mapRun(row: Record<string, unknown>): RunRecord {
   }
 }
 
-function createRunStore(db: DatabaseSync): RunStore {
+function createRunStore(db: DatabaseSync) {
   const select = db.prepare('SELECT * FROM runs WHERE run_id = ?')
   const insert = db.prepare(
     `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
-  return {
+  return defineRunStore({
     createOrResume(input) {
       const existing = select.get(input.runId)
       if (existing) return Promise.resolve(mapRun(existing))
@@ -231,7 +237,7 @@ function createRunStore(db: DatabaseSync): RunStore {
       const row = select.get(runId)
       return Promise.resolve(row ? mapRun(row) : null)
     },
-  }
+  })
 }
 ```
 
@@ -248,10 +254,10 @@ by `requested_at` ascending, which the middleware relies on.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
+import { defineInterruptStore } from '@tanstack/ai-persistence'
 import type {
   InterruptRecord,
   InterruptStatus,
-  InterruptStore,
 } from '@tanstack/ai-persistence'
 
 function toInterruptStatus(value: unknown): InterruptStatus {
@@ -281,7 +287,7 @@ function mapInterrupt(row: Record<string, unknown>): InterruptRecord {
   }
 }
 
-function createInterruptStore(db: DatabaseSync): InterruptStore {
+function createInterruptStore(db: DatabaseSync) {
   const insert = db.prepare(
     `INSERT INTO interrupts
        (interrupt_id, run_id, thread_id, status, requested_at, payload_json, response_json)
@@ -311,7 +317,7 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
     `SELECT * FROM interrupts WHERE run_id = ? AND status = 'pending'
      ORDER BY requested_at ASC`,
   )
-  return {
+  return defineInterruptStore({
     create(record) {
       // Insert-if-absent: a duplicate id must never clobber an already-resolved
       // interrupt back to pending.
@@ -353,7 +359,7 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
     listPendingByRun(runId) {
       return Promise.resolve(pendingByRun.all(runId).map(mapInterrupt))
     },
-  }
+  })
 }
 ```
 
@@ -365,9 +371,9 @@ error instead of a cryptic driver failure. Callers clear a value with `delete`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
-import type { MetadataStore } from '@tanstack/ai-persistence'
+import { defineMetadataStore } from '@tanstack/ai-persistence'
 
-function createMetadataStore(db: DatabaseSync): MetadataStore {
+function createMetadataStore(db: DatabaseSync) {
   const select = db.prepare(
     'SELECT value_json FROM metadata WHERE scope = ? AND key = ?',
   )
@@ -375,7 +381,7 @@ function createMetadataStore(db: DatabaseSync): MetadataStore {
     `INSERT INTO metadata (scope, key, value_json) VALUES (?, ?, ?)
      ON CONFLICT(scope, key) DO UPDATE SET value_json = excluded.value_json`,
   )
-  return {
+  return defineMetadataStore({
     get(scope, key) {
       const json = select.get(scope, key)?.value_json
       return Promise.resolve(typeof json === 'string' ? JSON.parse(json) : null)
@@ -396,7 +402,7 @@ function createMetadataStore(db: DatabaseSync): MetadataStore {
       )
       return Promise.resolve()
     },
-  }
+  })
 }
 ```
 

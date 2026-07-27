@@ -20,17 +20,19 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
-import { defineAIPersistence } from '@tanstack/ai-persistence'
+import {
+  defineAIPersistence,
+  defineInterruptStore,
+  defineMessageStore,
+  defineMetadataStore,
+  defineRunStore,
+} from '@tanstack/ai-persistence'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 import type {
   ChatPersistence,
   InterruptRecord,
-  InterruptStore,
-  MessageStore,
-  MetadataStore,
   RunRecord,
   RunStatus,
-  RunStore,
 } from '@tanstack/ai-persistence'
 
 // ---------------------------------------------------------------------------
@@ -109,7 +111,7 @@ function parseJson<T>(text: string): T {
 // ---------------------------------------------------------------------------
 // MessageStore — full-transcript overwrite, keyed by thread.
 // ---------------------------------------------------------------------------
-function createMessageStore(db: DatabaseSync): MessageStore {
+function createMessageStore(db: DatabaseSync) {
   const selectStmt = db.prepare(
     'SELECT messages_json FROM messages WHERE thread_id = ?',
   )
@@ -117,7 +119,7 @@ function createMessageStore(db: DatabaseSync): MessageStore {
     `INSERT INTO messages (thread_id, messages_json) VALUES (?, ?)
      ON CONFLICT(thread_id) DO UPDATE SET messages_json = excluded.messages_json`,
   )
-  return {
+  return defineMessageStore({
     loadThread(threadId) {
       const row = selectStmt.get(threadId) as MessagesRow | undefined
       // INVARIANT: unknown thread returns [] (never null).
@@ -130,7 +132,7 @@ function createMessageStore(db: DatabaseSync): MessageStore {
       upsertStmt.run(threadId, JSON.stringify(messages))
       return Promise.resolve()
     },
-  }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -150,13 +152,13 @@ function mapRun(row: RunRow): RunRecord {
   }
 }
 
-function createRunStore(db: DatabaseSync): RunStore {
+function createRunStore(db: DatabaseSync) {
   const selectStmt = db.prepare('SELECT * FROM runs WHERE run_id = ?')
   const insertStmt = db.prepare(
     `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
-  const store: RunStore = {
+  return defineRunStore({
     createOrResume(input) {
       // INVARIANT (idempotency): an existing run is returned unchanged; the
       // insert is a no-op on conflict so startedAt/threadId/status never move.
@@ -208,8 +210,7 @@ function createRunStore(db: DatabaseSync): RunStore {
       const row = selectStmt.get(runId) as RunRow | undefined
       return Promise.resolve(row ? mapRun(row) : null)
     },
-  }
-  return store
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +231,7 @@ function mapInterrupt(row: InterruptRow): InterruptRecord {
   }
 }
 
-function createInterruptStore(db: DatabaseSync): InterruptStore {
+function createInterruptStore(db: DatabaseSync) {
   const insertStmt = db.prepare(
     `INSERT INTO interrupts
        (interrupt_id, run_id, thread_id, status, requested_at, payload_json, response_json)
@@ -263,7 +264,7 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
   )
   const mapRows = (rows: Array<unknown>): Array<InterruptRecord> =>
     (rows as Array<InterruptRow>).map(mapInterrupt)
-  return {
+  return defineInterruptStore({
     create(record) {
       // Insert-if-absent: a duplicate id must never clobber an already-resolved
       // interrupt back to pending.
@@ -305,7 +306,7 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
     listPendingByRun(runId) {
       return Promise.resolve(mapRows(listPendingByRunStmt.all(runId)))
     },
-  }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +325,7 @@ function assertStorableMetadata(value: unknown): void {
   }
 }
 
-function createMetadataStore(db: DatabaseSync): MetadataStore {
+function createMetadataStore(db: DatabaseSync) {
   const selectStmt = db.prepare(
     'SELECT value_json FROM metadata WHERE scope = ? AND key = ?',
   )
@@ -335,7 +336,7 @@ function createMetadataStore(db: DatabaseSync): MetadataStore {
   const deleteStmt = db.prepare(
     'DELETE FROM metadata WHERE scope = ? AND key = ?',
   )
-  return {
+  return defineMetadataStore({
     get(scope, key) {
       const row = selectStmt.get(scope, key) as MetadataRow | undefined
       return Promise.resolve(row ? parseJson<unknown>(row.value_json) : null)
@@ -349,7 +350,7 @@ function createMetadataStore(db: DatabaseSync): MetadataStore {
       deleteStmt.run(scope, key)
       return Promise.resolve()
     },
-  }
+  })
 }
 
 export interface SqlitePersistenceOptions {

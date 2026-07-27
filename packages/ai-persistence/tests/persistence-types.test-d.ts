@@ -2,6 +2,10 @@ import { expectTypeOf } from 'vitest'
 import {
   composePersistence,
   defineAIPersistence,
+  defineInterruptStore,
+  defineMessageStore,
+  defineMetadataStore,
+  defineRunStore,
   memoryPersistence,
   withPersistence,
   withGenerationPersistence,
@@ -165,3 +169,32 @@ expectTypeOf(withLocks(locks)).not.toBeNever()
 expectTypeOf(withLocks(new InMemoryLockStore())).not.toBeNever()
 // memoryPersistence is ChatPersistence (no locks key)
 expectTypeOf(memoryPersistence().stores).not.toHaveProperty('locks')
+
+// ---------------------------------------------------------------------------
+// Per-store typers: identity helpers that type an implementation inline and
+// compose into defineAIPersistence with exact presence.
+// ---------------------------------------------------------------------------
+expectTypeOf(defineMessageStore(messages)).toEqualTypeOf<MessageStore>()
+expectTypeOf(defineRunStore(runs)).toEqualTypeOf<RunStore>()
+expectTypeOf(defineInterruptStore(interrupts)).toEqualTypeOf<InterruptStore>()
+expectTypeOf(defineMetadataStore(metadata)).toEqualTypeOf<MetadataStore>()
+
+// A store impl missing a contract method is rejected at the typer.
+defineMessageStore(
+  // @ts-expect-error saveThread is required by MessageStore
+  { loadThread: () => Promise.resolve([]) },
+)
+
+// Composed into defineAIPersistence: defined stores are exact / non-optional,
+// omitted stores are a compile error to access.
+const typedStores = defineAIPersistence({
+  stores: {
+    messages: defineMessageStore(messages),
+    runs: defineRunStore(runs),
+    interrupts: defineInterruptStore(interrupts),
+  },
+})
+expectTypeOf(typedStores.stores.interrupts).toEqualTypeOf<InterruptStore>()
+expectTypeOf(typedStores.stores.runs).toEqualTypeOf<RunStore>()
+// @ts-expect-error metadata was not provided
+typedStores.stores.metadata
