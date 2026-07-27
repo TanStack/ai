@@ -414,7 +414,6 @@ SQLite file is enough) and reset it between runs. All four state stores are
 provided, so pass no `skip` — and `skip` never accepts `'locks'`, which is not
 a state store.
 
-
 ## Only if you are publishing this as a package
 
 Everything above assumes the file lives in the app. For a reusable npm adapter,

@@ -248,7 +248,6 @@ serialize; different keys do not block each other; a lease that expires aborts
 the signal handed to the critical section; and a callback that throws still
 releases the lock.
 
-
 ## Only if you are publishing this as a package
 
 For a reusable npm adapter rather than a file in the app: peer-dep

@@ -441,7 +441,6 @@ that has the migration applied, and reset between runs. Every store is
 provided, so there is nothing to `skip` — and `skip` never accepts `'locks'`,
 which is not a state store.
 
-
 ## Only if you are publishing this as a package
 
 Everything above assumes the file lives in the app. If instead you are shipping

@@ -274,6 +274,3 @@ Point it at a throwaway database and reset between runs. Declare intentional
 omissions with `skip: ['metadata']` — it accepts only
 `'messages' | 'runs' | 'interrupts' | 'metadata'`, never `'locks'`, which is not
 a state store.
-
-
-
