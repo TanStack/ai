@@ -24,16 +24,12 @@ already have. The runnable version of everything here lives in the
 
 An adapter is an object with a `stores` map:
 
-```ts ignore
-import type {
-  ChatTranscriptPersistence,
-  MessageStore,
-  RunStore,
-} from '@tanstack/ai-persistence'
-
-// messages and runs are your store implementations (built below).
-declare const messages: MessageStore
-declare const runs: RunStore
+```ts
+import type { ChatTranscriptPersistence } from '@tanstack/ai-persistence'
+// `messages` and `runs` are your store implementations (built below); import
+// them from your own modules.
+import { messages } from './message-store'
+import { runs } from './run-store'
 
 const persistence: ChatTranscriptPersistence = {
   stores: { messages, runs },
@@ -108,7 +104,7 @@ CREATE TABLE IF NOT EXISTS metadata (
 replace, not an append. `loadThread` returns `[]` for a thread that was never
 saved, never `null`.
 
-```ts ignore
+```ts
 import { DatabaseSync } from 'node:sqlite'
 import type { ModelMessage } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
@@ -123,9 +119,11 @@ function createMessageStore(db: DatabaseSync): MessageStore {
   )
   return {
     loadThread(threadId) {
-      const row = select.get(threadId)
-      if (!row) return Promise.resolve([])
-      const parsed: Array<ModelMessage> = JSON.parse(row.messages_json)
+      const json = select.get(threadId)?.messages_json
+      // Unknown thread → [] (never null). `node:sqlite` types columns as a
+      // SQL-value union, so narrow to string before parsing (no cast).
+      if (typeof json !== 'string') return Promise.resolve([])
+      const parsed: Array<ModelMessage> = JSON.parse(json)
       return Promise.resolve(parsed)
     },
     saveThread(threadId, messages) {
@@ -147,8 +145,42 @@ stored record unchanged, so resuming a run never resets its `startedAt` or
 status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
 `update` on an unknown run id is a no-op.
 
-```ts ignore
-import type { RunStore, RunStatus } from '@tanstack/ai-persistence'
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import type {
+  RunRecord,
+  RunStatus,
+  RunStore,
+} from '@tanstack/ai-persistence'
+
+// The `status` column is text; validate it back into the union (no cast).
+function toRunStatus(value: unknown): RunStatus {
+  switch (value) {
+    case 'running':
+    case 'completed':
+    case 'failed':
+    case 'interrupted':
+      return value
+    default:
+      throw new TypeError(`Unexpected run status: ${String(value)}`)
+  }
+}
+
+// `node:sqlite` types columns as a SQL-value union, so coerce/narrow each field
+// (String / Number / typeof) rather than casting the whole row.
+function mapRun(row: Record<string, unknown>): RunRecord {
+  return {
+    runId: String(row.run_id),
+    threadId: String(row.thread_id),
+    status: toRunStatus(row.status),
+    startedAt: Number(row.started_at),
+    ...(row.finished_at != null ? { finishedAt: Number(row.finished_at) } : {}),
+    ...(typeof row.error === 'string' ? { error: row.error } : {}),
+    ...(typeof row.usage_json === 'string'
+      ? { usage: JSON.parse(row.usage_json) }
+      : {}),
+  }
+}
 
 function createRunStore(db: DatabaseSync): RunStore {
   const select = db.prepare('SELECT * FROM runs WHERE run_id = ?')
@@ -156,10 +188,10 @@ function createRunStore(db: DatabaseSync): RunStore {
     `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
-  const store: RunStore = {
+  return {
     createOrResume(input) {
       const existing = select.get(input.runId)
-      if (existing) return Promise.resolve(rowToRun(existing))
+      if (existing) return Promise.resolve(mapRun(existing))
       const status: RunStatus = input.status ?? 'running'
       insert.run(input.runId, input.threadId, status, input.startedAt)
       return Promise.resolve({
@@ -197,10 +229,9 @@ function createRunStore(db: DatabaseSync): RunStore {
     },
     get(runId) {
       const row = select.get(runId)
-      return Promise.resolve(row ? rowToRun(row) : null)
+      return Promise.resolve(row ? mapRun(row) : null)
     },
   }
-  return store
 }
 ```
 
@@ -215,8 +246,40 @@ the JSON columns.
 interrupt that was already resolved. Every `list*` method returns records ordered
 by `requested_at` ascending, which the middleware relies on.
 
-```ts ignore
-import type { InterruptStore } from '@tanstack/ai-persistence'
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import type {
+  InterruptRecord,
+  InterruptStatus,
+  InterruptStore,
+} from '@tanstack/ai-persistence'
+
+function toInterruptStatus(value: unknown): InterruptStatus {
+  switch (value) {
+    case 'pending':
+    case 'resolved':
+    case 'cancelled':
+      return value
+    default:
+      throw new TypeError(`Unexpected interrupt status: ${String(value)}`)
+  }
+}
+
+function mapInterrupt(row: Record<string, unknown>): InterruptRecord {
+  return {
+    interruptId: String(row.interrupt_id),
+    runId: String(row.run_id),
+    threadId: String(row.thread_id),
+    status: toInterruptStatus(row.status),
+    requestedAt: Number(row.requested_at),
+    ...(row.resolved_at != null ? { resolvedAt: Number(row.resolved_at) } : {}),
+    payload:
+      typeof row.payload_json === 'string' ? JSON.parse(row.payload_json) : {},
+    ...(typeof row.response_json === 'string'
+      ? { response: JSON.parse(row.response_json) }
+      : {}),
+  }
+}
 
 function createInterruptStore(db: DatabaseSync): InterruptStore {
   const insert = db.prepare(
@@ -225,11 +288,33 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
      VALUES (?, ?, ?, 'pending', ?, ?, ?)
      ON CONFLICT(interrupt_id) DO NOTHING`,
   )
-  const listByThread = db.prepare(
+  const resolveRow = db.prepare(
+    `UPDATE interrupts SET status = 'resolved', resolved_at = ?, response_json = ?
+     WHERE interrupt_id = ?`,
+  )
+  const cancelRow = db.prepare(
+    `UPDATE interrupts SET status = 'cancelled', resolved_at = ? WHERE interrupt_id = ?`,
+  )
+  const selectOne = db.prepare('SELECT * FROM interrupts WHERE interrupt_id = ?')
+  // Every listing is ORDER BY requested_at ASC — the middleware relies on it.
+  const byThread = db.prepare(
     'SELECT * FROM interrupts WHERE thread_id = ? ORDER BY requested_at ASC',
+  )
+  const pendingByThread = db.prepare(
+    `SELECT * FROM interrupts WHERE thread_id = ? AND status = 'pending'
+     ORDER BY requested_at ASC`,
+  )
+  const byRun = db.prepare(
+    'SELECT * FROM interrupts WHERE run_id = ? ORDER BY requested_at ASC',
+  )
+  const pendingByRun = db.prepare(
+    `SELECT * FROM interrupts WHERE run_id = ? AND status = 'pending'
+     ORDER BY requested_at ASC`,
   )
   return {
     create(record) {
+      // Insert-if-absent: a duplicate id must never clobber an already-resolved
+      // interrupt back to pending.
       insert.run(
         record.interruptId,
         record.runId,
@@ -240,12 +325,34 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
       )
       return Promise.resolve()
     },
-    list(threadId) {
-      return Promise.resolve(listByThread.all(threadId).map(rowToInterrupt))
+    resolve(interruptId, response) {
+      resolveRow.run(
+        Date.now(),
+        response === undefined ? null : JSON.stringify(response),
+        interruptId,
+      )
+      return Promise.resolve()
     },
-    // resolve / cancel stamp resolved_at = Date.now(); get returns one row or
-    // null; listPending, listByRun, and listPendingByRun add a WHERE clause but
-    // keep the same ORDER BY requested_at ASC.
+    cancel(interruptId) {
+      cancelRow.run(Date.now(), interruptId)
+      return Promise.resolve()
+    },
+    get(interruptId) {
+      const row = selectOne.get(interruptId)
+      return Promise.resolve(row ? mapInterrupt(row) : null)
+    },
+    list(threadId) {
+      return Promise.resolve(byThread.all(threadId).map(mapInterrupt))
+    },
+    listPending(threadId) {
+      return Promise.resolve(pendingByThread.all(threadId).map(mapInterrupt))
+    },
+    listByRun(runId) {
+      return Promise.resolve(byRun.all(runId).map(mapInterrupt))
+    },
+    listPendingByRun(runId) {
+      return Promise.resolve(pendingByRun.all(runId).map(mapInterrupt))
+    },
   }
 }
 ```
@@ -256,7 +363,8 @@ function createInterruptStore(db: DatabaseSync): InterruptStore {
 value in a `NOT NULL` text column, so reject `null` and `undefined` with a clear
 error instead of a cryptic driver failure. Callers clear a value with `delete`.
 
-```ts ignore
+```ts
+import { DatabaseSync } from 'node:sqlite'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 
 function createMetadataStore(db: DatabaseSync): MetadataStore {
@@ -269,8 +377,8 @@ function createMetadataStore(db: DatabaseSync): MetadataStore {
   )
   return {
     get(scope, key) {
-      const row = select.get(scope, key)
-      return Promise.resolve(row ? JSON.parse(row.value_json) : null)
+      const json = select.get(scope, key)?.value_json
+      return Promise.resolve(typeof json === 'string' ? JSON.parse(json) : null)
     },
     set(scope, key, value) {
       if (value == null) {
@@ -298,10 +406,16 @@ Open the database, create the tables, and return the stores as an
 `AIPersistence`. `defineAIPersistence` keeps the exact store keys in the type and
 rejects unknown keys at runtime.
 
-```ts ignore
+```ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { ChatPersistence } from '@tanstack/ai-persistence'
+// The four store factories and the schema string, each from your own module.
+import { createInterruptStore } from './interrupt-store'
+import { createMessageStore } from './message-store'
+import { createMetadataStore } from './metadata-store'
+import { createRunStore } from './run-store'
+import { SCHEMA_SQL } from './schema'
 
 export function sqlitePersistence(options: {
   url: string
