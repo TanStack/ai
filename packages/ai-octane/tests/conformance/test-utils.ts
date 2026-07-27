@@ -3,14 +3,14 @@
 // ai-client (see `./_ai-client-test-utils`); `renderUseChat` is retargeted to
 // octane's testing-library and the ported `useChat` hook.
 export {
-	createMockConnectionAdapter,
-	createTextChunks,
-	createToolCallChunks,
-} from './_ai-client-test-utils';
+  createMockConnectionAdapter,
+  createTextChunks,
+  createToolCallChunks,
+} from './_ai-client-test-utils'
 
-import { renderHook, type RenderHookResult } from '@octanejs/testing-library';
-import type { UseChatOptions, UseChatReturn } from '../../src/types';
-import { useChat } from '../../src/use-chat.tsrx';
+import { renderHook, type RenderHookResult } from '@octanejs/testing-library'
+import type { UseChatOptions, UseChatReturn } from '../../src/types'
+import { useChat } from '../../src/use-chat.tsrx'
 
 /**
  * Render the useChat hook with testing utilities
@@ -25,9 +25,9 @@ import { useChat } from '../../src/use-chat.tsrx';
  * ```
  */
 export function renderUseChat(
-	options?: UseChatOptions,
+  options?: UseChatOptions,
 ): RenderHookResult<UseChatReturn, UseChatOptions> {
-	return renderHook((hookOptions: UseChatOptions) => useChat(hookOptions), {
-		initialProps: options!,
-	});
+  return renderHook((hookOptions: UseChatOptions) => useChat(hookOptions), {
+    initialProps: options!,
+  })
 }

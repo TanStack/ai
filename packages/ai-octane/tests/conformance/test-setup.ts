@@ -1,20 +1,20 @@
-import { cleanup } from '@octanejs/testing-library';
+import { cleanup } from '@octanejs/testing-library'
 import {
-	getIsOctaneActEnvironment,
-	setOctaneActEnvironment,
-} from '@octanejs/testing-library/act-environment';
-import { afterAll, afterEach, beforeAll } from 'vitest';
+  getIsOctaneActEnvironment,
+  setOctaneActEnvironment,
+} from '@octanejs/testing-library/act-environment'
+import { afterAll, afterEach, beforeAll } from 'vitest'
 
 // https://testing-library.com/docs/react-testing-library/api#cleanup
-afterEach(() => cleanup());
+afterEach(() => cleanup())
 
-let previousIsActEnvironment: boolean | undefined;
+let previousIsActEnvironment: boolean | undefined
 
 beforeAll(() => {
-	previousIsActEnvironment = getIsOctaneActEnvironment();
-	setOctaneActEnvironment(true);
-});
+  previousIsActEnvironment = getIsOctaneActEnvironment()
+  setOctaneActEnvironment(true)
+})
 
 afterAll(() => {
-	setOctaneActEnvironment(previousIsActEnvironment);
-});
+  setOctaneActEnvironment(previousIsActEnvironment)
+})

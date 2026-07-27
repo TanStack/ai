@@ -1,6 +1,9 @@
 // Declaration companion generated from use-mcp-app-bridge.tsrx.
-import type { CreateMcpAppBridgeOptions, McpAppBridge } from '@tanstack/ai-client';
-export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions;
+import type {
+  CreateMcpAppBridgeOptions,
+  McpAppBridge,
+} from '@tanstack/ai-client'
+export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions
 /**
  * Octane wrapper around `createMcpAppBridge` that returns a **stable** bridge for
  * the given `threadId`/`callEndpoint`, while always invoking the latest
@@ -23,4 +26,6 @@ export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions;
  * the *presence* of `onLink` changes — passing a new inline `onLink`/`sendMessage`
  * each render does not churn it.
  */
-export declare function useMcpAppBridge(options: UseMcpAppBridgeOptions): McpAppBridge;
+export declare function useMcpAppBridge(
+  options: UseMcpAppBridgeOptions,
+): McpAppBridge

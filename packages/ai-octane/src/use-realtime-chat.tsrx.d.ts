@@ -1,5 +1,8 @@
 // Declaration companion generated from use-realtime-chat.tsrx.
-import type { UseRealtimeChatOptions, UseRealtimeChatReturn } from './realtime-types';
+import type {
+  UseRealtimeChatOptions,
+  UseRealtimeChatReturn,
+} from './realtime-types'
 /**
  * Octane hook for realtime voice conversations.
  *
@@ -40,4 +43,6 @@ import type { UseRealtimeChatOptions, UseRealtimeChatReturn } from './realtime-t
  * }
  * ```
  */
-export declare function useRealtimeChat(options: UseRealtimeChatOptions): UseRealtimeChatReturn;
+export declare function useRealtimeChat(
+  options: UseRealtimeChatOptions,
+): UseRealtimeChatReturn
