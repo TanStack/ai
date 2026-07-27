@@ -39,6 +39,12 @@ export function createRunStore(): RunStore {
       return Promise.resolve()
     },
     get: (runId) => Promise.resolve(runs.get(runId) ?? null),
+    findActiveRun: (threadId) => {
+      const active = [...runs.values()]
+        .filter((run) => run.threadId === threadId && run.status === 'running')
+        .sort((a, b) => b.startedAt - a.startedAt)
+      return Promise.resolve(active[0] ?? null)
+    },
   }
 }
 

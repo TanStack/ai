@@ -19,5 +19,6 @@ let instance: ReturnType<typeof sqlitePersistence> | undefined
 export function persistentChatPersistence() {
   return (instance ??= sqlitePersistence({
     url: './.data/persistent-chat.db',
+    migrate: true,
   }))
 }

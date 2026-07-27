@@ -22,7 +22,7 @@ import {
 const persistence = defineAIPersistence({
   stores: {
     messages: defineMessageStore({ loadThread, saveThread }),
-    runs: defineRunStore({ createOrResume, update, get }),
+    runs: defineRunStore({ createOrResume, update, get, findActiveRun }),
   },
 })
 

@@ -14,12 +14,19 @@ export type { Scope }
 // ----------------
 // These store interfaces are the compatibility surface between the core
 // middleware and every backend — the in-memory reference store and every
-// adapter an application writes against its own database. To avoid breaking
-// existing adapters:
+// adapter an application writes against its own database.
 //
-//   - New store methods are added as OPTIONAL (`method?: (...) => ...`). The
-//     middleware feature-detects them (`store.method?.(...)`) and degrades
-//     gracefully when a backend has not implemented them yet.
+//   - Store METHODS are REQUIRED. A new method is a breaking contract change:
+//     every adapter gets a compile error and implements it. Do NOT add methods
+//     as optional-and-feature-detected (`store.method?.(...)`) — an adapter
+//     that has not implemented one is then indistinguishable from one whose
+//     answer is legitimately empty, so the feature silently does nothing in
+//     production instead of failing at build time. `findActiveRun` was optional
+//     for exactly one release cycle and cost us precisely that: reconnect
+//     degraded to "no active run" on every backend that had not caught up.
+//   - Capability tiers belong at the STORE level, not the method level. A
+//     backend that only stores a transcript declares `ChatTranscriptStores`
+//     (no `runs`); it does not declare a half-implemented `RunStore`.
 //   - Never tighten an existing method's required arguments or widen its
 //     required return shape in a breaking way.
 //
@@ -128,16 +135,18 @@ export interface RunStore {
   /**
    * The most recent `'running'` run for `threadId`, or `null` if none is active.
    *
-   * OPTIONAL — callers feature-detect it (`store.findActiveRun?.(threadId)`) and
-   * degrade to "no active run" when a backend has not implemented it.
-   *
    * This resolves "does this thread have a live run to attach to?" from the
    * STABLE thread id, which is the durable basis for reconnecting a client (a
    * reload, or the same thread opened on another device) — independent of the
    * ephemeral run id, which a single turn may mint several of. When more than
    * one run is `'running'`, the one with the greatest `startedAt` wins.
+   *
+   * REQUIRED: `reconstructChat` calls this to build the `activeRun` cursor a
+   * reloading client tails. A backend that returns `null` unconditionally does
+   * not "degrade" — it turns reconnect off, and does so silently, because
+   * `null` is also the correct answer when nothing is running.
    */
-  findActiveRun?: (threadId: string) => Promise<RunRecord | null>
+  findActiveRun: (threadId: string) => Promise<RunRecord | null>
 }
 
 /** Lifecycle status of a human-in-the-loop interrupt. */
@@ -253,12 +262,16 @@ export interface MetadataStore {
 // const persistence = defineAIPersistence({
 //   stores: {
 //     messages: defineMessageStore({ loadThread, saveThread }),
-//     runs: defineRunStore({ createOrResume, update, get }),
+//     runs: defineRunStore({ createOrResume, update, get, findActiveRun }),
 //   },
 // })
 // persistence.stores.runs        // RunStore (defined)
 // persistence.stores.interrupts  // compile error — not provided
 // ```
+//
+// Presence is per STORE, not per method: every method of a store you define is
+// required (see the evolution policy above). Omitting one is a compile error,
+// not a partial store.
 
 /** Type a {@link MessageStore} implementation inline. */
 export function defineMessageStore(store: MessageStore): MessageStore {

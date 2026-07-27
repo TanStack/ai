@@ -203,13 +203,14 @@ export function runPersistenceConformance(
         expect(await store.get('run-absent')).toBeNull()
       })
 
-      // `findActiveRun` is optional on the RunStore contract; backends that have
-      // not implemented it are skipped, but any backend that has must satisfy
-      // these invariants (most-recent-running wins, thread-scoped, null when idle).
+      // `findActiveRun` is REQUIRED on the RunStore contract — every backend that
+      // provides a `runs` store must satisfy these invariants (most-recent-running
+      // wins, thread-scoped, null when idle). Reconnect is built on it, and a
+      // backend that always answers `null` disables reconnect indistinguishably
+      // from one that is merely idle, so this must never degrade to a skip.
       it('findActiveRun returns the most recent running run for a thread', async () => {
         const store = resolveStore('runs')
         if (!store) return
-        if (!store.findActiveRun) return
 
         const thread = 'thread-active'
         expect(await store.findActiveRun(thread)).toBeNull()

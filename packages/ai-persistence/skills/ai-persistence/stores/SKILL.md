@@ -99,7 +99,7 @@ interface RunStore {
     >,
   ): Promise<void>
   get(runId: string): Promise<RunRecord | null>
-  findActiveRun?(threadId: string): Promise<RunRecord | null> // optional
+  findActiveRun(threadId: string): Promise<RunRecord | null>
 }
 ```
 
@@ -107,8 +107,13 @@ interface RunStore {
   fields). Idempotent retries / resume depend on this.
 - **`update`**: missing `runId` is a **no-op** (do not throw, do not insert).
 - **`findActiveRun`**: latest `'running'` for `threadId` (max `startedAt`);
-  enables reconnect without a client-held run id. Optional — the middleware
-  feature-detects it.
+  this is what `reconstructChat` uses to reconnect a reloading client without a
+  client-held run id. Stub it out and reconnect silently stops working — `null`
+  is also the correct answer for an idle thread, so nothing can detect the
+  difference.
+
+Every method is **required**. Capability tiers live at the store level (omit
+`runs` and declare `ChatTranscriptStores`), never at the method level.
 
 ### `InterruptStore`
 

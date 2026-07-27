@@ -266,7 +266,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-07-24",
-          "updatedAt": "2026-07-27"
+          "updatedAt": "2026-07-28"
         },
         {
           "label": "Migrations",

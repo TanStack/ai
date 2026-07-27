@@ -120,7 +120,7 @@ export async function reconstructChat(
   // completes between the two reads would return a stale streaming snapshot with
   // `activeRun: null`, leaving the client stuck on the partial (no run to tail).
   const active = threadId
-    ? await persistence.stores.runs?.findActiveRun?.(threadId)
+    ? await persistence.stores.runs?.findActiveRun(threadId)
     : null
   const stored = threadId ? await messageStore.loadThread(threadId) : []
   // Pending interrupts for the thread, so a reload re-prompts the approval from

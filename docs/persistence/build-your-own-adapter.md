@@ -241,9 +241,9 @@ function createRunStore(db: DatabaseSync) {
     },
     // The most recent still-running run for a thread. `reconstructChat` calls
     // this so a hydrating client (a reload, another device, or switching back to
-    // a generating thread) learns there is a live run and tails it. Skip it and
-    // the thread always looks idle on hydrate: the transcript restores, but a
-    // reply that was mid-stream never resumes.
+    // a generating thread) learns there is a live run and tails it. Stub it to
+    // null and the thread always looks idle on hydrate: the transcript restores,
+    // but a reply that was mid-stream never resumes.
     async findActiveRun(threadId) {
       const row = active.get(threadId)
       return row ? mapRun(row) : null
@@ -639,20 +639,26 @@ interface RunStore {
   ): Promise<void>
   get(runId: string): Promise<RunRecord | null>
   // The most recent 'running' run for a thread (greatest `startedAt` wins), or
-  // null when the thread is idle. Optional on the contract, but implement it:
-  // `reconstructChat` feature-detects it to report `activeRun`, which is how a
-  // hydrating client tails a run that is still generating.
-  findActiveRun?(threadId: string): Promise<RunRecord | null>
+  // null when the thread is idle. `reconstructChat` calls it to report
+  // `activeRun`, which is how a hydrating client tails a run that is still
+  // generating.
+  findActiveRun(threadId: string): Promise<RunRecord | null>
 }
 ```
 
 Implement `createOrResume` idempotently: a second call for an existing `runId`
 returns the stored record unchanged, which is what makes resuming a run safe.
 `update` against an unknown `runId` is a no-op. Retries may repeat the same run
-id. Implement `findActiveRun` too unless you never tail in-flight runs on
-reload: without it, `reconstructChat` always reports `activeRun: null`, so a
-client that reloads (or switches back to) a still-generating thread restores the
-transcript but never resumes the live reply.
+id. `findActiveRun` must do real work: stub it to `null` and `reconstructChat`
+always reports `activeRun: null`, so a client that reloads (or switches back to)
+a still-generating thread restores the transcript but never resumes the live
+reply — and nothing detects it, because `null` is also the right answer for an
+idle thread.
+
+Every method on a store you provide is required. A backend that genuinely has no
+run lifecycle should declare `ChatTranscriptStores` and omit `runs` entirely
+rather than supply a `RunStore` with a stubbed method: an absent store is caught
+by the type system, an incomplete one fails silently at runtime.
 
 ### InterruptStore
 
