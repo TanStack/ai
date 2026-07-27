@@ -1,0 +1,28 @@
+{
+  "upstream": {
+    "package": "@tanstack/ai-react",
+    "version": "0.17.0"
+  },
+  "surface": "Ports the @tanstack/ai-react 0.17.0 hook surface (useChat, useRealtimeChat, useGeneration, useGenerateImage/Audio/Speech/Video, useTranscription, useSummarize, useAudioRecorder, useMcpAppBridge) while reusing @tanstack/ai and @tanstack/ai-client unchanged and mirroring all 30 @tanstack/ai-client convenience re-exports from the upstream index.",
+  "divergences": [
+    "The `./mcp-apps` subpath and its `MCPAppResource` component are not ported: they render `AppRenderer` from the React-only `@mcp-ui/client`, which has no Octane equivalent. The framework-agnostic `useMcpAppBridge` hook is ported and available on the main entry.",
+    "Octane uses native events: text/file/recorder inputs drive updates via `onInput`; there is no synthetic `onChange` layer.",
+    "Octane has no StrictMode double-invoke and always provides `useId`, so no random-id fallback is needed.",
+    "The TanStack AI Devtools bridge is tagged `framework: 'octane'` (upstream `@tanstack/ai-react` sends `'react'`), so the devtools identify this binding correctly.",
+    "Realtime reconnects and token refreshes use the latest `getToken` and adapter supplied to the hook; upstream @tanstack/ai-react 0.17.0 captures the first render's callbacks.",
+    "The declared realtime `onStatusChange` callback is invoked alongside the hook's state update; upstream @tanstack/ai-react 0.17.0 currently drops the external callback.",
+    "Changing `useChat`'s connection or fetcher updates the active ChatClient in place and preserves conversation state; upstream @tanstack/ai-react 0.17.0 captures the initial transport.",
+    "One upstream `useChat` test case (\"auto-resume on mount / when the browser comes back online\") is omitted: it targets `ChatClient.prototype.maybeAutoResume`, an API absent from @tanstack/ai-client at the time of the port and never invoked by `useChat`. It is untestable in this binding until that dependency ships the method."
+  ],
+  "ssr": "Supported and tested: useChat renders its initial message snapshot through octane/server without a DOM.",
+  "notes": [
+    "Hook modules are authored as TSRX with checked declaration companions; no ported hook renders JSX or references React types in its public signature.",
+    "Ported into the TanStack AI monorepo from @octanejs/tanstack-ai@0.0.11, which was a temporary stopgap home. Renamed to @tanstack/ai-octane; the runtime surface is unchanged.",
+    "143 tests pass with no skipped, todo, or expected-failure cases: 142 behavioral cases across 9 files (the upstream @tanstack/ai-react tests run against Octane) plus the 1 SSR case. The differential parity test did not come across: it esbuild-compiles a shared fixture for both Octane and React and byte-compares streamed output, which would make a sibling workspace package a pinned test dependency. It remains in the octanejs/octane repo.",
+    "Baselined against @tanstack/ai-react 0.17.0. This repo is at 0.18.1: #970 (interrupts lifecycle overhaul) and #984 (server persistence + client browser-refresh durability) both changed use-chat.ts and types.ts upstream and are NOT yet reflected here. Concretely, src/types.ts is missing the queue types (QueueConfig, QueuedMessage, QueueStrategy, WhenBusy, SendMessageOptions), the interrupt types (BoundInterrupts, ChatInterrupt, ChatInterruptState, ChatResumeState), RunAgentResumeItem, and the threadId-as-identity change that drops the `id` option. Catching up to current parity is tracked as follow-up work.",
+    "Two conformance cases were updated from their 0.17.0 form rather than ported verbatim: 'should not send message while loading' and 'should handle multiple sendMessage calls' asserted that a second concurrent sendMessage is dropped. #900 made client-side queueing (`whenBusy: 'queue'`) the default, so both now assert that the second message is queued and delivered in order, mirroring the current @tanstack/ai-react tests. The hook itself needed no change — queueing lives in ChatClient.",
+    "The conformance suite runs on happy-dom, not the jsdom the Octane repo used: this repo pins jsdom ^27, whose Blob has no arrayBuffer() (Octane pins ^29, which does), and the useAudioRecorder cases need it.",
+    "typetests/ came across but is NOT wired into CI. use-realtime-chat.test-d.ts passes; use-chat.test-d.tsx has 4 errors confined to the 'narrows parsed input and gates approval by tool name' case, whose hand-rolled StandardJSONSchemaLike stand-in no longer threads through @tanstack/ai's tool-input inference. This is not a port defect — the identical pattern fails the same way against @tanstack/ai-react on current @tanstack/ai. Wiring it in belongs with the parity catch-up."
+  ],
+  "verified": "2026-07-27"
+}
