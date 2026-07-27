@@ -820,6 +820,107 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
+// ---------------------------------------------------------------------------
+// Memory events
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire/devtools payload for a **known** memory scope.
+ *
+ * Structural mirror of `Scope` from `@tanstack/ai` (`threadId` required when
+ * present). Not an isolation authority — adapters use real `MemoryScope` /
+ * `Scope`. Lives here so `@tanstack/ai-event-client` does not import
+ * `@tanstack/ai` (dependency cycle).
+ *
+ * When identity is unknown (e.g. the scope resolver threw before producing a
+ * scope), omit the field entirely on {@link MemoryErrorEvent} — do not send a
+ * partial or empty-string scope.
+ */
+export type MemoryScopeLite = {
+  threadId: string
+  userId?: string
+  tenantId?: string
+  /** Reserved on `Scope`; carried for display/identity parity. */
+  namespace?: string
+}
+
+/** Emitted when the middleware begins a `recall` for the current turn. */
+export interface MemoryRetrieveStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  /** Adapter id (e.g. 'in-memory', 'hindsight'). */
+  adapter: string
+  /** Recall query text (typically the last user message). */
+  query: string
+}
+
+/** Emitted when `recall` returns, before the result is injected into the prompt. */
+export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** Number of discrete fragments returned (0 when the adapter synthesizes). */
+  fragmentCount: number
+  /** Whether the recall result injected any tools this turn. */
+  hasTools: boolean
+  /** Length (chars) of the rendered system-prompt block. */
+  systemPromptChars: number
+  durationMs: number
+}
+
+/** Emitted when the middleware begins a deferred `save` for the finished turn. */
+export interface MemoryPersistStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+}
+
+/** Emitted when a deferred `save` completes. */
+export interface MemoryPersistCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** Total receipts returned by `save`. */
+  receiptCount: number
+  /** Receipts with `ok: true`. */
+  okCount: number
+  durationMs: number
+}
+
+/** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
+export interface MemoryErrorEvent extends BaseEventContext {
+  /**
+   * Scope when it was already resolved before the failure. Omitted when the
+   * resolver itself failed or never ran — there is no fake empty scope.
+   */
+  scope?: MemoryScopeLite
+  adapter: string
+  phase: 'recall' | 'save'
+  error: { name: string; message: string }
+}
+
+/** A flat fact row, mirroring `MemoryFact` from `@tanstack/ai-memory`. */
+export interface MemoryFactLite {
+  id: string
+  text: string
+  source?: string
+  createdAt?: string
+}
+
+/**
+ * Emitted after a successful `save` when the adapter supports introspection
+ * (`inspect`/`listFacts`), carrying the current stored state for the scope so
+ * DevTools can render "what's in memory". Adapters without introspection never
+ * emit this — DevTools then falls back to the metrics-only timeline. Structurally
+ * decoupled from `@tanstack/ai-memory` (mirrors `MemorySnapshot` + `MemoryFact`).
+ */
+export interface MemorySnapshotEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** ISO timestamp the snapshot was taken (from `MemorySnapshot.takenAt`). */
+  takenAt: string
+  /** Adapter-defined `inspect()` payload (e.g. `{ records: [...] }`). */
+  data: unknown
+  /** Flat fact list from `listFacts()`; `[]` when the adapter lacks it. */
+  facts: Array<MemoryFactLite>
+}
+
 // ===========================
 // Client Events
 // ===========================
@@ -1050,6 +1151,14 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+
+  // Memory events
+  'memory:retrieve:started': MemoryRetrieveStartedEvent
+  'memory:retrieve:completed': MemoryRetrieveCompletedEvent
+  'memory:persist:started': MemoryPersistStartedEvent
+  'memory:persist:completed': MemoryPersistCompletedEvent
+  'memory:error': MemoryErrorEvent
+  'memory:snapshot': MemorySnapshotEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

@@ -27,6 +27,7 @@
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-memory": "workspace:*",
     "@tanstack/ai-mistral": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",

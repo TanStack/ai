@@ -1,0 +1,96 @@
+{
+  "name": "@tanstack/ai-memory",
+  "version": "0.0.0",
+  "description": "Pluggable memory adapters for TanStack AI memoryMiddleware",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-memory"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./in-memory": {
+      "types": "./dist/esm/providers/in-memory/index.d.ts",
+      "import": "./dist/esm/providers/in-memory/index.js"
+    },
+    "./redis": {
+      "types": "./dist/esm/providers/redis/index.d.ts",
+      "import": "./dist/esm/providers/redis/index.js"
+    },
+    "./hindsight": {
+      "types": "./dist/esm/providers/hindsight/index.d.ts",
+      "import": "./dist/esm/providers/hindsight/index.js"
+    },
+    "./mem0": {
+      "types": "./dist/esm/providers/mem0/index.d.ts",
+      "import": "./dist/esm/providers/mem0/index.js"
+    },
+    "./honcho": {
+      "types": "./dist/esm/providers/honcho/index.d.ts",
+      "import": "./dist/esm/providers/honcho/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "memory",
+    "redis",
+    "rag"
+  ],
+  "dependencies": {
+    "@tanstack/ai-event-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@honcho-ai/sdk": ">=2.0.0",
+    "@tanstack/ai": "workspace:^",
+    "@vectorize-io/hindsight-client": ">=0.6.0",
+    "ioredis": ">=5.0.0",
+    "redis": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    },
+    "@vectorize-io/hindsight-client": {
+      "optional": true
+    },
+    "@honcho-ai/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@honcho-ai/sdk": "^2.1.1",
+    "@tanstack/ai": "workspace:*",
+    "@vectorize-io/hindsight-client": "^0.6.1",
+    "@vitest/coverage-v8": "4.0.14",
+    "ioredis-mock": "^8.9.0",
+    "redis": "^4.7.0"
+  }
+}

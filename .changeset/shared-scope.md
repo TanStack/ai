@@ -24,6 +24,6 @@ favor of it) — subsystems must not introduce a second name (`sessionId`, …) 
 the same concept. Every field is an isolation boundary and must be derived
 server-side from trusted session state, never from client input.
 
-This is additive: nothing consumes `Scope` yet. It lands ahead of the
-persistence and memory PRs so both build on one settled, unambiguous identity
-contract instead of diverging.
+Introduced ahead of the persistence and memory packages so both share one settled
+identity contract. `@tanstack/ai-memory` now aliases `MemoryScope` to `Scope`
+(see the memory-scope-threadid changeset).
