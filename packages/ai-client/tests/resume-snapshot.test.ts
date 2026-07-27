@@ -357,6 +357,57 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).not.toHaveBeenCalled()
   })
 
+  it('restores a pending interrupt even when hydrate also reports an activeRun', async () => {
+    // A run paused on an interrupt can momentarily still read as `running` on the
+    // server (the status settles just after the interrupt is persisted), so a
+    // hydrate that races that window returns BOTH an `activeRun` cursor and the
+    // pending interrupt. A pending interrupt means the thread is paused, so the
+    // client must restore the approval and must NOT tail the "active" run (there
+    // is nothing to stream until the human resolves it). Regression: the earlier
+    // if/else-if tailed the run and dropped the interrupt, so the approval card
+    // vanished on reload whenever this race hit.
+    const joinRun = vi.fn(async function* () {})
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'send an email', 'user')],
+          activeRun: { runId: 'run-paused' },
+          interrupts: {
+            runId: 'run-paused',
+            pending: [
+              {
+                id: 'int-1',
+                reason: 'confirmation',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId: 'int-1',
+                    interruptedRunId: 'run-paused',
+                    generation: 1,
+                    responseSchemaHash: 'none',
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    const client = new ChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+    })
+    await vi.waitFor(() => {
+      expect(client.getInterrupts()).toHaveLength(1)
+    })
+    expect(client.getInterrupts()[0]?.canResolve).toBe(true)
+    // Paused run is never tailed, even though hydrate reported it active.
+    expect(joinRun).not.toHaveBeenCalled()
+  })
+
   it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
     // The hydrated transcript includes a PARTIAL assistant reply (a streaming
     // snapshot) carrying the same messageId the live run uses. Tailing it on

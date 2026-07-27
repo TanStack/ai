@@ -848,14 +848,17 @@ export class ChatClient<
       if (result.messages.length > 0) {
         this.processor.setMessages(result.messages)
       }
-      if (result.activeRun?.runId) {
-        this.maybeRejoinInFlight(result.activeRun.runId)
-      } else if (result.interrupts && result.interrupts.pending.length > 0) {
-        // The run paused on an interrupt (not running, so no tail). Restore the
-        // pending approval/wait from the SERVER — identical to reconstructing it
-        // from a resume snapshot — so the reload re-prompts the decision and the
-        // resume targets the run it paused. This is what makes interrupts
-        // server-authoritative, not dependent on client storage.
+      if (result.interrupts && result.interrupts.pending.length > 0) {
+        // Pending interrupt = the thread is paused awaiting a human decision, so
+        // there is nothing to tail (no chunks stream until it resolves). Restore
+        // the approval/wait from the SERVER — identical to reconstructing it from
+        // a resume snapshot — so the reload re-prompts the decision and the resume
+        // targets the run it paused. This is checked BEFORE `activeRun` on
+        // purpose: a run that just paused can momentarily still read as `running`
+        // on the server, so a racing hydrate reports both an `activeRun` cursor
+        // AND the pending interrupt. Tailing that "active" run would drop the
+        // approval card (and hang on a stream that never comes), so the interrupt
+        // always wins.
         this.applyResumeSnapshot({
           schemaVersion: 2,
           resumeState: {
@@ -864,6 +867,8 @@ export class ChatClient<
           },
           pendingInterrupts: result.interrupts.pending,
         })
+      } else if (result.activeRun?.runId) {
+        this.maybeRejoinInFlight(result.activeRun.runId)
       }
     })()
   }
