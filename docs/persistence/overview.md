@@ -106,20 +106,26 @@ export async function POST(request: Request) {
 }
 ```
 
-The minimal client setup adds one option to `useChat`:
+The client half is one option on `useChat`, `persistence`, and it takes two forms:
+
+- **`persistence: true`** — server-authoritative. The client caches nothing and
+  hydrates the thread from the server by its `threadId` on mount. Pair this with
+  the server `withPersistence` above; it is the setup [we recommend](#what-we-recommend).
+- **`persistence: <adapter>`** — client-authoritative. A storage adapter
+  (`localStoragePersistence()` / `sessionStoragePersistence()` /
+  `indexedDBPersistence()`) keeps the transcript in the browser, no server needed.
 
 ```tsx
-import {
-  fetchServerSentEvents,
-  localStoragePersistence,
-  useChat,
-} from '@tanstack/ai-react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 function Chat() {
   const { messages, sendMessage } = useChat({
     threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
-    persistence: localStoragePersistence(),
+    // Server owns history (pairs with withPersistence above):
+    persistence: true,
+    // Or keep the transcript in the browser instead:
+    // persistence: localStoragePersistence(),
   })
   // ...
 }
