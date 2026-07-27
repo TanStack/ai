@@ -366,7 +366,7 @@ Notes that bite:
 - Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
   `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
   those four keys, and coordination is wired separately with `withLocks` (see
-  **ai-persistence/locks**).
+  **ai-core/locks**).
 - If the app renamed the models, the delegate accessors are **camelCase**
   (`prisma.chatThread` for `model ChatThread`), and the row types imported from
   the client are PascalCase.

@@ -3,7 +3,7 @@ name: ai-core
 description: >
   Entry point for TanStack AI skills. Routes to chat-experience, tool-calling,
   media-generation, structured-outputs, adapter-configuration, ag-ui-protocol,
-  middleware, custom-backend-integration, and debug-logging, plus the skills
+  middleware, locks, custom-backend-integration, and debug-logging, plus the skills
   shipped by companion packages (@tanstack/ai-persistence, @tanstack/ai-code-mode).
   Use chat() not streamText(), openaiText() not createOpenAI(),
   toServerSentEventsResponse() not manual SSE, middleware hooks not onEnd callbacks.
@@ -32,9 +32,10 @@ Always import from the framework package on the client — never from
 | Choose and configure a provider adapter           | ai-core/adapter-configuration/SKILL.md        |
 | Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md               |
 | Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                   |
+| Coordinate multi-instance work with locks         | ai-core/locks/SKILL.md                        |
 | Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md   |
 | Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                |
-| Persist chats server-side (history, runs, locks)  | See `@tanstack/ai-persistence` package skills |
+| Persist chats server-side (history, runs)         | See `@tanstack/ai-persistence` package skills |
 | Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills   |
 
 ## Companion packages
@@ -48,8 +49,9 @@ Makes a conversation survive a reload, a server restart, a second device, or a
 paused tool approval. It ships the **store contracts** (`MessageStore`,
 `RunStore`, `InterruptStore`, `MetadataStore`), the `withPersistence` /
 `withGenerationPersistence` middleware, `reconstructChat` for server-side
-hydrate, an in-memory reference backend, a `LockStore` seam for multi-instance
-coordination, and a conformance testkit.
+hydrate, an in-memory reference backend, and a conformance testkit. Multi-instance
+locks are **not** in this package — `LockStore` / `withLocks` ship in
+`@tanstack/ai`; see ai-core/locks.
 
 It does **not** ship a backend for your database — you implement the stores
 against Postgres, SQLite, D1, Mongo, or whatever you run, and the package's
@@ -70,7 +72,6 @@ Entry point: `node_modules/@tanstack/ai-persistence/skills/ai-persistence/SKILL.
 | ----------------------------------------------- | --------------------------------------- |
 | Wire server-side chat history, runs, interrupts | ai-persistence/server/SKILL.md          |
 | Implement the store interfaces for your DB      | ai-persistence/stores/SKILL.md          |
-| Multi-instance locks (separate from state)      | ai-persistence/locks/SKILL.md           |
 | Write the adapter for the DB your app runs      | ai-persistence/build-*-adapter/SKILL.md |
 
 Browser-side persistence is **not** in this package — it ships with the

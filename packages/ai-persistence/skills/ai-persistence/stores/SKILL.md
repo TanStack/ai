@@ -65,7 +65,7 @@ mistake when writing an adapter.
 **`stores` accepts exactly four keys** — `messages`, `runs`, `interrupts`,
 `metadata`. Anything else (notably `locks` or sandbox instance maps) throws
 `Unknown AIPersistence store key` at runtime and fails to type-check. Locks:
-**ai-persistence/locks** / `@tanstack/ai`. Sandbox instance resume:
+**ai-core/locks** / `@tanstack/ai`. Sandbox instance resume:
 `@tanstack/ai-sandbox`.
 
 ## Contracts and invariants
@@ -271,4 +271,4 @@ Silent semantic drift shows up as stuck approvals or wiped history in prod.
 
 - **ai-persistence/server** — when middleware calls each store
 - **ai-persistence/build-drizzle-adapter** / **-prisma-** / **-cloudflare-** / **-custom-** — per-stack recipes
-- **ai-persistence/locks** — not a state store
+- **ai-core/locks** — not a state store

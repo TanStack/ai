@@ -175,4 +175,4 @@ That is delivery durability (resumable streams), not state persistence.
 - **ai-persistence** — layers and recommended stack
 - **ai-persistence/stores** — implement the store interfaces
 - **ai-core/client-persistence** (`@tanstack/ai`) — browser half
-- **ai-persistence/locks** — multi-instance coordination
+- **ai-core/locks** — multi-instance coordination

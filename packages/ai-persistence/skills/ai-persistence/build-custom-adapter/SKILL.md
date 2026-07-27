@@ -169,7 +169,7 @@ Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
 `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
 `messages`, `runs`, `interrupts`, `metadata`, and anything else throws
 `Unknown AIPersistence store key`. Coordination is wired separately with
-`withLocks` (see **ai-persistence/locks**).
+`withLocks` (see **ai-core/locks**).
 
 If the client is per-request (Workers bindings, request-scoped transactions),
 export a `chatPersistence()` factory instead of a const and call it inside the

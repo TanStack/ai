@@ -451,7 +451,7 @@ matching skill loads itself into context:
 | `ai-persistence`                          | Entry point — routes to everything below                            |
 | `ai-persistence/server`                   | `withPersistence`, run lifecycle, interrupts, `reconstructChat`     |
 | `ai-persistence/stores`                   | The store contracts and their invariants                            |
-| `ai-persistence/locks`                    | `LockStore` / `withLocks` coordination (lives in `@tanstack/ai`)    |
+| `ai-core/locks`                           | `LockStore` / `withLocks` coordination (ships in `@tanstack/ai`)    |
 | `ai-persistence/build-drizzle-adapter`    | `chat-persistence.ts` for a Drizzle app (SQLite / Postgres / MySQL) |
 | `ai-persistence/build-prisma-adapter`     | `chat-persistence.ts` for a Prisma app                              |
 | `ai-persistence/build-cloudflare-adapter` | `chat-persistence.ts` for a Worker on D1, plus Durable Object locks |

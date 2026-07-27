@@ -371,7 +371,7 @@ export const chatPersistence: ChatPersistence = defineAIPersistence({
 Annotate `ChatPersistence` — bare `AIPersistence` is the all-optional bag and
 `withPersistence` rejects it. There is no `locks` store: `stores` accepts only
 those four keys, and coordination is wired separately with `withLocks` (see
-**ai-persistence/locks**).
+**ai-core/locks**).
 
 ### If `db` is per-request
 

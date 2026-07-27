@@ -3,8 +3,8 @@ name: ai-persistence
 description: >
   Durability and state persistence for TanStack AI chats with
   @tanstack/ai-persistence. Routes to server chat persistence (withPersistence),
-  client persistence (localStorage/IndexedDB), the store contracts, adapter
-  recipes, and locks. Distinguishes delivery durability (resumable streams) from
+  client persistence (localStorage/IndexedDB), the store contracts, and adapter
+  recipes. Distinguishes delivery durability (resumable streams) from
   conversation state. Use when conversations must survive reloads, multi-device,
   approvals, or server restarts — NOT for stream reconnect alone.
 type: core
@@ -48,7 +48,7 @@ the result to `withPersistence`. The core never inspects your tables.
 | `withPersistence` / `withGenerationPersistence`                       | Chat + generation middleware                         |
 | `memoryPersistence()`                                                 | In-process reference backend (dev, tests)            |
 | `reconstructChat`                                                     | Server hydrate route helper                          |
-| `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai`) | Coordination, **not** this package — see locks skill |
+| `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai`) | Coordination, **not** this package — see ai-core/locks |
 | `@tanstack/ai-persistence/testkit`                                    | `runPersistenceConformance` compatibility gate       |
 
 ## Sub-skills
@@ -58,7 +58,7 @@ the result to `withPersistence`. The core never inspects your tables.
 | Wire server-side chat history, runs, interrupts | ai-persistence/server/SKILL.md                        |
 | Survive reloads in the browser                  | ai-core/client-persistence/SKILL.md in `@tanstack/ai` |
 | Implement the store interfaces for your DB      | ai-persistence/stores/SKILL.md                        |
-| Multi-instance locks (separate from state)      | ai-persistence/locks/SKILL.md                         |
+| Multi-instance locks (separate from state)      | ai-core/locks/SKILL.md in `@tanstack/ai`              |
 
 Adding persistence to an app? Pick the recipe that matches what it already
 runs — each one writes a single `chat-persistence.ts` against the app's

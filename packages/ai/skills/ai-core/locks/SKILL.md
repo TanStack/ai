@@ -1,16 +1,16 @@
 ---
-name: ai-persistence/locks
+name: ai-core/locks
 description: >
-  LockStore and withLocks for multi-instance coordination in TanStack AI.
-  Lives in @tanstack/ai — NOT in @tanstack/ai-persistence. Separate from
-  AIPersistence state stores — not a stores key, not composable.
-  InMemoryLockStore vs a distributed (e.g. Cloudflare Durable Object) lock,
-  lease recovery, AbortSignal in critical sections. Use when sandbox or other
-  middleware needs cross-worker mutual exclusion — NOT for storing
-  messages/runs (use withPersistence).
+  LockStore, InMemoryLockStore, LocksCapability and withLocks for
+  multi-instance coordination in TanStack AI. Ships in @tanstack/ai — NOT in
+  @tanstack/ai-persistence. Separate from AIPersistence state stores — not a
+  stores key, not composable. InMemoryLockStore vs a distributed (e.g.
+  Cloudflare Durable Object) lock, lease recovery, AbortSignal in critical
+  sections. Use when sandbox or other middleware needs cross-worker mutual
+  exclusion — NOT for storing messages/runs (use withPersistence).
 type: sub-skill
 library: tanstack-ai
-library_version: '0.0.0'
+library_version: '0.10.0'
 sources:
   - 'TanStack/ai:docs/advanced/locks.md'
   - 'TanStack/ai:packages/ai/src/activities/chat/middleware/locks.ts'
@@ -18,9 +18,11 @@ sources:
 
 # Locks (coordination — not persistence)
 
-> Builds on **ai-persistence** for composition only. Locks are **not**
+> **Dependency note:** This skill builds on ai-core and ai-core/middleware.
+> `withLocks` is a ChatMiddleware that provides a capability. Locks are **not**
 > part of `AIPersistence.stores` and are **not** composed with
-> `composePersistence`. Import them from **`@tanstack/ai`**.
+> `composePersistence` — they ship in `@tanstack/ai`, independent of
+> `@tanstack/ai-persistence`.
 
 ## Why separate?
 
@@ -34,12 +36,19 @@ per-thread (or other) lock yourself when multi-writer races matter.
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai'
-import { withPersistence } from '@tanstack/ai-persistence'
 
 middleware: [
-  withPersistence(persistence),
   withLocks(new InMemoryLockStore()), // single process
 ]
+```
+
+Alongside persistence — optional, locks do not require it:
+
+```ts
+import { withLocks, InMemoryLockStore } from '@tanstack/ai'
+import { withPersistence } from '@tanstack/ai-persistence'
+
+middleware: [withPersistence(persistence), withLocks(new InMemoryLockStore())]
 ```
 
 `withLocks` provides `LocksCapability` for downstream middleware (e.g.
@@ -57,7 +66,7 @@ interface LockStore {
 `InMemoryLockStore` ships in **`@tanstack/ai`**: a per-key promise chain,
 correct **within a single process only**. Multi-instance deployments need a
 distributed implementation — you write it. The Cloudflare Durable Object recipe
-is in **ai-persistence/build-cloudflare-adapter**.
+is in **ai-persistence/build-cloudflare-adapter** (`@tanstack/ai-persistence`).
 
 ## Lease semantics
 
@@ -108,5 +117,5 @@ Continuing work after losing the lease races other owners.
 
 ## Cross-references
 
-- **ai-persistence/server** — state middleware
-- **ai-persistence/build-cloudflare-adapter** — Durable Object lock recipe
+- See also: **ai-core/middleware/SKILL.md** -- the middleware chain and capability plumbing
+- See also: **`@tanstack/ai-persistence` skills** (`skills/ai-persistence/SKILL.md` in that package) -- `ai-persistence/server` (state middleware) and `ai-persistence/build-cloudflare-adapter` (Durable Object lock recipe)

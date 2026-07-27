@@ -8,5 +8,6 @@ Move multi-instance **locks** to `@tanstack/ai` and nest persistence agent skill
 
 - **`LockStore` / `InMemoryLockStore` / `LocksCapability` / `withLocks`** live in `@tanstack/ai` (not `@tanstack/ai-persistence`).
 - `@tanstack/ai-sandbox` consumes the core `LocksCapability` token (no local lock re-export).
-- Agent skills under `@tanstack/ai-persistence` nest as `skills/ai-persistence/{stores,server,locks,build-*-adapter}/`.
+- The locks agent skill moves with the code: `ai-core/locks` in `@tanstack/ai`, not `ai-persistence/locks`.
+- Agent skills under `@tanstack/ai-persistence` nest as `skills/ai-persistence/{stores,server,build-*-adapter}/`.
 - Docs: locks guide under advanced middleware.
