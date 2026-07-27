@@ -42,14 +42,14 @@ drives them, an in-memory reference backend, and a conformance testkit. It does
 stores against whatever you already run — Postgres, SQLite, D1, Mongo — and hand
 the result to `withPersistence`. The core never inspects your tables.
 
-| Ships in the package                                                  | What it is                                           |
-| --------------------------------------------------------------------- | ---------------------------------------------------- |
-| `MessageStore` / `RunStore` / `InterruptStore` / `MetadataStore`      | The four state contracts                             |
-| `withPersistence` / `withGenerationPersistence`                       | Chat + generation middleware                         |
-| `memoryPersistence()`                                                 | In-process reference backend (dev, tests)            |
-| `reconstructChat`                                                     | Server hydrate route helper                          |
+| Ships in the package                                                  | What it is                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------ |
+| `MessageStore` / `RunStore` / `InterruptStore` / `MetadataStore`      | The four state contracts                               |
+| `withPersistence` / `withGenerationPersistence`                       | Chat + generation middleware                           |
+| `memoryPersistence()`                                                 | In-process reference backend (dev, tests)              |
+| `reconstructChat`                                                     | Server hydrate route helper                            |
 | `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai`) | Coordination, **not** this package — see ai-core/locks |
-| `@tanstack/ai-persistence/testkit`                                    | `runPersistenceConformance` compatibility gate       |
+| `@tanstack/ai-persistence/testkit`                                    | `runPersistenceConformance` compatibility gate         |
 
 ## Sub-skills
 
