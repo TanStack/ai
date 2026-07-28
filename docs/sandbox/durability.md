@@ -2,7 +2,7 @@
 title: Sandbox Instance Durability
 id: sandbox-durability
 order: 9
-description: "Durable sandbox instance resume across processes with SandboxInstanceStore and withSandboxInstanceStore."
+description: "Durable sandbox instance resume across processes with a SandboxInstanceStore passed to withSandbox."
 ---
 
 Your agent runs behind more than one server instance, or at the edge. A run
@@ -29,7 +29,8 @@ Two pieces:
 
 ## Wire it up
 
-Middleware order: **providers before** `withSandbox`.
+Hand the store to `withSandbox`. The lock is a separate middleware because other
+middleware can share it, and it must come **before** `withSandbox`.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -40,7 +41,6 @@ import {
   defineSandbox,
   defineWorkspace,
   withSandbox,
-  withSandboxInstanceStore,
 } from '@tanstack/ai-sandbox'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -78,9 +78,8 @@ chat({
   adapter: grokBuildText('grok-build'),
   messages,
   middleware: [
-    withSandboxInstanceStore(instanceStore),
     withLocks(new InMemoryLockStore()),
-    withSandbox(sandbox),
+    withSandbox(sandbox, { instances: instanceStore }),
   ],
 })
 ```
@@ -89,26 +88,36 @@ With `reuse: 'thread'` (the default), the first run creates and records the
 instance. A later run for the same `threadId` resumes it when the store (and
 lock) are shared across processes.
 
+Single sandbox, nothing else sharing the lock? Pass both as options and skip the
+extra middleware:
+
+```ts
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { instanceStore } from './instance-store'
+import { sandbox } from './sandbox'
+
+const middleware = [
+  withSandbox(sandbox, {
+    instances: instanceStore,
+    locks: new InMemoryLockStore(), // multi-replica: a distributed LockStore
+  }),
+]
+```
+
 Optional chat persistence is independent:
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
 import { withPersistence, memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  withSandbox,
-  withSandboxInstanceStore,
-} from '@tanstack/ai-sandbox'
-import type { SandboxInstanceStore } from '@tanstack/ai-sandbox'
-import type { SandboxDefinition } from '@tanstack/ai-sandbox'
-
-declare const instanceStore: SandboxInstanceStore
-declare const sandbox: SandboxDefinition
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { instanceStore } from './instance-store'
+import { sandbox } from './sandbox'
 
 const middleware = [
   withPersistence(memoryPersistence()), // chat state only
-  withSandboxInstanceStore(instanceStore),
-  withLocks(new InMemoryLockStore()), // multi-instance: distributed LockStore
-  withSandbox(sandbox),
+  withLocks(new InMemoryLockStore()), // multi-replica: distributed LockStore
+  withSandbox(sandbox, { instances: instanceStore }),
 ]
 ```
 
@@ -173,8 +182,10 @@ choice, not a requirement of `@tanstack/ai-persistence`.
 ## Locks
 
 A durable instance map without a distributed lock is still wrong across
-replicas. Pair `withSandboxInstanceStore` with `withLocks` from `@tanstack/ai/locks`.
-Full guide: [Locks](../advanced/locks).
+replicas: two concurrent runs for one thread both find no record and both
+create. Pair the store with a lock, either `withLocks` from
+`@tanstack/ai/locks` or the `locks` option above. Full guide:
+[Locks](../advanced/locks).
 
 ## See also
 

@@ -6,7 +6,6 @@ import {
   defineSandbox,
   defineWorkspace,
   withSandbox,
-  withSandboxInstanceStore,
 } from '@tanstack/ai-sandbox'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
@@ -20,8 +19,8 @@ import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
  * the instance store. A second run for the same `threadId` must RESUME the
  * sandbox the first run created.
  *
- * Wired as production apps do: `withSandboxInstanceStore` + `withLocks` +
- * `withSandbox` (providers before consumer). No chat persistence required.
+ * Wired as production apps do: `withLocks` plus the instance store handed
+ * straight to `withSandbox`. No chat persistence required.
  *
  * Provider-free: fixed AG-UI stream + fake sandbox provider (exempt from aimock).
  */
@@ -149,9 +148,8 @@ export const Route = createFileRoute('/api/sandbox-durability')({
           runId,
           threadId,
           middleware: [
-            withSandboxInstanceStore(instanceStore),
             withLocks(locks),
-            withSandbox(sandbox),
+            withSandbox(sandbox, { instances: instanceStore }),
           ],
         })
         for await (const _ of stream) void _

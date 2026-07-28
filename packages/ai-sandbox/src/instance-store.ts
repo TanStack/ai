@@ -3,12 +3,11 @@
  * resume for a compound key. Owned by `@tanstack/ai-sandbox` (not chat
  * persistence): domain is runtime placement for `ensure`, not conversation state.
  *
- * Provide with {@link withSandboxInstanceStore}; {@link withSandbox} consumes
- * the same {@link SandboxInstanceStoreCapability} in `ensure` (in-memory
- * fallback when absent).
+ * Pass to `withSandbox(sandbox, { instances })`, which uses it in `ensure`
+ * (in-memory fallback when absent). {@link SandboxInstanceStoreCapability} is
+ * the ambient alternative for platform-level wiring.
  */
-import { createCapability, defineChatMiddleware } from '@tanstack/ai'
-import type { ChatMiddleware, ChatMiddlewareContext } from '@tanstack/ai'
+import { createCapability } from '@tanstack/ai'
 
 /** One persisted sandbox instance, keyed by the compound sandbox instance key. */
 export interface SandboxInstanceRecord {
@@ -62,7 +61,7 @@ export interface SandboxInstanceStore {
  * Type a {@link SandboxInstanceStore} implementation inline: pass the object and
  * get autocomplete + contract checking, with no separate
  * `: SandboxInstanceStore` annotation. Hand the result to
- * {@link withSandboxInstanceStore}. Matches `defineLock` /
+ * `withSandbox(sandbox, { instances })`. Matches `defineLock` /
  * `defineMessageStore` style helpers elsewhere in the monorepo.
  */
 export function defineSandboxInstanceStore(
@@ -72,8 +71,10 @@ export function defineSandboxInstanceStore(
 }
 
 /**
- * Capability for the instance map. Provided by {@link withSandboxInstanceStore};
- * consumed by {@link withSandbox}.
+ * Capability for the instance map — the ambient alternative to
+ * `withSandbox(sandbox, { instances })`. Provide it from any middleware with
+ * {@link provideSandboxInstanceStore}; `withSandbox` reads it when no explicit
+ * option was passed.
  */
 export const SandboxInstanceStoreCapability =
   createCapability<SandboxInstanceStore>()('sandbox-instance-store')
@@ -102,28 +103,20 @@ export class InMemorySandboxInstanceStore implements SandboxInstanceStore {
 }
 
 /**
- * Provide a durable {@link SandboxInstanceStore} on the chat capability bus so
- * later {@link withSandbox} can resume across processes.
- *
- * Compose **before** `withSandbox`. Independent of chat state persistence —
- * pair with `withPersistence` only if the app also needs transcript durability.
+ * Wiring note: hand the store straight to the consumer —
+ * `withSandbox(sandbox, { instances: store })`. That cannot be mis-ordered,
+ * unlike a separate provider middleware composed after `withSandbox` (which
+ * silently degrades to the in-memory fallback).
  *
  * ```ts
  * middleware: [
- *   withSandboxInstanceStore(instanceStore),
- *   withLocks(locks), // from @tanstack/ai/locks — multi-instance
- *   withSandbox(sandbox),
+ *   withLocks(locks), // from @tanstack/ai/locks — multi-replica
+ *   withSandbox(sandbox, { instances: instanceStore }),
  * ]
  * ```
+ *
+ * For ambient/platform wiring (a hosting layer injecting infra without touching
+ * the call site), any middleware may still
+ * `provideSandboxInstanceStore(ctx, store)` on the capability bus; an explicit
+ * option takes precedence over it.
  */
-export function withSandboxInstanceStore(
-  store: SandboxInstanceStore,
-): ChatMiddleware {
-  return defineChatMiddleware({
-    name: 'sandbox-instance-store',
-    provides: [SandboxInstanceStoreCapability],
-    setup(ctx: ChatMiddlewareContext) {
-      provideSandboxInstanceStore(ctx, store)
-    },
-  })
-}

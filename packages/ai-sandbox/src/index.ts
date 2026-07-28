@@ -12,14 +12,15 @@ export {
   provideToolBridgeProvisioner,
 } from './capabilities'
 
-// Durable instance map (resume-or-create across processes)
+// Durable instance map (resume-or-create across processes).
+// Pass a store to `withSandbox(sandbox, { instances })`; the capability is the
+// ambient alternative for platform-level wiring.
 export {
   SandboxInstanceStoreCapability,
   getSandboxInstanceStore,
   provideSandboxInstanceStore,
   InMemorySandboxInstanceStore,
   defineSandboxInstanceStore,
-  withSandboxInstanceStore,
 } from './instance-store'
 export type {
   SandboxInstanceStore,
@@ -36,6 +37,7 @@ export type { WorkspaceProjection } from './projection'
 
 // Middleware
 export { withSandbox } from './middleware'
+export type { SandboxMiddlewareOptions } from './middleware'
 
 // Sandbox definition + lifecycle
 export { defineSandbox } from './sandbox'

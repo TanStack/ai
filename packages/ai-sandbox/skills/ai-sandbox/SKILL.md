@@ -214,18 +214,15 @@ fresh. Ensure order: resume running → restore snapshot → create + bootstrap.
 ## Instance durability (durable resume)
 
 Resume bookkeeping defaults to in-memory (single-process). For cross-process /
-multi-instance resume, implement a durable `SandboxInstanceStore` (BYO) and
-provide it with `withSandboxInstanceStore`. Pair multi-instance with
-`withLocks` from `@tanstack/ai`. Order: providers **before** `withSandbox`.
+multi-replica resume, implement a durable `SandboxInstanceStore` (BYO) and pass
+it as `withSandbox(sandbox, { instances })`. Pair multi-replica with a
+distributed lock: either `withLocks` from `@tanstack/ai/locks` (ordered
+**before** `withSandbox`) or the `locks` option.
 
 ```typescript
 import { chat } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
-import {
-  InMemorySandboxInstanceStore,
-  withSandbox,
-  withSandboxInstanceStore,
-} from '@tanstack/ai-sandbox'
+import { withSandbox } from '@tanstack/ai-sandbox'
 // Production: your BYO store — docs/sandbox/durability.md
 import { instanceStore } from './sandbox-instance-store'
 
@@ -233,12 +230,15 @@ chat({
   adapter,
   messages,
   middleware: [
-    withSandboxInstanceStore(instanceStore),
-    withLocks(new InMemoryLockStore()), // multi-instance: distributed lock
-    withSandbox(sandbox),
+    withLocks(new InMemoryLockStore()), // multi-replica: distributed lock
+    withSandbox(sandbox, { instances: instanceStore }),
   ],
 })
 ```
+
+The store option takes precedence over an ambient `SandboxInstanceStoreCapability`
+(provided by a platform layer via `provideSandboxInstanceStore`), which in turn
+beats the in-memory fallback.
 
 Chat transcript durability (`withPersistence`) is independent — compose both
 when the app needs history _and_ instance reuse. Prove adapters with

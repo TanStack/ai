@@ -136,5 +136,5 @@ Daytona) pickers.
 > **Durable instance resume:** bookkeeping defaults to in-memory (single-process).
 > For cross-process / multi-instance reuse, see
 > [Sandbox Instance Durability](./durability): implement a
-> `SandboxInstanceStore`, provide it with `withSandboxInstanceStore`, and pair a
+> `SandboxInstanceStore`, pass it as `withSandbox(sandbox, { instances })`, and pair a
 > distributed `LockStore` via `withLocks` from `@tanstack/ai/locks`.

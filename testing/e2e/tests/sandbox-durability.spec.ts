@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
  *
  * Two independent runs (separate HTTP requests → fresh middleware contexts) for
  * the same thread. Shared state is only the harness route's module-singleton
- * `SandboxInstanceStore` via `withSandboxInstanceStore` + `withLocks`. The
+ * `SandboxInstanceStore` passed to `withSandbox`, plus `withLocks`. The
  * second run must RESUME the sandbox the first created.
  *
  * Provider-free (fixed AG-UI stream + fake sandbox provider); exempt from aimock.
