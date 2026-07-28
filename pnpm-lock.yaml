@@ -2273,6 +2273,19 @@ importers:
         specifier: 4.0.14
         version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
 
+  packages/ai-sandbox-run-cloud:
+    dependencies:
+      '@run-cloud/sdk':
+        specifier: ^0.8.0
+        version: 0.8.0
+    devDependencies:
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
+
   packages/ai-sandbox-sprites:
     devDependencies:
       '@tanstack/ai-sandbox':
@@ -8251,6 +8264,10 @@ packages:
     resolution: {integrity: sha512-TW5f2b5d8Y1DwilaxaXhPkYI1a+i1Am2+eDEf6Tu/QrPxt6kdh/4HT6y460MmzE1im71rudvEs5zLLFr7qBAtQ==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
+
+  '@run-cloud/sdk@0.8.0':
+    resolution: {integrity: sha512-GewA2LqlMGLX50yWRkA/cOE5JGuqf3H9n8cC5aY72Hkr2ndtuGltM/tI4qg47ZpdhOgbLKqIxWZ5mphxd0r/6A==}
+    engines: {node: '>=20'}
 
   '@rushstack/node-core-library@5.7.0':
     resolution: {integrity: sha512-Ff9Cz/YlWu9ce4dmqNBZpA45AEya04XaBFIjV7xTVeEf+y/kTjEasmozqFELXlNG4ROdevss75JrrZ5WgufDkQ==}
@@ -22275,6 +22292,13 @@ snapshots:
       '@types/estree': 1.0.9
     optionalDependencies:
       fsevents: 2.3.3
+
+  '@run-cloud/sdk@0.8.0':
+    dependencies:
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@rushstack/node-core-library@5.7.0(@types/node@24.10.3)':
     dependencies:

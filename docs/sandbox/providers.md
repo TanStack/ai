@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs — local process, Docker, Daytona, or Vercel — and understand the capabilities each one exposes."
+description: "Pick and configure where a TanStack AI sandbox runs — local process, Docker, or a managed cloud provider — and understand the capabilities each one exposes."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -25,6 +25,7 @@ same.
 | Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
+| Run Cloud | `@tanstack/ai-sandbox-run-cloud` | microVM | Managed [Run Cloud](https://run.cloud) Firecracker microVMs; native files, port tunnels, snapshots, and resume-by-id. Needs `RUN_CLOUD_API_KEY`. |
 
 Each provider is its own package, and the constructor is the only thing that
 differs between them:
@@ -34,17 +35,19 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { runCloudSandbox } from '@tanstack/ai-sandbox-run-cloud'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // runs in a container
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
+const runCloud = runCloudSandbox() // managed Firecracker microVM
 ```
 
-> Cloud providers (Daytona, Vercel) run as remote VMs. When you drive them from
-> your laptop, [tools](./tools) bridged from `chat()` can't dial your machine's
-> `localhost` — you need the bridge tunnel. See the [tools guide](./tools) for the
-> ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
+> Managed cloud providers run as remote VMs. When you drive them from your
+> laptop, [tools](./tools) bridged from `chat()` can't dial your machine's
+> `localhost` — you need the bridge tunnel. See the [tools guide](./tools) for
+> the ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
 > co-located model.
 
 ## Local process
@@ -164,6 +167,29 @@ const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
   switches the URL to `public` auth and returns it; other ports are not exposed.
 - **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
   local dev (see [tools](./tools)).
+
+## Run Cloud
+
+```ts
+import { runCloudSandbox } from '@tanstack/ai-sandbox-run-cloud'
+
+const runCloud = runCloudSandbox({
+  cpu: 2,
+  memory: 4096,
+  idlePauseSeconds: 300,
+})
+```
+
+- **Isolation:** a managed Firecracker microVM with native command streaming and
+  binary-safe filesystem operations.
+- **Auth / env:** needs `RUN_CLOUD_API_KEY`. Harness credentials are injected as
+  workspace secrets.
+- **Snapshot / resume:** supports point-in-time snapshots, restoring a new
+  sandbox from a snapshot, and reconnecting by sandbox id.
+- **Ports:** `ports.connect(port)` opens a short-lived public tunnel for that
+  guest port.
+- **Bridge:** Run Cloud is remote, so bridged tools need the tunnel in local dev
+  (see [tools](./tools)).
 
 ## Capabilities
 
