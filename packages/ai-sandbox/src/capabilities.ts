@@ -4,8 +4,8 @@
  * - `SandboxCapability` is PROVIDED by `withSandbox` and REQUIRED by harness
  *   adapters (`requires: [SandboxCapability]`).
  * - `SandboxInstanceStoreCapability` / `withSandboxInstanceStore` live in
- *   `./instance-store` (same package). `LocksCapability` / `withLocks` stay in
- *   `@tanstack/ai` and are not re-exported here.
+ *   `./instance-store` (same package). `LocksCapability` / `withLocks` live in
+ *   `@tanstack/ai/locks` and are not re-exported here.
  */
 import { createCapability } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'

@@ -451,7 +451,8 @@
         {
           "label": "Locks",
           "to": "advanced/locks",
-          "addedAt": "2026-07-27"
+          "addedAt": "2026-07-27",
+          "updatedAt": "2026-07-28"
         },
         {
           "label": "OpenTelemetry",

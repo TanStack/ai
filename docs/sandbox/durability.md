@@ -115,12 +115,12 @@ const middleware = [
 ## Implement `SandboxInstanceStore`
 
 ```ts
-import type {
-  SandboxInstanceRecord,
-  SandboxInstanceStore,
+import {
+  defineSandboxInstanceStore,
 } from '@tanstack/ai-sandbox'
+import type { SandboxInstanceRecord } from '@tanstack/ai-sandbox'
 
-export const instanceStore: SandboxInstanceStore = {
+export const instanceStore = defineSandboxInstanceStore({
   async get(_key) {
     return null
   },
@@ -130,7 +130,7 @@ export const instanceStore: SandboxInstanceStore = {
   async delete(_key) {
     // no-op if missing
   },
-}
+})
 ```
 
 ### Invariants (conformance)

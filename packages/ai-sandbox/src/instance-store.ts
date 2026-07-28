@@ -59,6 +59,19 @@ export interface SandboxInstanceStore {
 }
 
 /**
+ * Type a {@link SandboxInstanceStore} implementation inline: pass the object and
+ * get autocomplete + contract checking, with no separate
+ * `: SandboxInstanceStore` annotation. Hand the result to
+ * {@link withSandboxInstanceStore}. Matches `defineLock` /
+ * `defineMessageStore` style helpers elsewhere in the monorepo.
+ */
+export function defineSandboxInstanceStore(
+  store: SandboxInstanceStore,
+): SandboxInstanceStore {
+  return store
+}
+
+/**
  * Capability for the instance map. Provided by {@link withSandboxInstanceStore};
  * consumed by {@link withSandbox}.
  */
@@ -98,7 +111,7 @@ export class InMemorySandboxInstanceStore implements SandboxInstanceStore {
  * ```ts
  * middleware: [
  *   withSandboxInstanceStore(instanceStore),
- *   withLocks(locks), // from @tanstack/ai — multi-instance
+ *   withLocks(locks), // from @tanstack/ai/locks — multi-instance
  *   withSandbox(sandbox),
  * ]
  * ```

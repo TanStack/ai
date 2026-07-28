@@ -33,7 +33,7 @@ section for the same key:
 
 - **Sandbox resume-or-create** (`withSandbox` / `ensure`) — two concurrent runs
   for the same thread must not both create a provider sandbox. See
-  [Sandboxes](../sandbox/overview).
+  [Sandbox Instance Durability](../sandbox/durability).
 - **Your own middleware** — any multi-writer work you want to serialize across
   workers (e.g. a custom “one active job per thread” gate).
 
@@ -182,6 +182,7 @@ Or provide without `withLocks` by calling `provideLocks` in your own
 ## See also
 
 - [Middleware](./middleware) — capability bus and lifecycle
-- [Sandboxes](../sandbox/overview) — primary product consumer of locks today
+- [Sandboxes](../sandbox/overview) — sandbox middleware overview
+- [Sandbox Instance Durability](../sandbox/durability) — primary product consumer (`withSandbox` / `ensure`)
 - [Persistence Controls](../persistence/controls) — compose state stores from different systems
 - [Build Your Own Adapter](../persistence/build-your-own-adapter) — chat store contracts

@@ -219,7 +219,8 @@ provide it with `withSandboxInstanceStore`. Pair multi-instance with
 `withLocks` from `@tanstack/ai`. Order: providers **before** `withSandbox`.
 
 ```typescript
-import { chat, InMemoryLockStore, withLocks } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
+import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
 import {
   InMemorySandboxInstanceStore,
   withSandbox,
@@ -242,6 +243,8 @@ chat({
 Chat transcript durability (`withPersistence`) is independent — compose both
 when the app needs history _and_ instance reuse. Prove adapters with
 `runSandboxInstanceStoreConformance` from `@tanstack/ai-sandbox/testkit`.
+Use `defineSandboxInstanceStore({ get, upsert, delete })` for inline typing of a
+BYO store (same pattern as `defineLock` / `defineMessageStore`).
 
 ## File-event hooks
 

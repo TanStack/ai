@@ -1,5 +1,5 @@
 // Capability tokens + accessors (sandbox-owned only).
-// LockStore / withLocks: import from @tanstack/ai.
+// LockStore / withLocks / defineLock: import from @tanstack/ai/locks.
 export {
   SandboxCapability,
   SandboxPolicyCapability,
@@ -18,6 +18,7 @@ export {
   getSandboxInstanceStore,
   provideSandboxInstanceStore,
   InMemorySandboxInstanceStore,
+  defineSandboxInstanceStore,
   withSandboxInstanceStore,
 } from './instance-store'
 export type {
