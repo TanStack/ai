@@ -117,10 +117,6 @@ function memoryThreshold(offset: string, runId: string, tail: number): number {
   return decoded.seq
 }
 
-function isTerminalChunk(chunk: StreamChunk): boolean {
-  return chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-}
-
 interface MemoryEntry {
   seq: number
   offset: string
@@ -150,14 +146,22 @@ const COMPLETED_LOG_TTL_MS = 5 * 60_000
  * How long a from-start join (`-1` / `now`) waits for a run's first chunk before
  * failing. Bounds the "joined a run that never produces" case so a consumer
  * gets a surfaced error instead of an indefinitely-open, event-less connection.
+ *
+ * Defaults short: the common from-start join is a reload rejoining a run whose
+ * producer ran in a PRIOR request, so an in-flight run's log already holds
+ * chunks (it streams immediately, deadline never applies) and an empty log means
+ * the run is gone — failing fast lets the client re-enable input near-instantly
+ * instead of hanging. Raise `firstChunkDeadlineMs` for backends where a producer
+ * legitimately starts well after a joiner attaches (a queued/deferred job).
  */
-const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 30_000
+const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 100
 
 /** Options for the in-process delivery-durability backend. */
 export interface MemoryStreamOptions {
   /**
    * Milliseconds a from-start join waits for the run's first chunk before
-   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS}.
+   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
+   * raise it if a producer can legitimately start long after a joiner attaches.
    */
   firstChunkDeadlineMs?: number
 }
@@ -236,7 +240,6 @@ export function memoryStream(
         const seq = firstSeq + index
         const offset = encodeMemoryOffset(runId, seq)
         log.entries.push({ seq, offset, chunk })
-        if (isTerminalChunk(chunk)) markComplete(log)
         return offset
       })
       wakeWaiters(log)
@@ -284,9 +287,14 @@ export function memoryStream(
           index += 1
           if (entry && entry.seq > threshold) {
             yield { offset: entry.offset, chunk: entry.chunk }
-            if (isTerminalChunk(entry.chunk)) return
           }
         }
+        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
+        // agent-loop run emits one per iteration (finishReason "tool_calls" then
+        // "stop"), so stopping on the first would truncate a tool-calling run at
+        // its first tool call. The producer signals true completion by calling
+        // `close()` (it does so on every exit — see StreamDurability.close), which
+        // sets `log.complete`. Read tails until then, or until the caller aborts.
         if (log.complete || signal?.aborted) return
 
         // Bound only the wait for the very first chunk: once a run has produced

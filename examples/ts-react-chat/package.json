@@ -7,7 +7,8 @@
     "dev:vite": "vite dev --port 3000",
     "build": "vite build",
     "serve": "vite preview",
-    "test": "exit 0",
+    "test": "vitest run",
+    "test:lib": "vitest run",
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
@@ -36,6 +37,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-opencode": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",

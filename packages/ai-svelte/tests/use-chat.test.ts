@@ -151,7 +151,7 @@ describe('createChat', () => {
 
     const chat = createChat({
       connection: mockConnection,
-      id: 'persisted-chat',
+      threadId: 'persisted-chat',
       persistence: persistence,
     })
 
@@ -177,7 +177,7 @@ describe('createChat', () => {
 
     const chat = createChat({
       connection: mockConnection,
-      id: 'persisted-chat',
+      threadId: 'persisted-chat',
       initialMessages,
       persistence: persistence,
     })

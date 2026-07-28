@@ -23,6 +23,11 @@ response. The adapter records every chunk to an ordered log before delivery and
 tags each event with an opaque offset. On reconnect the client resends the last
 offset and the server replays from the log instead of re-running the model.
 
+This is the delivery layer: it resumes a live stream. Saving the conversation so
+it survives a reload or reaches another device is a separate layer. For how the
+two fit together and when to pick each, see
+[Durability and Persistence](../persistence/overview).
+
 Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
 
 ## 1. Pick an adapter

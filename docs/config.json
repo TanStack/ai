@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
   "docSearch": {
     "appId": "FQ0DQ6MA3C",
@@ -53,7 +53,8 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
-          "addedAt": "2026-04-17"
+          "addedAt": "2026-04-17",
+          "updatedAt": "2026-07-26"
         }
       ]
     },
@@ -109,7 +110,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -157,7 +158,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Streaming",
@@ -175,12 +176,6 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Persistence",
-          "to": "chat/persistence",
-          "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-14"
         }
       ]
     },
@@ -225,7 +220,8 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-07-17",
+          "updatedAt": "2026-07-23"
         },
         {
           "label": "Advanced",
@@ -236,6 +232,53 @@
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
           "addedAt": "2026-07-17"
+        }
+      ]
+    },
+    {
+      "label": "Persistence",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "persistence/overview",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-27"
+        },
+        {
+          "label": "Chat Persistence",
+          "to": "persistence/chat-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-26"
+        },
+        {
+          "label": "Client Persistence",
+          "to": "persistence/client-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-27"
+        },
+        {
+          "label": "Controls",
+          "to": "persistence/controls",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-25"
+        },
+        {
+          "label": "Build Your Own Adapter",
+          "to": "persistence/build-your-own-adapter",
+          "addedAt": "2026-07-24",
+          "updatedAt": "2026-07-28"
+        },
+        {
+          "label": "Migrations",
+          "to": "persistence/migrations",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-25"
+        },
+        {
+          "label": "Internals",
+          "to": "persistence/internals",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-25"
         }
       ]
     },
@@ -375,12 +418,18 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-15"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Built-in Middleware",
           "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03"
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-07-27"
         },
         {
           "label": "OpenTelemetry",
@@ -569,7 +618,7 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Sampling \u2192 modelOptions",
+          "label": "Sampling → modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
@@ -582,7 +631,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "@tanstack/ai-client",

@@ -75,7 +75,6 @@ function SanctuaryPage() {
     setDecisions((prev) => [message, ...prev].slice(0, 8))
 
   const chat = useChat({
-    id: threadId,
     threadId,
     connection,
     tools: clientTools,

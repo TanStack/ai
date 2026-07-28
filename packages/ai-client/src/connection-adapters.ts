@@ -12,7 +12,7 @@ import type {
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
-import type { ChatFetcher } from './types'
+import type { ChatFetcher, ChatPendingInterrupt } from './types'
 
 /**
  * Associates connect-wrapped chunks with the run they were produced under.
@@ -407,6 +407,52 @@ function assertResponseOk(response: Response): void {
   }
 }
 
+/**
+ * GET the hydration endpoint for a thread and parse its JSON `{ messages,
+ * activeRun }` body. This is the transport-agnostic reconnect probe: keyed on
+ * the STABLE thread id, it returns the stored transcript and — if a run is still
+ * generating — a cursor the caller tails via `joinRun`. Shared by every fetch/
+ * XHR adapter so the client never has to know which transport is in use.
+ */
+async function fetchThreadHydration(
+  fetchClient: typeof globalThis.fetch,
+  url: string,
+  headers: Record<string, string>,
+  credentials: RequestCredentials,
+  threadId: string,
+): Promise<ChatHydrationResult> {
+  const response = await fetchClient(withSearchParams(url, { threadId }), {
+    method: 'GET',
+    headers: { Accept: 'application/json', ...headers },
+    credentials,
+  })
+  assertResponseOk(response)
+  const data = (await response.json()) as {
+    messages?: Array<UIMessage>
+    activeRun?: { runId?: unknown } | null
+    interrupts?: { runId?: unknown; pending?: unknown } | null
+  }
+  const activeRun =
+    data.activeRun && typeof data.activeRun.runId === 'string'
+      ? { runId: data.activeRun.runId }
+      : null
+  const interrupts =
+    data.interrupts &&
+    typeof data.interrupts.runId === 'string' &&
+    Array.isArray(data.interrupts.pending) &&
+    data.interrupts.pending.length > 0
+      ? {
+          runId: data.interrupts.runId,
+          pending: data.interrupts.pending as Array<ChatPendingInterrupt>,
+        }
+      : null
+  return {
+    messages: Array.isArray(data.messages) ? data.messages : [],
+    activeRun,
+    interrupts,
+  }
+}
+
 /** Yield SSE stream events (chunk + offset) from a fetch Response body. */
 async function* responseToSSEEvents(
   response: Response,
@@ -664,6 +710,23 @@ export interface ConnectConnectionAdapter {
 }
 
 /**
+ * Server-resolved hydration for a thread. `messages` is the stored transcript;
+ * `activeRun` is a cursor to a run still generating for the thread (or `null`).
+ * Keyed on the STABLE thread id — the client never handles a run id, so a turn
+ * that spans several runs (interrupt/tool continuations) reconnects correctly.
+ */
+export interface ChatHydrationResult {
+  messages: Array<UIMessage>
+  activeRun: { runId: string } | null
+  /**
+   * Pending human-in-the-loop interrupts for the thread and the run they paused,
+   * so a reload (or another device) re-prompts the approval from the server. The
+   * client restores them exactly as a persisted resume snapshot would.
+   */
+  interrupts: { runId: string; pending: Array<ChatPendingInterrupt> } | null
+}
+
+/**
  * A {@link ConnectConnectionAdapter} that also supports joining an existing run
  * (a second tab, or re-attaching after a full reload) via `joinRun`, replaying
  * the ordered stream from the start off the server's delivery-durability sink.
@@ -677,6 +740,14 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
     runId: string,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>
+  /**
+   * Fetch server-authoritative hydration for `threadId`: the stored transcript,
+   * and a cursor to an in-flight run if one exists. The client calls this itself
+   * on mount (no loader/prop), then tails `activeRun` via `joinRun`. Read-only
+   * JSON GET (`?threadId`), so it is transport-agnostic regardless of how the
+   * delivery stream is served.
+   */
+  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
 }
 
 export interface SubscribeConnectionAdapter {
@@ -693,6 +764,22 @@ export interface SubscribeConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => Promise<void>
+  /**
+   * Re-attach to an existing run by id, replaying its stream from the start off
+   * the server's delivery-durability sink. Present only when the underlying
+   * connection is resumable (a `ResumableConnectConnectionAdapter`). Used to
+   * rejoin an in-flight run after a full page reload.
+   */
+  joinRun?: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
+  /**
+   * Server-authoritative hydration for a thread (transcript + in-flight-run
+   * cursor). Present only when the underlying connection supports it. The client
+   * calls it on mount to re-hydrate without any app-side loader or prop.
+   */
+  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
 }
 
 /**
@@ -727,9 +814,17 @@ export function normalizeConnectionAdapter(
   }
 
   if (hasSubscribe && hasSend) {
+    const joinRun = (connection as SubscribeConnectionAdapter).joinRun?.bind(
+      connection,
+    )
+    const hydrate = (connection as SubscribeConnectionAdapter).hydrate?.bind(
+      connection,
+    )
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),
+      ...(joinRun ? { joinRun } : {}),
+      ...(hydrate ? { hydrate } : {}),
     }
   }
 
@@ -858,6 +953,28 @@ export function normalizeConnectionAdapter(
         throw err
       }
     },
+    // Expose joinRun only when the underlying connection is resumable. Require
+    // a real function — `'joinRun' in connection` is true for
+    // `{ joinRun: undefined }`, which would wrap a non-callable and throw on
+    // rehydration rejoin.
+    ...(typeof (connection as ResumableConnectConnectionAdapter).joinRun ===
+    'function'
+      ? {
+          joinRun: (runId: string, abortSignal?: AbortSignal) =>
+            (connection as ResumableConnectConnectionAdapter).joinRun(
+              runId,
+              abortSignal,
+            ),
+        }
+      : {}),
+    ...(() => {
+      // Capture under the typeof guard so `hydrate` narrows to the function type
+      // (no non-null assertion). Present only when the connection supports it.
+      const hydrate = (connection as ResumableConnectConnectionAdapter).hydrate
+      return typeof hydrate === 'function'
+        ? { hydrate: (threadId: string) => hydrate(threadId) }
+        : {}
+    })(),
   }
 }
 
@@ -1068,6 +1185,18 @@ export function fetchServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
+    async hydrate(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+      return fetchThreadHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
+      )
+    },
   }
 }
 
@@ -1197,6 +1326,18 @@ export function fetchHttpStream(
         ),
         signal,
         resolvedOptions.reconnect,
+      )
+    },
+    async hydrate(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+      return fetchThreadHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
       )
     },
   }
@@ -1512,6 +1653,19 @@ export function xhrServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
+    async hydrate(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      // Hydration is a non-streaming JSON GET, so fetch is fine even for the
+      // XHR-backed streaming adapter.
+      return fetchThreadHydration(
+        fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.withCredentials ? 'include' : 'same-origin',
+        threadId,
+      )
+    },
   }
 }
 
@@ -1567,6 +1721,19 @@ export function xhrHttpStream(
         ),
         signal,
         resolvedOptions.reconnect,
+      )
+    },
+    async hydrate(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      // Hydration is a non-streaming JSON GET, so fetch is fine even for the
+      // XHR-backed streaming adapter.
+      return fetchThreadHydration(
+        fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.withCredentials ? 'include' : 'same-origin',
+        threadId,
       )
     },
   }

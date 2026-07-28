@@ -1,16 +1,14 @@
-// Capability tokens + accessors
+// Capability tokens + accessors (sandbox-owned only).
+// LockStore / withLocks: import from @tanstack/ai.
 export {
   SandboxCapability,
   SandboxStoreCapability,
-  LocksCapability,
   SandboxPolicyCapability,
   ToolBridgeProvisionerCapability,
   getSandbox,
   provideSandbox,
   getSandboxStore,
   provideSandboxStore,
-  getLocks,
-  provideLocks,
   getSandboxPolicy,
   provideSandboxPolicy,
   getToolBridgeProvisioner,
@@ -100,9 +98,9 @@ export type {
   SandboxDestroyInput,
 } from './contracts'
 
-// Stores (interfaces + in-memory defaults)
-export { InMemorySandboxStore, InMemoryLockStore } from './store'
-export type { SandboxStore, LockStore, SandboxRecord } from './store'
+// Instance map (interfaces + in-memory default)
+export { InMemorySandboxStore } from './store'
+export type { SandboxStore, SandboxRecord } from './store'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)
 export {

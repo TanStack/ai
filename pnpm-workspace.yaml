@@ -95,3 +95,10 @@ allowBuilds:
   # JS fallback, so their native builds are not required.
   cpu-features: false
   ssh2: false
+  # Prisma and better-sqlite3 are peer-resolution artifacts only — no workspace
+  # package depends on them, so nothing imports the generated client or the
+  # native addon and their build scripts have nothing to produce for us.
+  '@prisma/client': false
+  '@prisma/engines': false
+  prisma: false
+  better-sqlite3: false

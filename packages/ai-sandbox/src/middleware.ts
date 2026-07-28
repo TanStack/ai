@@ -3,10 +3,10 @@
  * {@link SandboxCapability} a harness adapter requires.
  *
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
- *   algorithm), provide the handle, using the optional SandboxStore/Locks
- *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise). If `fileEvents` is not false, starts a watcher
- *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
+ *   algorithm), provide the handle, using optional SandboxStoreCapability /
+ *   LocksCapability when provided earlier (in-memory fallback otherwise).
+ *   If `fileEvents` is not false, starts a watcher that dispatches to
+ *   sandbox-scoped hooks and forwards to the runtime sink.
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
@@ -15,9 +15,9 @@
  * chunks), not from here — middleware setup runs before streaming begins.
  */
 import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
-  LocksCapability,
   SandboxCapability,
   SandboxStoreCapability,
   provideSandbox,

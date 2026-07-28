@@ -57,6 +57,93 @@ function fixedRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   })()
 }
 
+/**
+ * An agent-loop run: one RUN_STARTED/RUN_FINISHED pair PER iteration. The first
+ * terminal carries `finishReason: 'tool_calls'` (the model paused to call a
+ * tool); the tool result and a second iteration (the real answer) follow, ending
+ * on a `'stop'` terminal. This is the shape a tool-calling run takes on the
+ * wire, and the case that regressed: a durability sink that ended the log on the
+ * FIRST terminal truncated the run at the tool call.
+ */
+function agentLoopRun(
+  threadId: string,
+  runId: string,
+): AsyncIterable<StreamChunk> {
+  return (async function* () {
+    const now = () => Date.now()
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call-1',
+      toolCallName: 'rollDice',
+      toolName: 'rollDice',
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: 'call-1',
+      delta: '{"sides":20}',
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_END',
+      toolCallId: 'call-1',
+      timestamp: now(),
+    } as StreamChunk
+    // First per-iteration terminal. A sink that stops here drops everything below.
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      model: 'fixed',
+      finishReason: 'tool_calls',
+      timestamp: now(),
+    } as StreamChunk
+    // The tool result and the second iteration must survive the first terminal.
+    yield {
+      type: 'TOOL_CALL_RESULT',
+      toolCallId: 'call-1',
+      content: '{"rolls":[14],"total":14}',
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'm2',
+      model: 'fixed',
+      delta: 'done',
+      content: 'done',
+      timestamp: now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      model: 'fixed',
+      finishReason: 'stop',
+      timestamp: now(),
+    } as StreamChunk
+  })()
+}
+
+function isAgentLoop(request: Request): boolean {
+  try {
+    return new URL(request.url).searchParams.get('scenario') === 'agent-loop'
+  } catch {
+    return false
+  }
+}
+
 function durableRun(request: Request) {
   const url = new URL(request.url)
   const runId = url.searchParams.get('runId') ?? crypto.randomUUID()
@@ -93,7 +180,9 @@ function durableResponse(
   durability: ReturnType<typeof memoryStream>,
   batch?: number,
 ): Response {
-  const stream = fixedRun('thread-durable', runId)
+  const stream = isAgentLoop(request)
+    ? agentLoopRun('thread-durable', runId)
+    : fixedRun('thread-durable', runId)
   const durabilityOption = { adapter: durability, ...(batch ? { batch } : {}) }
   return isNdjson(request)
     ? toHttpResponse(stream, { durability: durabilityOption })

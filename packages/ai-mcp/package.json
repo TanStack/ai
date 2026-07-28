@@ -23,7 +23,8 @@
     "model-context-protocol",
     "tanstack",
     "tools",
-    "typescript"
+    "typescript",
+    "tanstack-intent"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -47,7 +48,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "build": "vite build && tsup --config tsup.bin.config.ts",

@@ -312,6 +312,26 @@ const redactStructuredOutput: ChatMiddleware = {
 
 > Why is there `onStructuredOutputConfig` but no `onStructuredOutputChunk`? Because the **config** shape genuinely differs at the structured-output boundary — it carries an `outputSchema` field that plain `ChatMiddlewareConfig` doesn't (see [onStructuredOutputConfig](#onstructuredoutputconfig)). **Chunks** are all just `StreamChunk` regardless of phase, so one `onChunk` plus `ctx.phase` (or the CUSTOM event name) covers every case — a parallel chunk hook would be redundant.
 
+### onShouldContinue
+
+Called when the engine is deciding whether to start another agent-loop iteration (after a tool phase or between model turns). Combined with AND semantics across middleware **and** with `agentLoopStrategy` — any explicit `false` stops the loop. Return `true`, `void`, or `undefined` to allow continuation.
+
+Does **not** abort the run: the stream finishes normally with the current messages. Use `ctx.abort()` only for a hard abort.
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const budget: ChatMiddleware = {
+  name: "tool-budget",
+  onShouldContinue: (_ctx, state) => {
+    // Stop further turns once 20 tool calls have been emitted
+    if (state.toolCallCount >= 20) return false;
+  },
+};
+```
+
+For a full per-turn + cumulative tool budget recipe, see [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
+
 ### onBeforeToolCall
 
 Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
@@ -596,6 +616,7 @@ const stream = chat({
 | `onStart` | Sequential | All run in order |
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
+| `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
 | `onAfterToolCall` | Sequential | All run in order |
 | `onUsage` | Sequential | All run in order |
 | `onFinish/onAbort/onError` | Sequential | All run in order |

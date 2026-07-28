@@ -165,8 +165,55 @@ describe('memoryStream', () => {
 
     await producer.append([ev.textContent('c'), ev.textContent('d')])
     await producer.append([ev.runFinished()])
+    // A terminal chunk no longer ends the read; the producer signals completion
+    // by closing (an agent-loop run emits a RUN_FINISHED per iteration).
+    await producer.close()
     await done
     expect(received).toEqual(['a', 'b', 'c', 'd', '[RUN_FINISHED]'])
+  })
+
+  it('tails an agent-loop run across per-iteration terminals to close', async () => {
+    // A tool-calling run emits RUN_STARTED/RUN_FINISHED PER iteration. The reader
+    // must not stop on the first RUN_FINISHED (finishReason "tool_calls") — it
+    // must deliver the tool result and the second iteration's reply, ending only
+    // when the producer closes.
+    const producer = memoryStream(
+      new Request('https://example.test/api/chat?runId=run-agentloop', {
+        method: 'POST',
+      }),
+    )
+    const joiner = memoryStream(
+      new Request(
+        'https://example.test/api/chat?runId=run-agentloop&offset=-1',
+        { method: 'POST' },
+      ),
+    )
+    const resumeOffset = joiner.resumeFrom()
+    if (resumeOffset === null) throw new Error('Expected a resume offset')
+    const received: Array<string> = []
+    const done = (async () => {
+      for await (const { chunk } of joiner.read(resumeOffset)) {
+        received.push(label(chunk))
+      }
+    })()
+
+    // Iteration 1: a tool call, then a per-iteration terminal.
+    await producer.append([ev.textContent('rolling'), ev.runFinished()])
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+    // The first terminal must NOT have ended the reader.
+    expect(received).toEqual(['rolling', '[RUN_FINISHED]'])
+
+    // Iteration 2: the tool result feeds back and the model replies, then the
+    // producer closes.
+    await producer.append([ev.textContent('you rolled a 14'), ev.runFinished()])
+    await producer.close()
+    await done
+    expect(received).toEqual([
+      'rolling',
+      '[RUN_FINISHED]',
+      'you rolled a 14',
+      '[RUN_FINISHED]',
+    ])
   })
 
   it('supports an adapter-owned tail sentinel for future writes', async () => {
@@ -192,6 +239,7 @@ describe('memoryStream', () => {
 
     await new Promise<void>((resolve) => setTimeout(resolve, 10))
     await producer.append([ev.textContent('new'), ev.runFinished()])
+    await producer.close()
     await done
     expect(received).toEqual(['new', '[RUN_FINISHED]'])
   })
@@ -229,6 +277,24 @@ describe('memoryStream', () => {
     )
   })
 
+  it('defaults the first-chunk deadline to a short 100ms window', async () => {
+    // A reload rejoin is the common from-start join; its producer ran in a prior
+    // request, so an empty log means the run is gone and should fail fast rather
+    // than hang. The default is short so the client re-enables near-instantly.
+    const joiner = memoryStream(
+      new Request(
+        'https://example.test/api/chat?runId=run-default-deadline&offset=-1',
+        { method: 'POST' },
+      ),
+    )
+    const resumeOffset = joiner.resumeFrom()
+    if (resumeOffset === null) throw new Error('Expected a resume offset')
+
+    await expect(readLabels(joiner.read(resumeOffset))).rejects.toThrow(
+      /produced no data within 100ms/,
+    )
+  })
+
   it('does not apply the first-chunk deadline once a run has produced data', async () => {
     const producer = memoryStream(
       new Request('https://example.test/api/chat?runId=run-slow-tail', {
@@ -262,6 +328,7 @@ describe('memoryStream', () => {
     expect(received).toEqual(['a'])
 
     await producer.append([ev.textContent('b'), ev.runFinished()])
+    await producer.close()
     await done
     expect(received).toEqual(['a', 'b', '[RUN_FINISHED]'])
   })

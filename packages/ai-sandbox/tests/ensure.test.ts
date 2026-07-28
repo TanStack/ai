@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { defineSandbox } from '../src/sandbox'
 import { defineWorkspace, githubRepo } from '../src/workspace'
-import { InMemoryLockStore, InMemorySandboxStore } from '../src/store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import { InMemorySandboxStore } from '../src/store'
 import { FULL_CAPS, makeFakeProvider } from './fakes'
 import type { SandboxCapabilities } from '../src/contracts'
 

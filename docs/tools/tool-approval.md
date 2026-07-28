@@ -158,223 +158,63 @@ export async function POST(request: Request) {
 }
 ```
 
-## Deprecated approval response compatibility
+## Approval UI
 
-`addToolApprovalResponse` remains temporarily available for old approval UIs,
-but new code should use the bound interrupt API above. A compatibility
-`approved: false` is a denial, not a cancellation.
+Render pending approvals from the hook's `interrupts` array. Each
+`tool-approval` interrupt carries the tool name, the original arguments, and a
+`resolveInterrupt` you call with the user's decision. The array is already
+tool-agnostic, so one block handles every tool marked `needsApproval: true` —
+no per-tool `part.name` branch and no reading `part.approval` off a mixed union:
 
-```tsx
+```tsx ignore
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { sendEmail } from './tools'
 
 function ChatComponent() {
-  const { messages, sendMessage, addToolApprovalResponse } = useChat({
+  const { messages, sendMessage, interrupts, resuming } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    tools: [sendEmail],
   })
 
   return (
     <div>
-      {messages.map((message) => (
-        <div key={message.id}>
-          {message.parts.map((part) => {
-            // Check for approval requests
-            if (
-              part.type === 'tool-call' &&
-              part.state === 'approval-requested' &&
-              part.approval
-            ) {
-              return (
-                <div key={part.id} className="approval-prompt">
-                  <p>Approve: {part.name}</p>
-                  <pre>{JSON.stringify(part.input, null, 2)}</pre>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              )
-            }
-            // ... render other parts
-            return null
-          })}
-        </div>
-      ))}
-    </div>
-  )
-}
-```
-
-> **Type safety:** When you pass typed `tools` to `useChat`, the `approval`
-> field exists **only** on tool-call parts for tools declared with
-> `needsApproval: true` — tools without approval have no `approval` field at
-> all, so reading it is a compile error that catches a real footgun (checking
-> for approval on a tool that can never request it). See
-> [Generic approval handlers](#generic-approval-handlers) for how to write a
-> tool-agnostic handler under this constraint.
-
-## Generic Approval Handlers
-
-A handler that renders an approval prompt for **any** tool (not one specific
-tool) is still fully supported — you just can't read `part.approval` off a
-typed mixed tool union without first establishing that the field exists. Pick
-whichever of these fits:
-
-**1. Narrow with `'approval' in part`.** This narrows the tool-call union to
-exactly the members that can carry approval, so one loop handles every approval
-tool with full type safety:
-
-```tsx
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-
-const deleteData = toolDefinition({
-  name: 'delete_data',
-  description: 'Delete data (requires approval)',
-  inputSchema: z.object({ key: z.string() }),
-  needsApproval: true,
-}).client(async ({ key }) => ({ deleted: key }))
-
-const listData = toolDefinition({
-  name: 'list_data',
-  description: 'List available keys',
-  inputSchema: z.object({}),
-}).client(async () => ({ keys: new Array<string>() }))
-
-function ApprovalHandler() {
-  const { messages, addToolApprovalResponse } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-    tools: [deleteData, listData],
-  })
-
-  return (
-    <div>
-      {messages.flatMap((message) =>
-        message.parts.map((part, i) => {
-          // `'approval' in part` narrows the union to `needsApproval` tools,
-          // so this single handler covers every approval tool — no per-tool
-          // `part.name` branch needed.
-          if (
-            part.type === 'tool-call' &&
-            part.state === 'approval-requested' &&
-            'approval' in part &&
-            part.approval
-          ) {
-            return (
-              <button
-                key={i}
-                onClick={() =>
-                  addToolApprovalResponse({
-                    id: part.approval!.id,
-                    approved: true,
-                  })
-                }
-              >
-                Approve {part.name}
-              </button>
-            )
-          }
-          return null
-        }),
+      {/* ...render messages... */}
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <div key={interrupt.id} className="approval-prompt">
+            <p>🔒 Approve {interrupt.toolName}?</p>
+            <pre>{JSON.stringify(interrupt.originalArgs, null, 2)}</pre>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve
+            </button>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(false)}
+            >
+              Deny
+            </button>
+          </div>
+        ) : null,
       )}
     </div>
   )
 }
 ```
 
-**2. Type a shared component against the base `ToolCallPart`.** The base type
-(from `@tanstack/ai-client`, untyped tools) always carries `approval?`, so a
-reusable component works across every tool regardless of the caller's tool
-union — this is the [Approval UI Example](#approval-ui-example) below.
+`canResolve` stays `false` until the interrupt is bound and ready; `resuming` is
+`true` while a resolution is in flight, so gate the buttons on both.
 
-**3. Use an untyped `useChat()`.** With no `tools` generic, every tool-call
-part keeps `approval?` exactly as before — no narrowing needed.
+## Migrating from `addToolApprovalResponse`
 
-## Approval UI Example
-
-Here's a more complete approval UI component:
-
-```tsx
-import type { ToolCallPart } from '@tanstack/ai-client'
-
-function ApprovalPrompt({
-  part,
-  onApprove,
-  onDeny,
-}: {
-  part: ToolCallPart
-  onApprove: () => void
-  onDeny: () => void
-}) {
-  // `part.input` is the parsed, fully-typed argument object — always populated
-  // by approval time (the arguments are complete). The raw `part.arguments`
-  // string is still available if you need it.
-  const args = part.input
-
-  return (
-    <div className="border border-yellow-500 rounded-lg p-4 bg-yellow-50">
-      <div className="font-semibold mb-2">
-        🔒 Approval Required: {part.name}
-      </div>
-      <div className="text-sm text-gray-600 mb-4">
-        <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
-          {JSON.stringify(args, null, 2)}
-        </pre>
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={onApprove}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg"
-        >
-          ✓ Approve
-        </button>
-        <button
-          onClick={onDeny}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg"
-        >
-          ✗ Deny
-        </button>
-      </div>
-    </div>
-  )
-}
-```
-
-Wire it up from your message renderer. Note the `id` you pass is the **approval id** (`part.approval.id`), not the tool call id:
-
-```tsx ignore
-{
-  part.type === 'tool-call' &&
-    part.state === 'approval-requested' &&
-    part.approval && (
-      <ApprovalPrompt
-        part={part}
-        onApprove={() =>
-          addToolApprovalResponse({ id: part.approval!.id, approved: true })
-        }
-        onDeny={() =>
-          addToolApprovalResponse({ id: part.approval!.id, approved: false })
-        }
-      />
-    )
-}
-```
+Older UIs read `part.approval` off tool-call parts and called
+`addToolApprovalResponse({ id, approved })`. That API is deprecated. Render from
+the `interrupts` array and call `resolveInterrupt` instead (see [Approval
+UI](#approval-ui) above) — it is tool-agnostic by default, so the per-tool
+narrowing the part-based pattern needed goes away. For the full mapping, see
+[Migrate to AG-UI interrupts](../interrupts/migration).
 
 ## Client Tools with Approval
 
@@ -405,11 +245,11 @@ const deleteLocalData = deleteLocalDataDef.client((input) => {
   return { deleted: true }
 })
 
-const { messages, addToolApprovalResponse } = useChat({
+const { messages, interrupts } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
   // Pass client tools as a plain array — literal tool-name inference works
-  // without a wrapper, so `part.name === "delete_local_data"` still narrows
-  // `part.input` / `part.output` to this tool's types.
+  // without a wrapper. The approval surfaces as a `tool-approval` interrupt you
+  // resolve from `interrupts` (see Approval UI); the tool runs on approval.
   tools: [deleteLocalData], // Automatic execution after approval
 })
 ```

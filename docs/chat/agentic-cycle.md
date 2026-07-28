@@ -159,38 +159,8 @@ The loop continues only while the model's finish reason is `tool_calls` (with pe
 
 By default the loop is bounded by `maxIterations(5)` — after five **model turns** it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option.
 
-> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds turns. Use `maxToolCalls(n)` for a cumulative **emitted**-call budget (stops further turns once the count is reached; the crossing turn is not truncated), and `maxToolCallsPerTurn` to cap how many of those parallel calls **execute** in a single turn or pending/resume batch (strategies only run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded). Skipped calls still count toward `maxToolCalls`.
-
-```typescript
-import {
-  chat,
-  combineStrategies,
-  maxIterations,
-  maxToolCalls,
-  toServerSentEventsResponse,
-} from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { getWeather, getClothingAdvice } from "./tools";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    tools: [getWeather, getClothingAdvice],
-    maxToolCallsPerTurn: 10, // cap parallel fan-out inside one turn
-    agentLoopStrategy: combineStrategies([
-      maxIterations(20), // max model turns
-      maxToolCalls(20), // max tool calls across the run
-    ]),
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
-
 Other built-in strategies:
 
-- **`maxToolCalls(n)`** — continue while cumulative emitted tool calls are below `n` (including per-turn skips; not model turns).
 - **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
 - **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
 
@@ -216,3 +186,79 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 ```
+
+### Tool-call budgets (middleware recipe)
+
+> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds **model turns**. Strategies run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded.
+
+There is no built-in `maxToolCalls` strategy. Cap tools with middleware:
+
+- **`onBeforeToolCall`** — skip excess calls inside one turn (`maxPerTurn`)
+- **`onShouldContinue`** — stop further turns once cumulative **emitted** tools hit a budget (`max`); skipped calls still count toward `toolCallCount`
+
+```typescript
+import {
+  chat,
+  maxIterations,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getWeather, getClothingAdvice } from "./tools";
+
+/** App-owned policy — not a library export. */
+function toolCallBudget(options: {
+  max?: number;
+  maxPerTurn?: number;
+}): ChatMiddleware {
+  const { max, maxPerTurn } = options;
+  let perTurn = 0;
+
+  return {
+    name: "tool-call-budget",
+    onIteration() {
+      perTurn = 0;
+    },
+    // Fresh per-turn budget for pending/resume batches (no onIteration).
+    onToolPhaseComplete() {
+      perTurn = 0;
+    },
+    onBeforeToolCall() {
+      if (maxPerTurn == null) return undefined;
+      perTurn += 1;
+      if (perTurn > maxPerTurn) {
+        return {
+          type: "skip",
+          result: {
+            error: `Skipped: exceeded maxToolCallsPerTurn (${maxPerTurn})`,
+          },
+        };
+      }
+      return undefined;
+    },
+    onShouldContinue(_ctx, state) {
+      if (max != null && state.toolCallCount >= max) return false;
+      return undefined;
+    },
+  };
+}
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+    tools: [getWeather, getClothingAdvice],
+    agentLoopStrategy: maxIterations(20), // model turns
+    middleware: [
+      toolCallBudget({
+        maxPerTurn: 10, // cap parallel fan-out inside one turn
+        max: 20, // stop further turns once cumulative emitted tools hit 20
+      }),
+    ],
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue) for the hook contract.

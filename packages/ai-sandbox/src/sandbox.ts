@@ -6,14 +6,16 @@
  * into a stable instance key and coordinates through the (optional) lock +
  * sandbox stores.
  */
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
+import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
-import { InMemoryLockStore, InMemorySandboxStore } from './store'
-import type { SandboxFileHookEvent } from '@tanstack/ai'
+import { InMemorySandboxStore } from './store'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
-import type { LockStore, SandboxStore } from './store'
+import type { SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 

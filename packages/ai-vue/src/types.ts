@@ -93,6 +93,10 @@ export type UseChatOptions<
   | 'onResumeStateChange'
   | 'context'
   | 'devtools'
+  // `id` is not a hook option: the hook's identity is its `threadId`, which is
+  // also the persistence key. Persist across reloads by passing a stable
+  // `threadId`; there is no separate id to set.
+  | 'id'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

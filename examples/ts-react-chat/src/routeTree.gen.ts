@@ -16,6 +16,7 @@ import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as ResumableRouteImport } from './routes/resumable'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as QueueingRouteImport } from './routes/queueing'
+import { Route as PersistentChatRouteImport } from './routes/persistent-chat'
 import { Route as McpDemoRouteImport } from './routes/mcp-demo'
 import { Route as McpAppsRouteImport } from './routes/mcp-apps'
 import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-result'
@@ -41,6 +42,7 @@ import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
+import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -93,6 +95,11 @@ const RealtimeRoute = RealtimeRouteImport.update({
 const QueueingRoute = QueueingRouteImport.update({
   id: '/queueing',
   path: '/queueing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PersistentChatRoute = PersistentChatRouteImport.update({
+  id: '/persistent-chat',
+  path: '/persistent-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpDemoRoute = McpDemoRouteImport.update({
@@ -223,6 +230,11 @@ const ApiResumableRoute = ApiResumableRouteImport.update({
   path: '/api/resumable',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPersistentChatRoute = ApiPersistentChatRouteImport.update({
+  id: '/api/persistent-chat',
+  path: '/api/persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -324,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
@@ -343,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -376,6 +390,7 @@ export interface FileRoutesByTo {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
@@ -395,6 +410,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -429,6 +445,7 @@ export interface FileRoutesById {
   '/issue-176-tool-result': typeof Issue176ToolResultRoute
   '/mcp-apps': typeof McpAppsRoute
   '/mcp-demo': typeof McpDemoRoute
+  '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
@@ -448,6 +465,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -483,6 +501,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/persistent-chat'
     | '/queueing'
     | '/realtime'
     | '/resumable'
@@ -502,6 +521,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
@@ -535,6 +555,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/persistent-chat'
     | '/queueing'
     | '/realtime'
     | '/resumable'
@@ -554,6 +575,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
@@ -587,6 +609,7 @@ export interface FileRouteTypes {
     | '/issue-176-tool-result'
     | '/mcp-apps'
     | '/mcp-demo'
+    | '/persistent-chat'
     | '/queueing'
     | '/realtime'
     | '/resumable'
@@ -606,6 +629,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-triage'
     | '/api/structured-chat'
@@ -640,6 +664,7 @@ export interface RootRouteChildren {
   Issue176ToolResultRoute: typeof Issue176ToolResultRoute
   McpAppsRoute: typeof McpAppsRoute
   McpDemoRoute: typeof McpDemoRoute
+  PersistentChatRoute: typeof PersistentChatRoute
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
   ResumableRoute: typeof ResumableRoute
@@ -659,6 +684,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
@@ -732,6 +758,13 @@ declare module '@tanstack/react-router' {
       path: '/queueing'
       fullPath: '/queueing'
       preLoaderRoute: typeof QueueingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/persistent-chat': {
+      id: '/persistent-chat'
+      path: '/persistent-chat'
+      fullPath: '/persistent-chat'
+      preLoaderRoute: typeof PersistentChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp-demo': {
@@ -909,6 +942,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResumableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/persistent-chat': {
+      id: '/api/persistent-chat'
+      path: '/api/persistent-chat'
+      fullPath: '/api/persistent-chat'
+      preLoaderRoute: typeof ApiPersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -1048,6 +1088,7 @@ const rootRouteChildren: RootRouteChildren = {
   Issue176ToolResultRoute: Issue176ToolResultRoute,
   McpAppsRoute: McpAppsRoute,
   McpDemoRoute: McpDemoRoute,
+  PersistentChatRoute: PersistentChatRoute,
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
   ResumableRoute: ResumableRoute,
@@ -1067,6 +1108,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
