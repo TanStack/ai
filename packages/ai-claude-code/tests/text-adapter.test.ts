@@ -36,7 +36,14 @@ const FAKE_CLAUDE = [
   `  w({ type: 'system', subtype: 'init', session_id: 'sess-abc', model: 'haiku', tools: [] })`,
   // Echo IS_SANDBOX so the test can assert the adapter sets it (claude refuses
   // bypassPermissions as root without it).
-  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'pong IS_SANDBOX=' + process.env.IS_SANDBOX }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'message_start', message: { id: 'msg-1' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu-1', name: 'Read' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"file":' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '"a.ts"}' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_stop', index: 0 }, parent_tool_use_id: null })`,
+  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'tool_use', id: 'toolu-1', name: 'Read', input: { file: 'a.ts' } }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu-1', content: 'file contents' }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'assistant', message: { id: 'msg-2', content: [{ type: 'text', text: 'pong IS_SANDBOX=' + process.env.IS_SANDBOX }] }, parent_tool_use_id: null })`,
   `  w({ type: 'result', subtype: 'success', result: 'pong', usage: { input_tokens: 1, output_tokens: 1 } })`,
   `})`,
 ].join('\n')
@@ -76,7 +83,6 @@ describe('claude-code in-sandbox adapter', () => {
     const adapter = claudeCodeText('haiku', {
       // Relative executable + cwd=/workspace (mapped to the sandbox root).
       claudeExecutable: 'node fake-claude.mjs',
-      streamPartials: false,
       emitDiff: false,
     })
 
@@ -110,6 +116,10 @@ describe('claude-code in-sandbox adapter', () => {
     // The adapter must set IS_SANDBOX=1 in the CLI env (claude refuses
     // `--dangerously-skip-permissions`/bypassPermissions as root otherwise).
     expect(text).toContain('IS_SANDBOX=1')
+
+    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(args.map((chunk) => chunk.delta)).toEqual(['{"file":', '"a.ts"}'])
+    expect(args.every((chunk) => !('args' in chunk))).toBe(true)
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 

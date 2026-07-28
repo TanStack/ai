@@ -15,7 +15,20 @@
 import { expect, test } from '@playwright/test'
 import { chat } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import type { StreamChunk } from '@tanstack/ai'
+
+const sandbox = defineSandbox({
+  id: 'claude-code-e2e',
+  provider: localProcessSandbox(),
+  workspace: {
+    source: { type: 'none' },
+    instructions: 'Claude Code streaming smoke test workspace.',
+  },
+  lifecycle: { reuse: 'none', snapshot: 'none', destroyOnComplete: true },
+  fileEvents: false,
+})
 
 test.describe('claude-code harness (gated live smoke)', () => {
   test.skip(
@@ -34,6 +47,7 @@ test.describe('claude-code harness (gated live smoke)', () => {
         // that would prompt, and no tools are bridged.
         disallowedTools: ['Bash', 'Write', 'Edit'],
       }),
+      middleware: [withSandbox(sandbox)],
       messages: [
         {
           role: 'user',
@@ -68,5 +82,50 @@ test.describe('claude-code harness (gated live smoke)', () => {
       .map((chunk) => (chunk as { delta?: string }).delta ?? '')
       .join('')
     expect(text.toLowerCase()).toContain('pong')
+  })
+
+  test('streams tool-call argument deltas', async () => {
+    test.setTimeout(180_000)
+
+    const filePath = 'AGENTS.md'
+    const chunks: Array<StreamChunk> = []
+    const stream = chat({
+      adapter: claudeCodeText('haiku', {
+        maxTurns: 2,
+        allowedTools: ['Read'],
+        disallowedTools: ['Bash', 'Write', 'Edit'],
+      }),
+      middleware: [withSandbox(sandbox)],
+      messages: [
+        {
+          role: 'user',
+          content: `Use the Read tool exactly once to read ${filePath}.`,
+        },
+      ],
+    })
+
+    for await (const chunk of stream) chunks.push(chunk)
+
+    const start = chunks.find(
+      (chunk) =>
+        chunk.type === 'TOOL_CALL_START' && chunk.toolCallName === 'Read',
+    )
+    expect(start).toBeDefined()
+
+    const args = chunks.filter(
+      (chunk) =>
+        chunk.type === 'TOOL_CALL_ARGS' &&
+        chunk.toolCallId === start?.toolCallId,
+    )
+    expect(args.length).toBeGreaterThan(0)
+    expect(args.every((chunk) => !('args' in chunk))).toBe(true)
+    expect(args.map((chunk) => chunk.delta).join('')).toContain(filePath)
+
+    const endIndex = chunks.findIndex(
+      (chunk) =>
+        chunk.type === 'TOOL_CALL_END' &&
+        chunk.toolCallId === start?.toolCallId,
+    )
+    expect(endIndex).toBeGreaterThan(chunks.indexOf(args[0]))
   })
 })
