@@ -31,7 +31,10 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-const terminalChunks = (runId: string, threadId: string): Array<StreamChunk> => [
+const terminalChunks = (
+  runId: string,
+  threadId: string,
+): Array<StreamChunk> => [
   {
     type: EventType.RUN_STARTED,
     runId,
