@@ -41,6 +41,7 @@ import {
   normalizeApprovalSchema,
 } from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
+import { isCancelRequestedReason } from './cancel'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
@@ -1194,6 +1195,7 @@ class TextEngine<
           await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
             reason: error.message,
             duration: Date.now() - this.streamStartTime,
+            cancelRequested: isCancelRequestedReason(error.message),
           })
         } else {
           // Genuine error — call onError
@@ -1215,9 +1217,11 @@ class TextEngine<
       // Check for abort terminal hook
       if (!this.terminalHookCalled && this.isCancelled()) {
         this.terminalHookCalled = true
+        const reason = this.resolveAbortReason()
         await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-          reason: this.abortReason,
+          reason,
           duration: Date.now() - this.streamStartTime,
+          cancelRequested: isCancelRequestedReason(reason),
         })
       }
 
@@ -2636,6 +2640,23 @@ class TextEngine<
 
   private isCancelled(): boolean {
     return this.isAborted() || this.isMiddlewareAborted()
+  }
+
+  /**
+   * The reason to report on `AbortInfo` for a cancelled run.
+   *
+   * `this.abortReason` only ever holds a *middleware*-initiated reason
+   * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
+   * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
+   * cancel channel — never touches that field, so the reason has to be read back
+   * off the caller's signal, which is the signal `isCancelled()` consults via
+   * `isAborted()`. A signal aborted with no reason carries a DOMException rather
+   * than a string, so non-string reasons are reported as absent.
+   */
+  private resolveAbortReason(): string | undefined {
+    if (this.abortReason !== undefined) return this.abortReason
+    const signalReason: unknown = this.effectiveSignal?.reason
+    return typeof signalReason === 'string' ? signalReason : undefined
   }
 
   /**
