@@ -207,6 +207,115 @@ function encodeRunId(runId: string): string {
 }
 
 /**
+ * Reverse of {@link encodeRunId}, for a filename as `ls -1` reports it.
+ *
+ * `runId` on the success arm is a STORE KEY, never a path component. The
+ * encoding is total over client-chosen strings, so a perfectly valid decode can
+ * be `'..'`, `'.hidden'`, or `'a/b'` — a caller that interpolates it into a
+ * path would escape the journal directory. Look it up in the run store; do not
+ * join it onto anything.
+ */
+export type DecodedJournalRunId =
+  /** The name decoded to exactly one runId. */
+  | { kind: 'runId'; runId: string }
+  /**
+   * The name is length-capped output of {@link encodeRunId}, whose truncating
+   * branch is LOSSY. The original runId is unrecoverable — KEEP the file.
+   */
+  | { kind: 'truncated' }
+  /** Not output this module could have produced. KEEP the file. */
+  | { kind: 'malformed' }
+
+/** Extensions {@link journalPaths} appends, longest-first so stripping is unambiguous. */
+const JOURNAL_EXTENSIONS = ['.ndjson', '.err'] as const
+
+/**
+ * Recover the `runId` behind a journal filename — FAIL CLOSED.
+ *
+ * The consumer of this function DELETES files, so every arm that is not a
+ * proven-correct decode must be one the caller keeps. There is no "probably
+ * fine" arm.
+ *
+ * `name` is the filename as {@link journalListCommand} reports it, extension
+ * included. The extension is required, not optional: `.` is a pass-through-safe
+ * character, so a runId of `'x.ndjson'` encodes to the token `x.ndjson` and the
+ * file `x.ndjson.ndjson`. A function that stripped an extension only "if
+ * present" could not tell those two strings apart. Requiring it keeps that
+ * sharp edge here instead of in every caller that would otherwise reach for
+ * `name.split('.')[0]`.
+ *
+ * **Why `truncated` is a distinct refusal and not a decode.** `encodeRunId`
+ * caps its output at {@link MAX_ENCODED_NAME_LENGTH} by replacing the tail with
+ * `-` plus a SHA-256 prefix. That branch discards bytes, so the encoding is not
+ * invertible there — and because `-` is itself a pass-through-safe character,
+ * the truncated form is syntactically indistinguishable from a legitimately
+ * encoded id. Decoding it anyway would yield a plausible but WRONG runId; the
+ * store would not recognise it, a sweep would read that as "no such run", and
+ * it would delete the journal of a run that may still be mid-flight. So any
+ * name that *could* be the truncated form is refused, at the cost of never
+ * sweeping journals of runIds long enough to hash — a bounded leak, versus
+ * data loss on a live run.
+ *
+ * The truncation check runs BEFORE the character scan on purpose: truncating at
+ * a fixed byte offset can cut an `_hh` escape in half, so a truncated name may
+ * also be malformed, and the more specific diagnosis is the useful one.
+ *
+ * The rest is the inverse of the escaping scheme: `[A-Za-z0-9.-]` is a literal
+ * ASCII byte, `_` must be followed by EXACTLY two hex digits (either case),
+ * and anything else — a bare `_`, a one-digit escape, `/`, `\`, a space — is
+ * malformed. The resulting bytes go through a `fatal: true` `TextDecoder`, so
+ * an escape sequence that is not valid UTF-8 is a refusal rather than a string
+ * silently peppered with U+FFFD (which would be a *different* runId than any
+ * encoder input, i.e. exactly the wrong-runId deletion this guards against).
+ */
+export function decodeJournalRunId(name: string): DecodedJournalRunId {
+  const extension = JOURNAL_EXTENSIONS.find((candidate) =>
+    name.endsWith(candidate),
+  )
+  if (extension === undefined) return { kind: 'malformed' }
+  const token = name.slice(0, name.length - extension.length)
+  if (token.length === 0) return { kind: 'malformed' }
+
+  // Only the truncating branch emits a token of exactly the cap ending in `-`
+  // plus a hash of that width, and it always emits one. A longer token is not
+  // producible by this module at all.
+  if (
+    token.length > MAX_ENCODED_NAME_LENGTH ||
+    (token.length === MAX_ENCODED_NAME_LENGTH &&
+      new RegExp(`-[0-9a-f]{${TRUNCATION_HASH_LENGTH}}$`).test(token))
+  ) {
+    return { kind: 'truncated' }
+  }
+
+  const bytes: Array<number> = []
+  let index = 0
+  while (index < token.length) {
+    const char = token.charAt(index)
+    if (char === '_') {
+      const hex = token.slice(index + 1, index + 3)
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) return { kind: 'malformed' }
+      bytes.push(Number.parseInt(hex, 16))
+      index += 3
+      continue
+    }
+    // Every pass-through-safe character is single-byte ASCII, so its code unit
+    // IS its UTF-8 byte.
+    if (!/^[A-Za-z0-9.-]$/.test(char)) return { kind: 'malformed' }
+    bytes.push(char.charCodeAt(0))
+    index += 1
+  }
+
+  try {
+    const runId = new TextDecoder('utf-8', { fatal: true }).decode(
+      new Uint8Array(bytes),
+    )
+    return { kind: 'runId', runId }
+  } catch {
+    return { kind: 'malformed' }
+  }
+}
+
+/**
  * Derive both journal paths for a run. Pure; no I/O.
  *
  * **`runId` MUST be unique per run.** The journal is append-only by design (a
@@ -225,7 +334,7 @@ export function journalPaths(
   runId: string,
   dir: string = DEFAULT_JOURNAL_DIR,
 ): JournalPaths {
-  const normalizedDir = dir.endsWith('/') ? dir.slice(0, -1) : dir
+  const normalizedDir = normalizeJournalDir(dir)
   const name = encodeRunId(runId)
   return {
     dir: normalizedDir,
@@ -408,4 +517,211 @@ export function journalStderrReadCommand(
  */
 export function journalCleanupCommand(paths: JournalPaths): string {
   return `rm -f ${shellQuote(paths.journal)} ${shellQuote(paths.stderr)}`
+}
+
+/**
+ * List the journal directory, one entry per line.
+ *
+ * **`2>/dev/null` is load-bearing, not tidiness.** Daytona's `exec` folds
+ * stderr into stdout by contract and the Sprites fast path does the same, so on
+ * a directory that does not exist yet — the normal state before the first run —
+ * an `ls: cannot access '/tmp/tanstack-runs': No such file or directory`
+ * diagnostic would arrive as if it were a LINE OF OUTPUT. The sweep would then
+ * hand that sentence to {@link decodeJournalRunId} and, if it decoded, delete
+ * whatever it named. Silencing it inside the sandbox means a missing directory
+ * produces zero lines, which is the truth.
+ *
+ * `-1` so one entry occupies one line: `ls` only defaults to columns on a tty,
+ * but `exec`'s stdout is not always a pipe on every provider and the flag costs
+ * nothing.
+ *
+ * **Dot-files are not listed**, by `ls` default. A runId beginning with `.`
+ * encodes to a hidden filename (`.` passes through the encoder), so its journal
+ * is invisible to a sweep and leaks rather than being deleted. That is the safe
+ * direction of the two and the reason this is documented rather than fixed with
+ * `-a`, which would also introduce `.` and `..` as entries.
+ */
+export function journalListCommand(dir: string = DEFAULT_JOURNAL_DIR): string {
+  return `ls -1 ${shellQuote(normalizeJournalDir(dir))} 2>/dev/null`
+}
+
+/** Strip a trailing slash so a dir compares equal to `stat`'s echoed operand. */
+function normalizeJournalDir(dir: string): string {
+  return dir.endsWith('/') ? dir.slice(0, -1) : dir
+}
+
+/** One listed journal file with its modification time. */
+export interface JournalDirEntry {
+  /** Filename as listed, extension included; feed to {@link decodeJournalRunId}. */
+  name: string
+  /** Modification time in milliseconds since the epoch. */
+  mtimeMs: number
+}
+
+/**
+ * Outcome of {@link parseJournalMtimeListing}. Deliberately NOT an array: see
+ * that function's doc for why an empty list must not be the failure value.
+ */
+export type JournalMtimeListing =
+  /** The mechanism ran. `entries` is complete — possibly, and meaningfully, empty. */
+  | { kind: 'listed'; entries: Array<JournalDirEntry> }
+  /**
+   * The listing did not run (no `stat -c`, or the directory is absent). Nothing
+   * is known about the directory's contents — in particular NOT that it is
+   * empty, and NOT that anything in it is old.
+   */
+  | { kind: 'unavailable' }
+
+/**
+ * List the journal directory WITH modification times, so a sweep can leave
+ * recently-touched journals alone.
+ *
+ * **Neither `find -newermt` nor `find -printf` may be used here.** Both are GNU
+ * extensions, absent from BusyBox 1.37 — the `alpine:3` shell every docker-
+ * provider journal test runs in — and absent from MINGW64's `find`. Measured
+ * working on BusyBox 1.37, GNU coreutils, and MINGW64: `stat -c "%Y %n"`, which
+ * is what this emits. (`touch -d <ts> ref` plus `find ! -newer ref` also works
+ * on all three, but it needs a writable reference file OUTSIDE the journal
+ * directory — inside, `ls -1` would report the reference as an entry — and a
+ * write is a side effect this pure-composition module has no business having.)
+ *
+ * **The directory is passed as its own first operand on purpose.** It is a
+ * self-witness. `stat` reports every operand it can and only *then* exits
+ * non-zero, so:
+ *
+ * - populated directory → witness line + one line per file, exit 0
+ * - EMPTY directory → witness line only, exit 1 (the unexpanded glob is an
+ *   operand `stat` cannot stat)
+ * - `stat` without `-c` support → NO output at all, exit 1
+ *
+ * That is what makes "no files" distinguishable from "the mechanism is
+ * unavailable", and it has to be distinguishable because BusyBox exits 1 with
+ * EMPTY stdout on an unrecognised flag. A caller that ignored the exit code and
+ * took an empty parse as an empty directory would conclude every journal is
+ * absent; one that then inferred "therefore nothing is recent" would delete the
+ * whole directory. Hence {@link parseJournalMtimeListing} returns
+ * `{ kind: 'unavailable' }` rather than `[]`, and the exit code is not consulted
+ * at all — the witness line, not the status, is the evidence.
+ *
+ * Note the glob shares `ls`'s dot-file blindness (same fail-safe consequence),
+ * and that `stat` cannot distinguish a file from a subdirectory here; a stray
+ * subdirectory is caught downstream, because its name will not decode.
+ */
+export function journalMtimeListCommand(
+  dir: string = DEFAULT_JOURNAL_DIR,
+): string {
+  const normalized = normalizeJournalDir(dir)
+  return `stat -c '%Y %n' ${shellQuote(normalized)} ${shellQuote(normalized)}/* 2>/dev/null`
+}
+
+/**
+ * Parse {@link journalMtimeListCommand}'s stdout.
+ *
+ * Line-based, space-split parsing is unambiguous here: an encoded filename can
+ * only contain `[A-Za-z0-9.-]` and `_hh` escapes (see {@link encodeRunId}), so
+ * it can never contain a space or a newline, and `%Y` is digits. A line that
+ * does not fit the shape — including a directory prefix that is not `dir` — is
+ * dropped rather than guessed at.
+ */
+export function parseJournalMtimeListing(
+  text: string,
+  dir: string = DEFAULT_JOURNAL_DIR,
+): JournalMtimeListing {
+  const normalized = normalizeJournalDir(dir)
+  const entries: Array<JournalDirEntry> = []
+  let sawWitness = false
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '') continue
+    const separator = line.indexOf(' ')
+    if (separator === -1) continue
+    const seconds = line.slice(0, separator)
+    if (!/^\d+$/.test(seconds)) continue
+    const path = line.slice(separator + 1)
+    if (path === normalized) {
+      sawWitness = true
+      continue
+    }
+    const prefix = `${normalized}/`
+    if (!path.startsWith(prefix)) continue
+    const name = path.slice(prefix.length)
+    // A nested path is not something the single-level glob produces; refuse to
+    // invent an entry for it.
+    if (name === '' || name.includes('/')) continue
+    entries.push({ name, mtimeMs: Number.parseInt(seconds, 10) * 1000 })
+  }
+  // No witness means `stat -c` never reported the directory itself, so the
+  // command did not run as designed and `entries` is not a listing of anything.
+  if (!sawWitness) return { kind: 'unavailable' }
+  return { kind: 'listed', entries }
+}
+
+/** Bytes of the journal tail {@link journalExitProbeCommand} reads by default. */
+const DEFAULT_EXIT_PROBE_TAIL_BYTES = 4096
+
+/**
+ * Bounded read of the END of a run's journal, purely to learn whether the agent
+ * reached its `{"__exit":N}` sentinel.
+ *
+ * **This exists so a reaper does not have to drive the run to find out.**
+ * Entering `pipeToRunLog` to check writes a terminal status and calls
+ * `durability.close()` on every path, including for a healthy mid-flight run —
+ * recording it as `'completed'`, which drops it out of `listReclaimable`
+ * forever. This probe is read-only and provider-neutral, and it is what makes a
+ * reclaim candidate safe to drive.
+ *
+ * The command is the byte-identical idiom to {@link journalStderrReadCommand},
+ * pointed at the journal instead of the sidecar: `tail -c -N` (the LAST N
+ * bytes, because the sentinel is at the end), `2>/dev/null` so a missing
+ * journal cannot splice a diagnostic into the bytes on a provider that folds
+ * stderr into stdout, and base64 framing. Verified on BusyBox 1.37.
+ *
+ * base64 is correct HERE and forbidden on {@link journalFollowCommand} for the
+ * reason rule 2 in the module doc measures: the encoder fully buffers a piped
+ * stdout, which is harmless when `exec` closes its stdin and fatal when the
+ * producer is `tail -f`. This read is bounded and terminates, so it never
+ * streams.
+ */
+export function journalExitProbeCommand(
+  paths: JournalPaths,
+  maxBytes: number = DEFAULT_EXIT_PROBE_TAIL_BYTES,
+): string {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error(
+      `journal: maxBytes must be a positive safe integer, got ${maxBytes}`,
+    )
+  }
+  return `tail -c -${maxBytes} ${shellQuote(paths.journal)} 2>/dev/null | base64`
+}
+
+/**
+ * Find the exit sentinel in a decoded journal tail; `null` when it is absent,
+ * which is the mid-flight (or never-started) case.
+ *
+ * Same line semantics as `runner.ts`: NDJSON, first object carrying
+ * {@link EXIT_SENTINEL_KEY} wins, and a sentinel whose value is not a number
+ * still means the agent exited and is reported as `0`. Non-JSON lines are
+ * skipped, which is also what absorbs the partial first line a byte-bounded
+ * `tail -c -N` can start in the middle of.
+ */
+export function parseJournalExit(text: string): number | null {
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '') continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      EXIT_SENTINEL_KEY in parsed
+    ) {
+      const code: unknown = Reflect.get(parsed, EXIT_SENTINEL_KEY)
+      return typeof code === 'number' ? code : 0
+    }
+  }
+  return null
 }
