@@ -315,6 +315,18 @@ export function runPersistenceConformance(
           startedAt: 1,
         })
 
+        // 0. A fresh run that was never patched with these fields must read
+        // back as undefined -- not null, not false, not 0. A backend that
+        // coerces a NULL/absent column to a falsy default (e.g.
+        // `cancelRequested: false`) is claiming knowledge ("explicitly not
+        // cancelled") it does not have, and `toBeFalsy()` would not catch
+        // it since `false` is falsy too.
+        const fresh = await store.get('fc-1')
+        expect(fresh?.cancelRequested).toBeUndefined()
+        expect(fresh?.detachedSince).toBeUndefined()
+        expect(fresh?.sandboxKey).toBeUndefined()
+        expect(fresh?.driverEpoch).toBeUndefined()
+
         // 1. All four fields round-trip through update -> get.
         await store.update('fc-1', {
           sandboxKey: 'sandbox-abc',
@@ -348,6 +360,16 @@ export function runPersistenceConformance(
         expect(afterClear?.sandboxKey).toBe('sandbox-abc')
         expect(afterClear?.cancelRequested).toBe(true)
         expect(afterClear?.driverEpoch).toBe(2)
+
+        // 4. cancelRequested: false written EXPLICITLY must round-trip as
+        // `false`, distinct from the fresh-run `undefined` checked in step 0.
+        // A backend storing this boolean in an integer/NULL-able column has
+        // to preserve the false/undefined distinction in both directions,
+        // not just collapse both to falsy.
+        await store.update('fc-1', { cancelRequested: false })
+        const afterExplicitFalse = await store.get('fc-1')
+        expect(afterExplicitFalse?.cancelRequested).toBe(false)
+        expect(afterExplicitFalse?.cancelRequested).not.toBeUndefined()
       })
 
       // `findActiveRun` is optional on the RunStore contract; a backend that
