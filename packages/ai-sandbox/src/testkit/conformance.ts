@@ -21,6 +21,7 @@ import type {
 // `@tanstack/ai-sandbox/testkit` without changing that mapping.
 export { runJournalConformance } from './journal-conformance'
 export type { JournalConformanceConfig } from './journal-conformance'
+export { makeFakeShellSpawn } from './shell-spawn'
 
 function makeRecord(
   overrides?: Partial<SandboxInstanceRecord>,
