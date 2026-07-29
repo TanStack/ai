@@ -299,6 +299,57 @@ export function runPersistenceConformance(
         })
       })
 
+      // `sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch` are the
+      // durable-agent-runs fields: nothing before this suite ever wrote them,
+      // so a backend can pass every other case while silently dropping one of
+      // these on `update`. The reaper and takeover both depend on them
+      // surviving a round-trip through the REQUIRED `update`/`get` pair, so
+      // this case cannot be declared optional via `skipMethods`.
+      it('round-trips the durable run fields, overwrites driverEpoch, and clears detachedSince on explicit undefined', async (ctx) => {
+        const store = resolveStore('runs')
+        if (!store) return ctx.skip('store not provided')
+
+        await store.createOrResume({
+          runId: 'fc-1',
+          threadId: 'fc-t',
+          startedAt: 1,
+        })
+
+        // 1. All four fields round-trip through update -> get.
+        await store.update('fc-1', {
+          sandboxKey: 'sandbox-abc',
+          detachedSince: 500,
+          cancelRequested: true,
+          driverEpoch: 1,
+        })
+        const afterFirstUpdate = await store.get('fc-1')
+        expect(afterFirstUpdate?.sandboxKey).toBe('sandbox-abc')
+        expect(afterFirstUpdate?.detachedSince).toBe(500)
+        expect(afterFirstUpdate?.cancelRequested).toBe(true)
+        expect(afterFirstUpdate?.driverEpoch).toBe(1)
+
+        // 2. A monotonic driverEpoch bump overwrites, it is not ignored (a
+        // takeover host bumping the fencing token must actually stick).
+        await store.update('fc-1', { driverEpoch: 2 })
+        const afterEpochBump = await store.get('fc-1')
+        expect(afterEpochBump?.driverEpoch).toBe(2)
+        // Sibling fields untouched by an update that only names driverEpoch.
+        expect(afterEpochBump?.sandboxKey).toBe('sandbox-abc')
+        expect(afterEpochBump?.cancelRequested).toBe(true)
+
+        // 3. update({ detachedSince: undefined }) actually CLEARS the field.
+        // A backend whose SQL adapter filters `undefined` out of its `SET`
+        // clause leaves the old value, and every re-attached run then looks
+        // permanently detached to the reaper.
+        await store.update('fc-1', { detachedSince: undefined })
+        const afterClear = await store.get('fc-1')
+        expect(afterClear?.detachedSince).toBeUndefined()
+        // Clearing detachedSince must not clobber the other durable fields.
+        expect(afterClear?.sandboxKey).toBe('sandbox-abc')
+        expect(afterClear?.cancelRequested).toBe(true)
+        expect(afterClear?.driverEpoch).toBe(2)
+      })
+
       // `findActiveRun` is optional on the RunStore contract; a backend that
       // declares the omission in `skipMethods` is reported as skipped, and one
       // that omits it silently fails. Any backend that has it must satisfy these
