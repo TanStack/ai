@@ -36,7 +36,9 @@ describe('reconstructSpeechResult', () => {
     expect(result!.audio).toBe('') // bytes are not persisted; url is in artifacts
     expect(result!.contentType).toBe('audio/mpeg')
     expect(result!.format).toBe('mpeg')
-    expect(result!.artifacts?.[0]?.url).toBe('/api/artifacts?id=artifact-speech-1')
+    expect(result!.artifacts?.[0]?.url).toBe(
+      '/api/artifacts?id=artifact-speech-1',
+    )
   })
 
   it('returns null when no audio output artifact carries a url', () => {

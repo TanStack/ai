@@ -159,13 +159,11 @@ describe('delivery durability contract', () => {
     await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
 
     // The log carries the run's REAL terminal, never a synthetic abort error.
-    await vi.waitFor(() =>
-      expect(appended.at(-1)?.type).toBe('RUN_FINISHED'),
-    )
+    await vi.waitFor(() => expect(appended.at(-1)?.type).toBe('RUN_FINISHED'))
     expect(appended.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
-    expect(appended.some((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')).toBe(
-      true,
-    )
+    expect(
+      appended.some((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toBe(true)
   })
 
   it('persists a synthetic RUN_ERROR and awaits close when the producer is aborted', async () => {
@@ -191,9 +189,13 @@ describe('delivery durability contract', () => {
           yield ev.textContent('before abort')
           if (!abortController.signal.aborted) {
             await new Promise<void>((resolve) => {
-              abortController.signal.addEventListener('abort', () => resolve(), {
-                once: true,
-              })
+              abortController.signal.addEventListener(
+                'abort',
+                () => resolve(),
+                {
+                  once: true,
+                },
+              )
             })
           }
         } finally {

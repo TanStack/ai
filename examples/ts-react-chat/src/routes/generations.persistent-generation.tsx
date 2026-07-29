@@ -292,7 +292,8 @@ function PersistentGenerationPage() {
               data-testid="persistent-transcription"
               className="rounded-md border border-gray-800 bg-gray-950 px-3 py-2 text-sm leading-6 text-gray-200"
             >
-              {transcription.result?.text ?? 'Upload an audio file to transcribe.'}
+              {transcription.result?.text ??
+                'Upload an audio file to transcribe.'}
             </p>
           </Card>
 

@@ -258,8 +258,16 @@ async function runSummarize(
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus, modelOptions, runId, threadId } =
-    options
+  const {
+    adapter,
+    text,
+    maxLength,
+    style,
+    focus,
+    modelOptions,
+    runId,
+    threadId,
+  } = options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
 
