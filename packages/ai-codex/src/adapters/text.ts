@@ -3,14 +3,18 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  alignedIfAttaching,
   createBridgeEventChannel,
   createRunScopedIdGen,
   getSandbox,
+  getSandboxDurability,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  journalOptionsFor,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -209,12 +213,19 @@ export class CodexTextAdapter<
     // Durability caveat: the journaled path below derives its journal file
     // path from `runId` alone (see `journalPaths` in `@tanstack/ai-sandbox`),
     // and a successor host must recompute that same path to resume this run.
-    // That is only possible when the caller supplies a stable `runId`. When
-    // `options.runId` is absent, this falls back to `this.generateId()` — a
-    // fresh random id every call — and no future host can derive the journal
-    // path for a run started this way. Do not change this fallback; the
-    // caller-supplied-runId requirement is a Phase 3 concern, not this one.
-    const runId = options.runId ?? this.generateId()
+    // That is only possible when the caller supplies a stable `runId`.
+    // `resolveDurableRunId` enforces that when durability is wired (both
+    // `runs` and `durability.adapter` given to `withSandbox`) and preserves
+    // the generated fallback — `this.generateId()`, a fresh random id every
+    // call — when it is not, so a non-durable run's behavior is unchanged.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    const runId = resolveDurableRunId(options.runId, {
+      durable: durability !== undefined,
+      adapter: 'codex',
+      fallback: () => this.generateId(),
+    })
     const threadId = options.threadId ?? this.generateId()
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
@@ -286,12 +297,27 @@ export class CodexTextAdapter<
       let runCommand = command
       let stdinInput: string | undefined = fullPrompt
       if (sandbox.capabilities.writableStdin === false) {
-        const promptPath = `/tmp/tanstack-codex-prompt-${options.runId ?? this.generateId()}`
+        // Reuse the ALREADY-RESOLVED `runId`, not a fresh `options.runId ?? this.generateId()`
+        // re-derivation: the latter mints a SECOND random id whenever
+        // `options.runId` is absent, so the prompt file's suffix would not
+        // even match the journal path derived from the run's own `runId`
+        // above (see `resolveDurableRunId`). That mismatch is invisible
+        // (the prompt still gets read), but it defeats the whole point of a
+        // stable, caller-supplied `runId` for anything keyed off it.
+        const promptPath = `/tmp/tanstack-codex-prompt-${runId}`
         await sandbox.fs.write(promptPath, fullPrompt)
         tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`
         stdinInput = undefined
       }
+
+      // `undefined` whenever the run is not durable, so `spawnNdjson` takes its
+      // original, unjournaled path and behavior stays byte-identical to a
+      // pre-durability run. When durable, this also carries `attach`, which is
+      // how `spawnNdjson` decides to tail an EXISTING journal instead of
+      // starting a new agent — set by the attach route's `drive()` callback,
+      // never by an application's POST handler (see `SandboxDurabilityOptions.attach`).
+      const journalOptions = journalOptionsFor(durability, runId)
 
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
@@ -308,8 +334,7 @@ export class CodexTextAdapter<
           }),
         // Route stdout through the in-sandbox journal so a resuming host can
         // re-read it from byte 0 (see `@tanstack/ai-sandbox`'s journal.ts).
-        // Only `runId` — no `attach` — is wired here: Phase 3 owns takeover.
-        journal: { runId },
+        ...(journalOptions === undefined ? {} : { journal: journalOptions }),
       })
 
       async function* asEvents(): AsyncIterable<CodexThreadEvent> {
@@ -322,33 +347,42 @@ export class CodexTextAdapter<
       // chunk-identity.ts in `@tanstack/ai-sandbox` for why this is required.
       const genId = createRunScopedIdGen(runId)
 
-      // NOTE ON WHAT DETERMINISM HERE DOES NOT COVER: `mergeChunkStreams`
-      // below interleaves `translateThreadEvents`'s deterministic output with
-      // `channel.stream`, which carries host-tool-bridge CUSTOM events
-      // produced by *live* tool execution (see `createBridgeEventChannel`
-      // above). On a journal replay, no live tools run, so those bridged
-      // events do not occur at all — and even when they did occur on the
-      // original run, their interleaving position relative to the translated
-      // chunks is timing-dependent, not derivable from the journal. So making
-      // `translateThreadEvents` deterministic does NOT make the stream this
-      // adapter actually delivers (post-merge) deterministic for a run that
-      // used bridged tools. This is a real gap in the replay story, not
-      // something Phase 2 fixes — see translate-determinism.test.ts.
-      yield* mergeChunkStreams(
-        translateThreadEvents(asEvents(), {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          genId,
-          onThreadEvent: (event) =>
-            logger.provider(`provider=codex type=${event.type}`, {
-              chunk: event,
+      // `mergeChunkStreams` below interleaves `translateThreadEvents`'s
+      // deterministic output with `channel.stream` (host-tool-bridge CUSTOM
+      // events from LIVE tool execution — see `createBridgeEventChannel`
+      // above). Those events do not occur on a replay, so a takeover's replay
+      // is NOT chunk-for-chunk identical to what the log holds.
+      // `alignedIfAttaching` handles it: alignment skips stored out-of-band
+      // CUSTOM entries within a bounded window (see `align.ts`), so a
+      // bridged-tool run can be taken over without a spurious
+      // `JournalReplayDivergedError`, while a genuine determinism regression
+      // still throws. It is a no-op (passes the stream through untouched)
+      // whenever the run is not durable or is not attaching, so a
+      // non-durable run's output is unaffected byte for byte.
+      //
+      // The wrap goes OUTSIDE `mergeChunkStreams`, never around the pre-merge
+      // translator alone: the stored log holds the previous host's MERGED
+      // output, so comparing against anything else would compare against a
+      // stream the log never contained.
+      yield* alignedIfAttaching(
+        mergeChunkStreams(
+          translateThreadEvents(asEvents(), {
+            model: this.model,
+            runId,
+            threadId,
+            ...(options.parentRunId !== undefined && {
+              parentRunId: options.parentRunId,
             }),
-        }),
-        channel.stream,
+            genId,
+            onThreadEvent: (event) =>
+              logger.provider(`provider=codex type=${event.type}`, {
+                chunk: event,
+              }),
+          }),
+          channel.stream,
+        ),
+        durability,
+        logger,
       )
     } catch (error: unknown) {
       const err = error as Error & { code?: string }

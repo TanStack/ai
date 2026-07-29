@@ -36,11 +36,17 @@ import {
   chunkFingerprint,
   createRunScopedIdGen,
   journalPaths,
+  provideSandboxDurability,
 } from '@tanstack/ai-sandbox'
+import { InMemoryRunStore } from '@tanstack/ai'
 import { codexText } from '../src/index'
 import { translateThreadEvents } from '../src/stream/translate'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type {
+  CapabilityContext,
+  StreamChunk,
+  StreamDurability,
+} from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { CodexThreadEvent } from '../src/stream/sdk-types'
 
@@ -183,12 +189,45 @@ const noopLogger = {
   debug: () => {},
 } as unknown as InternalLogger
 
+/**
+ * Minimal in-memory `StreamDurability`, just enough to make the sandbox
+ * durability capability resolvable (`runs` + `durability.adapter` both
+ * present) so this test can exercise the JOURNALED path. Phase 3 gates
+ * journaling on that capability rather than on `runId` alone — see
+ * `resolveDurableRunId` / `journalOptionsFor` in `@tanstack/ai-sandbox`'s
+ * `durability.ts` — so a durability-less capability context (as this file
+ * wired before Phase 3) no longer journals at all, and this test would
+ * otherwise assert a run that never touches the journal.
+ */
+function fakeStreamDurability(): StreamDurability {
+  return {
+    resumeFrom: () => null,
+    append: (chunks) => Promise.resolve(chunks.map((_, i) => String(i))),
+    read: () => (async function* () {})(),
+    close: () => Promise.resolve(),
+    snapshot: () => Promise.resolve([]),
+  }
+}
+
 function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
   const [, provideSandbox] = SandboxCapability
   const ctx = {
     capabilities: { markProvided: () => {}, has: () => true },
   } as unknown as CapabilityContext
   provideSandbox(ctx, handle)
+  // Phase 3: journaling requires the resolved sandbox-durability capability,
+  // not merely a caller-supplied `runId`. Wire it directly (rather than via
+  // `withSandbox`'s `resolveSandboxDurability`, which is intentionally not
+  // exported outside the package) so this wiring test still exercises the
+  // journaled call site.
+  provideSandboxDurability(ctx, {
+    runs: new InMemoryRunStore(),
+    adapter: fakeStreamDurability(),
+    journalDir: '/tmp/tanstack-runs',
+    attach: false,
+    detachOnDisconnect: true,
+    detachedRunTtlMs: 30 * 60_000,
+  })
   return ctx
 }
 
