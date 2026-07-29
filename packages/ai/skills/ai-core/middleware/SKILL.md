@@ -444,7 +444,14 @@ The `runs` store in that list is typed against `RunStore`, which ships in
 `@tanstack/ai` alongside `RunRecord`, `RunStatus`, `TerminalRunStatus`,
 `RunError`, `isTerminalRunStatus`, `defineRunStore`, and `InMemoryRunStore`. A
 `RunRecord` tracks one run: `runId`, `threadId`, `status`, `startedAt`, plus
-optional `finishedAt`, `error`, `usage`, `sandboxKey`, and `detachedSince`.
+optional `finishedAt`, `error`, `usage`, `sandboxKey`, `detachedSince`,
+`cancelRequested`, and `driverEpoch`. A backend must round-trip **all** of
+them: `cancelRequested` is the durable out-of-band cancel channel
+(`requestRunCancel` writes it, `wasCancelRequested` reads it), and
+`driverEpoch` is the monotonic fencing token each host bumps when it claims a
+run, so a superseded host can discover it lost. Omit either and a durable
+sandboxed run loses a mechanism silently — Stop stops reaching a remote
+driver, or nothing fences a dead host's writes.
 `error` is a structured `RunError` (`{ message: string, code?: string }`), not
 a bare string: `message` is the provider's prose, `code` is the stable,
 machine-branchable classification a consumer switches on. Only
@@ -466,8 +473,10 @@ undeclared.
 ### `StreamDurability.snapshot()`
 
 A `StreamDurability` (the event-log backend `memoryStream` / `durableStream`
-implement, and what `RunController` in `@tanstack/ai-sandbox` is constructed
-with) requires a `snapshot()` method alongside `append`, `read`, and `close`:
+implement, and what `@tanstack/ai-sandbox`'s run driver resolves per run — its
+`RunDeps.durability` / `sandboxRunDriver({ durability })` is a factory
+`(runId) => StreamDurability`, because one log is bound to one run) requires a
+`snapshot()` method alongside `append`, `read`, and `close`:
 
 ```ts
 snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
