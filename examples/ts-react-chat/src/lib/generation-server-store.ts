@@ -16,7 +16,18 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
  * backend for production; `sqlite-persistence.ts` in this folder shows the
  * shape for the chat stores.
  */
-export const generationServerPersistence = memoryPersistence()
+// Stashed on `globalThis` rather than held in a module binding: Vite re-evaluates
+// this module on HMR, which would hand back a fresh (empty) set of Maps while the
+// browser is still holding artifact URLs from the previous instance. Those URLs
+// would then 404 and every generated image would break on the next file save.
+// Reusing one instance across re-evaluations keeps a dev session coherent.
+const HMR_KEY = Symbol.for('tanstack-ai-example/generation-server-persistence')
+const globalStore = globalThis as typeof globalThis & {
+  [HMR_KEY]?: ReturnType<typeof memoryPersistence>
+}
+
+export const generationServerPersistence = (globalStore[HMR_KEY] ??=
+  memoryPersistence())
 
 /** Serve URL for a stored artifact — must match the GET route below it. */
 export function artifactServeUrl(artifactId: string): string {
