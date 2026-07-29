@@ -180,19 +180,13 @@ describe('sandboxRunDriver — the acquired epoch reaches the fence', () => {
     // status assertion would have tripped first and masked it.
     const stored = (await h.log.snapshot()).map((entry) => entry.chunk)
     expect(stored).not.toContainEqual(chunk('drv-superseded', 'hello'))
-    // What DOES land is `pipeToRunLog`'s recovery `RUN_ERROR`, and only because
-    // `fenceDurability` re-reads the epoch every `epochRecheckAppends` appends
-    // (`claim.ts`) — the refusal consumed that budget, so the next append rides
-    // the throttle window. Pinned rather than glossed: it is one chunk, it is
-    // the failure being reported, and tightening it belongs in the fence, not
-    // here.
-    expect(stored).toEqual([
-      {
-        type: EventType.RUN_ERROR,
-        message:
-          'run drv-superseded: driver claim lost (held epoch 1, observed 99)',
-      },
-    ])
+    // NOTHING lands — not even `pipeToRunLog`'s recovery `RUN_ERROR`. That log
+    // belongs to the SUCCESSOR, and a terminal `RUN_ERROR` written by a host
+    // that has already lost its claim would fail the stream for every client
+    // attached to the live, healthy run. `fenceDurability` latches shut on the
+    // first refusal (`claim.ts`), so the recovery append refuses too instead of
+    // riding a fresh epoch-recheck throttle window.
+    expect(stored).toEqual([])
     const record = await h.runs.get('drv-superseded')
     expect(record?.status).toBe('failed')
     expect(record?.error?.message).toContain('driver claim lost')

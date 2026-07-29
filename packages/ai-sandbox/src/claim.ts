@@ -29,7 +29,8 @@
  *    higher epoch exists. This covers what a lease cannot: an
  *    `InMemoryLockStore`, whose signal is a fresh `AbortController().signal`
  *    that is never aborted, and any backend whose renewal is coarser than the
- *    run's append rate.
+ *    run's append rate. Once EITHER fence has refused an append, the fence
+ *    latches shut and every later append refuses without re-reading anything.
  * 3. **Quiescence.** {@link awaitLogQuiescence} requires the stored log to stop
  *    growing before the successor appends anything, so a predecessor that is
  *    still writing is OBSERVED rather than raced.
@@ -230,6 +231,24 @@ function sleep(ms: number): Promise<void> {
  * The lease check is synchronous and happens before any I/O, so a fenced append
  * cannot half-land. The epoch re-check is throttled to `epochRecheckAppends`
  * because it costs a store read and the append path is hot.
+ *
+ * ONE REFUSAL CLOSES THE FENCE FOR GOOD. The first `append` that is refused —
+ * for EITHER cause, lost lease or moved epoch — latches this wrapper shut, and
+ * every later `append` refuses immediately without consulting the throttle and
+ * without a store read. This is not a nicety:
+ *
+ * - Losing a claim is not transient. Epochs only move forward and a lease is
+ *   never handed back, so a wrapper that has refused once can never legitimately
+ *   append again. Re-deciding per append can only produce a WRONG answer.
+ * - The throttle makes that wrong answer reachable. A refusal consumes the
+ *   re-read budget, so the very next append rides a fresh throttle window and is
+ *   NOT re-checked. `pipeToRunLog`'s recovery path appends a `RUN_ERROR` right
+ *   after the refusal it is recovering from, and that log belongs to the
+ *   SUCCESSOR: a terminal `RUN_ERROR` from a dead host would fail the stream for
+ *   every client attached to the live, healthy run.
+ * - It is also strictly cheaper: a latched boolean replaces a store read.
+ *
+ * The latch deliberately does NOT extend to `close()` — see above.
  */
 export function fenceDurability(
   durability: StreamDurability,
@@ -244,11 +263,18 @@ export function fenceDurability(
   // successor may have claimed between this fence being built and its first
   // write.
   let appendsSinceEpochRead = recheckAppends
+  // Latched by the FIRST refusal and never cleared. `undefined` means the fence
+  // is still open; anything else is the refusal every later append replays.
+  let lost: RunClaimLostError | undefined
 
   async function assertHeld(): Promise<void> {
+    // The latch, checked first: once refused, no throttle and no store read can
+    // let a later append through.
+    if (lost !== undefined) throw lost
     // Layer 1: synchronous, no I/O, so nothing has been written yet.
     if (claim.signal.aborted) {
-      throw new RunClaimLostError(claim.runId, claim.epoch, 'lease-lost')
+      lost = new RunClaimLostError(claim.runId, claim.epoch, 'lease-lost')
+      throw lost
     }
     if (appendsSinceEpochRead < recheckAppends) {
       appendsSinceEpochRead += 1
@@ -265,7 +291,8 @@ export function fenceDurability(
       return
     }
     if (observed !== undefined && observed > claim.epoch) {
-      throw new RunClaimLostError(claim.runId, claim.epoch, observed)
+      lost = new RunClaimLostError(claim.runId, claim.epoch, observed)
+      throw lost
     }
   }
 

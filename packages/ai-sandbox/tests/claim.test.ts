@@ -70,6 +70,40 @@ function abortableLock(): LockStore & {
   }
 }
 
+/**
+ * A lock whose lease signal is a LIVE check rather than a one-way controller, so
+ * `aborted` can flap the way a backend polling a lease clock (or re-acquiring a
+ * lease) makes it flap. `InMemoryLockStore` cannot model lease loss at all — it
+ * hands out a signal it never aborts — and a real `AbortController` cannot be
+ * un-aborted, so shadowing `aborted` on the instance is the only way to observe
+ * a fence that must stay closed after the signal stops reporting the loss.
+ */
+function flappableLock(): {
+  locks: LockStore
+  lose: () => void
+  regain: () => void
+} {
+  let aborted = false
+  return {
+    lose: () => {
+      aborted = true
+    },
+    regain: () => {
+      aborted = false
+    },
+    locks: {
+      withLock: <T>(_key: string, fn: (signal: AbortSignal) => Promise<T>) => {
+        const signal = new AbortController().signal
+        Object.defineProperty(signal, 'aborted', {
+          configurable: true,
+          get: () => aborted,
+        })
+        return fn(signal)
+      },
+    },
+  }
+}
+
 describe('runDriverLockKey', () => {
   it('is per-run, so two runs never serialize against each other', () => {
     expect(runDriverLockKey('r1')).toBe('run-driver:r1')
@@ -384,6 +418,164 @@ describe('fenceDurability', () => {
     expect(fenced.resumeFrom()).toBeNull()
     expect(await fenced.snapshot()).toEqual([])
     expect(() => fenced.read('o:0')).not.toThrow()
+  })
+})
+
+describe('fenceDurability — one refusal closes the fence for good', () => {
+  function claimWith(
+    signal: AbortSignal,
+    epoch: number,
+    runId: string,
+  ): RunClaim {
+    return { runId, epoch, signal }
+  }
+
+  it('refuses the append AFTER a refused one, and neither chunk lands', async () => {
+    // The load-bearing case. Without the latch the refusal consumes the
+    // epoch-recheck budget, so this second append rides a fresh throttle window
+    // unchecked and lands on the SUCCESSOR's log. That is exactly how
+    // `pipeToRunLog`'s recovery `RUN_ERROR` used to escape the fence.
+    const log = fakeLog()
+    const runs = await runningRun('latch-1')
+    await runs.update('latch-1', { driverEpoch: 9 })
+    const fenced = fenceDurability(
+      log,
+      claimWith(new AbortController().signal, 1, 'latch-1'),
+      { runs, epochRecheckAppends: DEFAULT_EPOCH_RECHECK_APPENDS },
+    )
+
+    await expect(fenced.append([chunk('latch-1')])).rejects.toBeInstanceOf(
+      RunClaimLostError,
+    )
+    await expect(fenced.append([chunk('latch-1')])).rejects.toBeInstanceOf(
+      RunClaimLostError,
+    )
+
+    // Asserted through snapshot(): `fakeLog` copies its seed array, so checking
+    // the array handed to it proves nothing.
+    expect(await storedCount(log)).toBe(0)
+  })
+
+  it('replays the original refusal, so pipeToRunLog still sees RunClaimLostError', async () => {
+    const runs = await runningRun('latch-2')
+    await runs.update('latch-2', { driverEpoch: 5 })
+    const fenced = fenceDurability(
+      fakeLog(),
+      claimWith(new AbortController().signal, 2, 'latch-2'),
+      { runs, epochRecheckAppends: DEFAULT_EPOCH_RECHECK_APPENDS },
+    )
+    await fenced.append([chunk('latch-2')]).catch(() => undefined)
+
+    const second = await fenced
+      .append([chunk('latch-2')])
+      .catch((error: unknown) => error)
+    expect(second).toBeInstanceOf(RunClaimLostError)
+    if (second instanceof RunClaimLostError) {
+      expect(second.runId).toBe('latch-2')
+      expect(second.heldEpoch).toBe(2)
+      expect(second.observedEpoch).toBe(5)
+    }
+  })
+
+  it('consults neither the throttle nor the store once latched', async () => {
+    const runs = await runningRun('latch-3')
+    await runs.update('latch-3', { driverEpoch: 4 })
+    const fenced = fenceDurability(
+      fakeLog(),
+      claimWith(new AbortController().signal, 1, 'latch-3'),
+      { runs, epochRecheckAppends: 1 },
+    )
+    await fenced.append([chunk('latch-3')]).catch(() => undefined)
+
+    // A latched boolean is strictly cheaper than the store read it replaces.
+    const get = vi.spyOn(runs, 'get')
+    await fenced.append([chunk('latch-3')]).catch(() => undefined)
+    await fenced.append([chunk('latch-3')]).catch(() => undefined)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('latches on a LOST LEASE too, not only on a moved epoch', async () => {
+    // `InMemoryLockStore` hands out a signal it never aborts, so it cannot
+    // exercise this branch at all — hence a lock whose lease signal is a live
+    // check that can flap, as a backend polling a lease clock under skew (or
+    // re-acquiring the lease) can. The claim is gone regardless: the latch must
+    // not let the fence re-open just because the signal stopped reporting it.
+    const log = fakeLog()
+    const runs = await runningRun('latch-4')
+    await runs.update('latch-4', { driverEpoch: 1 })
+    const lease = flappableLock()
+    const fenced = await withRunClaim(
+      { runs, locks: lease.locks, runId: 'latch-4', fenceQuietMs: 0 },
+      (claim) =>
+        Promise.resolve(
+          fenceDurability(log, claim, {
+            runs,
+            epochRecheckAppends: DEFAULT_EPOCH_RECHECK_APPENDS,
+          }),
+        ),
+    )
+
+    lease.lose()
+    const first = await fenced
+      .append([chunk('latch-4')])
+      .catch((error: unknown) => error)
+    expect(first).toBeInstanceOf(RunClaimLostError)
+    if (first instanceof RunClaimLostError) {
+      expect(first.observedEpoch).toBe('lease-lost')
+    }
+
+    // The signal stops reporting the loss, and the stored epoch still matches
+    // this claim — so ONLY the latch can refuse the next append.
+    lease.regain()
+    await expect(fenced.append([chunk('latch-4')])).rejects.toBeInstanceOf(
+      RunClaimLostError,
+    )
+    expect(await storedCount(log)).toBe(0)
+  })
+
+  it('still appends normally across more than DEFAULT_EPOCH_RECHECK_APPENDS appends', async () => {
+    // Proves the latch did not become "refuse eventually": a healthy claim must
+    // cross throttle-window boundaries untouched, and the throttle must still
+    // throttle.
+    const log = fakeLog()
+    const runs = await runningRun('latch-5')
+    await runs.update('latch-5', { driverEpoch: 1 })
+    const get = vi.spyOn(runs, 'get')
+    const fenced = fenceDurability(
+      log,
+      claimWith(new AbortController().signal, 1, 'latch-5'),
+      { runs },
+    )
+
+    const total = DEFAULT_EPOCH_RECHECK_APPENDS * 2 + 5
+    for (let i = 0; i < total; i += 1) await fenced.append([chunk('latch-5')])
+
+    expect(await storedCount(log)).toBe(total)
+    // One read per window, not one per append and not zero.
+    expect(get).toHaveBeenCalledTimes(
+      Math.ceil(total / DEFAULT_EPOCH_RECHECK_APPENDS),
+    )
+  })
+
+  it('still allows close() after the latch has tripped', async () => {
+    // The latch must NOT extend to close(): it runs on the teardown caused by
+    // losing the claim, and a refused close wedges the record at 'running' with
+    // every live tailer parked forever.
+    const close = vi.fn(() => Promise.resolve())
+    const runs = await runningRun('latch-6')
+    await runs.update('latch-6', { driverEpoch: 3 })
+    const base: StreamDurability = { ...fakeLog(), close }
+    const fenced = fenceDurability(
+      base,
+      claimWith(new AbortController().signal, 1, 'latch-6'),
+      { runs, epochRecheckAppends: 1 },
+    )
+
+    await expect(fenced.append([chunk('latch-6')])).rejects.toBeInstanceOf(
+      RunClaimLostError,
+    )
+    await expect(fenced.close()).resolves.toBeUndefined()
+    expect(close).toHaveBeenCalledTimes(1)
   })
 })
 
