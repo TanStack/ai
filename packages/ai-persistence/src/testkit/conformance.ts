@@ -543,6 +543,89 @@ export function runPersistenceConformance(
           .filter((id) => id.startsWith('rc-'))
           .sort()
         expect(ourIds).toEqual(['rc-boundary', 'rc-included'])
+
+        // The four assertions below are scoped by exact runId (never by the
+        // `rc-` exact-set comparison above), so each uses its own randomUUID
+        // fixture and cannot perturb the fixed-set assertion just made.
+
+        // (1) `ttlMs: 0` pins the cutoff as inclusive: a run detached at
+        // exactly `now` (cutoff === now) must still come back. A backend
+        // using strict `<` instead of `<=` would silently never reclaim a
+        // run detached exactly at the boundary.
+        const zeroTtlRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: zeroTtlRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(zeroTtlRunId, { detachedSince: now })
+        const zeroTtlReclaimable = await runs.listReclaimable({
+          now,
+          ttlMs: 0,
+        })
+        expect(
+          zeroTtlReclaimable.find((r) => r.runId === zeroTtlRunId)
+            ?.detachedSince,
+        ).toBe(now)
+
+        // (2) Re-attaching — `update(runId, { detachedSince: undefined })`
+        // — must drop the run out of the list. This is the most important
+        // assertion in this case: a SQL `SET`-clause builder that filters
+        // `undefined` out of the patch (`'field' in patch` instead of
+        // `patch.field !== undefined`) keeps the old `detachedSince`, so a
+        // run a user has actively re-attached to still looks detached — and
+        // the reaper then cancels a run someone is watching.
+        const reattachedRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: reattachedRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(reattachedRunId, { detachedSince: 1_000 })
+        await runs.update(reattachedRunId, { detachedSince: undefined })
+        const afterReattach = await runs.listReclaimable({ now, ttlMs })
+        expect(afterReattach.some((r) => r.runId === reattachedRunId)).toBe(
+          false,
+        )
+
+        // (3) No terminal status (`completed` / `failed` / `aborted`) ever
+        // appears, whatever its `detachedSince`.
+        const terminalStatuses = ['completed', 'failed', 'aborted'] as const
+        const terminalRunIds = await Promise.all(
+          terminalStatuses.map(async (status) => {
+            const runId = `rc-${crypto.randomUUID()}`
+            await runs.createOrResume({ runId, threadId: 'rc-t', startedAt: 1 })
+            await runs.update(runId, {
+              status,
+              detachedSince: 1_000,
+              finishedAt: 2_000,
+            })
+            return runId
+          }),
+        )
+        const afterTerminal = await runs.listReclaimable({ now, ttlMs })
+        expect(
+          afterTerminal.some((r) => terminalRunIds.includes(r.runId)),
+        ).toBe(false)
+
+        // (4) `'interrupted'` does not appear. The documented predicate is
+        // `status === 'running'`; an interrupted run is a human-in-the-loop
+        // pause that interrupt-resume continues, not abandoned work a reaper
+        // should tear down.
+        const interruptedRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: interruptedRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(interruptedRunId, {
+          status: 'interrupted',
+          detachedSince: 1_000,
+        })
+        const afterInterrupted = await runs.listReclaimable({ now, ttlMs })
+        expect(afterInterrupted.some((r) => r.runId === interruptedRunId)).toBe(
+          false,
+        )
       })
     })
 
