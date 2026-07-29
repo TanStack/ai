@@ -1,4 +1,4 @@
-﻿import { createServerFn } from '@tanstack/react-start'
+import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
   chat,
@@ -11,12 +11,8 @@ import {
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import {
-  openaiImage,
-  openaiSummarize,
-  openaiText,
-  openaiVideo,
-} from '@tanstack/ai-openai'
+import { openaiSummarize, openaiText } from '@tanstack/ai-openai'
+import { grokImage, grokVideo } from '@tanstack/ai-grok'
 import type { UIMessage } from '@tanstack/ai'
 import {
   InvalidModelOverrideError,
@@ -109,7 +105,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     return generateImage({
-      adapter: openaiImage('gpt-image-1'),
+      adapter: grokImage('grok-imagine-image'),
       prompt: data.prompt,
       numberOfImages: data.numberOfImages,
       size: data.size as any,
@@ -227,7 +223,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    const adapter = openaiVideo('sora-2')
+    const adapter = grokVideo('grok-imagine-video')
 
     // Create the job
     const { jobId } = await generateVideo({
@@ -280,7 +276,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
-        adapter: openaiImage('gpt-image-1'),
+        adapter: grokImage('grok-imagine-image'),
         prompt: data.prompt,
         numberOfImages: data.numberOfImages,
         size: data.size as any,
@@ -386,7 +382,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateVideo({
-        adapter: openaiVideo('sora-2'),
+        adapter: grokVideo('grok-imagine-video'),
         prompt: data.prompt,
         size: data.size as any,
         duration: data.duration,

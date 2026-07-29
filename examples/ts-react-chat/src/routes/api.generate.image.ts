@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { grokImage } from '@tanstack/ai-grok'
 
 export const Route = createFileRoute('/api/generate/image')({
   server: {
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/api/generate/image')({
         const { prompt, size, model, numberOfImages } = body.data
 
         const stream = generateImage({
-          adapter: openaiImage(model ?? 'gpt-image-1'),
+          adapter: grokImage(model ?? 'grok-imagine-image'),
           prompt,
           size,
           numberOfImages,

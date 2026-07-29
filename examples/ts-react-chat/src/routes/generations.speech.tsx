@@ -9,20 +9,14 @@ import {
   type SpeechProviderConfig,
   type SpeechProviderId,
 } from '../lib/audio-providers'
-import {
-  generationRunPersistence,
-  rememberRunLabel,
-  rememberRunPreview,
-} from '../lib/generation-runs'
-import { GenerationRunHistory } from '../components/GenerationRunHistory'
+import { generationPersistence } from '../lib/generation-persistence'
 
 type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
-// Persist each variant's lightweight resume snapshot across reloads and record
-// finished runs into the shared history list rendered below the form.
-const speechPersistence = generationRunPersistence('speech')
+// Persist each variant's lightweight resume snapshot across reloads.
+const speechPersistence = generationPersistence
 
 function toSpeechOutput(raw: {
   audio: string
@@ -45,25 +39,6 @@ function toSpeechOutput(raw: {
   }
 }
 
-// Capture what was generated as a small data: URL (never the session-only
-// blob: URL the UI plays) so clicking the history entry can replay it, then
-// hand off to the normal UI transform. Oversized clips are dropped by the
-// size guard in `rememberRunPreview`.
-function toSpeechOutputWithPreview(raw: {
-  audio: string
-  contentType?: string
-  format?: string
-  duration?: number
-}): SpeechOutput {
-  rememberRunPreview('speech', [
-    {
-      type: 'audio',
-      src: `data:${raw.contentType ?? 'audio/mpeg'};base64,${raw.audio}`,
-    },
-  ])
-  return toSpeechOutput(raw)
-}
-
 function SpeechGenerationForm({
   mode,
   config,
@@ -81,7 +56,7 @@ function SpeechGenerationForm({
         connection: fetchServerSentEvents('/api/generate/speech'),
         body: { provider: config.id },
         persistence: speechPersistence,
-        onResult: toSpeechOutputWithPreview,
+        onResult: toSpeechOutput,
       }
     }
     if (mode === 'direct') {
@@ -92,7 +67,7 @@ function SpeechGenerationForm({
             data: { ...input, provider: config.id },
           }),
         persistence: speechPersistence,
-        onResult: toSpeechOutputWithPreview,
+        onResult: toSpeechOutput,
       }
     }
     return {
@@ -102,7 +77,7 @@ function SpeechGenerationForm({
           data: { ...input, provider: config.id },
         }),
       persistence: speechPersistence,
-      onResult: toSpeechOutputWithPreview,
+      onResult: toSpeechOutput,
     }
   }, [mode, config.id])
 
@@ -140,7 +115,6 @@ function SpeechGenerationUI({
 }) {
   const handleGenerate = () => {
     if (!text.trim()) return
-    rememberRunLabel('speech', text)
     generate({ text: text.trim(), voice })
   }
 
@@ -313,7 +287,6 @@ function SpeechGenerationPage() {
             mode={mode}
             config={config}
           />
-          <GenerationRunHistory kind="speech" />
         </div>
       </div>
     </div>

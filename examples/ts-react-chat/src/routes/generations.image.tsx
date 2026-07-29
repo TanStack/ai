@@ -5,35 +5,14 @@ import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
-import {
-  generationRunPersistence,
-  rememberRunLabel,
-  rememberRunPreview,
-} from '../lib/generation-runs'
-import { GenerationRunHistory } from '../components/GenerationRunHistory'
-import type { ImageGenerationResult } from '@tanstack/ai'
+import { generationPersistence } from '../lib/generation-persistence'
 
 // Every variant persists its lightweight resume snapshot (run identity,
-// status, errors, result metadata — never image bytes) and records finished
-// runs into the shared history list. The client namespaces its record under
-// `generation:<id>` and reads it back on mount, repainting the hook's normal
-// `status` / `result` / `error` fields so the last run's outcome survives a
-// full page reload.
-const imagePersistence = generationRunPersistence('image')
-
-// Capture what was generated so clicking the history entry can show it.
-// Remote URLs store as-is; base64 payloads become data: URLs but oversized
-// ones are dropped by the size guard in `rememberRunPreview`.
-function recordImagePreview(result: ImageGenerationResult) {
-  rememberRunPreview(
-    'image',
-    result.images.map((img) => ({
-      type: 'image' as const,
-      src:
-        img.url ?? (img.b64Json ? `data:image/png;base64,${img.b64Json}` : ''),
-    })),
-  )
-}
+// status, errors, result metadata — never image bytes). The client namespaces
+// its record under `generation:<id>` and reads it back on mount, repainting
+// the hook's normal `status` / `result` / `error` fields so the last run's
+// outcome survives a full page reload.
+const imagePersistence = generationPersistence
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -43,7 +22,6 @@ function StreamingImageGeneration() {
     id: 'image:streaming',
     connection: fetchServerSentEvents('/api/generate/image'),
     persistence: imagePersistence,
-    onResult: recordImagePreview,
   })
 
   return (
@@ -68,7 +46,6 @@ function DirectImageGeneration() {
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
     persistence: imagePersistence,
-    onResult: recordImagePreview,
   })
 
   return (
@@ -93,7 +70,6 @@ function ServerFnImageGeneration() {
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
     persistence: imagePersistence,
-    onResult: recordImagePreview,
   })
 
   return (
@@ -125,7 +101,6 @@ function ImageGenerationUI({
 }) {
   const handleGenerate = () => {
     if (!prompt.trim()) return
-    rememberRunLabel('image', prompt)
     generate({ prompt: prompt.trim(), numberOfImages })
   }
 
@@ -220,7 +195,7 @@ function ImageGenerationPage() {
           <div>
             <h2 className="text-xl font-semibold">Image Generation</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Generate images using OpenAI's image models
+              Generate images using xAI's Grok Imagine models
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
@@ -267,7 +242,6 @@ function ImageGenerationPage() {
           ) : (
             <ServerFnImageGeneration key="server-fn" />
           )}
-          <GenerationRunHistory kind="image" />
         </div>
       </div>
     </div>

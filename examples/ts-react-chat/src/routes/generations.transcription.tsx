@@ -10,17 +10,12 @@ import type {
 } from '../lib/audio-providers'
 import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
-import {
-  generationRunPersistence,
-  rememberRunLabel,
-} from '../lib/generation-runs'
-import { GenerationRunHistory } from '../components/GenerationRunHistory'
+import { generationPersistence } from '../lib/generation-persistence'
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
-// Persist each variant's lightweight resume snapshot across reloads and record
-// finished runs into the shared history list rendered below the form.
-const transcriptionPersistence = generationRunPersistence('transcription')
+// Persist each variant's lightweight resume snapshot across reloads.
+const transcriptionPersistence = generationPersistence
 
 function TranscriptionForm({
   mode,
@@ -94,7 +89,6 @@ function TranscriptionUI({
     )
     const dataUrl = `data:${file.type};base64,${base64}`
 
-    rememberRunLabel('transcription', file.name)
     await generate({
       audio: dataUrl,
       language: 'en',
@@ -262,7 +256,6 @@ function TranscriptionPage() {
             mode={mode}
             config={config}
           />
-          <GenerationRunHistory kind="transcription" />
         </div>
       </div>
     </div>

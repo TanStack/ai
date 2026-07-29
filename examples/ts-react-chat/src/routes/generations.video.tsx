@@ -5,23 +5,11 @@ import type { UseGenerateVideoReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateVideoFn, generateVideoStreamFn } from '../lib/server-fns'
-import {
-  generationRunPersistence,
-  rememberRunLabel,
-  rememberRunPreview,
-} from '../lib/generation-runs'
-import { GenerationRunHistory } from '../components/GenerationRunHistory'
-import type { VideoGenerateResult } from '@tanstack/ai-client'
+import { generationPersistence } from '../lib/generation-persistence'
 
-// Persist each variant's lightweight resume snapshot across reloads and record
-// finished runs into the shared history list rendered below the form. For a
+// Persist each variant's lightweight resume snapshot across reloads. For a
 // long video run this keeps the job id around after a reload.
-const videoPersistence = generationRunPersistence('video')
-
-// Capture the generated video's URL so clicking the history entry can play it.
-function recordVideoPreview(result: VideoGenerateResult) {
-  rememberRunPreview('video', [{ type: 'video', src: result.url }])
-}
+const videoPersistence = generationPersistence
 
 function StreamingVideoGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -30,7 +18,6 @@ function StreamingVideoGeneration() {
     id: 'video:streaming',
     connection: fetchServerSentEvents('/api/generate/video'),
     persistence: videoPersistence,
-    onResult: recordVideoPreview,
   })
 
   return (
@@ -48,7 +35,6 @@ function DirectVideoGeneration() {
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
     persistence: videoPersistence,
-    onResult: recordVideoPreview,
   })
 
   return (
@@ -66,7 +52,6 @@ function ServerFnVideoGeneration() {
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
     persistence: videoPersistence,
-    onResult: recordVideoPreview,
   })
 
   return (
@@ -91,7 +76,6 @@ function VideoGenerationUI({
 }) {
   const handleGenerate = () => {
     if (!prompt.trim()) return
-    rememberRunLabel('video', prompt)
     generate({ prompt: prompt.trim() })
   }
 
@@ -99,8 +83,8 @@ function VideoGenerationUI({
     <div className="space-y-6">
       <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
         <p className="text-yellow-400 text-sm">
-          Video generation is experimental and requires Sora API access in your
-          OpenAI account. Generation can take several minutes.
+          Video generation is experimental and requires an XAI_API_KEY with
+          Grok Imagine access. Generation can take several minutes.
         </p>
       </div>
 
@@ -200,7 +184,7 @@ function VideoGenerationPage() {
           <div>
             <h2 className="text-xl font-semibold">Video Generation</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Generate videos using OpenAI Sora (experimental)
+              Generate videos using xAI Grok Imagine (experimental)
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
@@ -247,7 +231,6 @@ function VideoGenerationPage() {
           ) : (
             <ServerFnVideoGeneration key="server-fn" />
           )}
-          <GenerationRunHistory kind="video" />
         </div>
       </div>
     </div>

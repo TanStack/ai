@@ -10,18 +10,12 @@ import {
   type AudioProviderConfig,
   type AudioProviderId,
 } from '../lib/audio-providers'
-import {
-  generationRunPersistence,
-  rememberRunLabel,
-  rememberRunPreview,
-} from '../lib/generation-runs'
-import { GenerationRunHistory } from '../components/GenerationRunHistory'
+import { generationPersistence } from '../lib/generation-persistence'
 
 type Mode = 'hooks' | 'server-fn'
 
-// Persist each variant's lightweight resume snapshot across reloads and record
-// finished runs into the shared history list rendered below the form.
-const audioPersistence = generationRunPersistence('audio')
+// Persist each variant's lightweight resume snapshot across reloads.
+const audioPersistence = generationPersistence
 
 interface AudioOutput {
   url: string
@@ -68,26 +62,6 @@ function toAudioOutput(raw: AudioGenerationResult): AudioOutput | null {
   return null
 }
 
-// Capture what was generated (a remote URL, or a small data: URL — never a
-// session-only blob: URL) so clicking the history entry can replay it, then
-// hand off to the normal UI transform.
-function toAudioOutputWithPreview(
-  raw: AudioGenerationResult,
-): AudioOutput | null {
-  const { audio } = raw
-  rememberRunPreview('audio', [
-    {
-      type: 'audio',
-      src:
-        audio.url ??
-        (audio.b64Json
-          ? `data:${audio.contentType ?? 'audio/mpeg'};base64,${audio.b64Json}`
-          : ''),
-    },
-  ])
-  return toAudioOutput(raw)
-}
-
 function AudioGenerationForm({
   mode,
   config,
@@ -108,7 +82,7 @@ function AudioGenerationForm({
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
         persistence: audioPersistence,
-        onResult: toAudioOutputWithPreview,
+        onResult: toAudioOutput,
       }
     }
     return {
@@ -118,7 +92,7 @@ function AudioGenerationForm({
           data: { ...input, provider: config.id, model: selectedModel },
         }),
       persistence: audioPersistence,
-      onResult: toAudioOutputWithPreview,
+      onResult: toAudioOutput,
     }
   }, [mode, config.id, selectedModel])
 
@@ -162,7 +136,6 @@ function AudioGenerationUI({
 }) {
   const handleGenerate = () => {
     if (!prompt.trim()) return
-    rememberRunLabel('audio', prompt)
     generate({ prompt: prompt.trim(), duration })
   }
 
@@ -383,7 +356,6 @@ function AudioGenerationPage() {
             mode={mode}
             config={config}
           />
-          <GenerationRunHistory kind="audio" />
         </div>
       </div>
     </div>

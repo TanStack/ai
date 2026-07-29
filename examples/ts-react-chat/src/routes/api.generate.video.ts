@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiVideo } from '@tanstack/ai-openai'
+import { grokVideo } from '@tanstack/ai-grok'
 
 export const Route = createFileRoute('/api/generate/video')({
   server: {
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/api/generate/video')({
         const { prompt, size, duration, model } = body.data
 
         const stream = generateVideo({
-          adapter: openaiVideo(model ?? 'sora-2'),
+          adapter: grokVideo(model ?? 'grok-imagine-video'),
           prompt,
           size,
           duration,
