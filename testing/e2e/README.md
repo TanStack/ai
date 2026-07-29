@@ -101,13 +101,19 @@ disconnect happens at a known point in the stream. Two things to know before
 extending it:
 
 - **The disconnect is injected server-side** (`?action=drop`, a plain abort with
-  no reason). A client `fetch` abort does not propagate to the server through this
-  app's dev server, so a test cannot produce a socket close the run observes.
-- **The takeover precondition is seeded** (`?action=seed`). A real disconnect
-  cannot be used, because core's durable delivery sink appends a terminal
-  `RUN_ERROR` and calls `durability.close()` on the abort path, terminalizing the
-  log. That gap is pinned by the spec's `test.fail()` case, which will start
-  failing (as an unexpected pass) once it is closed.
+  no reason) — a genuine precondition, not a workaround. A client `fetch` abort
+  does not propagate to the server through this app's dev server, so a test
+  cannot otherwise produce a mid-stream socket close the run observes; the spec
+  documents this in the `SseStream` comments (around lines 141-146).
+- **`?action=seed` is also used, and is still legitimate**: it lets a test reach
+  the cross-host takeover case — attaching from a process that never held the
+  original connection — which a single test process cannot otherwise produce.
+  A detached run's log now stays open for takeover: `RunDetachedCapability` and
+  `packages/ai/src/delivery-detach.ts` carry the run's detach verdict to the
+  sink, which skips both the synthetic `RUN_ERROR` and `durability.close()` for
+  an unrequested disconnect on a detachable run. That path is pinned by
+  `'a real disconnect, then an attach, continues the stream'` — a normal
+  passing test, not a `test.fail()` case.
 
 ## What to add for your change
 
