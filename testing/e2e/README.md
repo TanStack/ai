@@ -86,6 +86,23 @@ Notes:
 | `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
 | `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
 
+## What to add for your change
+
+E2E coverage is mandatory for every feature, bug fix, or behavior change (see the root `CLAUDE.md`). Mirror of that table, kept in sync here:
+
+| Change type                             | What E2E test to add                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| New provider adapter                    | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run. |
+| New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file.         |
+| Bug fix in chat/streaming               | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug.               |
+| Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                  |
+| Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                               |
+| Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                         |
+| Durable/detachable run + takeover       | Add a spec that disconnects mid-stream, reconnects with the same `runId`, and asserts the resumed stream continues from the aligned offset instead of restarting the agent. |
+| Out-of-band cancel vs. plain disconnect | Add a case distinguishing `requestRunCancel`/`wasCancelRequested` (durable cancel — record ends `'aborted'`) from an unrequested disconnect on a detachable run (record stays `'running'`, resumable). |
+| New run-store backend                   | Run `runPersistenceConformance` from `packages/ai-persistence/src/testkit/` against it; it now pins `undefined` vs. explicit `false` on `cancelRequested` and absent vs. explicit `undefined` on `update`. |
+| New sandbox provider                    | Run the journal conformance suite from `@tanstack/ai-sandbox/testkit` against it, using `makeFakeShellSpawn` (also from that testkit) to exercise the journal/claim/driver seam without a real sandbox. |
+
 ## 1. Quick Start
 
 ```bash
