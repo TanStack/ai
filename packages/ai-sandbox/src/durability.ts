@@ -11,7 +11,10 @@
  */
 import { createCapability } from '@tanstack/ai'
 import { DEFAULT_JOURNAL_DIR } from './journal'
-import type { RunStore, StreamDurability } from '@tanstack/ai'
+import { alignToStoredLog, isBridgeCustomChunk } from './align'
+import type { JournalOptions } from './runner'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /** `withSandbox(sandbox, { durability })`. */
 export interface SandboxDurabilityOptions {
@@ -186,4 +189,61 @@ export function resolveSandboxDurability(
       ? {}
       : { pollIntervalMs: durability.pollIntervalMs }),
   }
+}
+
+/**
+ * Build the `spawnNdjson` journal option for a run, or `undefined` when the run
+ * is not durable — in which case `spawnNdjson` takes its original, unjournaled
+ * path (`isJournaled` tests `options.journal !== undefined`, `runner.ts:70-72`)
+ * and behavior is byte-identical to a pre-durability run.
+ *
+ * `JournalOptions.dir` is optional, but this always supplies it: the resolved
+ * durability has already defaulted `journalDir`, and a successor host must
+ * recompute the same path rather than re-derive the default independently.
+ */
+export function journalOptionsFor(
+  durability: SandboxRunDurability | undefined,
+  runId: string,
+): JournalOptions | undefined {
+  if (durability === undefined) return undefined
+  return {
+    runId,
+    dir: durability.journalDir,
+    attach: durability.attach,
+    ...(durability.pollIntervalMs === undefined
+      ? {}
+      : { pollIntervalMs: durability.pollIntervalMs }),
+  }
+}
+
+/**
+ * Align a harness stream against the run's stored log — but ONLY on an attach.
+ *
+ * The `attach` guard is not an optimization, it is a CORRECTNESS requirement.
+ * `alignToStoredLog` snapshots the log before the first chunk is pulled and
+ * treats everything in that snapshot as "already delivered". On a FRESH run that
+ * premise is false: if such a run were aligned against a log that already holds
+ * entries — a `runId` collision, a retried request — its own chunks would be
+ * matched against those entries and silently SUPPRESSED instead of delivered,
+ * which is silent data loss rather than a slow path. Aligning only when
+ * re-entering an existing run keeps the transform's premise ("this stream is a
+ * replay of what is already stored") actually true.
+ *
+ * `isBridgeCustomChunk` is passed because the stored log holds the previous
+ * host's MERGED output, including live bridged-tool CUSTOM events that a replay
+ * cannot reproduce; without it a bridged-tool run could not be taken over at
+ * all. Wrap the merge RESULT, never the pre-merge translator, or the comparison
+ * is against a stream the log never contained.
+ */
+export function alignedIfAttaching(
+  chunks: AsyncIterable<StreamChunk>,
+  durability: SandboxRunDurability | undefined,
+  logger?: InternalLogger,
+): AsyncIterable<StreamChunk> {
+  if (durability === undefined || !durability.attach) return chunks
+  return alignToStoredLog(chunks, {
+    durability: durability.adapter,
+    isOutOfBand: isBridgeCustomChunk,
+    ...(logger === undefined ? {} : { logger }),
+  })
 }
