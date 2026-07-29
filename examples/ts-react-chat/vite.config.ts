@@ -30,6 +30,41 @@ import { devtools } from '@tanstack/devtools-vite'
 // optimizer has no loader for it and the SSR/nitro builds must not inline it.
 const SERVER_ONLY_NATIVE = ['dockerode', '@anthropic-ai/sdk', '@ngrok/ngrok']
 
+// Dev-only workaround for a nitro dev-middleware heuristic.
+//
+// `nitro/dist/_build/vite.dev.mjs` decides whether a request is a static asset
+// (and so must NOT reach the server) from `Sec-Fetch-Dest`:
+//
+//   isAsset = fetchDest && fetchDest !== 'empty'
+//     ? !/^(?:document|iframe|frame)$/.test(fetchDest)
+//     : isAssetByExt
+//
+// Anything that isn't a document — `image`, `audio`, `video`, `script`, `font`
+// — is treated as an asset and falls through to vite's static middleware,
+// which has no file to serve and 404s with the connect `Cannot GET` page. The
+// extension branch is only consulted when the header is absent/`empty`, so
+// renaming the route doesn't help.
+//
+// It only bites routes nitro sees under Start's catch-all `/**` (an explicitly
+// registered nitro route short-circuits the check), which is every server route
+// here. So `<img src="/api/artifacts?id=…">` 404s in dev while the same URL
+// fetched from JS returns the bytes — and production is unaffected, since this
+// middleware only exists in the vite dev server.
+//
+// Presenting `empty` for our own API paths routes them back to the server
+// without changing what the browser actually sends.
+const nitroServeApiToSubresources = {
+  name: 'nitro-serve-api-to-subresources',
+  enforce: 'pre',
+  apply: 'serve',
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url?.startsWith('/api/')) req.headers['sec-fetch-dest'] = 'empty'
+      next()
+    })
+  },
+} as const satisfies import('vite').PluginOption
+
 const config = defineConfig({
   optimizeDeps: { exclude: SERVER_ONLY_NATIVE },
   // Server-side only fix. @elevenlabs/elevenlabs-js ships a top-level
@@ -49,7 +84,14 @@ const config = defineConfig({
   // this is a no-op there.
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
   resolve: { tsconfigPaths: true },
-  plugins: [devtools(), nitro(), tailwindcss(), tanstackStart(), viteReact()],
+  plugins: [
+    nitroServeApiToSubresources,
+    devtools(),
+    nitro(),
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+  ],
 })
 
 export default config
