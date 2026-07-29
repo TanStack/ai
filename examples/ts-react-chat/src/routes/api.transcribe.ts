@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   generateTranscription,
   generationParamsFromBody,
+  memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { withGenerationPersistence } from '@tanstack/ai-persistence'
@@ -11,6 +12,7 @@ import {
   UnknownProviderError,
   buildTranscriptionAdapter,
 } from '../lib/server-audio-adapters'
+import { replayGenerationIfResuming } from '../lib/generation-durability'
 import {
   artifactServeUrl,
   generationServerPersistence,
@@ -112,7 +114,13 @@ export const Route = createFileRoute('/api/transcribe')({
             ],
           })
 
-          return toServerSentEventsResponse(stream)
+          // Delivery durability: chunks are logged and id-tagged, so a
+          // reconnect or a mount-time `joinRun` replays instead of re-running
+          // the model. The run still ends with the request — this activity is
+          // short enough to simply re-run.
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
         } catch (err) {
           if (err instanceof InvalidModelOverrideError) {
             return jsonError(400, {
@@ -141,6 +149,13 @@ export const Route = createFileRoute('/api/transcribe')({
           })
         }
       },
+
+      // `joinRun` replay — re-attach to a run still in flight from a previous
+      // request. 404 when the run is unknown or its log has aged out, rather
+      // than the SPA shell the client cannot parse as SSE.
+      GET: ({ request }) =>
+        replayGenerationIfResuming(request) ??
+        new Response('no resumable run', { status: 404 }),
     },
   },
 })

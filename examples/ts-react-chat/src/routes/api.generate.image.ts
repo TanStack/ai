@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   generateImage,
   generationParamsFromRequest,
+  memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { grokImage } from '@tanstack/ai-grok'
@@ -9,6 +10,7 @@ import {
   reconstructGeneration,
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
+import { replayGenerationIfResuming } from '../lib/generation-durability'
 import {
   artifactServeUrl,
   generationServerPersistence,
@@ -28,8 +30,12 @@ import {
  * dev-server restart — reload the page and it renders from the database.
  *
  * The bytes themselves are served by the shared `/api/artifacts` route, which
- * every generation activity here shares. This GET only answers the `?threadId=`
- * mount hydration that `persistence: true` on the client calls.
+ * every generation activity here shares.
+ *
+ * Chunks are also logged for replay (see `../lib/generation-durability`), so
+ * the GET does two independent jobs, like the persistent-chat route: a
+ * `joinRun` delivery replay when the request carries a resume offset, and
+ * otherwise the `?threadId=` mount hydration that `persistence: true` calls.
  */
 export const Route = createFileRoute('/api/generate/image')({
   server: {
@@ -65,14 +71,21 @@ export const Route = createFileRoute('/api/generate/image')({
           ],
         })
 
-        return toServerSentEventsResponse(stream)
+        // Delivery durability: chunks are logged and id-tagged, so a reconnect
+        // or a mount-time `joinRun` replays instead of re-running the model.
+        return toServerSentEventsResponse(stream, {
+          durability: { adapter: memoryStream(request) },
+        })
       },
 
-      // Mount hydration for `persistence: true`: resolves the latest run for
-      // `?threadId=` and returns `{ resumeSnapshot, activeRun }`. Pass
-      // `authorize` here in a multi-user app.
+      // Two independent jobs, resolved in order:
+      // 1. `joinRun` delivery replay, when the request carries a resume offset.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, as `{ resumeSnapshot, activeRun }`. Pass `authorize`
+      //    here in a multi-user app.
       GET: async ({ request }) =>
-        await reconstructGeneration(generationServerPersistence(), request),
+        replayGenerationIfResuming(request) ??
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })
