@@ -10,6 +10,7 @@ import {
   getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
   resolveHarnessCwd,
 } from '@tanstack/ai-sandbox'
 import { AsyncQueue } from '../stream/queue'
@@ -331,7 +332,15 @@ export class AcpCompatibleTextAdapter<
       const modelOptions = options.modelOptions
       const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
       const harnessCwd = resolveHarnessCwd(sandbox, cwd)
-      const runId = options.runId ?? this.generateId()
+      // This adapter does not journal yet, so a generated id is still fine.
+      // Routed through the helper anyway so that whenever it gains journaling
+      // it inherits the caller-supplied-runId requirement instead of
+      // re-deriving it (see `packages/ai-sandbox/src/durability.ts`).
+      const runId = resolveDurableRunId(options.runId, {
+        durable: false,
+        adapter: 'acp',
+        fallback: () => this.generateId(),
+      })
       const threadId = options.threadId ?? this.generateId()
       const channel = createBridgeEventChannel({
         model: this.model,
