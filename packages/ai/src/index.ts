@@ -239,6 +239,22 @@ export type {
   RunError,
   RunStore,
 } from './activities/chat/middleware/index'
+// The detachable-run marker is a coordination fact `@tanstack/ai-sandbox`
+// provides and `@tanstack/ai-persistence` reads, so core owns it and neither
+// consumer package has to depend on the other.
+export {
+  DetachableRunCapability,
+  getDetachableRun,
+  provideDetachableRun,
+} from './activities/chat/middleware/run-store'
+// Out-of-band run cancellation: intent is recorded (durable) or carried on the
+// abort reason (in-process), never inferred from a disconnect.
+export {
+  RUN_CANCEL_REASON,
+  isCancelRequestedReason,
+  requestRunCancel,
+  wasCancelRequested,
+} from './activities/chat/cancel'
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

@@ -8,6 +8,7 @@
  * as `LockStore` (`packages/ai/src/locks.ts`), which is likewise a
  * coordination primitive that core owns so that no consumer package has to.
  */
+import { createCapability } from './capabilities'
 import type { TokenUsage } from '../../../types'
 
 /** A terminal run status: no further events will be appended. */
@@ -17,18 +18,21 @@ export type TerminalRunStatus = 'completed' | 'failed' | 'aborted'
  * Lifecycle status of one run (one agent turn within a conversation).
  *
  * `interrupted` is a human-in-the-loop PAUSE that interrupt-resume continues
- * from — it is deliberately NOT terminal, and by design must never be
- * conflated with `aborted` (an explicit cancellation).
+ * from — it is deliberately NOT terminal, and must never be conflated with
+ * `aborted` (an explicit cancellation).
  *
- * KNOWN DIVERGENCE (Phase 3, deliberate): `withPersistence` in
- * `@tanstack/ai-persistence` does not honour that separation yet. Its
- * `onAbort` writes `status: 'interrupted'` — plus a `finishedAt`, on a status
- * documented here as non-terminal — for an abort, because Phase 1 has no way
- * to tell a client disconnect from a real cancel (see `AbortInfo`'s
- * `cancelRequested`, which nothing populates today). So a shipped
- * `'interrupted'` record may mean either "paused for a human" or "the
- * connection closed". Do NOT build a status UI that assumes otherwise until
- * that middleware distinguishes the two.
+ * The two are now written by different hooks and cannot be confused:
+ *
+ * - `'interrupted'` is written ONLY by `withPersistence`'s `onInterrupt`, and
+ *   carries NO `finishedAt` (a non-terminal status has not finished).
+ * - `'aborted'` is written by `withPersistence`'s `onAbort`, and only for an
+ *   abort that is an explicit cancel or that is ending the run for good.
+ * - A mere client disconnect on a run with durable storage wired writes
+ *   NEITHER: the record stays `'running'` and gains `detachedSince`, because the
+ *   agent is still running and a later attach can take it over.
+ *
+ * Intent is never inferred from the abort itself — see `RUN_CANCEL_REASON` and
+ * `requestRunCancel` in `../cancel`.
  */
 export type RunStatus = 'running' | 'interrupted' | TerminalRunStatus
 
@@ -96,10 +100,24 @@ export interface RunRecord {
   detachedSince?: number
   /**
    * Set by an explicit out-of-band cancel, to be distinguished from a mere
-   * client disconnect. Populated in a later phase; always `undefined` today —
-   * nothing in the repo reads it, so it is not yet a working cancel signal.
+   * client disconnect (the two produce an identical TCP close, so intent is not
+   * inferable from the disconnect).
+   *
+   * Written by `requestRunCancel` and read by `wasCancelRequested` (both in
+   * `../cancel`). Deliberately NOT a status: recording intent is not the same as
+   * the run having stopped, and only the driver knows when it has.
    */
   cancelRequested?: boolean
+  /**
+   * Monotonic fencing token for the run's driver. Bumped by each host that
+   * successfully claims the run (see `withRunClaim` in `@tanstack/ai-sandbox`),
+   * so a superseded host can discover it lost by comparing the stored value
+   * against the one it holds.
+   *
+   * A lock alone cannot provide this: it tells the winner it won, but gives a
+   * loser nothing to read. Absent on a run that was never claimed.
+   */
+  driverEpoch?: number
 }
 
 /**
@@ -145,6 +163,7 @@ export interface RunStore {
         | 'sandboxKey'
         | 'detachedSince'
         | 'cancelRequested'
+        | 'driverEpoch'
       >
     >,
   ) => Promise<void>
@@ -161,6 +180,9 @@ export interface RunStore {
    * **inclusive** — a run detached at exactly `now - ttlMs` IS reclaimable.
    *
    * OPTIONAL: only needed by a reaper. Consumers feature-detect.
+   *
+   * Its consumer is the Phase 4 reaper (`reclaimAbandonedRuns`); `detachedSince`
+   * is populated by `withSandbox`'s detach path as of Phase 3.
    */
   listReclaimable?: (opts: {
     now: number
@@ -193,6 +215,29 @@ export interface RunStore {
 export function defineRunStore<const T extends RunStore>(store: T): T {
   return store
 }
+
+/**
+ * Whether the current run can be DETACHED rather than destroyed when its client
+ * disconnects — `true` only when some middleware has both a {@link RunStore} and
+ * a durable event log wired (`withSandbox`'s `runs` + `durability.adapter`).
+ *
+ * Lives in core for the same reason `LockStore` does: it is a coordination fact
+ * that two consumer packages must agree on, and neither may depend on the other.
+ * `@tanstack/ai-sandbox` provides it; `@tanstack/ai-persistence` reads it to
+ * decide whether an abort is terminal (`'aborted'`) or a detach (write nothing).
+ * A persistence → sandbox import would be a layering inversion.
+ *
+ * Consumers read it with `{ optional: true }`: absent means "not detachable",
+ * which is every app that has not wired durability.
+ */
+export const DetachableRunCapability =
+  createCapability<boolean>()('detachable-run')
+
+/**
+ * Destructured accessors: `getDetachableRun(ctx, { optional: true })` /
+ * `provideDetachableRun(ctx, true)`.
+ */
+export const [getDetachableRun, provideDetachableRun] = DetachableRunCapability
 
 /** In-memory {@link RunStore}. Single process only. */
 export class InMemoryRunStore implements RunStore {
@@ -227,6 +272,7 @@ export class InMemoryRunStore implements RunStore {
         | 'sandboxKey'
         | 'detachedSince'
         | 'cancelRequested'
+        | 'driverEpoch'
       >
     >,
   ): Promise<void> {
