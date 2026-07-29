@@ -160,8 +160,62 @@ export type { ReadJournalOptions } from './journal-reader'
 export { decodeBase64Stream, toJournalLines } from './journal-bytes'
 export type { JournalLine } from './journal-bytes'
 export { createRunScopedIdGen, chunkFingerprint } from './chunk-identity'
-export { alignToStoredLog, JournalReplayDivergedError } from './align'
+export {
+  alignToStoredLog,
+  isBridgeCustomChunk,
+  JournalReplayDivergedError,
+  DEFAULT_MAX_OUT_OF_BAND_SKIP,
+} from './align'
 export type { AlignToStoredLogOptions } from './align'
+
+// Durability seam: the `withSandbox(sandbox, { runs, durability })` option
+// shape, the capability harness adapters read back via `getSandboxDurability`,
+// and the two helpers that turn a resolved durability into the pieces a
+// harness adapter actually drives with — a `journalOptionsFor` journal option
+// and an attach-only `alignedIfAttaching` alignment transform.
+//
+// `resolveSandboxDurability` and `parseRunTtlMs` are deliberately NOT
+// exported: they are `withSandbox`'s own path from raw options to the
+// capability payload (see `middleware.ts`), and a harness adapter only ever
+// needs the ALREADY-RESOLVED value read back off the capability bus, never to
+// re-run that resolution itself.
+export {
+  SandboxDurabilityCapability,
+  getSandboxDurability,
+  provideSandboxDurability,
+  DEFAULT_DETACHED_RUN_TTL,
+  DurableRunIdRequiredError,
+  resolveDurableRunId,
+  journalOptionsFor,
+  alignedIfAttaching,
+} from './durability'
+export type {
+  SandboxDurabilityOptions,
+  SandboxRunDurability,
+} from './durability'
+
+// Run driver: fills in core's injected takeover seams (`claim`/`pipe`) with
+// this package's single-writer claim (`claim.ts`) and run log (`run.ts`), so
+// an application wires `request`/`runs`/`locks`/`durability`/`drive` instead of
+// hand-rolling the claim/fence dance itself.
+//
+// `claim.ts`'s own primitives — `withRunClaim`, `fenceDurability`,
+// `awaitLogQuiescence`, `runDriverLockKey`, and their `RunClaim` /
+// `WithRunClaimOptions` types — are deliberately NOT exported. They are
+// exactly the "easy to get wrong" seam `sandboxRunDriver` exists to make
+// impossible (see `driver.ts`'s module doc, points 1-3), and publishing them
+// would invite the same hand-rolled fencing bugs as a supported path. The two
+// error classes below ARE exported despite that: both can surface through
+// `sandboxRunDriver` itself, so a caller needs `instanceof` to branch on them,
+// and `DEFAULT_FENCE_QUIET_MS` is exported because it is the documented
+// default for `sandboxRunDriver`'s own `fenceQuietMs` option.
+export { sandboxRunDriver, RunDriverPipeOutsideClaimError } from './driver'
+export type { SandboxRunDriverOptions } from './driver'
+export {
+  RunClaimNotAcquiredError,
+  RunClaimLostError,
+  DEFAULT_FENCE_QUIET_MS,
+} from './claim'
 
 // MCP tool-proxy bridge (shared by harness adapters): transport-agnostic core
 // + the node:http host transport + a fetch-friendly JSON-RPC dispatcher.
