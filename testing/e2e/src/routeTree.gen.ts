@@ -15,6 +15,7 @@ import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
+import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as GenerationPersistenceRouteImport } from './routes/generation-persistence'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
@@ -55,6 +56,7 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
+import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceRouteImport } from './routes/api.generation-persistence'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -101,6 +103,12 @@ const GenerationPersistenceServerRoute =
   GenerationPersistenceServerRouteImport.update({
     id: '/generation-persistence-server',
     path: '/generation-persistence-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GenerationPersistenceResumeRoute =
+  GenerationPersistenceResumeRouteImport.update({
+    id: '/generation-persistence-resume',
+    path: '/generation-persistence-resume',
     getParentRoute: () => rootRouteImport,
   } as any)
 const GenerationPersistenceRoute = GenerationPersistenceRouteImport.update({
@@ -309,6 +317,12 @@ const ApiGenerationPersistenceServerRoute =
     path: '/api/generation-persistence-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiGenerationPersistenceResumeRoute =
+  ApiGenerationPersistenceResumeRouteImport.update({
+    id: '/api/generation-persistence-resume',
+    path: '/api/generation-persistence-resume',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGenerationPersistenceRoute =
   ApiGenerationPersistenceRouteImport.update({
     id: '/api/generation-persistence',
@@ -404,6 +418,7 @@ export interface FileRoutesByFullPath {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence': typeof GenerationPersistenceRoute
+  '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -421,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence': typeof ApiGenerationPersistenceRoute
+  '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -468,6 +484,7 @@ export interface FileRoutesByTo {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence': typeof GenerationPersistenceRoute
+  '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -485,6 +502,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence': typeof ApiGenerationPersistenceRoute
+  '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -533,6 +551,7 @@ export interface FileRoutesById {
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence': typeof GenerationPersistenceRoute
+  '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -550,6 +569,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence': typeof ApiGenerationPersistenceRoute
+  '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -599,6 +619,7 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence'
+    | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
     | '/markdown-cjk'
@@ -616,6 +637,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence'
+    | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
@@ -663,6 +685,7 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence'
+    | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
     | '/markdown-cjk'
@@ -680,6 +703,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence'
+    | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
@@ -727,6 +751,7 @@ export interface FileRouteTypes {
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence'
+    | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
     | '/markdown-cjk'
@@ -744,6 +769,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence'
+    | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
@@ -792,6 +818,7 @@ export interface RootRouteChildren {
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceRoute: typeof GenerationPersistenceRoute
+  GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
@@ -809,6 +836,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGenerationPersistenceRoute: typeof ApiGenerationPersistenceRoute
+  ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
@@ -882,6 +910,13 @@ declare module '@tanstack/react-router' {
       path: '/generation-persistence-server'
       fullPath: '/generation-persistence-server'
       preLoaderRoute: typeof GenerationPersistenceServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/generation-persistence-resume': {
+      id: '/generation-persistence-resume'
+      path: '/generation-persistence-resume'
+      fullPath: '/generation-persistence-resume'
+      preLoaderRoute: typeof GenerationPersistenceResumeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generation-persistence': {
@@ -1164,6 +1199,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerationPersistenceServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generation-persistence-resume': {
+      id: '/api/generation-persistence-resume'
+      path: '/api/generation-persistence-resume'
+      fullPath: '/api/generation-persistence-resume'
+      preLoaderRoute: typeof ApiGenerationPersistenceResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generation-persistence': {
       id: '/api/generation-persistence'
       path: '/api/generation-persistence'
@@ -1349,6 +1391,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsToolsRoute: DevtoolsToolsRoute,
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceRoute: GenerationPersistenceRoute,
+  GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
@@ -1366,6 +1409,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGenerationPersistenceRoute: ApiGenerationPersistenceRoute,
+  ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
