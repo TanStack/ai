@@ -14,9 +14,12 @@ import { InMemoryLockStore } from '@tanstack/ai/locks'
 import {
   DEFAULT_DETACHED_RUN_TTL,
   DEFAULT_FENCE_QUIET_MS,
+  DEFAULT_ATTACH_JOURNAL_WAIT_MS,
   DEFAULT_MAX_OUT_OF_BAND_SKIP,
   DurableRunIdRequiredError,
+  JournalAttachUnavailableError,
   JournalReplayDivergedError,
+  JournalReplayThreadIdMismatchError,
   RunClaimLostError,
   RunClaimNotAcquiredError,
   RunDriverPipeOutsideClaimError,
@@ -31,6 +34,7 @@ import {
   sandboxRunDriver,
 } from '../src/index'
 import type {
+  AwaitAttachableJournalOptions,
   SandboxDurabilityOptions,
   SandboxRunDriverOptions,
   SandboxRunDurability,
@@ -185,6 +189,25 @@ describe('barrel: error classes are values, not types (instanceof must work)', (
     expect(err).toBeInstanceOf(Error)
     expect(err.runId).toBe('run-1')
   })
+
+  it('JournalAttachUnavailableError carries a branchable reason', () => {
+    const err = new JournalAttachUnavailableError('run-1', 'unknown-run', 'why')
+    expect(err).toBeInstanceOf(JournalAttachUnavailableError)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.runId).toBe('run-1')
+    expect(err.reason).toBe('unknown-run')
+    expect(DEFAULT_ATTACH_JOURNAL_WAIT_MS).toBeGreaterThan(0)
+  })
+
+  it('JournalReplayThreadIdMismatchError is a JournalReplayDivergedError subclass', () => {
+    // The subclass relationship is part of the published surface: a consumer
+    // already branching on the general class must keep working.
+    const err = new JournalReplayThreadIdMismatchError(0, 's', 'r', 'ta', 'tb')
+    expect(err).toBeInstanceOf(JournalReplayThreadIdMismatchError)
+    expect(err).toBeInstanceOf(JournalReplayDivergedError)
+    expect(err.storedThreadId).toBe('ta')
+    expect(err.replayedThreadId).toBe('tb')
+  })
 })
 
 // Type-only usage: fails to compile (not just at runtime) if the barrel drops
@@ -193,9 +216,11 @@ function typeSurfaceStillExported(
   a: SandboxDurabilityOptions,
   b: SandboxRunDurability,
   c: SandboxRunDriverOptions,
+  d: AwaitAttachableJournalOptions,
 ): void {
   void a
   void b
   void c
+  void d
 }
 void typeSurfaceStillExported

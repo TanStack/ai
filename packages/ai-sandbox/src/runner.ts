@@ -23,8 +23,10 @@ import {
 } from './journal'
 import { readJournal } from './journal-reader'
 import { decodeBase64Stream } from './journal-bytes'
+import { awaitAttachableJournal } from './attach-preflight'
 import type { JournalPaths } from './journal'
 import type { ProcessOptions, SandboxHandle } from './contracts'
+import type { RunStore } from '@tanstack/ai'
 
 export interface SpawnNdjsonOptions extends ProcessOptions {
   /**
@@ -63,6 +65,18 @@ export interface JournalOptions {
   attach?: boolean
   /** Poll interval for providers that cannot follow. */
   pollIntervalMs?: number
+  /**
+   * Run record store, consulted ONLY on an attach and only when the journal is
+   * absent, to tell "not written yet" from "will never be written" (see
+   * `attach-preflight.ts`). Optional so an attach with no store wired keeps the
+   * bounded wait while losing the unknown/terminal classification.
+   */
+  runs?: RunStore
+  /**
+   * Bounded wait for a live run's journal to appear on an attach. Defaults to
+   * `DEFAULT_ATTACH_JOURNAL_WAIT_MS`.
+   */
+  attachWaitMs?: number
 }
 
 type JournaledOptions = SpawnNdjsonOptions & { journal: JournalOptions }
@@ -215,6 +229,13 @@ async function cleanupJournal(
  *   failure-swallowing (see {@link readStderrTail}), so it cannot turn a run
  *   failure into a cleanup failure.
  *
+ * On an ATTACH (`journal.attach === true`) the read is preceded by
+ * {@link awaitAttachableJournal}, which fails fast for a runId the store does not
+ * know or has already terminalized and otherwise waits a BOUNDED time for a live
+ * run's journal to appear. Without it, an attach to a runId with no journal
+ * created an empty one (`journalFollowCommand` does that deliberately) and tailed
+ * it forever — no sentinel, no error, no timeout.
+ *
  * One case this does NOT bound: a run that reaches its sentinel while DETACHED
  * has no host reading it, so nothing observes the sentinel and nothing here
  * runs. That journal leaks until the sandbox dies. Sweeping those needs the
@@ -225,6 +246,24 @@ export async function* readJournalNdjson(
   options: JournaledOptions,
 ): AsyncIterable<unknown> {
   const paths = resolvePaths(options)
+  // ATTACH ONLY, and before the first read. `journalFollowCommand` CREATES the
+  // journal it tails, so an attach for a runId that never had one would
+  // otherwise create an empty file and tail it forever with no sentinel ever
+  // arriving. A fresh run must not be gated: its journal is created by its own
+  // `journaledCommand` spawn, which `spawnNdjson` has just issued.
+  if (options.journal.attach === true) {
+    await awaitAttachableJournal(handle, {
+      paths,
+      runId: options.journal.runId,
+      ...(options.journal.runs === undefined
+        ? {}
+        : { runs: options.journal.runs }),
+      ...(options.journal.attachWaitMs === undefined
+        ? {}
+        : { waitMs: options.journal.attachWaitMs }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    })
+  }
   let exitCode: number | undefined
   for await (const { line } of readJournal(handle, {
     paths,

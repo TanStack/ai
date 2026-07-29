@@ -59,20 +59,42 @@ export function createRunScopedIdGen(runId: string): () => string {
  */
 const VOLATILE_FIELDS: ReadonlySet<string> = new Set(['timestamp'])
 
-function stableStringify(value: unknown, dropVolatile: boolean): string {
+/**
+ * The conversation id every chunk carries. Excluded from
+ * {@link chunkFingerprintIgnoringThreadId} — and ONLY from that variant — so
+ * alignment can tell an id-only mismatch from a real content divergence.
+ */
+const THREAD_ID_FIELD = 'threadId'
+
+const VOLATILE_AND_THREAD_ID: ReadonlySet<string> = new Set([
+  ...VOLATILE_FIELDS,
+  THREAD_ID_FIELD,
+])
+
+/**
+ * `dropped` applies at the TOP LEVEL only (nested calls pass `undefined`).
+ * A `threadId` nested inside, say, a tool call's arguments is real content and
+ * must keep participating in the comparison.
+ */
+function stableStringify(
+  value: unknown,
+  dropped: ReadonlySet<string> | undefined,
+): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item, false)).join(',')}]`
+    return `[${value.map((item) => stableStringify(item, undefined)).join(',')}]`
   }
   if (typeof value === 'object') {
     const record: Record<string, unknown> = value as Record<string, unknown>
     const keys = Object.keys(record)
-      .filter((key) => !(dropVolatile && VOLATILE_FIELDS.has(key)))
+      .filter((key) => dropped === undefined || !dropped.has(key))
       .sort()
     const parts = keys.map((key) => {
       const entry = record[key]
       const encoded =
-        entry === undefined ? '"__undefined__"' : stableStringify(entry, false)
+        entry === undefined
+          ? '"__undefined__"'
+          : stableStringify(entry, undefined)
       return `${JSON.stringify(key)}:${encoded}`
     })
     return `{${parts.join(',')}}`
@@ -99,5 +121,34 @@ function stableStringify(value: unknown, dropVolatile: boolean): string {
  *   differently.
  */
 export function chunkFingerprint(chunk: StreamChunk): string {
-  return stableStringify(chunk, true)
+  return stableStringify(chunk, VOLATILE_FIELDS)
+}
+
+/**
+ * {@link chunkFingerprint} with the chunk's own `threadId` also excluded.
+ *
+ * NOT an alternative identity — never use it to decide that two chunks are the
+ * same. Its single purpose is DIAGNOSIS: when a replay diverges from the stored
+ * log, comparing both fingerprints answers "did the agent behave differently, or
+ * did only the conversation id move?". Two chunks that match here but not under
+ * {@link chunkFingerprint} differ in `threadId` and nothing else, which is a
+ * misconfigured attach route rather than a determinism regression (see
+ * `JournalReplayThreadIdMismatchError` in `align.ts`).
+ */
+export function chunkFingerprintIgnoringThreadId(chunk: StreamChunk): string {
+  return stableStringify(chunk, VOLATILE_AND_THREAD_ID)
+}
+
+/**
+ * A chunk's own `threadId`, or `undefined` when it carries none.
+ *
+ * Reads the field structurally rather than narrowing on `chunk.type`: nearly
+ * every member of the `StreamChunk` union declares `threadId?: string`, and an
+ * exhaustive switch would have to be revisited for each new member while adding
+ * nothing — a chunk with no `threadId` is exactly the `undefined` case.
+ */
+export function chunkThreadId(chunk: StreamChunk): string | undefined {
+  const record: Record<string, unknown> = chunk as Record<string, unknown>
+  const value = record[THREAD_ID_FIELD]
+  return typeof value === 'string' ? value : undefined
 }

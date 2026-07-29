@@ -159,14 +159,35 @@ export {
 export type { ReadJournalOptions } from './journal-reader'
 export { decodeBase64Stream, toJournalLines } from './journal-bytes'
 export type { JournalLine } from './journal-bytes'
-export { createRunScopedIdGen, chunkFingerprint } from './chunk-identity'
+export {
+  createRunScopedIdGen,
+  chunkFingerprint,
+  chunkFingerprintIgnoringThreadId,
+  chunkThreadId,
+} from './chunk-identity'
 export {
   alignToStoredLog,
   isBridgeCustomChunk,
   JournalReplayDivergedError,
+  JournalReplayThreadIdMismatchError,
   DEFAULT_MAX_OUT_OF_BAND_SKIP,
 } from './align'
 export type { AlignToStoredLogOptions } from './align'
+
+// Attach preflight: the gate that makes a hopeless attach fail instead of
+// tailing an empty journal forever. `JournalAttachUnavailableError` and its
+// `reason` are the branchable surface (404 / 410 / 504 at an attach route), and
+// the bounded-wait default is exported because it bounds an attach REQUEST.
+export {
+  awaitAttachableJournal,
+  JournalAttachUnavailableError,
+  DEFAULT_ATTACH_JOURNAL_WAIT_MS,
+  DEFAULT_ATTACH_PROBE_INTERVAL_MS,
+} from './attach-preflight'
+export type {
+  AttachUnavailableReason,
+  AwaitAttachableJournalOptions,
+} from './attach-preflight'
 
 // Durability seam: the `withSandbox(sandbox, { runs, durability })` option
 // shape, the capability harness adapters read back via `getSandboxDurability`,

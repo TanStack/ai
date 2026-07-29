@@ -3,9 +3,15 @@ import { EventType, memoryStream } from '@tanstack/ai'
 import {
   DEFAULT_MAX_OUT_OF_BAND_SKIP,
   JournalReplayDivergedError,
+  JournalReplayThreadIdMismatchError,
   alignToStoredLog,
   isBridgeCustomChunk,
 } from '../src/align'
+import {
+  chunkFingerprint,
+  chunkFingerprintIgnoringThreadId,
+  chunkThreadId,
+} from '../src/chunk-identity'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /**
@@ -438,5 +444,135 @@ describe('isBridgeCustomChunk', () => {
         timestamp: 1,
       }),
     ).toBe(false)
+  })
+})
+
+/**
+ * A `threadId`-only mismatch is a CONFIG mistake (the attach route did not pass
+ * the run record's `threadId`, so the adapter's `options.threadId ??
+ * this.generateId()` minted a new one), not a determinism regression. The two
+ * must not be collapsed: reporting a real divergence as a config mistake would
+ * send a reader to the wrong place just as surely as the reverse.
+ */
+function runStarted(runId: string, threadId: string): StreamChunk {
+  return { type: EventType.RUN_STARTED, runId, threadId, timestamp: 1 }
+}
+
+describe('alignToStoredLog: threadId-only divergence', () => {
+  it('reports a threadId-only mismatch as JournalReplayThreadIdMismatchError', async () => {
+    const durability = memoryStream(producerRequest('align-thread-only'))
+    await durability.append([runStarted('r1', 't-stored')])
+
+    // Identical in every other field — exactly what a takeover that forgot to
+    // pass `threadId` produces on its very first chunk.
+    const replay = fromChunks([runStarted('r1', 't-generated')])
+    const caught = await collectChunks(
+      alignToStoredLog(replay, { durability }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(caught).toBeInstanceOf(JournalReplayThreadIdMismatchError)
+    if (!(caught instanceof JournalReplayThreadIdMismatchError)) return
+    expect(caught.index).toBe(0)
+    expect(caught.storedThreadId).toBe('t-stored')
+    expect(caught.replayedThreadId).toBe('t-generated')
+    expect(caught.message).toContain('ONLY by threadId')
+    expect(caught.message).toContain('did NOT behave differently')
+    expect(caught.message).toContain('RunRecord.threadId')
+  })
+
+  it('stays a JournalReplayDivergedError, so existing consumers keep branching', async () => {
+    const durability = memoryStream(producerRequest('align-thread-subclass'))
+    await durability.append([runStarted('r1', 't-a')])
+    const replay = fromChunks([runStarted('r1', 't-b')])
+    await expect(
+      collectChunks(alignToStoredLog(replay, { durability })),
+    ).rejects.toBeInstanceOf(JournalReplayDivergedError)
+  })
+
+  it('reports a GENUINE content divergence as the general error, not a threadId hint', async () => {
+    const durability = memoryStream(producerRequest('align-thread-content'))
+    await durability.append([textChunk('m1', 'a')])
+    // Same threadId (absent on both), different delta: a real divergence.
+    const replay = fromChunks([textChunk('m1', 'X')])
+    const caught = await collectChunks(
+      alignToStoredLog(replay, { durability }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(caught).toBeInstanceOf(JournalReplayDivergedError)
+    expect(caught).not.toBeInstanceOf(JournalReplayThreadIdMismatchError)
+    if (!(caught instanceof JournalReplayDivergedError)) return
+    expect(caught.name).toBe('JournalReplayDivergedError')
+    expect(caught.message).not.toContain('threadId')
+  })
+
+  it('does NOT blame threadId when the threadId matches but content differs', async () => {
+    const durability = memoryStream(producerRequest('align-thread-same-id'))
+    await durability.append([runStarted('r1', 't-same')])
+    // Same threadId, different runId — a real divergence that happens to be on
+    // a chunk type that carries a threadId at all.
+    const replay = fromChunks([runStarted('r2', 't-same')])
+    const caught = await collectChunks(
+      alignToStoredLog(replay, { durability }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(caught).not.toBeInstanceOf(JournalReplayThreadIdMismatchError)
+    expect(caught).toBeInstanceOf(JournalReplayDivergedError)
+  })
+
+  it('does NOT blame threadId when BOTH the threadId and other fields moved', async () => {
+    // The whole point of the second, threadId-excluded comparison: a run that
+    // both diverged AND changed its threadId is still a determinism bug, and
+    // reporting it as a config mistake would hide that.
+    const durability = memoryStream(producerRequest('align-thread-and-content'))
+    await durability.append([runStarted('r1', 't-a')])
+    const replay = fromChunks([runStarted('r2', 't-b')])
+    const caught = await collectChunks(
+      alignToStoredLog(replay, { durability }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(caught).not.toBeInstanceOf(JournalReplayThreadIdMismatchError)
+    expect(caught).toBeInstanceOf(JournalReplayDivergedError)
+  })
+})
+
+describe('chunkFingerprintIgnoringThreadId', () => {
+  it('erases a top-level threadId difference and nothing else', () => {
+    expect(chunkFingerprintIgnoringThreadId(runStarted('r1', 't-a'))).toBe(
+      chunkFingerprintIgnoringThreadId(runStarted('r1', 't-b')),
+    )
+    expect(chunkFingerprint(runStarted('r1', 't-a'))).not.toBe(
+      chunkFingerprint(runStarted('r1', 't-b')),
+    )
+    expect(chunkFingerprintIgnoringThreadId(runStarted('r1', 't'))).not.toBe(
+      chunkFingerprintIgnoringThreadId(runStarted('r2', 't')),
+    )
+  })
+
+  it('keeps a NESTED threadId, which is content rather than routing metadata', () => {
+    const nested = (value: string): StreamChunk => ({
+      type: EventType.CUSTOM,
+      name: 'x',
+      value: { threadId: value },
+      threadId: 't-outer',
+      timestamp: 1,
+    })
+    expect(chunkFingerprintIgnoringThreadId(nested('a'))).not.toBe(
+      chunkFingerprintIgnoringThreadId(nested('b')),
+    )
+  })
+})
+
+describe('chunkThreadId', () => {
+  it('reads a chunk threadId and answers undefined when there is none', () => {
+    expect(chunkThreadId(runStarted('r1', 't-1'))).toBe('t-1')
+    expect(chunkThreadId(textChunk('m1', 'a'))).toBeUndefined()
   })
 })

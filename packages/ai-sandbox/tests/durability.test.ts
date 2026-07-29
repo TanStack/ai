@@ -221,13 +221,15 @@ describe('journalOptionsFor', () => {
   })
 
   it('carries runId, dir and attach from the resolved durability', () => {
+    const runs = new InMemoryRunStore()
     const durability = resolvedDurability({
-      runs: new InMemoryRunStore(),
+      runs,
       durability: {
         adapter: fakeLog(),
         journal: '/var/j',
         attach: true,
         pollIntervalMs: 10,
+        attachWaitMs: 250,
       },
     })
     expect(journalOptionsFor(durability, 'jopt-attach')).toEqual({
@@ -235,7 +237,24 @@ describe('journalOptionsFor', () => {
       dir: '/var/j',
       attach: true,
       pollIntervalMs: 10,
+      // Only on an attach: the run record is what tells `awaitAttachableJournal`
+      // "not written yet" from "will never be written".
+      runs,
+      attachWaitMs: 250,
     })
+  })
+
+  it('omits runs on a NON-attach run, where journal absence proves nothing', () => {
+    // A fresh run's journal is created by its own `journaledCommand` spawn
+    // moments after this option object is built, so gating on its absence would
+    // fail every new run. Not carrying the store makes that impossible.
+    const durability = resolvedDurability({
+      runs: new InMemoryRunStore(),
+      durability: { adapter: fakeLog(), attach: false, attachWaitMs: 250 },
+    })
+    const options = journalOptionsFor(durability, 'jopt-fresh')
+    expect(Object.keys(options ?? {})).not.toContain('runs')
+    expect(Object.keys(options ?? {})).not.toContain('attachWaitMs')
   })
 
   it('always supplies dir, even though JournalOptions.dir is optional', () => {

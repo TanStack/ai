@@ -31,7 +31,11 @@
  * Divergence is a bug, not a condition to recover from, so it throws.
  */
 import { EventType } from '@tanstack/ai'
-import { chunkFingerprint } from './chunk-identity'
+import {
+  chunkFingerprint,
+  chunkFingerprintIgnoringThreadId,
+  chunkThreadId,
+} from './chunk-identity'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
@@ -83,6 +87,76 @@ export class JournalReplayDivergedError extends Error {
     )
     this.name = 'JournalReplayDivergedError'
   }
+}
+
+/**
+ * The replay reproduced the stored chunk EXACTLY except for its `threadId`.
+ *
+ * A distinct diagnosis because the cause and the fix are entirely different from
+ * a real divergence. The adapters resolve `threadId` as
+ * `options.threadId ?? this.generateId()`, and that id lands in every emitted
+ * chunk — so an attach route that drives a run without passing the run record's
+ * `threadId` mints a fresh one, and the very first chunk (`RUN_STARTED`) fails
+ * alignment. The agent behaved identically; only the id moved. Reported as a
+ * generic divergence, that sends the reader hunting for non-determinism in the
+ * translator, which is the wrong place entirely.
+ *
+ * A SUBCLASS of {@link JournalReplayDivergedError}, deliberately: this is still a
+ * divergence and still fatal, so a consumer already branching on the general
+ * class keeps working. The two are not collapsed — a genuine content divergence
+ * throws the base class, so `instanceof JournalReplayThreadIdMismatchError`
+ * separates a config mistake from a determinism bug in exactly one check.
+ */
+export class JournalReplayThreadIdMismatchError extends JournalReplayDivergedError {
+  constructor(
+    index: number,
+    stored: string,
+    replayed: string,
+    readonly storedThreadId: string | undefined,
+    readonly replayedThreadId: string | undefined,
+  ) {
+    super(index, stored, replayed)
+    this.name = 'JournalReplayThreadIdMismatchError'
+    this.message =
+      `journal replay diverged at index ${index} ONLY by threadId: stored ${JSON.stringify(storedThreadId)} but replayed ${JSON.stringify(replayedThreadId)}. ` +
+      `Every other field of the chunk is identical, so the agent did NOT behave differently — the attaching run generated a new threadId instead of reusing the run record's. ` +
+      `Pass the run record's threadId (RunRecord.threadId, which sandboxRunDriver hands to drive({ runId, threadId, signal })) into chat() on the attach route; ` +
+      `without it the adapter falls back to generateId() and every chunk carries an id the stored log cannot match.`
+  }
+}
+
+/**
+ * Classify a mismatch before throwing.
+ *
+ * The `threadId`-only case is recognized by comparing the two chunks a SECOND
+ * time with `threadId` excluded: equal there and unequal under the real
+ * fingerprint means `threadId` is the only field that moved. Cheap, because it
+ * runs only on the failure path, and precise, because it is derived from the same
+ * fingerprint function rather than a hand-written field diff.
+ */
+function divergenceError(
+  index: number,
+  storedChunk: StreamChunk,
+  replayedChunk: StreamChunk,
+  stored: string,
+  replayed: string,
+): JournalReplayDivergedError {
+  const storedThreadId = chunkThreadId(storedChunk)
+  const replayedThreadId = chunkThreadId(replayedChunk)
+  if (
+    storedThreadId !== replayedThreadId &&
+    chunkFingerprintIgnoringThreadId(storedChunk) ===
+      chunkFingerprintIgnoringThreadId(replayedChunk)
+  ) {
+    return new JournalReplayThreadIdMismatchError(
+      index,
+      stored,
+      replayed,
+      storedThreadId,
+      replayedThreadId,
+    )
+  }
+  return new JournalReplayDivergedError(index, stored, replayed)
 }
 
 export interface AlignToStoredLogOptions {
@@ -174,10 +248,10 @@ export async function* alignToStoredLog(
       // Mismatch. Only a stored chunk the replay provably cannot reproduce may
       // be skipped, and only `maxSkip` of them in a row.
       if (isOutOfBand === undefined || !isOutOfBand(entry.chunk)) {
-        throw new JournalReplayDivergedError(cursor, expected, actual)
+        throw divergenceError(cursor, entry.chunk, chunk, expected, actual)
       }
       if (consecutiveSkips >= maxSkip) {
-        throw new JournalReplayDivergedError(cursor, expected, actual)
+        throw divergenceError(cursor, entry.chunk, chunk, expected, actual)
       }
       cursor += 1
       consecutiveSkips += 1

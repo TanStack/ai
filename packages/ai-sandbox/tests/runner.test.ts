@@ -9,6 +9,7 @@ import {
 } from '../src/runner'
 import {
   journalCleanupCommand,
+  journalExistsCommand,
   journalFollowCommand,
   journalPaths,
   journalStderrReadCommand,
@@ -263,7 +264,10 @@ describe('readJournalNdjson', () => {
     await collect(
       readJournalNdjson(handle, { journal: { runId: 'r1', attach: true } }),
     )
-    expect(commands[0]).toContain('tail -c +1 -f')
+    // `commands[0]` is the attach preflight's `test -f`; the tail follows it.
+    expect(commands.some((command) => command.includes('tail -c +1 -f'))).toBe(
+      true,
+    )
   })
 })
 
@@ -559,11 +563,14 @@ describe('spawnNdjson with journaling', () => {
     await collect(
       spawnNdjson(handle, 'agent', { journal: { runId: 'r1', attach: true } }),
     )
-    // Two commands, neither of them an agent: the tail, then the cleanup `rm`
-    // the terminal sentinel triggers. The agent is already running elsewhere.
-    expect(commands).toHaveLength(2)
-    expect(commands[0]).toContain('tail -c +1 -f')
-    expect(commands[1]).toBe(journalCleanupCommand(R1))
+    // Three commands, none of them an agent: the attach preflight's `test -f`
+    // (which `scriptedHandle`'s exec answers with exit 0, i.e. "the journal is
+    // already there"), the tail, then the cleanup `rm` the terminal sentinel
+    // triggers. The agent is already running elsewhere.
+    expect(commands).toHaveLength(3)
+    expect(commands[0]).toBe(journalExistsCommand(R1))
+    expect(commands[1]).toContain('tail -c +1 -f')
+    expect(commands[2]).toBe(journalCleanupCommand(R1))
     expect(commands.some((command) => command.includes('agent'))).toBe(false)
   })
 

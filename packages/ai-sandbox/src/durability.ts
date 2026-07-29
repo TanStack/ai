@@ -52,6 +52,14 @@ export interface SandboxDurabilityOptions {
   attach?: boolean
   /** Journal poll interval for providers that cannot follow. */
   pollIntervalMs?: number
+  /**
+   * How long an ATTACH waits for a live run's journal to appear before failing
+   * with a `JournalAttachUnavailableError`. Defaults to
+   * `DEFAULT_ATTACH_JOURNAL_WAIT_MS` (10s). Only the wait is configurable: an
+   * unknown or terminal runId fails immediately regardless, since no amount of
+   * waiting changes either verdict.
+   */
+  attachWaitMs?: number
 }
 
 /** Resolved durability, published on the capability bus by `withSandbox`. */
@@ -63,6 +71,7 @@ export interface SandboxRunDurability {
   detachOnDisconnect: boolean
   detachedRunTtlMs: number
   pollIntervalMs?: number
+  attachWaitMs?: number
 }
 
 /**
@@ -188,6 +197,9 @@ export function resolveSandboxDurability(
     ...(durability.pollIntervalMs === undefined
       ? {}
       : { pollIntervalMs: durability.pollIntervalMs }),
+    ...(durability.attachWaitMs === undefined
+      ? {}
+      : { attachWaitMs: durability.attachWaitMs }),
   }
 }
 
@@ -200,6 +212,12 @@ export function resolveSandboxDurability(
  * `JournalOptions.dir` is optional, but this always supplies it: the resolved
  * durability has already defaulted `journalDir`, and a successor host must
  * recompute the same path rather than re-derive the default independently.
+ *
+ * `runs` and `attachWaitMs` are carried ONLY when attaching, and that is not a
+ * micro-optimization: they exist for `awaitAttachableJournal`, which the reader
+ * runs on the attach path alone. A fresh run has no journal yet BY DESIGN (its own
+ * `journaledCommand` spawn creates it moments later), so handing it a run store
+ * would only invite a future change to gate a path where absence proves nothing.
  */
 export function journalOptionsFor(
   durability: SandboxRunDurability | undefined,
@@ -213,6 +231,14 @@ export function journalOptionsFor(
     ...(durability.pollIntervalMs === undefined
       ? {}
       : { pollIntervalMs: durability.pollIntervalMs }),
+    ...(durability.attach
+      ? {
+          runs: durability.runs,
+          ...(durability.attachWaitMs === undefined
+            ? {}
+            : { attachWaitMs: durability.attachWaitMs }),
+        }
+      : {}),
   }
 }
 
