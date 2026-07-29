@@ -101,6 +101,7 @@ export class GenerationClient<
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
+  private readonly persistenceScope: string | undefined
   private readonly resumePersistence: GenerationPersistence | undefined
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
@@ -135,9 +136,15 @@ export class GenerationClient<
       ),
   ) {
     this.uniqueId = options.id ?? this.generateUniqueId('generation')
-    // The wire/hydration thread key. Server-driven mode needs a stable key, so
-    // prefer an explicit `threadId`, then `id`, then a generated id.
+    // AG-UI requires a thread id on every run, so fall back to `id` and then to
+    // a generated one. That fallback is for the WIRE ONLY: it is not stable
+    // across reloads, so persistence must never key on it — see
+    // `resumeSnapshotKey`, which uses the explicit scope below.
     this.threadId = options.threadId ?? this.uniqueId
+    // The persistence scope: the explicit `threadId` and nothing else. The
+    // types require it whenever `persistence` is set; this field keeps the
+    // fallback from silently becoming a storage key for JS callers.
+    this.persistenceScope = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.body = options.body ?? {}
@@ -150,6 +157,15 @@ export class GenerationClient<
       this.serverDriven = true
     } else if (options.persistence) {
       this.resumePersistence = options.persistence
+    }
+    // The types require `threadId` alongside `persistence`, so this only fires
+    // for JS callers. Warn rather than fall back silently: keying on the
+    // generated wire id would write a different slot every reload, restoring
+    // nothing while accumulating orphaned records.
+    if (options.persistence && !this.persistenceScope) {
+      console.warn(
+        '[TanStack AI] `persistence` needs a stable `threadId` to key on. Without one nothing will be restored after a reload. Pass a `threadId` derived from your own domain (e.g. `product-123-hero`).',
+      )
     }
     this.resumeSnapshot = options.initialResumeSnapshot
 
@@ -770,8 +786,14 @@ export class GenerationClient<
    * a generation client and a chat client that share an id (and a storage
    * adapter with the default key prefix) from overwriting each other.
    */
+  /**
+   * Storage key for the client-driven snapshot. Keys on the explicit scope so
+   * both persistence modes address the same slot — server-driven hydrates by
+   * `threadId` too. Falls back to the wire id only for the JS-caller case the
+   * constructor already warned about.
+   */
   private get resumeSnapshotKey(): string {
-    return `generation:${this.uniqueId}`
+    return `generation:${this.persistenceScope ?? this.threadId}`
   }
 
   private maybeHydrateResumeSnapshot(): void {

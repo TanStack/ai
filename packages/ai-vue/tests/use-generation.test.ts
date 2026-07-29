@@ -271,6 +271,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'no-auto-fire',
+          threadId: 'no-auto-fire',
           connection: adapter,
           persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
           initialResumeSnapshot: snapshot,
@@ -359,6 +360,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'hydrated',
+          threadId: 'hydrated',
           connection: adapter,
           persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         }),
@@ -388,6 +390,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'running-hydrate',
+          threadId: 'running-hydrate',
           connection: adapter,
           persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         }),
@@ -603,6 +606,7 @@ describe('useGenerateImage', () => {
     const { result } = renderHook(() =>
       useGenerateImage({
         id: 'img-hydrate',
+        threadId: 'img-hydrate',
         connection: adapter,
         persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       }),
@@ -1036,6 +1040,7 @@ describe('useGenerateVideo', () => {
     const { result } = renderHook(() =>
       useGenerateVideo({
         id: 'video-no-auto-fire',
+        threadId: 'video-no-auto-fire',
         connection: adapter,
         persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         initialResumeSnapshot: videoResumeSnapshot,

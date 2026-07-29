@@ -7,6 +7,7 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistence,
+  GenerationPersistenceOptions,
   GenerationResumeSnapshot,
   GenerationResumeState,
   ImageGenerateInput,
@@ -36,11 +37,24 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
    *   for its `threadId` from the server (needs a connection with a
    *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
    * - a storage adapter: client-driven — the lightweight snapshot is cached under
-   *   `generation:<id>` as a run streams and read back on mount. Media bytes are
+   *   `generation:<threadId>` as a run streams and read back on mount. Media bytes are
    *   never stored.
    */
   persistence?: boolean | GenerationPersistence
-  /** Thread id for this generation, stable across reloads. Server-driven mode (`persistence: true`) hydrates the last generation under this key. Falls back to `id`. */
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this in both
+   * modes, so derive it from your own domain and keep it identical across
+   * reloads (e.g. `` `video-${videoId}-start-frame` ``). It is also sent as the
+   * AG-UI thread id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations, where
+   * it falls back to `id` purely to satisfy the wire.
+   */
   threadId?: string
   /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
   initialResumeSnapshot?: GenerationResumeSnapshot
@@ -117,9 +131,12 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
  * ```
  */
 export function useGenerateImage<TTransformed = void>(
-  options: Omit<UseGenerateImageOptions, 'onResult'> & {
+  options: Omit<
+    UseGenerateImageOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): UseGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {

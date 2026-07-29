@@ -259,6 +259,7 @@ describe('createGeneration', () => {
       const getItem = vi.fn(() => snapshot)
       const gen = createGeneration({
         id: 'no-auto-fire',
+        threadId: 'no-auto-fire',
         connection: adapter,
         persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         initialResumeSnapshot: snapshot,
@@ -289,6 +290,7 @@ describe('createGeneration', () => {
 
       const gen = createGeneration({
         id: 'hydrate-me',
+        threadId: 'hydrate-me',
         connection: createMockConnectionAdapter(),
         persistence,
       })
@@ -320,6 +322,7 @@ describe('createGeneration', () => {
 
       const gen = createGeneration({
         id: 'complete-me',
+        threadId: 'complete-me',
         connection: createMockConnectionAdapter(),
         persistence,
       })
@@ -344,6 +347,7 @@ describe('createGeneration', () => {
 
       const gen = createGeneration({
         id: 'reset-me',
+        threadId: 'reset-me',
         connection: createMockConnectionAdapter(),
         persistence,
       })
@@ -518,6 +522,7 @@ describe('createGenerateImage', () => {
 
     const gen = createGenerateImage({
       id: 'img-hydrate',
+      threadId: 'img-hydrate',
       connection: createMockConnectionAdapter(),
       persistence,
     })
@@ -896,6 +901,7 @@ describe('createGenerateVideo', () => {
     const getItem = vi.fn(() => videoResumeSnapshot)
     const gen = createGenerateVideo({
       id: 'video-no-auto-fire',
+      threadId: 'video-no-auto-fire',
       connection: adapter,
       persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,

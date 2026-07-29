@@ -188,6 +188,7 @@ describe('injectGeneration', () => {
     const getItem = vi.fn(() => snapshot)
     const { result } = renderInjectGeneration({
       id: 'no-auto-fire',
+      threadId: 'no-auto-fire',
       connection: adapter,
       persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: snapshot,
@@ -213,6 +214,7 @@ describe('injectGeneration', () => {
     })
     const { result } = renderInjectGeneration({
       id: 'hydrate-me',
+      threadId: 'hydrate-me',
       connection: adapter,
       persistence,
     })
@@ -244,6 +246,7 @@ describe('injectGeneration', () => {
     })
     const { result } = renderInjectGeneration({
       id: 'reset-me',
+      threadId: 'reset-me',
       connection: adapter,
       persistence,
       initialResumeSnapshot: snapshot,
@@ -268,6 +271,7 @@ describe('injectGenerateVideo', () => {
     const getItem = vi.fn(() => videoResumeSnapshot)
     const { result } = renderInjectGenerateVideo({
       id: 'video-no-auto-fire',
+      threadId: 'video-no-auto-fire',
       connection: adapter,
       persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,
@@ -290,6 +294,7 @@ describe('injectGenerateVideo', () => {
     })
     const { result } = renderInjectGenerateVideo({
       id: 'video-hydrate',
+      threadId: 'video-hydrate',
       connection: adapter,
       persistence,
     })
@@ -352,6 +357,7 @@ describe('injectGenerateImage', () => {
     })
     const { result } = renderInjectGenerateImage({
       id: 'img-hydrate',
+      threadId: 'img-hydrate',
       connection: adapter,
       persistence,
     })

@@ -4,6 +4,7 @@ import type { Signal } from '@angular/core'
 import type { ImageGenerationResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
+  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -30,9 +31,12 @@ export interface InjectGenerateImageResult<
 }
 
 export function injectGenerateImage<TTransformed = void>(
-  options: Omit<InjectGenerateImageOptions, 'onResult'> & {
+  options: Omit<
+    InjectGenerateImageOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): InjectGenerateImageResult<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {

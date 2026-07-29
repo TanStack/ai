@@ -9,6 +9,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -99,9 +100,12 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
  * ```
  */
 export function useGenerateSpeech<TTransformed = void>(
-  options: Omit<UseGenerateSpeechOptions, 'onResult'> & {
+  options: Omit<
+    UseGenerateSpeechOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: TTSResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {

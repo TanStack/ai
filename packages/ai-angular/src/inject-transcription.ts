@@ -4,6 +4,7 @@ import type { Signal } from '@angular/core'
 import type { TranscriptionResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
@@ -34,9 +35,12 @@ export interface InjectTranscriptionResult<
 }
 
 export function injectTranscription<TTransformed = void>(
-  options: Omit<InjectTranscriptionOptions, 'onResult'> & {
+  options: Omit<
+    InjectTranscriptionOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: TranscriptionResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): InjectTranscriptionResult<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {

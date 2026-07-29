@@ -11,6 +11,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
@@ -98,9 +99,12 @@ export interface CreateGenerateAudioReturn<
  * ```
  */
 export function createGenerateAudio<TTransformed = void>(
-  options: Omit<CreateGenerateAudioOptions, 'onResult'> & {
+  options: Omit<
+    CreateGenerateAudioOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): CreateGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

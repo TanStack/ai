@@ -170,10 +170,47 @@ export type GenerationPersistence = ChatStorageAdapter<GenerationResumeSnapshot>
  *   never auto-starts a run. Requires a connection that implements
  *   `hydrateGeneration`.
  * - a {@link GenerationPersistence} adapter: client-driven. The lightweight
- *   resume snapshot is cached in the browser under `generation:<id>` as a run
- *   streams and read back (validated) on mount.
+ *   resume snapshot is cached in the browser under `generation:<threadId>` as a
+ *   run streams and read back (validated) on mount.
  */
 export type GenerationPersistenceOption = boolean | GenerationPersistence
+
+/**
+ * The `persistence` / `threadId` pair shared by every generation hook.
+ *
+ * Turning persistence on **requires** a `threadId` — the stable scope runs are
+ * filed under. Without one the client would key on a generated id that changes
+ * every reload, so nothing would ever restore; making it a type error means the
+ * compiler asks for the scope instead of the runtime silently inventing one.
+ *
+ * Ephemeral generations (no `persistence`, or `persistence: false`) leave
+ * `threadId` optional, exactly as before — this adds no requirement to code
+ * that does not opt into persistence.
+ *
+ * USAGE: intersect this onto a hook's parameter and subtract the two keys from
+ * the options interface, leaving that interface a plain (non-union) object so
+ * `Pick` / `Omit` composition elsewhere keeps working:
+ *
+ * ```ts
+ * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
+ *   onResult?: (result: ImageGenerationResult) => TTransformed
+ * } & GenerationPersistenceOptions
+ * ```
+ *
+ * Do NOT bake the union into the options interface itself: a later plain `Omit`
+ * over a union collapses it to a single object type and the requirement
+ * silently disappears. `use-generation-persistence-types.test.ts` pins this.
+ */
+export type GenerationPersistenceOptions =
+  | {
+      persistence: true | GenerationPersistence
+      /** Required by `persistence` — the stable scope runs are filed under. */
+      threadId: string
+    }
+  | {
+      persistence?: false | undefined
+      threadId?: string
+    }
 
 // ===========================
 // Event Constants
@@ -249,10 +286,28 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   id?: string
 
   /**
-   * The thread id for this generation, stable across reloads. Used as the AG-UI
-   * thread key on the wire AND, in server-driven mode (`persistence: true`), as
-   * the key the client hydrates the last generation under on mount. Falls back
-   * to `id`, then to a generated id.
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill, not a link to a chat conversation.
+   *
+   * A generation hook starts empty and produces many runs over its life — each
+   * run gets its own `runId`, but they all belong to one scope. Persistence
+   * keys on this in **both** modes: client-driven writes under
+   * `generation:<threadId>`, server-driven hydrates the last run for it on
+   * mount. It is also sent as the AG-UI thread id on the wire, since the
+   * protocol requires one.
+   *
+   * Derive it from your own domain — it must be meaningful before any media
+   * exists and identical after a reload:
+   *
+   * ```ts
+   * threadId: `video-${videoId}-start-frame`
+   * ```
+   *
+   * **Required whenever `persistence` is set.** An app that cannot name the
+   * scope has nothing to restore *to*, and a generated fallback would key each
+   * reload differently — silently restoring nothing. Optional only for
+   * ephemeral runs, where it falls back to `id` (or a generated id) purely to
+   * satisfy the wire and nothing is written.
    */
   threadId?: string
 
@@ -285,7 +340,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * - a {@link GenerationPersistence} adapter (any {@link ChatStorageAdapter},
    *   including the shared `localStoragePersistence` / `sessionStoragePersistence`
    *   / `indexedDBPersistence` factories): client-driven. The client writes the
-   *   lightweight snapshot under the key `generation:<id>` as a run streams, and
+   *   lightweight snapshot under the key `generation:<threadId>` as a run streams, and
    *   reads it back (validated) on construction unless `initialResumeSnapshot` is
    *   provided. Generated media bytes are never written.
    */

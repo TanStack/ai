@@ -79,6 +79,7 @@ export type {
   GenerationEventSnapshot,
   GenerationPersistence,
   GenerationPersistenceOption,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,

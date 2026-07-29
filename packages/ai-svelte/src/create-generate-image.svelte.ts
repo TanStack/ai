@@ -10,6 +10,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -107,9 +108,12 @@ export interface CreateGenerateImageReturn<
  * ```
  */
 export function createGenerateImage<TTransformed = void>(
-  options: Omit<CreateGenerateImageOptions, 'onResult'> & {
+  options: Omit<
+    CreateGenerateImageOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): CreateGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {

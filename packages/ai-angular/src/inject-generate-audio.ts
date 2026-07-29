@@ -7,6 +7,7 @@ import type {
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
@@ -105,9 +106,12 @@ export interface InjectGenerateAudioResult<
  * ```
  */
 export function injectGenerateAudio<TTransformed = void>(
-  options: Omit<InjectGenerateAudioOptions, 'onResult'> & {
+  options: Omit<
+    InjectGenerateAudioOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): InjectGenerateAudioResult<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {

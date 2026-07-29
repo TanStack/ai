@@ -4,6 +4,7 @@ import type { Signal } from '@angular/core'
 import type { SummarizationResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
@@ -30,9 +31,12 @@ export interface InjectSummarizeResult<
 }
 
 export function injectSummarize<TTransformed = void>(
-  options: Omit<InjectSummarizeOptions, 'onResult'> & {
+  options: Omit<
+    InjectSummarizeOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: SummarizationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): InjectSummarizeResult<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {

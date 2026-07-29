@@ -390,6 +390,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'no-auto-fire',
+          threadId: 'no-auto-fire',
           connection: adapter,
           persistence: persistence,
           initialResumeSnapshot: {
@@ -435,6 +436,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'hydrated',
+          threadId: 'hydrated',
           connection: adapter,
           persistence: persistence,
         }),
@@ -467,6 +469,7 @@ describe('useGeneration', () => {
       const { result } = renderHook(() =>
         useGeneration({
           id: 'running-hydrate',
+          threadId: 'running-hydrate',
           connection: adapter,
           persistence: persistence,
         }),
@@ -682,6 +685,7 @@ describe('useGenerateImage', () => {
     const { result } = renderHook(() =>
       useGenerateImage({
         id: 'img-hydrate',
+        threadId: 'img-hydrate',
         connection: adapter,
         persistence: persistence,
       }),
@@ -1032,6 +1036,7 @@ describe('useGenerateVideo', () => {
     const { result } = renderHook(() =>
       useGenerateVideo({
         id: 'video-no-auto-fire',
+        threadId: 'video-no-auto-fire',
         connection: adapter,
         persistence: persistence,
         initialResumeSnapshot: videoResumeSnapshot,
