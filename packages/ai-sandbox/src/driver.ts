@@ -26,6 +26,12 @@
  *    including the teardown caused by losing the claim, and a fenced `close`
  *    would wedge the record at `'running'` with every live tailer parked
  *    forever. This module must not add a second fence around it.
+ * 2b. **Fencing only ONE of the two authoritative seams.** A run's facts live in
+ *    its log *and* in its record, and `pipeToRunLog` reacts to a refused append
+ *    by writing a terminal record — so wrapping the log alone just moves the harm
+ *    from "a dead host poisons the successor's stream" to "a dead host marks the
+ *    successor's live run failed". {@link fenceRunStore} must be wired here too,
+ *    over the SAME claim, which is what makes the two fences share one latch.
  * 3. **Skipping quiescence.** The successor's first append must come after the
  *    stored log has stopped growing, so a predecessor still writing is observed
  *    rather than raced. The gate belongs inside `pipe`, before `pipeToRunLog`
@@ -36,6 +42,7 @@ import {
   DEFAULT_FENCE_QUIET_MS,
   awaitLogQuiescence,
   fenceDurability,
+  fenceRunStore,
   withRunClaim,
 } from './claim'
 import type { RunClaim } from './claim'
@@ -149,9 +156,14 @@ export function sandboxRunDriver(
       // and a predecessor still writing must be observed, not raced.
       await awaitLogQuiescence(input.durability(i.runId), fenceQuietMs)
       return pipeToRunLog(stream, {
-        runs: input.runs,
-        // Fenced at the epoch this driver actually acquired. `fenceDurability`
-        // wraps only `append`, so `close()` still runs on teardown.
+        // BOTH authoritative seams are fenced at the epoch this driver actually
+        // acquired, and they must be: `pipeToRunLog` answers a refused append by
+        // recording a terminal record, so fencing only the log leaves a
+        // superseded host marking a live run `'failed'` (see `fenceRunStore`).
+        // Neither fence covers `close()` — that stays unfenced on purpose.
+        runs: fenceRunStore(input.runs, claim, {
+          ...(input.logger === undefined ? {} : { logger: input.logger }),
+        }),
         durability: (runId) =>
           fenceDurability(input.durability(runId), claim, {
             runs: input.runs,

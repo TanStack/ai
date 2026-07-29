@@ -134,22 +134,6 @@ interface FinishContext {
 }
 
 /**
- * Record the terminal status, terminalize the event log, and answer with the
- * run's final record.
- *
- * TOTAL BY CONSTRUCTION: every step is individually guarded, so this never
- * throws and never rejects. Two consequences the guards buy:
- *
- * - `durability.close()` runs on EVERY exit path, including a failed `update`.
- *   Skipping it would wedge the record at `running` *and* park every live
- *   tailer forever, because a durability `read` only ends once the log closes.
- * - The re-read of the record is best effort. An eventually-consistent or
- *   read-replica store may answer `null` for a run that was just driven, which
- *   must not turn a successful run into a rejection; the locally rebuilt record
- *   is returned instead. It is also preferred outright when `update` failed,
- *   since the store then still holds the stale `running` row.
- */
-/**
  * Report through a consumer-supplied logger without letting it break the
  * caller. Every logger call in this module sits inside a `catch` body, so an
  * throwing sink would escape that body and defeat the totality the guards
@@ -168,6 +152,33 @@ function safeLog(
   }
 }
 
+/**
+ * Record the terminal status, terminalize the event log, and answer with the
+ * run's final record.
+ *
+ * TOTAL BY CONSTRUCTION: every step is individually guarded, so this never
+ * throws and never rejects. Two consequences the guards buy:
+ *
+ * - `durability.close()` runs on EVERY exit path, including a failed `update`.
+ *   Skipping it would wedge the record at `running` *and* park every live
+ *   tailer forever, because a durability `read` only ends once the log closes.
+ * - The re-read of the record is best effort. An eventually-consistent or
+ *   read-replica store may answer `null` for a run that was just driven, which
+ *   must not turn a successful run into a rejection; the locally rebuilt record
+ *   is returned instead. It is also preferred outright when `update` failed,
+ *   since the store then still holds the stale `running` row.
+ *
+ * THE TERMINAL WRITE IS NOT GUARANTEED TO LAND, and this function deliberately
+ * does not check whether it did. Under `sandboxRunDriver` the `runs` handed in is
+ * `fenceRunStore`d (`src/claim.ts`), which SUPPRESSES a terminal write — resolving
+ * without writing — when the driver has lost its claim, because a host that no
+ * longer owns the run must not declare it over while the successor is streaming
+ * it. From here that is indistinguishable from a successful write, on purpose:
+ * the epoch belongs to the claim module, not to this generic driver, and the
+ * re-read below then answers with the successor's live record, which is the
+ * truthful thing to resolve with. A driver wired without a claim (a plain
+ * `pipeToRunLog` call) is unfenced and always writes.
+ */
 async function finish(
   ctx: FinishContext,
   status: TerminalRunStatus,
@@ -299,7 +310,10 @@ export async function pipeToRunLog(
     } catch (appendError) {
       // The recovery append is itself a failure path. It must not destroy the
       // cause it was recording, so the provider's error stays primary and this
-      // secondary failure is merged in and logged separately.
+      // secondary failure is merged in and logged separately. When the cause IS
+      // a lost claim, this append is refused too and the `finish` below writes
+      // nothing either — a fenced store suppresses the terminal record for the
+      // same reason the fenced log refused the chunk (see `finish`).
       const phase = 'appending the synthesized RUN_ERROR failed'
       safeLog(logger, `run: ${phase}`, { runId, error: appendError })
       recorded = withSecondaryFailure(recorded, appendError, phase)

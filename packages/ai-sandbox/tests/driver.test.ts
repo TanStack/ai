@@ -187,9 +187,16 @@ describe('sandboxRunDriver — the acquired epoch reaches the fence', () => {
     // first refusal (`claim.ts`), so the recovery append refuses too instead of
     // riding a fresh epoch-recheck throttle window.
     expect(stored).toEqual([])
+    // And nothing lands on the RECORD either. `pipeToRunLog` answers the refused
+    // append by calling `finish(ctx, 'failed', …)`, so fencing only the log would
+    // leave this superseded host marking a run the successor is healthily
+    // streaming as terminal — `isTerminalRunStatus` would then answer `true` for
+    // a live run, which is what `findActiveRun` and the Phase 4 reaper branch on.
+    // `fenceRunStore` (`claim.ts`) suppresses that write.
     const record = await h.runs.get('drv-superseded')
-    expect(record?.status).toBe('failed')
-    expect(record?.error?.message).toContain('driver claim lost')
+    expect(record?.status).toBe('running')
+    expect(record?.finishedAt).toBeUndefined()
+    expect(record?.error).toBeUndefined()
   })
 
   it('closes the log on the refused path', async () => {
@@ -218,7 +225,12 @@ describe('sandboxRunDriver — the acquired epoch reaches the fence', () => {
     // never closes, the record stays wedged at 'running', and every live tailer
     // parks forever — a durability `read` only ends when the log closes.
     expect(h.ops.filter((op) => op === 'close')).toEqual(['close'])
-    expect((await h.runs.get('drv-close-lease'))?.status).toBe('aborted')
+    // The status the abort WOULD have written is `'aborted'`, and it is suppressed
+    // for the same reason the `'failed'` one above is: the only thing that aborts
+    // `claim.signal` on this path is losing the lease, so this host no longer owns
+    // the run and must not declare it over. `close()` still ran — the assertion
+    // above is what proves the suppression did not take the teardown with it.
+    expect((await h.runs.get('drv-close-lease'))?.status).toBe('running')
   })
 })
 
