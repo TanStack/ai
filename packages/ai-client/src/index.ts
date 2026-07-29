@@ -105,6 +105,7 @@ export {
 export {
   reconstructImageResult,
   reconstructAudioResult,
+  reconstructSpeechResult,
   reconstructTranscriptionResult,
   reconstructSummarizeResult,
 } from './generation-reconstruct'

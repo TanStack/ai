@@ -58,6 +58,14 @@ export interface SummarizeActivityOptions<
   /** Provider-specific options */
   modelOptions?: SummarizeProviderOptions<TAdapter>
   /**
+   * Optional run identity. When set on a streaming summarize, it is stamped
+   * onto the emitted `RUN_STARTED` so a delivery-durable route keys the run's
+   * log by the same id the client rejoins with — making a mid-run reload
+   * resumable. Filed under `threadId` when persistence is wired.
+   */
+  runId?: string
+  threadId?: string
+  /**
    * Whether to stream the summarization result.
    * When true, returns an AsyncIterable<StreamChunk> for streaming output.
    * When false or not provided, returns a Promise<SummarizationResult>.
@@ -250,7 +258,8 @@ async function runSummarize(
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus, modelOptions } = options
+  const { adapter, text, maxLength, style, focus, modelOptions, runId, threadId } =
+    options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
 
@@ -260,6 +269,10 @@ async function* runStreamingSummarize(
     stream: true,
   })
 
+  // Thread the caller's run identity through so the emitted `RUN_STARTED`
+  // carries it — keeps a delivery-durable route's log keyed by the id the
+  // client rejoins with (mid-run reload resumability). Conditional spreads keep
+  // the fields off the object entirely under `exactOptionalPropertyTypes`.
   const summarizeOptions = {
     model,
     text,
@@ -268,6 +281,8 @@ async function* runStreamingSummarize(
     focus,
     modelOptions,
     logger,
+    ...(runId !== undefined ? { runId } : {}),
+    ...(threadId !== undefined ? { threadId } : {}),
   }
 
   try {
@@ -277,8 +292,12 @@ async function* runStreamingSummarize(
       return
     }
 
-    // Fall back to non-streaming — wrap result with streamGenerationResult
-    yield* streamGenerationResult(() => adapter.summarize(summarizeOptions))
+    // Fall back to non-streaming — wrap result with streamGenerationResult,
+    // forwarding the run identity so its RUN_STARTED matches too.
+    yield* streamGenerationResult(() => adapter.summarize(summarizeOptions), {
+      ...(runId !== undefined ? { runId } : {}),
+      ...(threadId !== undefined ? { threadId } : {}),
+    })
   } catch (error) {
     logger.errors('summarize activity failed', {
       error,

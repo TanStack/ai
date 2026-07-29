@@ -137,6 +137,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly callbacksRef: VideoCallbacks<TOutput>
   private devtoolsMounted = false
   private disposed = false
+  private serverHydrationStarted = false
 
   constructor(
     options: VideoGenerationClientOptions<TOutput> &
@@ -191,27 +192,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       options.devtoolsBridgeFactory ?? createNoOpVideoDevtoolsBridge
     )<TOutput>(this.buildDevtoolsBridgeOptions())
 
-    // After callbacksRef is assigned: hydration may fire
-    // onResumeSnapshotChange synchronously if an adapter resolves sync.
-    this.maybeHydrateResumeSnapshot()
-
-    // Server-driven (`persistence: true`): the client caches nothing locally and
-    // re-hydrates the last generation for its stable threadId from the server on
-    // mount. Best-effort and non-blocking; it never auto-starts a run. The
-    // hydrate handler comes from the connection, or from the `hydrateGeneration`
-    // option (e.g. a server-function call) when the transport can't carry one.
-    if (
-      this.serverDriven &&
-      (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler)
-    ) {
-      this.hydrateFromServer()
-    } else if (this.serverDriven) {
-      // `persistence: true` without any hydrate source can never restore
-      // anything — warn rather than silently no-op.
-      console.warn(
-        '[TanStack AI] `persistence: true` (server-driven) needs a `hydrateGeneration` handler — either a connection that implements one (e.g. `fetchServerSentEvents` / `fetchHttpStream`, or `stream()` / `rpcStream()` with persistence handlers) or the `hydrateGeneration` option. Without one, nothing is persisted or restored.',
-      )
-    }
+    // Mount hydration — both the client-driven storage read
+    // (`maybeHydrateResumeSnapshot`) and the server-driven network fetch
+    // (`maybeHydrateFromServer`) — is deliberately NOT run here. The framework
+    // hooks build this client inside `useMemo`, so the constructor executes in
+    // React's render phase; hydrating here would either setState during render
+    // (client-driven, a "state update on a component that hasn't mounted yet"
+    // warning) or re-fire the hydrate GET on every discarded/speculative render
+    // (server-driven, flooding the connection pool when several clients mount
+    // together). Both are kicked off once from `mountDevtools`, which the hooks
+    // call from a commit-phase mount effect. `initialResumeSnapshot` above still
+    // seeds SSR/first paint synchronously.
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {
@@ -240,6 +231,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     // client) leaves the client usable again.
     this.disposed = false
     this.maybeHydrateResumeSnapshot()
+    this.maybeHydrateFromServer()
+    // Re-attach to an already-loaded `running` snapshot (remount case); see the
+    // note in GenerationClient.mountDevtools. Guarded by rejoinInFlight.
+    this.maybeResumeInFlight()
     if (this.devtoolsMounted) {
       return
     }
@@ -505,9 +500,18 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
 
   dispose(): void {
     this.disposed = true
-    this.stop()
+    // Teardown, NOT a user cancel (see GenerationClient.dispose): abort in-flight
+    // delivery but keep the `running` snapshot resumable so a remount rejoins.
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = null
+    }
+    this.setIsLoading(false)
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
+    this.resumeSnapshotHydration = undefined
+    this.serverHydrationStarted = false
+    this.rejoinedRunId = undefined
   }
 
   // ===========================
@@ -838,6 +842,13 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * run is still in flight.
    */
   private recordResumeSnapshotError(error: Error): void {
+    // Surface the failure on the observable fields FIRST, unconditionally (see
+    // the note in GenerationClient.recordResumeSnapshotError): a RUN_ERROR
+    // already flipped the snapshot to `error`, so the early-return would else
+    // skip this and leave `status` stuck on `generating`. The guard avoids a
+    // duplicate `error` emission on the live `generate()` path.
+    if (this.status !== 'error') this.setStatus('error')
+    this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
     if (!this.resumeSnapshot && !this.resumePersistence) return
     const previous = this.resumeSnapshot
@@ -910,6 +921,26 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   /**
+   * Server-driven mount hydration entry point (`persistence: true`). Runs at
+   * most once, from the commit-phase mount path (`mountDevtools`) — never the
+   * constructor / render phase — so remounts and speculative renders can't
+   * re-fire the hydrate GET.
+   */
+  private maybeHydrateFromServer(): void {
+    if (!this.serverDriven || this.serverHydrationStarted) return
+    this.serverHydrationStarted = true
+    if (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler) {
+      this.hydrateFromServer()
+    } else {
+      // `persistence: true` without any hydrate source can never restore
+      // anything — warn rather than silently no-op.
+      console.warn(
+        '[TanStack AI] `persistence: true` (server-driven) needs a `hydrateGeneration` handler — either a connection that implements one (e.g. `fetchServerSentEvents` / `fetchHttpStream`, or `stream()` / `rpcStream()` with persistence handlers) or the `hydrateGeneration` option. Without one, nothing is persisted or restored.',
+      )
+    }
+  }
+
+  /**
    * Server-driven mount hydration (`persistence: true`). The client holds no
    * local snapshot; on mount it asks the server — keyed by the stable threadId —
    * for the last generation's resume snapshot, validates it, and repaints it. It
@@ -939,6 +970,16 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
+  }
+
+  /**
+   * Re-attach to an already-loaded `running` snapshot (remount case); see the
+   * note in GenerationClient.maybeResumeInFlight. Guarded by `rejoinInFlight`.
+   */
+  private maybeResumeInFlight(): void {
+    if (this.resumeSnapshot?.status !== 'running') return
+    const runId = this.resumeSnapshot.resumeState?.runId
+    if (runId) this.rejoinInFlight(runId)
   }
 
   /**

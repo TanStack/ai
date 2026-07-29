@@ -1516,6 +1516,7 @@ describe('GenerationClient', () => {
         persistence,
         onResumeSnapshotChange,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getResumeSnapshot()).toMatchObject({
@@ -1570,6 +1571,7 @@ describe('GenerationClient', () => {
         connection: { async *connect() {}, joinRun },
         persistence,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getStatus()).toBe('success')
@@ -1606,6 +1608,7 @@ describe('GenerationClient', () => {
         onStatusChange,
         onResumeStateChange,
       })
+      client.mountDevtools()
 
       // The completed snapshot repaints `result` (with the durable serve url)
       // and `status`, as if the run had just finished.
@@ -1655,6 +1658,7 @@ describe('GenerationClient', () => {
         persistence,
         onResumeStateChange,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(onResumeStateChange).toHaveBeenCalledWith({
@@ -1685,6 +1689,7 @@ describe('GenerationClient', () => {
         persistence,
         onResumeStateChange,
       })
+      client.mountDevtools()
 
       // An interrupted generation cannot be resumed, only re-run: without a
       // `joinRun` handler the restored run surfaces as an error, never a
@@ -1737,6 +1742,7 @@ describe('GenerationClient', () => {
         persistence,
         joinRun,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getStatus()).toBe('success')
@@ -2045,6 +2051,7 @@ describe('GenerationClient', () => {
         persistence: true,
         onResumeSnapshotChange,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getResumeSnapshot()).toMatchObject({
@@ -2081,6 +2088,7 @@ describe('GenerationClient', () => {
         reconstructResult: reconstructImageResult,
         onResumeStateChange,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getResult()).toEqual({
@@ -2136,6 +2144,7 @@ describe('GenerationClient', () => {
         connection: { async *connect() {}, hydrateGeneration, joinRun },
         persistence: true,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getStatus()).toBe('success')
@@ -2143,6 +2152,78 @@ describe('GenerationClient', () => {
       })
       expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
       expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('surfaces an error (never stays stuck generating) when the rejoin throws', async () => {
+      // The server still reports the run as in flight, but its delivery log has
+      // aged out / the route can't serve the join, so `joinRun` throws. The
+      // client must fall out of `generating` into `error`, not hang forever.
+      const runId = 'run-gone-1'
+      const joinRun = vi.fn(async function* (): AsyncGenerator<StreamChunk> {
+        throw new Error('Unknown or expired memory stream run')
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-gone', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-gone',
+        connection: { async *connect() {}, hydrateGeneration, joinRun },
+        persistence: true,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toContain('expired')
+    })
+
+    it('surfaces an error when the rejoin delivers a terminal RUN_ERROR chunk', async () => {
+      // The realistic gone-log case: the join GET fast-fails by EMITTING a
+      // RUN_ERROR chunk (not throwing). `observeResumeSnapshot` flips the
+      // snapshot to `error` as that chunk streams, so the client must still push
+      // `error` onto the observable status — otherwise it stays stuck on
+      // `generating` even though the snapshot already knows it failed.
+      const runId = 'run-gone-2'
+      const joinRun = vi.fn(async function* (): AsyncGenerator<StreamChunk> {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId: 'thread-gone-2',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'Memory stream run produced no data within 100ms',
+          timestamp: Date.now(),
+        } as StreamChunk
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-gone-2', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-gone-2',
+        connection: { async *connect() {}, hydrateGeneration, joinRun },
+        persistence: true,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toContain('no data')
     })
 
     it('does nothing when the connection exposes no hydrateGeneration', async () => {
@@ -2265,6 +2346,7 @@ describe('GenerationClient', () => {
         connection,
         persistence: true,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getResumeSnapshot()).toMatchObject({ status: 'complete' })
@@ -2280,6 +2362,7 @@ describe('GenerationClient', () => {
         persistence: true,
         hydrateGeneration,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getResumeSnapshot()).toMatchObject({
@@ -2327,6 +2410,7 @@ describe('GenerationClient', () => {
         hydrateGeneration,
         joinRun,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getStatus()).toBe('success')
@@ -2344,7 +2428,7 @@ describe('GenerationClient', () => {
         threadId: 'thread-warn',
         fetcher: async () => ({}),
         persistence: true,
-      })
+      }).mountDevtools()
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('`persistence: true`'),
       )
@@ -2359,7 +2443,7 @@ describe('GenerationClient', () => {
           resumeSnapshot: null,
           activeRun: null,
         })),
-      })
+      }).mountDevtools()
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(warn).not.toHaveBeenCalledWith(
         expect.stringContaining('`persistence: true`'),
@@ -2382,6 +2466,7 @@ describe('GenerationClient', () => {
         connection,
         persistence: true,
       })
+      client.mountDevtools()
 
       await waitForCondition(() => {
         expect(client.getStatus()).toBe('error')

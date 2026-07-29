@@ -133,6 +133,7 @@ export class GenerationClient<
   private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
   private devtoolsMounted = false
   private disposed = false
+  private serverHydrationStarted = false
 
   constructor(
     options: GenerationClientOptions<TInput, TResult, TOutput> &
@@ -199,27 +200,17 @@ export class GenerationClient<
       options.devtoolsBridgeFactory ?? createNoOpGenerationDevtoolsBridge
     )<TOutput>(this.buildDevtoolsBridgeOptions())
 
-    // After callbacksRef is assigned: hydration may fire
-    // onResumeSnapshotChange synchronously if an adapter resolves sync.
-    this.maybeHydrateResumeSnapshot()
-
-    // Server-driven (`persistence: true`): the client caches nothing locally and
-    // re-hydrates the last generation for its stable threadId from the server on
-    // mount. Best-effort and non-blocking; it never auto-starts a run. The
-    // hydrate handler comes from the connection, or from the `hydrateGeneration`
-    // option (e.g. a server-function call) when the transport can't carry one.
-    if (
-      this.serverDriven &&
-      (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler)
-    ) {
-      this.hydrateFromServer()
-    } else if (this.serverDriven) {
-      // `persistence: true` without any hydrate source can never restore
-      // anything — warn rather than silently no-op.
-      console.warn(
-        '[TanStack AI] `persistence: true` (server-driven) needs a `hydrateGeneration` handler — either a connection that implements one (e.g. `fetchServerSentEvents` / `fetchHttpStream`, or `stream()` / `rpcStream()` with persistence handlers) or the `hydrateGeneration` option. Without one, nothing is persisted or restored.',
-      )
-    }
+    // Mount hydration — both the client-driven storage read
+    // (`maybeHydrateResumeSnapshot`) and the server-driven network fetch
+    // (`maybeHydrateFromServer`) — is deliberately NOT run here. The framework
+    // hooks build this client inside `useMemo`, so the constructor executes in
+    // React's render phase; hydrating here would either setState during render
+    // (client-driven, a "state update on a component that hasn't mounted yet"
+    // warning) or re-fire the hydrate GET on every discarded/speculative render
+    // (server-driven, flooding the connection pool when several clients mount
+    // together). Both are kicked off once from `mountDevtools`, which the hooks
+    // call from a commit-phase mount effect. `initialResumeSnapshot` above still
+    // seeds SSR/first paint synchronously.
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
@@ -246,6 +237,14 @@ export class GenerationClient<
     // client) leaves the client usable again.
     this.disposed = false
     this.maybeHydrateResumeSnapshot()
+    this.maybeHydrateFromServer()
+    // Re-attach to an in-flight run whose snapshot is already loaded — the
+    // remount case. On the FIRST mount the snapshot loads asynchronously and
+    // `repaintRestoredSnapshot` starts the rejoin; on a StrictMode remount the
+    // snapshot is already present but the prior rejoin was aborted by
+    // `dispose()`, so retrigger it here. Guarded by `rejoinInFlight`'s own
+    // dedupe/in-flight checks, so this never double-joins.
+    this.maybeResumeInFlight()
     if (this.devtoolsMounted) {
       return
     }
@@ -480,9 +479,26 @@ export class GenerationClient<
 
   dispose(): void {
     this.disposed = true
-    this.stop()
+    // Teardown, NOT a user cancel: abort in-flight DELIVERY (this reader) but
+    // do NOT call `stop()` — `stop()` marks the run non-resumable and wipes the
+    // `running` snapshot, which is correct for a Stop button but wrong for an
+    // unmount / React StrictMode dispose. Clearing it here would destroy the
+    // client-driven resume state so a remount (and a real page revisit) could
+    // never rejoin. The run itself survives server-side (durable delivery), so
+    // the snapshot must stay `running` for the remount to resume it.
+    if (this.abortController) {
+      this.abortController.abort()
+      this.abortController = null
+    }
+    this.setIsLoading(false)
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
+    // Re-arm mount hydration + rejoin so a remount resumes from the (preserved)
+    // snapshot. `mountDevtools` re-runs the hydration entry points and
+    // `maybeResumeInFlight`, all individually guarded.
+    this.resumeSnapshotHydration = undefined
+    this.serverHydrationStarted = false
+    this.rejoinedRunId = undefined
   }
 
   // ===========================
@@ -800,6 +816,14 @@ export class GenerationClient<
    * run is still in flight.
    */
   private recordResumeSnapshotError(error: Error): void {
+    // Surface the failure on the OBSERVABLE fields FIRST: a rejoin (or live
+    // stream) that emits RUN_ERROR has already flipped the snapshot to `error`
+    // via `observeResumeSnapshot`, so the early-return below would otherwise
+    // skip this and leave `status` stuck on `generating` — the run would look
+    // like it is still going forever. The guard avoids a duplicate `error`
+    // emission on the live `generate()` path, which sets the status itself.
+    if (this.status !== 'error') this.setStatus('error')
+    this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
     if (!this.resumeSnapshot && !this.resumePersistence) return
     const previous = this.resumeSnapshot
@@ -886,6 +910,26 @@ export class GenerationClient<
    * client empty rather than throwing, and a `generate()` that starts first owns
    * the client (hydration then backs off, mirroring the chat client).
    */
+  /**
+   * Server-driven mount hydration entry point (`persistence: true`). Runs at
+   * most once, from the commit-phase mount path (`mountDevtools`) — never the
+   * constructor / render phase — so remounts and speculative renders can't
+   * re-fire the hydrate GET.
+   */
+  private maybeHydrateFromServer(): void {
+    if (!this.serverDriven || this.serverHydrationStarted) return
+    this.serverHydrationStarted = true
+    if (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler) {
+      this.hydrateFromServer()
+    } else {
+      // `persistence: true` without any hydrate source can never restore
+      // anything — warn rather than silently no-op.
+      console.warn(
+        '[TanStack AI] `persistence: true` (server-driven) needs a `hydrateGeneration` handler — either a connection that implements one (e.g. `fetchServerSentEvents` / `fetchHttpStream`, or `stream()` / `rpcStream()` with persistence handlers) or the `hydrateGeneration` option. Without one, nothing is persisted or restored.',
+      )
+    }
+  }
+
   private hydrateFromServer(): void {
     const hydrate =
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
@@ -908,6 +952,18 @@ export class GenerationClient<
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
+  }
+
+  /**
+   * Re-attach to an already-loaded `running` snapshot (the remount case). Safe
+   * to call repeatedly: `rejoinInFlight` dedupes on `rejoinedRunId` and bails
+   * when a run is already in flight, so on the first mount (where the rejoin was
+   * already started from `repaintRestoredSnapshot`) this is a no-op.
+   */
+  private maybeResumeInFlight(): void {
+    if (this.resumeSnapshot?.status !== 'running') return
+    const runId = this.resumeSnapshot.resumeState?.runId
+    if (runId) this.rejoinInFlight(runId)
   }
 
   /**

@@ -2237,6 +2237,23 @@ export const OPENAI_CHAT_MODELS = [
 
 export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 
+/**
+ * Whether a model rejects the `temperature` / `top_p` sampling knobs.
+ *
+ * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
+ * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
+ * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
+ * still accept them, so those are excluded. Matching by name (rather than a
+ * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
+ * See the note in `text/text-provider-options.ts`.
+ */
+export function openAIModelRejectsSamplingParams(model: string): boolean {
+  if (/^o\d/.test(model)) return true
+  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  if (model === 'codex-mini-latest') return true
+  return false
+}
+
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_2.name,

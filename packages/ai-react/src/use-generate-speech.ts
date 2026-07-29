@@ -1,4 +1,5 @@
 import { useGeneration } from './use-generation'
+import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -160,6 +161,7 @@ export function useGenerateSpeech<TTransformed = void>(
   >({
     ...options,
     devtools,
+    reconstructResult: reconstructSpeechResult,
   })
 
   return generation

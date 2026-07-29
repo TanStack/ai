@@ -1978,6 +1978,16 @@ export interface SummarizationOptions<
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
   /**
+   * Run identity forwarded from the summarize() activity. When set, the
+   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
+   * chat), so a delivery-durable route keys the run's log by the same id the
+   * client rejoins with — making a mid-run reload resumable, like the media
+   * activities. Optional and non-breaking: adapters that ignore it just mint
+   * their own.
+   */
+  runId?: string
+  threadId?: string
+  /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
