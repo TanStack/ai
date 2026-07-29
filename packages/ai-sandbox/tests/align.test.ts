@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { EventType, memoryStream } from '@tanstack/ai'
-import { JournalReplayDivergedError, alignToStoredLog } from '../src/align'
+import {
+  DEFAULT_MAX_OUT_OF_BAND_SKIP,
+  JournalReplayDivergedError,
+  alignToStoredLog,
+  isBridgeCustomChunk,
+} from '../src/align'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /**
@@ -29,6 +34,38 @@ async function* fromChunks(
     await Promise.resolve()
     yield chunk
   }
+}
+
+function bridgedChunk(name: string): StreamChunk {
+  return { type: EventType.CUSTOM, name, value: {}, timestamp: 1 }
+}
+
+/**
+ * A `StreamDurability` that only answers `snapshot()`. Everything that would
+ * mutate or tail the log rejects, so the shape of the fixture itself proves
+ * alignment never appends, never closes, and never `read`s.
+ */
+function storedLog(chunks: Array<StreamChunk>): StreamDurability {
+  return {
+    resumeFrom: () => null,
+    append: () => Promise.reject(new Error('alignToStoredLog must not append')),
+    read: () => {
+      throw new Error('alignToStoredLog must use snapshot(), never read()')
+    },
+    close: () => Promise.reject(new Error('alignToStoredLog must not close')),
+    snapshot: () =>
+      Promise.resolve(
+        chunks.map((chunk, index) => ({ offset: `o:${index}`, chunk })),
+      ),
+  }
+}
+
+async function collectChunks(
+  it: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
+  const out: Array<StreamChunk> = []
+  for await (const chunk of it) out.push(chunk)
+  return out
 }
 
 async function collectDeltas(
@@ -255,5 +292,151 @@ describe('alignToStoredLog', () => {
     expect(snapshots).toBe(1)
     expect(pulledAtFirstSnapshot).toBe(0)
     expect(pulled).toBe(3)
+  })
+})
+
+describe('alignToStoredLog — out-of-band tolerance', () => {
+  it('by DEFAULT still throws on a stored chunk the replay does not produce', async () => {
+    // The strict behavior is the default so a non-bridged determinism
+    // regression stays loud. Opting into tolerance is an explicit act.
+    const log = storedLog([
+      textChunk('m1', 'a'),
+      bridgedChunk('code_mode:console'),
+    ])
+    await expect(
+      collectChunks(
+        alignToStoredLog(fromChunks([textChunk('m1', 'a')]), {
+          durability: log,
+        }),
+      ),
+    ).rejects.toThrow(/shorter than the stored log/)
+  })
+
+  it('skips a stored out-of-band chunk and keeps aligning after it', async () => {
+    const log = storedLog([
+      textChunk('m1', 'a'),
+      bridgedChunk('code_mode:console'),
+      textChunk('m1', 'b'),
+    ])
+    const out = await collectChunks(
+      alignToStoredLog(
+        fromChunks([
+          textChunk('m1', 'a'),
+          textChunk('m1', 'b'),
+          textChunk('m1', 'c'),
+        ]),
+        { durability: log, isOutOfBand: isBridgeCustomChunk },
+      ),
+    )
+    // Both stored translated chunks suppressed, the bridged one skipped, and
+    // only the genuinely-new chunk forwarded.
+    expect(out).toEqual([textChunk('m1', 'c')])
+  })
+
+  it('tolerates several consecutive out-of-band chunks', async () => {
+    const log = storedLog([
+      textChunk('m1', 'a'),
+      bridgedChunk('one'),
+      bridgedChunk('two'),
+      bridgedChunk('three'),
+      textChunk('m1', 'b'),
+    ])
+    const out = await collectChunks(
+      alignToStoredLog(
+        fromChunks([textChunk('m1', 'a'), textChunk('m1', 'b')]),
+        {
+          durability: log,
+          isOutOfBand: isBridgeCustomChunk,
+        },
+      ),
+    )
+    expect(out).toEqual([])
+  })
+
+  it('tolerates TRAILING out-of-band chunks with no replay counterpart', async () => {
+    // A bridged tool's last console line lands after the final translated chunk.
+    const log = storedLog([textChunk('m1', 'a'), bridgedChunk('last')])
+    const out = await collectChunks(
+      alignToStoredLog(fromChunks([textChunk('m1', 'a')]), {
+        durability: log,
+        isOutOfBand: isBridgeCustomChunk,
+      }),
+    )
+    expect(out).toEqual([])
+  })
+
+  it('still throws on a real divergence, even with tolerance enabled', async () => {
+    // A changed messageId is a determinism bug, not an out-of-band chunk, and
+    // must not be absorbed by the skip.
+    const log = storedLog([textChunk('m1', 'a')])
+    await expect(
+      collectChunks(
+        alignToStoredLog(fromChunks([textChunk('m2', 'a')]), {
+          durability: log,
+          isOutOfBand: isBridgeCustomChunk,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(JournalReplayDivergedError)
+  })
+
+  it('throws once consecutive skips exceed maxOutOfBandSkip', async () => {
+    const log = storedLog([
+      ...Array.from({ length: 5 }, (_, i) => bridgedChunk(`n${i}`)),
+      textChunk('m1', 'a'),
+    ])
+    await expect(
+      collectChunks(
+        alignToStoredLog(fromChunks([textChunk('m1', 'a')]), {
+          durability: log,
+          isOutOfBand: isBridgeCustomChunk,
+          maxOutOfBandSkip: 3,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(JournalReplayDivergedError)
+  })
+
+  it('resets the skip counter after a match, so a long run is not starved', async () => {
+    // 3 skips, a match, 3 more skips: fine at a bound of 3. A counter that never
+    // reset would reject this.
+    const log = storedLog([
+      bridgedChunk('a1'),
+      bridgedChunk('a2'),
+      bridgedChunk('a3'),
+      textChunk('m1', 'a'),
+      bridgedChunk('b1'),
+      bridgedChunk('b2'),
+      bridgedChunk('b3'),
+      textChunk('m1', 'b'),
+    ])
+    const out = await collectChunks(
+      alignToStoredLog(
+        fromChunks([textChunk('m1', 'a'), textChunk('m1', 'b')]),
+        {
+          durability: log,
+          isOutOfBand: isBridgeCustomChunk,
+          maxOutOfBandSkip: 3,
+        },
+      ),
+    )
+    expect(out).toEqual([])
+  })
+
+  it('defaults the bound to 64', () => {
+    expect(DEFAULT_MAX_OUT_OF_BAND_SKIP).toBe(64)
+  })
+})
+
+describe('isBridgeCustomChunk', () => {
+  it('matches a CUSTOM chunk and nothing else', () => {
+    expect(isBridgeCustomChunk(bridgedChunk('x'))).toBe(true)
+    expect(isBridgeCustomChunk(textChunk('m', 'd'))).toBe(false)
+    expect(
+      isBridgeCustomChunk({
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      }),
+    ).toBe(false)
   })
 })

@@ -30,9 +30,40 @@
  *
  * Divergence is a bug, not a condition to recover from, so it throws.
  */
+import { EventType } from '@tanstack/ai'
 import { chunkFingerprint } from './chunk-identity'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
+
+/**
+ * Default bound on consecutive stored chunks alignment will skip as out-of-band.
+ *
+ * A bound is what keeps this a tolerance rather than a search. Unbounded, a
+ * genuine determinism regression would make alignment scan forward through the
+ * whole log looking for a fingerprint that happens to match, suppress
+ * everything it passed, and deliver a stream whose prefix and suffix disagree —
+ * the exact failure {@link JournalReplayDivergedError} exists to prevent. 64 is
+ * well above any realistic burst of bridged console events between two
+ * translated chunks and well below a log length where a false match becomes
+ * plausible.
+ */
+export const DEFAULT_MAX_OUT_OF_BAND_SKIP = 64
+
+/**
+ * The out-of-band predicate for the harness adapters.
+ *
+ * `ai-codex` and `ai-claude-code` splice `createBridgeEventChannel`'s stream
+ * into their translated output with `mergeChunkStreams`. That channel is the
+ * only producer on the path and it emits exclusively `EventType.CUSTOM` chunks
+ * (`bridge-events.ts:53-63`), fired by LIVE bridged-tool execution. A replay
+ * runs no tools, so those chunks exist in the log and not in the replay.
+ *
+ * Structural rather than a list of event names on purpose: a new bridged tool
+ * inventing a new `name` must not silently reintroduce the divergence.
+ */
+export function isBridgeCustomChunk(chunk: StreamChunk): boolean {
+  return chunk.type === EventType.CUSTOM
+}
 
 /**
  * The replay produced a different chunk than the log already holds at that
@@ -59,6 +90,26 @@ export interface AlignToStoredLogOptions {
   durability: StreamDurability
   /** Optional sink for the alignment summary. */
   logger?: InternalLogger
+  /**
+   * Recognizes a stored chunk that the replay CANNOT reproduce, so alignment
+   * skips it instead of throwing.
+   *
+   * Absent by default, which keeps strict positional comparison: any stored
+   * chunk the replay does not produce is a determinism bug and fails loudly.
+   * Pass {@link isBridgeCustomChunk} on the harness attach path, where the
+   * previous host spliced live bridged-tool events into the log.
+   *
+   * The predicate is applied to the STORED chunk, never to the replayed one. A
+   * skipped entry is suppressed, not re-appended, so the client's view is
+   * unchanged: it already received that chunk under its own offset.
+   */
+  isOutOfBand?: (chunk: StreamChunk) => boolean
+  /**
+   * Maximum CONSECUTIVE stored chunks that may be skipped as out-of-band before
+   * alignment gives up. Reset by every match. Defaults to
+   * {@link DEFAULT_MAX_OUT_OF_BAND_SKIP}. Ignored when `isOutOfBand` is absent.
+   */
+  maxOutOfBandSkip?: number
 }
 
 /**
@@ -86,31 +137,75 @@ export async function* alignToStoredLog(
   const entries = await options.durability.snapshot()
   const stored = entries.map((entry) => chunkFingerprint(entry.chunk))
 
-  let index = 0
+  const isOutOfBand = options.isOutOfBand
+  const maxSkip = options.maxOutOfBandSkip ?? DEFAULT_MAX_OUT_OF_BAND_SKIP
+
+  let cursor = 0
+  let suppressed = 0
+  let skipped = 0
+  let forwarded = 0
+
   for await (const chunk of chunks) {
-    const expected = index < stored.length ? stored[index] : undefined
-    if (expected === undefined) {
-      index += 1
+    // Past the end of the stored log: everything from here is new.
+    if (cursor >= stored.length) {
+      forwarded += 1
       yield chunk
       continue
     }
+
     const actual = chunkFingerprint(chunk)
-    if (expected !== actual) {
-      throw new JournalReplayDivergedError(index, expected, actual)
+    let consecutiveSkips = 0
+    for (;;) {
+      // `entries` and `stored` are the same length by construction; both are
+      // bound because the predicate needs the CHUNK while the comparison needs
+      // its fingerprint.
+      const entry = entries[cursor]
+      const expected = stored[cursor]
+      if (entry === undefined || expected === undefined) {
+        forwarded += 1
+        yield chunk
+        break
+      }
+      if (expected === actual) {
+        cursor += 1
+        suppressed += 1
+        break
+      }
+      // Mismatch. Only a stored chunk the replay provably cannot reproduce may
+      // be skipped, and only `maxSkip` of them in a row.
+      if (isOutOfBand === undefined || !isOutOfBand(entry.chunk)) {
+        throw new JournalReplayDivergedError(cursor, expected, actual)
+      }
+      if (consecutiveSkips >= maxSkip) {
+        throw new JournalReplayDivergedError(cursor, expected, actual)
+      }
+      cursor += 1
+      consecutiveSkips += 1
+      skipped += 1
     }
-    index += 1
   }
 
-  if (index < stored.length) {
-    // The journal no longer accounts for chunks the log already delivered to the
-    // client. Nothing downstream can repair that, and continuing would leave the
-    // run's log claiming events its journal cannot reproduce.
-    throw new Error(
-      `journal replay is shorter than the stored log: replayed ${index} chunk(s) but the log holds ${stored.length}`,
-    )
+  // Trailing stored entries. Out-of-band ones are expected (a bridged tool's
+  // last event lands after the final translated chunk); anything else means the
+  // journal no longer accounts for chunks the log already delivered, which
+  // nothing downstream can repair.
+  while (cursor < stored.length) {
+    const entry = entries[cursor]
+    if (
+      entry === undefined ||
+      isOutOfBand === undefined ||
+      !isOutOfBand(entry.chunk)
+    ) {
+      throw new Error(
+        `journal replay is shorter than the stored log: ${stored.length - cursor} stored chunk(s) from index ${cursor} were not reproduced`,
+      )
+    }
+    cursor += 1
+    skipped += 1
   }
+
   options.logger?.provider(
-    `journal alignment: suppressed ${Math.min(index, stored.length)} stored chunk(s), forwarded ${Math.max(index - stored.length, 0)}`,
-    {},
+    `journal alignment: suppressed ${suppressed} stored chunk(s), skipped ${skipped} out-of-band, forwarded ${forwarded}`,
+    { suppressed, skipped, forwarded },
   )
 }
