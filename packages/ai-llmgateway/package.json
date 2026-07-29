@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/ai-llmgateway",
+  "version": "0.0.0",
+  "description": "LLM Gateway adapter for TanStack AI — one OpenAI-compatible endpoint for chat, tool calling, and structured outputs across many providers and models.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-llmgateway"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "llmgateway",
+    "llm-gateway",
+    "adapter",
+    "llm",
+    "gateway",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "model-router"
+  ],
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
+    "openai": "^6.41.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^8.1.4",
+    "zod": "^4.2.0"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
+  }
+}
