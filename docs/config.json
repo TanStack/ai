@@ -226,7 +226,8 @@
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-07-17",
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Custom Durability Adapter",
