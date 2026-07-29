@@ -1,5 +1,7 @@
 import { toRunErrorPayload } from './activities/error-payload'
+import { isCancelRequestedReason } from './activities/chat/cancel'
 import { isTerminalRunStatus } from './activities/chat/middleware/run-store'
+import { wasRunDetached } from './delivery-detach'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { resolveDebugOption } from './logger/resolve'
@@ -87,6 +89,21 @@ function runErrorChunk(
 
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
+}
+
+/**
+ * Whether this abort is an EXPLICIT in-process cancel — the caller aborted with
+ * {@link RUN_CANCEL_REASON} rather than the socket going away.
+ *
+ * Core's own guard, independent of any middleware verdict: a user pressing Stop
+ * must always get a closed, terminal log, so the sink refuses to treat that abort
+ * as a detach even if the run's middleware published one. A reason-less abort
+ * carries a `DOMException`, never a string, so a non-string reason is "no
+ * explicit intent" — exactly how `resolveAbortReason` reads it in `chat()`.
+ */
+function isExplicitCancel(signal: AbortSignal): boolean {
+  const reason: unknown = signal.reason
+  return typeof reason === 'string' && isCancelRequestedReason(reason)
 }
 
 function needsTerminalPersistence(
@@ -424,7 +441,32 @@ function durableStreamSource<TOffset extends string>(
         }
       }
 
+      // Was this abort a DETACH? Only the run's own middleware can say — it is
+      // the only actor that has resolved both out-of-band cancel bands and
+      // `detachOnDisconnect` — and it says so on the stream itself (see
+      // `./delivery-detach`). Read only AFTER the try block above has exited,
+      // which is what awaits the chat generator's `return()` and therefore the
+      // whole `onAbort` chain that publishes the verdict.
+      //
+      // Every conjunct is load bearing. `cancelled` keeps a normal finish on
+      // today's path. `!isExplicitCancel` is core's own belt-and-braces refusal to
+      // spare a run the user deliberately stopped, whatever a middleware claims.
+      // `!hasTerminalCause` keeps a GENUINE provider failure
+      // terminal even if the socket died too, so a real error is never mistaken
+      // for a detach. `!terminalPersisted` means a run that already ended on the
+      // wire still gets its `close()`. And `wasRunDetached` is false for an
+      // explicit cancel (either band), for a non-detachable disconnect, and for
+      // every app that has not wired durability — all of which keep terminalizing
+      // and closing exactly as before.
+      const detached =
+        cancelled &&
+        !isExplicitCancel(abortController.signal) &&
+        !hasTerminalCause &&
+        !terminalPersisted &&
+        wasRunDetached(stream)
+
       if (
+        !detached &&
         needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
       ) {
         // Prefer the real provider error even when the delivery socket was also
@@ -446,15 +488,30 @@ function durableStreamSource<TOffset extends string>(
         }
       }
 
-      try {
-        await durability.close()
-      } catch (closeError) {
-        // A failed close leaves the durable log unterminated for joiners; the
-        // live consumer gets the rethrow, but log it for the joiner's sake.
-        logger?.errors('closing durability stream failed', {
-          error: closeError,
-        })
-        recordFailure(closeError, 'closing durability stream failed')
+      // A detached run's log is deliberately left OPEN: the run is still going,
+      // and `close()` would terminalize the log the takeover has to continue —
+      // a tailing attach would stop at the prefix, and a stored synthetic
+      // `RUN_ERROR` would additionally diverge the takeover's journal replay and
+      // record a healthy run as failed.
+      //
+      // This is NOT the general "fence the close" that `ai-sandbox`'s claim.ts
+      // rules out. That fence would suppress `close()` for a run nobody will ever
+      // drive again, wedging the record at `'running'` with every tailer parked
+      // forever. The skip here is conditional on a verdict that means the exact
+      // opposite: the agent is alive and a successor WILL terminalize this log
+      // (its own producer exit runs this same `finally`). Keep that distinction —
+      // widening this condition to "any abort" re-introduces the wedge.
+      if (!detached) {
+        try {
+          await durability.close()
+        } catch (closeError) {
+          // A failed close leaves the durable log unterminated for joiners; the
+          // live consumer gets the rethrow, but log it for the joiner's sake.
+          logger?.errors('closing durability stream failed', {
+            error: closeError,
+          })
+          recordFailure(closeError, 'closing durability stream failed')
+        }
       }
 
       // Rethrow a terminalization/close failure to the live consumer ONLY when

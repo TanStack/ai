@@ -251,6 +251,14 @@ export {
   getDetachableRun,
   provideDetachableRun,
 } from './activities/chat/middleware/run-store'
+// Its past-tense counterpart: the abort-path verdict that this run WAS detached.
+// `@tanstack/ai-sandbox`'s `onAbort` publishes it on its detach branch, and core's
+// durable delivery sink reads it to keep a detached run's log open for takeover.
+export {
+  RunDetachedCapability,
+  getRunDetached,
+  provideRunDetached,
+} from './activities/chat/middleware/run-store'
 // Out-of-band run cancellation: intent is recorded (durable) or carried on the
 // abort reason (in-process), never inferred from a disconnect.
 export {

@@ -69,14 +69,17 @@ import type {
  *
  * WHY SEEDING EXISTS. A takeover's documented precondition is "record still
  * `running`, delivery log OPEN and holding what was already delivered, agent
- * still working". A real client disconnect does not currently produce that:
- * core's durable delivery sink appends a terminal `RUN_ERROR` ("Request
- * aborted") and calls `durability.close()` on the abort path
- * (`packages/ai/src/stream-to-response.ts`, `needsTerminalPersistence`), so the
- * log is terminalized. `?action=seed` writes the intended precondition with the
- * same translator a live host would have used, so the takeover machinery can be
- * exercised for what it is. The disconnect→takeover path is pinned separately
- * (and currently fails) in the spec.
+ * still working". `?action=seed` writes exactly that, with the same translator a
+ * live host would have used, so the takeover machinery can be exercised in
+ * isolation from whatever produced the prefix — no disconnect timing, no
+ * dependence on the producing host at all.
+ *
+ * A real `?action=drop` now produces the same precondition (core's delivery sink
+ * leaves a DETACHED run's log open — see `RunDetachedCapability`), and the spec
+ * pins the disconnect→takeover path end to end as well. Seeding is kept because
+ * the two prove different things: seeding proves a takeover can pick up a prefix
+ * it did not produce, which is the cross-host case a single-process test cannot
+ * otherwise reach.
  */
 
 // ---------------------------------------------------------------------------

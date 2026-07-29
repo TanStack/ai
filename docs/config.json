@@ -508,7 +508,8 @@
         {
           "label": "Takeover & Detached Runs",
           "to": "sandbox/takeover",
-          "addedAt": "2026-07-29"
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Events",

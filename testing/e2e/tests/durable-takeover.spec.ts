@@ -6,7 +6,8 @@ import { expect, test } from '@playwright/test'
  * The five behaviors this phase added, each pinned here:
  *
  * 1. A takeover resumes a detached run and delivers the remainder with the
- *    delivered prefix suppressed — the log holds each chunk exactly once.
+ *    delivered prefix suppressed — the log holds each chunk exactly once. Pinned
+ *    both from a seeded precondition and from a REAL disconnect.
  * 2. A plain disconnect does NOT terminalize the run: the record stays
  *    `'running'` with no `finishedAt` and no `error`, and gains `detachedSince`
  *    + `sandboxKey`.
@@ -415,55 +416,64 @@ test.describe('durable runs — takeover', () => {
   })
 
   /**
-   * The disconnect→takeover path end to end, which is what the docs promise.
+   * The disconnect→takeover path end to end, which is what the docs promise:
+   * a run streaming mid-flight, the tab goes away, the stream continues.
    *
-   * IT DOES NOT WORK TODAY, and this test is marked `test.fail()` so the gap is
-   * pinned rather than hidden: it will start failing (as an unexpected pass) the
-   * moment the gap is closed, which is the signal we want.
+   * This case was `test.fail()` while core's durable delivery sink terminalized
+   * EVERY abort — it appended a synthetic `RUN_ERROR` ("Request aborted") and
+   * called `durability.close()` unconditionally, so a detached run's log ended at
+   * that error. A later attach's replay stopped at the prefix, and the stored
+   * `RUN_ERROR` was a chunk the journal replay could not reproduce, so
+   * `alignToStoredLog` diverged and `pipeToRunLog` recorded the healthy detached
+   * run as `'failed'`.
    *
-   * The cause is in core, not in this phase's code. On the abort path core's
-   * durable delivery sink appends a terminal `RUN_ERROR` ("Request aborted") and
-   * calls `durability.close()` unconditionally
-   * (`packages/ai/src/stream-to-response.ts`, `needsTerminalPersistence` +
-   * the `finally` block). So after a plain disconnect of a DETACHABLE run:
-   *
-   * - the log is terminalized, so a later attach's replay ends at that
-   *   `RUN_ERROR` instead of continuing, and
-   * - the stored `RUN_ERROR` is a chunk the journal replay cannot reproduce, so
-   *   `alignToStoredLog` throws `JournalReplayDivergedError`, `pipeToRunLog`
-   *   records the healthy detached run as `'failed'`, and appends a SECOND
-   *   terminal error to the log.
-   *
-   * The detach half of the story (the record) works and is asserted below in
-   * "a plain disconnect does not terminalize the run"; it is only the delivery
-   * log that is terminalized too early.
+   * The sink now consults the run's own detach verdict
+   * (`RunDetachedCapability`, published by `withSandbox`'s detach branch and
+   * carried to the transport on the stream itself), so a plain disconnect of a
+   * detachable run leaves the log OPEN. Both halves of the assertion below are
+   * load bearing: the remainder must arrive on the attach's socket, AND the
+   * record must not be `'failed'`.
    */
-  test.fail(
-    'a real disconnect, then an attach, continues the stream (blocked: the sink terminalizes the log on disconnect)',
-    async () => {
-      const runId = uniqueRunId('disconnect-takeover')
-      const run = await SseStream.open(routeUrl({ runId, total: '6' }))
-      await tick(runId, 2)
-      const before = await run.take(4)
-      expect(contentDeltas(before)).toEqual(['1', '2'])
-      await drop(runId, run)
+  test('a real disconnect, then an attach, continues the stream', async () => {
+    const runId = uniqueRunId('disconnect-takeover')
+    const run = await SseStream.open(routeUrl({ runId, total: '6' }))
+    await tick(runId, 2)
+    const before = await run.take(4)
+    expect(contentDeltas(before)).toEqual(['1', '2'])
+    await drop(runId, run)
 
-      await stateUntil(
-        runId,
-        'the run to be marked detached',
-        (body) => typeof body.record?.detachedSince === 'number',
-      )
+    await stateUntil(
+      runId,
+      'the run to be marked detached',
+      (body) => typeof body.record?.detachedSince === 'number',
+    )
 
-      const attach = await SseStream.open(routeUrl({ runId, offset: '-1' }), {
-        method: 'GET',
-      })
-      await tick(runId, 4)
-      const delivered = await attach.drain()
+    const attach = await SseStream.open(routeUrl({ runId, offset: '-1' }), {
+      method: 'GET',
+    })
+    await stateUntil(
+      runId,
+      'the takeover to claim the detached run (driverEpoch)',
+      (body) => (body.record?.driverEpoch ?? 0) >= 1,
+    )
+    await tick(runId, 4)
+    const delivered = await attach.drain()
 
-      expect(delivered.map(eventType)).toEqual(FULL_SEQUENCE)
-      expect(contentDeltas(delivered)).toEqual(['1', '2', '3', '4', '5', '6'])
-    },
-  )
+    expect(delivered.map(eventType)).toEqual(FULL_SEQUENCE)
+    expect(contentDeltas(delivered)).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    // The run completed for real — NOT recorded as failed by a diverged replay.
+    const after = await stateUntil(
+      runId,
+      'the taken-over run to reach a terminal status',
+      (body) => body.record?.status === 'completed',
+    )
+    expect(after.record?.status).not.toBe('failed')
+    expect(after.record?.error).toBeUndefined()
+    expect(after.record?.detachedSince).toBeUndefined()
+    // And the log holds each chunk exactly once, with no stored RUN_ERROR.
+    expect(after.log.map((entry) => entry.type)).toEqual(FULL_SEQUENCE)
+  })
 })
 
 // ---------------------------------------------------------------------------

@@ -44,6 +44,8 @@ import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { getRunDetached } from './middleware/run-store'
+import { publishRunDetachedSignal } from '../../delivery-detach'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
 import { CapabilityRegistry } from './middleware/capabilities'
 import { validateCapabilities } from './middleware/validate'
@@ -2660,6 +2662,23 @@ class TextEngine<
   }
 
   /**
+   * Whether this run's teardown declared its abort a DETACH — see
+   * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
+   * and only for a plain, intentless disconnect of a detachable run, so every
+   * other exit path answers `false`.
+   *
+   * Surfaced on the engine (rather than the ctx being handed out) so the
+   * capability read stays inside core, and so the delivery sink learns the
+   * verdict through {@link publishRunDetachedSignal} instead of reaching into a
+   * middleware context it has no business holding.
+   *
+   * @internal
+   */
+  wasDetached(): boolean {
+    return getRunDetached(this.middlewareCtx, { optional: true }) === true
+  }
+
+  /**
    * Run the final structured-output adapter call through the middleware
    * pipeline. Yields chunks to the caller only when
    * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
@@ -3623,10 +3642,31 @@ export function chat<
 }
 
 /**
- * Run streaming text (agentic or one-shot depending on tools)
+ * Run streaming text (agentic or one-shot depending on tools).
+ *
+ * A thin, NON-generator wrapper, because the stream object is also the key the
+ * durable delivery sink looks the run's detach verdict up under (see
+ * `../../delivery-detach`). A generator function cannot reach the generator it
+ * returns, so the identity has to be minted out here and the verdict read back
+ * through `engineRef`, which the body fills as soon as its engine exists.
  */
-async function* runStreamingText<TContext = unknown>(
+function runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+): AsyncIterable<StreamChunk> {
+  const engineRef: { current?: { wasDetached: () => boolean } } = {}
+  const stream = streamTextChunks(options, engineRef)
+  // A thunk, evaluated on the sink's teardown path: the engine does not exist
+  // yet, and the verdict it will report is only written during `onAbort`.
+  publishRunDetachedSignal(
+    stream,
+    () => engineRef.current?.wasDetached() === true,
+  )
+  return stream
+}
+
+async function* streamTextChunks<TContext = unknown>(
+  options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+  engineRef: { current?: { wasDetached: () => boolean } },
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, context, debug, mcp, ...textOptions } = options
   const model = adapter.model
@@ -3651,6 +3691,7 @@ async function* runStreamingText<TContext = unknown>(
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {

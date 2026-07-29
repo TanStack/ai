@@ -391,11 +391,18 @@ export function StoppableChat({ threadId }: { threadId: string }) {
 
 ### What each path writes
 
-| Event | `withSandbox` | `withPersistence` |
-| --- | --- | --- |
-| Disconnect, durable, `detachOnDisconnect` on, no cancel recorded | Keeps the sandbox; writes `detachedSince` and `sandboxKey` | Writes **nothing** — the record stays `'running'` |
-| Cancel (either band) | Destroys the sandbox, always, regardless of `destroyOnComplete` | Writes `'aborted'` with `finishedAt` |
-| Disconnect on a non-durable run | Destroys the sandbox | Writes `'aborted'` |
+| Event | `withSandbox` | `withPersistence` | Delivery log |
+| --- | --- | --- | --- |
+| Disconnect, durable, `detachOnDisconnect` on, no cancel recorded | Keeps the sandbox; writes `detachedSince` and `sandboxKey` | Writes **nothing** — the record stays `'running'` | Left **open**, no terminal appended |
+| Cancel (either band) | Destroys the sandbox, always, regardless of `destroyOnComplete` | Writes `'aborted'` with `finishedAt` | Terminal `RUN_ERROR`, then closed |
+| Disconnect on a non-durable run | Destroys the sandbox | Writes `'aborted'` | Terminal `RUN_ERROR`, then closed |
+
+The delivery-log column is what makes takeover work at all. A detached run's log
+has to stay open and terminal-free: a closed log ends the attaching client's
+replay at the prefix, and a stored synthetic `RUN_ERROR` is a chunk the takeover's
+journal replay cannot reproduce, so alignment diverges and a perfectly healthy run
+is recorded as `'failed'`. See [`RunDetachedCapability`](#rundetachedcapability)
+for how the verdict reaches the transport.
 
 `keepAlive` / `destroyOnComplete: false` govern *successful completion* only.
 They never keep a sandbox alive through a cancel.
@@ -601,6 +608,33 @@ in core so the two packages can agree without either importing the other — a
 persistence → sandbox import would invert the layering. Read it in your own
 middleware if you need the same distinction; absent means "not detachable", which
 is every app that has not wired durability.
+
+### `RunDetachedCapability`
+
+Its past-tense counterpart, also owned by core. `DetachableRunCapability` is
+published at setup and only says a disconnect *may* be survived;
+`RunDetachedCapability` is published on the abort path by `withSandbox`'s detach
+branch and says the run **was** detached — the agent is still working and a later
+attach can take it over.
+
+Its consumer is the durable delivery sink behind `toServerSentEventsResponse` /
+`toHttpResponse`. Without the verdict the sink terminalizes every abort, which
+defeats takeover (see the table above). The fact travels on the **stream object
+itself**, so there is nothing to wire: passing `chat()`'s stream to the response
+helper is already mandatory, and both sides hold the same object.
+
+```ts
+// You do not write this — `withSandbox` does, on its detach branch.
+provideRunDetached(ctx, true)
+```
+
+Only a plain, intentless disconnect of a detachable run publishes it. An explicit
+cancel in either band, a disconnect on a non-detachable run,
+`detachOnDisconnect: false`, a provider failure, and a normal finish all leave it
+unpublished, and the sink appends its terminal and closes the log exactly as it
+always has. Core additionally refuses to treat an abort carrying
+`RUN_CANCEL_REASON` as a detach, whatever a middleware publishes — a user pressing
+Stop always gets a closed, terminal log.
 
 ## Requirements
 

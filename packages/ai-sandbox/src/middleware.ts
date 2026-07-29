@@ -19,6 +19,7 @@
 import {
   defineChatMiddleware,
   provideDetachableRun,
+  provideRunDetached,
   wasCancelRequested,
 } from '@tanstack/ai'
 import { InMemoryLockStore, LocksCapability } from '@tanstack/ai/locks'
@@ -462,6 +463,19 @@ export function withSandbox(
           detachedSince: Date.now(),
           sandboxKey: definition.key(state.ensureCtx),
         })
+        // Publish the VERDICT, not just the record fields. Core's durable
+        // delivery sink reads it (see `RunDetachedCapability`) and leaves the
+        // run's log OPEN instead of appending a synthetic terminal `RUN_ERROR`
+        // and closing it — a terminalized log ends a later attach's replay at
+        // the prefix and diverges the takeover's journal replay, which recorded
+        // a healthy detached run as `'failed'`.
+        //
+        // This hook is the only place that can answer it: the detach-vs-destroy
+        // call needs BOTH out-of-band cancel bands and `detachOnDisconnect`,
+        // resolved just above. Set on the DETACH branch only, so an explicit
+        // cancel, a non-detachable disconnect, an error, and a normal finish all
+        // leave it unpublished and core terminalizes exactly as it always has.
+        provideRunDetached(ctx, true)
         return
       }
 
