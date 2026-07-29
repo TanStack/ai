@@ -43,17 +43,20 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
-  SandboxCapability,
   chunkFingerprint,
   createRunScopedIdGen,
   journalPaths,
 } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '../src/index'
 import { translateSdkStream } from '../src/stream/translate'
-import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import {
+  capabilityContextWith,
+  fakeDurability,
+  noopLogger,
+  pollStrategyHandle,
+} from './fakes'
 import type { AgentSdkMessage } from '../src/stream/sdk-types'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
-import type { SandboxHandle } from '@tanstack/ai-sandbox'
+import type { StreamChunk } from '@tanstack/ai'
 
 async function* fromArray(
   messages: Array<AgentSdkMessage>,
@@ -199,9 +202,18 @@ describe('translateSdkStream journaled-path determinism', () => {
 //      produces — a shape `this.generateId()`
 //      (`${name}-${Date.now()}-${random}`) never produces, and
 //   2. the sandbox journal file for this `runId` actually exists after the
-//      run, proving `spawnNdjson` really was called with `journal: { runId }`
-//      (not just that the adapter happened to mint run-scoped ids some other
-//      way).
+//      run, proving `spawnNdjson` really was called with journal options
+//      derived from the resolved durability (not just that the adapter
+//      happened to mint run-scoped ids some other way).
+//
+// Durability note (Phase 3): journaling is now conditional on the
+// `SandboxDurabilityCapability` a real `withSandbox(sandbox, { runs,
+// durability })` provides — see `journalOptionsFor` in `@tanstack/ai-sandbox`.
+// Before Phase 3 this adapter journaled every run unconditionally, so this
+// test wires `fakeDurability(runId)` onto the capability context to keep
+// exercising the journaled path; `attach.test.ts` covers the NON-durable case
+// (no durability wired ⇒ no journal option reaches `spawnNdjson` at all,
+// byte-identical to pre-durability behavior).
 
 const baseDir = path.join(
   os.tmpdir(),
@@ -237,76 +249,6 @@ const NATIVE_FAKE_CLAUDE = [
   `  w({ type: 'result', subtype: 'success', result: 'pong', usage: { input_tokens: 1, output_tokens: 1 } })`,
   `})`,
 ].join('\n')
-
-const noopLogger = {
-  request: () => {},
-  provider: () => {},
-  errors: () => {},
-  agentLoop: () => {},
-  warnings: () => {},
-  debug: () => {},
-} as unknown as InternalLogger
-
-function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
-  const [, provideSandbox] = SandboxCapability
-  const ctx = {
-    capabilities: { markProvided: () => {}, has: () => true },
-  } as unknown as CapabilityContext
-  provideSandbox(ctx, handle)
-  return ctx
-}
-
-// `@tanstack/ai-sandbox`'s journal reader picks a "follow" strategy
-// (`tail -c +N -f journal | base64`, piped through a spawned `SpawnHandle`)
-// whenever `capabilities.backgroundProcesses && capabilities.killableProcesses`
-// — true for `local-process`. On this host that pipeline's downstream
-// `base64` fully buffers its stdout (it isn't a tty and `tail -f` never
-// closes its input), so nothing is ever flushed to the reader for a payload
-// under one buffer's worth — the read hangs forever even though the journal
-// file itself is complete and correct. This is independent of anything under
-// test here (confirmed by reproducing the same hang against the plain
-// `spawnNdjson` primitive and against the already-merged
-// `ai-grok-build/tests/translate-determinism.test.ts` reference test). The
-// bounded "poll" strategy (`tail -c +N journal | base64`, no `-f`) has no such
-// problem: each poll is a one-shot process that flushes its buffer on exit.
-// `journalReadStrategy` decides purely from `handle.capabilities`, so
-// reporting `killableProcesses: false` on the handle we hand the adapter
-// steers it onto the poll path without touching `@tanstack/ai-sandbox` or
-// the adapter itself — every other operation (fs, process.exec, destroy)
-// still goes through the real local-process sandbox unchanged.
-/**
- * Force the bounded-poll read strategy, and record every command the adapter
- * spawns so the journal wiring can be asserted from the command itself.
- *
- * Recording the command is the only durable way to prove `journal: { runId }`
- * reached `spawnNdjson`: the journal is deleted once the run reaches its
- * `{"__exit":N}` sentinel, so by the time this test can look, a correctly
- * journaled run and an unjournaled one both leave no file behind.
- */
-function pollStrategyHandle(handle: SandboxHandle): {
-  handle: SandboxHandle
-  spawned: Array<string>
-} {
-  const spawned: Array<string> = []
-  return {
-    spawned,
-    handle: {
-      ...handle,
-      capabilities: { ...handle.capabilities, killableProcesses: false },
-      process: {
-        ...handle.process,
-        spawn: (command, options) => {
-          spawned.push(command)
-          return handle.process.spawn(command, options)
-        },
-        exec: (command, options) => {
-          spawned.push(command)
-          return handle.process.exec(command, options)
-        },
-      },
-    },
-  }
-}
 
 async function collect(
   stream: AsyncIterable<StreamChunk>,
@@ -346,7 +288,10 @@ describe('claude-code chatStream wiring (real adapter, journaled call site)', ()
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
         runId,
-        capabilities: capabilityContextWith(recorder.handle),
+        capabilities: capabilityContextWith(
+          recorder.handle,
+          fakeDurability(runId),
+        ),
       }),
     )
 
@@ -363,8 +308,9 @@ describe('claude-code chatStream wiring (real adapter, journaled call site)', ()
       expect(id).toMatch(new RegExp(`^${runId}-\\d+$`))
     }
 
-    // Prove `spawnNdjson` was actually invoked with `journal: { runId }` — not
-    // merely that the translator happened to receive a run-scoped generator.
+    // Prove `spawnNdjson` was actually invoked with journal options derived
+    // from the resolved durability — not merely that the translator happened
+    // to receive a run-scoped generator.
     //
     // Asserted against the spawned COMMAND rather than the journal file: the
     // journal is deleted once the run reaches its `{"__exit":N}` sentinel, so a

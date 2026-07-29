@@ -3,17 +3,21 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  alignedIfAttaching,
   approvalId,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   createRunScopedIdGen,
   getSandbox,
+  getSandboxDurability,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  journalOptionsFor,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveApproval,
+  resolveDurableRunId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -302,15 +306,26 @@ export class ClaudeCodeTextAdapter<
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
-      // Durability caveat: the journaled path below derives its journal
-      // path and its message-id generator from `runId`. A resuming host
-      // must recompute the same `runId` to find the same journal file and
-      // reproduce the same translated ids — that's only possible when the
-      // caller supplies `runId` explicitly. Without one, this falls back to
-      // a fresh `this.generateId()` (clock + randomness), and no successor
-      // can recompute it. This fallback is intentionally left as-is here;
-      // durability is opt-in and requires a caller-supplied `runId`.
-      const runId = options.runId ?? this.generateId()
+      // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
+      // back off the capability bus. Absent it, everything below resolves to
+      // exactly today's behavior (no journal option, no alignment, and a
+      // generated `runId` when the caller didn't supply one).
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      // The journaled path below derives its journal path and its
+      // message-id generator from `runId`. A resuming host must recompute
+      // the same `runId` to find the same journal file and reproduce the
+      // same translated ids — that's only possible when the caller supplies
+      // `runId` explicitly. `resolveDurableRunId` enforces that loudly (via
+      // `DurableRunIdRequiredError`) whenever durability is wired, and falls
+      // back to a fresh `this.generateId()` otherwise, preserving today's
+      // behavior for non-durable runs.
+      const runId = resolveDurableRunId(options.runId, {
+        durable: durability !== undefined,
+        adapter: 'claude-code',
+        fallback: () => this.generateId(),
+      })
       const threadId = options.threadId ?? this.generateId()
       // Surfaces custom events from bridged tools (e.g. code mode console logs)
       // on this run's live output stream.
@@ -413,6 +428,7 @@ export class ClaudeCodeTextAdapter<
         { provider: 'claude-code', model: this.model },
       )
 
+      const journalOptions = journalOptionsFor(durability, runId)
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
         ...(stdinInput !== undefined ? { input: stdinInput } : {}),
@@ -432,36 +448,54 @@ export class ClaudeCodeTextAdapter<
           logger.provider(`provider=claude-code non-json line: ${line}`, {
             chunk: line,
           }),
-        // Route stdout through an in-sandbox journal keyed by `runId` so a
-        // resuming host can re-read it from byte 0 (see journal.ts). No
-        // `attach`/takeover here — that's a later phase's entry point.
-        journal: { runId },
+        // Journal + attach both come from the sandbox durability capability, so
+        // the attach route configures takeover by passing `attach: true` to
+        // `withSandbox` — `chat()` stays free of sandbox vocabulary. Omitted
+        // entirely (not passed as `undefined`) when the run isn't durable, so
+        // `spawnNdjson` takes its original, unjournaled path byte-for-byte.
+        ...(journalOptions === undefined ? {} : { journal: journalOptions }),
       })
 
       async function* asMessages(): AsyncIterable<AgentSdkMessage> {
         for await (const event of rawEvents) yield event as AgentSdkMessage
       }
 
-      yield* mergeChunkStreams(
-        translateSdkStream(asMessages(), {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          // Deterministic on the journaled path: two translations of the same
-          // journal prefix from a fresh generator seeded with the same
-          // `runId` mint the same message ids (unlike `this.generateId()`,
-          // which mixes in `Date.now()` / `Math.random()`). See
-          // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
-          genId: createRunScopedIdGen(runId),
-          onSdkMessage: (message) =>
-            logger.provider(`provider=claude-code type=${message.type}`, {
-              chunk: message,
+      // `mergeChunkStreams` splices `channel.stream` (host-tool-bridge CUSTOM
+      // events from LIVE tool execution) into the deterministic translator
+      // output. Those events do not occur on a replay, so a takeover's replay is
+      // NOT chunk-for-chunk identical to what the log holds. `alignedIfAttaching`
+      // handles it: alignment skips stored out-of-band CUSTOM entries within a
+      // bounded window (see `align.ts`), so a bridged-tool run can be taken over
+      // without a spurious `JournalReplayDivergedError` — while a genuine
+      // determinism regression still throws. The wrap goes OUTSIDE the merge:
+      // the stored log holds the previous host's merged output, so aligning the
+      // pre-merge translated stream alone would compare against a log it never
+      // produced. On a non-attaching run this is a pure passthrough (see
+      // `alignedIfAttaching`'s `attach` guard).
+      yield* alignedIfAttaching(
+        mergeChunkStreams(
+          translateSdkStream(asMessages(), {
+            model: this.model,
+            runId,
+            threadId,
+            ...(options.parentRunId !== undefined && {
+              parentRunId: options.parentRunId,
             }),
-        }),
-        channel.stream,
+            // Deterministic on the journaled path: two translations of the same
+            // journal prefix from a fresh generator seeded with the same
+            // `runId` mint the same message ids (unlike `this.generateId()`,
+            // which mixes in `Date.now()` / `Math.random()`). See
+            // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
+            genId: createRunScopedIdGen(runId),
+            onSdkMessage: (message) =>
+              logger.provider(`provider=claude-code type=${message.type}`, {
+                chunk: message,
+              }),
+          }),
+          channel.stream,
+        ),
+        durability,
+        logger,
       )
 
       // Surface the working-tree diff so UIs can render what the agent changed.
