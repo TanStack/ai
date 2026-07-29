@@ -1,10 +1,19 @@
 import { toRunErrorPayload } from './activities/error-payload'
+import { isTerminalRunStatus } from './activities/chat/middleware/run-store'
+import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { resolveDebugOption } from './logger/resolve'
+import type { LockStore } from './activities/chat/middleware/locks'
+import type {
+  RunRecord,
+  RunStore,
+} from './activities/chat/middleware/run-store'
 import type { InternalLogger } from './logger/internal-logger'
 import type { DebugOption } from './logger/types'
 import type { StreamDurability } from './stream-durability'
 import type { StreamChunk } from './types'
+
+export { resolveResumeRunId } from './stream-durability'
 
 /**
  * Collect all text content from a StreamChunk async iterable and return as a string.
@@ -587,11 +596,156 @@ function emptyDurableSource(): AsyncIterable<StreamChunk> {
   return (async function* () {})()
 }
 
+/**
+ * Everything the resume helpers need to take a run over as a side effect of
+ * serving its log.
+ *
+ * `claim` and `pipe` are **injected**, not imported. The two mechanisms a
+ * takeover needs (`withRunClaim` and `pipeToRunLog`) live in
+ * `@tanstack/ai-sandbox`, and `@tanstack/ai` must not depend on that package —
+ * that layering inversion is exactly what moving `LockStore` into core was meant
+ * to prevent, and it would make core depend on the sandbox package to serve a
+ * plain chat run. Injecting them keeps only the *shape* of a takeover in core
+ * (parse the run id, read the record, skip if terminal, claim, drive) and lets a
+ * background-worker-driven run supply its own pair.
+ * `@tanstack/ai-sandbox`'s `sandboxRunDriver` fills both in.
+ */
+export interface RunDriverOptions {
+  /** The attach request; its run id is read with {@link resolveResumeRunId}. */
+  request: Request
+  runs: RunStore
+  locks: LockStore
+  /** Produce the run's remaining events. Called only once the claim is held. */
+  drive: (input: {
+    runId: string
+    threadId: string
+    signal: AbortSignal
+  }) => AsyncIterable<StreamChunk>
+  /** Run `fn` under exclusive ownership of the run, or reject if refused. */
+  claim: <T>(
+    input: { runs: RunStore; locks: LockStore; runId: string },
+    fn: (claim: {
+      runId: string
+      epoch: number
+      signal: AbortSignal
+    }) => Promise<T>,
+  ) => Promise<T>
+  /** Persist the driven stream to the run's producer-side durability log. */
+  pipe: (
+    stream: AsyncIterable<StreamChunk>,
+    input: { runId: string; threadId: string; signal: AbortSignal },
+  ) => Promise<unknown>
+  /** Platform keep-alive (e.g. `ctx.waitUntil`) for the background drive. */
+  waitUntil?: (promise: Promise<unknown>) => void
+  logger?: InternalLogger
+}
+
 /** Shared options for the resume-only response helpers. */
 type ResumeResponseOptions<TOffset extends string> = ResponseInit & {
   adapter: StreamDurability<TOffset>
   batch?: number
   debug?: DebugOption
+  /**
+   * Take the run over while serving its log. Omit to serve the log only —
+   * the response is byte-identical either way.
+   */
+  driver?: RunDriverOptions
+}
+
+/**
+ * Take over an in-flight run as a side effect of serving its log.
+ *
+ * The response itself is unchanged: it still replays from the durability log via
+ * `emptyDurableSource()`. The drive runs BESIDE it, appending to the run's own
+ * producer-side log through the injected `pipe`, and the response tails what
+ * lands. That separation is what lets a taken-over run keep `chat()`'s normal
+ * middleware path — `withPersistence.onFinish` is what saves the transcript, so a
+ * parallel translation path would lose the history of any run that completed
+ * while detached.
+ *
+ * TOTAL BY CONSTRUCTION. Every failure is logged and swallowed:
+ *
+ * - No run id, no record, or a terminal record → serve the log, drive nothing.
+ *   A second tab attaching to a finished run must still see the transcript.
+ * - The claim is refused (another host is already driving) → serve the log,
+ *   drive nothing. That is the documented "two hosts attach at once: one wins
+ *   the lease and drives, the other tails the log" behavior.
+ * - The drive throws → logged. It cannot be reported to this response, which is
+ *   already streaming the log; the run's own `RUN_ERROR` event is the channel.
+ *
+ * A rejection escaping here would be an unhandled rejection with nobody to
+ * report it to — process-fatal on modern Node and instance-fatal inside a
+ * Durable Object.
+ */
+function startRunDriver(driver: RunDriverOptions): void {
+  const logger = driver.logger
+  const promise = (async () => {
+    const runId = resolveResumeRunId(driver.request)
+    if (runId === null) return
+    let record: RunRecord | null = null
+    try {
+      record = await driver.runs.get(runId)
+    } catch (error) {
+      logger?.errors('resume driver: reading the run record failed', {
+        runId,
+        error,
+      })
+      return
+    }
+    if (record === null || isTerminalRunStatus(record.status)) return
+    // Captured after narrowing so the closure below sees a definite record
+    // rather than the re-widened `let`.
+    const active = record
+
+    try {
+      await driver.claim(
+        { runs: driver.runs, locks: driver.locks, runId },
+        async (claim) => {
+          // A viewer is attached again, so the detached clock stops. Cleared
+          // under the claim so it cannot race the reaper's read.
+          //
+          // PHASE 4 REAPER: do NOT reuse `startRunDriver` for reclaiming
+          // detached runs. A reaper deliberately does the opposite of this
+          // line — it ACTS ON `detachedSince` and must leave the marker
+          // intact for its own TTL accounting — so borrowing this path would
+          // erase the very evidence the reaper selected the run on. Phase 4's
+          // plan names that "the single most likely bug in this phase".
+          await driver.runs.update(runId, { detachedSince: undefined })
+          await driver.pipe(
+            driver.drive({
+              runId,
+              threadId: active.threadId,
+              signal: claim.signal,
+            }),
+            { runId, threadId: active.threadId, signal: claim.signal },
+          )
+        },
+      )
+    } catch (error) {
+      // Includes RunClaimNotAcquiredError (someone else is driving) and
+      // RunClaimLostError (we were superseded mid-drive). Both are normal.
+      logger?.provider('resume driver: not driving this run', { runId, error })
+    }
+  })()
+
+  if (driver.waitUntil) {
+    driver.waitUntil(promise)
+  } else {
+    // No platform keep-alive: at least ensure the rejection is handled. The
+    // async body above already catches everything, so this is belt-and-braces.
+    void promise.catch(() => {})
+  }
+}
+
+/**
+ * The single wiring point both resume helpers call, so the SSE and NDJSON
+ * halves cannot drift: a fix here applies to both. Called AFTER each helper's
+ * `resumeFrom() === null` 400 check — an attach with no offset has nothing to
+ * replay, and driving a run whose response will 400 would start an agent
+ * nobody is watching.
+ */
+function maybeStartRunDriver(driver: RunDriverOptions | undefined): void {
+  if (driver) startRunDriver(driver)
 }
 
 const NO_RESUME_OFFSET =
@@ -616,10 +770,14 @@ const NO_RESUME_OFFSET =
 export function resumeServerSentEventsResponse<TOffset extends string = string>(
   options: ResumeResponseOptions<TOffset>,
 ): Response {
-  const { adapter, batch, debug, ...responseInit } = options
+  // `driver` MUST be destructured out: `responseInit` is spread into
+  // `new Response(body, init)`, so leaving it in would leak the driver object
+  // (and its Request) into the response init.
+  const { adapter, batch, debug, driver, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })
   }
+  maybeStartRunDriver(driver)
   return toServerSentEventsResponse(emptyDurableSource(), {
     ...responseInit,
     durability: { adapter, batch },
@@ -775,10 +933,12 @@ export function toHttpResponse<TOffset extends string = string>(
 export function resumeHttpResponse<TOffset extends string = string>(
   options: ResumeResponseOptions<TOffset>,
 ): Response {
-  const { adapter, batch, debug, ...responseInit } = options
+  // See `resumeServerSentEventsResponse`: `driver` must not reach `responseInit`.
+  const { adapter, batch, debug, driver, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })
   }
+  maybeStartRunDriver(driver)
   return toHttpResponse(emptyDurableSource(), {
     ...responseInit,
     durability: { adapter, batch },

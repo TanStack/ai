@@ -111,7 +111,11 @@ export {
   toHttpStream,
   toHttpResponse,
   resumeHttpResponse,
+  resolveResumeRunId,
 } from './stream-to-response'
+// `ResumeResponseOptions` is deliberately not exported (it is a local type
+// alias), so the driver block reaches consumers as its own named type.
+export type { RunDriverOptions } from './stream-to-response'
 
 // Delivery durability (transport layer)
 export { memoryStream } from './stream-durability'

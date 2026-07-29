@@ -130,7 +130,15 @@ function readResumeOffset(request: Request): string | null {
   }
 }
 
-function readRunId(request: Request): string | null {
+/**
+ * The run id a request names: `X-Run-Id` header first, then `?runId`.
+ *
+ * The single implementation of that precedence, shared by the durability
+ * adapters below and by the resume response helpers' run driver
+ * (`stream-to-response.ts`), so the helper and the adapter can never disagree
+ * about which run a request is talking about.
+ */
+export function resolveResumeRunId(request: Request): string | null {
   // A POST producer carries its client-chosen run id in the X-Run-Id header so
   // the request URL stays byte-identical to a plain, non-durable request; the
   // GET join path carries it in the ?runId query instead. Prefer the header,
@@ -164,7 +172,7 @@ function resolveMemoryRunId(
   ) {
     return assertValidRunId(decodeMemoryOffset(resumeOffset).runId)
   }
-  const requestedRunId = readRunId(request)
+  const requestedRunId = resolveResumeRunId(request)
   return requestedRunId === null
     ? crypto.randomUUID()
     : assertValidRunId(requestedRunId)
