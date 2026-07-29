@@ -206,6 +206,23 @@ function createRunStore(db: DatabaseSync) {
     `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
      ORDER BY started_at DESC LIMIT 1`,
   )
+  // Reclaim candidates: ALL THREE of status === 'running', detachedSince set,
+  // and detachedSince <= now - ttlMs (inclusive cutoff — a run detached at
+  // exactly the boundary IS reclaimable, so this is `<=` not `<`). `cutoff` is
+  // computed in JS and bound as a single `?` parameter; the column names and
+  // comparison are fixed literals, so no patch/caller value ever reaches the
+  // SQL text itself.
+  //
+  // `detached_since IS NOT NULL` is written explicitly rather than relied on
+  // implicitly: SQLite's `NULL <= ?` already evaluates to NULL (excluding the
+  // row), but spelling out the NULL guard keeps the intent legible if this
+  // query is ever rewritten to a form where that implicit behavior doesn't
+  // hold.
+  const reclaimableStmt = db.prepare(
+    `SELECT * FROM runs WHERE status = 'running'
+       AND detached_since IS NOT NULL
+       AND detached_since <= ?`,
+  )
   return defineRunStore({
     createOrResume(input) {
       // INVARIANT (idempotency): an existing run is returned unchanged; the
@@ -300,6 +317,13 @@ function createRunStore(db: DatabaseSync) {
     findActiveRun(threadId) {
       const row = activeStmt.get(threadId) as RunRow | undefined
       return Promise.resolve(row ? mapRun(row) : null)
+    },
+    // Reclaim candidates for a sandbox reaper to sweep. Not thread-scoped —
+    // callers filter the result themselves when they need a subset.
+    listReclaimable(opts) {
+      const cutoff = opts.now - opts.ttlMs
+      const rows = reclaimableStmt.all(cutoff) as Array<unknown> as Array<RunRow>
+      return Promise.resolve(rows.map(mapRun))
     },
   })
 }
