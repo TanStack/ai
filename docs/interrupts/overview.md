@@ -46,7 +46,7 @@ sequenceDiagram
 
 Note that the pause spans **two runs**: the interrupted one ends, and the
 continuation is a new run. One user-visible turn, two run lifecycles — see
-[Threads, runs, and turns](../chat/streaming#threads-runs-and-turns).
+[Threads and runs](../chat/streaming#threads-and-runs).
 
 No database is required. The browser sends the full message history back on the
 continuation request, so a stateless server can rebuild the paused step and keep

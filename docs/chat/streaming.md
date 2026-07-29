@@ -88,48 +88,45 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 > **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
 
-### Threads, runs, and turns
+### Threads and runs
 
 Two ids frame every stream, and they come from the AG-UI protocol itself — not
 from any storage layer:
 
-- A **thread** (`threadId`) is the conversation: the stable identity you pass to
-  `chat()` / `useChat`, the same across every exchange, reload, and device.
+- A **thread** (`threadId`) is the conversation: the stable identity across
+  every exchange, reload, and device.
 - A **run** (`runId`) is one execution inside it: everything between one
   `RUN_STARTED` and its `RUN_FINISHED` (or `RUN_ERROR`). Every start mints a
   fresh run id, so a thread accumulates many runs over its life.
 
-A run is **not** a conversational turn, in either direction. One run can contain
-several agent-loop cycles — each tool call and its follow-up stream inside the
-same run — and one user-visible turn can span several runs, because continuing
-after an [interrupt](../interrupts/overview) starts a fresh run:
+A run is not limited to a single model response. Tool calls and their
+follow-up responses stream inside the same run — the whole
+[agentic cycle](./agentic-cycle), however many loops it takes, is one run:
 
 ```mermaid
 flowchart LR
     subgraph thread ["Thread — threadId (stable)"]
         direction LR
-        subgraph turn1 ["User turn 1 — one run"]
-            run1["run r1 — finished
-tool call → tool result → final text,
-all inside one run"]
+        subgraph r1 ["Run r1 — finished"]
+            direction TB
+            e1["RUN_STARTED → text → tool call → tool result → final text → RUN_FINISHED"]
         end
-        subgraph turn2 ["User turn 2 — spans two runs"]
-            run2["run r2 — ended on
-an interrupt"] -->|"continuation mints
-a fresh runId"| run3["run r3 — streaming"]
+        subgraph r2 ["Run r2 — finished"]
+            direction TB
+            e2["RUN_STARTED → text → RUN_FINISHED"]
         end
-        turn1 --> turn2
+        subgraph r3 ["Run r3 — running"]
+            direction TB
+            e3["RUN_STARTED → text"]
+        end
+        r1 --> r2 --> r3
     end
-    reconnect["a reconnecting client"] -.->|"finds the live run from
-the stable threadId"| run3
 ```
 
-Because run ids are ephemeral like this, anything long-lived anchors on the
-thread. [Resumable streams](../resumable-streams/overview) log delivery per
-`runId` so a dropped connection can replay one run;
-[server persistence](../persistence/chat-persistence#threads-runs-and-turns)
-stores the transcript per `threadId` and resolves "which run is live?" from the
-stable thread id when a client reconnects.
+Because run ids are ephemeral, anything long-lived anchors on the thread:
+[resumable streams](../resumable-streams/overview) log delivery per `runId`,
+while [server persistence](../persistence/chat-persistence#threads-runs-and-turns)
+stores the transcript per `threadId`.
 
 ### Type-Safe Tool Call Events
 

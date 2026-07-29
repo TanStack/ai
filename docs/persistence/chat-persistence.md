@@ -74,7 +74,7 @@ schema changes through your deployment workflow instead. See
 Threads and runs are protocol concepts, not persistence ones — a **thread**
 (`threadId`) is the stable conversation, a **run** (`runId`) one
 `RUN_STARTED` → `RUN_FINISHED` execution, and one user-visible turn can span
-several runs. [Threads, runs, and turns](../chat/streaming#threads-runs-and-turns)
+several runs. [Threads and runs](../chat/streaming#threads-and-runs)
 in the streaming guide covers the anatomy. What persistence adds is the durable
 record of them, anchored on the thread:
 

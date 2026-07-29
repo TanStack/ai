@@ -83,9 +83,8 @@ replays the live stream to a reconnecting client"]
 Run ids are too ephemeral to reconnect by — a reloading client may not know the
 current one. Reconnection therefore resolves from the stable `threadId`: the
 store answers "does this thread have a live run?" (`findActiveRun`), and only
-then does the client tail that run's log. The anatomy of a thread — how runs
-relate to conversational turns and interrupts — is covered in
-[Threads, runs, and turns](../chat/streaming#threads-runs-and-turns) in the
+then does the client tail that run's log. The anatomy of a thread and its runs
+is covered in [Threads and runs](../chat/streaming#threads-and-runs) in the
 streaming guide; what persistence records about them is in
 [Chat persistence](./chat-persistence#threads-runs-and-turns).
 
