@@ -40,6 +40,106 @@ describe('journalPaths', () => {
   })
 })
 
+describe('journalPaths — encoding is injective', () => {
+  it('collides two distinct runIds under the OLD scheme; the NEW scheme must not', () => {
+    // Old scheme: `_` was "safe" and passed through literally, while ALSO
+    // being the escape prefix for every unsafe byte. `@` is 0x40, so it
+    // escaped to `_40` — colliding with the literal string `_40`, which under
+    // the old scheme's safe-set (`[A-Za-z0-9._-]`) passed through unchanged.
+    // Both distinct runIds produced the journal `/tmp/tanstack-runs/_40.ndjson`.
+    const fromEscapedByte = journalPaths('@')
+    const fromLiteralUnderscore = journalPaths('_40')
+    expect(fromEscapedByte.journal).not.toBe(fromLiteralUnderscore.journal)
+    // Concretely: `_` is no longer safe, so the literal runId `_40` now
+    // encodes with its underscore escaped too.
+    expect(fromLiteralUnderscore.journal).toBe(
+      '/tmp/tanstack-runs/_5f40.ndjson',
+    )
+    expect(fromEscapedByte.journal).toBe('/tmp/tanstack-runs/_40.ndjson')
+  })
+
+  it('is injective over a set of adversarial runIds', () => {
+    const adversarial = [
+      '_',
+      '_40',
+      '@',
+      '/',
+      '\\',
+      '..',
+      '.',
+      '.hidden',
+      ' leading-space',
+      'trailing-space ',
+      'a b',
+      'ünïcödé',
+      '日本語',
+      '',
+      'a'.repeat(10_000),
+      'CON',
+      'con',
+      'NUL',
+      'COM1',
+      'lpt9',
+      'CONtainer',
+      'a_2fb_20c_3bd',
+      'a/b c;d',
+    ].filter((id) => id.length > 0) // empty runId is rejected, not encoded
+
+    const seen = new Map<string, string>()
+    for (const runId of adversarial) {
+      const { journal } = journalPaths(runId)
+      const prior = seen.get(journal)
+      expect(
+        prior,
+        `runId ${JSON.stringify(runId)} collided with ${JSON.stringify(
+          prior,
+        )} at ${journal}`,
+      ).toBeUndefined()
+      seen.set(journal, runId)
+    }
+  })
+
+  it('escapes a literal runId that IS a Windows-reserved device name', () => {
+    // `CON.ndjson` still opens the CON device on Windows rather than
+    // creating a file, even though the encoded token has an extension.
+    const reservedName = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
+    for (const reserved of [
+      'CON',
+      'con',
+      'PRN',
+      'AUX',
+      'NUL',
+      'COM1',
+      'LPT9',
+    ]) {
+      const { journal } = journalPaths(reserved)
+      const filename = journal.slice(journal.lastIndexOf('/') + 1)
+      const base = filename.slice(0, filename.lastIndexOf('.ndjson'))
+      expect(reservedName.test(base)).toBe(false)
+    }
+  })
+
+  it('does not flag a runId that merely CONTAINS a reserved word as a substring', () => {
+    // Only an EXACT match is reserved; `CONtainer` is a normal filename on
+    // Windows and must be left alone (no gratuitous escaping).
+    expect(journalPaths('CONtainer').journal).toBe(
+      '/tmp/tanstack-runs/CONtainer.ndjson',
+    )
+  })
+
+  it('bounds the length of a very long runId while staying injective', () => {
+    const long1 = 'x'.repeat(5000)
+    const long2 = `${'x'.repeat(4999)}y` // differs only in the last character
+    const p1 = journalPaths(long1)
+    const p2 = journalPaths(long2)
+    expect(p1.journal).not.toBe(p2.journal)
+    // The filename component (not the whole path) must stay well under
+    // typical filesystem limits (NTFS/most POSIX: 255).
+    const filename1 = p1.journal.slice(p1.journal.lastIndexOf('/') + 1)
+    expect(filename1.length).toBeLessThan(255)
+  })
+})
+
 describe('journaledCommand', () => {
   it('redirects stdout to the journal, stderr to its own file, and appends the exit sentinel', () => {
     const paths = journalPaths('r1')

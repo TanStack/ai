@@ -54,6 +54,8 @@
  * wraps the command in `sh -c` itself.
  */
 
+import { createHash } from 'node:crypto'
+
 /** Default journal directory. `/tmp` is the convention the harness adapters already use. */
 export const DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
 
@@ -81,12 +83,80 @@ function shellQuote(value: string): string {
 }
 
 /**
- * Map a runId to a filename-safe token.
+ * Windows reserves these names (case-insensitively) even when followed by an
+ * extension — `CON.ndjson` still opens the `CON` device on Windows, it does
+ * not create a file. {@link encodeRunId} only ever needs to check for an
+ * EXACT match because, as its doc explains, that is the only way one of these
+ * names can appear as the encoded output at all.
+ */
+const WINDOWS_RESERVED_NAME = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
+
+/**
+ * Hard cap on the encoded token's length, well under the ~255-byte filename
+ * limit shared by NTFS and most POSIX filesystems, leaving headroom for the
+ * longest extension this module appends (`.ndjson`) plus the directory
+ * component of the path. Long runIds are hashed rather than rejected — see
+ * {@link encodeRunId}.
+ */
+const MAX_ENCODED_NAME_LENGTH = 200
+
+/** Hex digest length appended when a runId is long enough to be hashed. */
+const TRUNCATION_HASH_LENGTH = 16
+
+/**
+ * Hex-escape every byte of `input`, ignoring the "safe character" allowance
+ * entirely. Used only where the caller has already proven that no OTHER
+ * runId can produce the same output through the normal per-character path
+ * (see the call sites), because unlike that path this one escapes letters
+ * and digits too.
+ */
+function hexEscapeAllBytes(input: string): string {
+  let out = ''
+  for (const byte of new TextEncoder().encode(input)) {
+    out += `_${byte.toString(16).padStart(2, '0')}`
+  }
+  return out
+}
+
+/**
+ * Map a runId to a filename-safe token that is INJECTIVE: distinct runIds
+ * must never produce the same token, because the journal is looked up by
+ * this token alone and a collision means two runs would share one journal —
+ * one run's takeover replaying another run's transcript.
  *
  * Encoding rather than rejecting keeps the mapping total: a client may choose
  * any `runId`, and a run that cannot be journaled would be a run that cannot be
  * made durable. The encoding is a pure function of the input, which is what lets
  * a successor host recompute the same path from the run record alone.
+ *
+ * The scheme is a straightforward escaping over `_`: any character matching
+ * `[A-Za-z0-9.-]` passes through literally; everything else — INCLUDING a
+ * literal `_` — is replaced by `_` followed by two lowercase hex digits per
+ * UTF-8 byte. Because `_` itself is never a safe (pass-through) character,
+ * every `_` in the output unambiguously starts a two-hex-digit escape; a
+ * left-to-right scan can always tell literal from escape. That is what makes
+ * the mapping injective: two different inputs can never parse to the same
+ * output, because the (unimplemented, but well-defined) decoder is
+ * deterministic — if it were not injective, running that decoder on a shared
+ * output would have to yield both original strings, which is impossible for a
+ * deterministic function.
+ *
+ * This is a DELIBERATE change from a prior scheme that also treated `_` as
+ * safe. That made the encoding non-injective: `_` doubled as both a literal
+ * and the escape prefix, so an escaped byte could read back as a literal
+ * escape sequence typed by someone else. Concretely, under the old scheme
+ * `encodeRunId('@')` and `encodeRunId('_40')` both produced `'_40'` — `@` is
+ * `0x40` and gets escaped to `_40`, while the literal characters `_`, `4`, `0`
+ * were all "safe" and passed through unchanged. This change breaks that
+ * collision by escaping `_` like any other unsafe character.
+ *
+ * BREAKING CHANGE for existing journals: a journal file written under the
+ * old scheme (where a literal `_` in the runId was left unescaped) will not
+ * be found by this scheme, because a runId containing `_` now encodes
+ * differently. Durability has not shipped publicly yet (this repo has no
+ * released version with `encodeRunId` in it), so there is no compatibility
+ * obligation and no changeset is warranted — there is nothing in the wild to
+ * migrate.
  */
 function encodeRunId(runId: string): string {
   if (runId.length === 0) {
@@ -94,7 +164,7 @@ function encodeRunId(runId: string): string {
   }
   let out = ''
   for (const char of runId) {
-    if (/^[A-Za-z0-9._-]$/.test(char)) {
+    if (/^[A-Za-z0-9.-]$/.test(char)) {
       out += char
       continue
     }
@@ -102,6 +172,37 @@ function encodeRunId(runId: string): string {
       out += `_${byte.toString(16).padStart(2, '0')}`
     }
   }
+
+  // Reserved Windows device names. `out` can equal one of these ONLY when
+  // every character of `runId` was itself safe (no `_` was introduced), which
+  // means `runId` IS that literal word (e.g. `runId === 'CON'`) — the safe
+  // characters this function passes through are letters, digits, `.`, and
+  // `-`, none of which this branch ever escapes on the normal path, so no
+  // OTHER runId can land here. Re-encoding with `hexEscapeAllBytes` is
+  // therefore collision-free: the result starts with `_` followed by hex for
+  // a letter/digit byte, a pattern the normal per-character path can never
+  // produce for ANY input, because letters and digits are always safe and
+  // never escaped.
+  if (WINDOWS_RESERVED_NAME.test(out)) {
+    out = hexEscapeAllBytes(runId)
+  }
+
+  // Bound the length so a very long runId cannot blow the filesystem's
+  // filename limit. Truncating the encoded token alone would destroy
+  // injectivity (two long runIds sharing a prefix would collapse to the same
+  // truncated string), so the truncated prefix is paired with a hash of the
+  // FULL original runId. Distinct runIds can then only collide here if they
+  // share both the truncated prefix AND the hash — a SHA-256-collision, not
+  // a scheme defect.
+  if (out.length > MAX_ENCODED_NAME_LENGTH) {
+    const hash = createHash('sha256')
+      .update(runId, 'utf8')
+      .digest('hex')
+      .slice(0, TRUNCATION_HASH_LENGTH)
+    const prefixLength = MAX_ENCODED_NAME_LENGTH - hash.length - 1
+    out = `${out.slice(0, prefixLength)}-${hash}`
+  }
+
   return out
 }
 
