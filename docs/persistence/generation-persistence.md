@@ -262,8 +262,9 @@ export const getImageHydrationFn = createServerFn({ method: 'GET' })
   .inputValidator((threadId: string) => threadId)
   .handler(async ({ data: threadId }) => {
     // `getGenerationHydration` does no auth — gate on your session here, the
-    // way you would pass `authorize` to `reconstructGeneration`.
-    return getGenerationHydration(persistence, threadId)
+    // way you would pass `authorize` to `reconstructGeneration`. The hydration
+    // crosses the wire as JSON, so return it in a `Response`.
+    return Response.json(await getGenerationHydration(persistence, threadId))
   })
 
 export const joinImageRunFn = createServerFn({ method: 'GET' })
@@ -288,7 +289,8 @@ export function HeroImageGenerator({ threadId }: { threadId: string }) {
     id: 'hero-image',
     threadId,
     fetcher: (input) => generateImageFn({ data: { ...input, threadId } }),
-    hydrateGeneration: (id) => getImageHydrationFn({ data: id }),
+    hydrateGeneration: async (id) =>
+      (await getImageHydrationFn({ data: id })).json(),
     joinRun: async function* (runId, signal) {
       yield* await joinImageRunFn({ data: runId, signal })
     },
