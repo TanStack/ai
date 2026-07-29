@@ -4,6 +4,7 @@
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
   "useDaemonProcess": true,
   "useInferencePlugins": false,
+  "analytics": false,
   "parallel": 15,
   "tui": {
     "enabled": false
