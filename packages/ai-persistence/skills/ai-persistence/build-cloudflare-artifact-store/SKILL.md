@@ -123,6 +123,10 @@ export function r2BlobStore(bucket: R2Bucket) {
     },
 
     async list(options) {
+      // R2 reads `limit: 0` as "use the default", so short-circuit it.
+      if (options?.limit === 0) {
+        return { objects: [] }
+      }
       const page = await bucket.list({
         ...(options?.prefix !== undefined ? { prefix: options.prefix } : {}),
         ...(options?.cursor !== undefined ? { cursor: options.cursor } : {}),

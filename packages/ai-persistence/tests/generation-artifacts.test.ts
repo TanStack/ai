@@ -605,3 +605,194 @@ describe('withGenerationPersistence generation artifacts', () => {
     await expect(blob?.text()).resolves.toContain('"segments"')
   })
 })
+
+describe('artifact URL fetching', () => {
+  /** An image adapter whose result is a URL rather than inline base64. */
+  function urlImageAdapter(url: string): ImageAdapter<string> {
+    return {
+      kind: 'image',
+      name: 'test-image-provider',
+      model: 'test-image-model',
+      '~types': imageAdapterTypes,
+      generateImages: vi.fn(async () => ({
+        id: 'image-result',
+        model: 'test-image-model',
+        images: [{ url }],
+      })),
+    }
+  }
+
+  function okFetch(body: string) {
+    return vi.fn(async () => new Response(body, { status: 200 }))
+  }
+
+  /** A prompt referencing media by URL — the caller-controlled input case. */
+  function urlPrompt(url: string) {
+    return [
+      { type: 'text' as const, content: 'edit this' },
+      {
+        type: 'image' as const,
+        source: { type: 'url' as const, value: url, mimeType: 'image/png' },
+      },
+    ]
+  }
+
+  it('does not fetch a caller-supplied input URL by default', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = okFetch('input-bytes')
+
+    const result = await generateImage({
+      adapter: imageAdapter(),
+      prompt: urlPrompt('https://evil.example.com/pixel.png'),
+      threadId: 'thread-input-url',
+      runId: 'run-input-url',
+      middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+    })
+
+    expect(artifactFetch).not.toHaveBeenCalled()
+    // Only the generated output is persisted; the input URL is skipped whole.
+    expect(result.artifacts?.map((artifact) => artifact.role)).toEqual([
+      'output',
+    ])
+  })
+
+  it('fetches an input URL once allowInputUrl approves it', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = okFetch('input-bytes')
+
+    const result = await generateImage({
+      adapter: imageAdapter(),
+      prompt: urlPrompt('https://cdn.example.com/pixel.png'),
+      threadId: 'thread-allow',
+      runId: 'run-allow',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          artifactFetch,
+          allowInputUrl: ({ url }) => url.hostname === 'cdn.example.com',
+        }),
+      ],
+    })
+
+    expect(artifactFetch).toHaveBeenCalledTimes(1)
+    const input = result.artifacts?.find((a) => a.role === 'input')
+    expect(input).toBeDefined()
+    const blob = await persistence.stores.blobs!.get(
+      `artifacts/run-allow/${input!.artifactId}`,
+    )
+    await expect(blob?.text()).resolves.toBe('input-bytes')
+  })
+
+  it('rejects an input URL that allowInputUrl declines', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = okFetch('input-bytes')
+
+    await expect(
+      generateImage({
+        adapter: imageAdapter(),
+        prompt: urlPrompt('https://other.example.com/pixel.png'),
+        threadId: 'thread-deny',
+        runId: 'run-deny',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            artifactFetch,
+            allowInputUrl: ({ url }) => url.hostname === 'cdn.example.com',
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/rejected by allowInputUrl/)
+    expect(artifactFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['cloud metadata', 'http://169.254.169.254/latest/meta-data/'],
+    ['loopback', 'http://127.0.0.1:8080/admin'],
+    ['localhost', 'http://localhost:8080/admin'],
+    ['private range', 'http://10.0.0.5/internal'],
+    ['ipv6 loopback', 'http://[::1]:8080/admin'],
+    ['ipv4-mapped ipv6', 'http://[::ffff:127.0.0.1]/admin'],
+  ])('blocks an internal input host (%s)', async (_label, url) => {
+    const persistence = memoryPersistence()
+    const artifactFetch = okFetch('secrets')
+
+    await expect(
+      generateImage({
+        adapter: imageAdapter(),
+        prompt: urlPrompt(url),
+        threadId: 'thread-ssrf',
+        runId: 'run-ssrf',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            artifactFetch,
+            // Even a wide-open predicate must not defeat the host block.
+            allowInputUrl: () => true,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/internal host/)
+    expect(artifactFetch).not.toHaveBeenCalled()
+  })
+
+  it('refuses a non-http artifact URL', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = okFetch('nope')
+
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('file:///etc/passwd'),
+        prompt: 'make an image',
+        threadId: 'thread-scheme',
+        runId: 'run-scheme',
+        middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+      }),
+    ).rejects.toThrow(/Refusing to fetch artifact over file:/)
+    expect(artifactFetch).not.toHaveBeenCalled()
+  })
+
+  it('still fetches a provider output URL, and allows internal provider hosts', async () => {
+    const persistence = memoryPersistence()
+    // A self-hosted provider legitimately returns a loopback URL; the internal
+    // host block applies to caller-supplied input URLs only.
+    const artifactFetch = okFetch('generated-bytes')
+
+    const result = await generateImage({
+      adapter: urlImageAdapter('http://127.0.0.1:11434/out.png'),
+      prompt: 'make an image',
+      threadId: 'thread-output',
+      runId: 'run-output',
+      middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+    })
+
+    expect(artifactFetch).toHaveBeenCalledTimes(1)
+    const output = result.artifacts?.find((a) => a.role === 'output')
+    const blob = await persistence.stores.blobs!.get(
+      `artifacts/run-output/${output!.artifactId}`,
+    )
+    await expect(blob?.text()).resolves.toBe('generated-bytes')
+  })
+
+  it('refuses an artifact larger than maxArtifactBytes', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = vi.fn(
+      async () =>
+        new Response('x'.repeat(50), {
+          status: 200,
+          headers: { 'content-length': '50' },
+        }),
+    )
+
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/big.png'),
+        prompt: 'make an image',
+        threadId: 'thread-cap',
+        runId: 'run-cap',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            artifactFetch,
+            maxArtifactBytes: 10,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/exceeds maxArtifactBytes/)
+  })
+})

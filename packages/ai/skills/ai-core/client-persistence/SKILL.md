@@ -169,6 +169,58 @@ const image = useGenerateImage({
 // generation for `threadId`, fetched from the server — nothing was cached.
 ```
 
+The server half of Mode B — the same route handles the run and the hydration
+`GET`:
+
+```ts
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import {
+  memoryPersistence,
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+
+// Needs `stores.generationRuns`; `memoryPersistence()` ships one.
+const persistence = memoryPersistence()
+
+export async function POST(request: Request) {
+  const { input } = await generationParamsFromRequest('image', request)
+  if (typeof input.prompt !== 'string') {
+    throw new Error('This endpoint accepts text image prompts only.')
+  }
+
+  return toServerSentEventsResponse(
+    generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: input.prompt,
+      stream: true,
+      middleware: [withGenerationPersistence(persistence)],
+    }),
+  )
+}
+
+// Mount-time hydration: resolves `?runId=` (preferred) or the latest run linked
+// to `?threadId=`, and returns `{ resumeSnapshot, activeRun }`.
+export function GET(request: Request) {
+  return reconstructGeneration(persistence, request, {
+    // Multi-user routes MUST authorize: the ids come from the caller. Derive
+    // identity from server-side session state, then check ownership.
+    authorize: async (id, req) => {
+      // const user = await auth(req)
+      // return user != null && (await db.threadOwnedBy(user.id, id))
+      void id
+      void req
+      return true
+    },
+  })
+}
+```
+
 - Nothing is cached client-side. On mount the client hydrates the **last
   generation** for its `threadId` from the server via the connection's
   `hydrateGeneration` handler (the SSE/HTTP adapters issue a `GET` with

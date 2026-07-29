@@ -48,8 +48,10 @@ Currently supported:
 
 > **Video runs take minutes — don't lose them to a reload.** This is the
 > strongest case for [Generation Persistence](../persistence/generation-persistence):
-> it keeps a record of each job so a page reload or dropped connection picks the
-> run back up instead of starting over. And because provider video URLs expire,
+> it keeps a record of each run, so after a reload the hook shows that run's last
+> known status and result instead of an empty form. A run that is still streaming
+> against a durable server-side stream is re-attached and finished in place;
+> otherwise the record is restored, not the provider work. And because provider video URLs expire,
 > [keep the finished clip](../persistence/keep-generated-files) by saving its
 > bytes to your own storage.
 

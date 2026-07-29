@@ -59,7 +59,49 @@ export interface WithPersistenceOptions {
    * Return `undefined` to leave a ref without a durable URL.
    */
   artifactUrl?: (ref: PersistedArtifactRef) => string | undefined
+  /**
+   * Opt in to fetching prompt media referenced by URL (`role: 'input'`).
+   *
+   * Off by default, and deliberately expressed as a predicate rather than a
+   * boolean: input URLs come from the caller, so fetching them server-side
+   * turns your server into a proxy for whatever the caller names — cloud
+   * metadata endpoints, `localhost` admin services, anything your network can
+   * reach. The bytes are also redundant in the common case, since the client
+   * already had the media it referenced.
+   *
+   * Enable this only when you genuinely need a durable copy of caller-supplied
+   * media (a "paste an image URL" input box, say), and validate the target:
+   *
+   * ```ts
+   * allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com')
+   * ```
+   *
+   * Requests are additionally forced through the same baseline checks every
+   * artifact fetch gets (http/https only, timeout, size cap), plus — because
+   * the target is untrusted — a loopback/private/link-local host block and
+   * `redirect: 'manual'` so a 302 cannot hop to an internal address. Those are
+   * a backstop, not a substitute for a narrow predicate: a hostname that
+   * resolves to a private address still passes a literal-IP check.
+   */
+  allowInputUrl?: (input: {
+    url: URL
+    descriptor: GenerationArtifactDescriptor
+  }) => boolean | Promise<boolean>
+  /** Abort an artifact fetch after this many ms. Default 30_000. */
+  artifactFetchTimeoutMs?: number
+  /** Refuse an artifact body larger than this many bytes. Default 100 MiB. */
+  maxArtifactBytes?: number
+  /**
+   * `fetch` used to download artifact bytes. Defaults to the global. Inject to
+   * route downloads through a proxy or an egress-restricted agent — the most
+   * robust SSRF control available here, since it can resolve and check the
+   * address actually connected to.
+   */
+  artifactFetch?: typeof globalThis.fetch
 }
+
+const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 30_000
+const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
 
 export interface GenerationArtifactDescriptor {
   role: PersistedArtifactRole
@@ -344,7 +386,16 @@ function parseDataUrl(
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(value)
   if (!match) return undefined
   const mimeType = match[1] || 'application/octet-stream'
-  const payload = decodeURIComponent(match[3] ?? '')
+  const raw = match[3] ?? ''
+  // A plain (non-base64) data URL may carry a bare `%` (`data:text/plain,100%`),
+  // which makes `decodeURIComponent` throw. Fall back to the literal payload so
+  // a malformed escape doesn't fail the whole generation.
+  let payload: string
+  try {
+    payload = decodeURIComponent(raw)
+  } catch {
+    payload = raw
+  }
   return {
     mimeType,
     bytes: match[2]
@@ -585,14 +636,97 @@ function builtInArtifactDescriptors(
   return descriptors
 }
 
+/**
+ * Reject hosts that only make sense as an SSRF target: loopback, link-local
+ * (including the cloud metadata address), private, and unique-local ranges.
+ *
+ * Applied to caller-supplied input URLs only. Provider result URLs skip it on
+ * purpose — a self-hosted or local provider legitimately returns a `localhost`
+ * URL, and those live inside the same trust boundary as the adapter itself.
+ *
+ * This checks IP *literals*. A hostname that resolves to a private address
+ * passes, which is why `allowInputUrl` is required rather than optional.
+ */
+function isBlockedInputHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host.endsWith('.localhost')) return true
+
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
+    if (a === 127 || a === 0 || a === 10) return true
+    if (a === 169 && b === 254) return true // link-local + cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    return false
+  }
+
+  if (host === '::' || host === '::1') return true
+  if (host.startsWith('fe80:')) return true // link-local
+  if (/^f[cd][0-9a-f]{2}:/.test(host)) return true // unique-local
+  // IPv4-mapped IPv6 — re-check the embedded address. `new URL()` normalizes
+  // `::ffff:127.0.0.1` to the hex form `::ffff:7f00:1`, so accept both.
+  const mappedDotted = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(
+    host,
+  )
+  if (mappedDotted?.[1]) return isBlockedInputHost(mappedDotted[1])
+  const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host)
+  if (mappedHex?.[1] && mappedHex[2]) {
+    const high = Number.parseInt(mappedHex[1], 16)
+    const low = Number.parseInt(mappedHex[2], 16)
+    return isBlockedInputHost(
+      `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`,
+    )
+  }
+  return false
+}
+
+/**
+ * Fail the stream once more than `maxBytes` have passed through, so an
+ * unexpectedly huge artifact can't fill the blob store. Enforced during the
+ * drain because `content-length` is advisory (and absent on chunked replies).
+ */
+function capBodySize(
+  body: ReadableStream<Uint8Array>,
+  maxBytes: number,
+  url: string,
+): ReadableStream<Uint8Array> {
+  let seen = 0
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength
+        if (seen > maxBytes) {
+          controller.error(
+            new Error(
+              `Artifact at ${url} exceeds maxArtifactBytes (${maxBytes}).`,
+            ),
+          )
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    }),
+  )
+}
+
+/**
+ * Resolve a descriptor to the bytes to store. Returns `undefined` when the
+ * descriptor is deliberately not persisted — today that means a caller-supplied
+ * input URL without an `allowInputUrl` opt-in.
+ */
 async function descriptorBody(
   descriptor: GenerationArtifactDescriptor,
-): Promise<{
-  body: BlobBody
-  size: number
-  mimeType: string
-  externalUrl?: string
-}> {
+  opts: WithPersistenceOptions | undefined,
+): Promise<
+  | {
+      body: BlobBody
+      size: number
+      mimeType: string
+      externalUrl?: string
+    }
+  | undefined
+> {
   if (descriptor.json !== undefined) {
     const body = JSON.stringify(descriptor.json)
     return {
@@ -632,10 +766,63 @@ async function descriptorBody(
         mimeType: descriptor.mimeType ?? data.mimeType,
       }
     }
-    const response = await fetch(descriptor.url)
+    // A caller-controlled input URL is never fetched unless the app opted in
+    // with a validating predicate. Skipped, not thrown: not mirroring someone
+    // else's URL is the intended default, and the run itself is fine.
+    const isCallerSupplied = descriptor.role === 'input'
+    const allowInputUrl = opts?.allowInputUrl
+    if (isCallerSupplied && !allowInputUrl) return undefined
+
+    let target: URL
+    try {
+      target = new URL(descriptor.url)
+    } catch {
+      throw new Error(
+        `Failed to persist artifact: ${descriptor.url} is not a valid URL.`,
+      )
+    }
+    if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+      throw new Error(
+        `Refusing to fetch artifact over ${target.protocol} (${descriptor.path}).`,
+      )
+    }
+    if (allowInputUrl && isCallerSupplied) {
+      if (isBlockedInputHost(target.hostname)) {
+        throw new Error(
+          `Refusing to fetch input artifact from internal host ${target.hostname}.`,
+        )
+      }
+      if (!(await allowInputUrl({ url: target, descriptor }))) {
+        throw new Error(
+          `Refusing to fetch input artifact from ${target.hostname}: rejected by allowInputUrl.`,
+        )
+      }
+    }
+
+    const maxBytes = opts?.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES
+    const fetchArtifact = opts?.artifactFetch ?? globalThis.fetch
+    const response = await fetchArtifact(target, {
+      // Provider CDNs redirect routinely, so output fetches follow. An input
+      // fetch must not: a 302 would land on a host neither check ever saw.
+      redirect: isCallerSupplied ? 'manual' : 'follow',
+      signal: AbortSignal.timeout(
+        opts?.artifactFetchTimeoutMs ?? DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS,
+      ),
+    })
+    if (isCallerSupplied && response.status >= 300 && response.status < 400) {
+      throw new Error(
+        `Refusing to follow a redirect for input artifact ${descriptor.path}.`,
+      )
+    }
     if (!response.ok) {
       throw new Error(
         `Failed to persist artifact from ${descriptor.url}: HTTP ${response.status}`,
+      )
+    }
+    const declaredLength = Number(response.headers.get('content-length'))
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      throw new Error(
+        `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
       )
     }
     const mimeType =
@@ -648,13 +835,18 @@ async function descriptorBody(
     // buffering only when the response has no body to stream.
     if (response.body) {
       return {
-        body: response.body,
+        body: capBodySize(response.body, maxBytes, descriptor.url),
         size: 0,
         mimeType,
         externalUrl: descriptor.url,
       }
     }
     const body = await response.arrayBuffer()
+    if (body.byteLength > maxBytes) {
+      throw new Error(
+        `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
+      )
+    }
     return {
       body,
       size: body.byteLength,
@@ -710,8 +902,11 @@ async function persistGenerationArtifacts(
   const refs: Array<PersistedArtifactRef> = [...existingRefs]
   for (const [index, descriptor] of descriptors.entries()) {
     const artifactId = ctx.createId('artifact')
-    const { body, size, mimeType, externalUrl } =
-      await descriptorBody(descriptor)
+    const resolved = await descriptorBody(descriptor, opts)
+    // Deliberately not persisted (an input URL with no `allowInputUrl` opt-in):
+    // no blob, no record, no ref — the rest of the run is unaffected.
+    if (!resolved) continue
+    const { body, size, mimeType, externalUrl } = resolved
     const key = artifactBlobKey({ runId, artifactId })
     const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,

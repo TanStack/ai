@@ -719,7 +719,10 @@ export function createGenerationResultSnapshot(
   const expiresAt = Reflect.get(value, 'expiresAt')
   if (typeof expiresAt === 'string') {
     snapshot.expiresAt = expiresAt
-  } else if (expiresAt instanceof Date) {
+  } else if (expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime())) {
+    // `toISOString()` throws on an invalid Date. This runs per chunk on live
+    // provider values, so drop an unusable date like every other bad field
+    // here rather than throwing out of the stream loop.
     snapshot.expiresAt = expiresAt.toISOString()
   }
   if (artifacts.length > 0) {

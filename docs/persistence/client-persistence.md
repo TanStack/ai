@@ -72,9 +72,11 @@ pointer. On the next load `useChat` reads it and:
 
 The generation hooks (`useGenerateImage` / `useGenerateVideo` / …) make the same
 choice: `persistence: true` is server-driven and a storage adapter is
-client-driven, so a long media run survives a reload the way a conversation does.
-See [Generation persistence](./generation-persistence) for the generation-specific
-setup.
+client-driven. A reload restores the last known `status` / `result` / `error`
+for the run — it does not restart provider work. Only a run that is still
+streaming against a server-side durable stream can be re-attached and finished
+in place. See [Generation persistence](./generation-persistence) for the
+generation-specific setup.
 
 ### An adapter: client-authoritative
 

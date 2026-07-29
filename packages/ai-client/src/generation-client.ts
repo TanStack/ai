@@ -116,6 +116,7 @@ export class GenerationClient<
   private resumeSnapshotPersistenceQueue: Promise<void> = Promise.resolve()
   private resumeSnapshotHydration: Promise<void> | undefined
   private queuedSnapshotSignature: string | undefined
+  private lastEmittedResumeState: string | undefined
   private resumePersistenceError: Error | undefined = undefined
   private abortController: AbortController | null = null
   private rejoinedRunId: string | undefined
@@ -616,6 +617,12 @@ export class GenerationClient<
    * Derive the public `resumeState` from the internal snapshot: the in-flight
    * run identity, with any in-flight artifact refs folded under it. `null` once
    * no run is in flight.
+   *
+   * The snapshot is rebuilt for every chunk, so emitting unconditionally would
+   * hand each framework hook a fresh object per chunk and re-render the
+   * component on every stream event. `resumeState` only changes at run
+   * boundaries and when artifacts land, so skip the notification unless it
+   * materially changed — same gate the persistence writes use.
    */
   private emitResumeState(): void {
     const snapshot = this.resumeSnapshot
@@ -628,6 +635,11 @@ export class GenerationClient<
             : {}),
         }
       : null
+    const signature = JSON.stringify(resumeState)
+    if (signature === this.lastEmittedResumeState) {
+      return
+    }
+    this.lastEmittedResumeState = signature
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }
 
@@ -741,6 +753,7 @@ export class GenerationClient<
   private clearResumeSnapshot(): void {
     this.resumeSnapshot = undefined
     this.queuedSnapshotSignature = undefined
+    this.lastEmittedResumeState = undefined
     this.notifyResumeSnapshotChanged()
     if (!this.resumePersistence) {
       return

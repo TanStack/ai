@@ -473,7 +473,13 @@ async function fetchGenerationHydration(
     credentials,
   })
   assertResponseOk(response)
-  const data = (await response.json()) as {
+  const raw: unknown = await response.json()
+  // A 200 carrying `null` (or any non-object body) is a hydration miss, not a
+  // crash: reading `.activeRun` off `null` would throw here.
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { resumeSnapshot: null, activeRun: null }
+  }
+  const data = raw as {
     resumeSnapshot?: GenerationHydrationResult['resumeSnapshot']
     activeRun?: { runId?: unknown } | null
   }

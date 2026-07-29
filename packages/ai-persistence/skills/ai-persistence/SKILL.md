@@ -62,6 +62,23 @@ a generation is only an optional _link_ to a chat, never the job's identity. To
 build the R2/D1-backed byte stores for a Worker, see
 **ai-persistence/build-cloudflare-artifact-store**.
 
+**Byte storage stores generated output, not prompt URLs.** Provider result URLs
+expire, so they are downloaded and kept. Prompt media sent as base64
+(`source: { type: 'data' }`) is stored too. Prompt media sent as a **URL** is
+NOT fetched — that URL is caller-supplied, so downloading it server-side is an
+SSRF vector, and the bytes are redundant. Apps that genuinely need a durable
+copy opt in with `allowInputUrl`, a predicate so the check can't be skipped:
+`allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com')`. Never
+suggest `() => true`. All artifact fetches are http/https-only, timed out
+(`artifactFetchTimeoutMs`) and size-capped (`maxArtifactBytes`); input fetches
+also block loopback/private/link-local hosts and refuse redirects. `artifactFetch`
+injects the `fetch`, for routing through an egress-restricted proxy.
+
+Two related route-level rules: a `GET` that serves artifact bytes by id MUST
+authorize the caller against `ArtifactRecord.threadId` before serving (404, not
+403, so valid ids aren't confirmed), and `reconstructGeneration` MUST be given
+`authorize` on any multi-user route. Both take ids straight from the caller.
+
 ## Sub-skills
 
 | Need to...                                      | Read                                                  |

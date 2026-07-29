@@ -14,7 +14,7 @@ provider's link.
 This is a server-side opt-in that layers on **top of** the `generationRuns` store
 [Generation persistence](./generation-persistence) already requires. Byte storage
 adds two more stores: an `artifacts` store (metadata) and a `blobs` store (the
-bytes). They are a both-or-neither pair — provide both and
+bytes). The two must be provided together — provide both and
 `withGenerationPersistence` writes each generated file's bytes to the blob store,
 records an `ArtifactRecord`, and attaches durable references to the result and the
 run record; provide neither and only the run record is kept.
@@ -73,12 +73,26 @@ export async function POST(request: Request) {
 
 // Serve a stored artifact's bytes by id. This is a plain file endpoint: it
 // serves one stored file, it does not resume a run or rebuild a conversation.
+//
+// Security: the id comes from the caller, so this route MUST authorize before
+// it serves. `ArtifactRecord` carries the `threadId` / `runId` the file was
+// generated under — check that against an identity you derive server-side from
+// the session, never from the query string. Without this check, any caller who
+// learns or guesses an artifact id can read another user's media.
 export async function GET(request: Request) {
   const artifactId = new URL(request.url).searchParams.get('id')
   if (!artifactId) return new Response('missing id', { status: 400 })
 
   const artifact = await retrieveArtifact(persistence, artifactId)
   if (!artifact) return new Response('not found', { status: 404 })
+
+  // Replace with your session + ownership check, e.g.:
+  // const user = await auth(request)
+  // const owned = user != null && (await db.threadOwnedBy(user.id, artifact.threadId))
+  const owned = true
+  void request
+  // 404, not 403 — a distinguishable "exists but forbidden" confirms valid ids.
+  if (!owned) return new Response('not found', { status: 404 })
 
   const blob = await retrieveBlob(persistence, artifact)
   if (!blob) return new Response('not found', { status: 404 })
@@ -97,6 +111,42 @@ development and tests; point `generationRuns` / `artifacts` / `blobs` at a durab
 for production. Control what gets captured with `withGenerationPersistence`'s
 `extractArtifacts` (return your own descriptors) and `nameArtifact` (name each
 file) options.
+
+## Prompt media referenced by URL
+
+What gets stored is the **generated output**. When a provider returns an
+expiring link, the middleware downloads it and keeps the bytes — that is the
+whole point of this page.
+
+Prompt media is different. Media you send *in* as base64 (`source: { type:
+'data' }`) is stored alongside the output, because the bytes are already in
+hand. Media you send in as a **URL** (`source: { type: 'url' }`) is **not
+fetched**, and no artifact is recorded for it. That URL comes from the caller,
+so downloading it server-side would let anyone name an address your server can
+reach — cloud metadata endpoints, `localhost` admin services — and then read the
+response back through the artifact `GET` route. The copy is also redundant:
+whoever supplied the URL already had the media.
+
+If you do need a durable copy of caller-supplied media — a "paste an image URL"
+input box, say — opt in with `allowInputUrl`, which is a predicate rather than a
+flag precisely so the check is not optional:
+
+```ts group=generation-bytes
+const inputUrlOptions = withGenerationPersistence(persistence, {
+  allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com'),
+})
+```
+
+Every artifact fetch — input or output — is limited to `http:` / `https:`,
+aborted after `artifactFetchTimeoutMs` (default 30s), and capped at
+`maxArtifactBytes` (default 100 MiB) as the body drains. Input fetches add a
+loopback / private / link-local host block and refuse redirects, so a `302`
+cannot hop somewhere the check never saw.
+
+Treat those as a backstop, not the control: a hostname that *resolves* to a
+private address still passes a literal-IP check. Keep `allowInputUrl` narrow,
+and for stronger isolation inject `artifactFetch` to route downloads through an
+egress-restricted proxy that can check the address actually connected to.
 
 ## Wire the durable URL through to the client
 
@@ -119,7 +169,7 @@ are no separate top-level artifact fields on the hook, final refs live on
 ## Where to go next
 
 - [Generation persistence](./generation-persistence): the two-mode record that
-  survives a reload or a dropped connection, and the `generationRuns` store byte storage
-  builds on.
+  survives a reload or a dropped connection, and the `generationRuns` store that
+  byte storage builds on.
 - [Build your own adapter](./build-your-own-adapter#generation--media-stores): a
   custom `ArtifactStore` / `BlobStore` on your own database.
