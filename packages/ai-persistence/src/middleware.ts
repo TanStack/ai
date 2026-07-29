@@ -1,4 +1,8 @@
-import { defineChatMiddleware } from '@tanstack/ai'
+import {
+  DetachableRunCapability,
+  defineChatMiddleware,
+  wasCancelRequested,
+} from '@tanstack/ai'
 import {
   InterruptsCapability,
   PersistenceCapability,
@@ -360,14 +364,49 @@ async function failRun(
   })
 }
 
-async function interruptRun(
+/**
+ * Record a human-in-the-loop PAUSE.
+ *
+ * Deliberately writes NO `finishedAt`: `'interrupted'` is not a terminal status
+ * (`isTerminalRunStatus('interrupted')` is `false`), and stamping a terminal
+ * timestamp on it told every reader the run was over while it was in fact
+ * waiting for a human. Only `abortRun`/`completeRun`/`failRun` finish a run.
+ */
+export async function interruptRun(
   runs: RunStore | undefined,
   runId: string,
 ): Promise<void> {
   await runs?.update(runId, {
     status: 'interrupted',
+  })
+}
+
+/**
+ * Record that the run has ended for good — an explicit cancel, or a disconnect
+ * on a run that has nothing to reattach to. Terminal, so it carries
+ * `finishedAt`.
+ */
+export async function abortRun(
+  runs: RunStore | undefined,
+  runId: string,
+): Promise<void> {
+  await runs?.update(runId, {
+    status: 'aborted',
     finishedAt: Date.now(),
   })
+}
+
+/**
+ * Whether some middleware has declared this run detachable — i.e. it has a
+ * durable event log and a run store, so a disconnect can be survived and the
+ * run picked back up rather than destroyed.
+ *
+ * The capability is read from CORE, never from `@tanstack/ai-sandbox`: sandbox
+ * provides it, persistence consumes it, and a persistence → sandbox import
+ * would invert the layering.
+ */
+function detachableRun(ctx: ChatMiddlewareContext): boolean {
+  return ctx.getOptional(DetachableRunCapability) === true
 }
 
 // ---------------------------------------------------------------------------
@@ -615,8 +654,24 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await failRun(runs, ctx.runId, info.error)
     },
 
-    async onAbort(ctx: ChatMiddlewareContext, _info: AbortInfo) {
-      await interruptRun(runs, ctx.runId)
+    async onAbort(ctx: ChatMiddlewareContext, info: AbortInfo) {
+      // A user pressing Stop and a user closing the tab produce the IDENTICAL
+      // connection close, so intent is not inferable from the abort. It arrives
+      // out of band in two bands, and either is authoritative: in-process
+      // (`info.cancelRequested`, set when the cancel aborted this host's signal)
+      // and durable (`RunRecord.cancelRequested`, the only channel that reaches
+      // a run being driven elsewhere).
+      const cancelled =
+        info.cancelRequested === true ||
+        (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
+
+      if (cancelled || !detachableRun(ctx)) {
+        await abortRun(runs, ctx.runId)
+        return
+      }
+      // A plain disconnect on a detachable run: write NOTHING. The agent is
+      // still running and a later attach can take it over, so the record stays
+      // `'running'`; the detach path records `detachedSince` for the reaper.
     },
   })
 }
@@ -680,7 +735,10 @@ export function withGenerationPersistence<
       ctx: GenerationMiddlewareContext,
       _info: GenerationAbortInfo,
     ) {
-      await interruptRun(runStore, ctx.requestId)
+      // Unconditional, unlike chat's: a generation job has no journal and no
+      // agent loop, so there is nothing to reattach to. An aborted generation is
+      // over, full stop.
+      await abortRun(runStore, ctx.requestId)
     },
   }
 }

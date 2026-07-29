@@ -52,6 +52,7 @@ class MemoryRunStore implements RunStore {
         | 'sandboxKey'
         | 'detachedSince'
         | 'cancelRequested'
+        | 'driverEpoch'
       >
     >,
   ): Promise<void> {

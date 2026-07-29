@@ -177,7 +177,7 @@ describe('chat persistence error/abort hooks', () => {
     expect(pending.map((p) => p.interruptId)).toEqual(['interrupt-1'])
   })
 
-  it('marks the run interrupted when the chat is aborted', async () => {
+  it('marks the run aborted when the chat is aborted', async () => {
     const persistence = memoryPersistence()
     const controller = new AbortController()
     // Adapter that hangs after RUN_STARTED so we can abort mid-stream.
@@ -225,8 +225,13 @@ describe('chat persistence error/abort hooks', () => {
     controller.abort()
     await reader
 
+    // Phase 3 Task 6: this used to assert 'interrupted'. That was asserting the
+    // bug — 'interrupted' is a human-in-the-loop PAUSE and is NOT terminal, so a
+    // cancelled run never reached a terminal status. No durability is wired here,
+    // so the run is not detachable and the abort is terminal: 'aborted'.
     const run = await persistence.stores.runs!.get('abort-run')
-    expect(run?.status).toBe('interrupted')
+    expect(run?.status).toBe('aborted')
+    expect(run?.finishedAt).toBeTypeOf('number')
   })
 })
 
@@ -309,7 +314,7 @@ describe('generation persistence error/abort hooks', () => {
     expect(run?.error).toEqual({ message: 'image string failure' })
   })
 
-  it('marks the run interrupted on generation abort', async () => {
+  it('marks the run aborted on generation abort', async () => {
     const persistence = memoryPersistence()
     const middleware = withGenerationPersistence(persistence)
 
@@ -327,8 +332,11 @@ describe('generation persistence error/abort hooks', () => {
     }
     await middleware.onAbort?.(generationContext('req-abort'), abortInfo)
 
+    // Phase 3 Task 6: this used to assert 'interrupted', which was asserting the
+    // bug. A generation job has no journal to reattach to, so an abort is always
+    // terminal for it.
     expect((await persistence.stores.runs!.get('req-abort'))?.status).toBe(
-      'interrupted',
+      'aborted',
     )
   })
 
