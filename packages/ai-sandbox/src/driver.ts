@@ -98,8 +98,22 @@ export class RunDriverPipeOutsideClaimError extends Error {
 /**
  * Fill in a core `driver` block with this package's claim and run log.
  *
+ * `drive` receives an `AbortSignal` — the driver owns the abort, so it hands
+ * out a signal rather than a controller — but `chat()` takes an
+ * `AbortController`. Mirror one onto the other, exactly as
+ * {@link https://tanstack.com/ai/latest/docs/sandbox/takeover | Takeover & Detached Runs}'s
+ * `controllerFor` does, so a lost claim actually stops the drive.
+ *
  * @example
  * ```typescript
+ * function controllerFor(signal: AbortSignal): AbortController {
+ *   const controller = new AbortController()
+ *   const abort = (): void => controller.abort(signal.reason)
+ *   if (signal.aborted) abort()
+ *   else signal.addEventListener('abort', abort, { once: true })
+ *   return controller
+ * }
+ *
  * export async function GET(request: Request) {
  *   return resumeServerSentEventsResponse({
  *     adapter: memoryStream(request),
@@ -109,7 +123,12 @@ export class RunDriverPipeOutsideClaimError extends Error {
  *       locks,
  *       durability: (runId) => logFor(runId),
  *       drive: ({ runId, threadId, signal }) =>
- *         chat({ ...config, runId, threadId, signal }),
+ *         chat({
+ *           ...config,
+ *           runId,
+ *           threadId,
+ *           abortController: controllerFor(signal),
+ *         }),
  *     }),
  *   })
  * }
