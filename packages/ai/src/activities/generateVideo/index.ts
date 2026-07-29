@@ -11,6 +11,7 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationAbort,
   runGenerationError,
@@ -177,6 +178,16 @@ export type VideoCreateOptions<
   maxDuration?: number
   /** Custom run ID (stream mode only) */
   runId?: string
+  /**
+   * Stable conversation/thread id for correlating this run when persisted.
+   *
+   * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
+   * chunks; when omitted a throwaway id is minted for those chunks only, and
+   * the persisted run record carries NO thread link rather than a fabricated
+   * one. Pass it whenever persistence is on — it is the slot a reloading client
+   * hydrates by, so a run stored without it can only be fetched by run id.
+   */
+  threadId?: string
   /**
    * Enable debug logging. Pass `true` to enable all categories, `false` to
    * silence everything including errors, or a `DebugConfig` object for granular
@@ -412,12 +423,15 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  const threadId = createId('thread')
+  // The wire needs a thread id on every RUN_* chunk, so one is minted when the
+  // caller passes none — matching `streamGenerationResult`, which the other
+  // activities stream through.
+  const wireThreadId = options.threadId ?? createId('thread')
 
   yield {
     type: 'RUN_STARTED',
     runId,
-    threadId,
+    threadId: wireThreadId,
     timestamp: Date.now(),
   } as StreamChunk
 
@@ -427,6 +441,17 @@ async function* runStreamingVideoGeneration<
     provider: adapter.name,
     model,
     modelOptions,
+    // Identity has to reach the middleware, not just the chunks: persistence
+    // keys the run record on these, and without them it falls back to the
+    // internal `requestId` and records no thread link at all.
+    //
+    // Deliberately the CALLER's `threadId`, never `wireThreadId`: a minted id is
+    // known to nobody, so persisting it would file the run in a slot no client
+    // could ever hydrate — worse than recording no link, because it looks like
+    // one. This mirrors `generateImage`.
+    threadId: options.threadId,
+    runId,
+    artifactInputs: { prompt },
     createId,
   })
 
@@ -491,6 +516,21 @@ async function* runStreamingVideoGeneration<
           },
         )
 
+        // Run the result transforms before anything observes the result, the
+        // same as every other media activity. This is what lets persistence
+        // copy the video into a blob store, attach its artifact refs, and
+        // rewrite `url` to a durable app-origin one — so the chunk below and
+        // the stored run record carry the SAME urls. Skipping it leaves a
+        // result whose only url is the provider's expiring link.
+        const rawResult = {
+          jobId: jobResult.jobId,
+          status: 'completed' as const,
+          url: urlResult.url,
+          expiresAt: urlResult.expiresAt,
+          ...(urlResult.usage ? { usage: urlResult.usage } : {}),
+        }
+        const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+
         // Fire finish before yielding the terminal chunks: the generation has
         // succeeded, so a consumer that stops reading after `generation:result`
         // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
@@ -506,20 +546,14 @@ async function* runStreamingVideoGeneration<
         yield {
           type: 'CUSTOM',
           name: 'generation:result',
-          value: {
-            jobId: jobResult.jobId,
-            status: 'completed',
-            url: urlResult.url,
-            expiresAt: urlResult.expiresAt,
-            ...(urlResult.usage ? { usage: urlResult.usage } : {}),
-          },
+          value: result,
           timestamp: Date.now(),
         }
 
         yield {
           type: 'RUN_FINISHED',
           runId,
-          threadId,
+          threadId: wireThreadId,
           finishReason: 'stop',
           timestamp: Date.now(),
         } as StreamChunk
@@ -550,7 +584,7 @@ async function* runStreamingVideoGeneration<
     yield {
       type: 'RUN_ERROR',
       runId,
-      threadId,
+      threadId: wireThreadId,
       message: payload.message,
       code: payload.code,
       error: payload,

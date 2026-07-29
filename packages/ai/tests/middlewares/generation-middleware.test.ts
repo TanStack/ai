@@ -294,6 +294,93 @@ describe('generation middleware — wiring', () => {
     expect(events.error).toHaveLength(0)
   })
 
+  // Regression: video was the only media activity that never applied result
+  // transforms, and never put the caller's threadId/runId on the middleware
+  // context. Persistence registers artifact capture AND the run-record result
+  // write as result transforms, so both silently no-opped — a completed video
+  // stored no result, no artifacts, and no thread link, and therefore restored
+  // as nothing on reload.
+  it('generateVideo (streaming) applies result transforms and carries identity', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    const seen: Array<GenerationMiddlewareContext> = []
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        seen.push(ctx)
+        ctx.resultTransforms?.push((result) => ({
+          ...(result as Record<string, unknown>),
+          url: 'https://app.test/api/artifacts?id=a1',
+        }))
+      },
+    }
+
+    const chunks: Array<{ type: string; name?: string; value?: unknown }> = []
+    for await (const chunk of generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      threadId: 'video:slot',
+      runId: 'run-abc',
+      middleware: [transforming],
+    })) {
+      chunks.push(chunk as { type: string; name?: string; value?: unknown })
+    }
+
+    // The transform rewrote the terminal result the consumer actually sees.
+    const terminal = chunks.find((c) => c.name === 'generation:result')
+    expect(terminal?.value).toMatchObject({
+      jobId: 'job-1',
+      status: 'completed',
+      url: 'https://app.test/api/artifacts?id=a1',
+    })
+
+    // Identity reached the middleware, not just the wire chunks.
+    expect(seen[0]).toMatchObject({
+      activity: 'video',
+      threadId: 'video:slot',
+      runId: 'run-abc',
+    })
+  })
+
+  it('generateVideo (streaming) records no thread link when the caller passes none', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    const { middleware, events } = recordingMiddleware()
+    const chunks: Array<{ type: string; threadId?: string }> = []
+    for await (const chunk of generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      middleware: [middleware],
+    })) {
+      chunks.push(chunk as { type: string; threadId?: string })
+    }
+
+    // The wire still needs a thread id on RUN_* chunks...
+    const started = chunks.find((c) => c.type === 'RUN_STARTED')
+    expect(typeof started?.threadId).toBe('string')
+    // ...but the minted one must NOT reach persistence: a fabricated id is a
+    // slot no client can hydrate, which is worse than recording no link.
+    expect(events.start[0]!.threadId).toBeUndefined()
+  })
+
   it('generateVideo (streaming) fires error when the job fails', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {
