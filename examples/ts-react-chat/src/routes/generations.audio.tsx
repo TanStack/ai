@@ -79,6 +79,7 @@ function AudioGenerationForm({
     if (mode === 'hooks') {
       return {
         id: `audio:${mode}:${config.id}`,
+        threadId: `audio:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
         persistence: audioPersistence,
@@ -87,6 +88,7 @@ function AudioGenerationForm({
     }
     return {
       id: `audio:${mode}:${config.id}`,
+      threadId: `audio:${mode}:${config.id}`,
       fetcher: (input: { prompt: string; duration?: number }) =>
         generateAudioFn({
           data: { ...input, provider: config.id, model: selectedModel },

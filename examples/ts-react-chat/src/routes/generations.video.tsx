@@ -16,6 +16,7 @@ function StreamingVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     id: 'video:streaming',
+    threadId: 'video:streaming',
     connection: fetchServerSentEvents('/api/generate/video'),
     persistence: videoPersistence,
   })
@@ -30,6 +31,7 @@ function DirectVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     id: 'video:direct',
+    threadId: 'video:direct',
     fetcher: (input) =>
       generateVideoFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
@@ -47,6 +49,7 @@ function ServerFnVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     id: 'video:server-fn',
+    threadId: 'video:server-fn',
     fetcher: (input) =>
       generateVideoStreamFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },

@@ -28,6 +28,7 @@ function TranscriptionForm({
     if (mode === 'streaming') {
       return {
         id: `transcription:${mode}:${config.id}`,
+        threadId: `transcription:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/transcribe'),
         body: { provider: config.id },
         persistence: transcriptionPersistence,
@@ -36,6 +37,7 @@ function TranscriptionForm({
     if (mode === 'direct') {
       return {
         id: `transcription:${mode}:${config.id}`,
+        threadId: `transcription:${mode}:${config.id}`,
         fetcher: (input: TranscriptionGenerateInput) =>
           transcribeFn({
             data: {
@@ -51,6 +53,7 @@ function TranscriptionForm({
     }
     return {
       id: `transcription:${mode}:${config.id}`,
+      threadId: `transcription:${mode}:${config.id}`,
       fetcher: (input: TranscriptionGenerateInput) =>
         transcribeStreamFn({
           data: {

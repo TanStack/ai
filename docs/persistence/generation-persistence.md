@@ -207,7 +207,9 @@ const snapshots = localStoragePersistence({ keyPrefix: 'my-app:' })
 
 function HeroImageGenerator() {
   const image = useGenerateImage({
-    id: 'hero-image',
+    // The scope this generation fills. Required by `persistence`, and the key
+    // the snapshot is stored under — so keep it stable across reloads.
+    threadId: 'hero-image',
     connection: fetchServerSentEvents('/api/generate/image'),
     persistence: snapshots,
   })

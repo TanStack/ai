@@ -621,9 +621,13 @@ export async function GET(req: Request) {
 
 On the client, the generation hooks mirror chat's two persistence modes:
 `persistence: <adapter>` (client-driven, caches a lightweight snapshot under
-`generation:<id>`) or `persistence: true` + a stable `threadId` (server-driven —
-hydrates the last generation for the thread on mount via the connection's
-`hydrateGeneration` handler, backed by a `reconstructGeneration` GET route). The
+`generation:<threadId>`) or `persistence: true` (server-driven — hydrates the
+last generation for the thread on mount via the connection's `hydrateGeneration`
+handler, backed by a `reconstructGeneration` GET route). **Both modes require a
+stable `threadId`** — it is a type error to set `persistence` without one. It is
+the generation's scope (the slot successive runs fill, e.g.
+`video-9-start-frame`), not a link to a chat; `id` is the devtools label only and
+never keys storage. The
 hooks are transparent (like `useChat`): a reload repaints `status` / `result` /
 `error`, not a separate `resumeSnapshot`. Neither mode stores media bytes on the
 client — but because the `artifactUrl` above stamps a durable URL onto each ref

@@ -112,6 +112,36 @@ for production. Control what gets captured with `withGenerationPersistence`'s
 `extractArtifacts` (return your own descriptors) and `nameArtifact` (name each
 file) options.
 
+## Choose where the bytes land
+
+By default an artifact's bytes are written under
+`artifacts/<runId>/<artifactId>`. Pass `storageKey` to put them in your own
+folder structure instead — useful when the bucket is shared with the rest of
+your app, or when you want media grouped by the thing it belongs to rather than
+by the run that produced it:
+
+```ts group=generation-bytes
+const storageKeyOptions = withGenerationPersistence(persistence, {
+  storageKey: ({ runId, artifactId, role, name }) =>
+    `products/${role}/${runId}-${artifactId}-${name}`,
+})
+```
+
+Two things worth knowing:
+
+**The resolved key is recorded on the artifact.** Once the path is arbitrary it
+can no longer be recomputed from the record, so it is stored as
+`ArtifactRecord.blobKey` and reads resolve through it. Records written before
+this existed fall back to the default convention, so adding `storageKey` to an
+app with existing artifacts does not orphan them — but it does mean the default
+convention can never be changed retroactively.
+
+**Returning a non-unique key overwrites.** Include `artifactId`, or something
+equally unique, unless overwriting is what you want.
+
+This is server-side only, deliberately. A key supplied by the browser would be a
+path-traversal and cross-tenant-write vector.
+
 ## Prompt media referenced by URL
 
 What gets stored is the **generated output**. When a provider returns an

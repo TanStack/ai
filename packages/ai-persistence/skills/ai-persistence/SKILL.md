@@ -62,6 +62,16 @@ a generation is only an optional _link_ to a chat, never the job's identity. To
 build the R2/D1-backed byte stores for a Worker, see
 **ai-persistence/build-cloudflare-artifact-store**.
 
+**Where bytes land.** Default blob key is `artifacts/<runId>/<artifactId>`. Pass
+`storageKey` to `withGenerationPersistence` for your own folder structure — it
+receives `{ artifactId, runId, threadId, role, activity, path, mimeType, name }`
+and returns the key. Server-side only (a browser-supplied key is path traversal +
+cross-tenant writes). The resolved key is recorded on `ArtifactRecord.blobKey`
+because it is no longer derivable; read through `resolveArtifactBlobKey(record)`,
+never by recomputing. Records predating `blobKey` fall back to the default
+convention — which is why that convention can never be changed retroactively. A
+non-unique key overwrites, so include `artifactId` unless that is intended.
+
 **Byte storage stores generated output, not prompt URLs.** Provider result URLs
 expire, so they are downloaded and kept. Prompt media sent as base64
 (`source: { type: 'data' }`) is stored too. Prompt media sent as a **URL** is

@@ -155,36 +155,42 @@ function GenerationHooksPage() {
 
   const image = useGenerateImage({
     id: 'generation-hooks:useGenerateImage',
+    threadId: 'generation-hooks:useGenerateImage',
     connection: imageConnection,
     persistence: generationPersistence,
   })
 
   const audio = useGenerateAudio({
     id: 'generation-hooks:useGenerateAudio',
+    threadId: 'generation-hooks:useGenerateAudio',
     connection: audioConnection,
     persistence: generationPersistence,
   })
 
   const speech = useGenerateSpeech({
     id: 'generation-hooks:useGenerateSpeech',
+    threadId: 'generation-hooks:useGenerateSpeech',
     connection: speechConnection,
     persistence: generationPersistence,
   })
 
   const transcription = useTranscription({
     id: 'generation-hooks:useTranscription',
+    threadId: 'generation-hooks:useTranscription',
     connection: transcriptionConnection,
     persistence: generationPersistence,
   })
 
   const summarize = useSummarize({
     id: 'generation-hooks:useSummarize',
+    threadId: 'generation-hooks:useSummarize',
     connection: summarizeConnection,
     persistence: generationPersistence,
   })
 
   const video = useGenerateVideo({
     id: 'generation-hooks:useGenerateVideo',
+    threadId: 'generation-hooks:useGenerateVideo',
     connection: videoConnection,
     persistence: generationPersistence,
   })

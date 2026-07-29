@@ -209,6 +209,65 @@ describe('withGenerationPersistence generation artifacts', () => {
     expect(await retrieveBlob(persistence, 'missing')).toBeNull()
   })
 
+  it('writes bytes under a custom storageKey and reads them back via blobKey', async () => {
+    const persistence = memoryPersistence()
+
+    const result = await generateImage({
+      adapter: imageAdapter(),
+      prompt: 'make an image',
+      threadId: 'thread-storage-key',
+      runId: 'run-storage-key',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          storageKey: ({ runId, artifactId, role }) =>
+            `my-app/videos/hero/${role}-${runId}-${artifactId}.png`,
+        }),
+      ],
+    })
+
+    const artifactId = result.artifacts![0]!.artifactId
+    const expectedKey = `my-app/videos/hero/output-run-storage-key-${artifactId}.png`
+
+    // The bytes land where the mapper said, NOT under the default convention.
+    await expect(
+      persistence.stores.blobs!.get(expectedKey).then((b) => b?.text()),
+    ).resolves.toBe('output-image')
+    expect(
+      await persistence.stores.blobs!.get(
+        `artifacts/run-storage-key/${artifactId}`,
+      ),
+    ).toBeNull()
+
+    // The record remembers the real key, so reads resolve without recomputing.
+    const record = await retrieveArtifact(persistence, artifactId)
+    expect(record?.blobKey).toBe(expectedKey)
+    await expect(
+      (await retrieveBlob(persistence, artifactId))?.text(),
+    ).resolves.toBe('output-image')
+  })
+
+  it('resolves a record written before blobKey existed via the default convention', async () => {
+    const persistence = memoryPersistence()
+
+    await generateImage({
+      adapter: imageAdapter(),
+      prompt: 'make an image',
+      threadId: 'thread-legacy',
+      runId: 'run-legacy',
+      middleware: [withGenerationPersistence(persistence)],
+    })
+    const stored = (await persistence.stores.artifacts!.list('run-legacy'))[0]!
+
+    // Simulate a row saved before the column existed: no blobKey at all.
+    const { blobKey: _dropped, ...legacy } = stored
+    await persistence.stores.artifacts!.save(legacy)
+
+    // Still readable — the fallback is what makes blobKey a non-breaking add.
+    await expect(
+      (await retrieveBlob(persistence, legacy.artifactId))?.text(),
+    ).resolves.toBe('output-image')
+  })
+
   it('persists non-image media outputs', async () => {
     const persistence = memoryPersistence()
 

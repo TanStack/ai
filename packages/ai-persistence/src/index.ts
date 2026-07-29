@@ -78,7 +78,12 @@ export type {
 } from './reconstruct-generation'
 
 // Server helpers: retrieve a persisted generation artifact + its bytes
-export { retrieveArtifact, retrieveBlob, artifactBlobKey } from './retrieve'
+export {
+  retrieveArtifact,
+  retrieveBlob,
+  artifactBlobKey,
+  resolveArtifactBlobKey,
+} from './retrieve'
 
 // Reference in-memory implementation
 export { memoryPersistence } from './memory'

@@ -60,6 +60,34 @@ export interface WithPersistenceOptions {
    */
   artifactUrl?: (ref: PersistedArtifactRef) => string | undefined
   /**
+   * Choose the blob-store key each artifact's bytes are written under, so
+   * generated media can land in your own folder structure rather than the
+   * default `artifacts/<runId>/<artifactId>`.
+   *
+   * ```ts
+   * storageKey: ({ runId, artifactId, mimeType }) =>
+   *   `video/${videoId}/frames/${runId}-${artifactId}.png`
+   * ```
+   *
+   * Server-side only, and deliberately so: a key supplied by the browser would
+   * be a path-traversal and cross-tenant-write vector.
+   *
+   * The resolved key is recorded on `ArtifactRecord.blobKey`, because once the
+   * path is arbitrary a reader can no longer recompute it. Returning a
+   * non-unique key overwrites — include `artifactId` (or something equally
+   * unique) unless you intend that.
+   */
+  storageKey?: (input: {
+    artifactId: string
+    runId: string
+    threadId: string
+    role: PersistedArtifactRole
+    activity: PersistedArtifactActivity
+    path: string
+    mimeType: string
+    name: string
+  }) => string
+  /**
    * Opt in to fetching prompt media referenced by URL (`role: 'input'`).
    *
    * Off by default, and deliberately expressed as a predicate rather than a
@@ -907,7 +935,31 @@ async function persistGenerationArtifacts(
     // no blob, no record, no ref — the rest of the run is unaffected.
     if (!resolved) continue
     const { body, size, mimeType, sourceUrl } = resolved
-    const key = artifactBlobKey({ runId, artifactId })
+    // Resolved before the blob write so `storageKey` can build a path from the
+    // final filename (extensions, slugs) rather than guessing at one.
+    const name =
+      opts?.nameArtifact?.({
+        descriptor: { ...descriptor, mimeType },
+        activity,
+        provider: ctx.provider,
+        model: ctx.model,
+        threadId,
+        runId,
+        index,
+      }) ??
+      descriptor.name ??
+      defaultArtifactName({ ...descriptor, mimeType }, activity, index)
+    const key =
+      opts?.storageKey?.({
+        artifactId,
+        runId,
+        threadId,
+        role: descriptor.role,
+        activity,
+        path: descriptor.path,
+        mimeType,
+        name,
+      }) ?? artifactBlobKey({ runId, artifactId })
     const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
       customMetadata: {
@@ -922,22 +974,13 @@ async function persistGenerationArtifacts(
     // reports the real byte length once it has drained the stream.
     const resolvedSize = size || stored.size || 0
     const createdAtMs = Date.now()
-    const name =
-      opts?.nameArtifact?.({
-        descriptor: { ...descriptor, mimeType },
-        activity,
-        provider: ctx.provider,
-        model: ctx.model,
-        threadId,
-        runId,
-        index,
-      }) ??
-      descriptor.name ??
-      defaultArtifactName({ ...descriptor, mimeType }, activity, index)
     const record: ArtifactRecord = {
       artifactId,
       runId,
       threadId,
+      // Always recorded: with a custom `storageKey` the path is no longer
+      // derivable from the record, so the reader has to be told where it went.
+      blobKey: key,
       name,
       mimeType,
       size: resolvedSize,

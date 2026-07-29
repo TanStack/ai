@@ -20,6 +20,7 @@ function StreamingImageGeneration() {
 
   const hookReturn = useGenerateImage({
     id: 'image:streaming',
+    threadId: 'image:streaming',
     connection: fetchServerSentEvents('/api/generate/image'),
     persistence: imagePersistence,
   })
@@ -41,6 +42,7 @@ function DirectImageGeneration() {
 
   const hookReturn = useGenerateImage({
     id: 'image:direct',
+    threadId: 'image:direct',
     fetcher: (input) =>
       generateImageFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
@@ -65,6 +67,7 @@ function ServerFnImageGeneration() {
 
   const hookReturn = useGenerateImage({
     id: 'image:server-fn',
+    threadId: 'image:server-fn',
     fetcher: (input) =>
       generateImageStreamFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },

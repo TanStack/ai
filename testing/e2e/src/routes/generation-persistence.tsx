@@ -27,7 +27,9 @@ export const Route = createFileRoute('/generation-persistence')({
 
 function GenerationPersistencePage() {
   const image = useGenerateImage({
-    id: 'generation-persistence',
+    // The scope, and the storage key: `generation:generation-persistence`.
+    // Required by `persistence`, so the spec's STORAGE_KEY stays stable.
+    threadId: 'generation-persistence',
     connection,
     persistence: snapshots,
   })

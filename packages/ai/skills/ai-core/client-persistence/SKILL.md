@@ -9,8 +9,9 @@ description: >
   durability. Use for SPA reload durability — NOT server history alone.
   Also covers generation hooks (useGenerateImage etc.), same two modes as chat:
   client-driven (adapter) persists a lightweight resume snapshot under
-  generation:<id>; server-driven (persistence: true + threadId) hydrates the last
-  generation from the server on mount, nothing cached.
+  generation:<threadId> (threadId is REQUIRED with persistence); server-driven
+  (persistence: true) hydrates the last generation from the server on mount,
+  nothing cached.
   No extra package: the adapters ship in the framework packages.
 type: sub-skill
 library: tanstack-ai
@@ -135,7 +136,7 @@ The hook return is exactly `generate` / `result` / `isLoading` / `error` /
 
 ```tsx
 const image = useGenerateImage({
-  id: 'hero-image', // stable — the storage key is `generation:<id>`
+  threadId: 'hero-image', // REQUIRED by persistence — key is `generation:<threadId>`
   connection: fetchServerSentEvents('/api/generate/image'),
   persistence: localStoragePersistence(), // bare — no type argument
 })
@@ -144,15 +145,21 @@ const image = useGenerateImage({
 // WHILE a run is streaming.
 ```
 
-- The lightweight snapshot is cached in the browser under `generation:<id>` as a
-  run streams, and read back on mount.
+- The lightweight snapshot is cached in the browser under `generation:<threadId>`
+  as a run streams, and read back on mount.
+- **`threadId` is REQUIRED whenever `persistence` is set** — it is a type error
+  to omit it, in BOTH modes. It is the generation's _scope_: a stable,
+  app-chosen name for the slot successive runs fill (`product-123-hero`,
+  `video-9-start-frame`), NOT a link to a chat conversation. Never suggest
+  falling back to `id`: `id` is the devtools/instance label only and never keys
+  storage.
 - `localStoragePersistence()` (and the session / IndexedDB factories) take **no**
   type argument here — a bare call defaults to the generation snapshot shape.
 - Hydration is automatic on mount and validated
   (`parseGenerationResumeSnapshot`); an explicit `initialResumeSnapshot` seed
   skips it.
 - The `generation:` key segment means a chat and a generation client can share
-  an id and an adapter without colliding.
+  a threadId and an adapter without colliding.
 - `result` needs byte storage to come back. A client snapshot never holds the
   bytes, so on its own a reload restores `status` and `error` while `result`
   stays `null` (see byte storage below).
@@ -161,7 +168,7 @@ const image = useGenerateImage({
 
 ```tsx
 const image = useGenerateImage({
-  threadId, // stable — the key the last generation is hydrated under (falls back to id)
+  threadId, // REQUIRED — the scope the last generation is hydrated under
   connection: fetchServerSentEvents('/api/generate/image'),
   persistence: true,
 })
