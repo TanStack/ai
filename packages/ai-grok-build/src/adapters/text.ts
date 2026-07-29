@@ -239,6 +239,27 @@ export class GrokBuildTextAdapter<
         fallback: () => this.generateId(),
       })
       const threadId = options.threadId ?? this.generateId()
+
+      // Same misconfiguration class `DurableRunIdRequiredError` guards
+      // against: durability wired but silently not delivered. Throwing here
+      // would be wrong, though — an app can legitimately wire `withSandbox({
+      // runs, durability })` once at the middleware level and still choose
+      // `protocol: 'acp'` for runs it deliberately never needs to recover.
+      // So this is a warn, not a throw: audible, not fatal. One check per
+      // run (not per chunk) — a per-chunk warning would be worse than none.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      if (durability !== undefined) {
+        logger.warn(
+          'grok-build: sandbox durability is wired but this run is using the ' +
+            "'acp' protocol, which never journals — this run will not be " +
+            "recoverable on reconnect. Set protocol: 'streaming-json' to " +
+            'journal this run, or drop durability if ACP runs are not meant ' +
+            'to survive a host restart.',
+          { runId, adapter: 'grok-build', protocol: 'acp' },
+        )
+      }
       const channel = createBridgeEventChannel({
         model: this.model,
         threadId,
