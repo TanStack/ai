@@ -56,11 +56,15 @@ export async function requestRunCancel(
  * Whether an explicit cancel has been recorded for `runId`.
  *
  * Answers `false` rather than throwing when the store cannot be read. Callers
- * are middleware abort hooks and the reaper: both are already on a teardown
- * path, and a store failure there must not replace the caller's own reason for
- * tearing down with a store error. The cost of a false negative is that a
- * cancel degrades into a detach, which the `detachedRunTtl` reaper still
- * reclaims — strictly better than failing the teardown.
+ * are middleware abort hooks, which are already on a teardown path, and a
+ * store failure there must not replace the caller's own reason for tearing
+ * down with a store error. The cost of a false negative is that a cancel
+ * degrades into a detach — the run record gains `detachedSince`/`sandboxKey`
+ * instead of transitioning to `'aborted'`. No reaper sweeps that today:
+ * `detachedRunTtlMs` (`@tanstack/ai-sandbox`'s parsed `durability.detachedRunTtl`)
+ * is recorded but nothing reads it yet, so recovery is manual until a sweep is
+ * built on `RunStore.listReclaimable`. Still strictly better than failing the
+ * teardown.
  */
 export async function wasCancelRequested(
   runs: RunStore,

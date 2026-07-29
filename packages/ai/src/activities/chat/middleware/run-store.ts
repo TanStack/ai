@@ -89,13 +89,21 @@ export interface RunRecord {
   /**
    * Compound sandbox key this run was bound to, when it ran in a sandbox.
    * Recorded so a future reclaimer can identify the sandbox to tear down
-   * without re-deriving the key. Populated in a later phase; always
-   * `undefined` today.
+   * without re-deriving the key. Written by `withSandbox`'s detach path
+   * (`onAbort` in `@tanstack/ai-sandbox`'s `middleware.ts`) at the same time as
+   * `detachedSince`, when a disconnect leaves the run detached rather than
+   * destroying the sandbox. A backend must round-trip this field — see
+   * `listReclaimable` below for who eventually reads it.
    */
   sandboxKey?: string
   /**
    * Epoch ms when the last viewer detached; absent while someone is attached.
-   * Populated in a later phase; always `undefined` today.
+   * Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
+   * `middleware.ts`) alongside `sandboxKey`, when a disconnect leaves the
+   * agent running rather than tearing the sandbox down. A backend must
+   * round-trip this field: `listReclaimable` depends on it, and no reaper
+   * ships yet to sweep the candidates it surfaces (see that method's doc
+   * comment).
    */
   detachedSince?: number
   /**
@@ -181,8 +189,11 @@ export interface RunStore {
    *
    * OPTIONAL: only needed by a reaper. Consumers feature-detect.
    *
-   * Its consumer is the Phase 4 reaper (`reclaimAbandonedRuns`); `detachedSince`
-   * is populated by `withSandbox`'s detach path as of Phase 3.
+   * `detachedSince` is populated by `withSandbox`'s detach path (see
+   * {@link RunRecord.detachedSince}). No reaper ships at this HEAD — this
+   * method only surfaces reclaim candidates; sweeping them (deciding when and
+   * how to tear the sandbox down and finalize the record) is the
+   * application's to build on top of it.
    */
   listReclaimable?: (opts: {
     now: number
