@@ -2073,7 +2073,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.1.10)
+        version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
       vite:
         specifier: ^8.1.4
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -2842,6 +2842,9 @@ importers:
       '@tanstack/ai-groq':
         specifier: workspace:*
         version: link:../../packages/ai-groq
+      '@tanstack/ai-llmgateway':
+        specifier: workspace:*
+        version: link:../../packages/ai-llmgateway
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
@@ -24845,14 +24848,14 @@ snapshots:
       vite: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
       vue: 3.5.25(typescript@5.9.3)
 
-  '@vitest/coverage-v8@4.0.14(vitest@4.1.10)':
+  '@vitest/coverage-v8@4.0.14(supports-color@7.2.0)(vitest@4.1.10)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.0.14
       ast-v8-to-istanbul: 0.3.12
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-report: 3.0.1
-      istanbul-lib-source-maps: 5.0.6
+      istanbul-lib-source-maps: 5.0.6(supports-color@7.2.0)
       istanbul-reports: 3.2.0
       magicast: 0.5.2
       obug: 2.1.1
@@ -28228,7 +28231,7 @@ snapshots:
       make-dir: 4.0.0
       supports-color: 7.2.0
 
-  istanbul-lib-source-maps@5.0.6:
+  istanbul-lib-source-maps@5.0.6(supports-color@7.2.0):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       debug: 4.4.3(supports-color@7.2.0)
@@ -33297,7 +33300,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 24.10.3
-      '@vitest/coverage-v8': 4.0.14(vitest@4.1.10)
+      '@vitest/coverage-v8': 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
       happy-dom: 20.11.2
       jsdom: 27.4.0(postcss@8.5.26)
     transitivePeerDependencies:
