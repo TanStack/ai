@@ -1040,6 +1040,33 @@ describe('connection-adapters', () => {
         undefined,
       )
     })
+
+    it('should spread supplied persistence handlers onto the adapter', () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {})
+      const hydrate = vi.fn()
+      const hydrateGeneration = vi.fn()
+      const joinRun = vi.fn()
+
+      const adapter = stream(streamFactory, {
+        hydrate,
+        hydrateGeneration,
+        joinRun,
+      })
+
+      expect(adapter.hydrate).toBe(hydrate)
+      expect(adapter.hydrateGeneration).toBe(hydrateGeneration)
+      expect(adapter.joinRun).toBe(joinRun)
+    })
+
+    it('should omit persistence handlers that are not supplied', () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {})
+
+      const adapter = stream(streamFactory)
+
+      expect(adapter.hydrate).toBeUndefined()
+      expect(adapter.hydrateGeneration).toBeUndefined()
+      expect(adapter.joinRun).toBeUndefined()
+    })
   })
 
   describe('normalizeConnectionAdapter', () => {
@@ -1240,6 +1267,33 @@ describe('connection-adapters', () => {
         data,
         undefined,
       )
+    })
+
+    it('should spread supplied persistence handlers onto the adapter', () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {})
+      const hydrate = vi.fn()
+      const hydrateGeneration = vi.fn()
+      const joinRun = vi.fn()
+
+      const adapter = rpcStream(rpcCall, {
+        hydrate,
+        hydrateGeneration,
+        joinRun,
+      })
+
+      expect(adapter.hydrate).toBe(hydrate)
+      expect(adapter.hydrateGeneration).toBe(hydrateGeneration)
+      expect(adapter.joinRun).toBe(joinRun)
+    })
+
+    it('should omit persistence handlers that are not supplied', () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {})
+
+      const adapter = rpcStream(rpcCall)
+
+      expect(adapter.hydrate).toBeUndefined()
+      expect(adapter.hydrateGeneration).toBeUndefined()
+      expect(adapter.joinRun).toBeUndefined()
     })
   })
 })

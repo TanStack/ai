@@ -26,7 +26,11 @@ export interface InjectGenerateAudioOptions<
   TOutput = AudioGenerationResult,
 > extends Pick<
   InjectGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
-  'persistence' | 'threadId' | 'initialResumeSnapshot'
+  | 'persistence'
+  | 'threadId'
+  | 'initialResumeSnapshot'
+  | 'hydrateGeneration'
+  | 'joinRun'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

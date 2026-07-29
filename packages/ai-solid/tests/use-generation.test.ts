@@ -1297,7 +1297,7 @@ describe('resume snapshot persistence', () => {
     expect(result.resumeState()).toBeNull()
   })
 
-  it('repaints resumeState from a stored running snapshot on mount', async () => {
+  it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
     const { adapter, connect } = createRunContextCaptureAdapter(
       createGenerationChunks({ id: '1' }),
     )
@@ -1321,12 +1321,12 @@ describe('resume snapshot persistence', () => {
 
     await flush()
 
-    expect(result.resumeState()).toEqual({
-      threadId: 'thread-resume',
-      runId: 'run-resume',
-    })
-    // A restored running run presents as `generating` but never auto-tails.
-    expect(result.status()).toBe('generating')
+    // Without a `joinRun` handler the restored run cannot be tailed, so it
+    // surfaces as an interrupted error instead of a `generating` status
+    // that would never settle.
+    expect(result.error()?.message).toMatch(/interrupted/)
+    expect(result.resumeState()).toBeNull()
+    expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
     expect(connect).not.toHaveBeenCalled()
   })
@@ -1434,7 +1434,7 @@ describe('resume snapshot persistence', () => {
     expect(result.resumeState()).toBeNull()
   })
 
-  it('repaints resumeState for useGenerateVideo from a stored running snapshot', async () => {
+  it('repaints a stored running snapshot for useGenerateVideo with no joinRun as an interrupted error', async () => {
     const stored: GenerationResumeSnapshot = {
       schemaVersion: 1,
       resumeState: { threadId: 'thread-stored', runId: 'run-stored' },
@@ -1459,9 +1459,12 @@ describe('resume snapshot persistence', () => {
     expect(persistence.getItem).toHaveBeenCalledWith(
       'generation:video-hydrate-me',
     )
-    expect(result.resumeState()).toEqual(stored.resumeState)
-    // A restored running run presents as `generating` but never auto-tails.
-    expect(result.status()).toBe('generating')
+    // Without a `joinRun` handler the restored run cannot be tailed, so it
+    // surfaces as an interrupted error instead of a `generating` status
+    // that would never settle.
+    expect(result.error()?.message).toMatch(/interrupted/)
+    expect(result.resumeState()).toBeNull()
+    expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
   })
 

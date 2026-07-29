@@ -225,14 +225,13 @@ describe('injectGeneration', () => {
     expect(getItem).toHaveBeenCalledWith('generation:hydrate-me')
     // Hydration only surfaces state; it never restarts the run.
     expect(connect).not.toHaveBeenCalled()
-    // A restored running run repaints `status` to `generating` but never
-    // auto-tails, and its in-flight identity is exposed as `resumeState`.
-    expect(result.status()).toBe('generating')
+    // Without a `joinRun` handler the restored run cannot be tailed, so it
+    // surfaces as an interrupted error instead of a `generating` status
+    // that would never settle.
+    expect(result.error()?.message).toMatch(/interrupted/)
+    expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
-    expect(result.resumeState()).toEqual({
-      threadId: 'thread-stored',
-      runId: 'run-stored',
-    })
+    expect(result.resumeState()).toBeNull()
   })
 
   it('clears resume state and removes the persisted record on reset', async () => {
@@ -304,11 +303,13 @@ describe('injectGenerateVideo', () => {
     expect(getItem).toHaveBeenCalledTimes(1)
     expect(getItem).toHaveBeenCalledWith('generation:video-hydrate')
     expect(connect).not.toHaveBeenCalled()
-    // A restored running run repaints `status` to `generating` and exposes its
-    // in-flight identity as `resumeState`, but never auto-tails.
-    expect(result.status()).toBe('generating')
+    // Without a `joinRun` handler the restored run cannot be tailed, so it
+    // surfaces as an interrupted error instead of a `generating` status
+    // that would never settle.
+    expect(result.error()?.message).toMatch(/interrupted/)
+    expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
-    expect(result.resumeState()).toEqual(videoResumeSnapshot.resumeState)
+    expect(result.resumeState()).toBeNull()
 
     result.reset()
     await flushPromises()

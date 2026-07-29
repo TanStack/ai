@@ -1623,6 +1623,53 @@ describe('GenerationClient', () => {
     })
 
     it('emits onResumeStateChange with the in-flight identity from a stored running snapshot', async () => {
+      const runId = 'run-run'
+      const snapshot: GenerationResumeSnapshot = {
+        schemaVersion: 1,
+        resumeState: { threadId: 'thread-run', runId },
+        status: 'running',
+      }
+      const { persistence } = createMapPersistence({
+        'generation:running': snapshot,
+      })
+      const onResumeStateChange = vi.fn()
+      // A `joinRun` handler makes the stored run rejoinable: the in-flight
+      // identity repaints and the client tails the run to completion.
+      const joinRun = vi.fn(async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId: 'thread-run',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId: 'thread-run',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+      })
+      const client = new GenerationClient({
+        id: 'running',
+        connection: { async *connect() {}, joinRun },
+        persistence,
+        onResumeStateChange,
+      })
+
+      await waitForCondition(() => {
+        expect(onResumeStateChange).toHaveBeenCalledWith({
+          threadId: 'thread-run',
+          runId: 'run-run',
+        })
+      })
+      expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('success')
+      })
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('repaints a stored running snapshot with no joinRun available as an interrupted error instead of sticking on generating', async () => {
       const snapshot: GenerationResumeSnapshot = {
         schemaVersion: 1,
         resumeState: { threadId: 'thread-run', runId: 'run-run' },
@@ -1639,14 +1686,63 @@ describe('GenerationClient', () => {
         onResumeStateChange,
       })
 
+      // An interrupted generation cannot be resumed, only re-run: without a
+      // `joinRun` handler the restored run surfaces as an error, never a
+      // `generating` status that would never settle.
       await waitForCondition(() => {
-        expect(onResumeStateChange).toHaveBeenCalledWith({
-          threadId: 'thread-run',
-          runId: 'run-run',
-        })
+        expect(client.getStatus()).toBe('error')
       })
-      // A restored running run presents as `generating` but never auto-tails.
-      expect(client.getStatus()).toBe('generating')
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(/interrupted/)
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
+      expect(onResumeStateChange).toHaveBeenLastCalledWith(null)
+    })
+
+    it('rejoins a stored running snapshot via the joinRun option in fetcher mode', async () => {
+      const runId = 'run-stored'
+      const { persistence } = createMapPersistence({
+        'generation:thread-stored': {
+          schemaVersion: 1,
+          resumeState: { threadId: 'thread-stored', runId },
+          status: 'running',
+        },
+      })
+      const joinRun = vi.fn(async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId: 'thread-stored',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { id: 'stored-img' },
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId: 'thread-stored',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+      })
+
+      const client = new GenerationClient<{ prompt: string }, unknown>({
+        threadId: 'thread-stored',
+        fetcher: async () => ({}),
+        persistence,
+        joinRun,
+      })
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('success')
+      })
+      expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
+      expect(client.getResult()).toMatchObject({ id: 'stored-img' })
       expect(client.getIsLoading()).toBe(false)
     })
 
@@ -2174,6 +2270,128 @@ describe('GenerationClient', () => {
         expect(client.getResumeSnapshot()).toMatchObject({ status: 'complete' })
       })
       expect(hydrateGeneration).toHaveBeenCalledWith('thread-video')
+    })
+
+    it('hydrates via the hydrateGeneration option in fetcher mode (no connection)', async () => {
+      const hydrateGeneration = vi.fn(async () => completedHydration)
+      const client = new GenerationClient<{ prompt: string }, unknown>({
+        threadId: 'thread-server',
+        fetcher: async () => ({}),
+        persistence: true,
+        hydrateGeneration,
+      })
+
+      await waitForCondition(() => {
+        expect(client.getResumeSnapshot()).toMatchObject({
+          status: 'complete',
+          result: { id: 'result-1' },
+        })
+      })
+      expect(hydrateGeneration).toHaveBeenCalledWith('thread-server')
+    })
+
+    it('rejoins an in-flight run via the joinRun option when the connection lacks one', async () => {
+      const runId = 'run-option-1'
+      const joinRun = vi.fn(async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId: 'thread-option',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { id: 'option-img' },
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId: 'thread-option',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-option', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-option',
+        connection: createMockConnection([]),
+        persistence: true,
+        hydrateGeneration,
+        joinRun,
+      })
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('success')
+        expect(client.getResult()).toMatchObject({ id: 'option-img' })
+      })
+      expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('warns only when persistence: true has no hydrate source at all', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      // Fetcher with no handlers anywhere: warns.
+      new GenerationClient<{ prompt: string }, unknown>({
+        threadId: 'thread-warn',
+        fetcher: async () => ({}),
+        persistence: true,
+      })
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('`persistence: true`'),
+      )
+      warn.mockClear()
+
+      // The hydrateGeneration option counts as a hydrate source: no warning.
+      new GenerationClient<{ prompt: string }, unknown>({
+        threadId: 'thread-warn',
+        fetcher: async () => ({}),
+        persistence: true,
+        hydrateGeneration: vi.fn(async () => ({
+          resumeSnapshot: null,
+          activeRun: null,
+        })),
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('`persistence: true`'),
+      )
+      warn.mockRestore()
+    })
+
+    it('repaints a running server snapshot with no joinRun available as an interrupted error', async () => {
+      const runId = 'run-stranded'
+      const { connection } = createHydratingConnection({
+        resumeSnapshot: {
+          schemaVersion: 1,
+          resumeState: { threadId: 'thread-stranded', runId },
+          status: 'running',
+        },
+        activeRun: { runId },
+      })
+      const client = new GenerationClient({
+        threadId: 'thread-stranded',
+        connection,
+        persistence: true,
+      })
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(/interrupted/)
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
     })
   })
 })

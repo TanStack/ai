@@ -168,6 +168,7 @@ export {
   type ReconnectOptions,
   type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
+  type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
   type XhrConnectionOptions,
 } from './connection-adapters'

@@ -246,6 +246,8 @@ The factory receives the conversation messages plus any per-request `data` you p
 
 > **Tip:** `stream()` is **request-scoped**. The factory is invoked once per `sendMessage`, the iterable runs to completion, and the connection closes. If you need a single long-lived channel that multiplexes many sends — for example a WebSocket — use [`subscribe` / `send`](#persistent-transports-websockets-and-friends) instead.
 
+`stream()` also takes an optional second argument of persistence handlers — `{ hydrate, hydrateGeneration, joinRun }` — spread onto the adapter, so server-driven persistence (`persistence: true`) works without an HTTP endpoint. Each handler is typically a one-line call into your server: `hydrate` restores a chat thread, `hydrateGeneration` restores a generation's last run, and `joinRun` replays a run still in flight. See [Generation Persistence](../persistence/generation-persistence#server-functions--direct) for the full server-function wiring.
+
 ## Server Functions via `fetcher`
 
 When you call into your server with an **async** function — the universal case for a [TanStack Start](https://tanstack.com/start) server function, which always returns a `Promise` — use the top-level `fetcher` option instead of a connection adapter. `fetcher` is a sibling of `connection` (provide exactly one), and it accepts a plain async function. It mirrors the `fetcher` option on the [generation hooks](../media/generation-hooks). The most common shape is a handler that ends with `toServerSentEventsResponse(...)` and resolves to a `Response`:
@@ -277,6 +279,8 @@ const { messages, sendMessage } = useChat({
 
 The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return a `Response` — whose SSE body the chat client parses for you — **or** an `AsyncIterable<StreamChunk>`, which is yielded directly. If your server function returns the stream itself (instead of wrapping it in a `Response`), the fetcher handles that too. Sync and `Promise`-wrapped returns are both accepted.
 
+> **Tip:** The generation hooks (`useGenerateImage` and siblings) take the same server-function shape a step further: alongside their `fetcher` they accept `hydrateGeneration` and `joinRun` options, so `persistence: true` hydrates and rejoins through server functions with no HTTP route at all. See [Generation Persistence — Server functions / direct](../persistence/generation-persistence#server-functions--direct).
+
 > **Tip:** The choice between `fetcher` and [`stream()`](#server-functions-and-direct-async-iterables) is about **async vs sync**, not `Response`-vs-iterable — both can yield an `AsyncIterable<StreamChunk>`. `stream()`'s factory must return that iterable **synchronously**, so a server-function call (which returns a `Promise`) won't typecheck there — that's the gap `fetcher` fills ([issue #509](https://github.com/TanStack/ai/issues/509)). Use `stream()` when you can hand back an async iterable synchronously (in-process `chat()`, an RPC client, tests); use `fetcher` for anything you have to `await`. Both normalize to the same request-scoped adapter, so `stop()`/abort, error handling, and tool calls behave identically.
 
 ## RPC Streams
@@ -294,6 +298,8 @@ const { messages } = useChat({
   ),
 });
 ```
+
+Like `stream()`, `rpcStream()` takes an optional second argument of persistence handlers (`{ hydrate, hydrateGeneration, joinRun }`) so server-driven persistence works over RPC — each handler is usually a one-line RPC call.
 
 ## Persistent Transports (WebSockets and Friends)
 

@@ -71,10 +71,14 @@ export { reconstructChat } from './reconstruct'
 export type { ReconstructChatOptions } from './reconstruct'
 
 // Server helper: rehydrate the last generation job for a client load
-export { reconstructGeneration } from './reconstruct-generation'
+export {
+  reconstructGeneration,
+  getGenerationHydration,
+} from './reconstruct-generation'
 export type {
   ReconstructedGeneration,
   ReconstructGenerationOptions,
+  GetGenerationHydrationOptions,
 } from './reconstruct-generation'
 
 // Server helpers: retrieve a persisted generation artifact + its bytes

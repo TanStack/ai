@@ -99,6 +99,74 @@ function jsonResponse(body: ReconstructedGeneration): Response {
   })
 }
 
+export interface GetGenerationHydrationOptions {
+  /**
+   * How to interpret `id`:
+   * - `'runId'` loads exactly that run via `stores.generationRuns.get`.
+   * - `'threadId'` (default) loads the latest run linked to the thread via
+   *   `stores.generationRuns.findLatestForThread`.
+   */
+  by?: 'threadId' | 'runId'
+}
+
+/**
+ * The request-free core of {@link reconstructGeneration}: read the last
+ * generation run for a thread (or a specific run) straight from the
+ * `generationRuns` store and return the plain `{ resumeSnapshot, activeRun }`
+ * hydration payload a server-authoritative client adopts on mount.
+ *
+ * Use this from a TanStack Start server function (or any direct call) to back
+ * a client's `hydrateGeneration` handler without fabricating a `Request`:
+ *
+ * ```ts
+ * export const getImageHydrationFn = createServerFn({ method: 'GET' })
+ *   .inputValidator((threadId: string) => threadId)
+ *   .handler(async ({ data: threadId }) => {
+ *     // Do your own auth here — this helper does not enforce tenancy.
+ *     return getGenerationHydration(persistence, threadId)
+ *   })
+ * ```
+ *
+ * ⚠️ Unlike {@link reconstructGeneration} this helper takes **no** `authorize`
+ * option — there is no `Request` to authorize against. Server-function callers
+ * must gate the call themselves (session → owned thread/run) before resolving
+ * the id, or any caller who guesses an id receives the run's status and result
+ * metadata.
+ *
+ * Returns `{ resumeSnapshot: null, activeRun: null }` when `id` is empty or no
+ * matching run exists, so the caller never has to special-case a first load.
+ */
+export async function getGenerationHydration(
+  persistence: AIPersistence,
+  id: string,
+  options?: GetGenerationHydrationOptions,
+): Promise<ReconstructedGeneration> {
+  validateReconstructGenerationStores(persistence)
+  const runStore = persistence.stores.generationRuns
+  if (!runStore) {
+    // validateReconstructGenerationStores already throws; this narrows for TS.
+    throw new Error('getGenerationHydration requires stores.generationRuns.')
+  }
+
+  if (!id) {
+    return { resumeSnapshot: null, activeRun: null }
+  }
+
+  const run =
+    options?.by === 'runId'
+      ? await runStore.get(id)
+      : await runStore.findLatestForThread(id)
+
+  if (!run) {
+    return { resumeSnapshot: null, activeRun: null }
+  }
+
+  return {
+    resumeSnapshot: runToSnapshot(run),
+    activeRun: run.status === 'running' ? { runId: run.runId } : null,
+  }
+}
+
 /**
  * Build the JSON `Response` a server-authoritative client hydrates a generation
  * from on load. Reads a `?runId=` (preferred) or `?threadId=` from the request
@@ -136,13 +204,6 @@ export async function reconstructGeneration(
   request: Request,
   options?: ReconstructGenerationOptions,
 ): Promise<Response> {
-  validateReconstructGenerationStores(persistence)
-  const runStore = persistence.stores.generationRuns
-  if (!runStore) {
-    // validateReconstructGenerationStores already throws; this narrows for TS.
-    throw new Error('reconstructGeneration requires stores.generationRuns.')
-  }
-
   const params = new URL(request.url).searchParams
   const runParam = options?.runParam ?? 'runId'
   const threadParam = options?.param ?? 'threadId'
@@ -170,16 +231,9 @@ export async function reconstructGeneration(
     }
   }
 
-  const run = runId
-    ? await runStore.get(runId)
-    : await runStore.findLatestForThread(threadId)
-
-  if (!run) {
-    return jsonResponse({ resumeSnapshot: null, activeRun: null })
-  }
-
-  return jsonResponse({
-    resumeSnapshot: runToSnapshot(run),
-    activeRun: run.status === 'running' ? { runId: run.runId } : null,
-  })
+  return jsonResponse(
+    await getGenerationHydration(persistence, id, {
+      by: runId ? 'runId' : 'threadId',
+    }),
+  )
 }

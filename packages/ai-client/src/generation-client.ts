@@ -97,6 +97,15 @@ export class GenerationClient<
 > {
   private readonly connection: ConnectConnectionAdapter | undefined
   private readonly fetcher: GenerationFetcher<TInput, TResult> | undefined
+  // Persistence handlers supplied as options (e.g. alongside a `fetcher`), used
+  // when the connection doesn't carry its own — the connection's handlers take
+  // precedence when both exist.
+  private readonly hydrateGenerationHandler:
+    | ConnectConnectionAdapter['hydrateGeneration']
+    | undefined
+  private readonly joinRunHandler:
+    | ConnectConnectionAdapter['joinRun']
+    | undefined
   private readonly uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
@@ -147,6 +156,8 @@ export class GenerationClient<
     this.persistenceScope = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
+    this.hydrateGenerationHandler = options.hydrateGeneration
+    this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
     // `persistence` is `false`/omitted (ephemeral), `true` (server-driven: cache
     // nothing, hydrate the last generation for `threadId` on mount), or a storage
@@ -194,14 +205,19 @@ export class GenerationClient<
 
     // Server-driven (`persistence: true`): the client caches nothing locally and
     // re-hydrates the last generation for its stable threadId from the server on
-    // mount. Best-effort and non-blocking; it never auto-starts a run.
-    if (this.serverDriven && this.connection?.hydrateGeneration) {
+    // mount. Best-effort and non-blocking; it never auto-starts a run. The
+    // hydrate handler comes from the connection, or from the `hydrateGeneration`
+    // option (e.g. a server-function call) when the transport can't carry one.
+    if (
+      this.serverDriven &&
+      (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler)
+    ) {
       this.hydrateFromServer()
     } else if (this.serverDriven) {
-      // `persistence: true` without a hydrate-capable connection can never
-      // restore anything — warn rather than silently no-op.
+      // `persistence: true` without any hydrate source can never restore
+      // anything — warn rather than silently no-op.
       console.warn(
-        '[TanStack AI] `persistence: true` (server-driven) needs a connection that implements `hydrateGeneration` (e.g. `fetchServerSentEvents` / `fetchHttpStream`). With a plain `fetcher` or no connection, nothing is persisted or restored.',
+        '[TanStack AI] `persistence: true` (server-driven) needs a `hydrateGeneration` handler — either a connection that implements one (e.g. `fetchServerSentEvents` / `fetchHttpStream`, or `stream()` / `rpcStream()` with persistence handlers) or the `hydrateGeneration` option. Without one, nothing is persisted or restored.',
       )
     }
   }
@@ -683,6 +699,42 @@ export class GenerationClient<
   }
 
   /**
+   * Repaint a restored snapshot (client store or server hydrate) and, when it
+   * reports a run still in flight, tail that run to completion via `joinRun`
+   * (from the connection, or the `joinRun` option when the transport can't
+   * carry one).
+   *
+   * A `running` snapshot that no `joinRun` handler can tail is repainted as an
+   * interrupted error instead of a `generating` status that would never
+   * settle: an interrupted generation cannot be resumed, only re-run.
+   */
+  private repaintRestoredSnapshot(
+    snapshot: GenerationResumeSnapshot,
+    activeRunId?: string,
+  ): void {
+    if (snapshot.status !== 'running') {
+      this.repaintFromSnapshot(snapshot)
+      return
+    }
+    const joinRun = this.connection?.joinRun ?? this.joinRunHandler
+    const runId = activeRunId ?? snapshot.resumeState?.runId
+    if (runId && joinRun) {
+      this.repaintFromSnapshot(snapshot)
+      this.rejoinInFlight(runId)
+      return
+    }
+    this.repaintFromSnapshot({
+      ...snapshot,
+      resumeState: null,
+      status: 'error',
+      error: {
+        message:
+          'The previous generation was interrupted before it finished and cannot be resumed — generate again to retry.',
+      },
+    })
+  }
+
+  /**
    * Build the restorable result shape from the snapshot and hand it to the
    * per-activity `reconstructResult` mapper (injected by the specialized
    * client/hook, which knows the concrete result type). Returns `null` when no
@@ -822,11 +874,8 @@ export class GenerationClient<
     // Live state wins: adopt the stored snapshot only if nothing has been
     // observed since construction.
     if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
-    this.repaintFromSnapshot(snapshot)
     // If the stored run was still generating, re-attach and finish it in place.
-    if (snapshot.status === 'running' && snapshot.resumeState?.runId) {
-      this.rejoinInFlight(snapshot.resumeState.runId)
-    }
+    this.repaintRestoredSnapshot(snapshot)
   }
 
   /**
@@ -838,7 +887,8 @@ export class GenerationClient<
    * the client (hydration then backs off, mirroring the chat client).
    */
   private hydrateFromServer(): void {
-    const hydrate = this.connection?.hydrateGeneration
+    const hydrate =
+      this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
     if (!hydrate) return
     // A send that already started owns the client; don't stomp it.
     if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
@@ -855,11 +905,8 @@ export class GenerationClient<
       // Re-check: a send may have started while the fetch was in flight.
       if (this.resumeSnapshot || this.isLoading || this.status !== 'idle')
         return
-      this.repaintFromSnapshot(snapshot)
       // A run still generating on the server: re-attach and finish it in place.
-      if (res.activeRun?.runId) {
-        this.rejoinInFlight(res.activeRun.runId)
-      }
+      this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
   }
 
@@ -871,7 +918,7 @@ export class GenerationClient<
    * never stomped, and the same run is only rejoined once.
    */
   private rejoinInFlight(runId: string): void {
-    const joinRun = this.connection?.joinRun
+    const joinRun = this.connection?.joinRun ?? this.joinRunHandler
     if (!joinRun) return
     if (this.rejoinedRunId === runId) return
     // A fresh send (or an in-progress rejoin) owns the client.

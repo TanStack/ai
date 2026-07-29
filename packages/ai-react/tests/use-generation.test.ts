@@ -453,7 +453,7 @@ describe('useGeneration', () => {
       expect(result.current.resumeState).toBeNull()
     })
 
-    it('repaints resumeState from a stored running snapshot on mount', async () => {
+    it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
@@ -476,13 +476,13 @@ describe('useGeneration', () => {
       )
 
       await waitFor(() => {
-        expect(result.current.resumeState).toEqual({
-          threadId: 'thread-resume',
-          runId: 'run-resume',
-        })
+        expect(result.current.error?.message).toMatch(/interrupted/)
       })
-      // A restored running run presents as `generating` but never auto-tails.
-      expect(result.current.status).toBe('generating')
+      // Without a `joinRun` handler the restored run cannot be tailed, so it
+      // surfaces as an interrupted error instead of a `generating` status
+      // that would never settle.
+      expect(result.current.resumeState).toBeNull()
+      expect(result.current.status).toBe('error')
       expect(result.current.isLoading).toBe(false)
       expect(connect).not.toHaveBeenCalled()
     })

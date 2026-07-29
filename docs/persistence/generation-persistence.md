@@ -191,6 +191,116 @@ sequenceDiagram
     end
 ```
 
+## Server functions / direct
+
+The HTTP adapters above implement hydration and rejoin for you. With
+[TanStack Start](https://tanstack.com/start) server functions (or any direct,
+in-process call) there is no `GET` route to hang them on, so you supply the
+two handlers yourself — one for mount-time hydration, one for replaying an
+in-flight run — and pass them as options alongside the `fetcher` (or to
+`stream()` / `rpcStream()`).
+
+Three server functions cover it: one runs the generation, one answers
+hydration with `getGenerationHydration`, and one replays the run's durability
+log with `replayRunStream`:
+
+```ts group=generation-server-functions
+// server/image.ts
+import { createServerFn } from '@tanstack/react-start'
+import {
+  generateImage,
+  memoryStream,
+  replayRunStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import {
+  getGenerationHydration,
+  memoryPersistence,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+import type { ImageGenerateInput } from '@tanstack/ai-client'
+
+const persistence = memoryPersistence()
+
+export const generateImageFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: ImageGenerateInput & { threadId: string }) => data)
+  .handler(({ data: { threadId, ...input } }) => {
+    if (typeof input.prompt !== 'string') {
+      throw new Error('This endpoint accepts text image prompts only.')
+    }
+    // One run id for both the durability log and the run record, so the
+    // rejoin below replays exactly the run hydration reports.
+    const runId = crypto.randomUUID()
+    const stream = generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: input.prompt,
+      threadId,
+      runId,
+      stream: true,
+      // `artifactUrl` is optional — see Keep generated files.
+      middleware: [
+        withGenerationPersistence(persistence, {
+          artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
+        }),
+      ],
+    })
+    return toServerSentEventsResponse(stream, {
+      durability: { adapter: memoryStream({ runId }) },
+    })
+  })
+
+export const getImageHydrationFn = createServerFn({ method: 'GET' })
+  .inputValidator((threadId: string) => threadId)
+  .handler(async ({ data: threadId }) => {
+    // `getGenerationHydration` does no auth — gate on your session here, the
+    // way you would pass `authorize` to `reconstructGeneration`.
+    return getGenerationHydration(persistence, threadId)
+  })
+
+export const joinImageRunFn = createServerFn({ method: 'GET' })
+  .inputValidator((runId: string) => runId)
+  .handler(({ data: runId }) => replayRunStream(memoryStream({ runId })))
+```
+
+On the client, pass the two handlers next to the `fetcher`. A reload now
+hydrates the last run through `getImageHydrationFn`, and a run still
+generating is tailed to completion through `joinImageRunFn`:
+
+```tsx
+import { useGenerateImage } from '@tanstack/ai-react'
+import {
+  generateImageFn,
+  getImageHydrationFn,
+  joinImageRunFn,
+} from './server/image'
+
+export function HeroImageGenerator({ threadId }: { threadId: string }) {
+  const image = useGenerateImage({
+    id: 'hero-image',
+    threadId,
+    fetcher: (input) => generateImageFn({ data: { ...input, threadId } }),
+    hydrateGeneration: (id) => getImageHydrationFn({ data: id }),
+    joinRun: async function* (runId, signal) {
+      yield* await joinImageRunFn({ data: runId, signal })
+    },
+    persistence: true,
+  })
+  // The render is identical to the server-driven example above.
+  return <p>{image.status}</p>
+}
+```
+
+A restored run that was still generating but has **no** `joinRun` handler to
+tail it surfaces as an interrupted error — it cannot be resumed, only re-run —
+instead of hanging on `generating` forever.
+
+The same handlers fit the lightweight connection adapters directly —
+`stream(factory, { hydrateGeneration, joinRun })` and
+`rpcStream(call, { hydrateGeneration, joinRun })` — for in-process or RPC
+transports; they also accept a chat `hydrate` handler for `useChat`'s
+server-driven persistence.
+
 ## Client-driven: a storage adapter
 
 Pass a storage adapter instead, and give the hook a stable `id`. The client

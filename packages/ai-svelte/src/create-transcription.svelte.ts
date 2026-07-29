@@ -28,7 +28,11 @@ export interface CreateTranscriptionOptions<
     TranscriptionResult,
     TOutput
   >,
-  'persistence' | 'threadId' | 'initialResumeSnapshot'
+  | 'persistence'
+  | 'threadId'
+  | 'initialResumeSnapshot'
+  | 'hydrateGeneration'
+  | 'joinRun'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

@@ -279,7 +279,7 @@ describe('createGeneration', () => {
   })
 
   describe('resume snapshot persistence', () => {
-    it('repaints resumeState from a stored running snapshot on creation', async () => {
+    it('repaints a stored running snapshot with no joinRun as an interrupted error on creation', async () => {
       const persistence = createMapPersistence({
         'generation:hydrate-me': {
           schemaVersion: 1,
@@ -301,12 +301,12 @@ describe('createGeneration', () => {
 
       expect(persistence.getItem).toHaveBeenCalledTimes(1)
       expect(persistence.getItem).toHaveBeenCalledWith('generation:hydrate-me')
-      // A restored running run presents as `generating` but never auto-tails.
-      expect(gen.resumeState).toEqual({
-        threadId: 'thread-stored',
-        runId: 'run-stored',
-      })
-      expect(gen.status).toBe('generating')
+      // Without a `joinRun` handler the restored run cannot be tailed, so it
+      // surfaces as an interrupted error instead of a `generating` status
+      // that would never settle.
+      expect(gen.error?.message).toMatch(/interrupted/)
+      expect(gen.resumeState).toBeNull()
+      expect(gen.status).toBe('error')
       expect(gen.isLoading).toBe(false)
     })
 
@@ -353,10 +353,10 @@ describe('createGeneration', () => {
       })
 
       await flushAsync()
-      expect(gen.resumeState).toEqual({
-        threadId: 'thread-stored',
-        runId: 'run-stored',
-      })
+      // The restored running snapshot has no `joinRun` handler, so it
+      // surfaces as an interrupted error.
+      expect(gen.error?.message).toMatch(/interrupted/)
+      expect(gen.resumeState).toBeNull()
 
       gen.reset()
 

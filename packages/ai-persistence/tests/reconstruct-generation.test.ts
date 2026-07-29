@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '../src/memory'
-import { reconstructGeneration } from '../src/reconstruct-generation'
+import {
+  getGenerationHydration,
+  reconstructGeneration,
+} from '../src/reconstruct-generation'
 import type { ReconstructedGeneration } from '../src/reconstruct-generation'
 
 async function body(response: Response): Promise<ReconstructedGeneration> {
@@ -134,5 +137,86 @@ describe('reconstructGeneration', () => {
     )
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
+  })
+})
+
+describe('getGenerationHydration', () => {
+  it('resolves the latest run for a thread id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.generationRuns.createOrResume({
+      runId: 'job-old',
+      threadId: 'thread-1',
+      activity: 'image',
+      provider: 'p',
+      model: 'm',
+      startedAt: 1000,
+    })
+    await persistence.stores.generationRuns.update('job-old', {
+      status: 'complete',
+      finishedAt: 1500,
+      result: { id: 'old-result' },
+    })
+    await persistence.stores.generationRuns.createOrResume({
+      runId: 'job-new',
+      threadId: 'thread-1',
+      activity: 'image',
+      provider: 'p',
+      model: 'm',
+      startedAt: 2000,
+    })
+    await persistence.stores.generationRuns.update('job-new', {
+      status: 'complete',
+      finishedAt: 2500,
+      result: { id: 'new-result' },
+    })
+
+    const hydration = await getGenerationHydration(persistence, 'thread-1')
+    expect(hydration).toEqual({
+      resumeSnapshot: {
+        schemaVersion: 1,
+        resumeState: null,
+        status: 'complete',
+        result: { id: 'new-result' },
+        activity: 'image',
+      },
+      activeRun: null,
+    })
+  })
+
+  it('resolves a specific run by run id, with an active-run cursor while running', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.generationRuns.createOrResume({
+      runId: 'job-live',
+      threadId: 'thread-live',
+      activity: 'video',
+      provider: 'p',
+      model: 'm',
+      startedAt: 5000,
+    })
+
+    const hydration = await getGenerationHydration(persistence, 'job-live', {
+      by: 'runId',
+    })
+    expect(hydration.activeRun).toEqual({ runId: 'job-live' })
+    expect(hydration.resumeSnapshot).toMatchObject({
+      status: 'running',
+      resumeState: { runId: 'job-live', threadId: 'thread-live' },
+    })
+  })
+
+  it('returns nulls for an empty id or no matching run', async () => {
+    const persistence = memoryPersistence()
+
+    await expect(getGenerationHydration(persistence, '')).resolves.toEqual({
+      resumeSnapshot: null,
+      activeRun: null,
+    })
+    await expect(getGenerationHydration(persistence, 'nope')).resolves.toEqual({
+      resumeSnapshot: null,
+      activeRun: null,
+    })
+    await expect(
+      getGenerationHydration(persistence, 'nope', { by: 'runId' }),
+    ).resolves.toEqual({ resumeSnapshot: null, activeRun: null })
   })
 })

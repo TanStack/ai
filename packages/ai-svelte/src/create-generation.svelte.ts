@@ -64,6 +64,20 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
   initialResumeSnapshot?: GenerationResumeSnapshot
   /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
+  /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
    * - Return a non-null value to transform and store it as the result
@@ -198,6 +212,10 @@ export function createGeneration<
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
+    ...(options.hydrateGeneration !== undefined && {
+      hydrateGeneration: options.hydrateGeneration,
+    }),
+    ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),

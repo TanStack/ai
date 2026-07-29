@@ -68,8 +68,9 @@ export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
 /**
  * Map a persisted resume status to the client's live state machine on restore:
  * complete → success, error → error, running → generating, idle → idle. A
- * restored `running` presents as `generating` with `isLoading` false (the client
- * never auto-tails a restored run).
+ * restored `running` only reaches this mapping when a `joinRun` handler can
+ * tail the run to completion; without one the client rewrites the snapshot to
+ * `error` (interrupted) before repainting, so it never sticks on `generating`.
  */
 export function clientStateFromResumeStatus(
   status: GenerationResumeStatus,
@@ -165,10 +166,9 @@ export type GenerationPersistence = ChatStorageAdapter<GenerationResumeSnapshot>
  * - `false` (default) / omitted: ephemeral. Nothing is written; a reload starts
  *   from empty.
  * - `true`: server-driven. Nothing is cached in the browser. On mount the client
- *   hydrates the last generation for its `threadId` from the server (via the
- *   connection's `hydrateGeneration` handler) and repaints that snapshot — it
- *   never auto-starts a run. Requires a connection that implements
- *   `hydrateGeneration`.
+ *   hydrates the last generation for its `threadId` from the server (via a
+ *   `hydrateGeneration` handler — from the connection, or supplied as an
+ *   option) and repaints that snapshot — it never auto-starts a run.
  * - a {@link GenerationPersistence} adapter: client-driven. The lightweight
  *   resume snapshot is cached in the browser under `generation:<threadId>` as a
  *   run streams and read back (validated) on mount.
@@ -334,9 +334,9 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    *
    * - Omit or `false`: ephemeral, in-memory only.
    * - `true`: server-driven. The client caches nothing and, on mount, hydrates
-   *   the last generation for its `threadId` from the server (needs a connection
-   *   with a `hydrateGeneration` handler). It repaints the snapshot but never
-   *   auto-starts a run.
+   *   the last generation for its `threadId` from the server (needs a
+   *   `hydrateGeneration` handler — from the connection, or the option below)
+   *   and repaints that snapshot. It never auto-starts a run.
    * - a {@link GenerationPersistence} adapter (any {@link ChatStorageAdapter},
    *   including the shared `localStoragePersistence` / `sessionStoragePersistence`
    *   / `indexedDBPersistence` factories): client-driven. The client writes the
@@ -345,6 +345,30 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    *   provided. Generated media bytes are never written.
    */
   persistence?: GenerationPersistenceOption
+
+  /**
+   * Server-driven hydration handler, for transports that don't carry one on
+   * the connection: supply it alongside `fetcher` (or a `stream()` /
+   * `rpcStream()` connection built without handlers) so `persistence: true`
+   * can restore the last generation for `threadId` on mount. Typically a
+   * one-line TanStack Start server-function call backed by
+   * `getGenerationHydration` from `@tanstack/ai-persistence`.
+   *
+   * A connection's own `hydrateGeneration` takes precedence when both exist.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+
+  /**
+   * Re-attach handler for a run that is still generating, for transports that
+   * don't carry one on the connection. The client tails this on mount when a
+   * restored/hydrated snapshot reports a run in flight, replaying it to
+   * completion in place. Without it, a restored `running` snapshot surfaces
+   * as an (interrupted) error — an interrupted generation cannot be resumed,
+   * only re-run.
+   *
+   * A connection's own `joinRun` takes precedence when both exist.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
 
   /**
    * Factory that constructs the devtools bridge. Default is a no-op

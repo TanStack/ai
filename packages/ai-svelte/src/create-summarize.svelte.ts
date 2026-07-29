@@ -24,7 +24,11 @@ export interface CreateSummarizeOptions<
   TOutput = SummarizationResult,
 > extends Pick<
   CreateGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
-  'persistence' | 'threadId' | 'initialResumeSnapshot'
+  | 'persistence'
+  | 'threadId'
+  | 'initialResumeSnapshot'
+  | 'hydrateGeneration'
+  | 'joinRun'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

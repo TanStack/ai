@@ -25,7 +25,11 @@ export interface UseGenerateImageOptions<
   TOutput = ImageGenerationResult,
 > extends Pick<
   UseGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
-  'persistence' | 'threadId' | 'initialResumeSnapshot'
+  | 'persistence'
+  | 'threadId'
+  | 'initialResumeSnapshot'
+  | 'hydrateGeneration'
+  | 'joinRun'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
