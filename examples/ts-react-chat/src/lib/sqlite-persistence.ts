@@ -58,7 +58,11 @@ CREATE TABLE IF NOT EXISTS runs (
   finished_at integer,
   error text,
   error_code text,
-  usage_json text
+  usage_json text,
+  sandbox_key text,
+  detached_since integer,
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
@@ -91,6 +95,10 @@ interface RunRow {
   error: string | null
   error_code: string | null
   usage_json: string | null
+  sandbox_key: string | null
+  detached_since: number | null
+  cancel_requested: number | null
+  driver_epoch: number | null
 }
 interface InterruptRow {
   interrupt_id: string
@@ -141,9 +149,13 @@ function createMessageStore(db: DatabaseSync) {
 // RunStore — idempotent create/resume + patch.
 // ---------------------------------------------------------------------------
 // `status` is stored verbatim as text, so the whole `RunStatus` union round-trips
-// — including `'aborted'` — without a schema change. The reclaim fields
-// (`sandboxKey`, `detachedSince`, `cancelRequested`) are optional on `RunRecord`
-// and have no columns here: Phase 1 does not persist them.
+// — including `'aborted'` — without a schema change. The durable-agent-runs
+// fields (`sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch`) each
+// get their own column: `sandbox_key`/`driver_epoch`/`detached_since` are plain
+// scalars (text / integer / integer epoch-ms, matching `finished_at`), and
+// `cancel_requested` is an `integer` 0/1 flag — SQLite has no native boolean, so
+// this file's convention is the same "integer used as a boolean" SQLite itself
+// uses internally.
 //
 // `RunRecord.error` is the structured `RunError` (`{ message, code? }`) and gets
 // two columns rather than one JSON blob: `error` for the provider's prose and
@@ -169,6 +181,18 @@ function mapRun(row: RunRow): RunRecord {
     ...(row.usage_json != null
       ? { usage: parseJson<TokenUsage>(row.usage_json) }
       : {}),
+    // Each column is omitted entirely (not surfaced as `null`/coerced `false`)
+    // when NULL: `undefined` and `false` mean different things for
+    // `cancelRequested`, and a spurious `detachedSince` would make a live run
+    // look detached to the reaper.
+    ...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {}),
+    ...(row.detached_since != null
+      ? { detachedSince: row.detached_since }
+      : {}),
+    ...(row.cancel_requested != null
+      ? { cancelRequested: row.cancel_requested !== 0 }
+      : {}),
+    ...(row.driver_epoch != null ? { driverEpoch: row.driver_epoch } : {}),
   }
 }
 
@@ -206,11 +230,16 @@ function createRunStore(db: DatabaseSync) {
       // Build a dynamic SET from only the provided fields; empty patch is a
       // no-op, and a missing run_id simply updates zero rows (no throw/create).
       //
-      // Only the four columns this schema actually has are mapped. `RunStore`'s
-      // patch type also admits the reclaim fields (`sandboxKey`,
-      // `detachedSince`, `cancelRequested`); Phase 1 does not persist them, so
-      // they are deliberately ignored here. Never splice a patch key into SQL
-      // directly — the column name always comes from this fixed literal set.
+      // All eight columns this schema has are mapped here. Never splice a
+      // patch key into SQL directly — the column name always comes from this
+      // fixed literal set, never from an object key the caller controls.
+      //
+      // `detachedSince`/`sandboxKey`/`cancelRequested`/`driverEpoch` use
+      // `'key' in patch` rather than `patch.key !== undefined`: a reattach
+      // clears `detachedSince` by passing it explicitly as `undefined`, which
+      // must write NULL, not be filtered out of the SET clause (a filtered-out
+      // clear would leave the old value and make every re-attached run look
+      // permanently detached to the reaper).
       const sets: Array<string> = []
       const params: Array<string | number | null> = []
       if (patch.status !== undefined) {
@@ -230,6 +259,28 @@ function createRunStore(db: DatabaseSync) {
       if (patch.usage !== undefined) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
+      }
+      if ('sandboxKey' in patch) {
+        sets.push('sandbox_key = ?')
+        params.push(patch.sandboxKey ?? null)
+      }
+      if ('detachedSince' in patch) {
+        sets.push('detached_since = ?')
+        params.push(patch.detachedSince ?? null)
+      }
+      if ('cancelRequested' in patch) {
+        sets.push('cancel_requested = ?')
+        params.push(
+          patch.cancelRequested === undefined
+            ? null
+            : patch.cancelRequested
+              ? 1
+              : 0,
+        )
+      }
+      if ('driverEpoch' in patch) {
+        sets.push('driver_epoch = ?')
+        params.push(patch.driverEpoch ?? null)
       }
       if (sets.length === 0) return Promise.resolve()
       params.push(runId)
