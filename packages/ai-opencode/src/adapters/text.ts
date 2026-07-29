@@ -10,6 +10,7 @@ import {
   getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { startOpencodeSession } from '../process/server'
@@ -130,7 +131,14 @@ export class OpencodeTextAdapter<
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
-    const runId = options.runId ?? this.generateId()
+    // This adapter does not journal yet, so a generated id is still fine.
+    // Routed through the helper anyway so journaling here inherits the
+    // caller-supplied-runId requirement instead of re-deriving it.
+    const runId = resolveDurableRunId(options.runId, {
+      durable: false,
+      adapter: 'opencode',
+      fallback: () => this.generateId(),
+    })
     const threadId = options.threadId ?? this.generateId()
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
