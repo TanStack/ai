@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[reasoning-wire] disable reasoning" },
+      "response": {
+        "content": "Reasoning disabled."
+      }
+    }
+  ]
+}

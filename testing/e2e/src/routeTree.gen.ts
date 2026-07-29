@@ -44,6 +44,7 @@ import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -267,6 +268,12 @@ const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
     path: '/api/openrouter-web-tools-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenrouterReasoningWireRoute =
+  ApiOpenrouterReasoningWireRouteImport.update({
+    id: '/api/openrouter-reasoning-wire',
+    path: '/api/openrouter-reasoning-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiOpenrouterJsonObjectWireRoute =
@@ -545,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -624,6 +632,7 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -704,6 +713,7 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -785,6 +795,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -864,6 +875,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -943,6 +955,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1023,6 +1036,7 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
+  ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -1286,6 +1300,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-web-tools-wire'
       fullPath: '/api/openrouter-web-tools-wire'
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-reasoning-wire': {
+      id: '/api/openrouter-reasoning-wire'
+      path: '/api/openrouter-reasoning-wire'
+      fullPath: '/api/openrouter-reasoning-wire'
+      preLoaderRoute: typeof ApiOpenrouterReasoningWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-json-object-wire': {
@@ -1700,6 +1721,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
+  ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
