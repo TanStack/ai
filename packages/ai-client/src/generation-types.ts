@@ -794,7 +794,7 @@ function createPersistedArtifactRefSnapshot(
     return undefined
   }
 
-  const externalUrl = durableUrlField(value, 'externalUrl')
+  const sourceUrl = durableUrlField(value, 'sourceUrl')
   const url = serveUrlField(value, 'url')
   const mediaType = persistedArtifactMediaTypeField(source, 'mediaType')
   const jobId = stringField(source, 'jobId')
@@ -809,7 +809,7 @@ function createPersistedArtifactRefSnapshot(
     mimeType,
     size,
     createdAt,
-    ...(externalUrl ? { externalUrl } : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
     ...(url ? { url } : {}),
     source: {
       activity,

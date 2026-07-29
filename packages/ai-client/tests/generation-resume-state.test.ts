@@ -98,7 +98,7 @@ describe('generation resume state reducer', () => {
   it('sanitizes artifact refs before storing them in resume snapshots', () => {
     const unsafeArtifactRef = {
       ...artifactRef,
-      externalUrl: 'data:image/png;base64,raw-artifact-bytes',
+      sourceUrl: 'data:image/png;base64,raw-artifact-bytes',
       b64Json: 'raw-artifact-bytes',
       blob: new Blob(['raw-artifact-bytes']),
       url: `https://example.com/${'x'.repeat(4096)}`,
@@ -178,19 +178,19 @@ describe('generation resume state reducer', () => {
     expect(JSON.stringify(snapshot)).not.toContain('b64Json')
   })
 
-  it('keeps a durable artifact externalUrl and strips non-durable or oversized ones', () => {
+  it('keeps a durable artifact sourceUrl and strips non-durable or oversized ones', () => {
     const durableUrl = 'https://cdn.example.com/artifacts/image.png'
     const durable = reduceChunks([
       {
         type: EventType.CUSTOM,
         name: GENERATION_EVENTS.ARTIFACTS,
-        value: [{ ...artifactRef, externalUrl: durableUrl }],
+        value: [{ ...artifactRef, sourceUrl: durableUrl }],
         threadId: 'thread-1',
         runId: 'run-1',
         timestamp: 1,
       },
     ])
-    expect(durable.pendingArtifacts?.[0]?.externalUrl).toBe(durableUrl)
+    expect(durable.pendingArtifacts?.[0]?.sourceUrl).toBe(durableUrl)
 
     const unsafeUrls = [
       'data:image/png;base64,raw-image-bytes',
@@ -198,19 +198,19 @@ describe('generation resume state reducer', () => {
       `https://example.com/${'x'.repeat(4096)}`,
       'not a url',
     ]
-    for (const externalUrl of unsafeUrls) {
+    for (const sourceUrl of unsafeUrls) {
       const snapshot = reduceChunks([
         {
           type: EventType.CUSTOM,
           name: GENERATION_EVENTS.ARTIFACTS,
-          value: [{ ...artifactRef, externalUrl }],
+          value: [{ ...artifactRef, sourceUrl }],
           threadId: 'thread-1',
           runId: 'run-1',
           timestamp: 1,
         },
       ])
       expect(snapshot.pendingArtifacts).toEqual([artifactRef])
-      expect(snapshot.pendingArtifacts?.[0]).not.toHaveProperty('externalUrl')
+      expect(snapshot.pendingArtifacts?.[0]).not.toHaveProperty('sourceUrl')
     }
   })
 

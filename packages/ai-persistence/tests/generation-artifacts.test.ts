@@ -437,7 +437,7 @@ describe('withGenerationPersistence generation artifacts', () => {
     })
 
     expect(result.artifacts).toHaveLength(2)
-    expect(result.artifacts?.map((artifact) => artifact.externalUrl)).toEqual([
+    expect(result.artifacts?.map((artifact) => artifact.sourceUrl)).toEqual([
       undefined,
       undefined,
     ])

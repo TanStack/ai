@@ -723,7 +723,7 @@ async function descriptorBody(
       body: BlobBody
       size: number
       mimeType: string
-      externalUrl?: string
+      sourceUrl?: string
     }
   | undefined
 > {
@@ -838,7 +838,7 @@ async function descriptorBody(
         body: capBodySize(response.body, maxBytes, descriptor.url),
         size: 0,
         mimeType,
-        externalUrl: descriptor.url,
+        sourceUrl: descriptor.url,
       }
     }
     const body = await response.arrayBuffer()
@@ -851,7 +851,7 @@ async function descriptorBody(
       body,
       size: body.byteLength,
       mimeType,
-      externalUrl: descriptor.url,
+      sourceUrl: descriptor.url,
     }
   }
 
@@ -906,7 +906,7 @@ async function persistGenerationArtifacts(
     // Deliberately not persisted (an input URL with no `allowInputUrl` opt-in):
     // no blob, no record, no ref — the rest of the run is unaffected.
     if (!resolved) continue
-    const { body, size, mimeType, externalUrl } = resolved
+    const { body, size, mimeType, sourceUrl } = resolved
     const key = artifactBlobKey({ runId, artifactId })
     const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
@@ -941,7 +941,7 @@ async function persistGenerationArtifacts(
       name,
       mimeType,
       size: resolvedSize,
-      externalUrl,
+      sourceUrl,
       createdAt: createdAtMs,
     }
     await persistence.stores.artifacts.save(record)
@@ -954,7 +954,7 @@ async function persistGenerationArtifacts(
       mimeType,
       size: resolvedSize,
       createdAt: new Date(createdAtMs).toISOString(),
-      ...(externalUrl ? { externalUrl } : {}),
+      ...(sourceUrl ? { sourceUrl } : {}),
       source: {
         activity,
         path: descriptor.path,

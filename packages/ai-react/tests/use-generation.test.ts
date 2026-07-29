@@ -100,7 +100,7 @@ const replayedVideoArtifact: PersistedArtifactRef = {
   mimeType: 'video/mp4',
   size: 1234,
   createdAt: '2026-07-06T00:00:00.000Z',
-  externalUrl: 'https://example.com/video.mp4',
+  sourceUrl: 'https://example.com/video.mp4',
   source: {
     activity: 'video',
     path: 'runs/run-resume/video.mp4',

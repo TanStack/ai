@@ -2157,8 +2157,13 @@ export interface PersistedArtifactRef {
   mimeType: string
   size: number
   createdAt: string
-  /** The provider's original media URL that was fetched (may be expiring). */
-  externalUrl?: string
+  /**
+   * Where these bytes were fetched FROM — the provider's original result URL,
+   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
+   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
+   * instead.
+   */
+  sourceUrl?: string
   /**
    * Durable app-origin URL that serves this artifact's persisted bytes (your
    * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by

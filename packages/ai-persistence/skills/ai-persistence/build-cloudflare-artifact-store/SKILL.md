@@ -156,7 +156,7 @@ Invariants that matter (asserted by the conformance testkit):
 ## 2. ArtifactStore backed by D1
 
 `ArtifactRecord` is `{ artifactId, runId, threadId, name, mimeType, size,
-externalUrl?, createdAt }` (`createdAt` epoch ms). One flat table, keyed by
+sourceUrl?, createdAt }` (`createdAt` epoch ms). One flat table, keyed by
 `artifact_id`, indexed by `run_id` for `list`.
 
 ```sql
@@ -196,7 +196,7 @@ function fromRow(row: ArtifactRow): ArtifactRecord {
     name: row.name,
     mimeType: row.mime_type,
     size: row.size,
-    ...(row.external_url != null ? { externalUrl: row.external_url } : {}),
+    ...(row.external_url != null ? { sourceUrl: row.external_url } : {}),
     createdAt: row.created_at,
   }
 }
@@ -223,7 +223,7 @@ export function d1ArtifactStore(db: D1Database) {
           record.name,
           record.mimeType,
           record.size,
-          record.externalUrl ?? null,
+          record.sourceUrl ?? null,
           record.createdAt,
         )
         .run()

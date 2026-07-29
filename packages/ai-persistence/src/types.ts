@@ -412,7 +412,7 @@ export function defineBlobStore(store: BlobStore): BlobStore {
  * Metadata row describing a persisted artifact (generated media, tool output).
  *
  * The bytes themselves live in a {@link BlobStore}; this record holds the
- * descriptive metadata and an optional `externalUrl` for reference-only
+ * descriptive metadata and an optional `sourceUrl` for reference-only
  * backends.
  *
  * @property createdAt - Epoch ms. (Core's wire-facing `PersistedArtifactRef`
@@ -425,7 +425,7 @@ export interface ArtifactRecord {
   name: string
   mimeType: string
   size: number
-  externalUrl?: string
+  sourceUrl?: string
   createdAt: number
 }
 
