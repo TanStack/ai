@@ -164,7 +164,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Connection Adapters",
@@ -186,7 +186,7 @@
           "label": "Overview",
           "to": "interrupts/overview",
           "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Tool Approval",
@@ -221,7 +221,7 @@
           "label": "Overview",
           "to": "resumable-streams/overview",
           "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-23"
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Advanced",
@@ -248,7 +248,7 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-26"
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Client Persistence",

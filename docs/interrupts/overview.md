@@ -30,6 +30,24 @@ picks up exactly where it left off once you answer.
 4. The client starts a fresh continuation run that carries your answers and
    continues the agent.
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant Client
+    participant Server
+
+    Client->>Server: send message — run starts
+    Server-->>Client: interrupt outcome — run ends without a final answer
+    Client->>User: pending decisions surface as `interrupts`
+    User->>Client: approve / reject / submit a value
+    Client->>Server: continuation request with the answers — a fresh run
+    Server-->>Client: the agent picks up where it paused, final answer
+```
+
+Note that the pause spans **two runs**: the interrupted one ends, and the
+continuation is a new run. One user-visible turn, two run lifecycles — see
+[Threads, runs, and turns](../chat/streaming#threads-runs-and-turns).
+
 No database is required. The browser sends the full message history back on the
 continuation request, so a stateless server can rebuild the paused step and keep
 going.

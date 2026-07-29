@@ -70,6 +70,57 @@ The invariants (idempotent creates, insert-if-absent, ordered listings) are what
 the shared conformance suite checks, and getting one wrong is the usual source of
 subtle bugs.
 
+The records the stores hold form a small schema. The thread is not a table of
+its own — it exists as the `thread_id` key the other records hang off — and
+`metadata` is independent of all of it (its identity is `(namespace, key)`).
+Note the asymmetry on the generation side: a chat run always belongs to a
+thread, but a generation run is keyed by its own `run_id` and links to a thread
+only optionally:
+
+```mermaid
+erDiagram
+    MESSAGES ||--o{ RUN : "thread_id — a thread has many runs"
+    RUN ||--o{ INTERRUPT : "run_id — a run may pause on interrupts"
+    MESSAGES ||..o{ GENERATION_RUN : "thread_id — optional link"
+    GENERATION_RUN ||--o{ ARTIFACT : "run_id — a run produces artifacts"
+    ARTIFACT ||--|| BLOB : "key — the bytes"
+
+    MESSAGES {
+        string thread_id PK
+        json messages_json "full transcript, overwritten on save"
+    }
+    RUN {
+        string run_id PK
+        string thread_id
+        string status "running | completed | failed | interrupted"
+        int started_at
+        int finished_at
+    }
+    INTERRUPT {
+        string interrupt_id PK
+        string run_id
+        string thread_id
+        string status "pending | resolved | cancelled"
+        int requested_at
+    }
+    GENERATION_RUN {
+        string run_id PK
+        string thread_id "optional"
+        string activity "image | audio | tts | video | transcription"
+        string status "running | complete | error | interrupted"
+    }
+    ARTIFACT {
+        string artifact_id PK
+        string run_id
+        string mime_type
+        int size
+    }
+    BLOB {
+        string key PK
+        blob bytes
+    }
+```
+
 ## New database: a SQLite adapter start to finish
 
 ### 1. The schema

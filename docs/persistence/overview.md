@@ -51,6 +51,44 @@ Run that after the package is installed, not before — Intent scans
 
 They share no code and solve different problems. Delivery durability replays a live byte stream so a dropped connection resumes exactly where it stopped. State persistence stores the conversation itself, so it survives a reload or exists on another device. A replayable stream is not a saved conversation, and a saved conversation is not a live stream. Real apps usually want both.
 
+The two layers also key on different ids. A **thread** (`threadId`) is the
+conversation — the stable identity that survives reloads and exists on every
+device. A **run** (`runId`) is one execution inside it: one streamed answer,
+minted fresh each time. A thread accumulates many runs over its life; delivery
+durability logs one run, state persistence stores the whole thread:
+
+```mermaid
+flowchart TB
+    subgraph thread ["One thread — threadId (stable, the conversation)"]
+        direction LR
+        run1["run r1
+completed"] --> run2["run r2
+completed"] --> run3["run r3
+running"]
+    end
+
+    subgraph delivery ["Delivery durability — one byte log per run"]
+        log["log for r3
+replays the live stream to a reconnecting client"]
+    end
+
+    subgraph state ["State persistence — durable store per thread"]
+        store["transcript · run records · interrupts"]
+    end
+
+    run3 -. "a dropped connection tails" .-> log
+    thread -- "saved on finish, loaded on mount" --> store
+```
+
+Run ids are too ephemeral to reconnect by — a reloading client may not know the
+current one. Reconnection therefore resolves from the stable `threadId`: the
+store answers "does this thread have a live run?" (`findActiveRun`), and only
+then does the client tail that run's log. The anatomy of a thread — how runs
+relate to conversational turns and interrupts — is covered in
+[Threads, runs, and turns](../chat/streaming#threads-runs-and-turns) in the
+streaming guide; what persistence records about them is in
+[Chat persistence](./chat-persistence#threads-runs-and-turns).
+
 ## State persistence has two halves
 
 Persistence runs on the client, the server, or both. They are independent, and they answer different questions.
@@ -264,6 +302,25 @@ request; one is never asked to do both. The replayed run's messages merge into
 the transcript by message id, so nothing is duplicated or lost. Because the
 reconnect is resolved from the stable `threadId` on the server, a reload and the
 same thread opened on another device resume the same way.
+
+```mermaid
+sequenceDiagram
+    participant Hook as useChat (persistence: true)
+    participant Route as GET /api/chat
+    participant Store as Durable store
+    participant Log as Delivery log
+
+    Note over Hook: page reloads while a run is streaming
+    Hook->>Route: ?threadId=support-chat
+    Route->>Store: reconstructChat — loadThread + findActiveRun
+    Store-->>Route: messages + activeRun (runId)
+    Route-->>Hook: transcript + activeRun cursor
+    Note over Hook: transcript paints
+    Hook->>Route: ?runId=…&offset=-1
+    Route->>Log: resumeServerSentEventsResponse
+    Log-->>Hook: replay + live tail of the run
+    Note over Hook: reply finishes in place
+```
 
 Why this wins over the alternatives:
 

@@ -88,6 +88,49 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 > **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
 
+### Threads, runs, and turns
+
+Two ids frame every stream, and they come from the AG-UI protocol itself — not
+from any storage layer:
+
+- A **thread** (`threadId`) is the conversation: the stable identity you pass to
+  `chat()` / `useChat`, the same across every exchange, reload, and device.
+- A **run** (`runId`) is one execution inside it: everything between one
+  `RUN_STARTED` and its `RUN_FINISHED` (or `RUN_ERROR`). Every start mints a
+  fresh run id, so a thread accumulates many runs over its life.
+
+A run is **not** a conversational turn, in either direction. One run can contain
+several agent-loop cycles — each tool call and its follow-up stream inside the
+same run — and one user-visible turn can span several runs, because continuing
+after an [interrupt](../interrupts/overview) starts a fresh run:
+
+```mermaid
+flowchart LR
+    subgraph thread ["Thread — threadId (stable)"]
+        direction LR
+        subgraph turn1 ["User turn 1 — one run"]
+            run1["run r1 — finished
+tool call → tool result → final text,
+all inside one run"]
+        end
+        subgraph turn2 ["User turn 2 — spans two runs"]
+            run2["run r2 — ended on
+an interrupt"] -->|"continuation mints
+a fresh runId"| run3["run r3 — streaming"]
+        end
+        turn1 --> turn2
+    end
+    reconnect["a reconnecting client"] -.->|"finds the live run from
+the stable threadId"| run3
+```
+
+Because run ids are ephemeral like this, anything long-lived anchors on the
+thread. [Resumable streams](../resumable-streams/overview) log delivery per
+`runId` so a dropped connection can replay one run;
+[server persistence](../persistence/chat-persistence#threads-runs-and-turns)
+stores the transcript per `threadId` and resolves "which run is live?" from the
+stable thread id when a client reconnects.
+
 ### Type-Safe Tool Call Events
 
 When you pass typed tools (defined with `toolDefinition()` and Zod schemas) to `chat()`, the stream chunks automatically carry type information for tool call events. Prefer the AG-UI field `toolCallName` (or the deprecated `toolName` alias) — both narrow to the union of your tool name literals. The `input` field on `TOOL_CALL_END` is typed as the union of your tool input schemas (typically set on the adapter-emitted END once arguments are complete):
