@@ -1,11 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateSpeech,
+  generationParamsFromBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { withGenerationPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
   buildSpeechAdapter,
 } from '../lib/server-audio-adapters'
+import {
+  artifactServeUrl,
+  generationServerPersistence,
+} from '../lib/generation-server-store'
 
 const SPEECH_PROVIDER_SCHEMA = z
   .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
@@ -58,6 +67,20 @@ export const Route = createFileRoute('/api/generate/speech')({
 
         const { text, voice, format, provider } = parsed.data
 
+        // The AG-UI envelope also carries the generation's identity. Persistence
+        // files the run under it, so a reload hydrates the same slot.
+        let threadId: string | undefined
+        let runId: string | undefined
+        try {
+          ;({ threadId, runId } = generationParamsFromBody('tts', body))
+        } catch (err) {
+          return jsonError(400, {
+            error: 'invalid_envelope',
+            message:
+              err instanceof Error ? err.message : 'Invalid request envelope',
+          })
+        }
+
         try {
           const adapter = buildSpeechAdapter(provider ?? 'openai')
 
@@ -67,6 +90,16 @@ export const Route = createFileRoute('/api/generate/speech')({
             voice,
             format,
             stream: true,
+            ...(threadId ? { threadId } : {}),
+            ...(runId ? { runId } : {}),
+            // Copies the synthesized speech into our blob store and rewrites the
+            // result to the shared `/api/artifacts` serve URL, so a restored run
+            // still plays after the provider's link expires.
+            middleware: [
+              withGenerationPersistence(generationServerPersistence(), {
+                artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+              }),
+            ],
           })
 
           return toServerSentEventsResponse(stream)

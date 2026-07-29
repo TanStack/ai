@@ -7,8 +7,6 @@ import {
 import { grokImage } from '@tanstack/ai-grok'
 import {
   reconstructGeneration,
-  retrieveArtifact,
-  retrieveBlob,
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
 import {
@@ -29,10 +27,9 @@ import {
  * The stores are SQLite-backed, so a generated image is still there after a
  * dev-server restart — reload the page and it renders from the database.
  *
- * The GET does double duty, which is why it branches:
- * - `?artifact=<id>` serves stored bytes (the URL `artifactUrl` produced).
- * - otherwise `reconstructGeneration` answers a `?threadId=` mount hydration,
- *   which is what `persistence: true` on the client calls.
+ * The bytes themselves are served by the shared `/api/artifacts` route, which
+ * every generation activity here shares. This GET only answers the `?threadId=`
+ * mount hydration that `persistence: true` on the client calls.
  */
 export const Route = createFileRoute('/api/generate/image')({
   server: {
@@ -71,34 +68,11 @@ export const Route = createFileRoute('/api/generate/image')({
         return toServerSentEventsResponse(stream)
       },
 
-      GET: async ({ request }) => {
-        const persistence = generationServerPersistence()
-        const artifactId = new URL(request.url).searchParams.get('artifact')
-
-        if (artifactId) {
-          const artifact = await retrieveArtifact(persistence, artifactId)
-          if (!artifact) return new Response('not found', { status: 404 })
-
-          // A real multi-user app MUST authorize here before serving: the id
-          // comes from the caller, and `ArtifactRecord` carries the `threadId`
-          // to check it against. This demo is single-user, so there is no
-          // session to check.
-          const blob = await retrieveBlob(persistence, artifact)
-          if (!blob) return new Response('not found', { status: 404 })
-
-          return new Response(blob.body ?? (await blob.arrayBuffer()), {
-            headers: {
-              'content-type': artifact.mimeType,
-              'content-length': String(artifact.size),
-            },
-          })
-        }
-
-        // Mount hydration for `persistence: true`: resolves the latest run for
-        // `?threadId=` and returns `{ resumeSnapshot, activeRun }`. Pass
-        // `authorize` here in a multi-user app.
-        return await reconstructGeneration(persistence, request)
-      },
+      // Mount hydration for `persistence: true`: resolves the latest run for
+      // `?threadId=` and returns `{ resumeSnapshot, activeRun }`. Pass
+      // `authorize` here in a multi-user app.
+      GET: async ({ request }) =>
+        await reconstructGeneration(generationServerPersistence(), request),
     },
   },
 })

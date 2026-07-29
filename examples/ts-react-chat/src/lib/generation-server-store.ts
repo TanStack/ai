@@ -30,7 +30,12 @@ export function generationServerPersistence() {
   }))
 }
 
-/** Serve URL for a stored artifact — must match the GET route below it. */
+/**
+ * Serve URL for a stored artifact — must match `routes/api.artifacts.ts`.
+ *
+ * One route serves every activity's media, so each generation route passes this
+ * as `artifactUrl` and nothing else has to know how bytes are addressed.
+ */
 export function artifactServeUrl(artifactId: string): string {
-  return `/api/generate/image?artifact=${encodeURIComponent(artifactId)}`
+  return `/api/artifacts?id=${encodeURIComponent(artifactId)}`
 }

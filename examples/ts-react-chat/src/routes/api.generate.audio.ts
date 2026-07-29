@@ -1,11 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateAudio,
+  generationParamsFromBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { withGenerationPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
   buildAudioAdapter,
 } from '../lib/server-audio-adapters'
+import {
+  artifactServeUrl,
+  generationServerPersistence,
+} from '../lib/generation-server-store'
 
 const AUDIO_PROVIDER_SCHEMA = z
   .enum([
@@ -64,6 +73,20 @@ export const Route = createFileRoute('/api/generate/audio')({
 
         const { prompt, duration, provider, model } = parsed.data
 
+        // The AG-UI envelope also carries the generation's identity. Persistence
+        // files the run under it, so a reload hydrates the same slot.
+        let threadId: string | undefined
+        let runId: string | undefined
+        try {
+          ;({ threadId, runId } = generationParamsFromBody('audio', body))
+        } catch (err) {
+          return jsonError(400, {
+            error: 'invalid_envelope',
+            message:
+              err instanceof Error ? err.message : 'Invalid request envelope',
+          })
+        }
+
         try {
           const adapter = buildAudioAdapter(provider ?? 'gemini-lyria', model)
 
@@ -72,6 +95,16 @@ export const Route = createFileRoute('/api/generate/audio')({
             prompt,
             duration,
             stream: true,
+            ...(threadId ? { threadId } : {}),
+            ...(runId ? { runId } : {}),
+            // Copies the generated audio into our blob store and rewrites the
+            // result to the shared `/api/artifacts` serve URL, so a restored
+            // run still plays after the provider's link expires.
+            middleware: [
+              withGenerationPersistence(generationServerPersistence(), {
+                artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+              }),
+            ],
           })
 
           return toServerSentEventsResponse(stream)
