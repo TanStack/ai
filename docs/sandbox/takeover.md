@@ -619,6 +619,19 @@ adapter-generated id produces a journal path no successor host can recompute, so
 the run streams normally, records normally, and is silently unrecoverable — you
 would only discover it during an incident.
 
+**The run record's `threadId`, on an attaching run.** An ATTACHING durable run
+throws `DurableThreadIdRequiredError` when driven without the run record's
+`threadId`. `threadId` rides in **every** emitted chunk, so an attach that
+generates a fresh one replays a stream whose very first chunk already differs
+from the stored log — alignment fails at index 0 with
+`JournalReplayThreadIdMismatchError`, a subclass of
+[`JournalReplayDivergedError`](#journalreplaydivergederror) reported above,
+even though the agent behaved identically. This is the asymmetry to keep
+straight: a durable **fresh** run needs no caller `threadId` — that run is
+what establishes it — but a durable run that is **attaching** must reuse the
+one already on the record, which is exactly the `threadId: input.threadId`
+forwarded by `driveRun` above.
+
 **A `RunStore` that persists every durable-run field.** `createOrResume`,
 `update`, and `get` are required; `update` must accept and round-trip all of
 `status`, `finishedAt`, `error`, `usage`, `sandboxKey`, `detachedSince`,
