@@ -109,5 +109,6 @@ and protocol coverage). For which agents you can plug in, browse the official
 
 - **[Providers](./providers)** — where the harness runs (local, Docker, Daytona, Vercel, Sprites).
 - **[The Run Journal](./journal)**: how a run's output survives the host that started it.
+- **[Takeover & Detached Runs](./takeover)**: detach on disconnect, and the three exports a harness adapter implements to support attach.
 - **[Tools](./tools)** — bridge your app's own tools into the in-sandbox agent.
 - **[Events & File Hooks](./events)** — stream the agent's edits and activity to a UI.

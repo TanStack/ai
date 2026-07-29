@@ -300,6 +300,15 @@ backends should add a lease/reaper:
 This belongs to the durability service or deployment, not the in-process
 response helper.
 
+One case has a mechanism rather than only advice. A **sandboxed** run's work
+lives on inside the sandbox rather than in the dead process, so a later request
+can adopt it: `sandboxRunDriver` claims the run, fences out the host that died,
+and resumes appending to the same log. That is a takeover of a live producer, not
+terminalization of a dead one, and it only applies to sandboxed runs — see
+[Takeover & Detached Runs](../sandbox/takeover). The advice above still stands for
+everything else. Note also that `memoryStream` cannot participate: its log lives
+in the producer's own process, so nothing survives that process to be adopted.
+
 ## Delivery is not state
 
 The durability log replays chunks. It is not a queryable source of truth for

@@ -154,9 +154,8 @@ export const instanceStore = defineSandboxInstanceStore({
 import {
   runSandboxInstanceStoreConformance,
 } from '@tanstack/ai-sandbox/testkit'
-import type { SandboxInstanceStore } from '@tanstack/ai-sandbox'
-
-declare const instanceStore: SandboxInstanceStore
+// The `defineSandboxInstanceStore(...)` result from the section above.
+import { instanceStore } from './instance-store'
 
 runSandboxInstanceStoreConformance('my-instance-store', () => instanceStore)
 ```
@@ -196,6 +195,9 @@ create. Pair the store with a lock, either `withLocks` from
 ## See also
 
 - [The Run Journal](./journal): durability of a run's output, as opposed to its sandbox
+- [Takeover & Detached Runs](./takeover): surviving a client disconnect — a
+  detached run keeps its sandbox up, and `RunStore.sandboxKey` /
+  `RunStore.detachedSince` is how a later host finds it again
 - [Locks](../advanced/locks)
 - [Lifecycle](./lifecycle)
 - [Persistence overview](../persistence/overview) — chat state only

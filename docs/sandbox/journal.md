@@ -278,12 +278,25 @@ not exist yet.
 - **Replay against an already-delivered log is exact**, via `alignToStoredLog`,
   with divergence surfaced rather than swallowed.
 
-Automatic handoff of a live run from one host to another is not wired up: the
-alignment primitive exists, but nothing drives it for you. If you want that
-behaviour now, you own the orchestration.
+And automatic handoff of a live run from one host to another **is** wired up.
+`sandboxRunDriver` drives the alignment primitive for you: a successor claims the
+run under a lease, bumps the run record's fencing epoch so the predecessor can no
+longer append, waits for the stored log to stop growing, replays the journal from
+byte 0 through `alignToStoredLog`, and appends only the remainder.
+
+Do not hand-roll that orchestration. `alignToStoredLog` on its own protects one
+writer against re-appending its own prefix; it does nothing about *two* writers,
+and two hosts appending one log is exactly how the duplicate-delivery corruption
+described above reappears — plus a superseded host writing a terminal status over
+a run its successor is healthily streaming. The lease, the epoch fence on both
+the log and the run record, and the quiescence wait are what close those, and
+they are what the driver gives you. See
+[Takeover & Detached Runs](./takeover).
 
 ## See also
 
+- [Takeover & Detached Runs](./takeover): `sandboxRunDriver`, detach-on-disconnect,
+  and single-writer fencing — the wiring that drives everything on this page
 - [Providers](./providers): the `killableProcesses` capability and the read
   strategy it selects
 - [Harnesses](./harnesses): which adapters journal, and how they derive `runId`

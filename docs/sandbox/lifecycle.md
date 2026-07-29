@@ -36,9 +36,25 @@ const sandbox = defineSandbox({
 | ------------------- | ------------------------------------------------------------------------------------------- |
 | `reuse`             | `'thread'` keeps one sandbox per `threadId`; `'none'` provisions a fresh sandbox per run.    |
 | `snapshot`          | `'after-setup'` snapshots the workspace once bootstrap finishes, on snapshot-capable providers. |
-| `keepAlive`         | Duration hint (e.g. `'30m'`) to keep the sandbox warm between runs instead of tearing it down. |
+| `keepAlive`         | Duration hint (e.g. `'30m'`) for how long the sandbox should stay warm between runs. Nothing in `@tanstack/ai-sandbox` reads it today — it is carried for providers and host apps that implement their own idle GC. |
 | `destroyOnComplete` | When `false`, the sandbox survives the run so the next one can resume it.                    |
 | `snapshotMaxAge`    | Duration (e.g. `'24h'`) after which a stored snapshot is treated as stale and re-created.   |
+
+### These fields govern *completion*, not cancellation
+
+`keepAlive` and `destroyOnComplete` describe what happens when a run **finishes**.
+They never keep a sandbox alive through an abort: closing the agent's IO stream
+does not kill the agent process, so an explicit cancel destroys the sandbox
+regardless of `destroyOnComplete`, and that is the only reliable way to stop the
+agent burning tokens.
+
+A **disconnect** is the third case, and it is not the same as a cancel — a user
+pressing Stop and a user closing the tab produce an identical connection close.
+On a run with durability wired, a disconnect neither completes nor destroys: the
+sandbox stays up, the agent keeps working, and the run record is marked detached
+so a later request can take it over. With no durability wired, a disconnect
+destroys, exactly as an abort does. See
+[Takeover & Detached Runs](./takeover#detach-vs-cancel).
 
 ## Snapshot after setup
 

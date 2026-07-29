@@ -114,6 +114,8 @@ sandbox on your laptop. Then dive into the piece you need:
 - **[Tools](./tools)** — bridge your app's own host tools into the in-sandbox agent.
 - **[Policy](./policy)** — allow / ask / deny guardrails on what the agent may run.
 - **[Lifecycle & Snapshots](./lifecycle)** — reuse, snapshot-after-setup, and resume.
+- **[The Run Journal](./journal)** — the agent's output is a file inside the sandbox, so losing the host cannot lose the run.
+- **[Takeover & Detached Runs](./takeover)** — let a run outlive the browser tab: detach on disconnect, then take it over from another host.
 - **[Events & File Hooks](./events)** — stream the agent's edits and activity to a UI.
 - **[Cloudflare (edge)](./cloudflare)** — run the agent and a live preview at the edge.
 

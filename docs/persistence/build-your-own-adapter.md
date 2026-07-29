@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS runs (
   usage_json text,
   sandbox_key text,
   detached_since integer,
-  cancel_requested integer
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
@@ -215,6 +216,12 @@ function mapRun(row: Record<string, unknown>): RunRecord {
     ...(row.cancel_requested != null
       ? { cancelRequested: Boolean(row.cancel_requested) }
       : {}),
+    // The fencing token a takeover bumps. Round-trip it or single-writer
+    // fencing silently does nothing: a superseded host re-reads its own epoch,
+    // never sees a higher one, and keeps appending to a log it no longer owns.
+    ...(row.driver_epoch != null
+      ? { driverEpoch: Number(row.driver_epoch) }
+      : {}),
   }
 }
 
@@ -273,13 +280,22 @@ function createRunStore(db: DatabaseSync) {
         sets.push('sandbox_key = ?')
         params.push(patch.sandboxKey)
       }
-      if (patch.detachedSince !== undefined) {
+      // `detachedSince` is the one field callers CLEAR by writing `undefined`:
+      // a takeover does exactly that when a viewer re-attaches. So this branch
+      // keys off key presence, not `!== undefined`. Filter `undefined` out here
+      // and a re-attached run reads as permanently detached, so a TTL sweep
+      // reclaims a sandbox someone is actively watching.
+      if ('detachedSince' in patch) {
         sets.push('detached_since = ?')
-        params.push(patch.detachedSince)
+        params.push(patch.detachedSince ?? null)
       }
       if (patch.cancelRequested !== undefined) {
         sets.push('cancel_requested = ?')
         params.push(patch.cancelRequested ? 1 : 0)
+      }
+      if (patch.driverEpoch !== undefined) {
+        sets.push('driver_epoch = ?')
+        params.push(patch.driverEpoch)
       }
       if (sets.length === 0) return
       params.push(runId)
@@ -306,9 +322,9 @@ function createRunStore(db: DatabaseSync) {
       return byThread.all(threadId).map(mapRun)
     },
     // Runs a reaper would sweep: still `running`, and detached since before
-    // `now - ttlMs`. Nothing in TanStack AI calls this today, and nothing sets
-    // `detachedSince` for you either: a caller sets it when a viewer detaches.
-    // This method only answers the query; optional, like the others above.
+    // `now - ttlMs`. `withSandbox`'s detach path sets `detachedSince` for you,
+    // but no reaper ships — this method only answers the query, and the sweep
+    // over its result is yours to write. Optional, like the others above.
     async listReclaimable({ now, ttlMs }) {
       return reclaimable.all(now - ttlMs).map(mapRun)
     },
@@ -320,6 +336,15 @@ function createRunStore(db: DatabaseSync) {
 empty patch touches nothing and a partial patch leaves other columns alone. Map
 each row back with a small helper that omits absent optional fields and parses
 the JSON columns.
+
+**Absent is not the same as explicitly `undefined`.** A patch that omits a key
+must leave the column alone; a patch that carries the key with the value
+`undefined` must **clear** it. Only `detachedSince` is cleared that way today —
+the takeover path writes `{ detachedSince: undefined }` when a viewer re-attaches
+— but the distinction is easy to lose in whatever your ORM's "set" builder does
+with `undefined` (Drizzle's `.set()`, for instance, drops such columns). Get it
+wrong and nothing throws: the run simply looks detached forever. Index
+`runs(status, detached_since)` if you plan to sweep on `listReclaimable`.
 
 ### 4. Interrupts: insert-if-absent, ordered listings
 
@@ -726,12 +751,21 @@ interface RunRecord {
   finishedAt?: number // epoch ms, set once the run reaches a terminal status
   error?: RunError
   usage?: TokenUsage // token counts, from @tanstack/ai
-  sandboxKey?: string // sandbox this run is bound to, if it ran in one
-  // Epoch ms since the last viewer detached. Nothing in the framework sets
-  // this today; a caller sets it when a viewer disconnects.
+  // Compound sandbox key this run is bound to, if it ran in one. Written by
+  // `withSandbox` when a run detaches, so a later host can find the sandbox to
+  // take over or tear down without re-deriving the key.
+  sandboxKey?: string
+  // Epoch ms since the last viewer detached; absent while someone is attached.
+  // Written by `withSandbox`'s detach path on a durable run.
   detachedSince?: number
-  // Declared for a future cancel path. Nothing reads or writes it yet.
+  // Set by an out-of-band cancel (`requestRunCancel`), and read on teardown to
+  // tell a real cancel apart from a client that merely disconnected. It is
+  // deliberately not a status: recording intent is not the run having stopped.
   cancelRequested?: boolean
+  // Monotonic fencing token, bumped by each host that claims the run. A
+  // superseded host compares the stored value against the one it holds and
+  // stops writing. Round-trip it or takeover has no fence.
+  driverEpoch?: number
 }
 
 interface RunStore {
@@ -756,6 +790,7 @@ interface RunStore {
         | 'sandboxKey'
         | 'detachedSince'
         | 'cancelRequested'
+        | 'driverEpoch'
       >
     >,
   ): Promise<void>
@@ -770,8 +805,8 @@ interface RunStore {
   // render a thread's past agent activity.
   listByThread?(threadId: string): Promise<Array<RunRecord>>
   // Optional. Runs where status is 'running' and detachedSince <= now - ttlMs
-  // (inclusive). This is the query a reaper would run to find abandoned runs;
-  // TanStack AI does not ship a reaper today, so nothing calls this yet.
+  // (inclusive). This is the query a reaper runs to find abandoned runs;
+  // TanStack AI does not ship a reaper today, so the sweep is yours to write.
   listReclaimable?(opts: {
     now: number
     ttlMs: number
@@ -791,10 +826,19 @@ omission in `skipMethods`. Implement the ones your app needs:
   still-generating thread restores the transcript but never resumes the live
   reply, because `reconstructChat` always reports `activeRun: null`.
 - Skip `listByThread` and you cannot render a thread's past runs.
-- Skip `listReclaimable` and you have no way to query abandoned runs, but
-  nothing in the framework depends on it: there is no built-in reaper, and
-  `detachedSince` is a field you set yourself when a viewer detaches, not one
-  the framework populates.
+- Skip `listReclaimable` and you have no way to query abandoned runs. Nothing in
+  the framework calls it — no reaper ships — but `detachedSince` *is* populated
+  for you by `withSandbox`'s detach path, so this is the query a sweep of your
+  own would build on. See
+  [Takeover & Detached Runs](../sandbox/takeover#configuration).
+
+The three fields a durable, reclaimable run depends on — `detachedSince`,
+`cancelRequested`, and `driverEpoch` — are the ones a hand-written backend tends
+to drop, and each omission breaks one mechanism silently rather than loudly: no
+`driverEpoch` means takeover has no fence, no `cancelRequested` means a Stop
+button cannot reach a run driven by another replica, and no `detachedSince` (or
+`sandboxKey`) means nothing can find the detached sandbox again. `update` must
+accept and round-trip all of them.
 
 Two helpers travel with the contract, and both exist so a caller does not have
 to reach for a cast:

@@ -58,7 +58,7 @@ The middleware uses whichever **state** stores the backend provides, no feature
 flags. `messages` is required; the rest are optional:
 
 - `messages` (required) loads and saves the full model-message thread.
-- `runs` records running, completed, failed, or interrupted status.
+- `runs` records running, interrupted, completed, failed, or aborted status.
 - `interrupts` records pending tool-approval / client-tool / generic waits, and
   requires `runs`.
 
@@ -102,12 +102,21 @@ them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
 On **error**, the run is marked `failed`. On **abort**, the run is marked
-`interrupted`, because the turn is resumable from the transcript and interrupts
-already stored for it: this is a mid-stream cancellation, not the `aborted`
-status a sandbox run driver writes for an explicit out-of-band cancel. Resumes
-accepted in `onConfig` are **not** consumed until a success boundary (interrupt
-or finish), so a failed run leaves pending interrupts retryable with the same
-resume batch.
+`aborted` with a `finishedAt` — `interrupted` is written only at an interrupt
+boundary, and it is not terminal. Resumes accepted in `onConfig` are **not**
+consumed until a success boundary (interrupt or finish), so a failed run leaves
+pending interrupts retryable with the same resume batch.
+
+One abort does **not** terminalize: a plain client disconnect on a run that some
+other middleware has declared *detachable* (a durable event log plus a run store
+— in practice `withSandbox` with durability wired). There, `onAbort` writes
+nothing at all, the record stays `'running'`, and the detach path records
+`detachedSince` so a later request can take the run over. Intent is never
+inferred from the disconnect itself, because a user pressing Stop and a user
+closing the tab produce the identical connection close; a cancel arrives out of
+band, either as the run's own abort reason or as `RunRecord.cancelRequested`, and
+either one makes the abort terminal again. See
+[Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 ## Interrupts survive a restart
 

@@ -35,7 +35,11 @@ server event state, not the client's rendered messages.
 3. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome by committing
    the accepted resumes, storing the new interrupts, marking the run
    interrupted, and saving messages.
-4. `onFinish`, `onError`, and `onAbort` terminalize the run record.
+4. `onFinish` and `onError` terminalize the run record. So does `onAbort`, with
+   one exception: on a run another middleware has declared detachable, a plain
+   disconnect (no cancel recorded in either band) writes nothing and leaves the
+   record `'running'` for a later takeover. See
+   [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 Accepted resumes are committed (interrupts marked resolved/cancelled) only once
 the run reaches a successful boundary, so a provider failure or abort between
@@ -113,3 +117,12 @@ end to end for SQLite.
 `composePersistence` does not add distributed transactions. When related
 stores use different systems, adapter authors must define retry,
 idempotency, and consistency behavior.
+
+Two `RunStore` details bind an adapter author beyond the obvious mapping, and
+both exist for durable runs. `update` must round-trip `driverEpoch` — the fencing
+token a takeover bumps, and the only way a superseded host can discover it lost
+the run — and it must distinguish an **omitted** patch key (leave the column
+alone) from a key carrying `undefined` (clear the column). The takeover path
+clears `detachedSince` exactly that way. See
+[Build your own adapter](./build-your-own-adapter) and
+[Takeover & Detached Runs](../sandbox/takeover#requirements).

@@ -153,6 +153,8 @@ With a client store adapter, on load `useChat` reads the client record and acts 
 
 A dropped connection while the page is still open is simpler: delivery durability reconnects on its own, no persistence needed. Persistence matters once the page itself is gone.
 
+Both layers assume the work itself is over by the time the client comes back — replaying a log or reading a transcript are both reads of something already produced. A long-running **sandboxed agent** is the case where neither is enough, because the run is still going and its producer was the host that just disappeared. That needs a third thing: a later request that adopts the run and keeps driving it. See [Takeover & Detached Runs](../sandbox/takeover).
+
 If you run server-authoritative with the transcript kept off the client (see [Client persistence](./client-persistence)), the reload paints from a server read instead of `localStorage`. The delivery log cannot supply that history: it holds one run, not the whole thread.
 
 ## When to pick each
@@ -165,6 +167,7 @@ If you run server-authoritative with the transcript kept off the client (see [Cl
 | The same conversation on another device, or after a server restart | Server persistence ([Chat persistence](./chat-persistence)) |
 | Pause for a human approval and resume it later, durably | Server persistence with an `interrupts` store |
 | A mid-stream reload to pick up the live answer | Client persistence + delivery durability together |
+| A sandboxed agent's run to survive the tab, and another host to keep driving it | Delivery durability + server persistence + [takeover](../sandbox/takeover) |
 
 Most production chat apps end up with all three: delivery durability on the route, client persistence for instant reload, and server persistence as the record of record.
 
