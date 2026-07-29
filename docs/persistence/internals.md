@@ -50,7 +50,7 @@ stored transcript is loaded and used.
 
 ## Generation middleware lifecycle
 
-`withGenerationPersistence(persistence)` records the job: `onStart` creates or
+`withGenerationPersistence(persistence, { threadId })` records the job: `onStart` creates or
 resumes the run record, `onFinish`, `onError`, and `onAbort` terminalize it,
 and a result transform captures the terminal result metadata (ids, urls — never
 media bytes) onto the record. When `artifacts` and `blobs` are both provided it

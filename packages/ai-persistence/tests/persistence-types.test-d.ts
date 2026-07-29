@@ -153,11 +153,25 @@ withPersistence(defineAIPersistence({ stores: { runs } }))
 withPersistence(defineAIPersistence({ stores: { interrupts, messages } }))
 
 // Generation requires generationRuns
-withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }))
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }), {
+  threadId: 'scope',
+})
 // @ts-expect-error generation persistence requires generationRuns
-withGenerationPersistence(messagesOnly)
+withGenerationPersistence(messagesOnly, { threadId: 'scope' })
 // @ts-expect-error a runs store alone does not satisfy generation persistence
-withGenerationPersistence(defineAIPersistence({ stores: { runs } }))
+withGenerationPersistence(defineAIPersistence({ stores: { runs } }), {
+  threadId: 'scope',
+})
+
+// Generation persistence requires the scope to be named, exactly as the client
+// hooks do: a run filed under no scope can never be hydrated by one, so this is
+// unrepresentable rather than a silent restore-nothing at runtime.
+// @ts-expect-error `threadId` is required on the options
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }), {
+  artifactUrl: () => undefined,
+})
+// @ts-expect-error the options object itself is required
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }))
 
 const chatWithRemovedRuns = composePersistence(base, {
   overrides: { runs: false },

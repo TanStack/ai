@@ -5,7 +5,7 @@ description: Use when a Cloudflare Worker needs durable byte storage for TanStac
 
 # Cloudflare Artifact + Blob Store
 
-`withGenerationPersistence(persistence)` needs only `stores.generationRuns` to track a
+`withGenerationPersistence(persistence, { threadId })` needs only `stores.generationRuns` to track a
 generation's lifecycle. Add `stores.artifacts` (metadata) **and** `stores.blobs`
 (the bytes) — both, or neither — and the middleware also persists the generated
 media: image/audio/TTS/video/transcription bytes land at blob key
@@ -331,7 +331,9 @@ export default {
       prompt,
       threadId, // optional link recorded on the job + artifacts
       stream: true,
-      middleware: [withGenerationPersistence(generationPersistence(env))],
+      middleware: [
+        withGenerationPersistence(generationPersistence(env), { threadId }),
+      ],
     })
     return toServerSentEventsResponse(stream)
   },
@@ -429,5 +431,5 @@ between runs (see **ai-persistence/build-cloudflare-adapter** for the
   linked run (terminal ones included).
 
 An end-to-end check is the strongest signal: run `generateImage` through
-`withGenerationPersistence(generationPersistence(env))`, then confirm the blob
+`withGenerationPersistence(generationPersistence(env), { threadId })`, then confirm the blob
 exists at `artifacts/<runId>/<artifactId>` and `retrieveBlob` streams it back.

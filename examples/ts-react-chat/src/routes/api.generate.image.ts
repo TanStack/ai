@@ -52,6 +52,16 @@ export const Route = createFileRoute('/api/generate/image')({
           throw new Error('This endpoint accepts text image prompts only.')
         }
 
+        // Persistence needs the scope named. It is a type error to wire the
+        // middleware without one, so reject the request rather than inventing
+        // an id the client could never hydrate by.
+        if (!threadId) {
+          return new Response(
+            '`threadId` is required — it is the scope this generation is filed under.',
+            { status: 400 },
+          )
+        }
+
         const stream = generateImage({
           adapter: grokImage('grok-imagine-image'),
           prompt: input.prompt,
@@ -66,6 +76,7 @@ export const Route = createFileRoute('/api/generate/image')({
           stream: true,
           middleware: [
             withGenerationPersistence(generationServerPersistence(), {
+              threadId,
               artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
             }),
           ],

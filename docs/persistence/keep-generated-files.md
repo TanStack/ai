@@ -47,18 +47,28 @@ import {
 const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest(
+    'image',
+    request,
+  )
 
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
   }
 
+  // Persistence requires the scope these runs are filed under.
+  if (threadId === undefined) {
+    return new Response('`threadId` is required', { status: 400 })
+  }
+
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2'),
     prompt: input.prompt,
+    threadId,
     stream: true,
     middleware: [
       withGenerationPersistence(persistence, {
+        threadId,
         // Stamp the durable serve URL (the GET route below) onto every
         // persisted artifact ref, and rewrite the live result's media field to
         // it. Both the live and the restored result then render from your own
@@ -122,6 +132,7 @@ by the run that produced it:
 
 ```ts group=generation-bytes
 const storageKeyOptions = withGenerationPersistence(persistence, {
+  threadId: 'product-123-hero',
   storageKey: ({ runId, artifactId, role, name }) =>
     `products/${role}/${runId}-${artifactId}-${name}`,
 })
@@ -163,6 +174,7 @@ flag precisely so the check is not optional:
 
 ```ts group=generation-bytes
 const inputUrlOptions = withGenerationPersistence(persistence, {
+  threadId: 'product-123-hero',
   allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com'),
 })
 ```

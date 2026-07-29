@@ -92,6 +92,17 @@ export const Route = createFileRoute('/api/transcribe')({
           })
         }
 
+        // Persistence needs the scope named. It is a type error to wire the
+        // middleware without one, so reject the request rather than inventing
+        // an id the client could never hydrate by.
+        if (!threadId) {
+          return jsonError(400, {
+            error: 'missing_thread_id',
+            message:
+              '`threadId` is required — it is the scope this generation is filed under.',
+          })
+        }
+
         try {
           const adapter = buildTranscriptionAdapter(provider ?? 'openai')
 
@@ -109,6 +120,7 @@ export const Route = createFileRoute('/api/transcribe')({
             // restored run still shows what was transcribed.
             middleware: [
               withGenerationPersistence(generationServerPersistence(), {
+                threadId,
                 artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
               }),
             ],

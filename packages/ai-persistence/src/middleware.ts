@@ -128,6 +128,28 @@ export interface WithPersistenceOptions {
   artifactFetch?: typeof globalThis.fetch
 }
 
+/**
+ * Options for {@link withGenerationPersistence} — everything in
+ * {@link WithPersistenceOptions}, plus the generation's scope, which is
+ * REQUIRED.
+ *
+ * `threadId` is a stable, app-chosen name for the slot successive runs fill
+ * (`product-123-hero`, `video-9-start-frame`) — not a link to a chat. It is not
+ * optional here for the same reason it is not optional on the client hooks: a
+ * run filed under no scope cannot be hydrated by one, so `persistence: true`
+ * would restore nothing, forever, with no error to explain why. Requiring it at
+ * the type level makes that unrepresentable rather than a silent runtime
+ * degradation.
+ *
+ * This is the authority for the run record's scope, in preference to whatever
+ * the activity stamps on its wire chunks — those mint a throwaway id when the
+ * caller supplies none, and a fabricated scope is worse than none at all.
+ */
+export interface WithGenerationPersistenceOptions extends WithPersistenceOptions {
+  /** The stable scope this generation's runs are filed under. */
+  threadId: string
+}
+
 const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
 
@@ -890,14 +912,16 @@ async function descriptorBody(
 
 async function persistGenerationArtifacts(
   persistence: AIPersistence,
-  opts: WithPersistenceOptions | undefined,
+  opts: WithGenerationPersistenceOptions,
   ctx: GenerationMiddlewareContext,
   result: unknown,
 ): Promise<Array<PersistedArtifactRef>> {
   const activity = mediaActivity(ctx.activity)
   if (!activity) return []
 
-  const threadId = ctx.threadId ?? ctx.requestId
+  // The required option, so an artifact is always filed under the same scope as
+  // its run record — never the internal requestId, which nothing can look up.
+  const threadId = opts.threadId
   const runId = ctx.runId ?? ctx.requestId
   const extractionInput: GenerationArtifactExtractionInput = {
     activity,
@@ -1457,11 +1481,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
  */
 export function withGenerationPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidGenerationPersistence<TStores>,
-  opts?: WithPersistenceOptions,
+  opts: WithGenerationPersistenceOptions,
 ): GenerationMiddleware
 export function withGenerationPersistence(
   persistence: AIPersistence,
-  opts?: WithPersistenceOptions,
+  opts: WithGenerationPersistenceOptions,
 ): GenerationMiddleware {
   validateGenerationPersistenceStores(persistence)
   const { wantsArtifactPersistence } = resolvePersistencePlan(persistence)
@@ -1479,14 +1503,16 @@ export function withGenerationPersistence(
 
     async onStart(ctx: GenerationMiddlewareContext) {
       const runId = runIdOf(ctx)
-      const threadId = ctx.threadId
+      // `opts.threadId`, not `ctx.threadId`: the option is required, so the
+      // scope is always known here, whereas the context's is optional and an
+      // activity may have minted a throwaway one for its wire chunks.
       await generationRuns.createOrResume({
         runId,
         activity: ctx.activity,
         provider: ctx.provider,
         model: ctx.model,
         startedAt: Date.now(),
-        ...(threadId !== undefined ? { threadId } : {}),
+        threadId: opts.threadId,
       })
 
       // Extract + persist artifact bytes (media → blobs, metadata → artifacts)

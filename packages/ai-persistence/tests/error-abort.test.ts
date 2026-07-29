@@ -276,7 +276,7 @@ describe('generation persistence error/abort hooks', () => {
               requestId = ctx.requestId
             },
           },
-          withGenerationPersistence(persistence),
+          withGenerationPersistence(persistence, { threadId: 'thread-test' }),
         ],
       }),
     ).rejects.toThrow('image boom')
@@ -300,7 +300,7 @@ describe('generation persistence error/abort hooks', () => {
               requestId = ctx.requestId
             },
           },
-          withGenerationPersistence(persistence),
+          withGenerationPersistence(persistence, { threadId: 'thread-test' }),
         ],
       }),
     ).rejects.toBeDefined()
@@ -312,7 +312,9 @@ describe('generation persistence error/abort hooks', () => {
 
   it('marks the job interrupted on generation abort', async () => {
     const persistence = memoryPersistence()
-    const middleware = withGenerationPersistence(persistence)
+    const middleware = withGenerationPersistence(persistence, {
+      threadId: 'thread-test',
+    })
 
     await persistence.stores.generationRuns.createOrResume({
       runId: 'req-abort',
@@ -337,7 +339,9 @@ describe('generation persistence error/abort hooks', () => {
 
   it('coerces a non-Error into the job error message via the onError handler', async () => {
     const persistence = memoryPersistence()
-    const middleware = withGenerationPersistence(persistence)
+    const middleware = withGenerationPersistence(persistence, {
+      threadId: 'thread-test',
+    })
     await persistence.stores.generationRuns.createOrResume({
       runId: 'req-err',
       activity: 'image',

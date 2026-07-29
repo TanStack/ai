@@ -120,7 +120,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-image',
       runId: 'run-image',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-image' }),
+      ],
     })
 
     expect(result.artifacts).toHaveLength(1)
@@ -164,6 +166,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: 'run-url',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-url',
           artifactUrl: (ref) => `/artifacts/${ref.artifactId}`,
         }),
       ],
@@ -186,7 +189,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-retrieve',
       runId: 'run-retrieve',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-retrieve' }),
+      ],
     })
     const artifactId = result.artifacts![0]!.artifactId
 
@@ -219,6 +224,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: 'run-storage-key',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-storage-key',
           storageKey: ({ runId, artifactId, role }) =>
             `my-app/videos/hero/${role}-${runId}-${artifactId}.png`,
         }),
@@ -254,7 +260,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-legacy',
       runId: 'run-legacy',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-legacy' }),
+      ],
     })
     const stored = (await persistence.stores.artifacts!.list('run-legacy'))[0]!
 
@@ -276,7 +284,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make audio',
       threadId: 'thread-audio',
       runId: 'run-audio',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-audio' }),
+      ],
     } as AudioGenerateOptions)) as AudioGenerationResult
 
     expect(result.artifacts).toHaveLength(1)
@@ -310,7 +320,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       ],
       threadId: 'thread-input',
       runId: 'run-input',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-input' }),
+      ],
     })
 
     expect(result.artifacts?.map((artifact) => artifact.role)).toEqual([
@@ -334,7 +346,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       },
     })
 
-    expect(() => withGenerationPersistence(persistence)).not.toThrow()
+    expect(() =>
+      withGenerationPersistence(persistence, { threadId: 'thread-test' }),
+    ).not.toThrow()
   })
 
   it('throws when the job store is missing', () => {
@@ -345,9 +359,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       },
     })
 
-    expect(() => withGenerationPersistence(persistence)).toThrow(
-      /Generation persistence requires stores\.generationRuns/i,
-    )
+    expect(() =>
+      withGenerationPersistence(persistence, { threadId: 'thread-test' }),
+    ).toThrow(/Generation persistence requires stores\.generationRuns/i)
   })
 
   it('records a job that transitions running -> complete with result + artifacts', async () => {
@@ -358,7 +372,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-job',
       runId: 'run-job',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-job' }),
+      ],
     })
 
     const job = await persistence.stores.generationRuns.get('run-job')
@@ -388,7 +404,9 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-latest',
       runId: 'run-latest-1',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-latest' }),
+      ],
     })
 
     const latest =
@@ -412,7 +430,9 @@ describe('withGenerationPersistence generation artifacts', () => {
         prompt: 'make an image',
         threadId: 'thread-error',
         runId: 'run-error',
-        middleware: [withGenerationPersistence(persistence)],
+        middleware: [
+          withGenerationPersistence(persistence, { threadId: 'thread-error' }),
+        ],
       }),
     ).rejects.toThrow('boom')
 
@@ -444,6 +464,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: 'run-custom',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-custom',
           extractArtifacts: () => [
             {
               role: 'output',
@@ -477,6 +498,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: 'run-data-url',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-data-url',
           extractArtifacts: () => [
             {
               role: 'input',
@@ -525,6 +547,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: 'run-name',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-name',
           nameArtifact: ({ descriptor, index }) =>
             `${descriptor.role}-${descriptor.mediaType}-${index}.bin`,
         }),
@@ -544,7 +567,9 @@ describe('withGenerationPersistence generation artifacts', () => {
         stream: true,
         threadId: 'thread-stream',
         runId: 'run-stream',
-        middleware: [withGenerationPersistence(persistence)],
+        middleware: [
+          withGenerationPersistence(persistence, { threadId: 'thread-stream' }),
+        ],
       }),
     )
 
@@ -560,7 +585,7 @@ describe('withGenerationPersistence generation artifacts', () => {
     )
   })
 
-  it('uses the same fallback run and thread ids for streamed events and persisted artifact refs', async () => {
+  it('files artifacts under the required threadId, not the minted wire one', async () => {
     const persistence = memoryPersistence()
 
     const chunks = await collect(
@@ -568,7 +593,9 @@ describe('withGenerationPersistence generation artifacts', () => {
         adapter: imageAdapter(),
         prompt: 'make an image',
         stream: true,
-        middleware: [withGenerationPersistence(persistence)],
+        middleware: [
+          withGenerationPersistence(persistence, { threadId: 'thread-test' }),
+        ],
       }),
     )
 
@@ -587,10 +614,14 @@ describe('withGenerationPersistence generation artifacts', () => {
       runId: expect.any(String),
       threadId: expect.any(String),
     })
-    expect(artifact).toMatchObject({
-      runId: started?.runId,
-      threadId: started?.threadId,
-    })
+    // The run id still falls back in lockstep with the wire.
+    expect(artifact).toMatchObject({ runId: started?.runId })
+    // The thread id deliberately does NOT: the caller named the scope on the
+    // middleware, and the activity minted a throwaway id for its wire chunks
+    // because none was passed to it. Persisting the minted one would file the
+    // artifact in a slot nothing can look up.
+    expect(artifact?.threadId).toBe('thread-test')
+    expect(artifact?.threadId).not.toBe(started?.threadId)
     await expect(
       persistence.stores.artifacts!.list(started!.runId!),
     ).resolves.toHaveLength(1)
@@ -609,7 +640,11 @@ describe('withGenerationPersistence generation artifacts', () => {
       prompt: 'make an image',
       threadId: 'thread-messages-only',
       runId: 'run-messages-only',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-messages-only',
+        }),
+      ],
     })
 
     expect(result.artifacts).toBeUndefined()
@@ -625,7 +660,11 @@ describe('withGenerationPersistence generation artifacts', () => {
       },
     })
 
-    expect(() => withGenerationPersistence(persistence)).toThrow(
+    expect(() =>
+      withGenerationPersistence(persistence, {
+        threadId: 'thread-messages-only',
+      }),
+    ).toThrow(
       /artifact persistence requires both stores\.artifacts and stores\.blobs/i,
     )
   })
@@ -639,7 +678,11 @@ describe('withGenerationPersistence generation artifacts', () => {
       responseFormat: 'verbose_json',
       threadId: 'thread-transcription',
       runId: 'run-transcription',
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-transcription',
+        }),
+      ],
     } as TranscriptionGenerateOptions)) as TranscriptionResult
 
     expect(result.artifacts?.map((artifact) => artifact.role)).toEqual([
@@ -705,7 +748,12 @@ describe('artifact URL fetching', () => {
       prompt: urlPrompt('https://evil.example.com/pixel.png'),
       threadId: 'thread-input-url',
       runId: 'run-input-url',
-      middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-input-url',
+          artifactFetch,
+        }),
+      ],
     })
 
     expect(artifactFetch).not.toHaveBeenCalled()
@@ -726,6 +774,7 @@ describe('artifact URL fetching', () => {
       runId: 'run-allow',
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId: 'thread-allow',
           artifactFetch,
           allowInputUrl: ({ url }) => url.hostname === 'cdn.example.com',
         }),
@@ -753,6 +802,7 @@ describe('artifact URL fetching', () => {
         runId: 'run-deny',
         middleware: [
           withGenerationPersistence(persistence, {
+            threadId: 'thread-deny',
             artifactFetch,
             allowInputUrl: ({ url }) => url.hostname === 'cdn.example.com',
           }),
@@ -781,6 +831,7 @@ describe('artifact URL fetching', () => {
         runId: 'run-ssrf',
         middleware: [
           withGenerationPersistence(persistence, {
+            threadId: 'thread-ssrf',
             artifactFetch,
             // Even a wide-open predicate must not defeat the host block.
             allowInputUrl: () => true,
@@ -801,7 +852,12 @@ describe('artifact URL fetching', () => {
         prompt: 'make an image',
         threadId: 'thread-scheme',
         runId: 'run-scheme',
-        middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-scheme',
+            artifactFetch,
+          }),
+        ],
       }),
     ).rejects.toThrow(/Refusing to fetch artifact over file:/)
     expect(artifactFetch).not.toHaveBeenCalled()
@@ -818,7 +874,12 @@ describe('artifact URL fetching', () => {
       prompt: 'make an image',
       threadId: 'thread-output',
       runId: 'run-output',
-      middleware: [withGenerationPersistence(persistence, { artifactFetch })],
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-output',
+          artifactFetch,
+        }),
+      ],
     })
 
     expect(artifactFetch).toHaveBeenCalledTimes(1)
@@ -847,6 +908,7 @@ describe('artifact URL fetching', () => {
         runId: 'run-cap',
         middleware: [
           withGenerationPersistence(persistence, {
+            threadId: 'thread-cap',
             artifactFetch,
             maxArtifactBytes: 10,
           }),

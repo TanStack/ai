@@ -69,6 +69,7 @@ describe('persistence store dependency validation', () => {
     expect(() =>
       withGenerationPersistence(
         persistence as Parameters<typeof withGenerationPersistence>[0],
+        { threadId: 'scope' },
       ),
     ).toThrow(/requires stores\.generationRuns/i)
   })
@@ -78,7 +79,9 @@ describe('persistence store dependency validation', () => {
       stores: { generationRuns: createGenerationRunStore() },
     })
 
-    expect(() => withGenerationPersistence(persistence)).not.toThrow()
+    expect(() =>
+      withGenerationPersistence(persistence, { threadId: 'thread-test' }),
+    ).not.toThrow()
   })
 
   it('rejects reconstructChat without messages', async () => {

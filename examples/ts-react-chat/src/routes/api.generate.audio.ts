@@ -89,6 +89,17 @@ export const Route = createFileRoute('/api/generate/audio')({
           })
         }
 
+        // Persistence needs the scope named. It is a type error to wire the
+        // middleware without one, so reject the request rather than inventing
+        // an id the client could never hydrate by.
+        if (!threadId) {
+          return jsonError(400, {
+            error: 'missing_thread_id',
+            message:
+              '`threadId` is required — it is the scope this generation is filed under.',
+          })
+        }
+
         try {
           const adapter = buildAudioAdapter(provider ?? 'gemini-lyria', model)
 
@@ -104,6 +115,7 @@ export const Route = createFileRoute('/api/generate/audio')({
             // run still plays after the provider's link expires.
             middleware: [
               withGenerationPersistence(generationServerPersistence(), {
+                threadId,
                 artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
               }),
             ],

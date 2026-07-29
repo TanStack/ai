@@ -596,6 +596,7 @@ export async function POST(req: Request) {
       stream: true,
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId,
           // Stamp a durable app-origin serve URL (the GET route below) onto
           // each persisted artifact ref, and rewrite the live result's media to
           // it. Both live and restored results then render from your origin.

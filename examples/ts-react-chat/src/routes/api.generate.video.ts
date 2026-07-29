@@ -38,6 +38,16 @@ export const Route = createFileRoute('/api/generate/video')({
         const { prompt, size, duration, model } = body.data
         const { threadId, runId } = generationParamsFromBody('video', body)
 
+        // Persistence needs the scope named. It is a type error to wire the
+        // middleware without one, so reject the request rather than inventing
+        // an id the client could never hydrate by.
+        if (!threadId) {
+          return new Response(
+            '`threadId` is required — it is the scope this generation is filed under.',
+            { status: 400 },
+          )
+        }
+
         // Durability is keyed by run id. A client that sends none has no id to
         // rejoin with either, so minting one here costs nothing and keeps the
         // producer/reader split uniform.
@@ -56,6 +66,7 @@ export const Route = createFileRoute('/api/generate/video')({
             ...(threadId ? { threadId } : {}),
             middleware: [
               withGenerationPersistence(generationServerPersistence(), {
+                threadId,
                 artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
               }),
             ],

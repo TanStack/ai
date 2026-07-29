@@ -27,7 +27,7 @@ Generation persistence mirrors chat's `persistence` option:
   empty.
 
 Either way the server keeps a **generation job** record:
-`withGenerationPersistence(persistence)` needs a `generationRuns` store (a
+`withGenerationPersistence(persistence, { threadId })` needs a `generationRuns` store (a
 `GenerationRunStore` keyed by the run's own `runId`; a generation has no conversation
 of its own, so `threadId` is only an optional link). `memoryPersistence()` ships
 one out of the box; see
@@ -84,16 +84,23 @@ export async function POST(request: Request) {
     throw new Error('This endpoint accepts text image prompts only.')
   }
 
+  // Persistence requires the scope, so a request without one cannot be served:
+  // the run would be filed nowhere the client could hydrate from.
+  if (threadId === undefined) {
+    return new Response('`threadId` is required', { status: 400 })
+  }
+
   const stream = generateImage({
     adapter: openaiImage('gpt-image-2'),
     prompt: input.prompt,
-    // Link the run to the thread so the GET can find the last run for it.
-    ...(threadId !== undefined ? { threadId } : {}),
+    // The same scope the GET below finds the last run for.
+    threadId,
     stream: true,
     // `artifactUrl` makes the restored media render from your own origin. It is
     // optional — see Keep generated files for the serve route it points at.
     middleware: [
       withGenerationPersistence(persistence, {
+        threadId,
         artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
       }),
     ],
@@ -241,6 +248,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       // `artifactUrl` is optional — see Keep generated files.
       middleware: [
         withGenerationPersistence(persistence, {
+          threadId,
           artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
         }),
       ],

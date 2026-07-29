@@ -142,7 +142,7 @@ Returns `{ messages, activeRun, interrupts }`:
 
 ## Generation activities
 
-`withGenerationPersistence(persistence)` tracks run records for non-chat
+`withGenerationPersistence(persistence, { threadId })` tracks run records for non-chat
 activities (image, audio, TTS, video, transcription). Do not fake
 `threadId = requestId` on chat run stores — use the generation helper.
 

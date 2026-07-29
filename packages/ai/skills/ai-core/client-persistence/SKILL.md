@@ -206,7 +206,7 @@ export async function POST(request: Request) {
       adapter: openaiImage('gpt-image-2'),
       prompt: input.prompt,
       stream: true,
-      middleware: [withGenerationPersistence(persistence)],
+      middleware: [withGenerationPersistence(persistence, { threadId })],
     }),
   )
 }
@@ -248,6 +248,7 @@ export function GET(request: Request) {
 
 ```ts
 withGenerationPersistence(persistence, {
+  threadId,
   artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
 })
 ```
