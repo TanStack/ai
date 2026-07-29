@@ -83,8 +83,8 @@ function VideoGenerationUI({
     <div className="space-y-6">
       <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
         <p className="text-yellow-400 text-sm">
-          Video generation is experimental and requires an XAI_API_KEY with
-          Grok Imagine access. Generation can take several minutes.
+          Video generation is experimental and requires an XAI_API_KEY with Grok
+          Imagine access. Generation can take several minutes.
         </p>
       </div>
 
