@@ -1,4 +1,14 @@
 export { localProcessSandbox } from './provider'
 export type { LocalProcessSandboxConfig } from './provider'
-export { LocalProcessHandle, LOCAL_PROCESS_CAPS } from './handle'
-export type { LocalProcessHandleOptions } from './handle'
+export {
+  classifyTaskkillResult,
+  LocalProcessHandle,
+  LOCAL_PROCESS_CAPS,
+  msysDescendantWinPids,
+  parseMsysProcessTable,
+} from './handle'
+export type {
+  LocalProcessHandleOptions,
+  LocalProcessLogger,
+  TaskkillOutcome,
+} from './handle'

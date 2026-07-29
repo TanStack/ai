@@ -47,19 +47,26 @@
  * conformance case that quietly returns prints as a pass, which is how an
  * unimplemented capability ships green.
  *
- * OBSERVED WHILE WRITING THIS, NOT ASSERTED HERE. On local-process under Windows
- * (git-bash `sh`), the follow read's `tail` grandchild SURVIVES `proc.kill()`:
- * `LocalProcessHandle.killTree` runs `taskkill /PID <sh> /T /F` and returns as
- * soon as `spawnSync` reports no `error`, without checking taskkill's exit
- * status, and the MSYS `tail.exe` is left running with a dead parent. Measured by
- * counting `tail.exe` before and after a run: this suite leaks 4 per run and the
- * shipped journal suite leaks 2, and they accumulate for the life of the machine.
- * It is a provider defect, not a takeover defect — every case here still delivers
- * the right transcript, because `untilAborted` (see `journal-reader.ts`) already
- * stops honoring the pipe once the signal fires rather than waiting for the kill.
- * Deliberately NOT asserted in this suite: a per-provider process census is not
- * portable (Docker's `tail` dies with its container), and a conformance case that
- * counted host processes would fail for reasons unrelated to takeover.
+ * FOUND BY THIS SUITE, FIXED IN THE PROVIDER, STILL NOT ASSERTED HERE. On
+ * local-process under Windows (git-bash `sh`), the follow read's `tail`
+ * grandchild used to SURVIVE `proc.kill()`: `LocalProcessHandle.killTree` ran
+ * `taskkill /PID <sh> /T /F` and returned as soon as `spawnSync` reported no
+ * `error`. Two things were wrong. It never checked taskkill's exit status — and
+ * that alone would not have caught it, because MSYS's fork emulation leaves the
+ * `tail.exe` pointing at an intermediate shell that has already exited, so
+ * `taskkill /T` (live parent links only) cannot reach it and still exits `0`.
+ * Measured by counting `tail.exe` before and after a run: this suite leaked 4 per
+ * run and the shipped journal suite 2, accumulating for the life of the machine.
+ * It was a provider defect, not a takeover defect — every case here still
+ * delivered the right transcript, because `untilAborted` (see
+ * `journal-reader.ts`) stops honoring the pipe once the signal fires rather than
+ * waiting for the kill, which is exactly why it never failed a test.
+ * `killTree` now resolves the tree through MSYS's own process table and verifies
+ * the survivors are gone (0 per run), covered in
+ * `ai-sandbox-local-process/tests/kill-tree.test.ts`.
+ * Deliberately still NOT asserted in this suite: a per-provider process census is
+ * not portable (Docker's `tail` dies with its container), and a conformance case
+ * that counted host processes would fail for reasons unrelated to takeover.
  *
  * EVERY WAIT IN THIS FILE IS BOUNDED. A hang stalls CI instead of failing it, so
  * each journal read carries a timeout signal, each poll loop carries a deadline

@@ -3,6 +3,7 @@ import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { LOCAL_PROCESS_CAPS, LocalProcessHandle } from './handle'
+import type { LocalProcessLogger } from './handle'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -31,6 +32,13 @@ export interface LocalProcessSandboxConfig {
    * of billing the API.
    */
   scrubEnv?: Array<string>
+  /**
+   * Sink for non-fatal teardown diagnostics — a `killTree` that could not
+   * confirm the spawned process tree is gone. Teardown is total by construction
+   * (it never throws), so without a logger such a failure is silent.
+   * `@tanstack/ai`'s `InternalLogger` satisfies this shape as-is.
+   */
+  logger?: LocalProcessLogger
 }
 
 class LocalProcessProvider implements SandboxProvider {
@@ -51,6 +59,7 @@ class LocalProcessProvider implements SandboxProvider {
       root,
       removeOnDestroy: this.removeDefault(),
       scrubEnv: this.config.scrubEnv,
+      logger: this.config.logger,
       forkFactory: async (sourceRoot) => {
         const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
         await fsp.mkdir(dest, { recursive: true })
@@ -58,6 +67,7 @@ class LocalProcessProvider implements SandboxProvider {
         return new LocalProcessHandle({
           root: dest,
           removeOnDestroy: true,
+          logger: this.config.logger,
           forkFactory: () =>
             Promise.reject(new Error('nested fork unsupported')),
         })

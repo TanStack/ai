@@ -83,6 +83,41 @@ const hostLogin = localProcessSandbox({ scrubEnv: ['XAI_API_KEY'] })
 > CLI. Isolated and cloud providers have no host login, so they always use an
 > injected API key (supplied as a workspace secret).
 
+### Windows process teardown (`logger`)
+
+Killing a spawned process means killing the whole tree, and on Windows that takes
+more than `taskkill /T`. Commands run through a git-bash `sh`, and MSYS's
+fork emulation runs the final command of a statement list — such as the
+`tail -f` behind a [journal](./journal) follow read — under an intermediate shell
+that immediately exits. Windows never reparents, so the surviving process points
+at a dead parent and `taskkill /T`, which walks only live parent links, cannot
+reach it **while still exiting `0`**. Left alone, every follow read leaks a
+process for the life of the machine.
+
+`localProcessSandbox` therefore consults MSYS's own process table — which does
+keep the logical parentage — before killing, and kills any descendant `/T` missed.
+Teardown is total by construction: it never throws, because a throwing kill would
+strand a run mid-flight. That means a kill it genuinely cannot complete (a
+protected process, access denied) is otherwise invisible, so pass a `logger` to
+see it:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+const dev = localProcessSandbox({
+  logger: {
+    warn: (message, meta) => console.warn(message, meta),
+  },
+})
+```
+
+Any object with a `warn(message, meta?)` method works, so the `InternalLogger`
+your adapter already receives can be handed straight in. A process that had
+already exited on its own is **not** a failure and is never reported.
+
+Nothing here changes on POSIX, where `sh` really is the command's parent and
+signalling the wrapper is enough.
+
 ## Docker
 
 ```ts
@@ -210,7 +245,7 @@ swap one provider for another.
 
 | Provider | `killableProcesses` | Why |
 | --- | --- | --- |
-| Local process | `true` | Kills the spawned `sh` wrapper **and** its descendants (`taskkill /T` on Windows, signal forwarding elsewhere). |
+| Local process | `true` | Kills the spawned `sh` wrapper **and** its descendants (signal forwarding on POSIX; on Windows `taskkill /T` plus a verified sweep — see [Windows teardown](#windows-process-teardown-logger)). |
 | Docker | `true` | Destroys the hijacked exec stream, which tears down the container-side process tied to that exec session. |
 | Daytona | `true` | Deletes the Daytona session, terminating its running command. Bounded by session teardown rather than instant, but terminal. |
 | Vercel | `true` | Aborts the controller threaded into `runCommand`'s own signal; Vercel tears the detached command down. |

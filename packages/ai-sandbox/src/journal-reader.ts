@@ -86,7 +86,10 @@ const ABORTED = Symbol('journal-read-aborted')
  * `tail` grandchild holding the stdout pipe open, and the read rides past its
  * own AbortSignal until some outer timeout fires. The signal is the caller's
  * contract with the reader, so the reader honors it itself and treats the kill
- * as best-effort cleanup.
+ * as best-effort cleanup. (local-process now also verifies the tree is gone and
+ * sweeps the MSYS grandchildren `taskkill /T` cannot reach, but that is a
+ * provider improving its best effort — not a guarantee this reader may assume of
+ * any provider.)
  */
 async function* untilAborted<T>(
   source: AsyncIterable<T>,

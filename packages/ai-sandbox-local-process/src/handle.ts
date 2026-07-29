@@ -94,6 +94,23 @@ function posixShellPathDirs(): Array<string> {
   return (cachedShellPathDirs = [...new Set(dirs)].filter((d) => existsSync(d)))
 }
 
+/**
+ * Prepend {@link posixShellPathDirs} to `env`'s PATH in place, respecting the
+ * existing key's casing (Windows uses `Path`) so we never create a duplicate,
+ * ignored variable. No-op off Windows / without a resolved git-bash `sh`.
+ */
+function prependShellPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const extraPaths = posixShellPathDirs()
+  if (extraPaths.length > 0) {
+    const pathKey =
+      Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
+    env[pathKey] = [...extraPaths, env[pathKey] ?? '']
+      .filter(Boolean)
+      .join(path.delimiter)
+  }
+  return env
+}
+
 export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   fs: true,
   exec: true,
@@ -102,7 +119,8 @@ export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   backgroundProcesses: true,
   writableStdin: true,
   // `killTree` forcibly kills the spawned `sh` wrapper AND its descendants
-  // (via taskkill /T on Windows, signal-forwarding elsewhere), and the same
+  // (signal-forwarding on POSIX; on Windows `taskkill /T` plus a verified sweep
+  // of the MSYS descendants `/T` cannot reach — see `killTree`), and the same
   // `killTree` runs on `signal` abort in both `exec` and `spawn` — so a
   // spawned process is always forcibly terminable by the caller.
   killableProcesses: true,
@@ -137,25 +155,233 @@ async function* decodeStream(stream: Readable | null): AsyncIterable<string> {
 }
 
 /**
+ * Sink for non-fatal teardown diagnostics. Structural on purpose: `@tanstack/ai`'s
+ * `InternalLogger` satisfies it as-is (its `warn` is gated by the `errors`
+ * category, on by default), so a consumer can pass the logger it already has
+ * without this package taking a runtime dependency on it.
+ */
+export interface LocalProcessLogger {
+  warn: (message: string, meta?: Record<string, unknown>) => void
+}
+
+/** One row of MSYS `ps`: the MSYS-side pid table, keyed to Windows by `winpid`. */
+interface MsysProcess {
+  pid: number
+  ppid: number
+  winpid: number
+}
+
+/**
+ * Parse MSYS/git-bash `ps` output. Columns are
+ * `PID PPID PGID WINPID TTY UID STIME COMMAND`; the header and any
+ * non-numeric row are skipped, as is any row with a `PPID` of `0` — that is how
+ * `ps -W` renders the native Windows processes it appends, and they are not part
+ * of any MSYS tree. (We call plain `ps`; the filter keeps a stray `-W` from ever
+ * widening the sweep.) Every genuine MSYS row has a `PPID` of at least `1`.
+ *
+ * Exported for tests — parsing fixed text is the portable half of the
+ * orphan-sweep logic.
+ */
+export function parseMsysProcessTable(stdout: string): Array<MsysProcess> {
+  const rows: Array<MsysProcess> = []
+  for (const line of stdout.split('\n')) {
+    const cols = line.trim().split(/\s+/)
+    if (cols.length < 4) continue
+    const pid = Number(cols[0])
+    const ppid = Number(cols[1])
+    const winpid = Number(cols[3])
+    if (
+      !Number.isInteger(pid) ||
+      !Number.isInteger(ppid) ||
+      !Number.isInteger(winpid) ||
+      pid <= 0 ||
+      ppid <= 0 ||
+      winpid <= 0
+    ) {
+      continue
+    }
+    rows.push({ pid, ppid, winpid })
+  }
+  return rows
+}
+
+/**
+ * Windows pids of every MSYS descendant of the process whose Windows pid is
+ * `rootWinPid`, excluding the root itself. Returns `[]` when the root is not an
+ * MSYS process (nothing to sweep beyond what `taskkill /T` already covers).
+ *
+ * Exported for tests alongside {@link parseMsysProcessTable}.
+ */
+export function msysDescendantWinPids(
+  rows: Array<MsysProcess>,
+  rootWinPid: number,
+): Array<number> {
+  const root = rows.find((r) => r.winpid === rootWinPid)
+  if (!root) return []
+  const byPpid = new Map<number, Array<MsysProcess>>()
+  for (const row of rows) {
+    const siblings = byPpid.get(row.ppid)
+    if (siblings) siblings.push(row)
+    else byPpid.set(row.ppid, [row])
+  }
+  const winPids: Array<number> = []
+  const seen = new Set<number>([root.pid])
+  const queue = [root.pid]
+  while (queue.length > 0) {
+    // Non-null: `queue.length > 0` was just checked, and nothing else shifts it.
+    const next = queue.shift() ?? 0
+    for (const child of byPpid.get(next) ?? []) {
+      if (seen.has(child.pid)) continue // cycle guard
+      seen.add(child.pid)
+      queue.push(child.pid)
+      if (child.winpid !== rootWinPid) winPids.push(child.winpid)
+    }
+  }
+  return winPids
+}
+
+/** Snapshot the MSYS process table via the resolved POSIX `sh`. `[]` if unavailable. */
+function msysProcessTable(logger?: LocalProcessLogger): Array<MsysProcess> {
+  const res = spawnSync(posixShell(), ['-c', 'ps'], {
+    encoding: 'utf8',
+    env: prependShellPath({ ...process.env }),
+  })
+  if (res.error !== undefined || res.status !== 0) {
+    logger?.warn('local-process: could not snapshot the MSYS process table', {
+      error: res.error?.message,
+      status: res.status,
+    })
+    return []
+  }
+  return parseMsysProcessTable(res.stdout)
+}
+
+/** Whether `pid` is still running. `process.kill(pid, 0)` sends no signal. */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * What a finished `taskkill` invocation actually means.
+ *
+ * - `killed` — it exited `0`; the pid it was given is gone.
+ * - `already-exited` — status `128`, or a "not found" / "does not exist"
+ *   message. The process was gone before we asked. This is SUCCESS: nothing
+ *   leaked, and retrying or reporting it would make every normal teardown look
+ *   like a failure.
+ * - `failed` — any other nonzero status: a real refusal (access denied, a
+ *   protected process). Worth reporting.
+ *
+ * Exported for tests: `spawnSync` reporting no `error` only means taskkill was
+ * *launched*, and conflating "I successfully asked" with "it died" is exactly the
+ * bug this file used to have.
+ */
+export type TaskkillOutcome = 'killed' | 'already-exited' | 'failed'
+
+export function classifyTaskkillResult(
+  status: number | null,
+  stderr: string,
+): TaskkillOutcome {
+  if (status === 0) return 'killed'
+  if (status === 128 || /not found|does not exist/i.test(stderr)) {
+    return 'already-exited'
+  }
+  return 'failed'
+}
+
+/** `taskkill` one pid. Returns whether the process is gone afterwards. */
+function taskkillPid(
+  pid: number,
+  tree: boolean,
+  logger?: LocalProcessLogger,
+): boolean {
+  const args = ['/PID', String(pid), ...(tree ? ['/T'] : []), '/F']
+  const res = spawnSync('taskkill', args, { encoding: 'utf8' })
+  if (res.error !== undefined) {
+    logger?.warn('local-process: taskkill could not be launched', {
+      pid,
+      error: res.error.message,
+    })
+    return false
+  }
+  const outcome = classifyTaskkillResult(res.status, res.stderr ?? '')
+  if (outcome === 'failed') {
+    logger?.warn('local-process: taskkill failed to kill a process', {
+      pid,
+      status: res.status,
+      stderr: (res.stderr ?? '').trim(),
+    })
+    return false
+  }
+  return true
+}
+
+/**
  * Kill a spawned child AND all its descendants.
  *
  * We spawn every command through `sh -c <command>`, so `child` is the `sh`
  * wrapper. `child.kill()` signals only that wrapper — its grandchildren (e.g.
  * `node` → a harness binary like `opencode serve`) keep running and hold their
- * ports, orphaning a server that then blocks the next run's port. On Windows
- * there are no POSIX process groups, so we use `taskkill /T` to walk the tree;
- * elsewhere we fall back to signalling the wrapper (sh forwards on exec).
+ * ports, orphaning a server that then blocks the next run's port. On POSIX we
+ * signal the wrapper (sh forwards on exec); Windows has no process groups, so
+ * we walk the tree with `taskkill /T` and then sweep what `/T` cannot reach.
+ *
+ * WHY `taskkill /T` IS NOT ENOUGH (measured, git-bash `sh` on Windows 11). For a
+ * multi-statement command — e.g. `journalFollowCommand`'s
+ * `mkdir -p …; : >> …; tail -c +1 -f …` — MSYS's fork emulation runs the final
+ * `tail` under an intermediate `sh.exe` that then exits. Windows does not
+ * reparent, so `tail.exe`'s `ParentProcessId` stays pointing at that dead pid and
+ * `taskkill /T` — which walks only LIVE parent links from the pid it is given —
+ * never reaches it. Worse, taskkill still exits `0` ("SUCCESS: … PID <sh> has
+ * been terminated"), so checking the exit status alone does not catch this: the
+ * shipped journal conformance suite leaked 2 `tail.exe` per run, accumulating
+ * for the life of the machine.
+ *
+ * MSYS's own pid table does keep the logical parentage (`ps` reports `tail`'s
+ * PPID as our `sh`), so we snapshot it, resolve the descendants' Windows pids,
+ * and kill the survivors directly. The snapshot MUST be taken BEFORE the
+ * `taskkill`: once our `sh` is gone, its `winpid` is no longer in the table and
+ * the attribution is lost.
+ *
+ * TOTAL BY CONSTRUCTION: every failure is logged, never thrown. Callers are
+ * teardown paths (`SpawnHandle.kill`, `signal` abort handlers, `pipeToRunLog`)
+ * where a throw would wedge a run at `'running'` with its tailers parked.
  */
-function killTree(child: ChildProcess, signal?: NodeJS.Signals | number): void {
+function killTree(
+  child: ChildProcess,
+  signal?: NodeJS.Signals | number,
+  logger?: LocalProcessLogger,
+): void {
   const pid = child.pid
-  if (pid !== undefined && process.platform === 'win32') {
-    const res = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-      stdio: 'ignore',
-    })
-    if (res.error === undefined) return
-    // taskkill missing/failed → fall through to the best-effort signal.
+  if (pid === undefined || process.platform !== 'win32') {
+    child.kill(signal)
+    return
   }
-  child.kill(signal)
+
+  // Attribute the tree first — taskkill destroys the evidence (see above).
+  const strays = msysDescendantWinPids(msysProcessTable(logger), pid)
+
+  if (!taskkillPid(pid, true, logger)) {
+    // taskkill unusable or refused → best-effort signal, as before.
+    child.kill(signal)
+  }
+
+  // Verify and escalate: anything `/T` could not reach gets killed directly.
+  const survivors = strays.filter((strayPid) => isAlive(strayPid))
+  for (const strayPid of survivors) taskkillPid(strayPid, true, logger)
+
+  const leaked = survivors.filter((strayPid) => isAlive(strayPid))
+  if (leaked.length > 0) {
+    logger?.warn('local-process: killTree left descendants running', {
+      pid,
+      leaked,
+    })
+  }
 }
 
 export interface LocalProcessHandleOptions {
@@ -167,6 +393,12 @@ export interface LocalProcessHandleOptions {
   forkFactory: (sourceRoot: string) => Promise<SandboxHandle>
   /** Env vars to delete from the inherited `process.env` before spawning. */
   scrubEnv?: Array<string>
+  /**
+   * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
+   * not confirm the process tree is gone. Teardown never throws, so without a
+   * logger these conditions are silent.
+   */
+  logger?: LocalProcessLogger
 }
 
 export class LocalProcessHandle implements SandboxHandle {
@@ -310,17 +542,8 @@ export class LocalProcessHandle implements SandboxHandle {
     // is truly absent, not present-but-empty.
     for (const key of this.options.scrubEnv ?? []) delete env[key]
     // Prepend git-bash's tool dirs (Windows) so the POSIX `sh` can find sed/uname/
-    // git/etc. that npm CLI shims depend on. Respect the existing PATH key casing
-    // (Windows uses `Path`) to avoid creating a duplicate, ignored variable.
-    const extraPaths = posixShellPathDirs()
-    if (extraPaths.length > 0) {
-      const pathKey =
-        Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
-      env[pathKey] = [...extraPaths, env[pathKey] ?? '']
-        .filter(Boolean)
-        .join(path.delimiter)
-    }
-    return env
+    // git/etc. that npm CLI shims depend on.
+    return prependShellPath(env)
   }
 
   private exec(command: string, opts?: ProcessOptions): Promise<ExecResult> {
@@ -337,7 +560,7 @@ export class LocalProcessHandle implements SandboxHandle {
       child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')))
       child.stderr.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
       const onAbort = (): void => {
-        killTree(child)
+        killTree(child, undefined, this.options.logger)
       }
       opts?.signal?.addEventListener('abort', onAbort, { once: true })
       child.on('error', reject)
@@ -358,9 +581,13 @@ export class LocalProcessHandle implements SandboxHandle {
       env: this.mergedEnv(opts?.env),
     })
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => killTree(child), {
-        once: true,
-      })
+      opts.signal.addEventListener(
+        'abort',
+        () => killTree(child, undefined, this.options.logger),
+        {
+          once: true,
+        },
+      )
     }
     const handle: SpawnHandle = {
       pid: child.pid ?? -1,
@@ -382,7 +609,7 @@ export class LocalProcessHandle implements SandboxHandle {
           child.on('close', (code) => resolve(code ?? 0))
         }),
       kill: (signal) => {
-        killTree(child, signal)
+        killTree(child, signal, this.options.logger)
         return Promise.resolve()
       },
     }
