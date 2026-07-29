@@ -45,7 +45,7 @@ look records up by exactly these:
 | Record    | Key                | Fields                                                                                                                    |
 | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | thread    | `threadId`         | `messages` (array, full transcript)                                                                                       |
-| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?` |
+| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?`, `driverEpoch?` |
 | interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                       |
 | metadata  | `(namespace, key)` | `value`                                                                                                                   |
 
@@ -85,10 +85,21 @@ history. They are engine-independent:
 4. **`runs.update` on an unknown id is a silent no-op** — it must not throw and
    must not insert. (Drivers that throw on zero rows affected need the
    `updateMany`-style call, not the `update`-one-or-throw call.)
-5. **`interrupts.create` is insert-if-absent** — never clobber a resolved
+5. **`runs.update` distinguishes "field omitted" from "field explicitly
+   cleared" for the durable-run fields** (`sandboxKey`, `detachedSince`,
+   `cancelRequested`, `driverEpoch`). A reattach clears `detachedSince` by
+   passing it explicitly as `undefined` — `update(runId, { detachedSince: undefined })`
+   — and that must write `NULL`, not be silently dropped. Check
+   `'detachedSince' in patch`, never `patch.detachedSince !== undefined`; the
+   latter cannot tell a clear from an omission and leaves every reattached run
+   looking permanently detached to the reaper. Same rule for
+   `cancelRequested` (`false` is a real value, not "unset") and for
+   `sandboxKey` / `driverEpoch`. See
+   `examples/ts-react-chat/src/lib/sqlite-persistence.ts` for the pattern.
+6. **`interrupts.create` is insert-if-absent** — never clobber a resolved
    interrupt back to pending. Every `list*` is ordered by `requestedAt`
    ascending.
-6. **`runs.listReclaimable` uses an inclusive cutoff** (if implemented):
+7. **`runs.listReclaimable` uses an inclusive cutoff** (if implemented):
    `status === 'running' AND detachedSince <= now - ttlMs`. It is a query, not
    automatic reclamation, and `runs.listByThread` / `runs.listReclaimable` /
    `runs.findActiveRun` are all optional: implement only what the app needs
@@ -168,10 +179,14 @@ function createRunStore(db: Pool): RunStore {
         stored ?? { runId, threadId, status: status ?? 'running', startedAt }
       )
     },
-    // ... update (no-op on unknown id, patches sandboxKey/detachedSince/
-    // cancelRequested the same way as status/finishedAt/usage; writes
-    // patch.error as two columns, error = patch.error.message and
-    // error_code = patch.error.code ?? null, together in the same call),
+    // ... update (no-op on unknown id; sandboxKey/detachedSince/
+    // cancelRequested/driverEpoch are checked with `'field' in patch`, not
+    // `patch.field !== undefined`, so an explicit `undefined` (a clear) still
+    // writes NULL instead of being silently dropped — status/finishedAt/usage
+    // can use the simpler `!== undefined` check since they are never
+    // explicitly cleared; writes patch.error as two columns,
+    // error = patch.error.message and error_code = patch.error.code ?? null,
+    // together in the same call),
     // findActiveRun (latest 'running', optional), listByThread (ascending
     // by startedAt, optional), listReclaimable (status = 'running' AND
     // detachedSince <= now - ttlMs, inclusive cutoff, optional)

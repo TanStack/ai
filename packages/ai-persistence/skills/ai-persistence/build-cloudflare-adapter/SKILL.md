@@ -119,6 +119,17 @@ records compare cleanly against the reference in-memory backend. JSON columns
 are `text`: `JSON.parse` on read, `JSON.stringify` on write. Timestamps are
 `integer` epoch ms.
 
+`sandbox_key`, `detached_since`, `cancel_requested`, and `driver_epoch` are the
+durable-agent-runs columns. In `update`, check `'field' in patch` for all
+four — never `patch.field !== undefined` — because a reattach clears
+`detachedSince` by passing it explicitly as `undefined`, which must bind
+`NULL` into the `SET` clause rather than being filtered out of it (a filtered
+clear leaves the stale value and the run looks permanently detached to the
+reaper). The same applies to `cancelRequested`: `false` written explicitly is
+a real, meaningful value distinct from "never set", not something to coerce
+away. See `examples/ts-react-chat/src/lib/sqlite-persistence.ts` (D1 speaks
+the same SQLite dialect) for the worked `update` body.
+
 ## 5. The migration
 
 Write the tables into the app's `migrations/` directory as a new numbered file:
@@ -140,7 +151,8 @@ CREATE TABLE IF NOT EXISTS chat_runs (
   usage_json text,
   sandbox_key text,
   detached_since integer,
-  cancel_requested integer
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE INDEX IF NOT EXISTS chat_runs_thread_status ON chat_runs (thread_id, status);
 CREATE INDEX IF NOT EXISTS chat_runs_thread_started ON chat_runs (thread_id, started_at);

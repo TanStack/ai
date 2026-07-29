@@ -79,6 +79,7 @@ export const chatRuns = sqliteTable(
     sandboxKey: text('sandbox_key'),
     detachedSince: integer('detached_since'),
     cancelRequested: integer('cancel_requested', { mode: 'boolean' }),
+    driverEpoch: integer('driver_epoch'),
   },
   (table) => [
     // Powers listReclaimable: status = 'running' AND detachedSince <= cutoff.
@@ -127,8 +128,9 @@ behind.
 
 **Postgres** (`drizzle-orm/pg-core`): `jsonb()` for the JSON payloads,
 `bigint({ mode: 'number' })` for epoch-ms timestamps (including
-`detachedSince`), `boolean()` for `cancelRequested`, `text()` elsewhere,
-composite `primaryKey` on `(namespace, key)` unchanged. **MySQL**
+`detachedSince`), `integer()` for `driverEpoch`, `boolean()` for
+`cancelRequested`, `text()` elsewhere, composite `primaryKey` on
+`(namespace, key)` unchanged. **MySQL**
 (`drizzle-orm/mysql-core`): `json()`, `bigint({ mode: 'number' })`,
 `boolean()` for `cancelRequested`, and `varchar(..., { length: 255 })` for the
 primary-key columns. The store bodies below are identical across all three,
@@ -187,6 +189,7 @@ function mapRun(row: typeof chatRuns.$inferSelect): RunRecord {
     ...(row.cancelRequested != null
       ? { cancelRequested: row.cancelRequested }
       : {}),
+    ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
   }
 }
 
@@ -272,11 +275,19 @@ function createRunStore(db: Db): RunStore {
         set.errorCode = patch.error.code ?? null
       }
       if (patch.usage !== undefined) set.usageJson = patch.usage
-      if (patch.sandboxKey !== undefined) set.sandboxKey = patch.sandboxKey
-      if (patch.detachedSince !== undefined)
-        set.detachedSince = patch.detachedSince
-      if (patch.cancelRequested !== undefined)
-        set.cancelRequested = patch.cancelRequested
+      // The four durable-run fields use `'field' in patch`, NOT
+      // `!== undefined`: a reattach clears `detachedSince` by passing it
+      // explicitly as `undefined`, and that must still write NULL. Checking
+      // `!== undefined` cannot distinguish "clear this" from "didn't mention
+      // this", so it would silently drop the clear and leave the run looking
+      // permanently detached to the reaper. Same reasoning applies to
+      // `cancelRequested` (`false` is a meaningful value, not "unset").
+      if ('sandboxKey' in patch) set.sandboxKey = patch.sandboxKey ?? null
+      if ('detachedSince' in patch)
+        set.detachedSince = patch.detachedSince ?? null
+      if ('cancelRequested' in patch)
+        set.cancelRequested = patch.cancelRequested ?? null
+      if ('driverEpoch' in patch) set.driverEpoch = patch.driverEpoch ?? null
       if (Object.keys(set).length === 0) return
 
       await db.update(chatRuns).set(set).where(eq(chatRuns.runId, runId))

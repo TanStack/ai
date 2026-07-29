@@ -66,6 +66,7 @@ model ChatRun {
   sandboxKey      String? @map("sandbox_key")
   detachedSince   BigInt? @map("detached_since")
   cancelRequested Boolean? @map("cancel_requested")
+  driverEpoch     Int?     @map("driver_epoch")
 
   @@index([threadId, status])
   @@index([threadId, startedAt])
@@ -202,6 +203,7 @@ function mapRun(row: ChatRun): RunRecord {
     ...(row.cancelRequested != null
       ? { cancelRequested: row.cancelRequested }
       : {}),
+    ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
   }
 }
 
@@ -276,11 +278,22 @@ function createRunStore(db: PrismaClient): RunStore {
       }
       if (patch.usage !== undefined)
         data.usageJson = JSON.stringify(patch.usage)
-      if (patch.sandboxKey !== undefined) data.sandboxKey = patch.sandboxKey
-      if (patch.detachedSince !== undefined)
-        data.detachedSince = BigInt(patch.detachedSince)
-      if (patch.cancelRequested !== undefined)
-        data.cancelRequested = patch.cancelRequested
+      // The four durable-run fields use `'field' in patch`, NOT
+      // `!== undefined`: a reattach clears `detachedSince` by passing it
+      // explicitly as `undefined`, and that must still write NULL, not be
+      // silently dropped from the update. Checking `!== undefined` cannot
+      // tell "clear this" from "didn't mention this", and would leave every
+      // reattached run looking permanently detached to the reaper. Same
+      // reasoning for `cancelRequested` (`false` is a meaningful value).
+      if ('sandboxKey' in patch) data.sandboxKey = patch.sandboxKey ?? null
+      if ('detachedSince' in patch) {
+        data.detachedSince =
+          patch.detachedSince === undefined ? null : BigInt(patch.detachedSince)
+      }
+      if ('cancelRequested' in patch)
+        data.cancelRequested = patch.cancelRequested ?? null
+      if ('driverEpoch' in patch)
+        data.driverEpoch = patch.driverEpoch ?? null
       if (Object.keys(data).length === 0) return
 
       await db.chatRun.updateMany({ where: { runId }, data })

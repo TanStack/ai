@@ -126,6 +126,7 @@ interface RunStore {
         | 'sandboxKey'
         | 'detachedSince'
         | 'cancelRequested'
+        | 'driverEpoch'
       >
     >,
   ): Promise<void>
@@ -171,6 +172,64 @@ object's own type, so an optional method your store implements (say,
 back to `RunStore`'s `| undefined`. You get autocomplete and contract checking
 without a separate `: RunStore` annotation, and without a feature-detection
 guard on your own return value.
+
+#### The durable-agent-runs fields: `sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch`
+
+These four `RunRecord` fields exist for the sandbox/durable-run layer to
+reattach a run a client disconnected from, and for out-of-band cancellation.
+A `RunStore` you write must round-trip all four through `update` → `get`, even
+if your app does not use sandboxes yet — the conformance testkit checks this
+unconditionally (it is not behind `skipMethods`, because `update`/`get` are
+REQUIRED methods).
+
+- **`sandboxKey`** — compound key identifying the sandbox this run is bound
+  to, so a reclaimer can find it to tear down.
+- **`detachedSince`** — epoch ms when the last viewer detached; absent while
+  someone is attached. Read by `listReclaimable`.
+- **`cancelRequested`** — set by an explicit out-of-band cancel (see below),
+  distinct from a mere disconnect.
+- **`driverEpoch`** — monotonic fencing token, bumped by each host that
+  claims the run, so a superseded host can discover it lost by comparing the
+  stored value against the one it holds.
+
+**Fresh-run reads must be `undefined`, not a coerced falsy default.** A
+backend that reads a `NULL`/absent column back as `cancelRequested: false` or
+`driverEpoch: 0` is claiming knowledge it does not have ("explicitly not
+cancelled") — that is a different fact from "never set". Omit the field from
+the mapped record instead
+(`...(row.cancel_requested != null ? { cancelRequested: row.cancel_requested !== 0 } : {})`).
+
+**`update` must use `'field' in patch`, not `patch.field !== undefined`, for
+these four.** A caller clears `detachedSince` on reattach by passing it
+explicitly as `undefined` — `store.update(runId, { detachedSince: undefined })`
+— and that must write `NULL`, not be filtered out of the write. Checking
+`!== undefined` cannot tell "clear this field" apart from "I didn't mention
+this field", so it silently drops the clear and the run looks permanently
+detached to the reaper forever after. `'detachedSince' in patch` is `true` for
+an explicit `undefined` and `false` when the caller omitted the key entirely —
+that is the distinction you need. The same applies to `cancelRequested`
+(`false` is a real, meaningful value, not "unset") and to `sandboxKey` /
+`driverEpoch`. See `examples/ts-react-chat/src/lib/sqlite-persistence.ts` for
+a worked implementation of exactly this pattern.
+
+#### Out-of-band cancellation
+
+Cancel intent is **never inferred from a disconnect** — a user pressing Stop
+and a user closing the tab produce an identical connection close, so the two
+are indistinguishable from the abort alone. `@tanstack/ai` exports the actual
+primitives:
+
+- **`requestRunCancel`** — records durable cancel intent (writes
+  `cancelRequested: true` through a `RunStore`), for a run being driven on a
+  host other than the one handling the cancel request.
+- **`wasCancelRequested`** — reads that intent back.
+- **`RUN_CANCEL_REASON`** — the well-known abort reason string used for the
+  in-process case (the same host aborting its own signal), paired with
+  `isCancelRequestedReason` to check for it.
+
+A `RunStore` you write does not call these directly — they operate on your
+store through `update`/`get` — but `cancelRequested` must round-trip
+faithfully (previous section) for the durable path to work at all.
 
 - **`createOrResume`** (required): if `runId` exists, return it **unchanged**,
   ignoring the passed `threadId` / `startedAt` / `status`. Resuming a run does
