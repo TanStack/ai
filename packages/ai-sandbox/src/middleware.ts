@@ -16,14 +16,22 @@
  * are emitted by the harness adapter's chatStream (which can yield CUSTOM
  * chunks), not from here — middleware setup runs before streaming begins.
  */
-import { defineChatMiddleware } from '@tanstack/ai'
-import { LocksCapability } from '@tanstack/ai/locks'
+import {
+  defineChatMiddleware,
+  provideDetachableRun,
+  wasCancelRequested,
+} from '@tanstack/ai'
+import { InMemoryLockStore, LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
   SandboxCapability,
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
+import {
+  provideSandboxDurability,
+  resolveSandboxDurability,
+} from './durability'
 import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
@@ -37,9 +45,14 @@ import type {
   AbortInfo,
   ChatMiddlewareContext,
   DefinedChatMiddleware,
+  RunStore,
   SandboxFileEvent,
   SandboxFileHookEvent,
 } from '@tanstack/ai'
+import type {
+  SandboxDurabilityOptions,
+  SandboxRunDurability,
+} from './durability'
 import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle } from './contracts'
 import type {
@@ -60,6 +73,12 @@ interface SandboxRunState {
   pendingDiffs: Array<Promise<void>>
   /** Logger captured at setup, so terminal hooks can log watcher teardown. */
   logger?: InternalLogger
+  /**
+   * Durability resolved once at setup (absent when the run is not durable), so
+   * `onAbort` cannot reach a different verdict than the one `setup` published
+   * on the capability bus, and `detachedRunTtl` is parsed exactly once.
+   */
+  durability?: SandboxRunDurability
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -121,6 +140,23 @@ export interface SandboxMiddlewareOptions {
    * precedence over a bus-provided lock.
    */
   locks?: LockStore
+  /**
+   * Run lifecycle records. Pair with `durability.adapter` to make a run
+   * DETACHABLE: a client disconnect then leaves the agent running and records
+   * `detachedSince` instead of destroying the sandbox.
+   *
+   * Pass the SAME store chat persistence uses (`persistence.stores.runs`) so
+   * one record describes the run instead of two that can disagree.
+   *
+   * Defaults to `undefined`: an app that passes neither this nor `durability`
+   * keeps today's destroy-on-disconnect behavior exactly.
+   */
+  runs?: RunStore
+  /**
+   * Delivery durability for the run's event log, plus the journal and detach
+   * knobs. Requires `runs`; either alone is not durable.
+   */
+  durability?: SandboxDurabilityOptions
 }
 
 /**
@@ -192,7 +228,10 @@ export function withSandbox(
     provides: [SandboxCapability, ProjectionCapability],
     // SandboxPolicyCapability is provided conditionally (only when the
     // definition has a policy), so it is intentionally NOT declared here —
-    // consumers read it via `getOptional`.
+    // consumers read it via `getOptional`. SandboxDurabilityCapability and
+    // DetachableRunCapability are conditional for the same reason (only when
+    // `runs` + `durability` are both wired), so they are intentionally NOT
+    // declared here either.
     optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
@@ -201,11 +240,43 @@ export function withSandbox(
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
+      // Resolving here (not lazily on the abort path) is what makes a malformed
+      // `detachedRunTtl` fail before an agent starts spending tokens.
+      const durability = resolveSandboxDurability(options)
+      if (durability !== undefined) {
+        provideSandboxDurability(ctx, durability)
+        // A neutral boolean core owns, so `@tanstack/ai-persistence` can ask
+        // "is this run detachable?" without depending on this package.
+        provideDetachableRun(ctx, true)
+      }
+
       // Pull the runtime (and its logger) up front so `baseSha` capture and
       // hook dispatch below can log through the same `sandbox`/`errors`
       // categories the engine uses.
       const runtime = getSandboxRuntime(ctx, { optional: true })
       const logger = runtime?.logger
+
+      // Deliberately placed AFTER `logger` is in scope rather than next to the
+      // `provideSandboxDurability` call above — there is no logger to warn
+      // through until the runtime has been read.
+      //
+      // `ensureCtx.locks === undefined` counts as in-memory: `defineSandbox`'s
+      // `ensure` falls back to a process-lifetime `InMemoryLockStore` when no
+      // lock is wired, so an unwired lock has exactly the deficiency being
+      // warned about — it is the MOST in-memory case, not an exempt one.
+      if (
+        durability !== undefined &&
+        (ensureCtx.locks === undefined ||
+          ensureCtx.locks instanceof InMemoryLockStore)
+      ) {
+        logger?.warn(
+          'sandbox durability is wired over an InMemoryLockStore: run claims are ' +
+            'serialized within this process only and the lease never signals loss, ' +
+            'so two hosts can drive one run and duplicate its event log. Use a ' +
+            'distributed LockStore via withLocks for any multi-replica deploy.',
+          { runId: ctx.runId },
+        )
+      }
 
       const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
       let baseSha = ''
@@ -319,6 +390,7 @@ export function withSandbox(
         pendingDiffs,
         ...(watcher ? { watcher } : {}),
         ...(logger !== undefined ? { logger } : {}),
+        ...(durability !== undefined ? { durability } : {}),
       })
     },
 
@@ -357,11 +429,41 @@ export function withSandbox(
       }
     },
 
-    async onAbort(ctx, _info: AbortInfo) {
+    async onAbort(ctx, info: AbortInfo) {
       const state = runState.get(ctx)
       if (!state) return
 
+      // First on BOTH branches: a diff still in flight must be drained whether
+      // the sandbox is about to be destroyed or merely detached, or the final
+      // file's diff is dropped.
       await drainWatcher(state, 'abort')
+
+      const durability = state.durability
+      // A user pressing Stop and a user closing the tab produce the IDENTICAL
+      // connection close, so intent is never inferred from the disconnect. It
+      // arrives out of band, and either band is authoritative: in-process (the
+      // abort reason carried the cancel sentinel) or durable (another host
+      // recorded it on the run record).
+      const cancelled =
+        info.cancelRequested === true ||
+        (durability !== undefined &&
+          (await wasCancelRequested(durability.runs, ctx.runId)))
+
+      if (
+        durability !== undefined &&
+        !cancelled &&
+        durability.detachOnDisconnect
+      ) {
+        // DETACH: the agent keeps running and the sandbox stays up, so record
+        // the two facts a later attach and the reaper both need. `update` is a
+        // documented no-op for an unknown runId, so a vanished record does not
+        // turn teardown into a throw.
+        await durability.runs.update(ctx.runId, {
+          detachedSince: Date.now(),
+          sandboxKey: definition.key(state.ensureCtx),
+        })
+        return
+      }
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
