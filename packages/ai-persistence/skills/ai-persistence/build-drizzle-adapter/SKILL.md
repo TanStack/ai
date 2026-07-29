@@ -433,13 +433,16 @@ route** — derive the user from the session, never trust a client-supplied id.
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
-runPersistenceConformance('app-drizzle', () => chatPersistence)
+runPersistenceConformance('app-drizzle', () => chatPersistence, {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
 ```
 
 Point it at a throwaway database (`:memory:` SQLite, a scratch schema, PGlite)
-that has the migration applied, and reset between runs. Every store is
-provided, so there is nothing to `skip` — and `skip` never accepts `'locks'`,
-which is not a state store.
+that has the migration applied, and reset between runs. The suite covers all
+seven stores, so a chat adapter declares the generation half it omits; drop the
+`skip` once you add those tables. `skip` never accepts `'locks'`, which is not a
+store.
 
 ## Only if you are publishing this as a package
 

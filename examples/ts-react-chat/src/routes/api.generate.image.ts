@@ -13,7 +13,7 @@ import {
 } from '@tanstack/ai-persistence'
 import {
   artifactServeUrl,
-  generationServerPersistence as persistence,
+  generationServerPersistence,
 } from '../lib/generation-server-store'
 
 /**
@@ -25,6 +25,9 @@ import {
  * bytes out of the provider's expiring URL into our own store. `artifactUrl`
  * then stamps an app-origin serve URL onto every ref and rewrites the live
  * result to it — so both the live and the restored image render from here.
+ *
+ * The stores are SQLite-backed, so a generated image is still there after a
+ * dev-server restart — reload the page and it renders from the database.
  *
  * The GET does double duty, which is why it branches:
  * - `?artifact=<id>` serves stored bytes (the URL `artifactUrl` produced).
@@ -59,7 +62,7 @@ export const Route = createFileRoute('/api/generate/image')({
           ...(runId ? { runId } : {}),
           stream: true,
           middleware: [
-            withGenerationPersistence(persistence, {
+            withGenerationPersistence(generationServerPersistence(), {
               artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
             }),
           ],
@@ -69,6 +72,7 @@ export const Route = createFileRoute('/api/generate/image')({
       },
 
       GET: async ({ request }) => {
+        const persistence = generationServerPersistence()
         const artifactId = new URL(request.url).searchParams.get('artifact')
 
         if (artifactId) {

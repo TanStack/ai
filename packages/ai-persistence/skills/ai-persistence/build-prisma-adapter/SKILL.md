@@ -406,13 +406,16 @@ route** — derive the user from the session, never trust a client-supplied id.
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
-runPersistenceConformance('app-prisma', () => chatPersistence)
+runPersistenceConformance('app-prisma', () => chatPersistence, {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
 ```
 
 Point the client at a throwaway database with the migration applied (a scratch
 SQLite file is enough) and reset it between runs. All four state stores are
-provided, so pass no `skip` — and `skip` never accepts `'locks'`, which is not
-a state store.
+provided; the suite also covers the three generation stores, so declare those as
+skipped until you add them. `skip` never accepts `'locks'`, which is not a
+store.
 
 ## Only if you are publishing this as a package
 

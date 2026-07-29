@@ -565,10 +565,11 @@ CREATE TABLE IF NOT EXISTS artifacts (
   artifact_id text PRIMARY KEY NOT NULL,
   run_id text NOT NULL,
   thread_id text NOT NULL,
+  blob_key text,
   name text NOT NULL,
   mime_type text NOT NULL,
   size integer NOT NULL,
-  external_url text,
+  source_url text,
   created_at integer NOT NULL
 );
 CREATE TABLE IF NOT EXISTS blobs (
@@ -733,6 +734,12 @@ function createGenerationRunStore(db: DatabaseSync) {
 none). `delete` / `deleteForRun` are required — retention and erasure are the
 point of storing media durably, and they mirror `BlobStore.delete`.
 
+Persist `blobKey` verbatim. It records where these bytes actually went, and a
+`storageKey` mapper can put them anywhere, so a reader cannot recompute the
+path — `resolveArtifactBlobKey(record)` falls back to the default convention
+only for rows written before the column existed. Drop it and every artifact
+stored under a custom key becomes unreadable.
+
 ```ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineArtifactStore } from '@tanstack/ai-persistence'
@@ -743,11 +750,12 @@ function mapArtifact(row: Record<string, unknown>): ArtifactRecord {
     artifactId: String(row.artifact_id),
     runId: String(row.run_id),
     threadId: String(row.thread_id),
+    ...(typeof row.blob_key === 'string' ? { blobKey: row.blob_key } : {}),
     name: String(row.name),
     mimeType: String(row.mime_type),
     size: Number(row.size),
-    ...(typeof row.external_url === 'string'
-      ? { sourceUrl: row.external_url }
+    ...(typeof row.source_url === 'string'
+      ? { sourceUrl: row.source_url }
       : {}),
     createdAt: Number(row.created_at),
   }
@@ -756,13 +764,13 @@ function mapArtifact(row: Record<string, unknown>): ArtifactRecord {
 function createArtifactStore(db: DatabaseSync) {
   const upsert = db.prepare(
     `INSERT INTO artifacts
-       (artifact_id, run_id, thread_id, name, mime_type, size, external_url, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (artifact_id, run_id, thread_id, blob_key, name, mime_type, size, source_url, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(artifact_id) DO UPDATE SET
        run_id = excluded.run_id, thread_id = excluded.thread_id,
-       name = excluded.name, mime_type = excluded.mime_type,
-       size = excluded.size, external_url = excluded.external_url,
-       created_at = excluded.created_at`,
+       blob_key = excluded.blob_key, name = excluded.name,
+       mime_type = excluded.mime_type, size = excluded.size,
+       source_url = excluded.source_url, created_at = excluded.created_at`,
   )
   const selectOne = db.prepare('SELECT * FROM artifacts WHERE artifact_id = ?')
   const byRun = db.prepare(
@@ -774,6 +782,7 @@ function createArtifactStore(db: DatabaseSync) {
         record.artifactId,
         record.runId,
         record.threadId,
+        record.blobKey ?? null,
         record.name,
         record.mimeType,
         record.size,
@@ -939,14 +948,13 @@ function createBlobStore(db: DatabaseSync) {
     },
     async list(options) {
       if (options?.limit === 0) return { objects: [], truncated: false }
-      // Escape LIKE metacharacters so `prefix` matches literally, then page with
-      // a keyset cursor (keys strictly greater than the last returned key).
-      const escaped = (options?.prefix ?? '').replace(
-        /[\\%_]/g,
-        (ch) => `\\${ch}`,
-      )
-      const params: Array<string | number> = [`${escaped}%`]
-      let where = "key LIKE ? ESCAPE '\\'"
+      // Match the prefix with `substr(...) = ?` rather than LIKE: SQLite's LIKE
+      // is case-INsensitive for ASCII and treats `%`/`_` as wildcards, while the
+      // contract says a prefix matches literally and case-sensitively. Then page
+      // with a keyset cursor (keys strictly greater than the last one returned).
+      const prefix = options?.prefix ?? ''
+      const params: Array<string | number> = [prefix, prefix]
+      let where = 'substr(key, 1, length(?)) = ?'
       if (options?.cursor !== undefined) {
         where += ' AND key > ?'
         params.push(options.cursor)
@@ -1067,8 +1075,20 @@ runPersistenceConformance('my sqlite adapter', () =>
 )
 ```
 
-The adapter above provides all four stores, so there is nothing to declare. A
-partial adapter lists what it deliberately omits:
+The suite covers all seven stores — the four chat state stores and the three
+generation stores from the section above — so an adapter lists whatever it
+deliberately omits. A chat-only adapter skips the generation half:
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { chatOnlyPersistence } from './chat-only'
+
+runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
+```
+
+and a transcript-only one skips more:
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -1077,15 +1097,24 @@ import { transcriptOnlyPersistence } from './transcript-only'
 runPersistenceConformance(
   'transcript-only adapter',
   () => transcriptOnlyPersistence(),
-  { skip: ['runs', 'interrupts', 'metadata'] },
+  {
+    skip: [
+      'runs',
+      'interrupts',
+      'metadata',
+      'generationRuns',
+      'artifacts',
+      'blobs',
+    ],
+  },
 )
 ```
 
-`skip` accepts only the four state store keys. A store that is absent and not
-listed fails the suite loudly, so you cannot ship a half-wired adapter by
-accident. When this is green, your adapter is a drop-in for `withPersistence`.
-The `examples/ts-react-chat` app runs exactly this test against its SQLite
-backend.
+`skip` accepts only store keys. A store that is absent and not listed fails the
+suite loudly, so you cannot ship a half-wired adapter by accident. When this is
+green, your adapter is a drop-in for `withPersistence` (and, with the generation
+stores, `withGenerationPersistence`). The `examples/ts-react-chat` app runs
+exactly this test against its SQLite backend, which provides all seven.
 
 ## Let your coding agent write it
 

@@ -164,10 +164,11 @@ CREATE TABLE IF NOT EXISTS generation_artifacts (
   artifact_id  text PRIMARY KEY NOT NULL,
   run_id       text NOT NULL,
   thread_id    text NOT NULL,
+  blob_key     text,
   name         text NOT NULL,
   mime_type    text NOT NULL,
   size         integer NOT NULL,
-  external_url text,
+  source_url   text,
   created_at   integer NOT NULL
 );
 CREATE INDEX IF NOT EXISTS generation_artifacts_run ON generation_artifacts (run_id);
@@ -181,10 +182,11 @@ interface ArtifactRow {
   artifact_id: string
   run_id: string
   thread_id: string
+  blob_key: string | null
   name: string
   mime_type: string
   size: number
-  external_url: string | null
+  source_url: string | null
   created_at: number
 }
 
@@ -193,10 +195,11 @@ function fromRow(row: ArtifactRow): ArtifactRecord {
     artifactId: row.artifact_id,
     runId: row.run_id,
     threadId: row.thread_id,
+    ...(row.blob_key != null ? { blobKey: row.blob_key } : {}),
     name: row.name,
     mimeType: row.mime_type,
     size: row.size,
-    ...(row.external_url != null ? { sourceUrl: row.external_url } : {}),
+    ...(row.source_url != null ? { sourceUrl: row.source_url } : {}),
     createdAt: row.created_at,
   }
 }
@@ -208,18 +211,19 @@ export function d1ArtifactStore(db: D1Database) {
       await db
         .prepare(
           `INSERT INTO generation_artifacts
-             (artifact_id, run_id, thread_id, name, mime_type, size, external_url, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             (artifact_id, run_id, thread_id, blob_key, name, mime_type, size, source_url, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(artifact_id) DO UPDATE SET
              run_id = excluded.run_id, thread_id = excluded.thread_id,
-             name = excluded.name, mime_type = excluded.mime_type,
-             size = excluded.size, external_url = excluded.external_url,
-             created_at = excluded.created_at`,
+             blob_key = excluded.blob_key, name = excluded.name,
+             mime_type = excluded.mime_type, size = excluded.size,
+             source_url = excluded.source_url, created_at = excluded.created_at`,
         )
         .bind(
           record.artifactId,
           record.runId,
           record.threadId,
+          record.blobKey ?? null,
           record.name,
           record.mimeType,
           record.size,
@@ -262,8 +266,12 @@ export function d1ArtifactStore(db: D1Database) {
 }
 ```
 
-Omitting `external_url` from the record when the column is `NULL` keeps records
-comparing cleanly against the reference in-memory store. **KV alternative:** if
+Omitting `source_url` / `blob_key` from the record when the column is `NULL`
+keeps records comparing cleanly against the reference in-memory store. Persist
+`blob_key` verbatim: a `storageKey` mapper can put the bytes anywhere, so a
+reader cannot recompute the path — `resolveArtifactBlobKey(record)` falls back
+to the default convention only for rows written before the column existed.
+**KV alternative:** if
 you have no D1, back `save`/`get` with `KV.put(artifactId, JSON.stringify(record))`
 / `KV.get(artifactId, 'json')`, and maintain a `run:<runId>` index key (a JSON
 array of artifact ids) for `list` — KV has no query, so `list` needs that
@@ -388,22 +396,37 @@ For each: `contentType` and `customMetadata` ride the SDK's own metadata fields;
 
 ## Verify
 
-The shared `runPersistenceConformance` testkit currently covers the four **state**
-stores only (`messages`, `runs`, `interrupts`, `metadata`) — it does **not**
-exercise `blobs`, `artifacts`, or `generationRuns`. So the byte stores need their **own**
-tests. Run them against a Miniflare R2 + D1 binding with the migration applied,
-reset between runs (see **ai-persistence/build-cloudflare-adapter** for the
-`cloudflare:test` harness pattern). Assert against the reference in-memory stores
-from `memoryPersistence()` as the oracle, covering at minimum:
+The shared `runPersistenceConformance` testkit covers all seven stores, including
+`generationRuns`, `artifacts`, and `blobs` — point it at your factory rather than
+hand-writing these assertions:
+
+```ts ignore
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { env } from 'cloudflare:test'
+import { generationPersistence } from '../src/lib/generation-persistence'
+
+// A generation-only Worker declares the chat state stores it does not provide.
+runPersistenceConformance('app-r2', () => generationPersistence(env), {
+  skip: ['messages', 'runs', 'interrupts', 'metadata'],
+})
+```
+
+Run it against a Miniflare R2 + D1 binding with the migration applied, reset
+between runs (see **ai-persistence/build-cloudflare-adapter** for the
+`cloudflare:test` harness pattern). It exercises, among the rest:
 
 - `put` then `get` round-trips bytes and metadata; `get`/`head` return `null` for
   a missing key; `delete` is a silent no-op on an absent key.
 - `put` overwrites an existing key (and its `contentType`/`customMetadata`).
-- `list` filters by `prefix`, returns ascending keys, pages correctly through the
-  `cursor` when `truncated`, and returns an empty untruncated page for `limit: 0`.
+- `list` filters by `prefix` **literally and case-sensitively**, returns
+  ascending keys, pages through the `cursor` when `truncated` without gaps or
+  repeats, and returns an empty untruncated page for `limit: 0`.
 - The `ArtifactStore`: `save` is insert-or-overwrite, `get` returns `null` when
-  absent, `list(runId)` returns `[]` for an unknown run, and (if implemented)
-  `deleteForRun` removes exactly that run's rows.
+  absent, `list(runId)` returns `[]` for an unknown run, and `delete` /
+  `deleteForRun` remove exactly the expected rows.
+- The `GenerationRunStore`: `createOrResume` idempotency, no-op `update` on an
+  unknown id, and `findLatestForThread` returning the most recently started
+  linked run (terminal ones included).
 
 An end-to-end check is the strongest signal: run `generateImage` through
 `withGenerationPersistence(generationPersistence(env))`, then confirm the blob

@@ -267,10 +267,12 @@ idempotency bug and stuck approvals in production.
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
-runPersistenceConformance('app-custom', () => chatPersistence)
+runPersistenceConformance('app-custom', () => chatPersistence, {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
 ```
 
-Point it at a throwaway database and reset between runs. Declare intentional
-omissions with `skip: ['metadata']` — it accepts only
-`'messages' | 'runs' | 'interrupts' | 'metadata'`, never `'locks'`, which is not
-a state store.
+Point it at a throwaway database and reset between runs. The suite covers all
+seven stores, so declare every intentional omission — a chat adapter skips the
+generation half above, and adds e.g. `'metadata'` if it drops that too. `skip`
+never accepts `'locks'`, which is not a store.

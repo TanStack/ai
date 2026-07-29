@@ -235,10 +235,12 @@ import { myPersistence } from '../src/persistence'
 
 runPersistenceConformance('my-backend', () => myPersistence())
 
-// Declare intentional omissions — only the four state stores are valid keys:
-// runPersistenceConformance('msgs-only', () => p, {
-//   skip: ['runs', 'interrupts', 'metadata'],
+// Declare intentional omissions. The suite covers all seven stores, so a
+// chat-only backend skips the generation half:
+// runPersistenceConformance('chat-only', () => p, {
+//   skip: ['generationRuns', 'artifacts', 'blobs'],
 // })
+// `skip` never accepts 'locks' — locks are not a store.
 ```
 
 The testkit is the compatibility gate: round-trips, rich message shapes,
