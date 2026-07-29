@@ -206,7 +206,9 @@ export {
   provideSandboxDurability,
   DEFAULT_DETACHED_RUN_TTL,
   DurableRunIdRequiredError,
+  DurableThreadIdRequiredError,
   resolveDurableRunId,
+  resolveDurableThreadId,
   journalOptionsFor,
   alignedIfAttaching,
 } from './durability'

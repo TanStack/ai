@@ -151,6 +151,23 @@ async function collect(
   return out
 }
 
+/**
+ * The DISTINCT `threadId`s stamped across a run's chunks.
+ *
+ * A set, not a list, because `threadId` appears on several chunk types
+ * (`RUN_STARTED`, `RUN_FINISHED`, …) and what matters is that they all agree on
+ * one id — the caller's on an attach, a generated one otherwise. Anything with
+ * more than one entry means the resolution ran twice.
+ */
+function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+  const seen = new Set<string>()
+  for (const chunk of chunks) {
+    const value = (chunk as { threadId?: unknown }).threadId
+    if (typeof value === 'string') seen.add(value)
+  }
+  return [...seen]
+}
+
 /** Compare chunks ignoring wall-clock fields, exactly as alignment does. */
 function fingerprints(chunks: Array<StreamChunk>): Array<string> {
   return chunks.map(chunkFingerprint)
@@ -422,6 +439,97 @@ describe(
         .join('')
       expect(text).toBe('beta')
       expect(text).not.toContain('alpha')
+
+      await sbx.destroy()
+    })
+  },
+)
+
+describe(
+  'grok-build durable threadId (an attach must reuse the record’s)',
+  { timeout: SANDBOX_TEST_TIMEOUT },
+  () => {
+    it('throws DurableThreadIdRequiredError when ATTACHING without a threadId', async () => {
+      // The silent-divergence hole this closes, and the exact failure `THREAD_ID`
+      // above exists to avoid: `threadId` lands in every emitted chunk, so an
+      // attach that mints a fresh one replays a stream the stored log cannot
+      // match at index 0. Before this guard the run started, read the journal,
+      // and only then failed alignment mid-stream.
+      const sbx = await provider.create({})
+      const runId = `r-${randomUUID()}`
+      // No journal seeded: the refusal must precede the read, so its absence
+      // cannot be what makes this fail.
+      const chunks = await collect(
+        run(sbx, { runId, durability: durabilityWith(fakeLog(), true) }),
+      )
+
+      expect(chunks).toHaveLength(1)
+      const error = chunks[0] as { type: string; message?: string }
+      expect(error.type).toBe('RUN_ERROR')
+      expect(error.message).toContain(
+        "ATTACHING durable sandboxed run requires the run record's `threadId`",
+      )
+
+      await sbx.destroy()
+    })
+
+    it('carries a caller-supplied threadId into the chunks when ATTACHING', async () => {
+      const sbx = await provider.create({})
+      const runId = `r-${randomUUID()}`
+      const threadId = `t-reused-${randomUUID()}`
+      await seedJournal(sbx, runId)
+
+      // Empty stored log, so nothing is suppressed and the chunks that carry
+      // `threadId` are observable.
+      const chunks = await collect(
+        run(sbx, {
+          runId,
+          threadId,
+          durability: durabilityWith(fakeLog(), true),
+        }),
+      )
+
+      // Not merely "it did not throw": the id the caller passed must be the id
+      // stamped on the stream, which is the only thing that makes the replay
+      // alignable against the stored log.
+      expect(threadIdsOf(chunks)).toEqual([threadId])
+
+      await sbx.destroy()
+    })
+
+    it('lets a durable FRESH run generate its own threadId', async () => {
+      // The regression bar for the guard: a fresh durable run is the run that
+      // ESTABLISHES the threadId, so it must still mint one. A guard keyed on
+      // `durable` alone (rather than durable AND attaching) would break this.
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok.mjs', FAKE_GROK)
+      const runId = `r-${randomUUID()}`
+
+      const chunks = await collect(
+        // No threadId, durability wired but NOT attaching.
+        run(sbx, { runId, durability: durabilityWith(fakeLog(), false) }),
+      )
+
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+      const threadIds = threadIdsOf(chunks)
+      expect(threadIds).toHaveLength(1)
+      expect(threadIds[0]).toMatch(/.+/)
+
+      await sbx.destroy()
+    })
+
+    it('lets a NON-durable run generate its own threadId, unchanged', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok.mjs', FAKE_GROK)
+
+      // Neither runId nor threadId, and no durability capability: exactly a
+      // pre-durability run.
+      const chunks = await collect(run(sbx, {}))
+
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+      const threadIds = threadIdsOf(chunks)
+      expect(threadIds).toHaveLength(1)
+      expect(threadIds[0]).toMatch(/.+/)
 
       await sbx.destroy()
     })

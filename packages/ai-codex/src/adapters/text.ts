@@ -15,6 +15,7 @@ import {
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveDurableRunId,
+  resolveDurableThreadId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -226,7 +227,17 @@ export class CodexTextAdapter<
       adapter: 'codex',
       fallback: () => this.generateId(),
     })
-    const threadId = options.threadId ?? this.generateId()
+    // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
+    // ATTACHING run that mints a fresh one replays a stream the stored log
+    // cannot match at index 0. `resolveDurableThreadId` refuses that up front
+    // instead of letting alignment discover it mid-stream; a durable FRESH run
+    // and a non-durable run both keep the generated fallback untouched.
+    const threadId = resolveDurableThreadId(options.threadId, {
+      durable: durability !== undefined,
+      attaching: durability?.attach === true,
+      adapter: 'codex',
+      fallback: () => this.generateId(),
+    })
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
     const channel = createBridgeEventChannel({

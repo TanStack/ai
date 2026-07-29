@@ -21,6 +21,7 @@ import {
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
   resolveDurableRunId,
+  resolveDurableThreadId,
   resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
@@ -238,7 +239,18 @@ export class GrokBuildTextAdapter<
         adapter: 'grok-build',
         fallback: () => this.generateId(),
       })
-      const threadId = options.threadId ?? this.generateId()
+      // `durable: false` / `attaching: false` for the same reason `runId` above
+      // is `durable: false`: this is the ACP path, which never journals and has
+      // no stored log, so it has no attach route and no `threadId` it is
+      // required to reuse. Routed through the helper anyway so that if this path
+      // ever gains a journal it inherits the requirement instead of re-deriving
+      // it. See `chatStreamNdjson` for the journaled path.
+      const threadId = resolveDurableThreadId(options.threadId, {
+        durable: false,
+        attaching: false,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
 
       // Same misconfiguration class `DurableRunIdRequiredError` guards
       // against: durability wired but silently not delivered. Throwing here
@@ -491,7 +503,17 @@ export class GrokBuildTextAdapter<
         adapter: 'grok-build',
         fallback: () => this.generateId(),
       })
-      const threadId = options.threadId ?? this.generateId()
+      // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
+      // ATTACHING run that mints a fresh one replays a stream the stored log
+      // cannot match at index 0. `resolveDurableThreadId` refuses that up front
+      // instead of letting alignment discover it mid-stream; a durable FRESH run
+      // and a non-durable run both keep the generated fallback untouched.
+      const threadId = resolveDurableThreadId(options.threadId, {
+        durable: durability !== undefined,
+        attaching: durability?.attach === true,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
 
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })

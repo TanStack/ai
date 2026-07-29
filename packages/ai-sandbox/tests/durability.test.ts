@@ -4,10 +4,12 @@ import { DEFAULT_JOURNAL_DIR } from '../src/journal'
 import {
   DEFAULT_DETACHED_RUN_TTL,
   DurableRunIdRequiredError,
+  DurableThreadIdRequiredError,
   alignedIfAttaching,
   journalOptionsFor,
   parseRunTtlMs,
   resolveDurableRunId,
+  resolveDurableThreadId,
   resolveSandboxDurability,
 } from '../src/durability'
 import { captureLogger, collectChunks, fakeLog, fromChunkValues } from './fakes'
@@ -116,6 +118,123 @@ describe('resolveDurableRunId', () => {
     expect(
       resolveDurableRunId('', {
         durable: false,
+        adapter: 'codex',
+        fallback: () => 'generated',
+      }),
+    ).toBe('generated')
+  })
+})
+
+describe('resolveDurableThreadId', () => {
+  /** The four durable×attaching quadrants, with no caller-supplied threadId. */
+  const quadrants = [
+    { durable: false, attaching: false },
+    { durable: false, attaching: true },
+    { durable: true, attaching: false },
+    { durable: true, attaching: true },
+  ]
+
+  it('returns a caller-supplied threadId unchanged in every quadrant', () => {
+    const fallback = vi.fn(() => 'generated')
+    for (const quadrant of quadrants) {
+      expect(
+        resolveDurableThreadId('caller-thread', {
+          ...quadrant,
+          adapter: 'codex',
+          fallback,
+        }),
+      ).toBe('caller-thread')
+    }
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('falls back in the three non-attaching-durable quadrants', () => {
+    // The regression bar: only durable AND attaching may change behavior.
+    // Everything else must be byte-identical to the bare
+    // `options.threadId ?? this.generateId()` it replaced.
+    for (const quadrant of quadrants.slice(0, 3)) {
+      const fallback = vi.fn(() => 'generated')
+      expect(
+        resolveDurableThreadId(undefined, {
+          ...quadrant,
+          adapter: 'codex',
+          fallback,
+        }),
+      ).toBe('generated')
+      expect(fallback).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('lets a durable FRESH run mint its own threadId — it establishes it', () => {
+    // Deliberately separate from the loop above, because this is the row an
+    // over-simplified `if (options.durable) throw` would break: every durable
+    // run that has ever worked starts fresh, with no record to reuse an id from.
+    const fallback = vi.fn(() => 'fresh-thread')
+    expect(
+      resolveDurableThreadId(undefined, {
+        durable: true,
+        attaching: false,
+        adapter: 'codex',
+        fallback,
+      }),
+    ).toBe('fresh-thread')
+    expect(fallback).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws when a durable run is ATTACHING and no threadId was supplied', () => {
+    const fallback = vi.fn(() => 'generated')
+    expect(() =>
+      resolveDurableThreadId(undefined, {
+        durable: true,
+        attaching: true,
+        adapter: 'codex',
+        fallback,
+      }),
+    ).toThrow(DurableThreadIdRequiredError)
+    // Decisive: no generated id may exist even transiently. One would land in
+    // every chunk and diverge from the stored log at index 0.
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('names the adapter and the concrete fix in the message', () => {
+    try {
+      resolveDurableThreadId(undefined, {
+        durable: true,
+        attaching: true,
+        adapter: 'claude-code',
+        fallback: () => 'x',
+      })
+      expect.unreachable('should have thrown')
+    } catch (error) {
+      expect(error).toBeInstanceOf(DurableThreadIdRequiredError)
+      const message = (error as Error).message
+      expect(message).toContain('claude-code')
+      expect(message).toContain('threadId')
+      // The fix must be readable without opening the source: which callback
+      // hands the id over, and where it has to be passed.
+      expect(message).toContain('drive({ runId, threadId, signal })')
+      expect(message).toContain('chat(')
+    }
+  })
+
+  it('rejects an empty string on the attach path', () => {
+    const fallback = vi.fn(() => 'generated')
+    expect(() =>
+      resolveDurableThreadId('', {
+        durable: true,
+        attaching: true,
+        adapter: 'codex',
+        fallback,
+      }),
+    ).toThrow(DurableThreadIdRequiredError)
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('falls back on an empty string off the attach path, never returning it', () => {
+    expect(
+      resolveDurableThreadId('', {
+        durable: true,
+        attaching: false,
         adapter: 'codex',
         fallback: () => 'generated',
       }),

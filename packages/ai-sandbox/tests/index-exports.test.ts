@@ -17,6 +17,7 @@ import {
   DEFAULT_ATTACH_JOURNAL_WAIT_MS,
   DEFAULT_MAX_OUT_OF_BAND_SKIP,
   DurableRunIdRequiredError,
+  DurableThreadIdRequiredError,
   JournalAttachUnavailableError,
   JournalReplayDivergedError,
   JournalReplayThreadIdMismatchError,
@@ -31,6 +32,7 @@ import {
   journalOptionsFor,
   provideSandboxDurability,
   resolveDurableRunId,
+  resolveDurableThreadId,
   sandboxRunDriver,
 } from '../src/index'
 import type {
@@ -108,6 +110,35 @@ describe('barrel: durability seam', () => {
     expect(collected).toHaveLength(1)
   })
 
+  it('resolveDurableThreadId is wired through the barrel, attach quadrant included', () => {
+    expect(
+      resolveDurableThreadId('caller-thread', {
+        durable: true,
+        attaching: true,
+        adapter: 'test',
+        fallback: () => 'generated',
+      }),
+    ).toBe('caller-thread')
+    // The durable-fresh row must reach the barrel intact too, or a consumer
+    // upgrading would find every new durable run refused.
+    expect(
+      resolveDurableThreadId(undefined, {
+        durable: true,
+        attaching: false,
+        adapter: 'test',
+        fallback: () => 'generated',
+      }),
+    ).toBe('generated')
+    expect(() =>
+      resolveDurableThreadId(undefined, {
+        durable: true,
+        attaching: true,
+        adapter: 'test',
+        fallback: () => 'generated',
+      }),
+    ).toThrow(DurableThreadIdRequiredError)
+  })
+
   it('isBridgeCustomChunk recognizes only CUSTOM chunks', () => {
     expect(
       isBridgeCustomChunk({
@@ -160,6 +191,13 @@ describe('barrel: error classes are values, not types (instanceof must work)', (
     expect(err).toBeInstanceOf(DurableRunIdRequiredError)
     expect(err).toBeInstanceOf(Error)
     expect(err.adapter).toBe('codex')
+  })
+
+  it('DurableThreadIdRequiredError', () => {
+    const err = new DurableThreadIdRequiredError('grok-build')
+    expect(err).toBeInstanceOf(DurableThreadIdRequiredError)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.adapter).toBe('grok-build')
   })
 
   it('JournalReplayDivergedError', () => {

@@ -26,6 +26,7 @@ import * as path from 'node:path'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   DurableRunIdRequiredError,
+  DurableThreadIdRequiredError,
   SandboxCapability,
   journalPaths,
   journaledCommand,
@@ -171,6 +172,23 @@ async function collect(
   return out
 }
 
+/**
+ * The DISTINCT `threadId`s stamped across a run's chunks.
+ *
+ * A set, not a list, because `threadId` appears on several chunk types
+ * (`RUN_STARTED`, `RUN_FINISHED`, …) and what matters is that they all agree on
+ * one id — the caller's on an attach, a generated one otherwise. Anything with
+ * more than one entry means the resolution ran twice.
+ */
+function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+  const seen = new Set<string>()
+  for (const chunk of chunks) {
+    const value = (chunk as { threadId?: unknown }).threadId
+    if (typeof value === 'string') seen.add(value)
+  }
+  return [...seen]
+}
+
 function textOf(chunks: Array<StreamChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
@@ -215,6 +233,14 @@ describe('codex attach wiring', () => {
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
         runId,
+        // A real attach always has the run record's `threadId` — core's
+        // `startRunDriver` hands it to `drive({ runId, threadId, signal })` —
+        // and `resolveDurableThreadId` now REQUIRES it, because an attach that
+        // mints a fresh one stamps every chunk with an id the stored log cannot
+        // match. Omitting it here (as this test originally did) exercised a
+        // configuration that could never align; supplying it keeps the subject
+        // of this test — that no agent is spawned on attach — unchanged.
+        threadId: `t-attach-${crypto.randomUUID()}`,
         capabilities: capabilityContext(recorder.handle, durability),
       }),
     )
@@ -555,5 +581,133 @@ describe('codex attach wiring', () => {
         }),
       ),
     ).rejects.toThrow(DurableRunIdRequiredError)
+  })
+
+  it('throws DurableThreadIdRequiredError when ATTACHING without a threadId', async () => {
+    // The silent-divergence hole this closes: `threadId` lands in every
+    // emitted chunk, so an attach that mints a fresh one replays a stream the
+    // stored log cannot match at index 0. Before this guard the run started,
+    // read the journal, and only then failed alignment mid-stream.
+    const runId = `r-no-thread-${crypto.randomUUID()}`
+    const durability = durabilityWith({ attach: true })
+    const ctx = {
+      capabilities: { markProvided: () => {}, has: () => true },
+    } as unknown as CapabilityContext
+    provideSandboxDurability(ctx, durability)
+
+    // `runId` IS supplied, so `resolveDurableRunId` passes and the rejection
+    // can only come from the threadId guard. As with that guard, no
+    // SandboxCapability is needed: the refusal precedes `sandboxFrom`.
+    const adapter = codexText('gpt-5.5-codex')
+    await expect(
+      collect(
+        adapter.chatStream({
+          model: 'gpt-5.5-codex',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: noopLogger,
+          runId,
+          capabilities: ctx,
+        }),
+      ),
+    ).rejects.toThrow(DurableThreadIdRequiredError)
+  })
+
+  it('carries a caller-supplied threadId into the chunks when ATTACHING', async () => {
+    const sbx = await provider.create({})
+    const recorder = recordingHandle(sbx)
+    const runId = `r-thread-ok-${crypto.randomUUID()}`
+    const threadId = `t-reused-${crypto.randomUUID()}`
+    // Empty stored log, unlike the alignment test above: nothing is suppressed,
+    // so the RUN_STARTED chunk that carries `threadId` is observable.
+    const durability = durabilityWith({ attach: true })
+    const paths = journalPaths(runId, durability.journalDir)
+
+    const priorEvents = [
+      '{"type":"thread.started","thread_id":"sess-1"}',
+      '{"type":"turn.started"}',
+      '{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"pong"}}',
+      '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}',
+    ].join('\\n')
+    const seed = await sbx.process.spawn(
+      journaledCommand(`printf '${priorEvents}\\n'`, paths),
+    )
+    expect(await seed.wait()).toBe(0)
+
+    const adapter = codexText('gpt-5.5-codex')
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        runId,
+        threadId,
+        capabilities: capabilityContext(recorder.handle, durability),
+      }),
+    )
+
+    expect(textOf(chunks)).toContain('pong')
+    // Not merely "it did not throw": the id the caller passed must be the id
+    // stamped on the stream, which is the only thing that makes the replay
+    // alignable against the stored log.
+    expect(threadIdsOf(chunks)).toEqual([threadId])
+    await sbx.destroy()
+  })
+
+  it('lets a durable FRESH run generate its own threadId', async () => {
+    // The regression bar for the guard: a fresh durable run is the run that
+    // ESTABLISHES the threadId, so it must still mint one. A guard keyed on
+    // `durable` alone (rather than durable AND attaching) would break this.
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+    const recorder = recordingHandle(sbx)
+    const runId = `r-fresh-thread-${crypto.randomUUID()}`
+    const durability = durabilityWith({ attach: false })
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        runId,
+        // threadId intentionally omitted.
+        capabilities: capabilityContext(recorder.handle, durability),
+      }),
+    )
+
+    expect(textOf(chunks)).toContain('pong')
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+    const threadIds = threadIdsOf(chunks)
+    expect(threadIds).toHaveLength(1)
+    expect(threadIds[0]).toMatch(/.+/)
+    await sbx.destroy()
+  })
+
+  it('lets a NON-durable run generate its own threadId, unchanged', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+    const recorder = recordingHandle(sbx)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        // Neither runId nor threadId, and no durability capability: exactly a
+        // pre-durability run.
+        capabilities: capabilityContext(recorder.handle),
+      }),
+    )
+
+    expect(textOf(chunks)).toContain('pong')
+    const threadIds = threadIdsOf(chunks)
+    expect(threadIds).toHaveLength(1)
+    expect(threadIds[0]).toMatch(/.+/)
+    await sbx.destroy()
   })
 })
