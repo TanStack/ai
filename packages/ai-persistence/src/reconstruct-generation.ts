@@ -170,6 +170,17 @@ export async function reconstructGeneration(
     }
   }
 
+  // `findLatestForThread` is optional on the store, so calling it through `?.`
+  // would turn "this adapter cannot do thread lookups" into an indistinguishable
+  // "no run found" — leaving `persistence: true` silently restoring nothing
+  // forever. Fail loudly instead, and only on the path that actually needs it
+  // (a `?runId=` lookup never does).
+  if (!runId && !runStore.findLatestForThread) {
+    throw new Error(
+      'reconstructGeneration resolved a request by threadId, but stores.generationRuns does not implement findLatestForThread. Implement it, or have the client request a specific ?runId=.',
+    )
+  }
+
   const run = runId
     ? await runStore.get(runId)
     : ((await runStore.findLatestForThread?.(threadId)) ?? null)
