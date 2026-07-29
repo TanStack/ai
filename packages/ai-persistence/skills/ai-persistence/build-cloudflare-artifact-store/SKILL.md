@@ -46,8 +46,8 @@ interface ArtifactStore {
   save(record: ArtifactRecord): Promise<void> // insert or overwrite
   get(artifactId: string): Promise<ArtifactRecord | null>
   list(runId: string): Promise<Array<ArtifactRecord>> // [] when none
-  delete?(artifactId: string): Promise<void> // OPTIONAL
-  deleteForRun?(runId: string): Promise<void> // OPTIONAL
+  delete(artifactId: string): Promise<void>
+  deleteForRun(runId: string): Promise<void>
 }
 ```
 

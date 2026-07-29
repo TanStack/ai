@@ -243,14 +243,16 @@ export interface GenerationRunStore {
   /** Return the run record for `runId`, or `null` if none exists. */
   get: (runId: string) => Promise<GenerationRunRecord | null>
   /**
-   * The most recent run linked to `threadId`, or `null`. OPTIONAL — callers
-   * feature-detect it (`store.findLatestForThread?.(threadId)`). Lets a
-   * server-authoritative client hydrate the last generation for a thread by the
-   * stable thread id, without handling a run id.
+   * The most recent run linked to `threadId`, or `null`.
+   *
+   * REQUIRED, per the store-contract rule at the top of this file: a
+   * server-authoritative client hydrates by the stable thread id on every
+   * mount, so an adapter without this would be indistinguishable from one that
+   * legitimately has no run — `persistence: true` would silently restore
+   * nothing, forever. `null` is the correct answer only when the thread really
+   * has no runs. The chat parallel is {@link RunStore.findActiveRun}.
    */
-  findLatestForThread?: (
-    threadId: string,
-  ) => Promise<GenerationRunRecord | null>
+  findLatestForThread: (threadId: string) => Promise<GenerationRunRecord | null>
 }
 
 /** Lifecycle status of a human-in-the-loop interrupt. */
@@ -447,10 +449,20 @@ export interface ArtifactStore {
   get: (artifactId: string) => Promise<ArtifactRecord | null>
   /** All artifacts for a run. Returns `[]` when the run has none. */
   list: (runId: string) => Promise<Array<ArtifactRecord>>
-  /** OPTIONAL: delete a single artifact by id. */
-  delete?: (artifactId: string) => Promise<void>
-  /** OPTIONAL: delete every artifact belonging to `runId`. */
-  deleteForRun?: (runId: string) => Promise<void>
+  /**
+   * Delete a single artifact by id. A no-op if absent, mirroring
+   * {@link BlobStore.delete} — the two are written and deleted as a pair, so
+   * their contracts match.
+   */
+  delete: (artifactId: string) => Promise<void>
+  /**
+   * Delete every artifact belonging to `runId`. A no-op when the run has none.
+   *
+   * Required rather than feature-detected: retention and erasure are the point
+   * of storing media durably, and an adapter silently lacking deletion is
+   * indistinguishable from one where there was nothing to delete.
+   */
+  deleteForRun: (runId: string) => Promise<void>
 }
 
 /**

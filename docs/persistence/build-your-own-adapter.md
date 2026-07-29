@@ -83,7 +83,7 @@ erDiagram
     RUN ||--o{ INTERRUPT : "run_id — a run may pause on interrupts"
     MESSAGES ||..o{ GENERATION_RUN : "thread_id — optional link"
     GENERATION_RUN ||--o{ ARTIFACT : "run_id — a run produces artifacts"
-    ARTIFACT ||--|| BLOB : "key — the bytes"
+    ARTIFACT ||--|| BLOB : "blob_key — the bytes"
 
     MESSAGES {
         string thread_id PK
@@ -112,6 +112,7 @@ erDiagram
     ARTIFACT {
         string artifact_id PK
         string run_id
+        string blob_key "where the bytes live"
         string mime_type
         int size
     }
@@ -729,7 +730,8 @@ function createGenerationRunStore(db: DatabaseSync) {
 `ArtifactStore` holds one metadata row per generated file — its `runId`,
 `mimeType`, `size`, and a `createdAt`. The bytes live in the blob store below.
 `save` is an upsert, `list(runId)` returns every artifact for a run (`[]` when
-none). `delete` / `deleteForRun` are optional but cheap to add.
+none). `delete` / `deleteForRun` are required — retention and erasure are the
+point of storing media durably, and they mirror `BlobStore.delete`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -1312,10 +1314,11 @@ interface ArtifactRecord {
   artifactId: string
   runId: string
   threadId: string
+  blobKey?: string // where the bytes live; absent on pre-blobKey records
   name: string
   mimeType: string
   size: number
-  sourceUrl?: string
+  sourceUrl?: string // where the bytes were fetched FROM (provenance)
   createdAt: number // epoch ms
 }
 
@@ -1323,8 +1326,8 @@ interface ArtifactStore {
   save(record: ArtifactRecord): Promise<void>
   get(artifactId: string): Promise<ArtifactRecord | null>
   list(runId: string): Promise<Array<ArtifactRecord>> // [] when the run has none
-  delete?(artifactId: string): Promise<void>
-  deleteForRun?(runId: string): Promise<void>
+  delete(artifactId: string): Promise<void>
+  deleteForRun(runId: string): Promise<void>
 }
 ```
 

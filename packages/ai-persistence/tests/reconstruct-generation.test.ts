@@ -7,22 +7,6 @@ async function body(response: Response): Promise<ReconstructedGeneration> {
   return (await response.json()) as ReconstructedGeneration
 }
 
-/**
- * A GenerationRunStore with only the three REQUIRED methods — no optional
- * `findLatestForThread`. Built by hand rather than by spreading the memory
- * store, whose methods live on the prototype and would be lost.
- */
-function minimalRunStore(
-  runs: ReturnType<typeof memoryPersistence>['stores']['generationRuns'],
-) {
-  return {
-    createOrResume: (input: Parameters<typeof runs.createOrResume>[0]) =>
-      runs.createOrResume(input),
-    update: (...args: Parameters<typeof runs.update>) => runs.update(...args),
-    get: (runId: string) => runs.get(runId),
-  }
-}
-
 describe('reconstructGeneration', () => {
   it('maps a completed job to a resume snapshot', async () => {
     const persistence = memoryPersistence()
@@ -150,54 +134,5 @@ describe('reconstructGeneration', () => {
     )
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
-  })
-
-  it('throws when a threadId lookup needs findLatestForThread and the store lacks it', async () => {
-    const base = memoryPersistence()
-    const persistence = {
-      ...base,
-      stores: {
-        ...base.stores,
-        generationRuns: minimalRunStore(base.stores.generationRuns),
-      },
-    }
-
-    // Without this guard the optional-call would yield `undefined ?? null`, i.e.
-    // an ordinary "no run found" — leaving `persistence: true` silently
-    // restoring nothing against an adapter that cannot support it.
-    await expect(
-      reconstructGeneration(
-        persistence,
-        new Request('http://example.test/api/generation?threadId=thread-1'),
-      ),
-    ).rejects.toThrow(/does not implement findLatestForThread/)
-  })
-
-  it('still resolves a runId lookup when the store lacks findLatestForThread', async () => {
-    const base = memoryPersistence()
-    await base.stores.generationRuns.createOrResume({
-      runId: 'job-by-id',
-      threadId: 'thread-1',
-      activity: 'image',
-      provider: 'p',
-      model: 'm',
-      startedAt: 1,
-    })
-    const persistence = {
-      ...base,
-      stores: {
-        ...base.stores,
-        generationRuns: minimalRunStore(base.stores.generationRuns),
-      },
-    }
-
-    // The method is only needed for the thread path — an explicit runId must
-    // keep working on a minimal adapter.
-    const response = await reconstructGeneration(
-      persistence,
-      new Request('http://example.test/api/generation?runId=job-by-id'),
-    )
-    expect(response.status).toBe(200)
-    expect((await body(response)).resumeSnapshot).not.toBeNull()
   })
 })

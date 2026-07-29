@@ -74,6 +74,12 @@ export function createGenerationRunStore(): GenerationRunStore {
       return Promise.resolve()
     },
     get: (runId) => Promise.resolve(generationRuns.get(runId) ?? null),
+    findLatestForThread: (threadId) => {
+      const linked = [...generationRuns.values()]
+        .filter((run) => run.threadId === threadId)
+        .sort((a, b) => b.startedAt - a.startedAt)
+      return Promise.resolve(linked[0] ?? null)
+    },
   }
 }
 

@@ -7,11 +7,19 @@ import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
 import { generationPersistence } from '../lib/generation-persistence'
 
-// Every variant persists its lightweight resume snapshot (run identity,
-// status, errors, result metadata — never image bytes). The client namespaces
-// its record under `generation:<id>` and reads it back on mount, repainting
-// the hook's normal `status` / `result` / `error` fields so the last run's
-// outcome survives a full page reload.
+// This page shows BOTH persistence modes, each on the transport that supports
+// it — the mode is not a separate tab, it follows from how the run is sent.
+//
+// - **Streaming** uses `persistence: true` (server-driven). The browser caches
+//   nothing; the server holds the run record AND the bytes, so a reload restores
+//   the image itself. Restore is a `GET` round-trip, which is why it needs a
+//   `connection` — see `StreamingImageGeneration`.
+// - **Direct** / **Server Fn** go through TanStack server functions, which have
+//   no `GET` hydration path, so `persistence: true` cannot work there. They use
+//   the client adapter below: a lightweight resume snapshot (run identity,
+//   status, errors, result metadata — never image bytes) written to
+//   localStorage under `generation:<threadId>` and read back on mount. Because
+//   the bytes are never cached, `result` returns without its image.
 const imagePersistence = generationPersistence
 
 function StreamingImageGeneration() {
@@ -20,9 +28,14 @@ function StreamingImageGeneration() {
 
   const hookReturn = useGenerateImage({
     id: 'image:streaming',
+    // Required by `persistence`, and the scope the server files the run under.
     threadId: 'image:streaming',
     connection: fetchServerSentEvents('/api/generate/image'),
-    persistence: imagePersistence,
+    // Server-driven: the browser caches nothing. On mount the hook issues a
+    // `GET /api/generate/image?threadId=…`, answered by `reconstructGeneration`
+    // from the `generationRuns` store. Only a `connection` can do this — the
+    // fetcher-based variants below have no GET path, so they use the adapter.
+    persistence: true,
   })
 
   return (
