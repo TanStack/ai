@@ -183,7 +183,7 @@ describe('pipeToRunLog', () => {
     const { durability, calls } = recordingDurability('r1')
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r1',
       threadId: 't1',
     })
@@ -206,7 +206,7 @@ describe('pipeToRunLog', () => {
     const { durability, calls } = recordingDurability('r2')
     const record = await pipeToRunLog(throwing(), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r2',
       threadId: 't1',
     })
@@ -226,7 +226,7 @@ describe('pipeToRunLog', () => {
     controller.abort()
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r3',
       threadId: 't1',
       signal: controller.signal,
@@ -240,7 +240,7 @@ describe('pipeToRunLog', () => {
     const { durability, calls } = recordingDurability('r6')
     const record = await pipeToRunLog(chunkThenRunError(), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r6',
       threadId: 't1',
     })
@@ -260,7 +260,7 @@ describe('pipeToRunLog', () => {
     const { durability } = recordingDurability('r9')
     const record = await pipeToRunLog(chunkThenRunError('rate_limited'), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r9',
       threadId: 't1',
     })
@@ -277,7 +277,7 @@ describe('pipeToRunLog', () => {
     const controller = new AbortController()
     const record = await pipeToRunLog(abortAfterFirstChunk(controller), {
       runs,
-      durability,
+      durability: () => durability,
       runId: 'r7',
       threadId: 't1',
       signal: controller.signal,
@@ -307,7 +307,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f1',
       threadId: 't1',
@@ -342,7 +342,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger: exploding,
       runId: 'f-log',
       threadId: 't1',
@@ -363,7 +363,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f2',
       threadId: 't1',
@@ -387,7 +387,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(throwing(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f3',
       threadId: 't1',
@@ -414,7 +414,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f4',
       threadId: 't1',
@@ -438,7 +438,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f5',
       threadId: 't1',
@@ -463,7 +463,7 @@ describe('pipeToRunLog failure absorption', () => {
 
     const record = await pipeToRunLog(twoChunks(), {
       runs,
-      durability,
+      durability: () => durability,
       logger,
       runId: 'f6',
       threadId: 't1',
@@ -481,7 +481,7 @@ describe('RunController', () => {
   it('start returns immediately and done resolves with the terminal record', async () => {
     const runs = new InMemoryRunStore()
     const durability = memoryStream(producerRequest('r4'))
-    const controller = new RunController({ runs, durability })
+    const controller = new RunController({ runs, durability: () => durability })
     const handle = controller.start({
       runId: 'r4',
       threadId: 't1',
@@ -495,7 +495,7 @@ describe('RunController', () => {
   it('status reads the record and drain awaits in-flight runs', async () => {
     const runs = new InMemoryRunStore()
     const durability = memoryStream(producerRequest('r5'))
-    const controller = new RunController({ runs, durability })
+    const controller = new RunController({ runs, durability: () => durability })
     controller.start({ runId: 'r5', threadId: 't1', stream: twoChunks() })
     await controller.drain()
     expect((await controller.status('r5'))?.status).toBe('completed')
@@ -504,7 +504,7 @@ describe('RunController', () => {
   it("attach replays from an opaque offset (memoryStream's '-1' from-start sentinel)", async () => {
     const runs = new InMemoryRunStore()
     const durability = memoryStream(producerRequest('r8'))
-    const controller = new RunController({ runs, durability })
+    const controller = new RunController({ runs, durability: () => durability })
     const handle = controller.start({
       runId: 'r8',
       threadId: 't1',
@@ -513,7 +513,7 @@ describe('RunController', () => {
     await handle.done
 
     const deltas: Array<string> = []
-    for await (const event of controller.attach('-1')) {
+    for await (const event of controller.attach('r8', '-1')) {
       if (event.chunk.type === EventType.TEXT_MESSAGE_CONTENT)
         deltas.push(event.chunk.delta)
     }
@@ -540,7 +540,11 @@ describe('RunController', () => {
       })
       const { durability } = recordingDurability('f7')
       const { logger } = captureLogger()
-      const controller = new RunController({ runs, durability, logger })
+      const controller = new RunController({
+        runs,
+        durability: () => durability,
+        logger,
+      })
 
       const handle = controller.start({
         runId: 'f7',

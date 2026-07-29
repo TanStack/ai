@@ -86,8 +86,27 @@ function syntheticRunError(error: RunError): StreamChunk {
 export interface RunDeps {
   /** Run lifecycle record (status, thread, timings). */
   runs: RunStore
-  /** Delivery-durable event log the run's chunks are appended to. */
-  durability: StreamDurability
+  /**
+   * Per-run delivery-durable event log the run's chunks are appended to.
+   *
+   * A FACTORY, not an instance, and that is load-bearing rather than stylistic.
+   * A `StreamDurability` is bound to one run — `memoryStream(request)` resolves
+   * its `runId` from the request, and a backend adapter's offsets embed a cursor
+   * into one log. Holding a single instance made two failures reachable:
+   *
+   * - **Silent mis-binding at concurrency 1.** `start({ runId })` accepted an
+   *   arbitrary id while the instance was bound to another, writing the record
+   *   under one id and the events under another with no error raised. Resolving
+   *   the log FROM the `runId` makes that unrepresentable.
+   * - **Cross-talk at concurrency > 1.** Parallel runs interleaved their chunks
+   *   into one log, and whichever finished first called `close()` and
+   *   terminalized every other run's stream.
+   *
+   * Called exactly once per run, at the start of {@link pipeToRunLog}. An
+   * implementation MUST return the same instance for the same `runId` within a
+   * process if it wants `snapshot()` to see its own appends.
+   */
+  durability: (runId: string) => StreamDurability
   /**
    * Optional sink for failures this driver absorbs rather than rejecting with.
    * A detached run has no caller to receive an error, so without a logger a
@@ -232,7 +251,12 @@ export async function pipeToRunLog(
   stream: AsyncIterable<StreamChunk>,
   opts: PipeToRunLogOptions,
 ): Promise<RunRecord> {
-  const { runs, durability, runId, threadId, signal, logger } = opts
+  const { runs, runId, threadId, signal, logger } = opts
+  // Resolved ONCE, from the runId being driven. Everything below — including
+  // `finish`'s `close()` — uses this one instance, so a factory that mints a
+  // fresh log per call cannot split one run across two logs, and the log can
+  // never belong to a run other than the one whose record is being written.
+  const durability = opts.durability(runId)
   const ctx: FinishContext = {
     runs,
     durability,
@@ -302,28 +326,17 @@ export interface RunHandle {
 
 /**
  * Thin orchestration helper over {@link RunDeps}: fire-and-track a run via
- * {@link pipeToRunLog}, tail it from a cursor, and `drain()` all in-flight runs
+ * {@link pipeToRunLog}, tail one run by id, and `drain()` all in-flight runs
  * (e.g. inside a `ctx.waitUntil`). Holds no run state of its own beyond the set
  * of currently in-flight `done` promises.
  *
- * IDENTITY BINDING HAZARD (bites at concurrency 1, not just under load).
- * `start({ runId })` accepts an arbitrary `runId`, while `deps.durability` is
- * bound to whatever run it was constructed for (e.g. `memoryStream(request)`
- * resolves its `runId` from the request). Nothing cross-checks the two, so a
- * mismatch writes the lifecycle record under one id and the events under
- * another, silently: no error is raised and `done` still resolves
- * `'completed'`, yet a client tailing the run it asked for sees an empty log.
- * A single call with the wrong `runId` is enough; concurrency is not required.
- *
- * Concurrency then compounds it. One instance holds one `durability`, so
- * parallel runs interleave their chunks into the same log and whichever run
- * terminates first calls `durability.close()`, terminalizing every other run's
- * log too. Both problems want the same fix: a per-run `durability` (a factory
- * on {@link RunDeps} instead of an instance), which is left to a later phase.
- *
- * Note the API surface itself advertises multi-run support it does not have:
- * `status(runId)` is keyed by run, while `attach(fromOffset)` is not, even
- * though the log it reads is per-run.
+ * Safe for concurrent runs. {@link RunDeps.durability} is a per-run factory, so
+ * each run appends to its own log and no run's `close()` terminalizes another's.
+ * The identity trap this class used to document — `start({ runId })` writing the
+ * lifecycle record under one id and the events under another, silently and at
+ * concurrency 1 — is unrepresentable now that the log is resolved FROM the
+ * `runId`. Every method is keyed by run accordingly: `attach(runId, …)` and
+ * `status(runId)` no longer disagree about whether the surface is per-run.
  */
 export class RunController {
   private readonly inFlight = new Set<Promise<RunRecord>>()
@@ -353,12 +366,18 @@ export class RunController {
     return { runId: input.runId, done }
   }
 
-  /** Resumable client tail — replay from `fromOffset`, then live-tail. */
+  /**
+   * Resumable client tail for ONE run — replay from `fromOffset`, then
+   * live-tail. Takes `runId` because the log it reads is per-run; the old
+   * `attach(fromOffset)` signature advertised a multi-run surface the type could
+   * not deliver.
+   */
   attach(
+    runId: string,
     fromOffset: string,
     signal?: AbortSignal,
   ): AsyncIterable<{ offset: string; chunk: StreamChunk }> {
-    return this.deps.durability.read(fromOffset, signal)
+    return this.deps.durability(runId).read(fromOffset, signal)
   }
 
   /** Current run record, or null when the run is unknown. */
@@ -368,11 +387,6 @@ export class RunController {
 
   /**
    * Await every currently in-flight run's `done` promise.
-   *
-   * Only meaningful while callers start one run at a time, which nothing here
-   * enforces: `inFlight` is a plain Set and `start()` has no guard, so N
-   * concurrent runs are accepted and share one `durability` (see the class
-   * doc). It also does not imply concurrent runs are isolated from one another.
    *
    * Uses `allSettled` rather than `all` because this is typically awaited
    * inside a `ctx.waitUntil`: `all` would reject on the first failure, abandon
