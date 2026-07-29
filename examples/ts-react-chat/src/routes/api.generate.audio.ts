@@ -5,7 +5,10 @@ import {
   memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { withGenerationPersistence } from '@tanstack/ai-persistence'
+import {
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
@@ -159,12 +162,14 @@ export const Route = createFileRoute('/api/generate/audio')({
         }
       },
 
-      // `joinRun` replay — re-attach to a run still in flight from a previous
-      // request. 404 when the run is unknown or its log has aged out, rather
-      // than the SPA shell the client cannot parse as SSE.
-      GET: ({ request }) =>
+      // Two independent jobs, resolved in order (like the image route):
+      // 1. `joinRun` delivery replay, when the request carries a resume offset.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, as `{ resumeSnapshot, activeRun }`, so a completed
+      //    clip still restores after a reload once its delivery log ages out.
+      GET: async ({ request }) =>
         replayGenerationIfResuming(request) ??
-        new Response('no resumable run', { status: 404 }),
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })

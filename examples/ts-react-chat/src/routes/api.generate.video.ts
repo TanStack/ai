@@ -1,12 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateVideo, generationParamsFromBody } from '@tanstack/ai'
-import { grokVideo } from '@tanstack/ai-grok'
-import { withGenerationPersistence } from '@tanstack/ai-persistence'
 import {
-  replayGenerationIfResuming,
-  startDetachedGeneration,
-  tailGenerationResponse,
-} from '../lib/generation-durability'
+  generateVideo,
+  generationParamsFromBody,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { grokVideo } from '@tanstack/ai-grok'
+import {
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+import { replayGenerationIfResuming } from '../lib/generation-durability'
 import {
   artifactServeUrl,
   generationServerPersistence,
@@ -20,12 +24,14 @@ import {
  *   video into our blob store, and `artifactUrl` rewrites the result to the
  *   shared `/api/artifacts` route — so it still plays after the provider's link
  *   expires.
- * - DELIVERY + LIFETIME: the run is detached from this request and its chunks
- *   go to a replayable log (see `../lib/generation-durability`), so a reload
- *   neither kills the job nor loses the events emitted while away.
+ * - DELIVERY + LIFETIME: `memoryStream` logs each chunk for replay, and because
+ *   a durable response is decoupled from its request, a reload cancels only the
+ *   reader — the run keeps polling to completion into the log, and the client's
+ *   `joinRun` on mount tails it to the end. No route-side detachment needed; the
+ *   library owns the run's lifetime once `durability` is set.
  *
- * The GET is what the client's `joinRun` calls on mount to tail a run that was
- * still going when the page went away.
+ * The GET does two jobs: `joinRun` delivery replay for an in-flight run, then
+ * `?threadId=` mount hydration for a finished run whose delivery log aged out.
  */
 export const Route = createFileRoute('/api/generate/video')({
   server: {
@@ -48,43 +54,40 @@ export const Route = createFileRoute('/api/generate/video')({
           )
         }
 
-        // Durability is keyed by run id. A client that sends none has no id to
-        // rejoin with either, so minting one here costs nothing and keeps the
-        // producer/reader split uniform.
-        const resolvedRunId = runId ?? crypto.randomUUID()
+        const stream = generateVideo({
+          adapter: grokVideo(model ?? 'grok-imagine-video'),
+          prompt,
+          size,
+          duration,
+          stream: true,
+          pollingInterval: 3000,
+          maxDuration: 600_000,
+          ...(threadId ? { threadId } : {}),
+          ...(runId ? { runId } : {}),
+          middleware: [
+            withGenerationPersistence(generationServerPersistence(), {
+              threadId,
+              artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+            }),
+          ],
+        })
 
-        startDetachedGeneration(resolvedRunId, () =>
-          generateVideo({
-            adapter: grokVideo(model ?? 'grok-imagine-video'),
-            prompt,
-            size,
-            duration,
-            stream: true,
-            pollingInterval: 3000,
-            maxDuration: 600_000,
-            runId: resolvedRunId,
-            ...(threadId ? { threadId } : {}),
-            middleware: [
-              withGenerationPersistence(generationServerPersistence(), {
-                threadId,
-                artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
-              }),
-            ],
-            // No client abortController: the run owns its own lifetime.
-          }),
-        )
-
-        // Tail the log rather than the model, so cancelling this response (a
-        // reload) cancels only the reader.
-        return tailGenerationResponse(resolvedRunId)
+        // Durable delivery: the run survives a reload and keeps polling to
+        // completion into the log; a mount-time `joinRun` tails it to the end.
+        return toServerSentEventsResponse(stream, {
+          durability: { adapter: memoryStream(request) },
+        })
       },
 
-      // `joinRun` replay — re-attach to a run still in flight from a previous
-      // request. Returns 404 when the run is unknown or its log has aged out,
-      // rather than serving the SPA shell the client cannot parse as SSE.
-      GET: ({ request }) =>
+      // Two independent jobs, resolved in order (like the image route):
+      // 1. `joinRun` delivery replay, when the request carries a resume offset —
+      //    re-attach to a run still in flight from a previous request.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, as `{ resumeSnapshot, activeRun }`, so a completed
+      //    video (aged out of the delivery log) still restores after a reload.
+      GET: async ({ request }) =>
         replayGenerationIfResuming(request) ??
-        new Response('no resumable run', { status: 404 }),
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })
