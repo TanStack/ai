@@ -54,6 +54,7 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -299,6 +300,11 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
+  id: '/api/durable-takeover',
+  path: '/api/durable-takeover',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   id: '/api/durable-delivery',
   path: '/api/durable-delivery',
@@ -396,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -582,6 +591,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/interrupts-test'
@@ -643,6 +653,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/interrupts-test'
@@ -704,6 +715,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/image'
     | '/api/interrupts-test'
@@ -766,6 +778,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
@@ -1115,6 +1128,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/durable-takeover': {
+      id: '/api/durable-takeover'
+      path: '/api/durable-takeover'
+      fullPath: '/api/durable-takeover'
+      preLoaderRoute: typeof ApiDurableTakeoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/durable-delivery': {
       id: '/api/durable-delivery'
       path: '/api/durable-delivery'
@@ -1299,6 +1319,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
