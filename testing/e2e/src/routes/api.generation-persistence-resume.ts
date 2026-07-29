@@ -38,8 +38,13 @@ const TINY_PNG_B64 =
 // rejoined image renders from our own origin.
 const DURABLE_IMAGE_URL = '/durable/generation-resume/image-1.png'
 
-// Long enough that a reload reliably lands while the run is still producing.
-const PRODUCE_DELAY_MS = 2000
+// The run holds its result until the client has disconnected (the reload), then
+// settles briefly so the remounted client's mount probe reliably observes the
+// run as still `running` and takes the `joinRun` path. `DISCONNECT_FALLBACK_MS`
+// only matters if this runtime never fires `request.signal` on disconnect — the
+// run still completes strictly after the reload either way.
+const DISCONNECT_FALLBACK_MS = 3000
+const SETTLE_AFTER_DISCONNECT_MS = 1500
 
 // Runs still in flight per thread (the `activeRun` a mount probe reports), and
 // the finished job per thread (the `complete` snapshot a late probe restores).
@@ -76,10 +81,17 @@ function imageArtifact(threadId: string, runId: string) {
   }
 }
 
-/** The metadata + durable artifact ref the server persists (never the bytes). */
+/**
+ * The metadata a done-restore would surface. Its id is DELIBERATELY distinct
+ * from the streamed run's `image-1`: this snapshot is only ever served when the
+ * mount probe finds a run already `complete`, i.e. the plain done-restore path.
+ * The spec asserts `image-1`, so if a reload ever degrades to a done-restore
+ * instead of a mid-run rejoin, the test fails loudly instead of passing for the
+ * wrong reason.
+ */
 function persistedResult(threadId: string, runId: string) {
   return {
-    id: 'image-1',
+    id: 'image-restored',
     model: 'mock-image-model',
     images: [{ url: DURABLE_IMAGE_URL }],
     artifacts: [imageArtifact(threadId, runId)],
@@ -90,7 +102,25 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function imageRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+/** Resolves once the client disconnects, or after a fallback if it never does. */
+function waitForDisconnect(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', finish)
+      resolve()
+    }
+    const timer = setTimeout(finish, DISCONNECT_FALLBACK_MS)
+    signal.addEventListener('abort', finish, { once: true })
+  })
+}
+
+function imageRun(
+  threadId: string,
+  runId: string,
+  signal: AbortSignal,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     // Mark the run in flight before the first chunk, so a mount probe that
     // races in right after the reload still sees the `activeRun` to rejoin.
@@ -101,9 +131,14 @@ function imageRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
       runId,
       timestamp: Date.now(),
     } as StreamChunk
-    // The producing pause. A client that reloads here cancels only the socket;
-    // the durability pump keeps draining this generator to its terminal.
-    await delay(PRODUCE_DELAY_MS)
+    // Hold the result until the client has disconnected (the reload), then a
+    // short settle so the remounted client's probe still sees `running`. This
+    // makes the result land strictly AFTER the reload — the run cannot complete
+    // as a done-restore before the reload, so the rejoin is the path exercised.
+    // A client that reloads here cancels only the socket; the durability pump
+    // keeps draining this generator to its terminal.
+    await waitForDisconnect(signal)
+    await delay(SETTLE_AFTER_DISCONNECT_MS)
     yield {
       type: 'CUSTOM',
       name: 'generation:result',
@@ -141,9 +176,11 @@ export const Route = createFileRoute('/api/generation-persistence-resume')({
           stringField(body, 'runId') ??
           `run-${Date.now()}`
         // Durable delivery: the run survives the reload and drains to the log.
-        return toServerSentEventsResponse(imageRun(threadId, runId), {
-          durability: { adapter: memoryStream(request) },
-        })
+        // `request.signal` lets the run hold its result until the client is gone.
+        return toServerSentEventsResponse(
+          imageRun(threadId, runId, request.signal),
+          { durability: { adapter: memoryStream(request) } },
+        )
       },
 
       GET: ({ request }) => {

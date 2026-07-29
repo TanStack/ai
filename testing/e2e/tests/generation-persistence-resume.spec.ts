@@ -8,13 +8,20 @@ import { expect, test } from '@playwright/test'
  * still producing when the client disconnects keeps running to its terminal and
  * is tailed to completion by a mount-time `joinRun`.
  *
- * The harness run pauses between `RUN_STARTED` and its result. The spec reloads
- * during that pause, so the live POST response is cancelled while the run is
- * mid-flight. The run can only finish because the durability producer is
- * decoupled from the delivery socket (a disconnect cancels the reader, not the
- * run — Fix B) and `RUN_STARTED` is flushed to the log immediately so the mount
- * `joinRun` finds a cursor to tail (Fix A). Without either, the reload would
- * strand the run on `generating` or settle it to `error`.
+ * The harness run holds its result until the client disconnects, so the result
+ * lands strictly AFTER the reload — the run cannot finish as a plain done-restore
+ * beforehand, making the mid-run rejoin the path under test. The run can only
+ * finish because the durability producer is decoupled from the delivery socket
+ * (a disconnect cancels the reader, not the run — Fix B) and `RUN_STARTED` is
+ * flushed to the log immediately so the mount `joinRun` finds a cursor to tail
+ * (Fix A). Without either, the reload would strand the run on `generating` or
+ * settle it to `error`.
+ *
+ * The rejoin is proven positively, not just by an end-state: the streamed run's
+ * result id is `image-1`, while the done-restore snapshot the GET would serve
+ * for an already-finished run carries a DISTINCT id (`image-restored`). So a
+ * green `result-id = image-1` can ONLY come from tailing the live run — if a
+ * reload ever degraded to a done-restore, the assertion would fail loudly.
  *
  * Provider-free: `/api/generation-persistence-resume` streams a fixed AG-UI
  * sequence through a `memoryStream` sink (exempt from the aimock policy).
@@ -31,8 +38,8 @@ test.describe('generation persistence (durable mid-run reload)', () => {
     await expect(page.getByTestId('status')).toHaveText('idle')
 
     await page.getByTestId('generate-button').click()
-    // RUN_STARTED reaches the client promptly (flushed to the durable log), so
-    // the run is observably in flight — and the result is still pending.
+    // The run is in flight and its result is still pending (the harness holds it
+    // until this client disconnects).
     await expect(page.getByTestId('status')).toHaveText('generating')
     await expect(page.getByTestId('result-id')).toHaveText('none')
 
@@ -42,7 +49,9 @@ test.describe('generation persistence (durable mid-run reload)', () => {
     await expect(page.getByTestId('hydration-marker')).toBeAttached()
 
     // The rejoin tails the log to the terminal: success, not a stranded
-    // `generating` and not an `error`.
+    // `generating` and not an `error`. `image-1` is the STREAMED run's id — the
+    // done-restore snapshot would read `image-restored`, so this proves the
+    // client tailed the live run rather than restoring a finished one.
     await expect(page.getByTestId('status')).toHaveText('success', {
       timeout: 15_000,
     })
