@@ -773,6 +773,146 @@ describe('StreamProcessor', () => {
       expect((textParts[0] as any).content).toBe('Before')
       expect((textParts[1] as any).content).toBe('After')
     })
+
+    // Regression tests for https://github.com/TanStack/ai/issues/1017 —
+    // a TEXT_MESSAGE_CONTENT delta between two TOOL_CALL_ARGS deltas
+    // force-completes the in-flight tool call with a lenient partial-JSON
+    // parse, and the later authoritative TOOL_CALL_END was skipped because
+    // the call was already input-complete, permanently corrupting `input`.
+    describe('text delta interleaved between TOOL_CALL_ARGS deltas (#1017)', () => {
+      const ARGS_HEAD = '{"templateIds":["mock-gsk-e'
+      const ARGS_TAIL = 'fimosfermin"]}'
+      const FULL_ARGS = ARGS_HEAD + ARGS_TAIL
+
+      it('re-opens the inferred-complete call so state returns to input-streaming', () => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
+        // Interleaved text force-completes the in-flight call (inferred).
+        processor.processChunk(ev.textContent('Let me look those up. '))
+        expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+          'input-complete',
+        )
+
+        // A further args delta proves the inference was premature.
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
+        expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+          'input-streaming',
+        )
+      })
+
+      it('finalizes input from the complete arguments on TOOL_CALL_END', () => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
+        processor.processChunk(ev.textContent('Let me look those up. '))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
+        processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.runFinished('tool_calls'))
+        processor.finalizeStream()
+
+        const part = processor
+          .getMessages()
+          .flatMap((m) => m.parts)
+          .find((p): p is ToolCallPart => p.type === 'tool-call')
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).toEqual({ templateIds: ['mock-gsk-efimosfermin'] })
+      })
+
+      it('uses TOOL_CALL_END.input as canonical after interleaved text', () => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
+        processor.processChunk(ev.textContent('Let me look those up. '))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
+        processor.processChunk(
+          ev.toolEnd('tc-1', 'offerTemplates', {
+            input: { templateIds: ['mock-gsk-efimosfermin'] },
+          }),
+        )
+        processor.processChunk(ev.runFinished('tool_calls'))
+        processor.finalizeStream()
+
+        const part = processor
+          .getMessages()
+          .flatMap((m) => m.parts)
+          .find((p): p is ToolCallPart => p.type === 'tool-call')
+        expect(part?.state).toBe('input-complete')
+        expect(part?.input).toEqual({ templateIds: ['mock-gsk-efimosfermin'] })
+        expect(
+          processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+        ).toEqual({ templateIds: ['mock-gsk-efimosfermin'] })
+      })
+
+      it('finalizes input via the RUN_FINISHED safety net when TOOL_CALL_END is missing', () => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
+        processor.processChunk(ev.textContent('Let me look those up. '))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
+        // No TOOL_CALL_END — the RUN_FINISHED safety net completes the call.
+        processor.processChunk(ev.runFinished('tool_calls'))
+        processor.finalizeStream()
+
+        const part = processor
+          .getMessages()
+          .flatMap((m) => m.parts)
+          .find((p): p is ToolCallPart => p.type === 'tool-call')
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).toEqual({ templateIds: ['mock-gsk-efimosfermin'] })
+      })
+
+      it('repairs multiple parallel tool calls with interleaved text', () => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+
+        processor.processChunk(ev.runStarted())
+        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
+        processor.processChunk(ev.toolStart('tc-2', 'getWeather'))
+        processor.processChunk(ev.toolArgs('tc-2', '{"city":"New '))
+        // One text delta force-completes BOTH in-flight calls.
+        processor.processChunk(ev.textContent('Working on it. '))
+        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
+        processor.processChunk(ev.toolArgs('tc-2', 'York"}'))
+        processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
+        processor.processChunk(ev.toolEnd('tc-2', 'getWeather'))
+        processor.processChunk(ev.runFinished('tool_calls'))
+        processor.finalizeStream()
+
+        const parts = processor
+          .getMessages()
+          .flatMap((m) => m.parts)
+          .filter((p): p is ToolCallPart => p.type === 'tool-call')
+        expect(parts).toHaveLength(2)
+
+        const first = parts.find((p) => p.id === 'tc-1')
+        expect(first?.state).toBe('input-complete')
+        expect(first?.arguments).toBe(FULL_ARGS)
+        expect(first?.input).toEqual({
+          templateIds: ['mock-gsk-efimosfermin'],
+        })
+
+        const second = parts.find((p) => p.id === 'tc-2')
+        expect(second?.state).toBe('input-complete')
+        expect(second?.arguments).toBe('{"city":"New York"}')
+        expect(second?.input).toEqual({ city: 'New York' })
+      })
+    })
   })
 
   // ==========================================================================
