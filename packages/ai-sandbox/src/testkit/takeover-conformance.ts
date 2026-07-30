@@ -361,6 +361,43 @@ async function runningRun(
   return runs
 }
 
+/**
+ * Wrap a handle so the `process.exec` calls ONE operation makes can be counted.
+ *
+ * This is how the attach preflight's fail-fast cases are anchored, and the reason
+ * they are not anchored on elapsed time. `awaitAttachableJournal` runs exactly one
+ * `test -f` before it consults the run store, so a decision made from the record
+ * costs one `exec` and a decision made by waiting costs one per
+ * `probeIntervalMs`. The count separates those two behaviors exactly; elapsed time
+ * does not, because a single `exec` is a provider round-trip whose latency the
+ * suite does not control — a `docker exec` on a loaded daemon has been measured at
+ * 9.6s, which fails a `< 4_000ms` bound while the preflight under test did
+ * precisely the right thing. A timing bound that goes red on a busy machine
+ * teaches people to ignore the suite.
+ *
+ * The spread copies the handle's own methods, so everything except `exec` is the
+ * provider's; the wrapper delegates rather than reimplementing.
+ */
+function countingExec(handle: SandboxHandle): {
+  handle: SandboxHandle
+  execs: () => number
+} {
+  let execs = 0
+  return {
+    handle: {
+      ...handle,
+      process: {
+        ...handle.process,
+        exec: (command, options) => {
+          execs += 1
+          return handle.process.exec(command, options)
+        },
+      },
+    },
+    execs: () => execs,
+  }
+}
+
 /** Poll `check` until it answers true, or fail with a message naming what never happened. */
 async function waitUntil(
   check: () => Promise<boolean>,
@@ -598,13 +635,14 @@ export function runTakeoverConformance(
         const { handle, dispose } = await config.createHandle()
         const runId = uniqueRunId('unknown')
         try {
-          const startedAt = Date.now()
-          const error = await awaitAttachableJournal(handle, {
+          expect.hasAssertions()
+          const probes = countingExec(handle)
+          const error = await awaitAttachableJournal(probes.handle, {
             paths: journalPaths(runId, CONFORMANCE_JOURNAL_DIR),
             runId,
             runs: new InMemoryRunStore(),
             // Generous on purpose: were the store verdict skipped, this would
-            // spend the full 8s and the elapsed assertion below would catch it.
+            // poll for the full 8s and the probe count below would catch it.
             waitMs: 8_000,
             probeIntervalMs: POLL_INTERVAL_MS,
           }).then(
@@ -614,7 +652,10 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('unknown-run')
-          expect(Date.now() - startedAt).toBeLessThan(4_000)
+          // Decided from the RECORD, not by waiting it out: one `test -f`, then
+          // the store. A preflight that polled to the deadline would run ~80
+          // probes here. See `countingExec` for why this is not a stopwatch.
+          expect(probes.execs()).toBe(1)
         } finally {
           await dispose()
         }
@@ -629,10 +670,11 @@ export function runTakeoverConformance(
         const runId = uniqueRunId('terminal')
         const threadId = `${runId}-t`
         try {
+          expect.hasAssertions()
           const runs = await runningRun(runId, threadId)
           await runs.update(runId, { status: 'completed', finishedAt: 2 })
-          const startedAt = Date.now()
-          const error = await awaitAttachableJournal(handle, {
+          const probes = countingExec(handle)
+          const error = await awaitAttachableJournal(probes.handle, {
             paths: journalPaths(runId, CONFORMANCE_JOURNAL_DIR),
             runId,
             runs,
@@ -645,7 +687,8 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('terminal-run')
-          expect(Date.now() - startedAt).toBeLessThan(4_000)
+          // One `test -f`, then the record. Not a stopwatch — `countingExec`.
+          expect(probes.execs()).toBe(1)
         } finally {
           await dispose()
         }
@@ -704,6 +747,7 @@ export function runTakeoverConformance(
         const runId = uniqueRunId('timeout')
         const threadId = `${runId}-t`
         try {
+          expect.hasAssertions()
           const runs = await runningRun(runId, threadId)
           const startedAt = Date.now()
           const error = await awaitAttachableJournal(handle, {
@@ -891,8 +935,8 @@ export function runTakeoverConformance(
             status: 'completed',
             finishedAt: Date.now(),
           })
-          const startedAt = Date.now()
-          const error = await awaitAttachableJournal(handle, {
+          const probes = countingExec(handle)
+          const error = await awaitAttachableJournal(probes.handle, {
             paths,
             runId,
             runs,
@@ -905,7 +949,12 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('terminal-run')
-          expect(Date.now() - startedAt).toBeLessThan(4_000)
+          // The journal really is gone (asserted above), so the preflight takes
+          // the record arm: one `test -f`, then the store, no wait. This is the
+          // bound that failed as `expected 9652 to be less than 4000` under
+          // parallel Docker load, where the 9.6s was one `docker exec`
+          // round-trip and not the preflight — see `countingExec`.
+          expect(probes.execs()).toBe(1)
         } finally {
           await cleanup(handle, runId)
           await dispose()

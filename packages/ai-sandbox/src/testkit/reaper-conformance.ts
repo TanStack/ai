@@ -32,10 +32,39 @@
  *    `probeRunExit` exists to prevent: entering `pipeToRunLog` to "check" writes
  *    a terminal status and drops the run out of `listReclaimable` forever.
  * 4. **A shell-hostile runId cannot become a shell-hostile command.** The encode
- *    → journal → `ls` → decode → `rm` round trip runs on a runId containing
- *    `/`, a space, `;`, `$( )` and an embedded `touch`, with a canary file
- *    asserted absent. A quoting bug here is arbitrary command execution inside
- *    the sandbox, not a cosmetic defect.
+ *    → journal → follow → `ls` → decode → `rm` round trip runs on a runId
+ *    containing `/`, a space, `;`, `$( )` and an embedded `touch`, with a canary
+ *    file asserted absent. An ENCODING bug here is arbitrary command execution
+ *    inside the sandbox, not a cosmetic defect.
+ *
+ *    **What the canary proves, exactly, and what it does not.** It detects a
+ *    runId reaching the shell WITHOUT `encodeRunId` — that is the mutation it
+ *    bites on, and it bites hard: `journaledCommand`, `journalFollowCommand`,
+ *    `journalExitProbeCommand`, `journalStderrReadCommand` and
+ *    `journalCleanupCommand` all interpolate the path, so the `;touch` executes
+ *    and the canary appears. It is BLIND to the loss of `journal.ts`'s
+ *    `shellQuote`, the second and independent layer. Measured: with `shellQuote`
+ *    reduced to the identity while `encodeRunId` stays, the redirect target
+ *    becomes `>> /tmp/…/rp-a_3btouch_20_2ftmp…ndjson` — a single shell word of
+ *    `[A-Za-z0-9._/-]`, because the encoder already removed every character a
+ *    shell can act on — so no canary fires and NOTHING in this suite, or in any
+ *    other real-provider suite, changes. Do not read a green run here as licence
+ *    to "simplify" `shellQuote` away.
+ *
+ *    The quoting is pinned instead by exact-string unit tests in
+ *    `packages/ai-sandbox/tests/journal.test.ts`, which compare each composed
+ *    command to a literal containing the quotes. By name, one per command:
+ *    `journaledCommand` — "redirects stdout to the journal, stderr to its own
+ *    file, and appends the exit sentinel" plus "quotes an adversarial runId so it
+ *    cannot inject shell metacharacters"; `journalFollowCommand` — "translates a
+ *    0-based consumed-byte count into tail -c +N (1-based)";
+ *    `journalReadCommand` — "the bounded read drops -f and keeps the base64
+ *    frame, so a poll cannot hang"; `journalExistsCommand` — "probes through the
+ *    shell, never through fs.*"; `journalStderrReadCommand` — "reads a BOUNDED
+ *    tail of the sidecar, base64-framed, stderr silenced";
+ *    `journalCleanupCommand`, `journalMtimeListCommand` and
+ *    `journalExitProbeCommand` — the first `it` under each of their `describe`s.
+ *    Those are the tests that go red on a dropped `shellQuote`; keep them exact.
  *
  * A provider that cannot satisfy the contract MUST declare `unsupported.reason`.
  * As in the journal and takeover suites there is deliberately no silent-skip
@@ -55,16 +84,20 @@ import { describe, expect, it } from 'vitest'
 import { EventType, InMemoryRunStore } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import {
+  EXIT_SENTINEL_KEY,
   decodeJournalRunId,
+  exitSentinelLine,
   journalCleanupCommand,
   journalExistsCommand,
   journalListCommand,
   journalMtimeListCommand,
   journalPaths,
   journalReadCommand,
+  journalStderrReadCommand,
   journaledCommand,
   parseJournalMtimeListing,
 } from '../journal'
+import { journalReadStrategy, readJournal } from '../journal-reader'
 import { pruneJournals } from '../journal-sweep'
 import { probeRunExit, reapDetachedRuns } from '../reap'
 import { readJournalNdjson } from '../runner'
@@ -88,6 +121,17 @@ export interface ReaperConformanceConfig {
    * visible in the reporter. Omit it and the suite runs.
    */
   unsupported?: { reason: string }
+  /**
+   * Declare that this provider's reads take the POLL strategy rather than the
+   * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles.
+   *
+   * Only the FOLLOW half of the shell-hostile-runId case depends on it, so this
+   * does not skip a case; it names itself in that case's title and the follow
+   * read is omitted. The declaration is checked against the live handle there, in
+   * both directions, so it cannot quietly remove coverage from a provider that
+   * can in fact follow.
+   */
+  followUnsupported?: { reason: string }
 }
 
 /** Poll interval handed to providers that cannot follow a growing file. */
@@ -164,11 +208,13 @@ async function removeDir(handle: SandboxHandle, dir: string): Promise<void> {
  */
 async function fileExists(
   handle: SandboxHandle,
-  dir: string,
   path: string,
 ): Promise<boolean> {
   const probe = await handle.process.exec(
-    journalExistsCommand({ dir, journal: path, stderr: path }),
+    // Only `journal` is read by the probe, and its parameter is typed
+    // `Pick<JournalPaths, 'journal'>` for exactly this reason: an arbitrary path
+    // has no run behind it, so there is no nonce or sidecar to invent.
+    journalExistsCommand({ journal: path }),
   )
   return probe.exitCode === 0
 }
@@ -478,9 +524,9 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           // Premise: all four files really exist before the sweep, otherwise
           // "deleted" below would be indistinguishable from "never written".
           expect({
-            terminalJournal: await fileExists(handle, dir, terminal.journal),
-            terminalSidecar: await fileExists(handle, dir, terminal.stderr),
-            liveJournal: await fileExists(handle, dir, live.journal),
+            terminalJournal: await fileExists(handle, terminal.journal),
+            terminalSidecar: await fileExists(handle, terminal.stderr),
+            liveJournal: await fileExists(handle, live.journal),
           }).toEqual({
             terminalJournal: true,
             terminalSidecar: true,
@@ -513,10 +559,10 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           // The files, through the shell. A sweep that reported a deletion it did
           // not perform passes every assertion above and fails here.
           expect({
-            terminalJournal: await fileExists(handle, dir, terminal.journal),
-            terminalSidecar: await fileExists(handle, dir, terminal.stderr),
-            liveJournal: await fileExists(handle, dir, live.journal),
-            liveSidecar: await fileExists(handle, dir, live.stderr),
+            terminalJournal: await fileExists(handle, terminal.journal),
+            terminalSidecar: await fileExists(handle, terminal.stderr),
+            liveJournal: await fileExists(handle, live.journal),
+            liveSidecar: await fileExists(handle, live.stderr),
           }).toEqual({
             terminalJournal: false,
             terminalSidecar: false,
@@ -602,7 +648,7 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           await handle.process.exec(
             `printf 'not a journal\\n' >> ${quote(strayPath)}`,
           )
-          expect(await fileExists(handle, dir, strayPath)).toBe(true)
+          expect(await fileExists(handle, strayPath)).toBe(true)
           expect(decodeJournalRunId(strayName).kind).toBe('malformed')
 
           const runs = new InMemoryRunStore()
@@ -623,8 +669,8 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           ])
           expect(result.failures).toEqual([])
           expect({
-            strayKept: await fileExists(handle, dir, strayPath),
-            journalDeleted: !(await fileExists(handle, dir, paths.journal)),
+            strayKept: await fileExists(handle, strayPath),
+            journalDeleted: !(await fileExists(handle, paths.journal)),
           }).toEqual({ strayKept: true, journalDeleted: true })
         } finally {
           await removeDir(handle, dir)
@@ -761,10 +807,10 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           ])
           expect(result.failures).toEqual([])
           expect({
-            olderJournal: await fileExists(handle, dir, older.journal),
-            olderSidecar: await fileExists(handle, dir, older.stderr),
-            newerJournal: await fileExists(handle, dir, newer.journal),
-            newerSidecar: await fileExists(handle, dir, newer.stderr),
+            olderJournal: await fileExists(handle, older.journal),
+            olderSidecar: await fileExists(handle, older.stderr),
+            newerJournal: await fileExists(handle, newer.journal),
+            newerSidecar: await fileExists(handle, newer.stderr),
           }).toEqual({
             olderJournal: false,
             olderSidecar: false,
@@ -955,7 +1001,10 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
     // 4. A shell-hostile runId, end to end. SECURITY-RELEVANT.
     // -----------------------------------------------------------------------
     it(
-      'round-trips a shell-hostile runId through encode, journal, list, decode and delete without executing any of it',
+      'round-trips a shell-hostile runId through encode, journal, follow, sidecar read, list, decode and delete without executing any of it' +
+        (config.followUnsupported === undefined
+          ? ''
+          : ` (follow read omitted: ${config.followUnsupported.reason})`),
       { timeout: 120_000 },
       async () => {
         const { handle, dispose } = await config.createHandle()
@@ -982,7 +1031,17 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
         const paths = journalPaths(runId, dir)
         const journalName = basename(dir, paths.journal)
         try {
-          await runAgent(handle, paths, ['1'])
+          // This case's agent writes to STDERR as well, so the sidecar read
+          // below has real bytes to compare against: an empty sidecar is also
+          // what a `journalStderrReadCommand` that read the wrong path (or
+          // nothing at all) would return, and that read is the only coverage
+          // that command has anywhere.
+          await handle.process.exec(
+            journaledCommand(
+              `${emitLines(['1'])}; printf 'boom\\n' 1>&2`,
+              paths,
+            ),
+          )
           // THE SECURITY ASSERTION, and deliberately the FIRST one: nothing the
           // runId contains was executed. It is stated before the cheaper
           // structural checks below on purpose — a defect that reintroduces raw
@@ -990,7 +1049,7 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           // short-circuited there would never prove this probe is live rather
           // than decorative. Re-asserted after the delete, because the sweep
           // composes a DIFFERENT command (`rm -f`) from the same id.
-          expect(await fileExists(handle, dir, canary)).toBe(false)
+          expect(await fileExists(handle, canary)).toBe(false)
           expect(await probeRunExit({ handle, runId, dir })).toEqual({
             state: 'finished',
             exitCode: 0,
@@ -999,6 +1058,56 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           // a shell can act on, and it stays inside the journal directory.
           expect(journalName).toMatch(/^[A-Za-z0-9._-]+\.ndjson$/)
           expect(paths.journal.startsWith(`${dir}/`)).toBe(true)
+
+          // THE FOLLOW PATH, against this same hostile id.
+          //
+          // `journalFollowCommand` is the WORST command in the set under a
+          // dropped `encodeRunId`: it interpolates the journal path THREE times
+          // (`mkdir -p`, `: >> path`, `tail -c +N -f path`) and joins its prep
+          // steps with `;` rather than `&&`, so `: >> /tmp/dir/rp-a;touch
+          // <canary>;…` is a complete redirect followed by a command LIST — the
+          // payload runs on EVERY attach, and a failing prep step does not stop
+          // it. Nothing else reaches this command with a hostile runId: the
+          // reaper's own probes are all bounded reads, and the takeover suite,
+          // the only other real-provider consumer of the follow path, builds
+          // alnum-only ids. So it is exercised here, where the hostile id and a
+          // live canary already exist, for the cost of one read.
+          //
+          // The strategy is FORCED rather than capability-derived so this is the
+          // follow command and not the bounded one, and the declaration is
+          // checked against the live handle in both directions — a config that
+          // does not describe the provider must fail rather than silently drop
+          // this read.
+          expect(journalReadStrategy(handle)).toBe(
+            config.followUnsupported === undefined ? 'follow' : 'poll',
+          )
+          if (config.followUnsupported === undefined) {
+            const followed: Array<string> = []
+            for await (const line of readJournal(handle, {
+              paths,
+              fromByte: 0,
+              strategy: 'follow',
+              signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+            })) {
+              followed.push(line.line)
+              // The agent has already reached its sentinel, so this arrives; a
+              // `tail -f` never ends on its own.
+              if (line.line.includes(EXIT_SENTINEL_KEY)) break
+            }
+            expect(followed).toEqual([
+              '{"delta":"1"}',
+              exitSentinelLine(paths, 0),
+            ])
+            expect(await fileExists(handle, canary)).toBe(false)
+          }
+
+          // The stderr SIDECAR read, which no other conformance case reaches at
+          // all. Same hostile id, same canary, one `exec`.
+          const sidecar = await handle.process.exec(
+            journalStderrReadCommand(paths),
+          )
+          expect(decodeJournalRead(sidecar.stdout)).toBe('boom\n')
+          expect(await fileExists(handle, canary)).toBe(false)
 
           // encode → journal → list → decode: the sweep's actual path back to a
           // runId, over a real `ls -1`.
@@ -1021,9 +1130,9 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           expect(result.deleted).toEqual([runId])
           expect(result.failures).toEqual([])
           expect({
-            journalDeleted: !(await fileExists(handle, dir, paths.journal)),
-            sidecarDeleted: !(await fileExists(handle, dir, paths.stderr)),
-            canaryAbsent: !(await fileExists(handle, dir, canary)),
+            journalDeleted: !(await fileExists(handle, paths.journal)),
+            sidecarDeleted: !(await fileExists(handle, paths.stderr)),
+            canaryAbsent: !(await fileExists(handle, canary)),
           }).toEqual({
             journalDeleted: true,
             sidecarDeleted: true,
