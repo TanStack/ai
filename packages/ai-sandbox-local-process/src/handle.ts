@@ -169,6 +169,97 @@ export interface LocalProcessLogger {
   warn: (message: string, meta?: Record<string, unknown>) => void
 }
 
+/** Sleep helper for the bounded teardown backoffs below. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+/**
+ * Filesystem error codes that mean "something still holds this path", as
+ * opposed to "this removal can never work".
+ *
+ * On Windows a directory cannot be removed while any process holds it open —
+ * most commonly as its CWD, which is exactly what `exec`/`spawn` give the `sh`
+ * wrapper — and the handle is released by the OS *asynchronously*, after the
+ * process has already exited. POSIX has no such rule (`rmdir` tolerates open
+ * handles), which is why this only ever bit on Windows.
+ */
+const BUSY_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
+
+/** Bounded backoff for {@link removeDirWithRetry}: 10 attempts, ~2.75s total. */
+const REMOVE_MAX_ATTEMPTS = 10
+const REMOVE_RETRY_DELAY_MS = 50
+
+/** How long {@link LocalProcessHandle.destroy} waits for a killed child to exit. */
+const CHILD_EXIT_TIMEOUT_MS = 5_000
+
+/**
+ * `rm -rf` a directory, retrying while the OS still reports it busy.
+ *
+ * Killing a process is not the same as the OS having released what it held —
+ * the same "verify, don't assume" gap {@link killTree} closes for the process
+ * tree. Even after the child is confirmed gone, Windows can take a few more
+ * milliseconds to drop its CWD handle, so a bounded retry is the only way
+ * through the residual race.
+ *
+ * A busy path that NEVER releases is worth knowing about, so a persistent
+ * failure is reported through the logger seam rather than swallowed. It is not
+ * thrown: `destroy` is a teardown path, and wedging a caller's cleanup over an
+ * undeletable temp dir is worse than a warning. Any NON-busy error (a genuinely
+ * broken removal) still throws, as it always did.
+ *
+ * Exported for tests: the retry is the half of the fix that survives a child
+ * outliving our kill.
+ */
+export async function removeDirWithRetry(
+  dir: string,
+  logger?: LocalProcessLogger,
+): Promise<void> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= REMOVE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await fsp.rm(dir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === undefined || !BUSY_ERROR_CODES.has(code)) throw error
+      lastError = error
+      if (attempt < REMOVE_MAX_ATTEMPTS) {
+        await delay(REMOVE_RETRY_DELAY_MS * attempt)
+      }
+    }
+  }
+  logger?.warn('local-process: could not remove the sandbox dir; still busy', {
+    dir,
+    attempts: REMOVE_MAX_ATTEMPTS,
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  })
+}
+
+/**
+ * Resolve once `child` has actually exited, or `false` if it is still running
+ * after `timeoutMs`. A `kill` only *requests* termination; the child holds its
+ * CWD until it is really gone, so teardown must confirm rather than assume.
+ */
+function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve(true)
+  }
+  return new Promise<boolean>((resolve) => {
+    const onExit = (): void => resolve(true)
+    child.once('exit', onExit)
+    // `unref` so a child that exits promptly does not hold the event loop open
+    // for the rest of the timeout. Promise resolution is once-only, so whichever
+    // of the two paths fires first wins and the other becomes a no-op.
+    setTimeout(() => {
+      child.off('exit', onExit)
+      resolve(false)
+    }, timeoutMs).unref()
+  })
+}
+
 /** One row of MSYS `ps`: the MSYS-side pid table, keyed to Windows by `winpid`. */
 interface MsysProcess {
   pid: number
@@ -401,6 +492,14 @@ function killTree(
   child: ChildProcess,
   signal?: NodeJS.Signals | number,
   logger?: LocalProcessLogger,
+  /**
+   * A process table already snapshotted by the caller, for tearing down several
+   * children at once. `msysProcessTable` costs a full `sh -c ps` spawn, so
+   * taking it once per teardown instead of once per child keeps `destroy` from
+   * blowing a caller's test timeout. It must still have been taken BEFORE any
+   * `taskkill` in the batch — which is exactly what one up-front snapshot gives.
+   */
+  rows?: Array<MsysProcess>,
 ): void {
   const pid = child.pid
   if (pid === undefined) return
@@ -427,7 +526,7 @@ function killTree(
   }
 
   // Attribute the tree first — taskkill destroys the evidence (see above).
-  const strays = msysDescendantWinPids(msysProcessTable(logger), pid)
+  const strays = msysDescendantWinPids(rows ?? msysProcessTable(logger), pid)
 
   if (!taskkillPid(pid, true, logger)) {
     // taskkill unusable or refused → best-effort signal, as before.
@@ -492,6 +591,13 @@ export class LocalProcessHandle implements SandboxHandle {
   private readonly root: string
   private readonly options: LocalProcessHandleOptions
   private readonly envVars: Record<string, string> = {}
+  /**
+   * Every child we spawned that has not yet exited. `destroy` needs this to
+   * kill and then CONFIRM the tree is gone before removing the backing dir —
+   * each child's CWD is that dir, and on Windows an open CWD makes the removal
+   * fail with `EBUSY`. Entries are dropped on `close`, so this stays bounded.
+   */
+  private readonly liveChildren = new Set<ChildProcess>()
 
   constructor(options: LocalProcessHandleOptions) {
     this.root = options.root
@@ -612,6 +718,59 @@ export class LocalProcessHandle implements SandboxHandle {
     return cwd ? this.resolve(cwd) : this.root
   }
 
+  /**
+   * Remember a freshly spawned child until it exits, so `destroy` can tear it
+   * down first. `close` (not `exit`) is the drop point: it fires once the stdio
+   * streams are done too, and a still-draining pipe is another handle on the
+   * dir.
+   */
+  private track(child: ChildProcess): void {
+    this.liveChildren.add(child)
+    child.once('close', () => this.liveChildren.delete(child))
+  }
+
+  /**
+   * Kill every child we spawned and wait for the OS to confirm each is gone.
+   * Only then may the backing dir be removed — the child's CWD *is* that dir.
+   * A child that outlives the wait is logged, not thrown: teardown is total by
+   * construction, and {@link removeDirWithRetry} still gets its chance.
+   */
+  private async terminateChildren(): Promise<void> {
+    const children = [...this.liveChildren]
+    this.liveChildren.clear()
+    const live = children.filter(
+      (child) => child.exitCode === null && child.signalCode === null,
+    )
+    if (live.length === 0) return
+    // ONE process-table snapshot for the whole batch, taken before any kill.
+    // The snapshot is not free — measured on Windows 11, `sh -c ps` costs
+    // ~1.9s and `taskkill /T` another ~1.9-3.0s, so a teardown that must
+    // actually kill a live child costs seconds. Taking the snapshot once per
+    // teardown rather than once per child is what keeps that from multiplying.
+    // It cannot be skipped: `taskkill /T` alone cannot reach an MSYS stray
+    // (see `killTree`), and such a stray holds files INSIDE the dir we are
+    // about to remove.
+    const rows =
+      process.platform === 'win32'
+        ? msysProcessTable(this.options.logger)
+        : undefined
+    for (const child of live) {
+      killTree(child, undefined, this.options.logger, rows)
+    }
+    const exited = await Promise.all(
+      live.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)),
+    )
+    const stragglers = live
+      .filter((_, i) => exited[i] === false)
+      .map((child) => child.pid)
+    if (stragglers.length > 0) {
+      this.options.logger?.warn(
+        'local-process: children still running after kill; teardown continues',
+        { root: this.root, pids: stragglers },
+      )
+    }
+  }
+
   private mergedEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...process.env, ...this.envVars, ...extra }
     // Drop scrubbed vars so a host CLI falls back to its own stored auth
@@ -634,6 +793,7 @@ export class LocalProcessHandle implements SandboxHandle {
         env: this.mergedEnv(opts?.env),
         detached: spawnDetached,
       })
+      this.track(child)
       let stdout = ''
       let stderr = ''
       child.stdout.on('data', (d: Buffer) => (stdout += d.toString('utf8')))
@@ -660,6 +820,7 @@ export class LocalProcessHandle implements SandboxHandle {
       env: this.mergedEnv(opts?.env),
       detached: spawnDetached,
     })
+    this.track(child)
     if (opts?.signal) {
       opts.signal.addEventListener(
         'abort',
@@ -706,9 +867,28 @@ export class LocalProcessHandle implements SandboxHandle {
     return this.options.forkFactory(this.root)
   }
 
+  /**
+   * Tear the sandbox down. When the backing dir is ours to remove, the children
+   * MUST go first and their exit MUST be confirmed: their CWD is that dir, and
+   * a `rm` that races the OS releasing the handle fails with `EBUSY` on
+   * Windows. That race was observable — `ai-acp` and `ai-grok-build` both lost
+   * tests per run to `EBUSY … rmdir` — and it is the same failure shape as the
+   * `killTree` work: a teardown that returned before the OS had caught up.
+   *
+   * COST, measured on Windows 11 and deliberately accepted: when a child really
+   * is still alive this takes SECONDS (`sh -c ps` ~1.9s plus `taskkill /T`
+   * ~1.9-3.0s), because `taskkill /T` is the only thing that reaches a native
+   * grandchild — MSYS `ps` does not even list one. When every child has already
+   * exited — the common case, since `close` drops them from `liveChildren` — the
+   * kill is skipped entirely and this costs ~1ms. A caller that destroys a
+   * sandbox whose agent is STILL RUNNING inside a tight per-test timeout will
+   * feel those seconds, and `@tanstack/ai-acp`'s 5s-budget stdio tests do. The
+   * alternatives are worse: the `EBUSY` rejection this removes, plus a leaked
+   * process tree that outlives the run.
+   */
   async destroy(): Promise<void> {
-    if (this.options.removeOnDestroy) {
-      await fsp.rm(this.root, { recursive: true, force: true })
-    }
+    if (!this.options.removeOnDestroy) return
+    await this.terminateChildren()
+    await removeDirWithRetry(this.root, this.options.logger)
   }
 }

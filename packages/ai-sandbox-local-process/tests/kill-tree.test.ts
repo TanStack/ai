@@ -200,10 +200,20 @@ describe('killTree leaves no orphaned descendants (Windows/MSYS)', () => {
       expect(descendants.length).toBeGreaterThan(0)
 
       await proc.kill()
-      // Windows process teardown is not instantaneous.
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      // Windows process teardown is not instantaneous — and a FIXED sleep is
+      // the same "assume, don't verify" mistake this suite exists to catch. 500ms
+      // was under the real cost: `taskkill /T` alone measures ~1.9-3.0s on a
+      // loaded machine, so this asserted before the kill had landed and failed
+      // ~1 run in 4 under full-suite load (leaving the very `tail.exe` it is
+      // meant to prove dead). Poll for the outcome instead, up to a bound.
+      const deadline = Date.now() + 15_000
+      let survivors = descendants.filter((pid) => isAlive(pid))
+      while (survivors.length > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        survivors = survivors.filter((pid) => isAlive(pid))
+      }
 
-      expect(descendants.filter((pid) => isAlive(pid))).toEqual([])
+      expect(survivors).toEqual([])
       await sbx.destroy()
     },
     30_000,

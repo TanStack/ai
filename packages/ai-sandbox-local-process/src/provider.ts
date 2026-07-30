@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { LOCAL_PROCESS_CAPS, LocalProcessHandle } from './handle'
+import {
+  LOCAL_PROCESS_CAPS,
+  LocalProcessHandle,
+  removeDirWithRetry,
+} from './handle'
 import type { LocalProcessLogger } from './handle'
 import type {
   SandboxCapabilities,
@@ -101,9 +105,16 @@ class LocalProcessProvider implements SandboxProvider {
     return this.makeHandle(input.id)
   }
 
+  /**
+   * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+   * handle here, so no children can be killed first — a process spawned through
+   * a handle we no longer hold may still own the dir as its CWD. The bounded
+   * retry is all that is available, and a dir that never releases is reported
+   * through the logger rather than silently left behind.
+   */
   async destroy(input: SandboxDestroyInput): Promise<void> {
     if (this.removeDefault()) {
-      await fsp.rm(input.id, { recursive: true, force: true })
+      await removeDirWithRetry(input.id, this.config.logger)
     }
   }
 }
