@@ -327,8 +327,11 @@ describe('durableStream official HTTP protocol', () => {
 
     expect(offsets).toHaveLength(3)
     expect(new Set(offsets).size).toBe(3)
+    // The GET is the one-time bounded tail read that tells this instance where
+    // the log ends, so its first record continues the run's sequence.
     expect(server.requests.map((request) => request.method)).toEqual([
       'PUT',
+      'GET',
       'POST',
     ])
     expect(
@@ -406,17 +409,24 @@ describe('durableStream official HTTP protocol', () => {
       // drain
     }
 
-    expect(server.requests).toHaveLength(4)
+    // PUT, the seeding tail read, the append, the close, then the replay read.
+    expect(server.requests.map((request) => request.method)).toEqual([
+      'PUT',
+      'GET',
+      'POST',
+      'POST',
+      'GET',
+    ])
     expect(
       server.requests.map((request) => request.headers.get('Authorization')),
-    ).toEqual(Array.from({ length: 4 }, () => 'Bearer static-token'))
+    ).toEqual(Array.from({ length: 5 }, () => 'Bearer static-token'))
     expect(server.requests[0]?.headers.get('Content-Type')).toBe(
       'application/json',
     )
-    expect(server.requests[1]?.headers.get('Content-Type')).toBe(
+    expect(server.requests[2]?.headers.get('Content-Type')).toBe(
       'application/json',
     )
-    expect(server.requests[2]?.headers.get('Stream-Closed')).toBe('true')
+    expect(server.requests[3]?.headers.get('Stream-Closed')).toBe('true')
   })
 
   it('resolves rotating async auth headers for every protocol request', async () => {
@@ -444,6 +454,7 @@ describe('durableStream official HTTP protocol', () => {
       'Bearer token-2',
       'Bearer token-3',
       'Bearer token-4',
+      'Bearer token-5',
     ])
   })
 
@@ -1176,10 +1187,11 @@ describe('durableStream snapshot', () => {
     )
     await durability.append([textChunk('a'), textChunk('b')])
     await durability.close()
+    const getsBeforeSnapshot = getCount(server)
 
     const entries = await durability.snapshot()
     expect(entries.map((entry) => deltaFrom(entry.chunk))).toEqual(['a', 'b'])
-    expect(getCount(server)).toBe(1)
+    expect(getCount(server)).toBe(getsBeforeSnapshot + 1)
   })
 
   it('returns a fresh array the caller cannot corrupt a later read through', async () => {
@@ -1242,6 +1254,152 @@ describe('durableStream snapshot', () => {
   })
 })
 
+describe('durableStream takeover sequencing', () => {
+  function makeHost(
+    server: ReturnType<typeof makeProtocolServer>,
+    runId: string,
+  ) {
+    return durableStream(
+      new Request(`https://app.test/api/chat?runId=${runId}`),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+  }
+
+  it('continues the log sequence when a second host takes over the run', async () => {
+    const server = makeProtocolServer()
+    const first = makeHost(server, 'run-takeover')
+    await first.append(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map(textChunk),
+    )
+
+    // A fresh adapter instance for the same run is exactly what a takeover
+    // host gets from `opts.durability(runId)` after the original detached.
+    const second = makeHost(server, 'run-takeover')
+    await second.append(['k', 'l', 'm', 'n', 'o', 'p'].map(textChunk))
+    await second.close()
+
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual(Array.from({ length: 16 }, (_value, index) => index + 1))
+
+    const replayed: Array<string> = []
+    for await (const { chunk } of makeHost(server, 'run-takeover').read('-1')) {
+      replayed.push(deltaFrom(chunk))
+    }
+    expect(replayed).toEqual([...'abcdefghijklmnop'])
+  })
+
+  it('continues the sequence when the takeover aligned with a snapshot first', async () => {
+    const server = makeProtocolServer()
+    const first = makeHost(server, 'run-takeover-aligned')
+    await first.append([textChunk('a'), textChunk('b')])
+
+    const second = makeHost(server, 'run-takeover-aligned')
+    // `alignToStoredLog` snapshots the stored prefix before appending.
+    expect(await second.snapshot()).toHaveLength(2)
+    const getsBeforeAppend = server.requests.filter(
+      (request) => request.method === 'GET',
+    ).length
+    await second.append([textChunk('c')])
+    // The snapshot already told the adapter where the log ends, so the first
+    // append does not pay for a second bounded read.
+    expect(
+      server.requests.filter((request) => request.method === 'GET').length,
+    ).toBe(getsBeforeAppend)
+
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual([1, 2, 3])
+  })
+
+  it('sends a caller-supplied producer epoch and rejects an invalid one', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-epoch'),
+      {
+        server: 'https://ds.test',
+        fetch: server.fetchStub,
+        producerEpoch: 3,
+      },
+    )
+    await durability.append([textChunk('x')])
+
+    expect(
+      server.requests
+        .find((request) => request.method === 'POST')
+        ?.headers.get('Producer-Epoch'),
+    ).toBe('3')
+
+    expect(() =>
+      durableStream(
+        new Request('https://app.test/api/chat?runId=run-bad-epoch'),
+        {
+          server: 'https://ds.test',
+          fetch: server.fetchStub,
+          producerEpoch: -1,
+        },
+      ),
+    ).toThrow(/producerEpoch/)
+  })
+})
+
+describe('durableStream snapshot bounding', () => {
+  it.each([
+    [
+      'never answers the long poll',
+      (init: RequestInit | undefined) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason ?? new Error('aborted')),
+            { once: true },
+          )
+        }),
+    ],
+    [
+      'holds the response body open without a control frame',
+      () =>
+        Promise.resolve(
+          new Response(new ReadableStream<Uint8Array>(), {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+          }),
+        ),
+    ],
+  ])(
+    'fails loudly instead of parking when the backend %s',
+    { timeout: 2000 },
+    async (_name, respond) => {
+      const fetchStub = vi.fn<typeof fetch>((_input, init) => {
+        const method = (init?.method ?? 'GET').toUpperCase()
+        if (method !== 'GET') {
+          return Promise.resolve(
+            new Response(null, {
+              status: 200,
+              headers: createHeaders('origin::p/A'),
+            }),
+          )
+        }
+        return respond(init)
+      })
+      const durability = durableStream(
+        new Request('https://app.test/api/chat?runId=run-snapshot-parked'),
+        {
+          server: 'https://ds.test',
+          fetch: fetchStub,
+          operationTimeoutMs: 25,
+        },
+      )
+
+      await expect(durability.snapshot()).rejects.toThrow(/operationTimeoutMs/)
+    },
+  )
+})
+
 describe('durableStream exact-once resume', () => {
   it('resumes mid-way through a coalesced data batch without gaps or duplicates', async () => {
     const server = makeProtocolServer({
@@ -1293,12 +1451,13 @@ describe('durableStream exact-once resume', () => {
     expect(
       [...beforeDrop, ...afterDrop].map((event) => deltaFrom(event.data)),
     ).toEqual(full)
-    const replayRequest = server.requests.find(
-      (request) => request.method === 'GET',
-    )
-    expect(replayRequest?.url.searchParams.get('offset')).toBe(
+    // The producer's own first GET is the seeding tail read at `-1`; the replay
+    // is the one the reconnecting instance issues from the resume cursor.
+    const reads = server.requests.filter((request) => request.method === 'GET')
+    expect(reads.map((read) => read.url.searchParams.get('offset'))).toEqual([
+      '-1',
       server.createOffset,
-    )
+    ])
     expect(server.closeCount()).toBe(1)
   })
 })

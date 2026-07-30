@@ -48,9 +48,21 @@ export interface DurableStreamOptions {
    * Timeout (ms) for a single create / append / close request to the backend.
    * A stalled backend would otherwise hang chunk delivery or terminalization
    * indefinitely. Default 30000. Long-poll `read` window advancement is NOT
-   * bounded by this — a caught-up reader may legitimately wait.
+   * bounded by this — a caught-up reader may legitimately wait. `snapshot`,
+   * which must always return, IS bounded by it.
    */
   operationTimeoutMs?: number
+  /**
+   * Producer fencing epoch sent as `Producer-Epoch` on every append.
+   *
+   * A backend that fences producers rejects an append whose epoch is below the
+   * highest it has seen, so a zombie host that lost its claim cannot keep
+   * writing to a run a newer host took over. Callers that track a monotonic
+   * per-run driver epoch (`RunRecord.driverEpoch`) should pass it here; the
+   * default of `0` makes every producer look equally current to the backend,
+   * which leaves fencing entirely to the caller's own run claim.
+   */
+  producerEpoch?: number
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
@@ -514,11 +526,35 @@ export function durableStream(
   const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
   let createPromise: Promise<string> | undefined
   let appendTailOffset: string | undefined
+  // `seq` is a single per-run counter, not a per-instance one: the read side
+  // dedups and orders by it across every window and every producer. A takeover
+  // host therefore MUST continue the log's existing sequence instead of
+  // restarting at 1, or its records collide with the prefix an earlier host
+  // stored and get silently dropped by the reader's dedup. `seqSeeded` tracks
+  // whether this instance has learned where the log ends.
   let nextSeq = 1
+  let seqSeeded = false
+  let seedPromise: Promise<void> | undefined
   const producerId = crypto.randomUUID()
-  const producerEpoch = 0
+  const producerEpoch = options.producerEpoch ?? 0
+  if (!Number.isSafeInteger(producerEpoch) || producerEpoch < 0) {
+    throw new DurableStreamError(
+      `producerEpoch must be a non-negative safe integer: ${producerEpoch}`,
+    )
+  }
   let producerSeq = 0
   let closePromise: Promise<void> | undefined
+
+  /**
+   * Raise the append counter past a sequence already present in the log.
+   *
+   * Called for every record any read observes — including records the reader
+   * then dedups away — so both `snapshot` (the alignment path a takeover
+   * already runs) and a plain `read` teach this instance the log's tail.
+   */
+  const observeSeq = (seq: number): void => {
+    if (seq >= nextSeq) nextSeq = seq + 1
+  }
 
   const resolveHeaders = async (required?: HeadersInit): Promise<Headers> => {
     const configured =
@@ -633,6 +669,7 @@ export function durableStream(
                 )
               }
               previousResponseSeq = record.seq
+              observeSeq(record.seq)
               if (record.seq <= deliveredThroughSeq) continue
               deliveredThroughSeq = record.seq
               yieldedData = true
@@ -705,10 +742,84 @@ export function durableStream(
     }
   }
 
+  /**
+   * One bounded pass over everything the log currently holds.
+   *
+   * Two things bound it. `readWindows(..., stopWhenUpToDate=true)` returns at
+   * the first control frame reporting the reader caught up, and
+   * `SNAPSHOT_MAX_WINDOWS` catches a backend that keeps handing out advancing
+   * windows without ever saying so. Neither covers a backend that simply never
+   * answers — `upToDate` is an optional protocol field, read windows
+   * deliberately skip `fetchWithTimeout` (a caught-up live reader may wait),
+   * and an empty still-open log has nothing to send. That shape would park the
+   * fetch forever, so the snapshot carries its own `operationTimeoutMs`
+   * deadline. Timing out is a loud failure, never a truncated result: an
+   * aborted `readWindows` ends its iteration quietly, so the flag is rechecked
+   * after the loop and thrown.
+   */
+  const collectSnapshot = async (): Promise<
+    Array<{ offset: DurableStreamOffset; chunk: StreamChunk }>
+  > => {
+    const controller = new AbortController()
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      controller.abort(
+        new DurableStreamError(
+          `snapshot exceeded operationTimeoutMs (${operationTimeoutMs}ms)`,
+        ),
+      )
+    }, operationTimeoutMs)
+    try {
+      const entries: Array<{
+        offset: DurableStreamOffset
+        chunk: StreamChunk
+      }> = []
+      for await (const entry of readWindows('-1', controller.signal, true)) {
+        entries.push(entry)
+      }
+      if (timedOut) {
+        throw new DurableStreamError(
+          `snapshot exceeded operationTimeoutMs (${operationTimeoutMs}ms) before the backend reported upToDate`,
+        )
+      }
+      // A completed snapshot has seen every record stored, so `observeSeq` has
+      // already moved `nextSeq` past the log's tail.
+      seqSeeded = true
+      return entries
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  /**
+   * Learn where the log ends before this instance appends to it for the first
+   * time.
+   *
+   * A takeover host is handed a fresh adapter for a run whose log already holds
+   * `seq 1..N`, and nothing in the protocol reports a record count, so the tail
+   * has to be read. One bounded read per instance: the alignment `snapshot()` a
+   * takeover already performs satisfies it, and for a brand-new run it is a
+   * single window whose body is one control frame.
+   */
+  const ensureSeqSeeded = (): Promise<void> => {
+    if (seqSeeded) return Promise.resolve()
+    if (seedPromise) return seedPromise
+    seedPromise = (async () => {
+      await ensureCreated()
+      await collectSnapshot()
+    })().catch((error: unknown) => {
+      seedPromise = undefined
+      throw error
+    })
+    return seedPromise
+  }
+
   return {
     resumeFrom: () => resumeOffset,
     append: async (chunks) => {
       if (chunks.length === 0) return []
+      await ensureSeqSeeded()
       const batchStartOffset = appendTailOffset ?? (await ensureCreated())
       const firstSeq = nextSeq
       const records = chunks.map(
@@ -718,7 +829,9 @@ export function durableStream(
           chunk,
         }),
       )
-      nextSeq += records.length
+      // Through `observeSeq`, so a concurrent read that already pushed the
+      // counter further cannot be walked backwards.
+      observeSeq(firstSeq + records.length - 1)
       const requestProducerSeq = producerSeq
       producerSeq += 1
       const requestInit: RequestInit = {
@@ -778,18 +891,6 @@ export function durableStream(
       return closePromise
     },
     read: (offset, signal) => readWindows(offset, signal, false),
-    snapshot: async () => {
-      // Bounded by construction: readWindows(..., stopWhenUpToDate=true) stops
-      // at the first control frame reporting the reader caught up, so this
-      // returns even for a stream whose producer died without closing it.
-      const entries: Array<{
-        offset: DurableStreamOffset
-        chunk: StreamChunk
-      }> = []
-      for await (const entry of readWindows('-1', undefined, true)) {
-        entries.push(entry)
-      }
-      return entries
-    },
+    snapshot: () => collectSnapshot(),
   }
 }
