@@ -558,6 +558,19 @@ function killTree(
  * WINDOWS IS DELIBERATELY EXCLUDED: `detached` there means "give the child its
  * own console", which can flash a console window, and the Windows branch of
  * `killTree` uses `taskkill /T` instead and has no use for a group.
+ *
+ * ACCEPTED TRADE-OFF ON POSIX — the children no longer die with a host Ctrl-C.
+ * A terminal delivers `SIGINT` to the FOREGROUND PROCESS GROUP, so while the
+ * wrapper shared our group it was interrupted alongside the host. Its own group
+ * is outside that delivery set, and Ctrl-C on e.g. a `pnpm dev` running this
+ * provider now kills the host and leaves the agent tree behind. This is the
+ * price of being able to kill the tree deliberately, and the deliberate path is
+ * strictly more reliable than the incidental one it replaces (the incidental
+ * `SIGINT` never reached a non-interactive host, nor a `kill` from a script, and
+ * a wrapper that ignored `SIGINT` shrugged it off entirely). Hosts that want the
+ * old ergonomics must own it explicitly: install a `SIGINT`/`SIGTERM` handler
+ * and `await handle.destroy()` (or `killTree` via `SpawnHandle.kill`) from it —
+ * which is what `withSandbox`'s `onAbort` already does.
  */
 const spawnDetached = process.platform !== 'win32'
 
@@ -868,12 +881,26 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   /**
-   * Tear the sandbox down. When the backing dir is ours to remove, the children
-   * MUST go first and their exit MUST be confirmed: their CWD is that dir, and
-   * a `rm` that races the OS releasing the handle fails with `EBUSY` on
-   * Windows. That race was observable — `ai-acp` and `ai-grok-build` both lost
-   * tests per run to `EBUSY … rmdir` — and it is the same failure shape as the
-   * `killTree` work: a teardown that returned before the OS had caught up.
+   * Tear the sandbox down: kill the process tree we own, then (only if the dir
+   * is ours) remove it.
+   *
+   * THE KILL IS UNCONDITIONAL, and must stay that way. `removeOnDestroy` is a
+   * statement about the DIRECTORY — "this root is mine to delete" — and says
+   * nothing about the processes. Gating {@link terminateChildren} behind it made
+   * `destroy()` return immediately for the natural configuration of an app
+   * pointed at its own checkout (`dir` set ⇒ `removeOnDestroy` defaults false),
+   * leaving the whole spawned tree alive and holding its ports. Closing an IO
+   * stream does not kill an in-sandbox process — that premise is stated
+   * explicitly by `withSandbox`'s `onAbort` — so `terminateChildren` IS the only
+   * thing that ends them, and it is exactly the leak the `killTree` work exists
+   * to close.
+   *
+   * When the backing dir IS ours to remove, the children must additionally go
+   * first and their exit MUST be confirmed: their CWD is that dir, and a `rm`
+   * that races the OS releasing the handle fails with `EBUSY` on Windows. That
+   * race was observable — `ai-acp` and `ai-grok-build` both lost tests per run
+   * to `EBUSY … rmdir` — and it is the same failure shape as the `killTree`
+   * work: a teardown that returned before the OS had caught up.
    *
    * COST, measured on Windows 11 and deliberately accepted: when a child really
    * is still alive this takes SECONDS (`sh -c ps` ~1.9s plus `taskkill /T`
@@ -887,8 +914,8 @@ export class LocalProcessHandle implements SandboxHandle {
    * process tree that outlives the run.
    */
   async destroy(): Promise<void> {
-    if (!this.options.removeOnDestroy) return
     await this.terminateChildren()
+    if (!this.options.removeOnDestroy) return
     await removeDirWithRetry(this.root, this.options.logger)
   }
 }

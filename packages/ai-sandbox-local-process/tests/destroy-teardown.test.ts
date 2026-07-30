@@ -130,6 +130,49 @@ describe('destroy waits for the handle instead of racing it', () => {
     await sbx.destroy()
     expect(await fsp.stat(dir).then((s) => s.isDirectory())).toBe(true)
   })
+
+  // The regression this pins: `terminateChildren()` used to sit BEHIND the
+  // `removeOnDestroy` guard, so `destroy()` on a sandbox pointed at an existing
+  // dir (`dir` set ⇒ `removeOnDestroy` defaults false — the natural setting for
+  // an app working in its own checkout) returned immediately and the whole
+  // spawned tree survived, holding its ports. Killing the tree is not a
+  // consequence of deleting a directory.
+  it('terminates children even when removeOnDestroy is false, and keeps the dir', async () => {
+    const dir = path.join(baseDir, 'kept-with-child')
+    await fsp.mkdir(dir, { recursive: true })
+    const logger = capturingLogger()
+    const provider = localProcessSandbox({ dir, logger })
+    const sbx = await provider.create({})
+    // `removeOnDestroy` really is off for this configuration — otherwise this
+    // test would be re-testing the case above.
+    expect(sbx.id).toBe(path.resolve(dir))
+
+    const proc = await sbx.process.spawn(
+      `node -e "console.log('up'); setTimeout(() => {}, 30000)"`,
+      { cwd: '/workspace' },
+    )
+    expect(proc.pid).toBeGreaterThan(0)
+    let announced = false
+    for await (const chunk of proc.stdout) {
+      if (chunk.includes('up')) {
+        announced = true
+        break
+      }
+    }
+    // Guard the guard: with nothing alive, "it is gone afterwards" is vacuous.
+    expect(announced).toBe(true)
+    expect(isAlive(proc.pid)).toBe(true)
+
+    await sbx.destroy()
+
+    // Both halves: the tree is gone…
+    expect(isAlive(proc.pid)).toBe(false)
+    expect(
+      logger.warnings.filter((w) => /still running/.test(w.message)),
+    ).toEqual([])
+    // …and the dir we were told not to remove SURVIVES.
+    expect(await fsp.stat(dir).then((s) => s.isDirectory())).toBe(true)
+  }, 30_000)
 })
 
 describe('removeDirWithRetry', () => {

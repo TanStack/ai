@@ -48,11 +48,40 @@ export const DOCKER_CAPS: SandboxCapabilities = {
   // the container itself was removed). That is precisely the orphan leak this
   // capability promises callers is impossible, and `journal-reader` reads it to
   // choose its `'follow'` (killable) vs `'poll'` strategy.
+  //
+  // WHY `true` IS EARNED HERE, when the same audit flipped Vercel and Daytona
+  // to `false`. Those two could not distinguish a refused kill from a successful
+  // one, so their `true` was a claim no observation could contradict. This one
+  // is falsifiable in three independent ways, and each is exercised by a test:
+  //   1. `kill()` AWAITS the in-container kill, so its resolution means the
+  //      container was asked and answered — not that a request was queued.
+  //   2. `killRecordedPidCommand` VERIFIES with `kill -0` after escalating to
+  //      `SIGKILL` and prints a marker on stderr when the process is still
+  //      there; `killRecordedPid` turns that into a `logger.warn`. A kill this
+  //      handle could not perform is therefore reported, not assumed.
+  //   3. `docker.test.ts` asks the container's own `ps` whether the probe is
+  //      gone — evidence from the kernel, not from this constant.
+  // If the pid was never recorded (the process died before its `echo $$`, or the
+  // exec never started) that too is reported, via `KILL_NO_PID_MARKER`. The
+  // residual gap is honest and narrow: a kill can still be refused, and then
+  // this flag is optimistic — but the refusal is visible in the log rather than
+  // silent, which is exactly the property the other two providers lacked.
   killableProcesses: true,
   snapshots: true,
   networkPolicy: false,
   durableFilesystem: true, // container fs persists across stop/start (not removal)
   fork: true,
+}
+
+/**
+ * Sink for non-fatal teardown diagnostics — currently a kill the container
+ * refused or could not confirm. Structurally identical to
+ * `ai-sandbox-local-process`'s `LocalProcessLogger` and satisfied as-is by
+ * `@tanstack/ai`'s `InternalLogger`, so a consumer can pass the logger it
+ * already has without this package depending on it.
+ */
+export interface DockerLogger {
+  warn: (message: string, meta?: Record<string, unknown>) => void
 }
 
 /** POSIX single-quote escape for embedding paths in `sh -c`. */
@@ -61,8 +90,21 @@ function q(value: string): string {
 }
 
 /**
+ * Marker the kill shell prints on stderr when it could not signal the process.
+ *
+ * The kill shell must never FAIL (see {@link killRecordedPidCommand}), so its
+ * exit code carries no information — a refusal has to be reported in-band or it
+ * is invisible. This is the token {@link DockerHandle.killRecordedPid} greps for
+ * in order to warn.
+ */
+const KILL_FAILED_MARKER = 'tanstack-sandbox-kill-failed'
+
+/** Marker printed when the pid file never materialised (see the race note). */
+const KILL_NO_PID_MARKER = 'tanstack-sandbox-kill-no-pid'
+
+/**
  * Wrap `command` so the container-side process records its own pid to
- * `pidFile` before becoming the command.
+ * `pidFile` before becoming the command, and removes that file when it exits.
  *
  * This is what makes killing possible at all. `stream.destroy()` on the
  * hijacked exec stream only detaches the CLIENT; the exec's process keeps
@@ -72,7 +114,10 @@ function q(value: string): string {
  *
  * `exec` matters: without it the recorded pid would be a wrapper shell, and
  * killing that shell would leave the real command behind — the exact leak shape
- * this is here to prevent.
+ * this is here to prevent. It is also why the file cannot be cleaned up from
+ * inside: `exec` replaces this shell, so no `trap` of ours can ever run. The
+ * wrapper's owner removes the file from the host instead, on whichever of its
+ * two exits happens — see {@link DockerHandle.removePidFile}.
  */
 function pidRecordingCommand(command: string, pidFile: string): string {
   return `echo $$ > ${q(pidFile)}; exec sh -c ${q(command)}`
@@ -95,6 +140,30 @@ function killSignalArg(signal?: NodeJS.Signals | number): string {
 }
 
 /**
+ * How long the kill shell will wait for the pid file to appear, and how often it
+ * re-checks. `container.exec()`/`exec.start()` resolve as soon as the DAEMON has
+ * accepted the exec — the container-side shell has not necessarily run its first
+ * statement yet, so `pidRecordingCommand`'s `echo $$ > file` may not have
+ * happened when a prompt `kill()` arrives.
+ *
+ * That window is not hypothetical: `journal-reader` kills its follower the
+ * instant its abort fires, which can be within a millisecond of the spawn. With
+ * a bare `cat`, `$pid` came back empty, `[ -n "$pid" ]` was false, NOTHING was
+ * signalled, and `stream.destroy()` merely detached the client — restoring
+ * exactly the silent-orphan leak this whole mechanism exists to remove, for the
+ * fast-abort case only (which is the common one).
+ *
+ * 2s at 50ms is ~40 attempts: generous next to the milliseconds a shell needs to
+ * run one `echo`, and bounded so a genuinely-never-written file (the exec failed
+ * to start at all) still reports rather than hanging teardown.
+ */
+const PID_WAIT_TIMEOUT_MS = 2000
+const PID_WAIT_INTERVAL_MS = 50
+
+/** Grace period between the requested signal and the unconditional `KILL`. */
+const KILL_ESCALATION_DELAY_MS = 200
+
+/**
  * Shell that signals the pid recorded in `pidFile`, then removes the file.
  *
  * The process GROUP is signalled first (`kill -SIG -<pid>`): a docker-exec
@@ -104,23 +173,58 @@ function killSignalArg(signal?: NodeJS.Signals | number): string {
  * signalled instead. Either way we escalate to `KILL`, because a process
  * ignoring `TERM` is still a leak.
  *
- * Every step is `|| true`-shaped (`2>/dev/null`, trailing `:`) so teardown can
- * never fail: callers are `kill()` and abort handlers, where a throw would wedge
- * the caller instead of freeing anything.
+ * IT WAITS FOR THE PID FILE. See {@link PID_WAIT_TIMEOUT_MS} — a prompt kill
+ * races the container-side `echo $$`, and losing that race used to mean sending
+ * no signal at all.
+ *
+ * IT STILL CANNOT FAIL, BUT IT DOES REPORT. Every step stays `|| true`-shaped
+ * (`2>/dev/null`, trailing `:`) because callers are `kill()` and abort handlers,
+ * where a throw would wedge the caller instead of freeing anything — so the exit
+ * code is uninformative BY DESIGN and must not be the only evidence. That was
+ * the previous version's real defect: a refused kill (no `kill` builtin,
+ * permissions, a pid that was never recorded) was indistinguishable from
+ * success, which is precisely the unfalsifiability that flipped Vercel and
+ * Daytona to `killableProcesses: false`. So the shell now:
+ *
+ * - prints {@link KILL_NO_PID_MARKER} when the pid file never appeared;
+ * - VERIFIES with `kill -0` after the escalation and prints
+ *   {@link KILL_FAILED_MARKER} if the process is still there.
+ *
+ * `kill -0` is what makes the success claim falsifiable: it answers "is it gone"
+ * from the container's own kernel rather than from the exit status of a command
+ * that was built never to fail. {@link DockerHandle.killRecordedPid} turns either
+ * marker into a logger warning.
  */
 function killRecordedPidCommand(
   pidFile: string,
   signal?: NodeJS.Signals | number,
 ): string {
   const sig = killSignalArg(signal)
+  const f = q(pidFile)
+  const attempts = Math.ceil(PID_WAIT_TIMEOUT_MS / PID_WAIT_INTERVAL_MS)
+  const sleepStep = (PID_WAIT_INTERVAL_MS / 1000).toFixed(3)
   return [
-    `pid=$(cat ${q(pidFile)} 2>/dev/null)`,
+    // Bounded wait for `pidRecordingCommand`'s `echo $$ > file` to land.
+    `pid=''`,
+    `i=0`,
+    `while [ "$i" -lt ${attempts} ]; do`,
+    `  pid=$(cat ${f} 2>/dev/null)`,
+    `  [ -n "$pid" ] && break`,
+    `  sleep ${sleepStep}`,
+    `  i=$((i+1))`,
+    `done`,
     `if [ -n "$pid" ]; then`,
     `  kill -${sig} -"$pid" 2>/dev/null || kill -${sig} "$pid" 2>/dev/null`,
-    `  sleep 0.2`,
+    `  sleep ${(KILL_ESCALATION_DELAY_MS / 1000).toFixed(3)}`,
     `  kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null`,
+    // Verify, do not assume: ask the kernel whether the pid is still there.
+    `  if kill -0 "$pid" 2>/dev/null; then`,
+    `    echo ${KILL_FAILED_MARKER} pid="$pid" >&2`,
+    `  fi`,
+    `else`,
+    `  echo ${KILL_NO_PID_MARKER} file=${f} >&2`,
     `fi`,
-    `rm -f ${q(pidFile)}`,
+    `rm -f ${f}`,
     `:`,
   ].join('\n')
 }
@@ -156,6 +260,12 @@ export interface DockerHandleDeps {
   forkFactory: (sourceContainerId: string) => Promise<SandboxHandle>
   /** Remove the container on destroy (vs. just stop). */
   removeOnDestroy: boolean
+  /**
+   * Sink for non-fatal teardown diagnostics — a kill the container refused or
+   * could not confirm. Teardown never throws, so without a logger those are
+   * silent and `killableProcesses: true` becomes unfalsifiable.
+   */
+  logger?: DockerLogger
 }
 
 export class DockerHandle implements SandboxHandle {
@@ -173,12 +283,14 @@ export class DockerHandle implements SandboxHandle {
   private readonly container: Dockerode.Container
   private readonly workdir: string
   private readonly deps: DockerHandleDeps
+  private readonly logger: DockerLogger | undefined
   private readonly envVars: Record<string, string> = {}
 
   constructor(deps: DockerHandleDeps) {
     this.docker = deps.docker
     this.container = deps.container
     this.workdir = deps.workdir
+    this.logger = deps.logger
     this.workspaceRoot = deps.workdir
     this.deps = deps
     this.id = deps.container.id
@@ -272,18 +384,68 @@ export class DockerHandle implements SandboxHandle {
   }
 
   /**
-   * Signal the container-side process that recorded its pid to `pidFile`.
-   * Fire-and-forget by design: this runs from teardown paths (`kill()`, abort
-   * handlers) that must not throw, and the caller has already stopped caring
-   * about the process.
+   * Signal the container-side process that recorded its pid to `pidFile`, and
+   * REPORT anything that says the process may still be alive.
+   *
+   * AWAITABLE, and callers on the `kill()` path must await it. It used to be
+   * fire-and-forget (`void this.exec(...)`), which meant `await proc.kill()`
+   * resolved before the container had been asked to do anything — so the
+   * documented ordering of `await proc.kill(); await handle.destroy()` did not
+   * hold, and a caller could not know whether the kill had even been attempted.
+   *
+   * NEVER THROWS. The container may already be stopping — itself a terminal kill
+   * of everything inside it — and this runs from teardown paths where a
+   * rejection would wedge the caller instead of freeing anything. But "does not
+   * throw" is not "cannot be observed to fail": a refusal reported by the shell
+   * (see {@link killRecordedPidCommand}) or a rejected exec both reach the
+   * logger, so an unkillable process is visible rather than silently assumed
+   * dead.
    */
-  private killRecordedPid(
+  private async killRecordedPid(
     pidFile: string,
     signal?: NodeJS.Signals | number,
-  ): void {
-    void this.exec(killRecordedPidCommand(pidFile, signal)).catch(() => {
-      // Nothing actionable: the container may already be stopping, which is
-      // itself a terminal kill of everything inside it.
+  ): Promise<void> {
+    let result: ExecResult
+    try {
+      result = await this.exec(killRecordedPidCommand(pidFile, signal))
+    } catch (error) {
+      this.logger?.warn('docker: could not run the in-container kill', {
+        pidFile,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
+    if (result.stderr.includes(KILL_FAILED_MARKER)) {
+      this.logger?.warn(
+        'docker: in-container process survived the kill; it may be orphaned',
+        { pidFile, stderr: result.stderr.trim() },
+      )
+    } else if (result.stderr.includes(KILL_NO_PID_MARKER)) {
+      // The pid file never appeared within `PID_WAIT_TIMEOUT_MS`, so NO signal
+      // was sent. Nothing here can fix that; saying so is the whole point.
+      this.logger?.warn(
+        'docker: no pid was recorded for this process, so it could not be signalled',
+        { pidFile, stderr: result.stderr.trim() },
+      )
+    }
+  }
+
+  /**
+   * Remove a pid file whose owner has exited on its own.
+   *
+   * `killRecordedPidCommand` already removes it on the kill path, which covered
+   * only killed processes: every signal-bearing `exec` and every `spawn` wrote
+   * one, and a normally-exiting command left it in `/tmp` for the life of the
+   * container. Being dot-prefixed, `journalListCommand`'s `ls -1` never showed
+   * them, so the accumulation was silent.
+   *
+   * Fire-and-forget on purpose — it runs from stream-completion handlers, races
+   * a container that may already be gone, and a leftover file in a doomed
+   * container's `/tmp` is not worth failing or delaying anything for.
+   */
+  private removePidFile(pidFile: string): void {
+    void this.exec(`rm -f ${q(pidFile)}`).catch(() => {
+      // Container already stopped/removed — its whole `/tmp` went with it.
     })
   }
 
@@ -325,13 +487,19 @@ export class DockerHandle implements SandboxHandle {
     })
     this.docker.modem.demuxStream(stream, outW, errW)
 
+    let aborted = false
     if (opts?.signal) {
       opts.signal.addEventListener(
         'abort',
         () => {
+          aborted = true
           // Kill inside the container FIRST — detaching the stream on its own
-          // leaves the command running (see `pidRecordingCommand`).
-          if (pidFile) this.killRecordedPid(pidFile)
+          // leaves the command running (see `pidRecordingCommand`). This one
+          // handler cannot await (an `AbortSignal` listener is synchronous), so
+          // the kill is dispatched and its own reporting is left to
+          // `killRecordedPid`'s logger. `SpawnHandle.kill` — the path a caller
+          // sequences teardown on — DOES await.
+          if (pidFile) void this.killRecordedPid(pidFile)
           stream.destroy()
         },
         { once: true },
@@ -345,6 +513,11 @@ export class DockerHandle implements SandboxHandle {
       stream.on('close', resolve)
       stream.on('error', reject)
     })
+
+    // The wrapper exited on its own, so nothing will ever read its pid file
+    // again. On the abort path `killRecordedPidCommand` removes it instead —
+    // removing it here too would race that kill's `cat`.
+    if (pidFile !== undefined && !aborted) this.removePidFile(pidFile)
 
     const info = await exec.inspect()
     return {
@@ -386,11 +559,20 @@ export class DockerHandle implements SandboxHandle {
     stream.on('end', endOutputs)
     stream.on('close', endOutputs)
     stream.on('error', endOutputs)
+    // `kill()`/abort own the pid file (their shell removes it, after reading it);
+    // this covers the process that simply exits, whose file nothing would ever
+    // clean up. `end` fires only on a clean EOF, never on a destroyed stream.
+    let killRequested = false
+    stream.on('end', () => {
+      if (!killRequested) this.removePidFile(pidFile)
+    })
     if (opts?.signal) {
       opts.signal.addEventListener(
         'abort',
         () => {
-          this.killRecordedPid(pidFile)
+          // Synchronous listener — cannot await. See the twin comment in `exec`.
+          killRequested = true
+          void this.killRecordedPid(pidFile)
           stream.destroy()
         },
         { once: true },
@@ -427,12 +609,31 @@ export class DockerHandle implements SandboxHandle {
         const info = await exec.inspect()
         return info.ExitCode ?? 0
       },
-      kill: (signal) => {
-        // Signal the container-side process, THEN detach. Detaching alone would
-        // leave it running (see `pidRecordingCommand`) — a silent orphan leak.
-        this.killRecordedPid(pidFile, signal)
+      /**
+       * Kill the container-side process, THEN detach. Detaching alone would
+       * leave it running (see `pidRecordingCommand`) — a silent orphan leak.
+       *
+       * AWAITS the in-container kill, so when this resolves the container has
+       * been asked and has answered. It previously returned an
+       * already-resolved promise while the kill was still in flight, which gave
+       * `await proc.kill(); await handle.destroy()` no ordering at all.
+       *
+       * ESCALATES TO `SIGKILL` unconditionally, {@link KILL_ESCALATION_DELAY_MS}
+       * after `signal`. This is a teardown primitive, not a graceful-shutdown
+       * one: a process that ignores `TERM` is a leak, and the container-side pid
+       * is the only handle we have on it. A `signal` argument therefore selects
+       * WHICH signal the process gets a brief chance to handle — NOT whether it
+       * may take its time. A handler needing longer than that must be given its
+       * time before calling this (send the signal yourself and await the
+       * process's own exit via {@link SpawnHandle.wait}).
+       *
+       * Never rejects — see `killRecordedPid`. A kill the container refused is
+       * reported through the handle's `logger`, not thrown.
+       */
+      kill: async (signal) => {
+        killRequested = true
+        await this.killRecordedPid(pidFile, signal)
         stream.destroy()
-        return Promise.resolve()
       },
     }
   }

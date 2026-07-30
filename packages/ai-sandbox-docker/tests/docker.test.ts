@@ -120,6 +120,193 @@ describe.skipIf(!dockerAvailable)(
       }
     }, 120_000)
 
+    // Three properties that together are what makes `killableProcesses: true`
+    // more than an assertion. Each fails on its own if the corresponding half of
+    // the fix is reverted.
+    it('kill() awaits the in-container kill instead of firing it and forgetting', async () => {
+      const provider = dockerSandbox({ image: IMAGE })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+        const handle = sbx
+        const probeRows = async (): Promise<string> =>
+          (
+            await handle.process.exec(
+              `ps | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
+            )
+          ).stdout.trim()
+
+        const proc = await handle.process.spawn(
+          `echo up; sleep ${KILL_PROBE_SLEEP}`,
+        )
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('up')) break
+        }
+        expect(await probeRows()).toContain(KILL_PROBE_SLEEP)
+
+        const started = Date.now()
+        await proc.kill()
+        const elapsed = Date.now() - started
+
+        // THE DISCRIMINATOR IS THE CLOCK, not the process table. The kill shell
+        // signals, then sleeps `KILL_ESCALATION_DELAY_MS` (200ms) before
+        // escalating to SIGKILL and verifying with `kill -0`, so a `kill()` that
+        // genuinely awaits it CANNOT resolve faster than that grace period. One
+        // that fires and forgets (`void this.exec(...)` then
+        // `Promise.resolve()`) resolves in ~1ms without a single round trip.
+        //
+        // Asserting on the process table instead does NOT distinguish the two:
+        // measured, a fire-and-forget kill still beats the `ps` probe, because
+        // the probe needs its own `container.exec()` + `exec.start()` round
+        // trips (~5ms each) and the kill was dispatched first. The sibling test
+        // above already covers "it dies"; this one covers "we waited for it".
+        expect(elapsed).toBeGreaterThanOrEqual(150)
+
+        // …and having waited, the ordering `await proc.kill(); <next step>`
+        // really does hold: no polling, no retry loop, gone right now.
+        expect(await probeRows()).toBe('')
+      } finally {
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
+    it('reports a kill it could not perform instead of resolving as if it worked', async () => {
+      const warnings: Array<{
+        message: string
+        meta?: Record<string, unknown>
+      }> = []
+      const provider = dockerSandbox({
+        image: IMAGE,
+        logger: {
+          warn: (message, meta) => {
+            warnings.push({ message, meta })
+          },
+        },
+      })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+        const handle = sbx
+        // Drive the unperformable case: delete the pid file out from under a
+        // live spawn, which is exactly the shape of "this process never recorded
+        // a pid" (its exec never started, or it died before its `echo $$`). The
+        // kill shell then waits, finds nothing, and sends NO signal.
+        //
+        // Asserting only that `kill()` RESOLVED would pass against a kill that
+        // did nothing at all — the shell is built never to fail, so its exit
+        // code carries no information by design. The logger is the only channel
+        // that can carry it, which is why the assertion is on the logger.
+        const proc = await handle.process.spawn(
+          `echo up; sleep ${KILL_PROBE_SLEEP}`,
+        )
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('up')) break
+        }
+        // Guard the guard: there WAS a pid file, so its absence below is our
+        // doing and not a mechanism that never wrote one.
+        const listed = await handle.process.exec(
+          'ls -1 /tmp/.tanstack-sandbox-spawn-*.pid',
+        )
+        expect(listed.stdout.trim()).not.toBe('')
+        await handle.process.exec('rm -f /tmp/.tanstack-sandbox-spawn-*.pid')
+
+        await proc.kill()
+
+        // The kill could not be performed, and that fact is VISIBLE.
+        expect(
+          warnings.some((w) => /no pid was recorded/.test(w.message)),
+        ).toBe(true)
+      } finally {
+        // The probe outlives the un-performable kill by construction; removing
+        // the container is what actually ends it.
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
+    it('kills a process that is killed before its pid file can exist (the fast-abort race)', async () => {
+      const provider = dockerSandbox({ image: IMAGE })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+        const handle = sbx
+        const probeRows = async (): Promise<string> =>
+          (
+            await handle.process.exec(
+              `ps | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
+            )
+          ).stdout.trim()
+
+        // NO waiting for output this time — that is the whole test.
+        // `container.exec()`/`exec.start()` resolve once the DAEMON accepts the
+        // exec; the container-side shell has not necessarily run its `echo $$`
+        // yet. `journal-reader` kills its follower this promptly on abort.
+        //
+        // With a bare `cat` on the pid file, `$pid` is empty here, `[ -n "$pid" ]`
+        // is false, NO signal is sent, and `stream.destroy()` only detaches the
+        // client — the exact pre-fix orphan. The bounded retry in
+        // `killRecordedPidCommand` is what closes it.
+        const proc = await handle.process.spawn(
+          `echo up; sleep ${KILL_PROBE_SLEEP}`,
+        )
+        await proc.kill()
+
+        // BusyBox `ps` prints argv, so a survivor is attributable to this test
+        // by its unique sleep duration. Poll: the racing shell may not have
+        // reached `sleep` yet when kill() ran, in which case the kill lands on
+        // its group and the process never appears at all — either way nothing
+        // may be running once things settle.
+        for (let i = 0; i < 12; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          expect(await probeRows()).toBe('')
+        }
+      } finally {
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
+    it('does not leak a pid file per spawn / per signal-bearing exec', async () => {
+      const provider = dockerSandbox({ image: IMAGE })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+        const handle = sbx
+        /** Every pid file the wrapper mechanism could have left in /tmp. */
+        const pidFiles = async (): Promise<string> =>
+          (
+            await handle.process.exec(
+              'ls -1 /tmp/.tanstack-sandbox-*.pid 2>/dev/null || true',
+            )
+          ).stdout.trim()
+
+        // `rm -f` used to run ONLY on the kill path, so a normally-exiting
+        // process left its file behind for the life of the container. The
+        // dot-prefix means `journalListCommand`'s `ls -1` never surfaced them,
+        // making the accumulation silent and unbounded.
+        const proc = await handle.process.spawn('echo done')
+        for await (const _chunk of proc.stdout) {
+          // drain to EOF — the cleanup hangs off the stream's `end`
+        }
+        expect(await proc.wait()).toBe(0)
+
+        // A signal-bearing exec writes one too (a plain fs-backing exec does
+        // not, and must not start paying for a kill path it never uses).
+        const ac = new AbortController()
+        const ran = await handle.process.exec('echo ok', { signal: ac.signal })
+        expect(ran.stdout.trim()).toBe('ok')
+
+        // The removals are dispatched fire-and-forget from stream completion,
+        // so allow them a beat to land before asserting.
+        let leftovers = await pidFiles()
+        for (let i = 0; i < 20 && leftovers !== ''; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          leftovers = await pidFiles()
+        }
+        expect(leftovers).toBe('')
+      } finally {
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
     it('resumes a running container by id and streams a spawned process', async () => {
       const provider = dockerSandbox({ image: IMAGE })
       let sbx: SandboxHandle | undefined
