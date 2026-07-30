@@ -122,8 +122,13 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
   dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
-  /** Identity of the in-flight run while one is streaming, or null after it ends */
-  readonly resumeState: GenerationResumeState | null
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  readonly runId: string | null
 }
 
 /**
@@ -184,8 +189,8 @@ export function createGenerateVideo<TTransformed = void>(
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
-  let resumeState = $state<GenerationResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
+  let runId = $state<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
   )
   let disposed = false
 
@@ -261,7 +266,7 @@ export function createGenerateVideo<TTransformed = void>(
     },
     onResumeStateChange: (rs: GenerationResumeState | null) => {
       if (disposed) return
-      resumeState = rs
+      runId = rs?.runId ?? null
     },
   }
 
@@ -343,8 +348,8 @@ export function createGenerateVideo<TTransformed = void>(
     reset,
     dispose,
     updateBody,
-    get resumeState() {
-      return resumeState
+    get runId() {
+      return runId
     },
   }
 }

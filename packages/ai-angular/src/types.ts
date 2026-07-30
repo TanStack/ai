@@ -77,6 +77,7 @@ export type InjectChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'onQueueChange'
+  | 'onRunIdChange'
   | 'context'
   | 'devtools'
   | 'body'
@@ -147,6 +148,18 @@ interface BaseInjectChatResult<
     id: string
     approved: boolean
   }) => Promise<void>
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
   interrupts: Signal<BoundInterrupts<TTools>>
   /** @deprecated Use `interrupts`. */

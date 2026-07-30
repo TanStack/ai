@@ -127,8 +127,13 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
-  /** Identity of the in-flight run while one is streaming, or null after it ends */
-  resumeState: DeepReadonly<ShallowRef<GenerationResumeState | null>>
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: DeepReadonly<ShallowRef<string | null>>
 }
 
 /**
@@ -188,8 +193,8 @@ export function useGenerateVideo<TTransformed = void>(
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
-  const resumeState = shallowRef<GenerationResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
+  const runId = shallowRef<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
   )
   let disposed = false
 
@@ -264,7 +269,7 @@ export function useGenerateVideo<TTransformed = void>(
     },
     onResumeStateChange: (rs: GenerationResumeState | null) => {
       if (disposed) return
-      resumeState.value = rs
+      runId.value = rs?.runId ?? null
     },
   }
 
@@ -336,6 +341,6 @@ export function useGenerateVideo<TTransformed = void>(
     status: readonly(status),
     stop,
     reset,
-    resumeState: readonly(resumeState),
+    runId: readonly(runId),
   }
 }

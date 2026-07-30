@@ -59,9 +59,7 @@ export function useChat<
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
   const queue = shallowRef<Array<QueuedMessage>>([])
-  const resumeState = shallowRef<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  const runId = shallowRef<string | null>(null)
   const interruptState = shallowRef<ChatInterruptState<TTools>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -163,8 +161,8 @@ export function useChat<
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue.value = nextQueue
     },
-    onResumeStateChange: (nextResumeState) => {
-      resumeState.value = nextResumeState
+    onRunIdChange: (nextRunId) => {
+      runId.value = nextRunId
     },
     onInterruptStateChange: (nextInterruptState) => {
       interruptState.value = nextInterruptState
@@ -173,7 +171,7 @@ export function useChat<
   })
 
   function syncResumeState() {
-    resumeState.value = client.getResumeState()
+    runId.value = client.getCurrentRunId()
     interruptState.value = client.getInterruptState()
   }
 
@@ -399,7 +397,7 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
-    resumeState: readonly(resumeState),
+    runId: readonly(runId),
     interrupts: readonly(interrupts),
     pendingInterrupts: readonly(pendingInterrupts),
     interruptErrors: readonly(interruptErrors),

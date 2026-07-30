@@ -19,7 +19,6 @@ import type {
   GenerationPersistenceOptions,
   GenerationRestoredResult,
   GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
@@ -132,8 +131,13 @@ export interface UseGenerationReturn<
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
-  /** Identity of the in-flight run while one is streaming, or null after it ends */
-  resumeState: Accessor<GenerationResumeState | null>
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: Accessor<string | null>
 }
 
 /**
@@ -185,10 +189,9 @@ export function useGeneration<
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
-  const [resumeState, setResumeState] =
-    createSignal<GenerationResumeState | null>(
-      options.initialResumeSnapshot?.resumeState ?? null,
-    )
+  const [runId, setRunId] = createSignal<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
+  )
   let disposed = false
 
   // Built once. `untrack` keeps the option reads below from subscribing
@@ -251,7 +254,7 @@ export function useGeneration<
         if (!disposed) setStatus(s)
       },
       onResumeStateChange: (rs) => {
-        if (!disposed) setResumeState(rs)
+        if (!disposed) setRunId(rs?.runId ?? null)
       },
     }
 
@@ -314,6 +317,6 @@ export function useGeneration<
     status,
     stop,
     reset,
-    resumeState,
+    runId,
   }
 }

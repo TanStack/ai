@@ -410,11 +410,8 @@ describe('useGeneration', () => {
       expect(persistence.getItem).not.toHaveBeenCalled()
       expect(result.current.isLoading).toBe(false)
       expect(result.current.status).toBe('idle')
-      // The persisted snapshot is still exposed as display state.
-      expect(result.current.resumeState).toEqual({
-        threadId: 'thread-resume',
-        runId: 'run-resume',
-      })
+      // The persisted run id is still exposed as display state.
+      expect(result.current.runId).toBe('run-resume')
     })
   })
 
@@ -450,7 +447,7 @@ describe('useGeneration', () => {
       expect(connect).not.toHaveBeenCalled()
       // The base hook injects no reconstructResult, so `result` stays null.
       expect(result.current.result).toBeNull()
-      expect(result.current.resumeState).toBeNull()
+      expect(result.current.runId).toBeNull()
     })
 
     it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
@@ -481,7 +478,7 @@ describe('useGeneration', () => {
       // Without a `joinRun` handler the restored run cannot be tailed, so it
       // surfaces as an interrupted error instead of a `generating` status
       // that would never settle.
-      expect(result.current.resumeState).toBeNull()
+      expect(result.current.runId).toBeNull()
       expect(result.current.status).toBe('error')
       expect(result.current.isLoading).toBe(false)
       expect(connect).not.toHaveBeenCalled()
@@ -555,7 +552,7 @@ describe('useGeneration', () => {
         expect(result.current.status).toBe('success')
       })
       // Once the run ends the in-flight identity is gone.
-      expect(result.current.resumeState).toBeNull()
+      expect(result.current.runId).toBeNull()
     })
   })
 })
@@ -700,7 +697,7 @@ describe('useGenerateImage', () => {
       images: [{ url: '/api/artifacts/artifact-image-1' }],
       artifacts: [artifact],
     })
-    expect(result.current.resumeState).toBeNull()
+    expect(result.current.runId).toBeNull()
   })
 })
 
@@ -1052,7 +1049,7 @@ describe('useGenerateVideo', () => {
     expect(result.current.isLoading).toBe(false)
     expect(result.current.status).toBe('idle')
     // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(result.current.resumeState).toEqual(videoResumeSnapshot.resumeState)
+    expect(result.current.runId).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 })
 

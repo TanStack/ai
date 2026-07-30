@@ -73,6 +73,7 @@ export function injectChat<
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
   const queue = signal<Array<QueuedMessage>>([])
+  const runId = signal<string | null>(null)
   const interruptState = signal<ChatInterruptState<TTools>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -125,6 +126,7 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
+    onRunIdChange: (nextRunId) => runId.set(nextRunId),
     onResumeStateChange: (resumeState, pendingInterrupts) => {
       options.onResumeStateChange?.(resumeState, pendingInterrupts)
     },
@@ -311,6 +313,7 @@ export function injectChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    runId: runId.asReadonly(),
     interrupts,
     pendingInterrupts,
     interruptErrors,

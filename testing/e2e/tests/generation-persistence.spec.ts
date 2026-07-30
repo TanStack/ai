@@ -43,13 +43,13 @@ test.describe('generation persistence (browser refresh)', () => {
     expect(stored).not.toContain('iVBOR')
 
     // Reload: the run restores transparently into status + result; nothing
-    // auto-runs (resumeState stays null) and the image renders from the durable
+    // auto-runs (runId stays null) and the image renders from the durable
     // serve URL, not the inline bytes.
     await page.reload()
     await expect(page.getByTestId('hydration-marker')).toBeAttached()
     await expect(page.getByTestId('status')).toHaveText('success')
     await expect(page.getByTestId('result-id')).toHaveText('image-1')
-    await expect(page.getByTestId('resume-state')).toHaveText('none')
+    await expect(page.getByTestId('run-id')).toHaveText('none')
     await expect(page.getByTestId('generated-image')).toHaveCount(1)
     await expect(page.getByTestId('generated-image')).toHaveAttribute(
       'src',

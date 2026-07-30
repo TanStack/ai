@@ -57,9 +57,7 @@ function GenerationPersistencePage() {
       <div data-testid="status">{image.status}</div>
       <div data-testid="result-id">{image.result?.id ?? 'none'}</div>
       <div data-testid="error">{image.error?.message ?? 'none'}</div>
-      <div data-testid="resume-state">
-        {image.resumeState ? image.resumeState.runId : 'none'}
-      </div>
+      <div data-testid="run-id">{image.runId ?? 'none'}</div>
 
       {image.result?.images.map((img, i) => (
         <img

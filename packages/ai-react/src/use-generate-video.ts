@@ -117,8 +117,13 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
-  /** Identity of the in-flight run while one is streaming, or null after it ends */
-  resumeState: GenerationResumeState | null
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: string | null
 }
 
 /**
@@ -178,8 +183,8 @@ export function useGenerateVideo<TTransformed = void>(
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<GenerationClientState>('idle')
-  const [resumeState, setResumeState] = useState<GenerationResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
+  const [runId, setRunId] = useState<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
   )
 
   const optionsRef = useRef(options)
@@ -254,7 +259,7 @@ export function useGenerateVideo<TTransformed = void>(
         if (!disposedRef.current) setVideoStatus(s)
       },
       onResumeStateChange: (rs: GenerationResumeState | null) => {
-        if (!disposedRef.current) setResumeState(rs)
+        if (!disposedRef.current) setRunId(rs?.runId ?? null)
       },
     }
 
@@ -323,6 +328,6 @@ export function useGenerateVideo<TTransformed = void>(
     status,
     stop,
     reset,
-    resumeState,
+    runId,
   }
 }

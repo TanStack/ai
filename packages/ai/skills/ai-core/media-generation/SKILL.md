@@ -648,19 +648,19 @@ restores `status` / `error` and `result` stays `null`.
 
 All generation hooks return the same shape:
 
-| Property      | Type                            | Description                                      |
-| ------------- | ------------------------------- | ------------------------------------------------ |
-| `generate`    | `(input) => Promise<void>`      | Trigger generation                               |
-| `result`      | `T \| null`                     | Result (optionally transformed via `onResult`)   |
-| `isLoading`   | `boolean`                       | Whether generation is in progress                |
-| `error`       | `Error \| undefined`            | Current error                                    |
-| `status`      | `GenerationClientState`         | `'idle' \| 'generating' \| 'success' \| 'error'` |
-| `stop`        | `() => void`                    | Abort current generation                         |
-| `reset`       | `() => void`                    | Clear state (and any persisted snapshot)         |
-| `resumeState` | `GenerationResumeState \| null` | Identity of the run WHILE it streams; null after |
+| Property    | Type                       | Description                                      |
+| ----------- | -------------------------- | ------------------------------------------------ |
+| `generate`  | `(input) => Promise<void>` | Trigger generation                               |
+| `result`    | `T \| null`                | Result (optionally transformed via `onResult`)   |
+| `isLoading` | `boolean`                  | Whether generation is in progress                |
+| `error`     | `Error \| undefined`       | Current error                                    |
+| `status`    | `GenerationClientState`    | `'idle' \| 'generating' \| 'success' \| 'error'` |
+| `stop`      | `() => void`               | Abort current generation                         |
+| `reset`     | `() => void`               | Clear state (and any persisted snapshot)         |
+| `runId`     | `string \| null`           | Id of the job WHILE it runs; null when idle      |
 
 The hook is **transparent**, mirroring `useChat`: there is no `resumeSnapshot`,
-`pendingArtifacts`, or `resultArtifacts` field. Hooks also accept `persistence`
+`resumeState`, `pendingArtifacts`, or `resultArtifacts` field. Hooks also accept `persistence`
 (a browser storage adapter such as `localStoragePersistence()` — a bare call, no
 type argument) plus a stable `id`: the client then writes a lightweight snapshot
 under `generation:<id>` as the run streams and hydrates it back on mount,

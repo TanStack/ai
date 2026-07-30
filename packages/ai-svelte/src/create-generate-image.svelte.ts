@@ -155,8 +155,8 @@ export function createGenerateImage<TTransformed = void>(
     reset: gen.reset,
     updateBody: gen.updateBody,
     dispose: gen.dispose,
-    get resumeState() {
-      return gen.resumeState
+    get runId() {
+      return gen.runId
     },
   }
 }

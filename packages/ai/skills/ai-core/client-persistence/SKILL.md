@@ -123,14 +123,14 @@ The generation hooks (`useGenerateImage`, `useGenerateVideo`, `useGeneration`,
 transparent, mirroring `useChat`:** whichever mode, a reload repaints the hook's
 **normal** fields — `status` (`'idle'` / `'generating'` / `'success'` /
 `'error'`), `error`, and `result` — as if the run had just finished. There is
-**no** `resumeSnapshot`, `pendingArtifacts`, or `resultArtifacts` field. The one
-extra field is `resumeState`: the in-flight run identity (`{ threadId, runId,
-pendingArtifacts? }`) or `null` — non-null only while a run streams. The
-persisted record holds run identity, status, error, and result metadata (ids,
-model, a provider video job id), **never the generated media bytes**.
+**no** `resumeSnapshot`, `resumeState`, `pendingArtifacts`, or `resultArtifacts`
+field. The one extra field is `runId`: the id of the generation job currently
+running, or `null` when nothing is in flight. The persisted record holds run
+identity, status, error, and result metadata (ids, model, a provider video job
+id), **never the generated media bytes**.
 
 The hook return is exactly `generate` / `result` / `isLoading` / `error` /
-`status` / `stop` / `reset` / `resumeState`.
+`status` / `stop` / `reset` / `runId`.
 
 ### Mode A — client-driven (a storage adapter)
 
@@ -141,8 +141,8 @@ const image = useGenerateImage({
   persistence: localStoragePersistence(), // bare — no type argument
 })
 // After a reload: image.status / image.result / image.error are the last run's
-// outcome, read exactly like a fresh run. image.resumeState is non-null only
-// WHILE a run is streaming.
+// outcome, read exactly like a fresh run. image.runId is non-null only WHILE a
+// run is streaming.
 ```
 
 - The lightweight snapshot is cached in the browser under `generation:<threadId>`
@@ -257,17 +257,18 @@ withGenerationPersistence(persistence, {
 rewrites the live result's media to it, so live and restored results match. The
 durable refs travel on `result.artifacts`; on restore the hook rebuilds `result`
 from them, so `result.images[i].url` (or a video's `result.url`) serves from your
-own origin. Final refs live on `result.artifacts`; in-flight ones on
-`resumeState.pendingArtifacts`. Without byte storage, a reload restores `status`
-/ `error` and `result` stays `null`.
+own origin. `result.artifacts` is the whole artifact surface on the hook.
+Without byte storage, a reload restores `status` / `error` and `result` stays
+`null`.
 
 Common to both modes:
 
 - `stop()` marks the record no longer resumable; `reset()` deletes it (Mode A) or
   clears the in-memory snapshot (Mode B).
 - Nothing auto-runs from a hydrated record — `generate(...)` is always explicit.
-- Use `status` / `result` for a finished run; use `resumeState` to tell that a
-  run was still generating when the page closed.
+- Use `status` / `result` for a finished run; use `runId` to tell that a run was
+  still generating when the page closed, and to name it to your own server (to
+  cancel or poll the provider job — `stop()` only aborts the local stream).
 
 ## Common mistakes
 

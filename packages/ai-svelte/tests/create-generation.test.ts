@@ -274,7 +274,7 @@ describe('createGeneration', () => {
       expect(gen.isLoading).toBe(false)
       expect(gen.status).toBe('idle')
       // The persisted snapshot remains exposed as read-only state.
-      expect(gen.resumeState).toEqual(snapshot.resumeState)
+      expect(gen.runId).toBe(snapshot.resumeState?.runId)
     })
   })
 
@@ -296,7 +296,7 @@ describe('createGeneration', () => {
       })
 
       // Hydration is async — the storage read is awaited off the constructor.
-      expect(gen.resumeState).toBeNull()
+      expect(gen.runId).toBeNull()
       await flushAsync()
 
       expect(persistence.getItem).toHaveBeenCalledTimes(1)
@@ -305,7 +305,7 @@ describe('createGeneration', () => {
       // surfaces as an interrupted error instead of a `generating` status
       // that would never settle.
       expect(gen.error?.message).toMatch(/interrupted/)
-      expect(gen.resumeState).toBeNull()
+      expect(gen.runId).toBeNull()
       expect(gen.status).toBe('error')
       expect(gen.isLoading).toBe(false)
     })
@@ -333,7 +333,7 @@ describe('createGeneration', () => {
       expect(gen.status).toBe('success')
       // The base function injects no reconstructResult, so `result` stays null.
       expect(gen.result).toBeNull()
-      expect(gen.resumeState).toBeNull()
+      expect(gen.runId).toBeNull()
     })
 
     it('clears resumeState and removes the persisted record on reset', async () => {
@@ -356,11 +356,11 @@ describe('createGeneration', () => {
       // The restored running snapshot has no `joinRun` handler, so it
       // surfaces as an interrupted error.
       expect(gen.error?.message).toMatch(/interrupted/)
-      expect(gen.resumeState).toBeNull()
+      expect(gen.runId).toBeNull()
 
       gen.reset()
 
-      expect(gen.resumeState).toBeNull()
+      expect(gen.runId).toBeNull()
 
       await flushAsync()
       expect(persistence.removeItem).toHaveBeenCalledWith('generation:reset-me')
@@ -538,7 +538,7 @@ describe('createGenerateImage', () => {
       images: [{ url: '/api/artifacts/artifact-image-1' }],
       artifacts: [artifact],
     })
-    expect(gen.resumeState).toBeNull()
+    expect(gen.runId).toBeNull()
   })
 })
 
@@ -914,7 +914,7 @@ describe('createGenerateVideo', () => {
     expect(gen.isLoading).toBe(false)
     expect(gen.status).toBe('idle')
     // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(gen.resumeState).toEqual(videoResumeSnapshot.resumeState)
+    expect(gen.runId).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 
   it('should expose generate, stop, reset, and updateBody methods', () => {

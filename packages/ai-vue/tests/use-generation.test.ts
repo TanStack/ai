@@ -286,7 +286,7 @@ describe('useGeneration', () => {
       expect(result.isLoading.value).toBe(false)
       expect(result.status.value).toBe('idle')
       // The persisted snapshot remains exposed as read-only state.
-      expect(result.resumeState.value).toEqual(snapshot.resumeState)
+      expect(result.runId.value).toBe(snapshot.resumeState?.runId)
     })
   })
 
@@ -375,7 +375,7 @@ describe('useGeneration', () => {
       expect(connect).not.toHaveBeenCalled()
       // The base hook injects no reconstructResult, so `result` stays null.
       expect(result.result.value).toBeNull()
-      expect(result.resumeState.value).toBeNull()
+      expect(result.runId.value).toBeNull()
     })
 
     it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
@@ -403,7 +403,7 @@ describe('useGeneration', () => {
       // surfaces as an interrupted error instead of a `generating` status
       // that would never settle.
       expect(result.error.value?.message).toMatch(/interrupted/)
-      expect(result.resumeState.value).toBeNull()
+      expect(result.runId.value).toBeNull()
       expect(result.status.value).toBe('error')
       expect(result.isLoading.value).toBe(false)
       expect(connect).not.toHaveBeenCalled()
@@ -455,7 +455,7 @@ describe('useGeneration', () => {
 
       expect(result.status.value).toBe('success')
       // Once the run ends the in-flight identity is gone.
-      expect(result.resumeState.value).toBeNull()
+      expect(result.runId.value).toBeNull()
     })
   })
 
@@ -622,7 +622,7 @@ describe('useGenerateImage', () => {
       images: [{ url: '/api/artifacts/artifact-image-1' }],
       artifacts: [artifact],
     })
-    expect(result.resumeState.value).toBeNull()
+    expect(result.runId.value).toBeNull()
   })
 })
 
@@ -1055,7 +1055,7 @@ describe('useGenerateVideo', () => {
     expect(result.isLoading.value).toBe(false)
     expect(result.status.value).toBe('idle')
     // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(result.resumeState.value).toEqual(videoResumeSnapshot.resumeState)
+    expect(result.runId.value).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 
   it('should require either connection or fetcher', () => {

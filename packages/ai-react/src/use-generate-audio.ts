@@ -10,7 +10,6 @@ import type {
   GenerationPersistence,
   GenerationPersistenceOptions,
   GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
@@ -108,8 +107,13 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
-  /** Identity of the in-flight run while one is streaming, or null after it ends */
-  resumeState: GenerationResumeState | null
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: string | null
 }
 
 /**

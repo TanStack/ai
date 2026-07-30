@@ -201,7 +201,7 @@ describe('injectGeneration', () => {
     expect(result.isLoading()).toBe(false)
     expect(result.status()).toBe('idle')
     // The persisted snapshot remains exposed as read-only state.
-    expect(result.resumeState()).toEqual(snapshot.resumeState)
+    expect(result.runId()).toBe(snapshot.resumeState?.runId)
   })
 
   it('hydrates a persisted snapshot from storage on construction', async () => {
@@ -231,7 +231,7 @@ describe('injectGeneration', () => {
     expect(result.error()?.message).toMatch(/interrupted/)
     expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
   })
 
   it('clears resume state and removes the persisted record on reset', async () => {
@@ -252,12 +252,12 @@ describe('injectGeneration', () => {
     })
 
     // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(result.resumeState()).toEqual(snapshot.resumeState)
+    expect(result.runId()).toBe(snapshot.resumeState?.runId)
 
     result.reset()
     await flushPromises()
 
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
     expect(removeItem).toHaveBeenCalledWith('generation:reset-me')
     expect(store.has('generation:reset-me')).toBe(false)
   })
@@ -283,7 +283,7 @@ describe('injectGenerateVideo', () => {
     expect(result.isLoading()).toBe(false)
     expect(result.status()).toBe('idle')
     // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(result.resumeState()).toEqual(videoResumeSnapshot.resumeState)
+    expect(result.runId()).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 
   it('hydrates from storage and clears the persisted record on reset', async () => {
@@ -309,12 +309,12 @@ describe('injectGenerateVideo', () => {
     expect(result.error()?.message).toMatch(/interrupted/)
     expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
 
     result.reset()
     await flushPromises()
 
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
     expect(removeItem).toHaveBeenCalledWith('generation:video-hydrate')
     expect(store.has('generation:video-hydrate')).toBe(false)
   })
@@ -376,6 +376,6 @@ describe('injectGenerateImage', () => {
       images: [{ url: '/api/artifacts/artifact-image-1' }],
       artifacts: [artifact],
     })
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
   })
 })

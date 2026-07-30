@@ -366,7 +366,7 @@ function ChatFeature({
     messages,
     sendMessage,
     isLoading,
-    resumeState,
+    runId,
     interrupts,
     stop,
     clear,
@@ -407,14 +407,7 @@ function ChatFeature({
 
   return (
     <>
-      {resumeState && (
-        <div
-          data-testid="resume-state"
-          data-thread-id={resumeState.threadId}
-          data-run-id={resumeState.runId}
-          hidden
-        />
-      )}
+      {runId && <div data-testid="run-id" data-run-id={runId} hidden />}
       <div
         data-testid="pending-interrupt-count"
         data-count={String(interrupts.length)}

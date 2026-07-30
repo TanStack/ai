@@ -130,7 +130,13 @@ export interface InjectGenerationResult<
   /** Clear result, error, and return to idle */
   reset: () => void
   /** Identity of the in-flight run while one is streaming, or null after it ends */
-  resumeState: Signal<GenerationResumeState | null>
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: Signal<string | null>
 }
 
 // `TTransformed` infers from the `onResult` return position (a covariant
@@ -166,8 +172,8 @@ export function injectGeneration<
   const isLoading = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<GenerationClientState>('idle')
-  const resumeState = signal<GenerationResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
+  const runId = signal<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
   )
   let disposed = false
 
@@ -225,7 +231,7 @@ export function injectGeneration<
       if (!disposed) status.set(s)
     },
     onResumeStateChange: (rs: GenerationResumeState | null) => {
-      if (!disposed) resumeState.set(rs)
+      if (!disposed) runId.set(rs?.runId ?? null)
     },
   }
 
@@ -278,6 +284,6 @@ export function injectGeneration<
     status: status.asReadonly(),
     stop: () => client.stop(),
     reset: () => client.reset(),
-    resumeState: resumeState.asReadonly(),
+    runId: runId.asReadonly(),
   }
 }

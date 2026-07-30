@@ -1171,7 +1171,7 @@ describe('useGenerateVideo', () => {
       expect(result.isLoading()).toBe(false)
       expect(result.status()).toBe('idle')
       // The seeded in-flight identity is exposed as read-only `resumeState`.
-      expect(result.resumeState()).toEqual(videoResumeSnapshot.resumeState)
+      expect(result.runId()).toBe(videoResumeSnapshot.resumeState?.runId)
     })
   })
 
@@ -1256,11 +1256,8 @@ describe('resume snapshot persistence', () => {
     expect(persistence.getItem).not.toHaveBeenCalled()
     expect(result.isLoading()).toBe(false)
     expect(result.status()).toBe('idle')
-    // The persisted snapshot is still exposed as read-only display state.
-    expect(result.resumeState()).toEqual({
-      threadId: 'thread-resume',
-      runId: 'run-resume',
-    })
+    // The persisted run id is still exposed as read-only display state.
+    expect(result.runId()).toBe('run-resume')
   })
 
   it('repaints status from a stored complete snapshot on mount without starting a run', async () => {
@@ -1294,7 +1291,7 @@ describe('resume snapshot persistence', () => {
     expect(connect).not.toHaveBeenCalled()
     // The base hook injects no reconstructResult, so `result` stays null.
     expect(result.result()).toBeNull()
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
   })
 
   it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
@@ -1325,7 +1322,7 @@ describe('resume snapshot persistence', () => {
     // surfaces as an interrupted error instead of a `generating` status
     // that would never settle.
     expect(result.error()?.message).toMatch(/interrupted/)
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
     expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
     expect(connect).not.toHaveBeenCalled()
@@ -1372,7 +1369,7 @@ describe('resume snapshot persistence', () => {
 
     expect(result.status()).toBe('success')
     // Once the run ends the in-flight identity is gone.
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
   })
 
   it('restores a completed image result from a durable artifact url', async () => {
@@ -1431,7 +1428,7 @@ describe('resume snapshot persistence', () => {
       images: [{ url: '/api/artifacts/artifact-image-1' }],
       artifacts: [artifact],
     })
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
   })
 
   it('repaints a stored running snapshot for useGenerateVideo with no joinRun as an interrupted error', async () => {
@@ -1463,7 +1460,7 @@ describe('resume snapshot persistence', () => {
     // surfaces as an interrupted error instead of a `generating` status
     // that would never settle.
     expect(result.error()?.message).toMatch(/interrupted/)
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
     expect(result.status()).toBe('error')
     expect(result.isLoading()).toBe(false)
   })
@@ -1490,7 +1487,7 @@ describe('resume snapshot persistence', () => {
 
     result.reset()
 
-    expect(result.resumeState()).toBeNull()
+    expect(result.runId()).toBeNull()
 
     await flush()
 

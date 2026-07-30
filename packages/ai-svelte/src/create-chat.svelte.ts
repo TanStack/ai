@@ -77,9 +77,7 @@ export function createChat<
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
-  let resumeState = $state<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  let runId = $state<string | null>(null)
   let interruptState = $state.raw<ChatInterruptState<TTools>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -178,8 +176,8 @@ export function createChat<
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
     },
-    onResumeStateChange: (nextResumeState) => {
-      resumeState = nextResumeState
+    onRunIdChange: (nextRunId) => {
+      runId = nextRunId
     },
     onInterruptStateChange: (nextInterruptState) => {
       interruptState = nextInterruptState
@@ -188,7 +186,7 @@ export function createChat<
   })
 
   function syncResumeState() {
-    resumeState = client.getResumeState()
+    runId = client.getCurrentRunId()
     interruptState = client.getInterruptState()
   }
 
@@ -398,8 +396,8 @@ export function createChat<
     get queue() {
       return queue
     },
-    get resumeState() {
-      return resumeState
+    get runId() {
+      return runId
     },
     get interrupts() {
       return interruptState.interrupts

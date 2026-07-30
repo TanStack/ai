@@ -89,6 +89,7 @@ export type CreateChatOptions<
   | 'onSessionGeneratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
+  | 'onRunIdChange'
   | 'context'
   | 'devtools'
   // `id` is not a hook option: the hook's identity is its `threadId`, which is
@@ -192,7 +193,18 @@ interface BaseCreateChatReturn<
     approved: boolean
   }) => Promise<void>
 
-  readonly resumeState: ChatResumeState | null
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  readonly runId: string | null
   readonly interrupts: BoundInterrupts<TTools>
   /** @deprecated Use `interrupts`. */
   readonly pendingInterrupts: BoundInterrupts<TTools>
