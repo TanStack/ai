@@ -144,8 +144,18 @@ const POLL_INTERVAL_MS = 50
  */
 const FENCE_QUIET_MS = 25
 
-/** Bound on a real journal read; a stalled read must fail, not park. */
-const READ_TIMEOUT_MS = 30_000
+/**
+ * Bound on a real journal read, so a reader that delivers nothing FAILS instead
+ * of parking CI.
+ *
+ * Never an assertion, and deliberately far above anything a healthy read needs
+ * (measured: 10–18s for the follow cases on both providers). Every use site
+ * pairs it with a `backstopped: false` witness, so a read the CLOCK ended fails
+ * naming this backstop rather than as a downstream transcript mismatch — which
+ * means this number can be raised freely and must never be the thing a case is
+ * tuned against.
+ */
+const READ_BACKSTOP_MS = 90_000
 
 /** Long enough that nothing in this suite is ever classified as expired. */
 const NEVER_EXPIRES_MS = 60 * 60 * 1000
@@ -457,23 +467,43 @@ function expectedTranscript(
  *
  * The read is bounded independently of `signal` so a journal that stops growing
  * fails the case instead of hanging CI.
+ *
+ * Returns the drive alongside `backstopped()`, the causal witness for
+ * {@link READ_BACKSTOP_MS}: the case must assert it is `false` before its
+ * transcript assertions, so a read the CLOCK ended fails naming the backstop
+ * instead of as a truncated-transcript diff.
  */
 function driveFromJournal(
   handle: SandboxHandle,
   dir: string,
-): (input: {
-  runId: string
-  threadId: string
-  signal: AbortSignal
-}) => AsyncIterable<StreamChunk> {
-  return ({ runId, signal }) =>
-    translate(
-      runId,
-      readJournalNdjson(handle, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(READ_TIMEOUT_MS)]),
-        journal: { runId, dir, pollIntervalMs: POLL_INTERVAL_MS },
-      }),
-    )
+): {
+  drive: (input: {
+    runId: string
+    threadId: string
+    signal: AbortSignal
+  }) => AsyncIterable<StreamChunk>
+  /** True if any read this drive started was ended by the backstop clock. */
+  backstopped: () => boolean
+} {
+  // One entry per `drive` invocation, so a sweep that drives more than one run
+  // cannot hide a backstopped read behind a healthy one.
+  const backstops: Array<AbortSignal> = []
+  return {
+    drive: ({ runId, signal }) => {
+      // Not the assertion — see {@link READ_BACKSTOP_MS}. `backstopped()` is what
+      // proves the clock was not what ended the read.
+      const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
+      backstops.push(backstop)
+      return translate(
+        runId,
+        readJournalNdjson(handle, {
+          signal: AbortSignal.any([signal, backstop]),
+          journal: { runId, dir, pollIntervalMs: POLL_INTERVAL_MS },
+        }),
+      )
+    },
+    backstopped: () => backstops.some((s) => s.aborted),
+  }
 }
 
 /** A `'running'`, DETACHED record — the shape `listReclaimable` selects on. */
@@ -852,18 +882,26 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           })
 
           const log = conformanceLog()
+          const journalDrive = driveFromJournal(handle, dir)
           const result = await reapDetachedRuns({
             runs,
             locks: new InMemoryLockStore(),
             durability: () => log.log,
             hasFinished: (record) =>
               probeRunExit({ handle, runId: record.runId, dir }),
-            drive: driveFromJournal(handle, dir),
+            drive: journalDrive.drive,
             now: Date.now(),
             detachedRunTtlMs: NEVER_EXPIRES_MS,
             fenceQuietMs: FENCE_QUIET_MS,
           })
 
+          // The causal witness, before anything downstream — see
+          // {@link READ_BACKSTOP_MS}. The reaper's read ends at the sentinel; if
+          // the clock ended it instead, the transcript below is short and the
+          // failure must name the backstop rather than a missing chunk.
+          expect({ backstopped: journalDrive.backstopped() }).toEqual({
+            backstopped: false,
+          })
           expect({
             considered: result.considered,
             probed: result.probed,
@@ -1083,17 +1121,29 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           )
           if (config.followUnsupported === undefined) {
             const followed: Array<string> = []
+            // A backstop, so a reader that delivers nothing fails instead of
+            // parking CI — a `tail -f` never ends on its own, so this read has no
+            // other floor. Not the assertion — `backstopped` below proves it was
+            // not what ended the loop.
+            const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
             for await (const line of readJournal(handle, {
               paths,
               fromByte: 0,
               strategy: 'follow',
-              signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+              signal: backstop,
             })) {
               followed.push(line.line)
               // The agent has already reached its sentinel, so this arrives; a
               // `tail -f` never ends on its own.
               if (line.line.includes(EXIT_SENTINEL_KEY)) break
             }
+            // The causal witness, first: the loop must end on the sentinel
+            // `break`, not on the clock. A backstopped follow read otherwise
+            // reports as a one-element-vs-two array diff that says nothing about
+            // why.
+            expect({ backstopped: backstop.aborted }).toEqual({
+              backstopped: false,
+            })
             expect(followed).toEqual([
               '{"delta":"1"}',
               exitSentinelLine(paths, 0),

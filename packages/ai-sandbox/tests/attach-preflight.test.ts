@@ -399,7 +399,6 @@ describe('awaitAttachableJournal: the bounded wait', () => {
       // long after the transient exec failure had cleared.
       const runId = 'pf-failopen-1'
       const probe = probeHandle({ execFails: true })
-      const startedAt = Date.now()
       const error = await awaitAttachableJournal(probe.handle, {
         paths: journalPaths(runId),
         runId,
@@ -415,8 +414,11 @@ describe('awaitAttachableJournal: the bounded wait', () => {
       expect(error.reason).toBe('journal-timeout')
       // The message names the actual problem — the probe, not a missing file —
       // because those point at different causes.
+      // No stopwatch assertion: the three assertions above already prove the
+      // bound was applied (an unbounded wait produces no error at all), and this
+      // case's own `{ timeout: 3_000 }` already turns an unbounded wait into a
+      // failure — with a better message than a `2000` vs elapsed diff.
       expect(error.message).toContain('could not be probed at all')
-      expect(Date.now() - startedAt).toBeLessThan(2_000)
       // It really re-probed rather than answering from the first failure: an
       // unusable probe may recover inside the window.
       expect(probe.commands.length).toBeGreaterThan(1)

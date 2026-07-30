@@ -147,10 +147,23 @@ describe.skipIf(!hasCreds)('vercel provider (gated on VERCEL_TOKEN)', () => {
       expect(echo.stdout.trim()).toBe('hello-vercel')
       expect(echo.exitCode).toBe(0)
 
-      // NOT killable as declared: see the `killableProcesses` comment in
-      // `src/handle.ts`. Whether the SDK's `Command.kill` reaches a forked child
-      // is unmeasured, so the capability stays false and reads poll.
-      expect(sbx.capabilities.killableProcesses).toBe(false)
+      // The CONSEQUENCE of the kill declaration, read off the live handle, not
+      // the declaration itself. `expect(sbx.capabilities.killableProcesses)` was
+      // here and asserted nothing: it read a module constant that the unit case
+      // above already pins, so it passed identically against a live microVM and
+      // against no microVM at all — the same empty pattern that was deleted from
+      // `docker.test.ts` once Docker's `true` turned out to be false.
+      //
+      // `journalReadStrategy` is what the declaration actually decides, and a
+      // wrong `true` leaks an unstoppable `tail -f` per run, so this is the fact
+      // worth spending a real sandbox on.
+      //
+      // NOT asserted here, deliberately: whether the SDK's `Command.kill`
+      // reaches a forked grandchild. That is the behavioral question behind the
+      // `false`, and answering it needs a spawned heartbeat, a kill, and a quiet
+      // window observed inside a real microVM — unverifiable by anyone without
+      // Vercel credentials, so it is left unclaimed rather than asserted blind.
+      expect(journalReadStrategy(sbx)).toBe('poll')
 
       await sbx.fs.write('/workspace/note.txt', 'inside the microVM')
       expect(await sbx.fs.exists('/workspace/note.txt')).toBe(true)

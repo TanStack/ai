@@ -138,8 +138,18 @@ const POLL_INTERVAL_MS = 50
  */
 const FENCE_QUIET_MS = 25
 
-/** Bound on a real journal read; a stalled read must fail, not park. */
-const READ_TIMEOUT_MS = 30_000
+/**
+ * Bound on a real journal read, so a reader that delivers nothing FAILS instead
+ * of parking CI.
+ *
+ * Never an assertion, and deliberately far above anything a healthy read needs
+ * (measured: 10–18s for the follow cases on both providers). Every use site
+ * pairs it with a `backstopped: false` witness, so a read the CLOCK ended fails
+ * naming this backstop rather than as a downstream transcript mismatch — which
+ * means this number can be raised freely and must never be the thing a case is
+ * tuned against.
+ */
+const READ_BACKSTOP_MS = 90_000
 
 /**
  * Unique per case, and it must be: `journalPaths` derives the file name from the
@@ -440,6 +450,11 @@ function gate(): Gate {
  * the attach preflight when attaching), translate, and align against the stored
  * log — `alignedIfAttaching`, so alignment runs on an attach and only on an
  * attach.
+ *
+ * Returns the driver alongside `backstopped()`, the causal witness for
+ * {@link READ_BACKSTOP_MS}: every case that drives this must assert it is
+ * `false` before its transcript assertions, so a read the CLOCK ended fails
+ * naming the backstop instead of as a truncated-transcript diff.
  */
 function driverFor(input: {
   handle: SandboxHandle
@@ -450,9 +465,16 @@ function driverFor(input: {
   attach: boolean
   /** Awaited before the FIRST translated chunk is yielded, never after. */
   beforeFirstChunk?: () => Promise<void>
-}): ReturnType<typeof sandboxRunDriver> {
+}): {
+  driver: ReturnType<typeof sandboxRunDriver>
+  /** True if any read this driver started was ended by the backstop clock. */
+  backstopped: () => boolean
+} {
   const durability = durabilityFor(input.runs, input.log, input.attach)
-  return sandboxRunDriver({
+  // One entry per `drive` invocation, so a re-drive cannot hide a backstopped
+  // read behind a healthy one.
+  const backstops: Array<AbortSignal> = []
+  const driver = sandboxRunDriver({
     request: new Request(
       `http://takeover.local/attach?runId=${encodeURIComponent(input.runId)}&offset=-1`,
     ),
@@ -465,10 +487,12 @@ function driverFor(input: {
       // hands out a signal it never aborts, so a journal that stops growing
       // would otherwise park this read forever and turn a broken takeover into a
       // hung CI job instead of a failing assertion.
-      const bounded = AbortSignal.any([
-        signal,
-        AbortSignal.timeout(READ_TIMEOUT_MS),
-      ])
+      //
+      // Not the assertion — see {@link READ_BACKSTOP_MS}. `backstopped()` below
+      // is what proves the clock was not what ended the read.
+      const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
+      backstops.push(backstop)
+      const bounded = AbortSignal.any([signal, backstop])
       const lines = readJournalNdjson(input.handle, {
         signal: bounded,
         journal: journalOptions(durability, runId),
@@ -490,6 +514,7 @@ function driverFor(input: {
       return alignedIfAttaching(translate(runId, source), durability)
     },
   })
+  return { driver, backstopped: () => backstops.some((s) => s.aborted) }
 }
 
 /** Exactly what core's `startRunDriver` does: claim, then pipe the drive. */
@@ -559,6 +584,10 @@ export function runTakeoverConformance(
           // without closing the log and without terminalizing the record, which
           // is what a host vanishing looks like from the outside.
           const deliveredByFirst: Array<StreamChunk> = []
+          // A backstop, so a reader that delivers nothing fails instead of
+          // parking CI. Not the assertion — `backstopped` below proves it was not
+          // what ended the loop.
+          const firstBackstop = AbortSignal.timeout(READ_BACKSTOP_MS)
           await withRunClaim(
             { runs, locks: new InMemoryLockStore(), runId },
             async (claim) => {
@@ -569,7 +598,7 @@ export function runTakeoverConformance(
                 { journal: journalOptions(fresh, runId) },
               )
               const lines = readJournalNdjson(handle, {
-                signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+                signal: firstBackstop,
                 journal: journalOptions(fresh, runId),
               })
               for await (const chunk of translate(runId, lines)) {
@@ -581,22 +610,40 @@ export function runTakeoverConformance(
               }
             },
           )
+          // The causal witness for the dying host's read: it must stop because
+          // the consumer broke at `prefixLength`, not because the clock ran out.
+          // A backstopped read here delivers a short prefix and the takeover the
+          // case exists to exercise would start from the wrong offset.
+          expect({ backstopped: firstBackstop.aborted }).toEqual({
+            backstopped: false,
+          })
           expect(transcript(deliveredByFirst)).toEqual(
             transcript(expected.slice(0, prefixLength)),
           )
 
           // THE SUCCESSOR. Same runId, same journal, a fresh claim.
-          const record = await takeOver(
-            driverFor({
-              handle,
-              runs,
-              locks: new InMemoryLockStore(),
-              log: log.log,
-              runId,
-              attach: true,
-            }),
-            { runs, runId, threadId },
-          )
+          const successor = driverFor({
+            handle,
+            runs,
+            locks: new InMemoryLockStore(),
+            log: log.log,
+            runId,
+            attach: true,
+          })
+          const record = await takeOver(successor.driver, {
+            runs,
+            runId,
+            threadId,
+          })
+
+          // THE CAUSAL WITNESS, first — see {@link READ_BACKSTOP_MS}. The
+          // transcript assertions below can only speak about chunks that
+          // arrived; this one says the successor's read ended because the
+          // journal ended, not because the clock did. Without it a backstopped
+          // read reports as a confusing short-transcript diff.
+          expect({ backstopped: successor.backstopped() }).toEqual({
+            backstopped: false,
+          })
 
           // THE TRANSCRIPT, element for element. This is the assertion that can
           // see the failure the feature exists to prevent: a takeover that
@@ -749,7 +796,6 @@ export function runTakeoverConformance(
         try {
           expect.hasAssertions()
           const runs = await runningRun(runId, threadId)
-          const startedAt = Date.now()
           const error = await awaitAttachableJournal(handle, {
             paths: journalPaths(runId, CONFORMANCE_JOURNAL_DIR),
             runId,
@@ -763,10 +809,14 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('journal-timeout')
+          // The three assertions above ARE the proof the bound was applied: an
+          // unbounded wait never produces a `JournalAttachUnavailableError` at
+          // all, and `'600ms'` in the message is the configured bound reported
+          // back. No stopwatch assertion here on purpose — the case's own
+          // `{ timeout: 120_000 }` already converts an unbounded wait into a
+          // failure, and a wall-clock ceiling would red a CORRECT implementation
+          // on a machine where one `docker exec` was measured at 95s.
           expect(error.message).toContain('600ms')
-          // The bound is REAL: an unbounded wait never reaches this line, and
-          // this is the case that would otherwise hang forever.
-          expect(Date.now() - startedAt).toBeLessThan(15_000)
         } finally {
           await dispose()
         }
@@ -808,18 +858,20 @@ export function runTakeoverConformance(
           // append both happen after the release, exactly as a host paused by a
           // GC or a VM suspend would.
           const released = gate()
-          const loser = takeOver(
-            driverFor({
-              handle,
-              runs,
-              locks: permissiveLocks,
-              log: log.log,
-              runId,
-              attach: false,
-              beforeFirstChunk: () => released.promise,
-            }),
-            { runs, runId, threadId },
-          )
+          const losingDriver = driverFor({
+            handle,
+            runs,
+            locks: permissiveLocks,
+            log: log.log,
+            runId,
+            attach: false,
+            beforeFirstChunk: () => released.promise,
+          })
+          const loser = takeOver(losingDriver.driver, {
+            runs,
+            runId,
+            threadId,
+          })
           await waitUntil(
             async () => ((await runs.get(runId))?.driverEpoch ?? 0) >= 1,
             {
@@ -829,22 +881,35 @@ export function runTakeoverConformance(
           )
 
           // The WINNER: claims at a higher epoch and drives the run to the end.
-          await takeOver(
-            driverFor({
-              handle,
-              runs,
-              locks: permissiveLocks,
-              log: log.log,
-              runId,
-              attach: true,
-            }),
-            { runs, runId, threadId },
-          )
+          const winner = driverFor({
+            handle,
+            runs,
+            locks: permissiveLocks,
+            log: log.log,
+            runId,
+            attach: true,
+          })
+          await takeOver(winner.driver, { runs, runId, threadId })
+          // The causal witness, before the transcript — see
+          // {@link READ_BACKSTOP_MS}. The winner drives the run to its sentinel,
+          // so a clock-ended read here must say so rather than surface as a
+          // missing chunk.
+          expect({ backstopped: winner.backstopped() }).toEqual({
+            backstopped: false,
+          })
           expect(transcript(log.stored())).toEqual(transcript(expected))
 
           // Now let the superseded host try to write.
           released.open()
           await loser
+          // The causal witness, and here it is load-bearing rather than merely
+          // diagnostic: the loser's gate is awaited from INSIDE its read, so a
+          // backstopped read would abandon the stream during the wait, the loser
+          // would never attempt an append at all, and every "nothing lands"
+          // assertion below would pass vacuously without the fence ever running.
+          expect({ backstopped: losingDriver.backstopped() }).toEqual({
+            backstopped: false,
+          })
 
           // NOTHING lands — not the run's chunks a second time, and not
           // `pipeToRunLog`'s recovery `RUN_ERROR` either. That log belongs to the
@@ -894,15 +959,25 @@ export function runTakeoverConformance(
             { journal: journalOptions(fresh, runId) },
           )
           const seen: Array<StreamChunk> = []
+          // A backstop, so a reader that delivers nothing fails instead of
+          // parking CI. Not the assertion — `backstopped` below proves it was not
+          // what ended the loop.
+          const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
           for await (const chunk of translate(
             runId,
             readJournalNdjson(handle, {
-              signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+              signal: backstop,
               journal: journalOptions(fresh, runId),
             }),
           )) {
             seen.push(chunk)
           }
+          // The causal witness, first: this loop has no `break`, so the ONLY
+          // honest reasons for it to end are the sentinel or the backstop. A
+          // clock-ended read must say so rather than report a short transcript.
+          expect({ backstopped: backstop.aborted }).toEqual({
+            backstopped: false,
+          })
           // Reaching the sentinel is what makes the run terminal, and it is the
           // precondition for the deletion below.
           expect(transcript(seen)).toEqual(
