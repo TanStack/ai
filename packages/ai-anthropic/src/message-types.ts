@@ -8,6 +8,7 @@
 
 import type {
   CacheControlEphemeral,
+  CitationsConfigParam,
   TextCitationParam,
 } from '@anthropic-ai/sdk/resources'
 
@@ -68,7 +69,14 @@ export interface AnthropicDocumentMetadata {
    */
   cache_control?: CacheControlEphemeral
 
+  citations?: CitationsConfigParam
+
   context?: string
+
+  /**
+   * The document filename. Used as the document title when `title` is absent.
+   */
+  filename?: string
 
   title?: string
 }
