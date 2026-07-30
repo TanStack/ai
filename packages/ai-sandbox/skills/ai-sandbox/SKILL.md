@@ -660,7 +660,7 @@ on and no cancel recorded keeps the sandbox and writes `detachedSince` +
 `sandboxKey`, while `withPersistence` writes **nothing** (the record stays
 `'running'`). A cancel in either band destroys the sandbox regardless of
 `destroyOnComplete`, and `withPersistence` writes `'aborted'`. `keepAlive` /
-`destroyOnComplete: false` govern *successful completion* only — they never keep
+`destroyOnComplete: false` govern _successful completion_ only — they never keep
 a sandbox alive through a cancel.
 
 ### `sandboxRunDriver` — the supported way to drive a resumed run
@@ -728,7 +728,7 @@ pass the run record's `threadId`. Forget it and the attach **refuses up front**
 with `DurableThreadIdRequiredError` rather than failing mid-stream: every emitted
 chunk carries `threadId`, so a generated one differs from the stored log in its
 very first chunk. `resolveDurableThreadId` throws only in the durable-AND-
-attaching quadrant — a durable *fresh* run legitimately mints its `threadId`,
+attaching quadrant — a durable _fresh_ run legitimately mints its `threadId`,
 since it is the run that establishes it. `JournalReplayThreadIdMismatchError` is
 still what surfaces if a mismatched `threadId` reaches `alignToStoredLog` by some
 other route; `sandboxRunDriver` itself forwards `active.threadId` into
@@ -805,7 +805,7 @@ no longer owns it. Because both seams are closed, **a terminal status on the
 record is trustworthy and a status poller may believe it.**
 
 `close()` is outside both fences, deliberately: it runs on every teardown path
-including the teardown *caused* by losing the claim, and a fenced `close` would
+including the teardown _caused_ by losing the claim, and a fenced `close` would
 wedge the record at `'running'` with every live tailer parked forever — a
 durability `read` only ends when the log closes.
 
@@ -822,7 +822,7 @@ A takeover does **not** resume the journal where the dead host stopped. It
 re-reads the journal **from byte zero**, re-translates it, and alignment makes
 that safe: the stored log is read once with `snapshot()`, the replay is verified
 against it by `chunkFingerprint`, the matching prefix is suppressed, and only
-the remainder is appended and delivered. The log *is* the checkpoint, so no
+the remainder is appended and delivered. The log _is_ the checkpoint, so no
 checkpoint can disagree with it.
 
 If the replay produces a different chunk than the log holds at that index,
@@ -858,7 +858,7 @@ first.
 
 One tolerance exists: on adapters that splice host-tool-bridge events into
 their output (`@tanstack/ai-claude-code`, `@tanstack/ai-codex`), the log holds
-`CUSTOM` chunks fired by *live* tool execution that a replay runs no tools to
+`CUSTOM` chunks fired by _live_ tool execution that a replay runs no tools to
 reproduce. Alignment skips those as out-of-band, up to
 `DEFAULT_MAX_OUT_OF_BAND_SKIP` (64) consecutive entries. The bound is what keeps
 this a tolerance rather than a forward search for any fingerprint that happens

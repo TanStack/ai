@@ -123,8 +123,10 @@ onStructuredOutputConfig?: (
 **`StructuredOutputMiddlewareConfig` shape:**
 
 ```ts
-interface StructuredOutputMiddlewareConfig
-  extends Omit<ChatMiddlewareConfig, 'tools'> {
+interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools'
+> {
   outputSchema: JSONSchema // The JSON Schema being sent to the provider
 }
 ```

@@ -292,8 +292,7 @@ function createRunStore(db: PrismaClient): RunStore {
       }
       if ('cancelRequested' in patch)
         data.cancelRequested = patch.cancelRequested ?? null
-      if ('driverEpoch' in patch)
-        data.driverEpoch = patch.driverEpoch ?? null
+      if ('driverEpoch' in patch) data.driverEpoch = patch.driverEpoch ?? null
       if (Object.keys(data).length === 0) return
 
       await db.chatRun.updateMany({ where: { runId }, data })

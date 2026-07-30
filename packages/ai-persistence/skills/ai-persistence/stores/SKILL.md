@@ -104,11 +104,11 @@ fully valid backend.
 all of them off costs nothing in the middleware. Their consumers are elsewhere,
 and each absence disables exactly one feature:
 
-| method            | consumer                                                       | absent ⇒                                             |
-| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
-| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun?.(threadId)`)     | no rejoin-by-thread; reconstruction answers `null`    |
-| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`                    | the store cannot be reaped at all                    |
-| `listByThread`    | application code — nothing in the framework calls it            | nothing framework-side breaks                        |
+| method            | consumer                                                    | absent ⇒                                           |
+| ----------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun?.(threadId)`) | no rejoin-by-thread; reconstruction answers `null` |
+| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`                | the store cannot be reaped at all                  |
+| `listByThread`    | application code — nothing in the framework calls it        | nothing framework-side breaks                      |
 
 Each consumer feature-detects with `store.method?.(...)` and degrades rather than
 throwing.
