@@ -118,6 +118,11 @@ function makeProtocolServer(options: ProtocolServerOptions = {}) {
   let appendIndex = 0
   let lostAppendResponses = options.loseAppendResponses ?? 0
   const producerResponses = new Map<string, string>()
+  // Streams this server has brought into existence. A create PUT answers `201
+  // Created` only for the request that created the stream; a later PUT for the
+  // same name — what a takeover host sends — is a no-op replace and answers 200,
+  // exactly as RFC 9110 requires of PUT.
+  const existingStreams = new Set<string>()
 
   const fetchStub = vi.fn<typeof fetch>(async (input, init) => {
     const url = requestUrl(input)
@@ -133,8 +138,10 @@ function makeProtocolServer(options: ProtocolServerOptions = {}) {
     })
 
     if (method === 'PUT') {
+      const created = !existingStreams.has(url.pathname)
+      existingStreams.add(url.pathname)
       return new Response(null, {
-        status: 201,
+        status: created ? 201 : 200,
         headers: createHeaders(createOffset),
       })
     }
@@ -327,11 +334,10 @@ describe('durableStream official HTTP protocol', () => {
 
     expect(offsets).toHaveLength(3)
     expect(new Set(offsets).size).toBe(3)
-    // The GET is the one-time bounded tail read that tells this instance where
-    // the log ends, so its first record continues the run's sequence.
+    // The create PUT reported `201`, so this instance owns an empty stream and
+    // the append goes straight out — no tail read on the producer's path.
     expect(server.requests.map((request) => request.method)).toEqual([
       'PUT',
-      'GET',
       'POST',
     ])
     expect(
@@ -409,24 +415,23 @@ describe('durableStream official HTTP protocol', () => {
       // drain
     }
 
-    // PUT, the seeding tail read, the append, the close, then the replay read.
+    // PUT, the append, the close, then the replay read.
     expect(server.requests.map((request) => request.method)).toEqual([
       'PUT',
-      'GET',
       'POST',
       'POST',
       'GET',
     ])
     expect(
       server.requests.map((request) => request.headers.get('Authorization')),
-    ).toEqual(Array.from({ length: 5 }, () => 'Bearer static-token'))
+    ).toEqual(Array.from({ length: 4 }, () => 'Bearer static-token'))
     expect(server.requests[0]?.headers.get('Content-Type')).toBe(
       'application/json',
     )
-    expect(server.requests[2]?.headers.get('Content-Type')).toBe(
+    expect(server.requests[1]?.headers.get('Content-Type')).toBe(
       'application/json',
     )
-    expect(server.requests[3]?.headers.get('Stream-Closed')).toBe('true')
+    expect(server.requests[2]?.headers.get('Stream-Closed')).toBe('true')
   })
 
   it('resolves rotating async auth headers for every protocol request', async () => {
@@ -454,7 +459,6 @@ describe('durableStream official HTTP protocol', () => {
       'Bearer token-2',
       'Bearer token-3',
       'Bearer token-4',
-      'Bearer token-5',
     ])
   })
 
@@ -1366,6 +1370,9 @@ describe('durableStream takeover sequencing', () => {
     // A fresh adapter instance for the same run is exactly what a takeover
     // host gets from `opts.durability(runId)` after the original detached.
     const second = makeHost(server, 'run-takeover')
+    const getsBeforeTakeover = server.requests.filter(
+      (request) => request.method === 'GET',
+    ).length
     await second.append(['k', 'l', 'm', 'n', 'o', 'p'].map(textChunk))
     await second.close()
 
@@ -1374,6 +1381,16 @@ describe('durableStream takeover sequencing', () => {
         batch.records.map((record) => record.seq),
       ),
     ).toEqual(Array.from({ length: 16 }, (_value, index) => index + 1))
+
+    // The takeover's create PUT found the stream already there, so it paid for
+    // the bounded tail read that teaches it where the log ends. That read is the
+    // mechanism behind the sequence above.
+    const takeoverReads = server.requests
+      .filter((request) => request.method === 'GET')
+      .slice(getsBeforeTakeover)
+    expect(
+      takeoverReads.map((read) => read.url.searchParams.get('offset')),
+    ).toEqual(['-1'])
 
     const replayed: Array<string> = []
     for await (const { chunk } of makeHost(server, 'run-takeover').read('-1')) {
@@ -1435,6 +1452,104 @@ describe('durableStream takeover sequencing', () => {
         },
       ),
     ).toThrow(/producerEpoch/)
+  })
+})
+
+describe('durableStream first-append seeding', () => {
+  it('issues no seeding read at all for a run it created', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-fresh-no-read'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+
+    await durability.append([textChunk('a')])
+
+    expect(
+      server.requests.filter((request) => request.method === 'GET'),
+    ).toEqual([])
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual([1])
+  })
+
+  it(
+    'appends without stalling when an empty stream never reports upToDate',
+    { timeout: 1000 },
+    async () => {
+      // A backend permitted by the protocol: `upToDate` is optional, and an empty
+      // still-open log has nothing to send, so a read at `-1` here never answers.
+      // Seeding off that read would park the producer behind a reader that is
+      // waiting on the producer, until `operationTimeoutMs` failed the append.
+      let getCount = 0
+      const fetchStub = vi.fn<typeof fetch>((_input, init) => {
+        const method = (init?.method ?? 'GET').toUpperCase()
+        if (method === 'PUT') {
+          return Promise.resolve(
+            new Response(null, {
+              status: 201,
+              headers: createHeaders('origin::p/A'),
+            }),
+          )
+        }
+        if (method === 'POST') {
+          return Promise.resolve(
+            new Response(null, {
+              status: 204,
+              headers: createHeaders('opaque::next/0'),
+            }),
+          )
+        }
+        getCount += 1
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason ?? new Error('aborted')),
+            { once: true },
+          )
+        })
+      })
+      const durability = durableStream(
+        new Request('https://app.test/api/chat?runId=run-fresh-parking'),
+        { server: 'https://ds.test', fetch: fetchStub },
+      )
+
+      const offsets = await durability.append([textChunk('a')])
+
+      expect(offsets).toHaveLength(1)
+      expect(getCount).toBe(0)
+    },
+  )
+
+  it('still seeds when the create PUT reports the stream already existed', async () => {
+    const server = makeProtocolServer()
+    const first = durableStream(
+      new Request('https://app.test/api/chat?runId=run-preexisting'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await first.append([textChunk('a'), textChunk('b')])
+
+    const takeover = durableStream(
+      new Request('https://app.test/api/chat?runId=run-preexisting'),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await takeover.append([textChunk('c')])
+
+    expect(
+      server.batches.flatMap((batch) =>
+        batch.records.map((record) => record.seq),
+      ),
+    ).toEqual([1, 2, 3])
+    expect(
+      server.requests.filter((request) => request.method === 'PUT'),
+    ).toHaveLength(2)
+    expect(
+      server.requests
+        .filter((request) => request.method === 'GET')
+        .map((read) => read.url.searchParams.get('offset')),
+    ).toEqual(['-1'])
   })
 })
 
@@ -1542,11 +1657,10 @@ describe('durableStream exact-once resume', () => {
     expect(
       [...beforeDrop, ...afterDrop].map((event) => deltaFrom(event.data)),
     ).toEqual(full)
-    // The producer's own first GET is the seeding tail read at `-1`; the replay
-    // is the one the reconnecting instance issues from the resume cursor.
+    // The producer created the stream, so it issues no read at all; the only GET
+    // is the replay the reconnecting instance issues from the resume cursor.
     const reads = server.requests.filter((request) => request.method === 'GET')
     expect(reads.map((read) => read.url.searchParams.get('offset'))).toEqual([
-      '-1',
       server.createOffset,
     ])
     expect(server.closeCount()).toBe(1)

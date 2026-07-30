@@ -547,6 +547,13 @@ export function durableStream(
 
   const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
   let createPromise: Promise<string> | undefined
+  // Set only when the create PUT answered `201 Created`, which RFC 9110 §9.3.4
+  // reserves for a PUT that brought the resource into existence: an existing
+  // stream is a replace/no-op and answers 200 or 204. A stream this instance
+  // created cannot already hold records, which is what makes the tail read below
+  // skippable. Defaulting to `false` keeps the conservative side: anything other
+  // than a proven creation still pays for the seeding read.
+  let createdHere = false
   let appendTailOffset: string | undefined
   // `seq` is a single per-run counter, not a per-instance one: the read side
   // dedups and orders by it across every window and every producer. A takeover
@@ -599,6 +606,7 @@ export function durableStream(
       })
       if (!response.ok) throw httpFailure('create stream', response)
       const offset = requireNextOffset(response, 'create')
+      createdHere = response.status === 201
       appendTailOffset = offset
       return offset
     })().catch((error: unknown) => {
@@ -820,15 +828,27 @@ export function durableStream(
    *
    * A takeover host is handed a fresh adapter for a run whose log already holds
    * `seq 1..N`, and nothing in the protocol reports a record count, so the tail
-   * has to be read. One bounded read per instance: the alignment `snapshot()` a
-   * takeover already performs satisfies it, and for a brand-new run it is a
-   * single window whose body is one control frame.
+   * has to be read. One bounded read per instance, and the alignment `snapshot()`
+   * a takeover already performs satisfies it.
+   *
+   * A brand-new run pays nothing, and must not: the seeding read cannot be on the
+   * producer's critical path. `upToDate` is an optional protocol field and an
+   * empty still-open log has nothing to send, so on a backend that omits it the
+   * read has to run its `operationTimeoutMs` deadline out and then fail — the
+   * producer would wait on a reader that is waiting on the producer, and every
+   * fresh run on such a backend would die of a synthetic error. `createdHere`
+   * settles it without a request: a stream this instance brought into existence
+   * provably holds no records, so `nextSeq` is already correct at 1.
    */
   const ensureSeqSeeded = (): Promise<void> => {
     if (seqSeeded) return Promise.resolve()
     if (seedPromise) return seedPromise
     seedPromise = (async () => {
       await ensureCreated()
+      if (createdHere) {
+        seqSeeded = true
+        return
+      }
       await collectSnapshot()
     })().catch((error: unknown) => {
       seedPromise = undefined
