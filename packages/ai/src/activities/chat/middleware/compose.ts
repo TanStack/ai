@@ -18,6 +18,12 @@ import type {
   UsageInfo,
 } from './types'
 
+/** One middleware's terminal-hook throw, captured instead of propagated. */
+interface HookFailure {
+  middleware: string
+  error: unknown
+}
+
 /** Check if a middleware should be skipped for instrumentation events. */
 function shouldSkipInstrumentation(mw: ChatMiddleware<any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
@@ -475,60 +481,83 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
-   * Await ONE terminal hook, swallowing a throw so one middleware cannot cancel
-   * every later middleware's teardown.
+   * Await ONE terminal hook and RETURN its throw instead of letting it escape
+   * the caller's loop, logging it on the `errors` channel first so the failure
+   * is never invisible. `undefined` means the hook completed.
    *
-   * Exactly the rule `ai-sandbox`'s `dispatchDefinitionHooks` settled — "one bad
-   * hook cannot break the run", swallowed but logged under `errors` first so the
-   * failure is never invisible — applied to the run-scoped terminal fan-outs.
-   * These hooks release PER-MIDDLEWARE resources (`withSandbox.onAbort` detaches
-   * or destroys the sandbox and stamps `detachedSince`;
-   * `withPersistence.onAbort` records the run status through the store), so an
-   * unguarded loop turns one transient store error into a permanently leaked
-   * sandbox for every middleware ordered after it.
-   *
-   * `runOnAbort` is additionally awaited from `chat()`'s `finally`, where a throw
-   * would ALSO replace the original abort reason with the hook's error. Guarding
-   * here is what keeps that reason intact.
-   *
-   * Returns whether the hook succeeded, so instrumentation only reports hooks
-   * that actually completed.
+   * Capturing (rather than swallowing at this level) is what lets isolation and
+   * reporting coexist: every caller gives every middleware its turn, and then
+   * each decides on its own whether the collected failures are worth telling the
+   * caller about. See {@link runOnFinish} vs {@link runOnAbort} /
+   * {@link runOnError}.
    */
-  private async runTerminalHook(
+  private async captureTerminalHook(
     mw: ChatMiddleware<TContext>,
     hookName: 'onFinish' | 'onAbort' | 'onError',
     invoke: () => void | Promise<void>,
-  ): Promise<boolean> {
+  ): Promise<HookFailure | undefined> {
     try {
       await invoke()
-      return true
+      return undefined
     } catch (error) {
       this.logger.errors(`middleware ${hookName} hook failed`, {
         middleware: mw.name ?? 'unnamed',
         hook: hookName,
         error,
       })
-      return false
+      return { middleware: mw.name ?? 'unnamed', error }
     }
   }
 
   /**
-   * Run onFinish on all middleware in order. Per-middleware guarded — see
-   * {@link runTerminalHook}.
+   * Run onFinish on all middleware in order.
+   *
+   * ISOLATED **and** REPORTED. `onFinish` is the only terminal fan-out on the
+   * SUCCESS path — `chat()` awaits it inside its `try`, before the run is
+   * declared successful — and it is where `withPersistence.onFinish` writes the
+   * assistant turn through the store. So the two properties are needed together
+   * and neither may be traded for the other:
+   *
+   * - ISOLATION: every middleware's hook runs even if an earlier one threw, so a
+   *   transient store error cannot skip a later middleware's own bookkeeping.
+   *   Each failure is captured by {@link captureTerminalHook}, not propagated
+   *   mid-loop.
+   * - REPORTING: after the loop, the failures are rethrown. Swallowing them
+   *   would make a failed `messages.append` produce `RUN_FINISHED` with
+   *   `outcome: success` and a `completed` run record while the assistant turn
+   *   is missing from storage — the client then sends a history the server has
+   *   no record of, with a log line as the only signal. `chat()`'s catch treats
+   *   what we throw as a genuine error (it is not a `MiddlewareAbortError`, and
+   *   `structuralInterruptFailure` does not match it), rethrows it, and the
+   *   durability sink sees `hasTerminalCause` and terminalizes the run.
+   *
+   * A single failure is rethrown AS-IS so the store's own error — its message,
+   * `cause`, `code` and `instanceof` identity — is what reaches the caller and
+   * the wire; wrapping the common case would bury it. Two or more become an
+   * `AggregateError` (never a `MiddlewareAbortError`, so it cannot be mistaken
+   * for an abort) rather than picking a winner and dropping the rest.
    */
   async runOnFinish(
     ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ): Promise<void> {
+    const failures: Array<HookFailure> = []
+    let firstFailure: HookFailure | undefined
+
     for (const mw of this.middlewares) {
       const hook = mw.onFinish
       if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        const ok = await this.runTerminalHook(mw, 'onFinish', () =>
+        const failure = await this.captureTerminalHook(mw, 'onFinish', () =>
           hook.call(mw, ctx, info),
         )
-        if (ok && !skip) {
+        if (failure !== undefined) {
+          firstFailure ??= failure
+          failures.push(failure)
+          continue
+        }
+        if (!skip) {
           this.logger.middleware(
             `hook=onFinish middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onFinish' },
@@ -544,11 +573,35 @@ export class MiddlewareRunner<TContext = unknown> {
         }
       }
     }
+
+    if (firstFailure !== undefined) {
+      throw failures.length === 1
+        ? firstFailure.error
+        : new AggregateError(
+            failures.map((f) => f.error),
+            `${failures.length} middleware onFinish hooks failed: ` +
+              failures.map((f) => f.middleware).join(', '),
+          )
+    }
   }
 
   /**
-   * Run onAbort on all middleware in order. Per-middleware guarded — see
-   * {@link runTerminalHook}.
+   * Run onAbort on all middleware in order.
+   *
+   * ISOLATED and DELIBERATELY SWALLOWED. `onAbort` is a pure teardown fan-out
+   * released from `chat()`'s `finally`, on a path where the outcome is already
+   * decided: the run stopped, and the caller is being told why. A throw here has
+   * nothing better to report than the abort reason it would DISPLACE — the
+   * `finally` would surface a flaky store's error in place of "client
+   * disconnected" — so failures are logged on the `errors` channel and go no
+   * further. That is not a silent failure; it is refusing to let teardown
+   * rewrite an outcome it did not produce.
+   *
+   * Isolation matters independently: these hooks release PER-MIDDLEWARE
+   * resources (`withSandbox.onAbort` detaches or destroys the sandbox and stamps
+   * `detachedSince`; `withPersistence.onAbort` records the run status through the
+   * store), so an unguarded loop turns one transient store error into a
+   * permanently leaked sandbox for every middleware ordered after it.
    */
   async runOnAbort(
     ctx: ChatMiddlewareContext<TContext>,
@@ -559,10 +612,10 @@ export class MiddlewareRunner<TContext = unknown> {
       if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        const ok = await this.runTerminalHook(mw, 'onAbort', () =>
+        const failure = await this.captureTerminalHook(mw, 'onAbort', () =>
           hook.call(mw, ctx, info),
         )
-        if (ok && !skip) {
+        if (failure === undefined && !skip) {
           this.logger.middleware(
             `hook=onAbort middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onAbort' },
@@ -581,9 +634,19 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
-   * Run onError on all middleware in order. Per-middleware guarded — see
-   * {@link runTerminalHook}. Without the guard a throwing `onError` replaced the
-   * run's real error with the hook's own.
+   * Run onError on all middleware in order.
+   *
+   * ISOLATED and DELIBERATELY SWALLOWED, for the same reason as
+   * {@link runOnAbort} and NOT merely because it is teardown: the run has
+   * already failed, `info.error` IS that failure, and `chat()` rethrows it to the
+   * caller the moment this fan-out returns. A propagated hook throw could only
+   * REPLACE the run's real error with a teardown artifact — strictly less
+   * information for the caller, who is already learning the run failed. Reporting
+   * would buy nothing and cost the diagnosis, so failures are logged on the
+   * `errors` channel and stop there.
+   *
+   * Contrast {@link runOnFinish}, where nothing else is telling the caller
+   * anything is wrong — which is why that one reports.
    */
   async runOnError(
     ctx: ChatMiddlewareContext<TContext>,
@@ -594,10 +657,10 @@ export class MiddlewareRunner<TContext = unknown> {
       if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        const ok = await this.runTerminalHook(mw, 'onError', () =>
+        const failure = await this.captureTerminalHook(mw, 'onError', () =>
           hook.call(mw, ctx, info),
         )
-        if (ok && !skip) {
+        if (failure === undefined && !skip) {
           this.logger.middleware(
             `hook=onError middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onError' },

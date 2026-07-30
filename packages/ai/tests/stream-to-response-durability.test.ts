@@ -7,7 +7,8 @@ import {
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
 import { EventType } from '../src/types'
-import { ev } from './test-utils'
+import { chat } from '../src/activities/chat/index'
+import { createMockAdapter, ev } from './test-utils'
 import type { StreamDurability } from '../src/stream-durability'
 import type { StreamChunk } from '../src/types'
 
@@ -714,5 +715,92 @@ describe('resume response helpers', () => {
     expect(sse.status).toBe(400)
     expect(ndjson.status).toBe(400)
     expect(await sse.text()).toMatch(/No resume offset/)
+  })
+})
+
+/**
+ * The user-visible consequence of `runOnFinish` REPORTING rather than swallowing
+ * (see `middleware-terminal-hook-isolation.test.ts` for the unit-level contract).
+ * `withPersistence.onFinish` is what writes the assistant turn; if it fails, the
+ * client must not be left believing the run succeeded, or its next turn sends a
+ * history the server has no record of.
+ */
+function failingPersistenceRun(): AsyncIterable<StreamChunk> {
+  const { adapter } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.textStart(),
+        ev.textContent('saved?'),
+        ev.textEnd(),
+        ev.runFinished('stop'),
+      ],
+    ],
+  })
+
+  return chat({
+    adapter,
+    messages: [{ role: 'user', content: 'Hi' }],
+    middleware: [
+      {
+        name: 'flaky-persistence',
+        onFinish: () => Promise.reject(new Error('messages.append failed')),
+      },
+    ],
+  }) as AsyncIterable<StreamChunk>
+}
+
+describe('a failing middleware onFinish surfaces past the transport', () => {
+  it('ends the client SSE stream with RUN_ERROR carrying the store failure', async () => {
+    const events = parseSseEvents(
+      await readBody(toServerSentEventsResponse(failingPersistenceRun())),
+    )
+
+    const last = events.at(-1)
+    if (last === undefined) throw new Error('Expected at least one SSE event')
+    expect(field(last, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(last, 'message')).toBe('messages.append failed')
+  })
+
+  it('reaches the durability sink, which records it server-side rather than double-terminalizing the wire', async () => {
+    // The sink deliberately does not append a contradictory RUN_ERROR after a
+    // RUN_FINISHED it already forwarded (see `terminalForwarded` in
+    // stream-to-response.ts). What matters for this fix is that the failure
+    // ARRIVES there at all: while `runOnFinish` swallowed, the sink never saw it
+    // and the only trace anywhere was a middleware log line.
+    const errorLog = vi.fn()
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=finish-hook-failure', {
+        method: 'POST',
+      }),
+    )
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(failingPersistenceRun(), {
+          durability: { adapter: durability },
+          debug: {
+            logger: {
+              debug: vi.fn(),
+              info: vi.fn(),
+              warn: vi.fn(),
+              error: errorLog,
+            },
+          },
+        }),
+      ),
+    )
+
+    expect(events.map((event) => field(event, 'type'))).toContain(
+      EventType.RUN_FINISHED,
+    )
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'durability failure after a terminal event was forwarded',
+      ),
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'messages.append failed' }),
+      }),
+    )
   })
 })

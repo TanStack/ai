@@ -8,20 +8,23 @@ import type {
 import type { Logger } from '../src/logger/types'
 
 /**
- * TERMINAL-HOOK ISOLATION.
+ * TERMINAL-HOOK ISOLATION, AND WHO REPORTS.
  *
- * `runOnAbort` / `runOnFinish` / `runOnError` are teardown fan-outs: each
- * middleware's hook releases ITS OWN resources. An unguarded loop turns one
- * middleware's transient failure into a skipped teardown for every middleware
- * ordered after it — e.g. `withPersistence.onAbort`'s `runs.update` failing on a
- * flaky store means `withSandbox.onAbort` never runs, so the sandbox is never
- * detached or destroyed and leaks permanently. `runOnAbort` is additionally
- * awaited from `chat()`'s `finally`, so a throw there also DISCARDS the original
- * abort reason and surfaces the store error in its place.
+ * All three terminal fan-outs are ISOLATED: each middleware's hook releases ITS
+ * OWN resources, so an unguarded loop turns one middleware's transient failure
+ * into a skipped teardown for every middleware ordered after it — e.g.
+ * `withPersistence.onAbort`'s `runs.update` failing on a flaky store means
+ * `withSandbox.onAbort` never runs, so the sandbox is never detached or destroyed
+ * and leaks permanently.
  *
- * `ai-sandbox`'s `dispatchDefinitionHooks` already settled the rule these tests
- * pin: swallow per hook so one bad hook cannot break the run, but log under
- * `errors` first so the failure is never invisible.
+ * They differ in whether the collected failures then REACH THE CALLER:
+ *
+ * - `onAbort` / `onError` swallow (logged on `errors`). The outcome is already
+ *   decided and being reported — the abort reason, or the run's real error — and
+ *   a hook throw could only DISPLACE it with a teardown artifact.
+ * - `onFinish` rethrows after the loop. It is the SUCCESS path, and it is where
+ *   `withPersistence.onFinish` saves the transcript; swallowing there reports
+ *   `outcome: success` for a run whose assistant turn never reached storage.
  */
 
 function collectingLogger(): { logger: InternalLogger; errors: Array<string> } {
@@ -82,20 +85,55 @@ describe('terminal middleware hooks are isolated per middleware', () => {
     expect(errors.join('\n')).toContain('middleware onAbort hook failed')
   })
 
-  it('runs every later onFinish after an earlier one throws', async () => {
+  it('runs every later onFinish after an earlier one throws, and still surfaces the failure to the caller', async () => {
     const later = vi.fn()
     const { logger, errors } = collectingLogger()
+    const storeDown = new Error('messages.append failed')
     const runner = new MiddlewareRunner<unknown>(
       [
-        { name: 'flaky', onFinish: () => Promise.reject(new Error('boom')) },
+        {
+          name: 'flaky-persistence',
+          onFinish: () => Promise.reject(storeDown),
+        },
         { name: 'sandbox', onFinish: later },
       ],
       logger,
     )
 
-    await expect(runner.runOnFinish(ctx(), finishInfo)).resolves.toBeUndefined()
+    // Isolation: the later middleware's onFinish is not skipped...
+    const settled = await runner
+      .runOnFinish(ctx(), finishInfo)
+      .then(() => undefined)
+      .catch((error: unknown) => error)
     expect(later).toHaveBeenCalledTimes(1)
+    // ...and reporting: the caller learns the transcript was not saved. The
+    // store's own error is rethrown as-is, not wrapped.
+    expect(settled).toBe(storeDown)
     expect(errors.join('\n')).toContain('middleware onFinish hook failed')
+  })
+
+  it('aggregates when several onFinish hooks fail, without picking a winner', async () => {
+    const { logger } = collectingLogger()
+    const first = new Error('store down')
+    const second = new Error('sandbox snapshot failed')
+    const runner = new MiddlewareRunner<unknown>(
+      [
+        { name: 'persistence', onFinish: () => Promise.reject(first) },
+        { name: 'sandbox', onFinish: () => Promise.reject(second) },
+      ],
+      logger,
+    )
+
+    const settled = await runner
+      .runOnFinish(ctx(), finishInfo)
+      .then(() => undefined)
+      .catch((error: unknown) => error)
+    expect(settled).toBeInstanceOf(AggregateError)
+    if (!(settled instanceof AggregateError)) throw new Error('unreachable')
+    expect(settled.errors).toEqual([first, second])
+    expect(settled.message).toContain('persistence, sandbox')
+    // It must not be mistaken for a middleware abort by chat()'s catch.
+    expect(settled.name).toBe('AggregateError')
   })
 
   it('runs every later onError after an earlier one throws, preserving the run error', async () => {
