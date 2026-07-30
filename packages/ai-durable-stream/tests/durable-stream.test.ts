@@ -866,6 +866,97 @@ describe('durableStream official HTTP protocol', () => {
     ).toBe(resumeOffset)
   })
 
+  it('resolves the run id from the X-Run-Id header exactly as ?runId does', async () => {
+    const streamPathFor = async (request: Request): Promise<string> => {
+      const server = makeProtocolServer()
+      const durability = durableStream(request, {
+        server: 'https://ds.test',
+        fetch: server.fetchStub,
+      })
+      await durability.append([textChunk('x')])
+      return requestWithMethod(server.requests, 'PUT').url.pathname
+    }
+
+    // The exact case that was broken: a `@tanstack/ai-client` POST keeps its
+    // URL byte-identical to a plain chat request and carries the run id in the
+    // header, so a query-only adapter produced into a random-UUID stream while
+    // the GET attach route addressed the real one.
+    const fromHeader = await streamPathFor(
+      new Request('https://app.test/api/chat', {
+        method: 'POST',
+        headers: { 'X-Run-Id': 'run-shared' },
+        body: '{}',
+      }),
+    )
+    const fromQuery = await streamPathFor(
+      new Request('https://app.test/api/chat?runId=run-shared'),
+    )
+
+    expect(fromHeader).toBe(fromQuery)
+    expect(fromHeader).toBe(`/streams/${encodeURIComponent('runs/run-shared')}`)
+  })
+
+  it('prefers the X-Run-Id header over ?runId when a request carries both', async () => {
+    const server = makeProtocolServer()
+    const durability = durableStream(
+      new Request('https://app.test/api/chat?runId=run-from-query', {
+        method: 'POST',
+        headers: { 'X-Run-Id': 'run-from-header' },
+        body: '{}',
+      }),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    await durability.append([textChunk('x')])
+
+    expect(requestWithMethod(server.requests, 'PUT').url.pathname).toBe(
+      `/streams/${encodeURIComponent('runs/run-from-header')}`,
+    )
+  })
+
+  it('resumes a mid-stream reconnect that names its run only by header', async () => {
+    const server = makeProtocolServer()
+    const producer = durableStream(
+      new Request('https://app.test/api/chat', {
+        method: 'POST',
+        headers: { 'X-Run-Id': 'run-header-resume' },
+        body: '{}',
+      }),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+    const [resumeOffset] = await producer.append([textChunk('x')])
+    if (!resumeOffset) throw new Error('Expected a resume offset')
+
+    // A dropped SSE connection re-POSTs the same URL with `Last-Event-ID` and
+    // still no `?runId` — this used to trip the resume guard and throw.
+    const reconnected = durableStream(
+      new Request('https://app.test/api/chat', {
+        method: 'POST',
+        headers: {
+          'X-Run-Id': 'run-header-resume',
+          'Last-Event-ID': resumeOffset,
+        },
+        body: '{}',
+      }),
+      { server: 'https://ds.test', fetch: server.fetchStub },
+    )
+
+    expect(reconnected.resumeFrom()).toBe(resumeOffset)
+  })
+
+  it('refuses a request that names no run instead of minting a random id', () => {
+    // A generated id would address a stream no attach request could ever name,
+    // so the producer would look healthy while writing where nobody can read.
+    expect(() =>
+      durableStream(
+        new Request('https://app.test/api/chat', {
+          method: 'POST',
+          body: '{}',
+        }),
+        { server: 'https://ds.test' },
+      ),
+    ).toThrow(/a runId is required/)
+  })
+
   it('rejects CR/LF injection in run ids, prefixes, cursors, and controls', async () => {
     expect(() =>
       durableStream(

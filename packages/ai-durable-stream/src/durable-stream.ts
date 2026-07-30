@@ -1,3 +1,4 @@
+import { resolveResumeRunId } from '@tanstack/ai'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 declare const durableStreamCursorBrand: unique symbol
@@ -456,6 +457,11 @@ function httpFailure(
 /**
  * External-URL Durable Streams protocol adapter.
  *
+ * `request` must name a run — `X-Run-Id` header (what a `@tanstack/ai-client`
+ * POST sends) or `?runId` (what a GET attach sends), resolved by core's
+ * `resolveResumeRunId`. A request that names neither throws rather than
+ * silently producing into an unaddressable stream.
+ *
  * Returns a plain `StreamDurability`, not an `UpsertableStreamDurability`.
  * This adapter's offsets embed a backend-assigned Next-Offset cursor, so a
  * caller cannot choose them; there is no `upsert` implementation to supply.
@@ -517,11 +523,27 @@ export function durableStream(
   const rawResumeOffset =
     request.headers.get('Last-Event-ID') ?? safeSearchParam(request, 'offset')
   const resumeOffset = parseResumeOffset(rawResumeOffset)
-  const requestedRunId = safeSearchParam(request, 'runId')
-  if (resumeOffset !== null && requestedRunId === null) {
-    throw new DurableStreamError('resume offset requires a runId')
+  // Resolved through core's `resolveResumeRunId` — `X-Run-Id` header first,
+  // then `?runId` — the same single implementation `memoryStream` and the
+  // resume response helpers use, so no two durability adapters can disagree
+  // about which run a request names. It has to be the header first: a
+  // `@tanstack/ai-client` POST keeps its URL byte-identical to a plain chat
+  // request and carries the run id in `X-Run-Id`, so a query-only adapter
+  // would name a different stream than the GET attach route addresses.
+  const requestedRunId = resolveResumeRunId(request)
+  if (requestedRunId === null) {
+    // Never mint a random id here. The backend stream name is derived from the
+    // run id, so a generated one addresses a stream no attach request could
+    // ever name: the producer would appear to work while writing where nobody
+    // can read. Refuse up front instead, matching `DurableRunIdRequiredError`
+    // in `@tanstack/ai-sandbox`.
+    throw new DurableStreamError(
+      resumeOffset === null
+        ? 'a runId is required: send it as an X-Run-Id header or a ?runId query param'
+        : 'resume offset requires a runId',
+    )
   }
-  const runId = assertRunId(requestedRunId ?? crypto.randomUUID())
+  const runId = assertRunId(requestedRunId)
 
   const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
   let createPromise: Promise<string> | undefined
