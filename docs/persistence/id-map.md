@@ -235,7 +235,7 @@ export async function POST(request: Request) {
     prompt: input.prompt,
     threadId,
     stream: true,
-    middleware: [withGenerationPersistence(persistence, { threadId })],
+    middleware: [withGenerationPersistence(persistence)],
   })
 
   return toServerSentEventsResponse(stream)

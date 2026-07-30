@@ -129,25 +129,41 @@ export interface WithPersistenceOptions {
 }
 
 /**
- * Options for {@link withGenerationPersistence} — everything in
- * {@link WithPersistenceOptions}, plus the generation's scope, which is
- * REQUIRED.
- *
- * `threadId` is a stable, app-chosen name for the slot successive runs fill
- * (`product-123-hero`, `video-9-start-frame`) — not a link to a chat. It is not
- * optional here for the same reason it is not optional on the client hooks: a
- * run filed under no scope cannot be hydrated by one, so `persistence: true`
- * would restore nothing, forever, with no error to explain why. Requiring it at
- * the type level makes that unrepresentable rather than a silent runtime
- * degradation.
- *
- * This is the authority for the run record's scope, in preference to whatever
- * the activity stamps on its wire chunks — those mint a throwaway id when the
- * caller supplies none, and a fabricated scope is worse than none at all.
+ * Options for {@link withGenerationPersistence}: everything in
+ * {@link WithPersistenceOptions}, plus an optional scope override.
  */
 export interface WithGenerationPersistenceOptions extends WithPersistenceOptions {
-  /** The stable scope this generation's runs are filed under. */
-  threadId: string
+  /**
+   * Override the scope runs are filed under. Defaults to the `threadId` you
+   * passed the activity, which is normally what you want, so leave this unset
+   * unless the record belongs somewhere other than the activity's own scope.
+   */
+  threadId?: string
+}
+
+/**
+ * The slot this generation's runs are filed under: `ctx.threadId` (the
+ * `threadId` the caller passed the activity), or the option when it overrides.
+ *
+ * Throws when neither supplies one. A run filed under no scope can never be
+ * hydrated by one, so `persistence: true` would restore nothing, forever. That
+ * is worth failing loudly for, since the alternative is a silent hole a reader
+ * cannot diagnose from behavior.
+ */
+function generationScope(
+  ctx: GenerationMiddlewareContext,
+  opts: WithGenerationPersistenceOptions,
+): string {
+  const threadId = opts.threadId ?? ctx.threadId
+  if (threadId === undefined || threadId.length === 0) {
+    throw new Error(
+      'Generation persistence requires a `threadId`, the stable scope successive ' +
+        'runs are filed under. Pass it to the activity, e.g. ' +
+        '`generateImage({ threadId, middleware: [withGenerationPersistence(p)] })`, ' +
+        'or override it with `withGenerationPersistence(p, { threadId })`.',
+    )
+  }
+  return threadId
 }
 
 const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 30_000
@@ -919,9 +935,9 @@ async function persistGenerationArtifacts(
   const activity = mediaActivity(ctx.activity)
   if (!activity) return []
 
-  // The required option, so an artifact is always filed under the same scope as
-  // its run record — never the internal requestId, which nothing can look up.
-  const threadId = opts.threadId
+  // Resolved the same way the run record is, so an artifact always lands in the
+  // same slot as the run that produced it.
+  const threadId = generationScope(ctx, opts)
   const runId = ctx.runId ?? ctx.requestId
   const extractionInput: GenerationArtifactExtractionInput = {
     activity,
@@ -1481,11 +1497,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
  */
 export function withGenerationPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidGenerationPersistence<TStores>,
-  opts: WithGenerationPersistenceOptions,
+  opts?: WithGenerationPersistenceOptions,
 ): GenerationMiddleware
 export function withGenerationPersistence(
   persistence: AIPersistence,
-  opts: WithGenerationPersistenceOptions,
+  opts: WithGenerationPersistenceOptions = {},
 ): GenerationMiddleware {
   validateGenerationPersistenceStores(persistence)
   const { wantsArtifactPersistence } = resolvePersistencePlan(persistence)
@@ -1503,16 +1519,13 @@ export function withGenerationPersistence(
 
     async onStart(ctx: GenerationMiddlewareContext) {
       const runId = runIdOf(ctx)
-      // `opts.threadId`, not `ctx.threadId`: the option is required, so the
-      // scope is always known here, whereas the context's is optional and an
-      // activity may have minted a throwaway one for its wire chunks.
       await generationRuns.createOrResume({
         runId,
         activity: ctx.activity,
         provider: ctx.provider,
         model: ctx.model,
         startedAt: Date.now(),
-        threadId: opts.threadId,
+        threadId: generationScope(ctx, opts),
       })
 
       // Extract + persist artifact bytes (media → blobs, metadata → artifacts)

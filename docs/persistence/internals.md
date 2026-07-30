@@ -50,7 +50,7 @@ stored transcript is loaded and used.
 
 ## Generation middleware lifecycle
 
-`withGenerationPersistence(persistence, { threadId })` records the job across
+`withGenerationPersistence(persistence)` records the job across
 three points:
 
 - `onStart` creates or resumes the run record.

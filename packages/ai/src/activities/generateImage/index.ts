@@ -231,7 +231,12 @@ export function generateImage<
 ): ImageActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      (resolved) => runGenerateImage({ ...options, ...resolved }),
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) => runGenerateImage({ ...options, runId: resolved.runId }),
       options,
     ) as ImageActivityResult<TStream>
   }

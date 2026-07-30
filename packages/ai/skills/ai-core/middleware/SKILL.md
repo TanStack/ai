@@ -506,7 +506,7 @@ once the run reaches a successful boundary, so a provider failure between
 accepting a resume and finishing leaves the interrupt pending and a retry with
 the same resume succeeds.
 
-> A companion `withGenerationPersistence(persistence, { threadId })` tracks run records for
+> A companion `withGenerationPersistence(persistence)` tracks run records for
 > non-chat generation activities (image, audio, TTS, video, transcription).
 
 Source: docs/persistence/overview.md
