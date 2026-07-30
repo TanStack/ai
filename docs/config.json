@@ -513,8 +513,7 @@
         {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
-          "addedAt": "2026-07-29",
-          "updatedAt": "2026-07-30"
+          "addedAt": "2026-07-29"
         },
         {
           "label": "Events",
