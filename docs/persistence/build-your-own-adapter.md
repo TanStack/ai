@@ -20,6 +20,42 @@ to end, then shows how to map the same contracts onto a database schema you
 already have. The runnable version of everything here lives in the
 `examples/ts-react-chat` app (`src/lib/sqlite-persistence.ts`).
 
+## Which stores do you need?
+
+There are seven stores and you almost certainly do not want all of them. Each one
+switches on a single capability. Find the column for what you are building and
+implement the rows marked ✅:
+
+| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+How to read it:
+
+- **Columns stack.** Want durable approvals *and* generated files? Implement the
+  union of those two columns.
+- **The four chat columns all need `messages`.** `withPersistence` refuses to run
+  without it, so it is the floor for anything chat-related.
+- **The two generation columns feed `withGenerationPersistence`** instead, and
+  need none of the chat stores. Chat and generation persistence are independent;
+  see [Generation persistence](./generation-persistence).
+
+Two pairs cannot be split:
+
+- `interrupts` needs `runs`. An interrupt record is scoped to a run.
+- `artifacts` and `blobs` go together. Metadata with no bytes, or bytes with
+  nothing describing them, is not a usable combination.
+
+So the smallest adapter worth shipping is a single `messages` store, and the
+common production shape is `messages` + `runs` + `interrupts`. The guide below
+builds them in that order.
+
 ## What an adapter is
 
 An adapter is an object with a `stores` map:
