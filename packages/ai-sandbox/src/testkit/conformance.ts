@@ -17,12 +17,15 @@ import type {
 
 // The `./testkit` package.json subpath resolves to THIS module's build output
 // only (`dist/esm/testkit/conformance.js`), not a barrel over `src/testkit/`.
-// Re-export the journal and takeover conformance suites here so they are
-// reachable from `@tanstack/ai-sandbox/testkit` without changing that mapping.
+// Re-export the journal, takeover, and reaper conformance suites here so they
+// are reachable from `@tanstack/ai-sandbox/testkit` without changing that
+// mapping.
 export { runJournalConformance } from './journal-conformance'
 export type { JournalConformanceConfig } from './journal-conformance'
 export { runTakeoverConformance } from './takeover-conformance'
 export type { TakeoverConformanceConfig } from './takeover-conformance'
+export { runReaperConformance } from './reaper-conformance'
+export type { ReaperConformanceConfig } from './reaper-conformance'
 export { makeFakeShellSpawn } from './shell-spawn'
 
 function makeRecord(

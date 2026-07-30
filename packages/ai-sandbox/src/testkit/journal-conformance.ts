@@ -50,8 +50,12 @@ function decodeJournalRead(stdout: string): string {
  * Through the shell (`journalExistsCommand`), never `handle.fs.exists` — see
  * rule 3 in `../journal.ts`: on local-process the two resolve `/tmp`
  * differently, so an `fs` probe would report the wrong file.
+ *
+ * Exported for `./reaper-conformance.ts`, which needs the same bounded,
+ * shell-only wait before probing a still-producing run. Internal to the testkit;
+ * not part of the `./testkit` public surface.
  */
-async function waitForJournal(
+export async function waitForJournal(
   handle: SandboxHandle,
   paths: JournalPaths,
 ): Promise<void> {
