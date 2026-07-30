@@ -32,6 +32,12 @@ const detachSignals = new WeakMap<object, () => boolean>()
  * Publish `stream`'s detach predicate. Called by `chat()` on the object it hands
  * back, once per stream.
  *
+ * Wired on BOTH streaming paths — `runStreamingText` and
+ * `runStreamingStructuredOutput` — since either can be handed to a durable
+ * transport helper. The non-streaming paths (`stream: false`, and the
+ * `Promise<T>` structured-output variant) resolve a value rather than yielding a
+ * stream, so there is no delivery sink to inform and nothing to publish.
+ *
  * @internal
  */
 export function publishRunDetachedSignal(

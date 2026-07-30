@@ -9,7 +9,7 @@ import {
 } from '../src/index'
 import { InMemoryLockStore } from '../src/locks'
 import { InternalLogger } from '../src/adapter-internals'
-import type { RunStore, StreamChunk } from '../src/index'
+import type { RunRecord, RunStore, StreamChunk } from '../src/index'
 import type { LockStore } from '../src/locks'
 import type { Logger } from '../src/logger/types'
 
@@ -196,6 +196,53 @@ describe('resumeServerSentEventsResponse — driver', () => {
     expect(driver.drive).not.toHaveBeenCalled()
   })
 
+  // The driver's gate reads `status` straight off a user-implemented store, and
+  // an unrecognized value means the run cannot be reasoned about at all. Driving
+  // it would be worse than not: the record says nothing trustworthy about
+  // whether an agent is already running. So an invalid status is refused the same
+  // way a terminal one is — and the log is still served, which is what keeps a
+  // corrupt row from also blanking the transcript.
+  it('does NOT drive a run whose stored status is not a RunStatus', async () => {
+    const request = req('rd-sse-bad-status')
+    const { logger, errors } = collectingLogger()
+    const runs = new InMemoryRunStore()
+    await runs.createOrResume({
+      runId: 'rd-sse-bad-status',
+      threadId: 't1',
+      startedAt: 1,
+    })
+    // `JSON.parse` is `any`: a real backend's deserializer widens a row to
+    // `RunRecord` without validating the `status` column, and that is the exact
+    // unsoundness reproduced here. `'toString'` is an `Object.prototype` key, so
+    // a prototype-chain `in` check would have called it terminal.
+    const malformed: RunRecord = JSON.parse(
+      JSON.stringify({
+        runId: 'rd-sse-bad-status',
+        threadId: 't1',
+        startedAt: 1,
+        status: 'toString',
+      }),
+    )
+    const corruptRuns: RunStore = {
+      createOrResume: (input) => runs.createOrResume(input),
+      update: (runId, patch) => runs.update(runId, patch),
+      get: () => Promise.resolve(malformed),
+    }
+    const driver = { ...baseDriver(corruptRuns, request), logger }
+
+    const response = resumeServerSentEventsResponse({
+      adapter: memoryStream(request),
+      driver,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(driver.settled).resolves.toBeUndefined()
+    expect(driver.drive).not.toHaveBeenCalled()
+    expect(errors.join('\n')).toContain(
+      'resume driver: the run record has an unrecognized status',
+    )
+  })
+
   it('does NOT drive an unknown run', async () => {
     const request = req('rd-sse-missing')
     const driver = baseDriver(new InMemoryRunStore(), request)
@@ -269,6 +316,72 @@ describe('resumeServerSentEventsResponse — driver', () => {
     await driver.settled
     expect((await runs.get('rd-sse-detached'))?.detachedSince).toBeUndefined()
     expect(clearedInsideClaim).toEqual([true])
+  })
+
+  it('does NOT drive a run whose cancel was already recorded out of band', async () => {
+    // `requestRunCancel` deliberately writes no status: a run cancelled while
+    // its driving host was already dead stays `running` with
+    // `cancelRequested: true`. Claiming and driving it resurrects a run the user
+    // explicitly stopped and burns tokens until the TTL.
+    const runs = new InMemoryRunStore()
+    await runs.createOrResume({
+      runId: 'rd-sse-cancelled',
+      threadId: 't1',
+      startedAt: 1,
+    })
+    await runs.update('rd-sse-cancelled', { cancelRequested: true })
+    const request = req('rd-sse-cancelled')
+    const driver = baseDriver(runs, request)
+
+    const response = resumeServerSentEventsResponse({
+      adapter: memoryStream(request),
+      driver,
+    })
+
+    // The log is still served — a tab attaching to a cancelled run must see the
+    // transcript — but nothing is driven.
+    expect(response.status).toBe(200)
+    await driver.settled
+    expect(driver.drive).not.toHaveBeenCalled()
+    expect(driver.pipe).not.toHaveBeenCalled()
+  })
+
+  it('still drives when the detachedSince bookkeeping write fails, and logs it as an error', async () => {
+    // The `detachedSince` clear is bookkeeping for the reaper's TTL accounting.
+    // A transient store failure there used to propagate into the "someone else
+    // won the lease" catch, costing the ENTIRE takeover of a successfully
+    // acquired claim — and logging it on the `provider` debug channel, invisible
+    // at default log levels.
+    const runs = new InMemoryRunStore()
+    await runs.createOrResume({
+      runId: 'rd-sse-clear-fails',
+      threadId: 't1',
+      startedAt: 1,
+    })
+    await runs.update('rd-sse-clear-fails', { detachedSince: 1_000 })
+    const request = req('rd-sse-clear-fails')
+    const { logger, errors } = collectingLogger()
+    const failingRuns: RunStore = {
+      createOrResume: (input) => runs.createOrResume(input),
+      get: (runId) => runs.get(runId),
+      update: (runId, patch) =>
+        'detachedSince' in patch
+          ? Promise.reject(new Error('store down'))
+          : runs.update(runId, patch),
+    }
+    const driver = { ...baseDriver(failingRuns, request), logger }
+
+    resumeServerSentEventsResponse({
+      adapter: memoryStream(request),
+      driver,
+    })
+
+    await expect(driver.settled).resolves.toBeUndefined()
+    expect(driver.drive).toHaveBeenCalledTimes(1)
+    expect(driver.pipe).toHaveBeenCalledTimes(1)
+    expect(errors.join('\n')).toContain(
+      'resume driver: clearing detachedSince failed',
+    )
   })
 
   it('never rejects when the claim is refused — a loser still serves the log', async () => {

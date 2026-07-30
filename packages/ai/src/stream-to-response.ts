@@ -1,6 +1,9 @@
 import { toRunErrorPayload } from './activities/error-payload'
 import { isCancelRequestedReason } from './activities/chat/cancel'
-import { isTerminalRunStatus } from './activities/chat/middleware/run-store'
+import {
+  isRunStatus,
+  isTerminalRunStatus,
+} from './activities/chat/middleware/run-store'
 import { wasRunDetached } from './delivery-detach'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
@@ -453,16 +456,26 @@ function durableStreamSource<TOffset extends string>(
       // spare a run the user deliberately stopped, whatever a middleware claims.
       // `!hasTerminalCause` keeps a GENUINE provider failure
       // terminal even if the socket died too, so a real error is never mistaken
-      // for a detach. `!terminalPersisted` means a run that already ended on the
-      // wire still gets its `close()`. And `wasRunDetached` is false for an
+      // for a detach. And `wasRunDetached` is false for an
       // explicit cancel (either band), for a non-detachable disconnect, and for
       // every app that has not wired durability — all of which keep terminalizing
       // and closing exactly as before.
+      //
+      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
+      // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
+      // `finishReason: 'tool_calls'` terminal is flushed at its boundary
+      // mid-run — so `terminalPersisted` means "some terminal is in the log",
+      // never "the run ended". Gating on it terminalized the log of a healthy,
+      // still-running agent for every tool-calling run. Nor can the sink
+      // distinguish a final terminal from an intermediate one by its
+      // `finishReason`: only the run's middleware knows, and that is exactly
+      // what the verdict reports. So a published detach verdict WINS — it
+      // already means "the agent is alive and a successor will terminalize this
+      // log".
       const detached =
         cancelled &&
         !isExplicitCancel(abortController.signal) &&
         !hasTerminalCause &&
-        !terminalPersisted &&
         wasRunDetached(stream)
 
       if (
@@ -749,7 +762,34 @@ function startRunDriver(driver: RunDriverOptions): void {
       })
       return
     }
+    // Validated, not trusted: `record.status` is typed `RunStatus` but comes off
+    // a user-implemented `RunStore`, so the type is a claim about a storage
+    // column and nothing checked it. An unrecognized value means the run cannot
+    // be reasoned about at all — the record says nothing trustworthy about
+    // whether an agent is already driving it — so refuse the drive the same way
+    // a terminal record does, and still serve the log so a corrupt row does not
+    // also blank the transcript.
+    if (record !== null && !isRunStatus(record.status)) {
+      logger?.errors(
+        'resume driver: the run record has an unrecognized status',
+        {
+          runId,
+          status: record.status,
+        },
+      )
+      return
+    }
     if (record === null || isTerminalRunStatus(record.status)) return
+    // A recorded cancel is NOT a status. `requestRunCancel` deliberately writes
+    // only `cancelRequested`, so a run cancelled out of band while its driving
+    // host had already died stays `'running'` — and the status gate above waves
+    // it straight through. Driving it resurrects a run the user explicitly
+    // stopped and burns tokens until the TTL expires. The log is still served, so
+    // an attaching tab sees the transcript; only the drive is refused.
+    //
+    // This is the "don't START one" half. Aborting a drive that is ALREADY live
+    // when a cancel lands afterwards is a separate, still-open concern.
+    if (record.cancelRequested === true) return
     // Captured after narrowing so the closure below sees a definite record
     // rather than the re-widened `let`.
     const active = record
@@ -768,7 +808,24 @@ function startRunDriver(driver: RunDriverOptions): void {
           // this path would erase the very evidence the reaper selected the run
           // on, resetting the TTL on every sweep so a detached run could never
           // expire. That is why the reaper has its own drive path.
-          await driver.runs.update(runId, { detachedSince: undefined })
+          //
+          // LOG AND CONTINUE. This write is BOOKKEEPING for the reaper's TTL
+          // accounting; the claim is already held and the takeover is the
+          // valuable part. Letting a rejection propagate would land in the catch
+          // below — the channel reserved for the normal "someone else won the
+          // lease" case — so one transient store error would silently cost the
+          // whole drive, logged only on the `provider` debug channel and
+          // therefore invisible at default log levels. The worst case of
+          // continuing is a stale `detachedSince` the reaper may act on later;
+          // the worst case of vetoing is a run nobody drives at all.
+          try {
+            await driver.runs.update(runId, { detachedSince: undefined })
+          } catch (error) {
+            logger?.errors('resume driver: clearing detachedSince failed', {
+              runId,
+              error,
+            })
+          }
           await driver.pipe(
             driver.drive({
               runId,

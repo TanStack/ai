@@ -4041,11 +4041,24 @@ function runStreamingStructuredOutput<
   // CUSTOM wait events.
   // The contained cast keeps the public stream type focused on
   // structured-output completion.
-  return runStreamingStructuredOutputImpl(
+  //
+  // Same seam as `runStreamingText`: this wrapper is NOT a generator, so the
+  // stream identity can be minted here and the detach verdict read back through
+  // `engineRef` once the impl body has its engine. Without this a durable
+  // structured-output stream could never detach — the sink would find no verdict
+  // and terminalize a healthy detached run's log.
+  const engineRef: { current?: { wasDetached: () => boolean } } = {}
+  const stream = runStreamingStructuredOutputImpl(
     options,
     jsonSchema,
     normalize,
-  ) as StructuredOutputStream<InferSchemaType<TSchema>>
+    engineRef,
+  )
+  publishRunDetachedSignal(
+    stream,
+    () => engineRef.current?.wasDetached() === true,
+  )
+  return stream as StructuredOutputStream<InferSchemaType<TSchema>>
 }
 
 /**
@@ -4071,6 +4084,7 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
   normalize: (data: unknown) => unknown,
+  engineRef: { current?: { wasDetached: () => boolean } },
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
   const {
     adapter,
@@ -4121,6 +4135,7 @@ async function* runStreamingStructuredOutputImpl<
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {

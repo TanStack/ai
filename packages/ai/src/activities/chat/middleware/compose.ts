@@ -475,18 +475,60 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
-   * Run onFinish on all middleware in order.
+   * Await ONE terminal hook, swallowing a throw so one middleware cannot cancel
+   * every later middleware's teardown.
+   *
+   * Exactly the rule `ai-sandbox`'s `dispatchDefinitionHooks` settled — "one bad
+   * hook cannot break the run", swallowed but logged under `errors` first so the
+   * failure is never invisible — applied to the run-scoped terminal fan-outs.
+   * These hooks release PER-MIDDLEWARE resources (`withSandbox.onAbort` detaches
+   * or destroys the sandbox and stamps `detachedSince`;
+   * `withPersistence.onAbort` records the run status through the store), so an
+   * unguarded loop turns one transient store error into a permanently leaked
+   * sandbox for every middleware ordered after it.
+   *
+   * `runOnAbort` is additionally awaited from `chat()`'s `finally`, where a throw
+   * would ALSO replace the original abort reason with the hook's error. Guarding
+   * here is what keeps that reason intact.
+   *
+   * Returns whether the hook succeeded, so instrumentation only reports hooks
+   * that actually completed.
+   */
+  private async runTerminalHook(
+    mw: ChatMiddleware<TContext>,
+    hookName: 'onFinish' | 'onAbort' | 'onError',
+    invoke: () => void | Promise<void>,
+  ): Promise<boolean> {
+    try {
+      await invoke()
+      return true
+    } catch (error) {
+      this.logger.errors(`middleware ${hookName} hook failed`, {
+        middleware: mw.name ?? 'unnamed',
+        hook: hookName,
+        error,
+      })
+      return false
+    }
+  }
+
+  /**
+   * Run onFinish on all middleware in order. Per-middleware guarded — see
+   * {@link runTerminalHook}.
    */
   async runOnFinish(
     ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
-      if (mw.onFinish) {
+      const hook = mw.onFinish
+      if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        await mw.onFinish(ctx, info)
-        if (!skip) {
+        const ok = await this.runTerminalHook(mw, 'onFinish', () =>
+          hook.call(mw, ctx, info),
+        )
+        if (ok && !skip) {
           this.logger.middleware(
             `hook=onFinish middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onFinish' },
@@ -505,18 +547,22 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
-   * Run onAbort on all middleware in order.
+   * Run onAbort on all middleware in order. Per-middleware guarded — see
+   * {@link runTerminalHook}.
    */
   async runOnAbort(
     ctx: ChatMiddlewareContext<TContext>,
     info: AbortInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
-      if (mw.onAbort) {
+      const hook = mw.onAbort
+      if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        await mw.onAbort(ctx, info)
-        if (!skip) {
+        const ok = await this.runTerminalHook(mw, 'onAbort', () =>
+          hook.call(mw, ctx, info),
+        )
+        if (ok && !skip) {
           this.logger.middleware(
             `hook=onAbort middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onAbort' },
@@ -535,18 +581,23 @@ export class MiddlewareRunner<TContext = unknown> {
   }
 
   /**
-   * Run onError on all middleware in order.
+   * Run onError on all middleware in order. Per-middleware guarded — see
+   * {@link runTerminalHook}. Without the guard a throwing `onError` replaced the
+   * run's real error with the hook's own.
    */
   async runOnError(
     ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
   ): Promise<void> {
     for (const mw of this.middlewares) {
-      if (mw.onError) {
+      const hook = mw.onError
+      if (hook) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        await mw.onError(ctx, info)
-        if (!skip) {
+        const ok = await this.runTerminalHook(mw, 'onError', () =>
+          hook.call(mw, ctx, info),
+        )
+        if (ok && !skip) {
           this.logger.middleware(
             `hook=onError middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onError' },
