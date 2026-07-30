@@ -1347,6 +1347,14 @@ export class StreamProcessor {
     // Update state
     if (wasAwaitingInput && chunk.delta) {
       existingToolCall.state = 'input-streaming'
+    } else if (existingToolCall.state === 'input-complete' && chunk.delta) {
+      // The call was force-completed by an inferred completion (an interleaved
+      // TEXT_MESSAGE_CONTENT force-completes in-flight tool calls). A further
+      // args delta proves that inference was premature: re-open the call so
+      // the authoritative TOOL_CALL_END (or the RUN_FINISHED safety net)
+      // re-finalizes `input` from the complete arguments string instead of
+      // leaving the partial-JSON parse in place. See issue #1017.
+      existingToolCall.state = 'input-streaming'
     }
 
     // Try to parse the updated arguments
