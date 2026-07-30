@@ -21,13 +21,20 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, InMemoryRunStore } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
-import { captureLogger, fakeLog, makeFakeHandle } from './fakes'
+import {
+  captureLogger,
+  fakeLog,
+  makeFakeHandle,
+  makeFakeProvider,
+} from './fakes'
 import {
   DEFAULT_MAX_RUNS,
   DEFAULT_RUN_BUDGET_MS,
   probeRunExit,
   reapDetachedRuns,
 } from '../src/reap'
+import { InMemorySandboxInstanceStore } from '../src/instance-store'
+import { SandboxReclaimFailedError, sandboxReclaimer } from '../src/reclaim'
 import { exitSentinelLine, journalPaths } from '../src/journal'
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type { ReapOptions, RunExitProbe } from '../src/reap'
@@ -830,6 +837,143 @@ describe('reapDetachedRuns — totality', () => {
       leaked.runId,
       clean.runId,
     ])
+  })
+
+  it('reports reclaim-failed through the SHIPPED sandboxReclaimer, not only a custom reclaim', async () => {
+    /*
+     * THE JOIN THIS TEST EXISTS FOR. `'reclaim-failed'` and `reclaimSandbox`'s
+     * `'destroy-failed'` were added independently and never met:
+     * `sandboxReclaimer` logged that arm and RETURNED, so `reapOne`'s `try` saw
+     * no throw and the run reported `'finalized'`. Every `'reclaim-failed'` test
+     * used a hand-written throwing `reclaim`, so a `ReapResult` consumer watching
+     * `outcomes['reclaim-failed']` read `0` on the one leak it watches for while
+     * the suite stayed green. This wires the REAL reclaimer to a REAL instance
+     * store and fails the provider's `destroy`.
+     */
+    const h = makeHarness()
+    const { logger, calls } = captureLogger()
+    const instances = new InMemorySandboxInstanceStore()
+    const leaked = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-leak',
+    })
+    const clean = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-ok',
+    })
+    h.probes.set(leaked.runId, { state: 'finished', exitCode: 5 })
+    h.probes.set(clean.runId, { state: 'finished', exitCode: 0 })
+    for (const [key, id] of [
+      ['k-leak', 'sbx-leak'],
+      ['k-ok', 'sbx-ok'],
+    ] as const) {
+      await instances.upsert({
+        key,
+        provider: 'fake',
+        providerSandboxId: id,
+        threadId: `th-${key}`,
+        updatedAt: 1,
+      })
+    }
+    const provider = makeFakeProvider()
+    const destroyed: Array<string> = []
+    provider.destroy = (input) => {
+      destroyed.push(input.id)
+      return input.id === 'sbx-leak'
+        ? Promise.reject(new Error('provider 500'))
+        : Promise.resolve()
+    }
+
+    const result = await reapDetachedRuns(
+      h.options({ logger, reclaim: sandboxReclaimer({ provider, instances }) }),
+    )
+
+    const entry = entryFor(result, leaked.runId)
+    expect(entry.outcome).toBe('reclaim-failed')
+    // "Transcript saved, sandbox NOT reclaimed" — distinguishable from "the
+    // sweep failed", which carries neither of these.
+    expect(entry.status).toBe('completed')
+    expect(entry.exitCode).toBe(5)
+    expect(entry.error).toBeInstanceOf(SandboxReclaimFailedError)
+    expect(h.logOf(leaked.runId).closes).toBe(1)
+    /*
+     * PAIRED WITH A CLEAN RECLAIM through the SAME reclaimer. Without this half a
+     * no-op reclaimer — or one that rejects unconditionally — satisfies the
+     * assertions above.
+     */
+    expect(entryFor(result, clean.runId).outcome).toBe('finalized')
+    expect(entryFor(result, clean.runId).error).toBeUndefined()
+    expect(destroyed).toEqual(['sbx-leak', 'sbx-ok'])
+    expect(result.outcomes).toMatchObject({
+      'reclaim-failed': 1,
+      finalized: 1,
+      failed: 0,
+    })
+    // The record is deleted either way (a record pointing at a dead sandbox
+    // guarantees a failed resume), which is exactly why the sweep summary is the
+    // only remaining notice of the leak.
+    expect(await instances.get('k-leak')).toBeNull()
+    expect(await instances.get('k-ok')).toBeNull()
+    expect(calls.some((call) => call.level === 'error')).toBe(true)
+  })
+
+  it('keeps the budget diagnostic on a budget-exceeded run whose reclaim then fails', async () => {
+    // `outcome` is overwritten to `'reclaim-failed'` after the budget classified
+    // it, so conditioning the `terminalizedAnyway` spread on the POST-reclaim
+    // outcome erased the budget anomaly from the entry entirely — neither the
+    // outcome nor any field named it. An operator seeing a leak on a run whose
+    // replay was already misbehaving needs both facts.
+    const h = makeHarness()
+    const wedged = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-wedged',
+    })
+    const normal = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-normal',
+    })
+    h.probes.set(wedged.runId, { state: 'finished', exitCode: 0 })
+    h.probes.set(normal.runId, { state: 'finished', exitCode: 0 })
+    const drive: ReapOptions['drive'] = (input) => {
+      h.driven.push(input.runId)
+      if (input.runId !== wedged.runId) {
+        return (async function* one() {
+          yield textChunk(input.runId)
+        })()
+      }
+      return (async function* forever() {
+        while (!input.signal.aborted) {
+          yield textChunk(input.runId)
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        }
+      })()
+    }
+
+    const result = await reapDetachedRuns(
+      h.options({
+        drive,
+        runBudgetMs: 1,
+        reclaim: (record) => {
+          h.reclaimed.push(record)
+          return record.runId === wedged.runId
+            ? Promise.reject(new Error('instance store down'))
+            : Promise.resolve()
+        },
+      }),
+    )
+
+    const entry = entryFor(result, wedged.runId)
+    // The leak wins the single `outcome` slot — it is what needs acting on...
+    expect(entry.outcome).toBe('reclaim-failed')
+    // ...and the budget anomaly survives alongside it rather than being lost.
+    expect(entry.terminalizedAnyway).toBe(true)
+    expect(entry.error).toBeInstanceOf(Error)
+    expect(isTerminalRunStatus(entry.status ?? 'running')).toBe(true)
+    // A run that neither blew its budget nor failed to reclaim carries neither
+    // signal, so the marker still means what it says.
+    const other = entryFor(result, normal.runId)
+    expect(other.outcome).toBe('finalized')
+    expect(other.terminalizedAnyway).toBeUndefined()
   })
 
   it('applies the default budget when none is given', async () => {

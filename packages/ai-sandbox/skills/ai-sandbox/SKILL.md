@@ -950,7 +950,12 @@ untouched, whereas `'budget-exceeded'` is the opposite — the record IS termina
 the log IS closed, and `reclaim` fired; it flags a run the probe said had finished
 that would not replay in time, i.e. a misbehaving journal read, translation, or
 log. `'reclaim-failed'` means the transcript saved but the sandbox is still up, and
-no later sweep will retry it.
+no later sweep will retry it — the shipped `sandboxReclaimer` **rejects** (with
+`SandboxReclaimFailedError`) when the provider's `destroy` throws, which is what
+makes that outcome reachable at all, so a custom `reclaim` must reject too rather
+than logging and resolving. It overwrites `'budget-exceeded'` when a run hit both;
+`ReapRunEntry.terminalizedAnyway` is set if and only if the budget anomaly
+happened and is what keeps that second diagnostic on the entry.
 
 **`ReapOptions.detachedRunTtlMs` is the ONLY detached-run TTL.** It is required,
 passed directly to `reapDetachedRuns`, and nothing derives it from `withSandbox`

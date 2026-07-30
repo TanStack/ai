@@ -188,6 +188,14 @@ export type ReapRunOutcome =
    * NOT RETRYABLE BY THE SWEEP. The record is terminal by now, so the run has
    * left `listReclaimable` for good; the sandbox leaks until something else
    * tears it down. This entry, with its `error`, is the only notice of that.
+   *
+   * OVERWRITES `'budget-exceeded'` when both happened, because the leak is what
+   * needs acting on — {@link ReapRunEntry.terminalizedAnyway} is what preserves
+   * the budget half of that pair.
+   *
+   * `sandboxReclaimer` REJECTS on its `'destroy-failed'` arm precisely so this
+   * outcome is reachable through the shipped reclaimer and not only through a
+   * custom one; see `SandboxReclaimFailedError` in `reclaim.ts`.
    */
   | 'reclaim-failed'
   /** Something threw. Logged, recorded here, and the sweep continued. */
@@ -202,9 +210,20 @@ export interface ReapRunEntry {
   /** The agent's exit code, when the probe read one. */
   exitCode?: number
   /**
-   * `'budget-exceeded'` only: whether the record nonetheless reached a terminal
-   * status. Practically always `true`, since `pipeToRunLog` is total — it is
-   * reported rather than assumed so an operator does not have to infer it.
+   * THE BUDGET ANOMALY MARKER, and the only field whose mere PRESENCE carries a
+   * fact: it is set if and only if the drive outran
+   * {@link ReapOptions.runBudgetMs} on the finalization path — the condition
+   * `'budget-exceeded'` names. Its value is whether the record nonetheless
+   * reached a terminal status, practically always `true` since `pipeToRunLog` is
+   * total; it is reported rather than assumed so an operator does not have to
+   * infer it.
+   *
+   * SURVIVES A FAILED RECLAIM. `reclaim` runs after the outcome is classified
+   * and overwrites it with `'reclaim-failed'`, which is the more urgent fact (a
+   * leaked sandbox nothing will retry) and so wins the single `outcome` slot.
+   * This field is therefore what keeps the budget anomaly on the entry: an
+   * operator seeing `'reclaim-failed'` WITH `terminalizedAnyway` present is
+   * looking at a run that blew its budget and then leaked, and needs both halves.
    */
   terminalizedAnyway?: boolean
   error?: unknown
@@ -553,6 +572,15 @@ async function reapOne<TOffset extends string>(
       outcome = expired ? 'expired' : 'finalized'
     }
 
+    // CAPTURED BEFORE THE RECLAIM BLOCK, which may overwrite `outcome` with
+    // `'reclaim-failed'`. Conditioning the `terminalizedAnyway` spread on the
+    // post-reclaim `outcome` dropped the budget diagnostic from exactly the
+    // entries that need it most: a run that blew its budget AND then failed to
+    // reclaim reported neither fact but the leak, and an operator cannot
+    // diagnose a leak on a run whose replay was already misbehaving without
+    // knowing that it was.
+    const budgetAnomaly = outcome === 'budget-exceeded'
+
     let reclaimError: unknown
     if (terminal && ctx.options.reclaim !== undefined) {
       try {
@@ -587,9 +615,7 @@ async function reapOne<TOffset extends string>(
       outcome,
       status: final.status,
       ...(exitCode === undefined ? {} : { exitCode }),
-      ...(outcome === 'budget-exceeded'
-        ? { terminalizedAnyway: terminal }
-        : {}),
+      ...(budgetAnomaly ? { terminalizedAnyway: terminal } : {}),
       ...(reclaimError === undefined ? {} : { error: reclaimError }),
     }
   } catch (error) {

@@ -9,6 +9,7 @@ keywords:
   - pruneJournals
   - reclaimSandbox
   - sandboxReclaimer
+  - SandboxReclaimFailedError
   - detachedRunTtlMs
   - retention
 ---
@@ -99,9 +100,9 @@ them by `ReapRunOutcome`:
 | `expired` | Past `detachedRunTtlMs`. Cancelled first (so the teardown is an explicit cancel that destroys the sandbox), then driven to terminal. The probe is skipped — the outcome is terminal either way. Reported even when `runBudgetMs` is what ended the drive: on this path that is the mechanism, not an anomaly. The run's `status` tells the two apart — an agent that had already finished replays to `completed`, one still producing when the budget fired is `aborted`. |
 | `producing` | Still working. `pipeToRunLog` was never entered: nothing appended, no record written, `close()` not called, `detachedSince` untouched. |
 | `unknown` | The probe could not answer. Left exactly as untouched as `producing`, but an operator should see it. |
-| `budget-exceeded` | Anomaly, and **finalization only**. A run the journal already said was finished outran `runBudgetMs`. The record *is* terminal and the log *is* closed, so this is a diagnostic, not a leak. An expired run that outran its budget reports `expired` instead. |
+| `budget-exceeded` | Anomaly, and **finalization only**. A run the journal already said was finished outran `runBudgetMs`. The record *is* terminal and the log *is* closed, so this is a diagnostic, not a leak. An expired run that outran its budget reports `expired` instead. The entry also carries `terminalizedAnyway`, which is set **if and only if** this anomaly happened — so it survives even when a subsequent failed reclaim overwrites the outcome. |
 | `not-claimed` | Another host holds the claim, or took it mid-drive. Normal — a real viewer attaching mid-sweep is exactly this. |
-| `reclaim-failed` | The run reached terminal and its transcript **is** saved — only `ReapOptions.reclaim` threw, so the sandbox is still up. **Not retryable by the sweep**: the record is terminal by now, so it has already left `listReclaimable` for good, and nothing will sweep it again. This is the outcome that says the cost leak the reaper exists to stop is still leaking; the entry's `error` is the only notice you get. |
+| `reclaim-failed` | The run reached terminal and its transcript **is** saved — only `ReapOptions.reclaim` threw, so the sandbox is still up. **Not retryable by the sweep**: the record is terminal by now, so it has already left `listReclaimable` for good, and nothing will sweep it again. This is the outcome that says the cost leak the reaper exists to stop is still leaking; the entry's `error` is the only notice you get. The shipped `sandboxReclaimer` **rejects** on its `destroy-failed` arm precisely so this is reachable without a custom `reclaim`. Overwrites `budget-exceeded` when both happened — the leak is what needs acting on, and `terminalizedAnyway` preserves the other half. |
 | `failed` | Something threw. Logged, counted, and the sweep continued. |
 
 There is deliberately no "still running" outcome distinct from `producing`, and
@@ -462,18 +463,53 @@ Two orderings are load-bearing:
   outcome is bookkeeping an operator never needs to see.
 
 `sandboxReclaimer(options)` is the same thing adapted to `ReapOptions.reclaim`:
-it logs the outcome and resolves. The reaper calls it **only** once the record
-actually reached a terminal status, and with the *originally listed* record
-rather than the one the drive returned — a failed terminal `update` yields a
-locally rebuilt record with no `sandboxKey`, which would answer
+it logs the outcome and resolves — **except on `'destroy-failed'`, where it
+rejects** with a `SandboxReclaimFailedError`. The reaper calls it **only** once
+the record actually reached a terminal status, and with the *originally listed*
+record rather than the one the drive returned — a failed terminal `update`
+yields a locally rebuilt record with no `sandboxKey`, which would answer
 `'no-sandbox-key'` and leak the sandbox silently on exactly the path where
 something already went wrong.
 
-If `sandboxReclaimer` itself throws — rather than resolving to
-`'destroy-failed'` — the reaper reports the run's `ReapRunOutcome` as
-`reclaim-failed` (see the outcome table above): the run's transcript is saved
-and its record is terminal, only the reclaim call failed, and that run has
-already left `listReclaimable` for good, so no later sweep retries it.
+That rejection is deliberate, and it is what makes the `reclaim-failed` outcome
+reachable at all. `ReapOptions.reclaim` is `(record) => Promise<void>`, so a
+rejection is the sweep's only channel for "the sandbox was NOT reclaimed":
+
+```ts
+import { SandboxReclaimFailedError } from '@tanstack/ai-sandbox'
+
+const result = await reapDetachedRuns({
+  /* ... */ reclaim: sandboxReclaimer({ provider, instances }),
+})
+
+// Watch this counter — it is the leak alarm.
+if (result.outcomes['reclaim-failed'] > 0) {
+  for (const run of result.runs) {
+    if (run.outcome !== 'reclaim-failed') continue
+    // The transcript IS saved and the record IS terminal; only the teardown
+    // failed. `status`/`exitCode` are reported exactly as `finalized` reports
+    // them, which is what distinguishes this from a `failed` sweep.
+    const leakedKey =
+      run.error instanceof SandboxReclaimFailedError
+        ? run.error.sandboxKey
+        : undefined
+    alert('sandbox may still be billing', {
+      runId: run.runId,
+      status: run.status,
+      sandboxKey: leakedKey,
+      // Present ONLY if the drive also outran `runBudgetMs`. `reclaim-failed`
+      // overwrites the `budget-exceeded` outcome, so this field is what keeps
+      // that second diagnostic on the entry.
+      budgetAnomaly: run.terminalizedAnyway !== undefined,
+    })
+  }
+}
+```
+
+A `reclaim-failed` run has already left `listReclaimable` for good, so no later
+sweep retries it — that entry is the only notice you will get. A custom
+`reclaim` should follow the same convention: reject when the sandbox was not
+torn down, resolve when there was nothing to tear down.
 
 ## Sizing `detachedRunTtlMs` and the sweep interval
 

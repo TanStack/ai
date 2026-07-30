@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
-import { reclaimSandbox, sandboxReclaimer } from '../src/reclaim'
+import {
+  reclaimSandbox,
+  SandboxReclaimFailedError,
+  sandboxReclaimer,
+} from '../src/reclaim'
 import { captureLogger, makeFakeProvider } from './fakes'
 import type { RunRecord } from '@tanstack/ai'
 import type { FakeProvider } from './fakes'
@@ -190,9 +194,11 @@ describe('sandboxReclaimer', () => {
     const instances = await storeWith('k1', 'fake', 'sbx-1')
     const { logger, calls } = captureLogger()
 
-    await sandboxReclaimer({ provider, instances, logger })(
-      record({ sandboxKey: 'k1' }),
-    )
+    await expect(
+      sandboxReclaimer({ provider, instances, logger })(
+        record({ sandboxKey: 'k1' }),
+      ),
+    ).rejects.toBeInstanceOf(SandboxReclaimFailedError)
 
     // `logger.sandbox` routes to `debug`, which is off unless someone opted into
     // sandbox debugging — exactly the wrong level for "a sandbox may still be
@@ -200,6 +206,65 @@ describe('sandboxReclaimer', () => {
     const errors = calls.filter((c) => c.level === 'error')
     expect(errors).toHaveLength(1)
     expect(errors[0]?.msg).toContain('destroy failed')
+  })
+
+  it('REJECTS on a failed destroy, so the sweep can report reclaim-failed', async () => {
+    // The log line above is invisible to a `ReapResult` consumer. `reapOne`'s
+    // only channel for "the sandbox was NOT reclaimed" is a rejection, so a
+    // reclaimer that logged and returned made `outcomes['reclaim-failed']` read
+    // `0` on exactly the leak it watches for — the run reported `'finalized'`.
+    const { provider } = trackDestroys(makeFakeProvider())
+    provider.destroy = () => Promise.reject(new Error('provider 500'))
+    const failing = await storeWith('k1', 'fake', 'sbx-1')
+    const clean = await storeWith('k2', 'fake', 'sbx-2')
+
+    const rejection = await sandboxReclaimer({ provider, instances: failing })(
+      record({ sandboxKey: 'k1' }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    )
+
+    expect(rejection).toBeInstanceOf(SandboxReclaimFailedError)
+    if (rejection instanceof SandboxReclaimFailedError) {
+      expect(rejection.runId).toBe('r1')
+      expect(rejection.sandboxKey).toBe('k1')
+      // The operator has to be able to find the sandbox that may still bill.
+      expect(rejection.message).toContain('k1')
+    }
+    // Paired with a clean teardown in the same shape, so the assertion above is
+    // not satisfied by a reclaimer that simply rejects always.
+    await expect(
+      sandboxReclaimer({
+        provider: trackDestroys(makeFakeProvider()).provider,
+        instances: clean,
+      })(record({ sandboxKey: 'k2' })),
+    ).resolves.toBeUndefined()
+  })
+
+  it('RESOLVES for every outcome that is not a failed destroy', async () => {
+    // `'no-sandbox-key'` / `'not-found'` / `'provider-mismatch'` all mean there
+    // is nothing for this reclaimer to tear down. Rejecting on those would count
+    // ordinary bookkeeping as a leak and bury the one outcome that is one.
+    const { provider } = trackDestroys(makeFakeProvider())
+    await expect(
+      sandboxReclaimer({
+        provider,
+        instances: new InMemorySandboxInstanceStore(),
+      })(record()),
+    ).resolves.toBeUndefined()
+    await expect(
+      sandboxReclaimer({
+        provider,
+        instances: new InMemorySandboxInstanceStore(),
+      })(record({ sandboxKey: 'missing' })),
+    ).resolves.toBeUndefined()
+    await expect(
+      sandboxReclaimer({
+        provider: trackDestroys(makeFakeProvider({ name: 'docker' })).provider,
+        instances: await storeWith('k1', 'daytona', 'sbx-1'),
+      })(record({ sandboxKey: 'k1' })),
+    ).resolves.toBeUndefined()
   })
 
   it('keeps a successful teardown at debug level', async () => {

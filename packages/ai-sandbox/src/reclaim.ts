@@ -115,7 +115,48 @@ export async function reclaimSandbox(
   return destroyFailed ? 'destroy-failed' : 'destroyed'
 }
 
-/** Adapt {@link reclaimSandbox} to `ReapOptions.reclaim`. */
+/**
+ * Thrown by {@link sandboxReclaimer} when {@link reclaimSandbox} answers
+ * `'destroy-failed'`.
+ *
+ * WHY AN EXCEPTION AND NOT A RETURN VALUE. `ReapOptions.reclaim` is
+ * `(record) => Promise<void>`, and the sweep's only channel for "the sandbox was
+ * NOT reclaimed" is a rejection — `reapOne` catches one and reports the run
+ * `'reclaim-failed'` with its `status` and `exitCode` intact. A reclaimer that
+ * logged this arm and returned normally therefore reported `'finalized'`, and
+ * `outcomes['reclaim-failed']` read `0` on precisely the leak it watches for.
+ *
+ * It carries no `cause`: `reclaimSandbox` returns a {@link ReclaimOutcome}, not
+ * the provider's rejection, and widening that return to smuggle the error out
+ * would change an outcome contract whose ordering and arms are load-bearing. The
+ * underlying `destroy` rejection is on `reclaimSandbox`'s own `warn` line, which
+ * carries the same `runId` and `sandboxKey` this error does.
+ */
+export class SandboxReclaimFailedError extends Error {
+  readonly runId: string
+  /** Absent only in the impossible case; see the throw site in `sandboxReclaimer`. */
+  readonly sandboxKey: string | undefined
+
+  constructor(runId: string, sandboxKey: string | undefined) {
+    super(
+      `Reclaiming the sandbox for run "${runId}" failed: the provider's destroy rejected and the instance record${
+        sandboxKey === undefined ? '' : ` for "${sandboxKey}"`
+      } was deleted anyway, so the sandbox may still be running and is no longer reachable from the instance store.`,
+    )
+    this.name = 'SandboxReclaimFailedError'
+    this.runId = runId
+    this.sandboxKey = sandboxKey
+  }
+}
+
+/**
+ * Adapt {@link reclaimSandbox} to `ReapOptions.reclaim`.
+ *
+ * REJECTS on `'destroy-failed'` — see {@link SandboxReclaimFailedError} for why
+ * that arm must not resolve. Every other outcome resolves: `'destroyed'` did the
+ * job, and `'no-sandbox-key'` / `'not-found'` / `'provider-mismatch'` all mean
+ * there is nothing for this reclaimer to tear down, which is not a sweep failure.
+ */
 export function sandboxReclaimer(
   options: ReclaimSandboxOptions,
 ): (record: RunRecord) => Promise<void> {
@@ -135,7 +176,15 @@ export function sandboxReclaimer(
         'reclaim: destroy failed; sandbox may still be running',
         meta,
       )
-      return
+      // AND THEN THROWS, so the sweep's `'reclaim-failed'` outcome is reachable
+      // through the shipped reclaimer and not only through a custom one. The log
+      // line alone is invisible to a `ReapResult` consumer.
+      //
+      // `record.sandboxKey` is defined on this arm — `reclaimSandbox` answers
+      // `'no-sandbox-key'` before it ever reaches `destroy` otherwise — so this
+      // is passed through rather than asserted: a non-null assertion is banned
+      // here, and inventing a placeholder key would put a fake id in the message.
+      throw new SandboxReclaimFailedError(record.runId, record.sandboxKey)
     }
     options.logger?.sandbox(`reclaim: ${outcome}`, meta)
   }

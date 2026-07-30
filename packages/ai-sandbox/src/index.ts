@@ -222,7 +222,11 @@ export type {
 
 // Sandbox reclaim: tear down the sandbox behind a terminal run.
 // `sandboxReclaimer` adapts `reclaimSandbox` to `ReapOptions.reclaim`.
-export { reclaimSandbox, sandboxReclaimer } from './reclaim'
+export {
+  reclaimSandbox,
+  sandboxReclaimer,
+  SandboxReclaimFailedError,
+} from './reclaim'
 export type { ReclaimOutcome, ReclaimSandboxOptions } from './reclaim'
 export {
   DEFAULT_JOURNAL_POLL_MS,
