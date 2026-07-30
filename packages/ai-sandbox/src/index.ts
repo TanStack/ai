@@ -144,7 +144,11 @@ export type { SpawnNdjsonOptions, JournalOptions } from './runner'
 //
 // journalListCommand/journalMtimeListCommand/parseJournalMtimeListing back the
 // journal-directory sweep (`journal-sweep.ts`); journalExitProbeCommand/
-// parseJournalExit back the reaper's out-of-band exit probe (`reap.ts`), the
+// parseJournalExit/parseExitSentinel back the reaper's out-of-band exit probe
+// (`reap.ts`) and the streaming reader, which must agree on what "the run
+// ended" means; EXIT_SENTINEL_NONCE_KEY/exitSentinelLine are what make that
+// sentinel unforgeable by the agent's own stdout and are needed by anything
+// that seeds a journal by hand (a fake host, a test); the
 // mechanism that lets a sweep learn a detached run finished WITHOUT driving
 // it; decodeJournalRunId recovers the runId a listed filename encodes, fail
 // closed. `normalizeJournalDir` is intentionally NOT exported: it is a path
@@ -153,6 +157,9 @@ export type { SpawnNdjsonOptions, JournalOptions } from './runner'
 export {
   DEFAULT_JOURNAL_DIR,
   EXIT_SENTINEL_KEY,
+  EXIT_SENTINEL_NONCE_KEY,
+  exitSentinelLine,
+  parseExitSentinel,
   journalPaths,
   journaledCommand,
   journalFollowCommand,

@@ -67,6 +67,60 @@ export const DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
  */
 export const EXIT_SENTINEL_KEY = '__exit'
 
+/**
+ * Key carrying the per-run sentinel nonce that makes the sentinel
+ * DISTINGUISHABLE from agent output.
+ *
+ * **Why the nonce exists.** `journaledCommand` redirects the agent's stdout and
+ * the sentinel `printf` into the SAME file with no framing, so on the wire an
+ * agent's own line is indistinguishable from the shell's. Without a nonce, any
+ * agent that ever prints a JSON object carrying `__exit` — echoing a fixture,
+ * `cat`-ing a file, dumping diagnostics — makes {@link parseJournalExit} report a
+ * MID-FLIGHT run as finished, and `reapOne` then drives that run to terminal and
+ * reclaims its sandbox out from under a live agent. A confident wrong answer is
+ * strictly worse than the `'unknown'` every other failure on that path returns.
+ *
+ * **What the nonce is.** A domain-separated SHA-256 of the runId (see
+ * {@link journalPaths}), NOT process-random. It has to be recomputable by a
+ * SUCCESSOR host from the run record alone — that is this module's stated
+ * contract ("a successor host derives byte-identical commands from the `runId`
+ * alone"), and the reaper's probe runs in a different process from the one that
+ * composed the command, with nothing but the runId to go on. A process-random
+ * nonce would make every journal written by a dead host unreadable.
+ *
+ * **The residual, stated honestly.** Because it is derived rather than secret,
+ * an agent that knows its own runId AND reimplements this derivation could still
+ * emit a matching line. What the nonce removes is the entire accidental class —
+ * which is the class that actually occurs — and it removes it completely. Closing
+ * the deliberate case needs a secret the successor host can also read, i.e. a
+ * nonce persisted on the run record; that is a `RunStore` schema change, not a
+ * change to this pure-composition module. Two further mitigations narrow the
+ * deliberate case: {@link parseJournalExit} takes the LAST matching sentinel in
+ * the window rather than the first (the shell always writes the real one after
+ * the agent's own output), and a matching sentinel whose code is not an integer
+ * is refused rather than coerced to 0.
+ */
+export const EXIT_SENTINEL_NONCE_KEY = '__nonce'
+
+/**
+ * Domain-separation prefix for the sentinel nonce, so the digest can never
+ * collide with some other SHA-256-of-runId this codebase computes (e.g.
+ * {@link encodeRunId}'s truncation hash).
+ */
+const EXIT_SENTINEL_NONCE_DOMAIN =
+  'tanstack-ai-sandbox/journal-exit-sentinel/v1'
+
+/** Hex digits of the sentinel nonce. 128 bits of digest is far beyond luck. */
+const EXIT_SENTINEL_NONCE_LENGTH = 32
+
+/** Derive a run's sentinel nonce. Pure, and a function of the runId alone. */
+function deriveExitSentinelNonce(runId: string): string {
+  return createHash('sha256')
+    .update(`${EXIT_SENTINEL_NONCE_DOMAIN}:${runId}`, 'utf8')
+    .digest('hex')
+    .slice(0, EXIT_SENTINEL_NONCE_LENGTH)
+}
+
 /** Absolute in-sandbox paths for one run's journal. */
 export interface JournalPaths {
   /** Directory both files live in; created by {@link journaledCommand}. */
@@ -75,6 +129,33 @@ export interface JournalPaths {
   journal: string
   /** Separate file the agent's stderr goes to; NEVER mixed into the journal. */
   stderr: string
+  /**
+   * Per-run nonce the exit sentinel carries, so agent stdout cannot forge it.
+   * See {@link EXIT_SENTINEL_NONCE_KEY}. Carried alongside the paths because
+   * every producer and every reader of the sentinel already threads a
+   * `JournalPaths` through, and the two must agree or the run reads as
+   * unterminated.
+   */
+  nonce: string
+}
+
+/**
+ * The exact sentinel LINE (no trailing newline) `journaledCommand` appends for
+ * `exitCode`.
+ *
+ * Exported because a test or a fake host that seeds a journal by hand has to
+ * write the same bytes the shell would; hand-writing `{"__exit":0}` produces a
+ * line the reader now correctly refuses. Key order matches the `printf` format
+ * below, and both are asserted against each other in `journal.test.ts`.
+ */
+export function exitSentinelLine(
+  paths: JournalPaths,
+  exitCode: number,
+): string {
+  return JSON.stringify({
+    [EXIT_SENTINEL_KEY]: exitCode,
+    [EXIT_SENTINEL_NONCE_KEY]: paths.nonce,
+  })
 }
 
 /** Single-quote a shell word, escaping embedded single quotes POSIX-style. */
@@ -323,8 +404,11 @@ export function decodeJournalRunId(name: string): DecodedJournalRunId {
  * {@link DEFAULT_JOURNAL_DIR} is a fixed absolute path that outlives any single
  * sandbox, test, or process. So a reused `runId` does not start a fresh journal
  * — it appends to the old one, behind the old run's `{"__exit":N}` sentinel. A
- * reader stops at the FIRST sentinel it sees, so the new run appears to emit
- * nothing at all, or to fail with the previous run's exit code. This is not
+ * streaming reader stops at the first sentinel it reaches — and a reused runId
+ * derives the SAME nonce, so the old run's sentinel matches — meaning the new run
+ * appears to emit nothing at all, or to fail with the previous run's exit code.
+ * (The nonce is per-run, not per-attempt: it defends against the AGENT forging a
+ * sentinel, not against a caller reusing an id.) This is not
  * enforced here on purpose: refusing to append would break the takeover the
  * append-only rule exists for. Callers derive `runId` from something unique
  * (the adapters use a timestamp plus a random suffix); a test that hardcodes a
@@ -340,12 +424,21 @@ export function journalPaths(
     dir: normalizedDir,
     journal: `${normalizedDir}/${name}.ndjson`,
     stderr: `${normalizedDir}/${name}.err`,
+    nonce: deriveExitSentinelNonce(runId),
   }
 }
 
 /**
  * Wrap an agent command so its stdout lands in the journal, its stderr lands in
- * the sidecar file, and an `{"__exit":N}` sentinel is appended once it exits.
+ * the sidecar file, and an `{"__exit":N,"__nonce":"…"}` sentinel is appended once
+ * it exits.
+ *
+ * The nonce is what keeps the sentinel apart from the agent's own stdout, which
+ * lands in the very same file with no framing — see
+ * {@link EXIT_SENTINEL_NONCE_KEY}. It is interpolated as a bare hex token inside
+ * a single-quoted `printf` FORMAT string, which is safe by construction:
+ * {@link deriveExitSentinelNonce} emits `[0-9a-f]` only, so there is no quote to
+ * escape and no `%` for `printf` to interpret.
  *
  * `command` is interpolated raw: callers build real shell text (the Claude Code
  * and Codex adapters append `< promptFile`, for instance), so quoting it would
@@ -364,7 +457,8 @@ export function journaledCommand(command: string, paths: JournalPaths): string {
     // journal would end with no `__exit` line at all. A subshell gives
     // `exit` its own process to terminate, leaving `$?` (the subshell's exit
     // status) and the following `printf` intact in the outer shell.
-    `{ ( ${command} ); printf '{"${EXIT_SENTINEL_KEY}":%d}\\n' "$?"; } ` +
+    `{ ( ${command} ); ` +
+    `printf '{"${EXIT_SENTINEL_KEY}":%d,"${EXIT_SENTINEL_NONCE_KEY}":"${paths.nonce}"}\\n' "$?"; } ` +
     `>> ${shellQuote(paths.journal)} 2>> ${shellQuote(paths.stderr)}`
   )
 }
@@ -437,7 +531,9 @@ export function journalReadCommand(
  * Existence probe. A shell `test -f`, not `handle.fs.exists`: see rule 3 in the
  * module doc — on local-process the two resolve `/tmp` differently.
  */
-export function journalExistsCommand(paths: JournalPaths): string {
+export function journalExistsCommand(
+  paths: Pick<JournalPaths, 'journal'>,
+): string {
   return `test -f ${shellQuote(paths.journal)}`
 }
 
@@ -696,33 +792,75 @@ export function journalExitProbeCommand(
 }
 
 /**
+ * Is ONE journal line this run's genuine exit sentinel? The exit code if so,
+ * `null` for anything else — including a line that carries
+ * {@link EXIT_SENTINEL_KEY} but not this run's nonce, which is agent output and
+ * nothing more.
+ *
+ * FAIL CLOSED at every step, because the consumers of a non-`null` answer stop
+ * the run and reclaim its sandbox:
+ *
+ * - not JSON, or not an object → `null`. This is also what absorbs the partial
+ *   first line a byte-bounded `tail -c -N` can start in the middle of.
+ * - no `__nonce`, or a `__nonce` that is not exactly `paths.nonce` → `null`. An
+ *   agent line cannot be told from the shell's without this (see
+ *   {@link EXIT_SENTINEL_NONCE_KEY}).
+ * - a matching nonce but a non-integer `__exit` → `null`, NOT `0`. The old code
+ *   coerced a non-number to `0`, which turned a garbled sentinel into a reported
+ *   SUCCESS. Nothing that reaches here legitimately can be non-integer: the only
+ *   writer is `printf '…%d…' "$?"`.
+ *
+ * Exported so the streaming reader (`runner.ts`) applies exactly the same test,
+ * line by line, that the reaper's bounded tail probe applies — one definition of
+ * "the run ended", not two that can drift.
+ */
+export function parseExitSentinel(
+  line: string,
+  paths: JournalPaths,
+): number | null {
+  const trimmed = line.trim()
+  if (trimmed === '') return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  if (!(EXIT_SENTINEL_KEY in parsed)) return null
+  const nonce: unknown = Reflect.get(parsed, EXIT_SENTINEL_NONCE_KEY)
+  if (typeof nonce !== 'string' || nonce !== paths.nonce) return null
+  const code: unknown = Reflect.get(parsed, EXIT_SENTINEL_KEY)
+  if (typeof code !== 'number' || !Number.isInteger(code)) return null
+  return code
+}
+
+/**
  * Find the exit sentinel in a decoded journal tail; `null` when it is absent,
  * which is the mid-flight (or never-started) case.
  *
- * Same line semantics as `runner.ts`: NDJSON, first object carrying
- * {@link EXIT_SENTINEL_KEY} wins, and a sentinel whose value is not a number
- * still means the agent exited and is reported as `0`. Non-JSON lines are
- * skipped, which is also what absorbs the partial first line a byte-bounded
- * `tail -c -N` can start in the middle of.
+ * **Scanned from the END, and the nonce is REQUIRED.** Both matter, and both are
+ * corrections:
+ *
+ * - The shell appends the real sentinel AFTER the command's own output, so the
+ *   genuine one is always the last matching line in the window. Taking the first
+ *   match let an agent line that happened to look like a sentinel win over the
+ *   truth that followed it.
+ * - `paths.nonce` must match, or the line is not a sentinel at all. Without that,
+ *   a mid-flight run whose agent printed any JSON object containing `__exit` read
+ *   as `finished`, and the reaper destroyed a live sandbox on the strength of it.
+ *
+ * `paths` rather than a bare nonce string so callers pass the object they already
+ * hold and cannot pair a tail with another run's nonce.
  */
-export function parseJournalExit(text: string): number | null {
-  for (const rawLine of text.split('\n')) {
-    const line = rawLine.trim()
-    if (line === '') continue
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      EXIT_SENTINEL_KEY in parsed
-    ) {
-      const code: unknown = Reflect.get(parsed, EXIT_SENTINEL_KEY)
-      return typeof code === 'number' ? code : 0
-    }
+export function parseJournalExit(
+  text: string,
+  paths: JournalPaths,
+): number | null {
+  const lines = text.split('\n')
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const code = parseExitSentinel(lines[index] ?? '', paths)
+    if (code !== null) return code
   }
   return null
 }

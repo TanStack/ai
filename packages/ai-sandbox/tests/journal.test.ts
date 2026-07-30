@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_JOURNAL_DIR,
+  EXIT_SENTINEL_NONCE_KEY,
   decodeJournalRunId,
+  exitSentinelLine,
+  parseExitSentinel,
   journalCleanupCommand,
   journalExistsCommand,
   journalExitProbeCommand,
@@ -153,9 +156,42 @@ describe('journaledCommand', () => {
       journaledCommand('claude -p --output-format stream-json', paths),
     ).toBe(
       `mkdir -p '/tmp/tanstack-runs' && ` +
-        `{ ( claude -p --output-format stream-json ); printf '{"__exit":%d}\\n' "$?"; } ` +
+        `{ ( claude -p --output-format stream-json ); ` +
+        `printf '{"__exit":%d,"__nonce":"${paths.nonce}"}\\n' "$?"; } ` +
         `>> '/tmp/tanstack-runs/r1.ndjson' 2>> '/tmp/tanstack-runs/r1.err'`,
     )
+  })
+
+  it('emits a sentinel byte-identical to exitSentinelLine, so a seeded journal matches', () => {
+    // The two producers of the sentinel — this `printf` format and the helper a
+    // fake host / test uses to write one by hand — must agree exactly, including
+    // key ORDER, or a hand-seeded journal reads as unterminated.
+    const paths = journalPaths('r1')
+    const command = journaledCommand('agent', paths)
+    for (const code of [0, 7]) {
+      expect(command).toContain(
+        exitSentinelLine(paths, code).replace(String(code), '%d'),
+      )
+    }
+    expect(exitSentinelLine(paths, 0)).toBe(
+      `{"__exit":0,"__nonce":"${paths.nonce}"}`,
+    )
+  })
+
+  it('carries a per-run nonce the agent cannot guess from another run', () => {
+    // The forgery this defends against: the agent's stdout and the sentinel land
+    // in the SAME file with no framing, so without a nonce any agent line
+    // containing `__exit` is a valid sentinel.
+    const a = journalPaths('nonce-a')
+    const b = journalPaths('nonce-b')
+    expect(a.nonce).not.toBe(b.nonce)
+    expect(a.nonce).toMatch(/^[0-9a-f]{32}$/)
+    // Derived, not random: a successor host must recompute it from the runId
+    // alone (the reaper probes journals written by a process that is gone).
+    expect(journalPaths('nonce-a').nonce).toBe(a.nonce)
+    // Hex only, so interpolating it into a single-quoted `printf` FORMAT is safe
+    // — no quote to escape and no `%` for printf to interpret.
+    expect(journaledCommand('agent', a)).toContain(`"${a.nonce}"`)
   })
 
   it('appends rather than truncates, so a re-spawn cannot destroy a prior prefix', () => {
@@ -529,32 +565,84 @@ describe('journalExitProbeCommand', () => {
 })
 
 describe('parseJournalExit', () => {
+  const paths = journalPaths('pje-1')
+  const sentinel = (code: number): string => exitSentinelLine(paths, code)
+
   it('returns the exit code from the sentinel', () => {
-    expect(parseJournalExit('{"type":"x"}\n{"__exit":7}\n')).toBe(7)
-    expect(parseJournalExit('{"__exit":0}\n')).toBe(0)
+    expect(parseJournalExit(`{"type":"x"}\n${sentinel(7)}\n`, paths)).toBe(7)
+    expect(parseJournalExit(`${sentinel(0)}\n`, paths)).toBe(0)
   })
 
   it('returns null when the sentinel is absent, which is the mid-flight case', () => {
     // This is the whole point of the probe: a healthy mid-flight run must be
     // reported as "not finished" WITHOUT driving it, because driving it writes
     // a terminal status and drops it out of listReclaimable forever.
-    expect(parseJournalExit('{"type":"x"}\n{"type":"y"}\n')).toBeNull()
-    expect(parseJournalExit('')).toBeNull()
+    expect(parseJournalExit('{"type":"x"}\n{"type":"y"}\n', paths)).toBeNull()
+    expect(parseJournalExit('', paths)).toBeNull()
   })
 
   it('skips the partial first line a byte-bounded tail can start inside', () => {
-    expect(parseJournalExit('pe":"assistant"}\n{"__exit":3}\n')).toBe(3)
-  })
-
-  it('treats a non-numeric sentinel value as exit 0, exactly as runner.ts does', () => {
-    expect(parseJournalExit('{"__exit":"weird"}')).toBe(0)
-    expect(parseJournalExit('{"__exit":null}')).toBe(0)
+    expect(parseJournalExit(`pe":"assistant"}\n${sentinel(3)}\n`, paths)).toBe(
+      3,
+    )
   })
 
   it('does not mistake the sentinel KEY appearing as text for the sentinel', () => {
     expect(
-      parseJournalExit('{"text":"the __exit sentinel is written last"}'),
+      parseJournalExit('{"text":"the __exit sentinel is written last"}', paths),
     ).toBeNull()
+  })
+
+  // ── The forgery. This is the load-bearing case. ───────────────────────────
+  it('REFUSES an unnonced {"__exit":0} the agent printed, so a live run is not reaped', () => {
+    // `journaledCommand` redirects the agent's stdout and the sentinel into the
+    // SAME file with no framing, so an agent that echoes a fixture, cats a file,
+    // or dumps diagnostics can emit this line mid-run. Reading it as the sentinel
+    // makes `probeRunExit` answer `finished` for a MID-FLIGHT run, and `reapOne`
+    // then destroys the sandbox out from under a live agent.
+    expect(parseJournalExit('{"__exit":0}\n', paths)).toBeNull()
+    expect(parseJournalExit('{"delta":"hi"}\n{"__exit":0}\n', paths)).toBeNull()
+    expect(parseJournalExit('{"__exit":7}\n', paths)).toBeNull()
+  })
+
+  it("REFUSES another run's sentinel, nonce and all", () => {
+    const other = journalPaths('pje-other')
+    expect(
+      parseJournalExit(`${exitSentinelLine(other, 0)}\n`, paths),
+    ).toBeNull()
+  })
+
+  it('takes the LAST sentinel in the window, because the shell writes it last', () => {
+    // An agent that echoes a full, correctly-nonced sentinel mid-run (it would
+    // have to know its runId and reimplement the derivation) still cannot decide
+    // the answer: the real one is appended after all agent output, so scanning
+    // from the end always reaches the truth.
+    const text = `${sentinel(0)}\n{"delta":"still going"}\n${sentinel(7)}\n`
+    expect(parseJournalExit(text, paths)).toBe(7)
+  })
+
+  it('REFUSES a nonced sentinel whose code is not an integer, rather than reporting 0', () => {
+    // The old code coerced a non-number to `0` — i.e. turned a garbled sentinel
+    // into a reported SUCCESS. Nothing legitimate reaches here non-integer: the
+    // only writer is `printf '…%d…' "$?"`.
+    for (const code of ['"weird"', 'null', '1.5', 'true']) {
+      expect(
+        parseJournalExit(
+          `{"__exit":${code},"${EXIT_SENTINEL_NONCE_KEY}":"${paths.nonce}"}`,
+          paths,
+        ),
+      ).toBeNull()
+    }
+  })
+
+  it('is the same test parseExitSentinel applies to a single streamed line', () => {
+    // One definition of "the run ended", shared by the reaper's bounded tail and
+    // the streaming reader, so the two cannot drift.
+    expect(parseExitSentinel(sentinel(7), paths)).toBe(7)
+    expect(parseExitSentinel('{"__exit":7}', paths)).toBeNull()
+    expect(parseExitSentinel('not json', paths)).toBeNull()
+    expect(parseExitSentinel('', paths)).toBeNull()
+    expect(parseExitSentinel('[1,2]', paths)).toBeNull()
   })
 })
 

@@ -42,6 +42,7 @@ import {
   journalOptionsFor,
   journalPaths,
   parseJournalExit,
+  exitSentinelLine,
   parseJournalMtimeListing,
   probeRunExit,
   provideSandboxDurability,
@@ -306,8 +307,16 @@ describe('barrel: journal directory commands + parsers', () => {
   })
 
   it('parseJournalExit finds the sentinel; decodeJournalRunId recovers the runId', () => {
-    expect(parseJournalExit('{"delta":"hi"}\n{"__exit":5}\n')).toBe(5)
-    expect(parseJournalExit('no sentinel here\n')).toBeNull()
+    const probed = journalPaths('barrel-probe-1', '/tmp/barrel-journal-test')
+    expect(
+      parseJournalExit(
+        `{"delta":"hi"}\n${exitSentinelLine(probed, 5)}\n`,
+        probed,
+      ),
+    ).toBe(5)
+    expect(parseJournalExit('no sentinel here\n', probed)).toBeNull()
+    // An unnonced sentinel is agent output, not the shell's: refused.
+    expect(parseJournalExit('{"__exit":5}\n', probed)).toBeNull()
 
     const paths = journalPaths('barrel-run-1', '/tmp/barrel-journal-test')
     const journalName = paths.journal.slice(paths.dir.length + 1)
@@ -401,7 +410,9 @@ describe('barrel: reaper (reapDetachedRuns / probeRunExit)', () => {
   })
 
   it('probeRunExit reads the exit sentinel out of a fake handle', async () => {
-    const frame = Buffer.from('{"__exit":9}\n').toString('base64')
+    const frame = Buffer.from(
+      `${exitSentinelLine(journalPaths('barrel-probe'), 9)}\n`,
+    ).toString('base64')
     const handle = makeFakeHandle('sbx', 'fake')
     handle.process.exec = () =>
       Promise.resolve({ stdout: frame, stderr: '', exitCode: 0 })

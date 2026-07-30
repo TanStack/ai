@@ -15,11 +15,11 @@
  * existing caller keeps working exactly as before.
  */
 import {
-  EXIT_SENTINEL_KEY,
   journalCleanupCommand,
   journalPaths,
   journalStderrReadCommand,
   journaledCommand,
+  parseExitSentinel,
 } from './journal'
 import { readJournal } from './journal-reader'
 import { decodeBase64Stream } from './journal-bytes'
@@ -73,8 +73,14 @@ export interface JournalOptions {
    */
   runs?: RunStore
   /**
-   * Bounded wait for a live run's journal to appear on an attach. Defaults to
-   * `DEFAULT_ATTACH_JOURNAL_WAIT_MS`.
+   * Bounded wait for a live run's journal to appear on an attach, AND — on every
+   * path, attach or fresh — the bound on the read's first byte
+   * (`ReadJournalOptions.firstByteTimeoutMs`). One knob for both because they
+   * bound the same question from two sides: the preflight covers "the file does
+   * not exist", the read covers "the file exists but nothing is writing to it",
+   * and a caller that widens one always means to widen the other.
+   *
+   * Defaults to `DEFAULT_ATTACH_JOURNAL_WAIT_MS`.
    */
   attachWaitMs?: number
 }
@@ -217,10 +223,13 @@ async function cleanupJournal(
  * - The sentinel is captured and the loop is `break`-ed, so the source's
  *   `finally` kills the `tail` BEFORE the `rm` runs — the reader is stopped, then
  *   its input is deleted, never the other way round.
- * - `exitCode` stays `undefined` if the journal stream ends without a sentinel
- *   (the consumer aborted, the lease was lost, the poll was cancelled). That
- *   path returns having deleted nothing: the run may be mid-flight and a
- *   successor host may still need every byte.
+ * - `exitCode` stays `undefined` if the journal stream ends without a sentinel.
+ *   NOTHING is deleted on that path either way — the run may be mid-flight and a
+ *   successor host may still need every byte — but the two causes are then
+ *   separated by `options.signal.aborted`: an aborted consumer returns quietly,
+ *   while a stream that died on its own (killed `tail`, destroyed sandbox, torn
+ *   pipe) THROWS. Returning for both is how a truncated read used to reach the
+ *   client as a normally-completing run.
  * - A non-zero sentinel deletes too. The run is terminal either way.
  * - The stderr sidecar is read BEFORE the deletion that destroys it, so a
  *   non-zero exit carries up to {@link STDERR_ERROR_CHARS} chars of the agent's
@@ -269,13 +278,25 @@ export async function* readJournalNdjson(
   for await (const { line } of readJournal(handle, {
     paths,
     fromByte: 0,
+    runId: options.journal.runId,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.journal.pollIntervalMs === undefined
       ? {}
       : { pollIntervalMs: options.journal.pollIntervalMs }),
+    ...(options.journal.attachWaitMs === undefined
+      ? {}
+      : { firstByteTimeoutMs: options.journal.attachWaitMs }),
   })) {
     const trimmed = line.trim()
     if (trimmed === '') continue
+    // The sentinel test comes FIRST and is nonce-checked, so an agent line that
+    // merely looks like a sentinel is delivered as the event it is instead of
+    // truncating the run (see `parseExitSentinel`).
+    const sentinel = parseExitSentinel(trimmed, paths)
+    if (sentinel !== null) {
+      exitCode = sentinel
+      break
+    }
     let parsed: unknown
     try {
       parsed = JSON.parse(trimmed)
@@ -283,22 +304,32 @@ export async function* readJournalNdjson(
       options.onNonJsonLine?.(trimmed)
       continue
     }
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      EXIT_SENTINEL_KEY in parsed
-    ) {
-      const code = (parsed as Record<string, unknown>)[EXIT_SENTINEL_KEY]
-      // A sentinel whose value is not a number still means the agent exited;
-      // treat it as success, exactly as this function always has.
-      exitCode = typeof code === 'number' ? code : 0
-      break
-    }
     yield parsed
   }
 
-  // Not terminal: the stream ended without a sentinel. Leave both files.
-  if (exitCode === undefined) return
+  // The stream ended with no sentinel. Two very different causes share this
+  // shape, and collapsing them is how a torn-down read used to be recorded as a
+  // short but SUCCESSFUL run:
+  //
+  // - The CONSUMER aborted (lease lost, client gone, host shutting down). Not a
+  //   failure and not terminal: return, having deleted nothing, because a
+  //   successor host may still need every byte. `pipeToRunLog`'s post-loop check
+  //   turns this into `'aborted'`.
+  // - The read DIED (the `tail` was killed, the sandbox was destroyed, the pipe
+  //   was torn down). The iterable ends without an error, so returning here made
+  //   the adapter emit a normally-completing but silently TRUNCATED run — in a
+  //   function whose documented job is to throw so the adapter converts it to a
+  //   `RUN_ERROR`. `signal.aborted` is what tells the two apart, and the throw
+  //   matches the shape the unjournaled path already uses for a bad exit.
+  if (exitCode === undefined) {
+    if (options.signal?.aborted === true) return
+    throw new Error(
+      `Agent journal stream for run ${options.journal.runId} ended without an exit sentinel ` +
+        `(${paths.journal}). The run was NOT observed to finish: the tail was torn down, ` +
+        `the sandbox went away, or the agent's shell died before writing its sentinel. ` +
+        `Both journal files are left in place for a successor host.`,
+    )
+  }
 
   const stderr = exitCode === 0 ? '' : await readStderrTail(handle, paths)
   await cleanupJournal(handle, paths)

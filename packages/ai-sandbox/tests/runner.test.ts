@@ -8,6 +8,7 @@ import {
   toLines,
 } from '../src/runner'
 import {
+  exitSentinelLine,
   journalCleanupCommand,
   journalExistsCommand,
   journalFollowCommand,
@@ -17,6 +18,17 @@ import {
 import { alignToStoredLog } from '../src/align'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ExecResult, SandboxHandle, SpawnHandle } from '../src/contracts'
+
+/**
+ * The exit sentinel for run `r1` — the only runId these journal fixtures use.
+ *
+ * Built, never hand-written: the sentinel carries a per-run nonce so an agent's
+ * own stdout cannot forge it (`journal.ts`), and a literal `{"__exit":0}` in a
+ * fixture is therefore agent output that the reader must NOT stop at.
+ */
+function EXIT(exitCode: number): string {
+  return exitSentinelLine(journalPaths('r1'), exitCode)
+}
 
 async function* fromChunks(chunks: Array<string>): AsyncIterable<string> {
   for (const c of chunks) {
@@ -230,14 +242,14 @@ describe('startJournaledAgent', () => {
 
 describe('readJournalNdjson', () => {
   it('parses journal lines as JSON and stops at the exit sentinel', async () => {
-    const { handle } = scriptedHandle([['{"a":1}\n{"b":2}\n{"__exit":0}\n']])
+    const { handle } = scriptedHandle([[`{"a":1}\n{"b":2}\n${EXIT(0)}\n`]])
     expect(
       await collect(readJournalNdjson(handle, { journal: { runId: 'r1' } })),
     ).toEqual([{ a: 1 }, { b: 2 }])
   })
 
   it('throws on a non-zero exit sentinel so the adapter emits RUN_ERROR', async () => {
-    const { handle } = scriptedHandle([['{"a":1}\n{"__exit":7}\n']])
+    const { handle } = scriptedHandle([[`{"a":1}\n${EXIT(7)}\n`]])
     await expect(
       collect(readJournalNdjson(handle, { journal: { runId: 'r1' } })),
     ).rejects.toThrow(/exited with code 7/)
@@ -246,7 +258,7 @@ describe('readJournalNdjson', () => {
   it('routes a non-JSON line to onNonJsonLine instead of failing the run', async () => {
     const seen: Array<string> = []
     const { handle } = scriptedHandle([
-      ['Claude Code starting...\n{"a":1}\n{"__exit":0}\n'],
+      [`Claude Code starting...\n{"a":1}\n${EXIT(0)}\n`],
     ])
     expect(
       await collect(
@@ -260,7 +272,7 @@ describe('readJournalNdjson', () => {
   })
 
   it('reads from byte 0 on attach, so alignment sees the whole run', async () => {
-    const { handle, commands } = scriptedHandle([['{"__exit":0}\n']])
+    const { handle, commands } = scriptedHandle([[`${EXIT(0)}\n`]])
     await collect(
       readJournalNdjson(handle, { journal: { runId: 'r1', attach: true } }),
     )
@@ -323,7 +335,7 @@ function stderrFrame(text: string): string {
 
 describe('readJournalNdjson journal cleanup', () => {
   it('deletes both files after a ZERO-exit sentinel, once the read has finished', async () => {
-    const { handle, timeline } = timelineHandle(['{"a":1}\n{"__exit":0}\n'])
+    const { handle, timeline } = timelineHandle([`{"a":1}\n${EXIT(0)}\n`])
     const events: Array<unknown> = []
     for await (const event of readJournalNdjson(handle, {
       journal: { runId: 'r1' },
@@ -345,7 +357,7 @@ describe('readJournalNdjson journal cleanup', () => {
   })
 
   it('deletes after a NON-ZERO sentinel too, because the run is still terminal', async () => {
-    const { handle, timeline } = timelineHandle(['{"__exit":7}\n'], (command) =>
+    const { handle, timeline } = timelineHandle([`${EXIT(7)}\n`], (command) =>
       Promise.resolve({
         stdout: command.startsWith('tail')
           ? stderrFrame('boom: tool not found\n')
@@ -382,21 +394,77 @@ describe('readJournalNdjson journal cleanup', () => {
     expect(timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([])
   })
 
-  it('does NOT delete anything when the journal stream ends without a sentinel', async () => {
-    // Same rule from the other direction: a truncated read (lease lost, tail
-    // killed by the provider) is not evidence the run finished.
+  it('THROWS, and deletes nothing, when the stream ends without a sentinel and nobody aborted', async () => {
+    // A sentinel-less end with an UNaborted signal is a torn-down read: the
+    // `tail` was killed, the sandbox went away, the pipe broke. The iterable ends
+    // with no error, so returning here made the adapter emit a normally
+    // completing but silently TRUNCATED run — in a function whose documented job
+    // is to throw so the adapter converts it into a RUN_ERROR. It must throw, and
+    // still delete nothing: the run may be mid-flight and a successor host may
+    // need every byte.
     const { handle, timeline } = timelineHandle(['{"a":1}\n'])
+    const events: Array<unknown> = []
+    const error = await (async () => {
+      try {
+        for await (const event of readJournalNdjson(handle, {
+          journal: { runId: 'r1' },
+        })) {
+          events.push(event)
+        }
+        return null
+      } catch (cause: unknown) {
+        return cause
+      }
+    })()
+    expect(events).toEqual([{ a: 1 }])
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) throw new Error('expected a thrown Error')
+    expect(error.message).toMatch(/without an exit sentinel/)
+    expect(timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([])
+  })
+
+  it('returns quietly, deleting nothing, when the CONSUMER aborted instead', async () => {
+    // The other arm of the same branch, and the reason a bare `return` was not
+    // safe to keep for both: an abort is the caller withdrawing, not a diagnosis
+    // about the run, so it must NOT become a RUN_ERROR for a run that is very
+    // possibly healthy and about to be taken over.
+    const controller = new AbortController()
+    const { handle, timeline } = timelineHandle(['{"a":1}\n'])
+    const events: Array<unknown> = []
+    for await (const event of readJournalNdjson(handle, {
+      journal: { runId: 'r1' },
+      signal: controller.signal,
+    })) {
+      events.push(event)
+      controller.abort()
+    }
+    expect(events).toEqual([{ a: 1 }])
+    expect(timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([])
+  })
+
+  it('does not stop at an {"__exit":0} line the AGENT printed, and delivers it as an event', async () => {
+    // The forgery, at the reader instead of the reaper: an agent that echoes a
+    // fixture or dumps a file can put this exact line in the journal, because its
+    // stdout and the sentinel share one unframed file. Stopping there truncates a
+    // live run and (worse) reports it as exit 0. The nonce is what separates them,
+    // so the unnonced line is just another event.
+    const { handle, timeline } = timelineHandle([
+      `{"__exit":0}\n{"a":1}\n${EXIT(0)}\n`,
+    ])
     expect(
       await collect(readJournalNdjson(handle, { journal: { runId: 'r1' } })),
-    ).toEqual([{ a: 1 }])
-    expect(timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([])
+    ).toEqual([{ __exit: 0 }, { a: 1 }])
+    // And the run really did reach its own sentinel, so cleanup ran exactly once.
+    expect(
+      timeline.filter((entry) => entry === `exec:${journalCleanupCommand(R1)}`),
+    ).toHaveLength(1)
   })
 
   it('never deletes before the sentinel is observed', async () => {
     const { handle, timeline } = timelineHandle([
       '{"a":1}\n',
       '{"b":2}\n',
-      '{"__exit":0}\n',
+      `${EXIT(0)}\n`,
     ])
     const seenAtCleanup: Array<number> = []
     let delivered = 0
@@ -419,7 +487,7 @@ describe('readJournalNdjson journal cleanup', () => {
   })
 
   it('a failing rm never fails a run that already completed', async () => {
-    const { handle } = timelineHandle(['{"a":1}\n{"__exit":0}\n'], (command) =>
+    const { handle } = timelineHandle([`{"a":1}\n${EXIT(0)}\n`], (command) =>
       command.startsWith('rm -f')
         ? Promise.reject(new Error('rm: /tmp: read-only file system'))
         : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
@@ -430,7 +498,7 @@ describe('readJournalNdjson journal cleanup', () => {
   })
 
   it('a failing rm does not mask the real non-zero-exit error', async () => {
-    const { handle } = timelineHandle(['{"__exit":7}\n'], (command) =>
+    const { handle } = timelineHandle([`${EXIT(7)}\n`], (command) =>
       command.startsWith('rm -f')
         ? Promise.reject(new Error('rm: /tmp: read-only file system'))
         : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
@@ -441,7 +509,7 @@ describe('readJournalNdjson journal cleanup', () => {
   })
 
   it('a failing sidecar read still throws the exit-code error, without stderr', async () => {
-    const { handle } = timelineHandle(['{"__exit":7}\n'], (command) =>
+    const { handle } = timelineHandle([`${EXIT(7)}\n`], (command) =>
       command.startsWith('tail')
         ? Promise.reject(new Error('exec unavailable'))
         : Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
@@ -454,7 +522,7 @@ describe('readJournalNdjson journal cleanup', () => {
   it('a corrupt sidecar frame still throws the exit-code error', async () => {
     // `decodeBase64Stream` fails loud on a mid-quantum remainder. That must not
     // replace the agent's failure with a decoding failure.
-    const { handle } = timelineHandle(['{"__exit":7}\n'], (command) =>
+    const { handle } = timelineHandle([`${EXIT(7)}\n`], (command) =>
       Promise.resolve({
         stdout: command.startsWith('tail') ? 'aaaaa' : '',
         stderr: '',
@@ -467,7 +535,7 @@ describe('readJournalNdjson journal cleanup', () => {
   })
 
   it('bounds the attached stderr the same way the unjournaled path does', async () => {
-    const { handle } = timelineHandle(['{"__exit":7}\n'], (command) =>
+    const { handle } = timelineHandle([`${EXIT(7)}\n`], (command) =>
       Promise.resolve({
         stdout: command.startsWith('tail') ? stderrFrame('x'.repeat(4000)) : '',
         stderr: '',
@@ -513,7 +581,7 @@ describe('a late takeover after journal cleanup', () => {
     // End to end: a run reaches its sentinel and its journal is deleted, and a
     // successor host can still suppress the delivered prefix and forward only
     // the remainder — using the log alone.
-    const { handle, timeline } = timelineHandle(['{"a":1}\n{"__exit":0}\n'])
+    const { handle, timeline } = timelineHandle([`{"a":1}\n${EXIT(0)}\n`])
     await collect(readJournalNdjson(handle, { journal: { runId: 'r1' } }))
     expect(timeline).toContain(`exec:${journalCleanupCommand(R1)}`)
 
@@ -547,7 +615,7 @@ describe('spawnNdjson with journaling', () => {
   it('starts the agent journaled and reads the journal back, one code path', async () => {
     const { handle, commands } = scriptedHandle([
       [], // the agent spawn
-      ['{"a":1}\n{"__exit":0}\n'], // the tail spawn
+      [`{"a":1}\n${EXIT(0)}\n`], // the tail spawn
     ])
     expect(
       await collect(spawnNdjson(handle, 'agent', { journal: { runId: 'r1' } })),
@@ -559,7 +627,7 @@ describe('spawnNdjson with journaling', () => {
   })
 
   it('skips the agent spawn when attaching to a run already in flight', async () => {
-    const { handle, commands } = scriptedHandle([['{"__exit":0}\n']])
+    const { handle, commands } = scriptedHandle([[`${EXIT(0)}\n`]])
     await collect(
       spawnNdjson(handle, 'agent', { journal: { runId: 'r1', attach: true } }),
     )

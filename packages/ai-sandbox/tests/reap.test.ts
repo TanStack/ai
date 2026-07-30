@@ -28,6 +28,7 @@ import {
   probeRunExit,
   reapDetachedRuns,
 } from '../src/reap'
+import { exitSentinelLine, journalPaths } from '../src/journal'
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type { ReapOptions, RunExitProbe } from '../src/reap'
 import type { LockStore } from '@tanstack/ai/locks'
@@ -247,15 +248,29 @@ describe('probeRunExit', () => {
   }
 
   it('reads the exit sentinel out of the journal tail', async () => {
-    const frame = Buffer.from('{"delta":"hi"}\n{"__exit":7}\n').toString(
-      'base64',
-    )
+    const frame = Buffer.from(
+      `{"delta":"hi"}\n${exitSentinelLine(journalPaths('r-finished'), 7)}\n`,
+    ).toString('base64')
     expect(
       await probeRunExit({
         handle: handleAnswering(frame),
         runId: 'r-finished',
       }),
     ).toEqual({ state: 'finished', exitCode: 7 })
+  })
+
+  it('answers producing — NOT finished — for a sentinel the agent forged on stdout', async () => {
+    // The reaper DRIVES and RECLAIMS whatever this reports as finished, so an
+    // agent line that merely looks like a sentinel (an echoed fixture, a dumped
+    // file, printed diagnostics) must not be able to get its own live sandbox
+    // destroyed. Both files land in the journal unframed, so the nonce is the
+    // only thing telling them apart.
+    const frame = Buffer.from(
+      '{"delta":"still working"}\n{"__exit":0}\n',
+    ).toString('base64')
+    expect(
+      await probeRunExit({ handle: handleAnswering(frame), runId: 'r-forged' }),
+    ).toEqual({ state: 'producing' })
   })
 
   it('answers producing when there is no sentinel, and for an absent journal', async () => {

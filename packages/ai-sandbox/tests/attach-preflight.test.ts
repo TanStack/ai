@@ -13,10 +13,23 @@ import {
   JournalAttachUnavailableError,
   awaitAttachableJournal,
 } from '../src/attach-preflight'
-import { journalExistsCommand, journalPaths } from '../src/journal'
+import {
+  exitSentinelLine,
+  journalExistsCommand,
+  journalPaths,
+} from '../src/journal'
 import { readJournalNdjson } from '../src/runner'
 import type { RunStatus, RunStore } from '@tanstack/ai'
 import type { ExecResult, SandboxHandle, SpawnHandle } from '../src/contracts'
+
+/**
+ * A run's real exit sentinel. Built, never hand-written: it carries a per-run
+ * nonce (`journal.ts`), so a literal `{"__exit":0}` in a fixture is agent output
+ * the reader must not stop at.
+ */
+function EXIT(runId: string, exitCode = 0): string {
+  return exitSentinelLine(journalPaths(runId), exitCode)
+}
 
 async function* fromChunks(chunks: Array<string>): AsyncIterable<string> {
   for (const chunk of chunks) {
@@ -51,13 +64,17 @@ function probeHandle(
     exists?: boolean
     script?: Array<string>
     execFails?: boolean
+    /** Run the default script's sentinel belongs to. */
+    runId?: string
   } = {},
 ): ProbeHandle {
   let exists = options.exists ?? false
   const commands: Array<string> = []
   const spawnHandle: SpawnHandle = {
     pid: -1,
-    stdout: fromChunks(options.script ?? ['{"__exit":0}\n']),
+    stdout: fromChunks(
+      options.script ?? [`${EXIT(options.runId ?? 'probe-default')}\n`],
+    ),
     stderr: fromChunks([]),
     stdin: { write: () => Promise.resolve(), end: () => Promise.resolve() },
     wait: () => Promise.resolve(0),
@@ -369,6 +386,70 @@ describe('awaitAttachableJournal: the bounded wait', () => {
     })
   })
 
+  it(
+    'does NOT fail open on an unusable probe — it bounds the wait instead',
+    { timeout: 3_000 },
+    async () => {
+      // The fail-open branch this replaces (`if (existence === 'unknown')
+      // return`) did not preserve a working attach: it handed control to a reader
+      // whose first act CREATES the journal (`journalFollowCommand`'s
+      // `: >> file`) and then tails it forever. And it was self-perpetuating —
+      // the file it created made `test -f` succeed from then on, so every later
+      // attach short-circuited on "the journal exists" and hung too, permanently,
+      // long after the transient exec failure had cleared.
+      const runId = 'pf-failopen-1'
+      const probe = probeHandle({ execFails: true })
+      const startedAt = Date.now()
+      const error = await awaitAttachableJournal(probe.handle, {
+        paths: journalPaths(runId),
+        runId,
+        runs: await storeWith(runId, 'running'),
+        waitMs: 120,
+        probeIntervalMs: 20,
+      }).then(
+        () => null,
+        (reason: unknown) => reason,
+      )
+      expect(error).toBeInstanceOf(JournalAttachUnavailableError)
+      if (!(error instanceof JournalAttachUnavailableError)) return
+      expect(error.reason).toBe('journal-timeout')
+      // The message names the actual problem — the probe, not a missing file —
+      // because those point at different causes.
+      expect(error.message).toContain('could not be probed at all')
+      expect(Date.now() - startedAt).toBeLessThan(2_000)
+      // It really re-probed rather than answering from the first failure: an
+      // unusable probe may recover inside the window.
+      expect(probe.commands.length).toBeGreaterThan(1)
+    },
+  )
+
+  it(
+    'still resolves if an unusable probe RECOVERS inside the window',
+    { timeout: 3_000 },
+    async () => {
+      // Bounding must not mean giving up: a provider whose `exec` blipped once is
+      // the case the old fail-open branch was written for, and it still attaches.
+      const runId = 'pf-failopen-recovers'
+      let calls = 0
+      const probe = probeHandle({ exists: false })
+      const inner = probe.handle.process.exec
+      probe.handle.process.exec = (command, options) => {
+        calls += 1
+        if (calls <= 2) return Promise.reject(new Error('exec blipped'))
+        probe.setExists(true)
+        return inner(command, options)
+      }
+      await awaitAttachableJournal(probe.handle, {
+        paths: journalPaths(runId),
+        runId,
+        runs: await storeWith(runId, 'running'),
+        waitMs: 2_000,
+        probeIntervalMs: 10,
+      })
+      expect(calls).toBeGreaterThan(2)
+    },
+  )
+
   it('defaults the bound to DEFAULT_ATTACH_JOURNAL_WAIT_MS', () => {
     // Pinned because it bounds an attach REQUEST, so an app fronting the route
     // with its own timeout has to be able to rely on the number.
@@ -434,7 +515,7 @@ describe('readJournalNdjson runs the preflight on attach only', () => {
     const runId = 'pf-fresh-1'
     const probe = probeHandle({
       exists: false,
-      script: ['{"a":1}\n{"__exit":0}\n'],
+      script: [`{"a":1}\n${EXIT(runId)}\n`],
     })
     expect(
       await collect(

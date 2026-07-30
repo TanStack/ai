@@ -18,6 +18,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   chunkFingerprint,
   createRunScopedIdGen,
+  exitSentinelLine,
   journalPaths,
 } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '../src/index'
@@ -104,7 +105,15 @@ async function seedJournal(
   lines: Array<AgentSdkMessage | { __exit: number }>,
 ): Promise<void> {
   const paths = journalPaths(runId)
-  const content = `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`
+  // The exit sentinel is built by `exitSentinelLine`, never hand-JSON-stringified:
+  // it carries a per-run nonce so an agent's own stdout cannot forge it
+  // (`ai-sandbox`'s `journal.ts`), and a bare `{"__exit":0}` is therefore agent
+  // output that the reader deliberately does NOT stop at.
+  const content = `${lines
+    .map((l) =>
+      '__exit' in l ? exitSentinelLine(paths, l.__exit) : JSON.stringify(l),
+    )
+    .join('\n')}\n`
   const b64 = Buffer.from(content, 'utf8').toString('base64')
   const result = await sbx.process.exec(
     `mkdir -p ${paths.dir} && printf '%s' ${b64} | base64 -d >> ${paths.journal}`,

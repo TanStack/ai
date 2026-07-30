@@ -32,6 +32,7 @@ import {
   SandboxCapability,
   SandboxDurabilityCapability,
   chunkFingerprint,
+  exitSentinelLine,
   journalPaths,
 } from '@tanstack/ai-sandbox'
 import { InMemoryRunStore } from '@tanstack/ai'
@@ -73,8 +74,10 @@ const JOURNAL_EVENTS = [
   `{"type":"end","stopReason":"EndTurn","sessionId":"sess-1"}`,
 ]
 
-/** The agent-exit sentinel `readJournalNdjson` stops at. */
-const EXIT_LINE = `{"__exit":0}`
+// The agent-exit sentinel `readJournalNdjson` stops at is NOT a constant: it
+// carries a per-run nonce derived from the runId, so that an agent's own stdout
+// (which lands in the same unframed file) cannot forge it. `seedJournal` builds
+// it with `exitSentinelLine`.
 
 /**
  * A fake agent for the NON-attach runs, emitting the same events the seeded
@@ -187,7 +190,7 @@ async function seedJournal(
   events: Array<string> = JOURNAL_EVENTS,
 ): Promise<void> {
   const paths = journalPaths(runId, JOURNAL_DIR)
-  const body = [...events, EXIT_LINE]
+  const body = [...events, exitSentinelLine(paths, 0)]
     .map((line) => `printf '%s\\n' '${line}'`)
     .join('; ')
   const result = await sbx.process.exec(

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { journalPaths } from '../src/journal'
 import {
+  DEFAULT_ATTACH_JOURNAL_WAIT_MS,
+  JournalAttachUnavailableError,
+} from '../src/attach-preflight'
+import {
   DEFAULT_JOURNAL_POLL_MS,
   journalReadStrategy,
   readJournal,
@@ -414,6 +418,148 @@ describe('readJournal — explicit strategy override', () => {
       }),
     )
     expect(commands[0]).toContain('tail -c +1 ')
+  })
+})
+
+describe('readJournal is bounded even when the journal exists', () => {
+  // The state this covers is one the reader MANUFACTURES: `journalFollowCommand`
+  // creates the journal before tailing it (`: >> file`), which it must, so a read
+  // for a runId with no journal produces an empty file and tails it forever — the
+  // e274a11fd defect verbatim. The same state is independently reachable by
+  // SIGKILL/OOM of the agent's shell before its sentinel `printf`. And
+  // `readJournal` is PUBLIC, with no RunStore in its signature, so the preflight
+  // cannot cover it: the bound has to live here.
+
+  it('fails a follow that receives no bytes at all, instead of tailing forever', async () => {
+    const handle = fakeHandle({ spawnStdout: neverEnding([]) })
+    const error = await collect(
+      readJournal(handle, {
+        paths: journalPaths('r-stalled'),
+        runId: 'r-stalled',
+        firstByteTimeoutMs: 60,
+      }),
+    ).then(
+      () => null,
+      (reason: unknown) => reason,
+    )
+    expect(error).toBeInstanceOf(JournalAttachUnavailableError)
+    if (!(error instanceof JournalAttachUnavailableError)) return
+    expect(error.reason).toBe('journal-stalled')
+    expect(error.runId).toBe('r-stalled')
+    expect(error.message).toContain('no bytes within 60ms')
+  })
+
+  it('kills the tail on the stall path, so nothing is left running in the sandbox', async () => {
+    let killed = false
+    const handle = fakeHandle({
+      spawnStdout: neverEnding([]),
+      onKill: () => {
+        killed = true
+      },
+    })
+    await collect(
+      readJournal(handle, {
+        paths: journalPaths('r-stalled-kill'),
+        firstByteTimeoutMs: 30,
+      }),
+    ).catch(() => {})
+    expect(killed).toBe(true)
+  })
+
+  it('bounds the FIRST byte only — a slow agent is never cut off', async () => {
+    // A healthy run can think for minutes between lines. Once bytes are flowing,
+    // no deadline here may end the read.
+    async function* slowSecondLine(): AsyncIterable<string> {
+      yield '{"a":1}\n'
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      yield '{"b":2}\n'
+    }
+    const handle = fakeHandle({ spawnStdout: slowSecondLine() })
+    expect(
+      await collect(
+        readJournal(handle, {
+          paths: journalPaths('r-slow'),
+          firstByteTimeoutMs: 40,
+        }),
+      ),
+    ).toEqual<Array<JournalLine>>([
+      { line: '{"a":1}', endPosition: 8 },
+      { line: '{"b":2}', endPosition: 16 },
+    ])
+  })
+
+  it('treats a consumer abort as an end, not a stall', async () => {
+    // An abort is the caller withdrawing; it is not a diagnosis about the run, so
+    // it must not be reported as `journal-stalled`.
+    const controller = new AbortController()
+    const handle = fakeHandle({ spawnStdout: neverEnding([]) })
+    setTimeout(() => controller.abort(), 20)
+    expect(
+      await collect(
+        readJournal(handle, {
+          paths: journalPaths('r-abort-not-stall'),
+          signal: controller.signal,
+          firstByteTimeoutMs: 5_000,
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('bounds the POLL strategy the same way', async () => {
+    // Cloudflare's strategy has the identical defect: every `exec` answers with an
+    // empty frame and the loop never leaves.
+    const handle = fakeHandle({
+      capabilities: { killableProcesses: false },
+      exec: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 }),
+    })
+    const error = await collect(
+      readJournal(handle, {
+        paths: journalPaths('r-poll-stalled'),
+        runId: 'r-poll-stalled',
+        pollIntervalMs: 5,
+        firstByteTimeoutMs: 60,
+      }),
+    ).then(
+      () => null,
+      (reason: unknown) => reason,
+    )
+    expect(error).toBeInstanceOf(JournalAttachUnavailableError)
+    if (!(error instanceof JournalAttachUnavailableError)) return
+    expect(error.reason).toBe('journal-stalled')
+  })
+
+  it('defaults the bound to the attach-preflight number, and names the run by path when no runId is given', async () => {
+    // Reused deliberately: the preflight bounds "the file does not exist", this
+    // bounds "the file exists but nothing writes to it" — one question, two sides.
+    expect(DEFAULT_ATTACH_JOURNAL_WAIT_MS).toBe(10_000)
+    const handle = fakeHandle({ spawnStdout: neverEnding([]) })
+    const paths = journalPaths('r-noid')
+    const error = await collect(
+      readJournal(handle, { paths, firstByteTimeoutMs: 20 }),
+    ).then(
+      () => null,
+      (reason: unknown) => reason,
+    )
+    expect(error).toBeInstanceOf(JournalAttachUnavailableError)
+    if (!(error instanceof JournalAttachUnavailableError)) return
+    expect(error.runId).toBe(paths.journal)
+  })
+
+  it('can be switched off explicitly, for a caller with its own deadline', async () => {
+    // `0` disables it. Asserted so the escape hatch is real rather than folklore —
+    // and it is opt-OUT, not opt-in, which is the whole point.
+    const controller = new AbortController()
+    const handle = fakeHandle({ spawnStdout: neverEnding([]) })
+    setTimeout(() => controller.abort(), 30)
+    expect(
+      await collect(
+        readJournal(handle, {
+          paths: journalPaths('r-unbounded'),
+          firstByteTimeoutMs: 0,
+          signal: controller.signal,
+        }),
+      ),
+    ).toEqual([])
   })
 })
 

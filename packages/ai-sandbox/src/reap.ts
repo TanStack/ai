@@ -308,7 +308,10 @@ export async function probeRunExit(input: {
         input.maxBytes ?? DEFAULT_EXIT_PROBE_BYTES,
       ),
     )
-    const exitCode = parseJournalExit(await decodeFrame(result.stdout))
+    // `paths` supplies the per-run sentinel nonce: without it a mid-flight
+    // agent that printed any JSON object carrying `__exit` would read as
+    // `'finished'` here, and the caller would drive and reclaim a LIVE run.
+    const exitCode = parseJournalExit(await decodeFrame(result.stdout), paths)
     return exitCode === null
       ? { state: 'producing' }
       : { state: 'finished', exitCode }
