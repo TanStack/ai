@@ -42,12 +42,12 @@ is `docs/persistence/build-your-own-adapter.md` and
 Four logical records. Whatever the engine, keep these keys — the store methods
 look records up by exactly these:
 
-| Record    | Key                | Fields                                                                                                                    |
-| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| thread    | `threadId`         | `messages` (array, full transcript)                                                                                       |
+| Record    | Key                | Fields                                                                                                                                    |
+| --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| thread    | `threadId`         | `messages` (array, full transcript)                                                                                                       |
 | run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?`, `driverEpoch?` |
-| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                       |
-| metadata  | `(namespace, key)` | `value`                                                                                                                   |
+| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                                       |
+| metadata  | `(namespace, key)` | `value`                                                                                                                                   |
 
 - Timestamps are **epoch milliseconds** (`number`) in records. Store them
   however the engine prefers and convert in the mapper.
