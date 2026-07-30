@@ -159,9 +159,15 @@ function divergenceError(
   return new JournalReplayDivergedError(index, stored, replayed)
 }
 
-export interface AlignToStoredLogOptions {
-  /** The run's event log. Read from the beginning; never written here. */
-  durability: StreamDurability
+export interface AlignToStoredLogOptions<TOffset extends string = string> {
+  /**
+   * The run's event log. Read from the beginning; never written here.
+   *
+   * Generic in the offset type, defaulted to `string`, for the same reason
+   * {@link RunDeps} is: a branded-cursor backend's `StreamDurability<TOffset>`
+   * is not assignable to `StreamDurability<string>`.
+   */
+  durability: StreamDurability<TOffset>
   /** Optional sink for the alignment summary. */
   logger?: InternalLogger
   /**
@@ -204,9 +210,9 @@ export interface AlignToStoredLogOptions {
  *   with what is stored right now, including while the log is still open, and
  *   resolves to `[]` for a run with nothing stored.
  */
-export async function* alignToStoredLog(
+export async function* alignToStoredLog<TOffset extends string = string>(
   chunks: AsyncIterable<StreamChunk>,
-  options: AlignToStoredLogOptions,
+  options: AlignToStoredLogOptions<TOffset>,
 ): AsyncIterable<StreamChunk> {
   const entries = await options.durability.snapshot()
   const stored = entries.map((entry) => chunkFingerprint(entry.chunk))

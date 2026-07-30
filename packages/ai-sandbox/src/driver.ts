@@ -55,7 +55,7 @@ import type {
   StreamDurability,
 } from '@tanstack/ai'
 
-export interface SandboxRunDriverOptions {
+export interface SandboxRunDriverOptions<TOffset extends string = string> {
   /** The attach request; core reads its run id with `resolveResumeRunId`. */
   request: Request
   runs: RunStore
@@ -64,8 +64,14 @@ export interface SandboxRunDriverOptions {
    * Per-run event log factory, the same shape `RunDeps.durability` takes — a
    * `StreamDurability` is bound to one run, so the log is resolved FROM the
    * `runId` rather than handed in pre-bound.
+   *
+   * Generic in the offset type, defaulted to `string` so an existing call site
+   * needs no change. Hardcoding the default made a branded-cursor backend
+   * unusable here: `durableStream` returns
+   * `StreamDurability<DurableStreamOffset>`, which is not assignable to
+   * `StreamDurability<string>` because `read` is contravariant in its offset.
    */
-  durability: (runId: string) => StreamDurability
+  durability: (runId: string) => StreamDurability<TOffset>
   /** Produce the run's remaining events. Called only once the claim is held. */
   drive: (input: {
     runId: string
@@ -134,8 +140,8 @@ export class RunDriverPipeOutsideClaimError extends Error {
  * }
  * ```
  */
-export function sandboxRunDriver(
-  input: SandboxRunDriverOptions,
+export function sandboxRunDriver<TOffset extends string = string>(
+  input: SandboxRunDriverOptions<TOffset>,
 ): RunDriverOptions {
   const fenceQuietMs = input.fenceQuietMs ?? DEFAULT_FENCE_QUIET_MS
   // The seam between core's `claim` and core's `pipe`. One options object serves

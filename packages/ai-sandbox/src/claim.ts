@@ -206,8 +206,8 @@ export async function withRunClaim<T>(
  * `InMemoryLockStore` serializes the claims, so the predecessor has already
  * stopped by the time the successor probes.
  */
-export async function awaitLogQuiescence(
-  durability: StreamDurability,
+export async function awaitLogQuiescence<TOffset extends string = string>(
+  durability: StreamDurability<TOffset>,
   quietMs: number,
 ): Promise<number> {
   let previous = (await durability.snapshot()).length
@@ -331,12 +331,19 @@ async function claimLostByEpoch(
  * - It is also strictly cheaper: a latched boolean replaces a store read.
  *
  * The latch deliberately does NOT extend to `close()` — see above.
+ *
+ * PASSES THE OFFSET TYPE THROUGH, rather than collapsing it to `string`. The
+ * fence sits mid-chain between a caller's log and `pipeToRunLog`, so widening
+ * here would reintroduce the branded-offset wall one layer in: a
+ * `StreamDurability<DurableStreamOffset>` would go in and a
+ * `StreamDurability<string>` would come out, which is not assignable back to
+ * the caller's own type.
  */
-export function fenceDurability(
-  durability: StreamDurability,
+export function fenceDurability<TOffset extends string = string>(
+  durability: StreamDurability<TOffset>,
   claim: RunClaim,
   options: { runs: RunStore; epochRecheckAppends?: number },
-): StreamDurability {
+): StreamDurability<TOffset> {
   const recheckAppends = Math.max(
     1,
     Math.trunc(options.epochRecheckAppends ?? DEFAULT_EPOCH_RECHECK_APPENDS),

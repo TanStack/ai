@@ -82,8 +82,19 @@ function syntheticRunError(error: RunError): StreamChunk {
   return chunk
 }
 
-/** The two durable seams a run driver needs: lifecycle record + event log. */
-export interface RunDeps {
+/**
+ * The two durable seams a run driver needs: lifecycle record + event log.
+ *
+ * Generic in the log's offset type, and DEFAULTED to `string` so every existing
+ * call site keeps compiling unchanged. The parameter is not decoration: a
+ * backend that brands its cursors — `@tanstack/ai-durable-stream`'s
+ * `durableStream` returns `StreamDurability<DurableStreamOffset>` — is NOT
+ * assignable to `StreamDurability<string>`, because `read` takes an offset and
+ * is therefore contravariant in it. Hardcoding the default here made the
+ * production multi-host backend unusable without a cast (see
+ * `tests/offset-generics.test-d.ts`).
+ */
+export interface RunDeps<TOffset extends string = string> {
   /** Run lifecycle record (status, thread, timings). */
   runs: RunStore
   /**
@@ -106,7 +117,7 @@ export interface RunDeps {
    * implementation MUST return the same instance for the same `runId` within a
    * process if it wants `snapshot()` to see its own appends.
    */
-  durability: (runId: string) => StreamDurability
+  durability: (runId: string) => StreamDurability<TOffset>
   /**
    * Optional sink for failures this driver absorbs rather than rejecting with.
    * A detached run has no caller to receive an error, so without a logger a
@@ -116,7 +127,9 @@ export interface RunDeps {
   logger?: InternalLogger
 }
 
-export interface PipeToRunLogOptions extends RunDeps {
+export interface PipeToRunLogOptions<
+  TOffset extends string = string,
+> extends RunDeps<TOffset> {
   runId: string
   threadId: string
   /** Abort consumption mid-stream; the run finishes as `aborted`. */
@@ -126,7 +139,13 @@ export interface PipeToRunLogOptions extends RunDeps {
 /** Everything {@link finish} needs, including the fields it rebuilds a record from. */
 interface FinishContext {
   runs: RunStore
-  durability: StreamDurability
+  /**
+   * `close()` only — see {@link finish}. Narrowed to that one member rather than
+   * threading `TOffset` through here, because `close` is the sole method this
+   * context touches and it is offset-free, so a `Pick` accepts a log at ANY
+   * offset instantiation without making `finish` generic for nothing.
+   */
+  durability: Pick<StreamDurability, 'close'>
   runId: string
   threadId: string
   startedAt: number
@@ -258,9 +277,9 @@ async function finish(
  * - the stream throws → append a synthesized `RUN_ERROR`, then `failed`
  * - `signal` aborts mid-stream → stop consuming, `aborted`
  */
-export async function pipeToRunLog(
+export async function pipeToRunLog<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
-  opts: PipeToRunLogOptions,
+  opts: PipeToRunLogOptions<TOffset>,
 ): Promise<RunRecord> {
   const { runs, runId, threadId, signal, logger } = opts
   // Resolved ONCE, from the runId being driven. Everything below — including
@@ -352,10 +371,10 @@ export interface RunHandle {
  * `runId`. Every method is keyed by run accordingly: `attach(runId, …)` and
  * `status(runId)` no longer disagree about whether the surface is per-run.
  */
-export class RunController {
+export class RunController<TOffset extends string = string> {
   private readonly inFlight = new Set<Promise<RunRecord>>()
 
-  constructor(private readonly deps: RunDeps) {}
+  constructor(private readonly deps: RunDeps<TOffset>) {}
 
   /**
    * Kick off `pipeToRunLog` without awaiting it and return the `runId`
@@ -388,9 +407,9 @@ export class RunController {
    */
   attach(
     runId: string,
-    fromOffset: string,
+    fromOffset: TOffset,
     signal?: AbortSignal,
-  ): AsyncIterable<{ offset: string; chunk: StreamChunk }> {
+  ): AsyncIterable<{ offset: TOffset; chunk: StreamChunk }> {
     return this.deps.durability(runId).read(fromOffset, signal)
   }
 

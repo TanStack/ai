@@ -183,11 +183,17 @@ export interface ReapResult {
   runs: Array<ReapRunEntry>
 }
 
-export interface ReapOptions {
+export interface ReapOptions<TOffset extends string = string> {
   runs: RunStore
   locks: LockStore
-  /** Per-run event log factory, same shape `RunDeps.durability` takes. */
-  durability: (runId: string) => StreamDurability
+  /**
+   * Per-run event log factory, same shape `RunDeps.durability` takes.
+   *
+   * Generic in the offset type, defaulted to `string` so an existing call site
+   * needs no change — see {@link SandboxRunDriverOptions.durability} for why
+   * hardcoding the default locked out branded-cursor backends.
+   */
+  durability: (runId: string) => StreamDurability<TOffset>
   /**
    * The out-of-band "did the agent reach its sentinel?" probe. INJECTED, because
    * neither the delivery log nor this package can answer it — see the module doc.
@@ -308,8 +314,8 @@ function safeLog(
 }
 
 /** Resolved-once settings shared by every run in one sweep. */
-interface ReapContext {
-  options: ReapOptions
+interface ReapContext<TOffset extends string = string> {
+  options: ReapOptions<TOffset>
   runBudgetMs: number
   fenceQuietMs: number
   /** Inclusive expiry cutoff: `detachedSince <= cutoff` is expired. */
@@ -342,9 +348,9 @@ function isClaimRefusal(error: unknown): boolean {
  * 5. Pipe with BOTH authoritative seams fenced, mirroring `driver.ts`.
  * 6. Reclaim, and ONLY once the record actually reached terminal.
  */
-async function reapOne(
+async function reapOne<TOffset extends string>(
   record: RunRecord,
-  ctx: ReapContext,
+  ctx: ReapContext<TOffset>,
   counters: { probed: number },
 ): Promise<ReapRunEntry> {
   const { runs, locks, logger } = ctx.options
@@ -503,8 +509,8 @@ async function reapOne(
  * throwing — the same graceful degrade every other optional-method call site in
  * the repo does (`store.findActiveRun?.(threadId)`).
  */
-export async function reapDetachedRuns(
-  options: ReapOptions,
+export async function reapDetachedRuns<TOffset extends string = string>(
+  options: ReapOptions<TOffset>,
 ): Promise<ReapResult> {
   const logger = options.logger
   const outcomes = emptyOutcomes()
@@ -543,7 +549,7 @@ export async function reapDetachedRuns(
   const maxRuns = Math.max(0, Math.trunc(options.maxRuns ?? DEFAULT_MAX_RUNS))
   const batch = candidates.slice(0, maxRuns)
 
-  const ctx: ReapContext = {
+  const ctx: ReapContext<TOffset> = {
     options,
     runBudgetMs: options.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS,
     fenceQuietMs: options.fenceQuietMs ?? DEFAULT_FENCE_QUIET_MS,
