@@ -18,6 +18,12 @@ import { expect, test } from '@playwright/test'
  * 5. A superseded driver corrupts nothing: it writes NOTHING to the log (not
  *    even an error chunk) and cannot mark the record terminal, while the winner
  *    completes normally.
+ * 6. The reaper handles the case every other test here leaves hanging — nobody
+ *    ever comes back: it finalizes a run that reached its sentinel while
+ *    detached (which is the only way that transcript is ever saved), expires one
+ *    past its TTL, and leaves a still-producing one completely untouched.
+ * 7. A replay that stopped being deterministic fails the attach LOUDLY instead of
+ *    delivering the prefix twice.
  *
  * Harness: `/api/durable-takeover`. Provider-free (no LLM), so it is exempt from
  * the aimock policy like the other durability harness routes. The agent's
@@ -73,8 +79,49 @@ interface StateBody {
     done: boolean
     killed: boolean
   } | null
-  log: Array<{ type: string; delta?: string }>
+  /** Whether this run's journal file still exists in its sandbox. */
+  journalFile: boolean
+  /** The transcript `withPersistence.onFinish` saved for this run's thread. */
+  messages: Array<{ role: string; text: string }>
+  log: Array<{ type: string; delta?: string; message?: string }>
 }
+
+/** One run's line in a sweep summary (`ReapRunEntry`). */
+interface ReapEntry {
+  runId: string
+  outcome: string
+  status?: string
+  exitCode?: number
+  terminalizedAnyway?: boolean
+}
+
+interface ReapSummary {
+  considered: number
+  probed: number
+  outcomes: Record<string, number>
+  runs: Array<ReapEntry>
+}
+
+interface PruneSummary {
+  listed: number
+  runIds: number
+  deleted: Array<string>
+  kept: Array<{ runId?: string; names: Array<string>; reason: string }>
+  ageGate: string
+  failures: Array<unknown>
+}
+
+interface ReapBody {
+  reap: ReapSummary
+  prune: Array<{ sandboxKey: string; result: PruneSummary }>
+}
+
+/**
+ * The harness's `detachedRunTtl`, in milliseconds. The route passes the same
+ * value to `withSandbox` and to `reapDetachedRuns`, so this is the cutoff the
+ * boundary cases below are constructed against.
+ */
+const DETACHED_RUN_TTL_MS = 5 * 60 * 1000
 
 function baseUrl(): string {
   const url = test.info().project.use.baseURL
@@ -282,12 +329,22 @@ async function tick(runId: string, n = 1): Promise<void> {
   await response.json()
 }
 
+/**
+ * Construct the detached precondition, and answer with the sandbox key it was
+ * built under so a spec can address that sandbox's journal-sweep summary.
+ *
+ * `detachedSince` is injectable because the reaper's TTL boundary is
+ * `detachedSince <= now - ttl` and `?action=reap` injects `now`: with both sides
+ * supplied, "past the TTL" and "one millisecond inside it" are exact, with no
+ * fake clock and no dependence on how long a request took.
+ */
 async function seed(params: {
   runId: string
   threadId?: string
   total?: number
   lines?: number
-}): Promise<void> {
+  detachedSince?: number
+}): Promise<string> {
   const response = await fetch(
     routeUrl({
       action: 'seed',
@@ -295,11 +352,76 @@ async function seed(params: {
       ...(params.threadId === undefined ? {} : { threadId: params.threadId }),
       total: String(params.total ?? 6),
       lines: String(params.lines ?? 2),
+      ...(params.detachedSince === undefined
+        ? {}
+        : { detachedSince: String(params.detachedSince) }),
     }),
     { method: 'POST' },
   )
   expect(response.ok, 'seed should succeed').toBe(true)
-  await response.json()
+  const body: unknown = await response.json()
+  const sandboxKey =
+    typeof body === 'object' && body !== null
+      ? Reflect.get(body, 'sandboxKey')
+      : undefined
+  if (typeof sandboxKey !== 'string') {
+    throw new Error('durable-takeover: seed did not answer with a sandboxKey')
+  }
+  return sandboxKey
+}
+
+/**
+ * Run ONE reaper sweep over exactly the runIds named, then the journal sweep.
+ *
+ * Several runIds in one call on purpose: every case below asserts both that the
+ * reaper acted on the run it should AND that it left a specifically-constructed
+ * run alone, and asserting both against the SAME sweep is what makes the second
+ * half mean something — a sweep that considered nothing satisfies every
+ * "untouched" assertion on its own.
+ */
+async function reap(params: {
+  runIds: Array<string>
+  now: number
+  runBudgetMs?: number
+}): Promise<ReapBody> {
+  const url = new URL(ROUTE, baseUrl())
+  url.searchParams.set('action', 'reap')
+  for (const runId of params.runIds) url.searchParams.append('runId', runId)
+  url.searchParams.set('now', String(params.now))
+  if (params.runBudgetMs !== undefined) {
+    url.searchParams.set('runBudgetMs', String(params.runBudgetMs))
+  }
+  const response = await fetch(url.toString(), { method: 'POST' })
+  expect(response.ok, `reap should succeed (${response.status})`).toBe(true)
+  const body: unknown = await response.json()
+  if (typeof body !== 'object' || body === null) {
+    throw new Error('durable-takeover: reap response was not an object')
+  }
+  return body as ReapBody
+}
+
+/** The sweep's line for one run, so a missing entry fails loudly. */
+function reapEntry(body: ReapBody, runId: string): ReapEntry {
+  const entry = body.reap.runs.find((candidate) => candidate.runId === runId)
+  if (entry === undefined) {
+    throw new Error(
+      `durable-takeover: the sweep has no entry for ${runId}; summary ${JSON.stringify(body.reap)}`,
+    )
+  }
+  return entry
+}
+
+/** The journal-sweep summary for one sandbox. */
+function pruneFor(body: ReapBody, sandboxKey: string): PruneSummary {
+  const entry = body.prune.find(
+    (candidate) => candidate.sandboxKey === sandboxKey,
+  )
+  if (entry === undefined) {
+    throw new Error(
+      `durable-takeover: no journal sweep for sandbox ${sandboxKey}; got ${body.prune.map((p) => p.sandboxKey).join(', ')}`,
+    )
+  }
+  return entry.result
 }
 
 async function cancel(
@@ -356,6 +478,118 @@ const FULL_SEQUENCE = [
   'TEXT_MESSAGE_END',
   'RUN_FINISHED',
 ]
+
+/** The full, correct chunk sequence for a TWO-line run. */
+const TWO_LINE_SEQUENCE = [
+  'RUN_STARTED',
+  'TEXT_MESSAGE_START',
+  'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_END',
+  'RUN_FINISHED',
+]
+
+/** What a previous host had already delivered when it went away: two lines. */
+const DELIVERED_PREFIX = [
+  'RUN_STARTED',
+  'TEXT_MESSAGE_START',
+  'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CONTENT',
+]
+
+/**
+ * The leave-alone half of a sweep, asserted as one whole.
+ *
+ * Every field here is one the reaper could have moved and must not have:
+ * `pipeToRunLog` is total, so entering it AT ALL writes a terminal status, closes
+ * the log and — on the expiry path — records a cancel. `detachedSince` is the
+ * sharpest of them: it is both this run's TTL evidence and the field the next
+ * sweep selects on, so a sweep that refreshed or cleared it would make the run
+ * either immortal or invisible, and neither shows up in a status assertion.
+ */
+function expectUntouched(before: StateBody, after: StateBody): void {
+  expect(after.record?.status, 'an untouched run stays running').toBe('running')
+  expect(after.record?.cancelRequested).toBeUndefined()
+  expect(after.record?.finishedAt).toBeUndefined()
+  expect(after.record?.error).toBeUndefined()
+  expect(
+    after.record?.detachedSince,
+    'detachedSince must be the very same instant, not a refreshed one',
+  ).toBe(before.record?.detachedSince)
+  // Not even the claim was taken: the leave-alone path returns before
+  // `withRunClaim`, so the epoch cannot have moved.
+  expect(after.record?.driverEpoch).toBe(before.record?.driverEpoch)
+  // Nothing appended and nothing closed.
+  expect(after.log.map((entry) => entry.type)).toEqual(
+    before.log.map((entry) => entry.type),
+  )
+  expect(after.log.map((entry) => entry.delta)).toEqual(
+    before.log.map((entry) => entry.delta),
+  )
+  // No transcript was saved: `withPersistence.onFinish` never ran.
+  expect(after.messages).toEqual([])
+  // The agent is still alive in a sandbox that is still up.
+  expect(after.sandboxDestroyed).toBe(false)
+  expect(after.journal?.killed).toBe(false)
+  expect(after.journal?.lines).toBe(before.journal?.lines)
+  // And its journal — the only copy of the bytes a successor would replay — is
+  // still on disk.
+  expect(after.journalFile).toBe(true)
+}
+
+/**
+ * What the sweep reports for a run it expired while its agent was STILL WORKING.
+ *
+ * `'budget-exceeded'`, not `'expired'`, and that is a measured property of the
+ * library rather than of this harness. Nothing polls `RunRecord.cancelRequested`
+ * to abort a live drive — `wasCancelRequested` has exactly one reader,
+ * `withSandbox`'s `onAbort`, which runs only once something else has already
+ * aborted — so on this path `ReapOptions.runBudgetMs` is the ONLY thing that ends
+ * the drive, and its expiry is what `reap.ts` labels an anomaly. Pinned so that
+ * gap cannot close (or widen) silently.
+ */
+const EXPIRED_LIVE_OUTCOME = 'budget-exceeded'
+
+/**
+ * The acted-on half of an expiry: the run is terminal, the sandbox is gone, and
+ * nothing was invented about what the agent produced.
+ *
+ * The exact terminal STATUS is deliberately not pinned. `reap.ts`'s own module doc
+ * tabulates it as a property of how the drive reacts to the budget signal — a
+ * signal-aware producer exits its loop normally, so `pipeToRunLog` sees a stream
+ * that ended and records `'completed'` (measured here), while one that throws
+ * records `'failed'`. What the expiry path actually has to achieve is that the run
+ * stops being a reclaim candidate and its sandbox stops costing money, and those
+ * are asserted exactly. The two facts below it are the guard against the danger in
+ * terminalizing a live run at all: no synthesized chunk in the log, and no
+ * invented assistant turn in the transcript.
+ */
+async function expectExpiredAndTornDown(runId: string): Promise<StateBody> {
+  const after = await stateUntil(
+    runId,
+    'the expired run to reach a terminal status',
+    (body) => body.record?.finishedAt !== undefined,
+  )
+  // Recorded BEFORE the drive, which is what makes the teardown an explicit
+  // cancel that DESTROYS the sandbox rather than a second detach that re-arms
+  // `detachedSince` and leaves the run to be swept forever.
+  expect(after.record?.cancelRequested).toBe(true)
+  expect(after.record?.status).not.toBe('running')
+  expect(typeof after.record?.finishedAt).toBe('number')
+  // The cost leak is closed: the agent cannot keep burning tokens in a sandbox
+  // nobody is reading.
+  expect(after.sandboxDestroyed).toBe(true)
+  expect(after.journal?.killed).toBe(true)
+  // The log holds what was really delivered and nothing else — no synthetic
+  // terminal, no error chunk.
+  expect(after.log.map((entry) => entry.type)).toEqual(DELIVERED_PREFIX)
+  expect(after.log.filter((entry) => entry.type === 'RUN_ERROR')).toEqual([])
+  // And no assistant turn was invented for output the agent never finished.
+  expect(
+    after.messages.filter((message) => message.role === 'assistant'),
+  ).toEqual([])
+  return after
+}
 
 // ---------------------------------------------------------------------------
 // 1. Takeover
@@ -705,5 +939,283 @@ test.describe('durable runs — single-writer fencing', () => {
 
     first.close()
     second.close()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 6. The reaper: nobody came back
+// ---------------------------------------------------------------------------
+
+/**
+ * A detached run whose viewer never returns is the case every other test here
+ * leaves hanging: the takeover tests all end with somebody attaching. Nothing in
+ * the library drives such a run — `reapDetachedRuns` is a plain function an
+ * application calls from a cron — so these cases call it over real HTTP and assert
+ * what it did to the store, the log, the saved transcript, the sandbox and the
+ * journal directory.
+ *
+ * EVERY case sweeps TWO runs in ONE pass and asserts both halves. That is not
+ * symmetry for its own sake: a sweep whose candidate list came back empty
+ * satisfies every "the reaper did not touch this run" assertion by doing nothing
+ * at all, so the acted-on half — plus `considered` — is what makes the untouched
+ * half evidence rather than decoration.
+ *
+ * `now` is injected on `?action=reap` and `detachedSince` on `?action=seed`, so
+ * both sides of the reaper's `detachedSince <= now - ttl` are supplied by the
+ * test. No fake clock, and no dependence on how long a request took.
+ */
+test.describe('durable runs — the reaper', () => {
+  test('finalizes a run that reached its sentinel while detached, and leaves a still-producing one alone', async () => {
+    const finished = uniqueRunId('reap-finalized')
+    const producing = uniqueRunId('reap-producing')
+    const now = Date.now()
+
+    const finishedSandbox = await seed({
+      runId: finished,
+      total: 6,
+      lines: 2,
+      detachedSince: now,
+    })
+    // Same detached instant, same delivered prefix; the ONLY difference is the
+    // tick below, which carries one agent to its sentinel and leaves the other
+    // mid-flight.
+    const producingSandbox = await seed({
+      runId: producing,
+      total: 6,
+      lines: 2,
+      detachedSince: now,
+    })
+    // The agent kept working after the viewer left and reached `{"__exit":0}`
+    // with nobody reading its output — so four of its six lines were never
+    // delivered and its transcript was never saved. This is the state only the
+    // reaper resolves.
+    await tick(finished, 4)
+    const before = await state(producing)
+
+    const body = await reap({ runIds: [finished, producing], now })
+
+    // Both runs really were candidates, and both were probed: neither is past
+    // the TTL, so the out-of-band exit probe is what separated them.
+    expect(body.reap.considered).toBe(2)
+    expect(body.reap.probed).toBe(2)
+    expect(body.reap.outcomes.finalized).toBe(1)
+    expect(body.reap.outcomes.producing).toBe(1)
+    expect(body.reap.outcomes.expired).toBe(0)
+    expect(reapEntry(body, finished).outcome).toBe('finalized')
+    expect(reapEntry(body, finished).status).toBe('completed')
+    expect(reapEntry(body, finished).exitCode).toBe(0)
+    expect(reapEntry(body, producing).outcome).toBe('producing')
+
+    // `withPersistence.onFinish` runs in the drive's teardown, which the sweep's
+    // own response does not wait for, so this waits for the FACT rather than for a
+    // duration. A run that never lands its transcript fails here with the whole
+    // state dumped, which is the outcome under test.
+    const after = await stateUntil(
+      finished,
+      'the finalized run to save its transcript',
+      (record) =>
+        record.messages.some((message) => message.role === 'assistant'),
+    )
+    expect(after.record?.status).toBe('completed')
+    expect(typeof after.record?.finishedAt).toBe('number')
+    expect(after.record?.error).toBeUndefined()
+    // The four undelivered lines arrived and the two already-stored ones did NOT
+    // arrive twice: alignment suppressed them. Asserted as the exact sequence,
+    // because a duplicated delta is what a failed alignment produces and a
+    // substring check cannot see it.
+    expect(after.log.map((entry) => entry.type)).toEqual(FULL_SEQUENCE)
+    expect(
+      after.log
+        .filter((entry) => entry.type === 'TEXT_MESSAGE_CONTENT')
+        .map((entry) => entry.delta),
+    ).toEqual(['1', '2', '3', '4', '5', '6'])
+
+    // THE point of the `'finalized'` outcome. `withPersistence.onFinish` is what
+    // saves a thread's history, and a run that completes while detached has
+    // nobody to run it — so until something drives it to terminal the
+    // conversation never lands at all. This is that transcript, and the
+    // still-producing run's empty one (asserted below) is the control.
+    //
+    // It holds the REMAINDER, not the whole message: alignment suppresses the
+    // delivered prefix inside the adapter, so `withPersistence`'s accumulator
+    // never sees '1','2' — the delivery log is the complete record, the saved
+    // message is not. That is a property of every takeover, not of the reaper,
+    // and it is pinned here because it is invisible in the log assertion above.
+    expect(
+      after.messages.map((message) => `${message.role}:${message.text}`),
+    ).toEqual(['user:go', 'assistant:123456'])
+
+    // The journal sweep runs after the reaper, so the finalized run's journal is
+    // deletable — the delivery log is the record now — while the live one's is
+    // the only copy of the bytes a successor would replay and must survive.
+    expect(pruneFor(body, finishedSandbox).deleted).toEqual([finished])
+    expect(after.journalFile).toBe(false)
+    expect(pruneFor(body, producingSandbox).deleted).toEqual([])
+    expect(
+      pruneFor(body, producingSandbox).kept.map((entry) => entry.reason),
+    ).toEqual(['non-terminal'])
+    expect(pruneFor(body, producingSandbox).ageGate).toBe('listed')
+
+    const untouched = await state(producing)
+    expectUntouched(before, untouched)
+    expect(untouched.log.map((entry) => entry.type)).toEqual(DELIVERED_PREFIX)
+  })
+
+  test('expires a still-producing detached run past its TTL, and leaves a fresher one alone', async () => {
+    const expired = uniqueRunId('reap-expired')
+    const fresh = uniqueRunId('reap-fresh')
+    const now = Date.now()
+
+    // Identical runs — same total, same delivered prefix, same still-working
+    // agent. The ONLY difference is when the viewer left.
+    await seed({
+      runId: expired,
+      total: 6,
+      lines: 2,
+      detachedSince: now - 10 * 60 * 1000,
+    })
+    await seed({ runId: fresh, total: 6, lines: 2, detachedSince: now })
+    const before = await state(fresh)
+
+    // A still-producing agent cannot be stopped by the cancel the reaper records:
+    // nothing in the library polls `RunRecord.cancelRequested` to abort a live
+    // drive, so `runBudgetMs` is the only thing that ends this one. Kept short so
+    // the sweep returns promptly; the value is a server-side bound, not a sleep in
+    // the test.
+    const body = await reap({
+      runIds: [expired, fresh],
+      now,
+      runBudgetMs: 500,
+    })
+
+    expect(body.reap.considered).toBe(2)
+    // Only the fresher run was probed. An expired run needs no probe — its
+    // outcome is terminal whether or not the agent finished — so `probed: 1` is
+    // itself the proof that the two were classified differently.
+    expect(body.reap.probed).toBe(1)
+    expect(reapEntry(body, fresh).outcome).toBe('producing')
+    expect(reapEntry(body, expired).outcome).toBe(EXPIRED_LIVE_OUTCOME)
+    expect(reapEntry(body, expired).terminalizedAnyway).toBe(true)
+
+    await expectExpiredAndTornDown(expired)
+    expectUntouched(before, await state(fresh))
+  })
+
+  test('the TTL cutoff is inclusive: a run exactly at it expires, one millisecond inside it is untouched', async () => {
+    const atCutoff = uniqueRunId('reap-at-cutoff')
+    const insideCutoff = uniqueRunId('reap-inside-cutoff')
+    const now = Date.now()
+
+    // One millisecond apart, either side of `now - ttl`.
+    // `RunStore.listReclaimable` documents that cutoff as INCLUSIVE and the
+    // reaper classifies expiry against the same one; the two disagreeing by a
+    // millisecond would list a run as reclaimable and then call it fresh on
+    // every sweep, forever.
+    await seed({
+      runId: atCutoff,
+      total: 6,
+      lines: 2,
+      detachedSince: now - DETACHED_RUN_TTL_MS,
+    })
+    await seed({
+      runId: insideCutoff,
+      total: 6,
+      lines: 2,
+      detachedSince: now - DETACHED_RUN_TTL_MS + 1,
+    })
+    const before = await state(insideCutoff)
+
+    const body = await reap({
+      runIds: [atCutoff, insideCutoff],
+      now,
+      runBudgetMs: 500,
+    })
+
+    expect(body.reap.considered).toBe(2)
+    // The whole assertion, in one number: exactly one of the two was treated as
+    // expired, and it was not the one a millisecond inside the window.
+    expect(body.reap.probed).toBe(1)
+    expect(reapEntry(body, insideCutoff).outcome).toBe('producing')
+    expect(reapEntry(body, atCutoff).outcome).toBe(EXPIRED_LIVE_OUTCOME)
+
+    await expectExpiredAndTornDown(atCutoff)
+    expectUntouched(before, await state(insideCutoff))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 7. Replay divergence is loud
+// ---------------------------------------------------------------------------
+
+/**
+ * Determinism is a PRECONDITION of the takeover, not a property of it: a resumed
+ * journal read is idempotent only because `createRunScopedIdGen` makes
+ * re-translation reproduce the same ids. `alignToStoredLog` verifies that on every
+ * attach and throws `JournalReplayDivergedError` on the first mismatch, and the
+ * alternative to throwing is a delivered stream whose prefix and suffix disagree
+ * about message identity — a duplicated `TEXT_MESSAGE_START`, and a client that
+ * renders two messages for one.
+ *
+ * `?nondeterministic=1` makes the attaching translator mint a message id that is
+ * not run-scoped, leaving the stored prefix exactly as the previous host wrote it.
+ * The control run below is the same seed WITHOUT the flag, so the two differ in
+ * that one respect and nothing else.
+ */
+test.describe('durable runs — replay divergence', () => {
+  test('a non-deterministic replay fails the attach loudly instead of duplicating the prefix', async () => {
+    const diverged = uniqueRunId('diverge-replay')
+    const aligned = uniqueRunId('aligned-replay')
+    await seed({ runId: diverged, total: 2, lines: 2 })
+    await seed({ runId: aligned, total: 2, lines: 2 })
+
+    const bad = await SseStream.open(
+      routeUrl({ runId: diverged, offset: '-1', nondeterministic: '1' }),
+      { method: 'GET' },
+    )
+    const delivered = await bad.drain()
+
+    // The stored prefix replays, and then the run ENDS in an error — it does not
+    // continue with a second TEXT_MESSAGE_START under a new id, and it does not
+    // re-deliver '1','2'.
+    expect(delivered.map(eventType)).toEqual([...DELIVERED_PREFIX, 'RUN_ERROR'])
+    expect(contentDeltas(delivered)).toEqual(['1', '2'])
+    const failure = delivered.at(-1)
+    expect(typeof failure?.data.message).toBe('string')
+    expect(String(failure?.data.message)).toContain(
+      'journal replay diverged at index 1',
+    )
+
+    const after = await stateUntil(
+      diverged,
+      'the diverged run to be recorded as failed',
+      (record) => record.record?.status === 'failed',
+    )
+    expect(after.log.map((entry) => entry.type)).toEqual([
+      ...DELIVERED_PREFIX,
+      'RUN_ERROR',
+    ])
+    // No assistant turn was saved from a stream the guard refused to trust — the
+    // stored prefix stays the only record of what was delivered.
+    expect(
+      after.messages.filter((message) => message.role === 'assistant'),
+    ).toEqual([])
+
+    // The control: the identical seed, attached WITHOUT the flag, aligns and
+    // completes. Without this the test above also passes if an attach can never
+    // succeed at all.
+    const good = await SseStream.open(
+      routeUrl({ runId: aligned, offset: '-1' }),
+      { method: 'GET' },
+    )
+    expect((await good.drain()).map(eventType)).toEqual(TWO_LINE_SEQUENCE)
+    const control = await stateUntil(
+      aligned,
+      'the aligned run to complete',
+      (record) => record.record?.status === 'completed',
+    )
+    expect(control.log.map((entry) => entry.type)).toEqual(TWO_LINE_SEQUENCE)
+    expect(control.log.filter((entry) => entry.type === 'RUN_ERROR')).toEqual(
+      [],
+    )
   })
 })
