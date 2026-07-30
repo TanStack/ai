@@ -77,7 +77,7 @@ interface SandboxRunState {
   /**
    * Durability resolved once at setup (absent when the run is not durable), so
    * `onAbort` cannot reach a different verdict than the one `setup` published
-   * on the capability bus, and `detachedRunTtl` is parsed exactly once.
+   * on the capability bus.
    */
   durability?: SandboxRunDurability
 }
@@ -250,8 +250,9 @@ export function withSandbox<TOffset extends string = string>(
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
-      // Resolving here (not lazily on the abort path) is what makes a malformed
-      // `detachedRunTtl` fail before an agent starts spending tokens.
+      // Resolving here (not lazily on the abort path) is what keeps `setup` and
+      // `onAbort` on one verdict: the payload the bus carries is the same object
+      // the teardown path consults.
       // `TOffset` is passed explicitly: `options` is possibly `undefined` here,
       // so inference has nothing to work from on that branch and would fall
       // back to the `= string` default, re-erecting the very wall this

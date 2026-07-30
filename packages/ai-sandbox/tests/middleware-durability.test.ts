@@ -306,13 +306,6 @@ describe('withSandbox — detach vs destroy', () => {
     ).toBe(true)
   })
 
-  it('rejects at setup when detachedRunTtl is malformed', async () => {
-    const runs = await seededRuns()
-    await expect(
-      harness({ adapter: adapterFor('r1'), detachedRunTtl: '30min' }, { runs }),
-    ).rejects.toThrow(/detachedRunTtl/)
-  })
-
   it('publishes the durability capability only when the run is durable', async () => {
     const runs = await seededRuns()
     const withBoth = await harness({ adapter: adapterFor('r1') }, { runs })
@@ -321,7 +314,6 @@ describe('withSandbox — detach vs destroy', () => {
         journalDir: '/tmp/tanstack-runs',
         attach: false,
         detachOnDisconnect: true,
-        detachedRunTtlMs: 30 * 60_000,
       },
     )
     expect(withBoth.ctx.getOptional(DetachableRunCapability)).toBe(true)

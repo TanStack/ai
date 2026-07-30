@@ -264,16 +264,15 @@ export type {
 // harness adapter actually drives with — a `journalOptionsFor` journal option
 // and an attach-only `alignedIfAttaching` alignment transform.
 //
-// `resolveSandboxDurability` and `parseRunTtlMs` are deliberately NOT
-// exported: they are `withSandbox`'s own path from raw options to the
-// capability payload (see `middleware.ts`), and a harness adapter only ever
-// needs the ALREADY-RESOLVED value read back off the capability bus, never to
-// re-run that resolution itself.
+// `resolveSandboxDurability` is deliberately NOT exported: it is
+// `withSandbox`'s own path from raw options to the capability payload (see
+// `middleware.ts`), and a harness adapter only ever needs the ALREADY-RESOLVED
+// value read back off the capability bus, never to re-run that resolution
+// itself.
 export {
   SandboxDurabilityCapability,
   getSandboxDurability,
   provideSandboxDurability,
-  DEFAULT_DETACHED_RUN_TTL,
   DurableRunIdRequiredError,
   DurableThreadIdRequiredError,
   resolveDurableRunId,

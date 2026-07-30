@@ -1,18 +1,20 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { EventType, InMemoryRunStore, memoryStream } from '@tanstack/ai'
 import { DEFAULT_JOURNAL_DIR } from '../src/journal'
 import {
-  DEFAULT_DETACHED_RUN_TTL,
   DurableRunIdRequiredError,
   DurableThreadIdRequiredError,
   alignedIfAttaching,
   journalOptionsFor,
-  parseRunTtlMs,
   resolveDurableRunId,
   resolveDurableThreadId,
   resolveSandboxDurability,
 } from '../src/durability'
 import { captureLogger, collectChunks, fakeLog, fromChunkValues } from './fakes'
+import type {
+  SandboxDurabilityOptions,
+  SandboxRunDurability,
+} from '../src/durability'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 const adapterFor = (runId: string): StreamDurability =>
@@ -242,24 +244,33 @@ describe('resolveDurableThreadId', () => {
   })
 })
 
-describe('parseRunTtlMs', () => {
-  it('defaults to 30 minutes', () => {
-    expect(DEFAULT_DETACHED_RUN_TTL).toBe('30m')
-    expect(parseRunTtlMs(undefined)).toBe(30 * 60_000)
+describe('the reaper owns the detached-run TTL, and nothing else declares one', () => {
+  // `ReapOptions.detachedRunTtlMs` is the single source of truth. A duplicate
+  // TTL on `withSandbox` was read by NOBODY — the only enforcer,
+  // `reapDetachedRuns`, runs from a cron with no `CapabilityContext`, so it
+  // cannot reach the capability bus this option's parsed value was published
+  // on. Two knobs in two units at two call sites is silent divergence: `'30m'`
+  // here and `5 * 60_000` at the sweep expired runs at five minutes while the
+  // config claimed thirty, and nothing warned.
+  //
+  // These are TYPE assertions, which this repo checks (`pnpm exec tsc` covers
+  // `tests/**`). Re-adding the option makes both of them hard errors.
+  it('withSandbox durability options declare no TTL', () => {
+    expectTypeOf<SandboxDurabilityOptions>().not.toHaveProperty(
+      'detachedRunTtl',
+    )
+    expectTypeOf<SandboxRunDurability>().not.toHaveProperty('detachedRunTtlMs')
   })
 
-  it('parses minutes, hours and seconds', () => {
-    expect(parseRunTtlMs('45s')).toBe(45_000)
-    expect(parseRunTtlMs('5m')).toBe(300_000)
-    expect(parseRunTtlMs('2h')).toBe(7_200_000)
-  })
-
-  it('rejects a malformed or zero duration rather than defaulting silently', () => {
-    // Silently defaulting would let a typo ('30min') produce a 30-minute token
-    // burn the operator thought they had capped at something else.
-    for (const bad of ['30min', '', 'm', '0m', '-5m', '1.5h', 'abc', '30 m']) {
-      expect(() => parseRunTtlMs(bad)).toThrow(/detachedRunTtl/)
+  it('rejects a TTL passed to withSandbox durability at the type level', () => {
+    const options: SandboxDurabilityOptions = {
+      adapter: adapterFor('r-ttl'),
+      // @ts-expect-error -- `detachedRunTtl` no longer exists; the reaper's
+      // `detachedRunTtlMs` is the only TTL. A typo can no longer become a
+      // silent 30-minute token burn, because there is nothing to mistype.
+      detachedRunTtl: '30m',
     }
+    void options
   })
 })
 
@@ -288,7 +299,6 @@ describe('resolveSandboxDurability', () => {
       journalDir: DEFAULT_JOURNAL_DIR,
       attach: false,
       detachOnDisconnect: true,
-      detachedRunTtlMs: 30 * 60_000,
     })
     // Omitted, not present-and-undefined: the field is optional and the
     // capability payload must not carry an explicit `undefined`.
@@ -306,7 +316,6 @@ describe('resolveSandboxDurability', () => {
           journal: '/srv/runs',
           attach: true,
           detachOnDisconnect: false,
-          detachedRunTtl: '90s',
           pollIntervalMs: 250,
         },
       }),
@@ -316,19 +325,8 @@ describe('resolveSandboxDurability', () => {
       journalDir: '/srv/runs',
       attach: true,
       detachOnDisconnect: false,
-      detachedRunTtlMs: 90_000,
       pollIntervalMs: 250,
     })
-  })
-
-  it('throws on a malformed detachedRunTtl at setup, not months later in a reaper', () => {
-    const runs = new InMemoryRunStore()
-    expect(() =>
-      resolveSandboxDurability({
-        runs,
-        durability: { adapter: adapterFor('r3'), detachedRunTtl: '30min' },
-      }),
-    ).toThrow(/detachedRunTtl/)
   })
 })
 

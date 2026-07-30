@@ -14,7 +14,6 @@ import { InMemoryLockStore } from '@tanstack/ai/locks'
 import { makeFakeHandle } from './fakes'
 import {
   DEFAULT_ATTACH_JOURNAL_WAIT_MS,
-  DEFAULT_DETACHED_RUN_TTL,
   DEFAULT_EXIT_PROBE_BYTES,
   DEFAULT_FENCE_QUIET_MS,
   DEFAULT_MAX_DELETES,
@@ -91,7 +90,6 @@ function makeDurability(runId: string): SandboxRunDurability {
     journalDir: '/tmp/tanstack-runs',
     attach: false,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 30 * 60_000,
   }
 }
 
@@ -112,7 +110,6 @@ describe('barrel: durability seam', () => {
   })
 
   it('publishes the documented defaults', () => {
-    expect(DEFAULT_DETACHED_RUN_TTL).toBe('30m')
     expect(DEFAULT_FENCE_QUIET_MS).toBe(5_000)
     expect(DEFAULT_MAX_OUT_OF_BAND_SKIP).toBe(64)
   })

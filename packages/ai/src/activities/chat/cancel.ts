@@ -61,9 +61,10 @@ export async function requestRunCancel(
  * down with a store error. The cost of a false negative is that a cancel
  * degrades into a detach — the run record gains `detachedSince`/`sandboxKey`
  * instead of transitioning to `'aborted'`. `@tanstack/ai-sandbox`'s
- * `reapDetachedRuns` recovers that run once `detachedRunTtlMs` (its parsed
- * `durability.detachedRunTtl`) has elapsed, so the cost is a delayed teardown
- * rather than a lost one — provided the application actually schedules that
+ * `reapDetachedRuns` recovers that run once the `detachedRunTtlMs` the
+ * application passes to that sweep has elapsed — nothing derives it from
+ * `withSandbox`, which has no TTL option — so the cost is a delayed teardown
+ * rather than a lost one, provided the application actually schedules the
  * sweep, which is its job and not the framework's. Still strictly better than
  * failing the teardown.
  */

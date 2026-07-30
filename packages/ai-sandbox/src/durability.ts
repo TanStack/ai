@@ -36,11 +36,6 @@ export interface SandboxDurabilityOptions<TOffset extends string = string> {
   /** Journal directory inside the sandbox. Defaults to `/tmp/tanstack-runs`. */
   journal?: string
   /**
-   * Wall-clock cap on a RUNNING agent with no viewer attached, e.g. `'30m'`.
-   * Recorded here and enforced by the reaper; this layer only stores it.
-   */
-  detachedRunTtl?: string
-  /**
    * Whether a client disconnect DETACHES (leave the agent running) instead of
    * destroying the sandbox. Defaults to `true` whenever durability is wired,
    * because that is the whole point of wiring it.
@@ -94,14 +89,22 @@ export interface SandboxDurabilityOptions<TOffset extends string = string> {
  */
 export type SandboxDurabilityLog = Omit<StreamDurability, 'read'>
 
-/** Resolved durability, published on the capability bus by `withSandbox`. */
+/**
+ * Resolved durability, published on the capability bus by `withSandbox`.
+ *
+ * Deliberately carries NO detached-run TTL. The only actor that enforces one is
+ * `reapDetachedRuns`, which runs from a cron with no chat in flight — so it has
+ * no `CapabilityContext` and cannot read this bus at all. A TTL published here
+ * could therefore only ever be read by nobody, while the sweep took its own
+ * `ReapOptions.detachedRunTtlMs`; the two would silently disagree. The reaper's
+ * required option is the single source of truth.
+ */
 export interface SandboxRunDurability {
   runs: RunStore
   adapter: SandboxDurabilityLog
   journalDir: string
   attach: boolean
   detachOnDisconnect: boolean
-  detachedRunTtlMs: number
   pollIntervalMs?: number
   attachWaitMs?: number
 }
@@ -117,9 +120,6 @@ export const SandboxDurabilityCapability =
 /** Destructured accessors, matching `./capabilities`. */
 export const [getSandboxDurability, provideSandboxDurability] =
   SandboxDurabilityCapability
-
-/** Default `detachedRunTtl`. */
-export const DEFAULT_DETACHED_RUN_TTL = '30m'
 
 /**
  * A durable run was started without a caller-supplied `runId`.
@@ -234,41 +234,6 @@ export function resolveDurableThreadId(
   return options.fallback()
 }
 
-const TTL_PATTERN = /^(\d+)(s|m|h)$/
-const TTL_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000 } as const
-type TtlUnit = keyof typeof TTL_UNIT_MS
-
-/**
- * Narrows the regex's second group to a unit key. The pattern already restricts
- * it, but the type system cannot see that, and a non-null assertion here would
- * hide a real bug if the pattern ever gained a unit the table lacks.
- */
-function isTtlUnit(value: string): value is TtlUnit {
-  return value in TTL_UNIT_MS
-}
-
-/**
- * Parse a `detachedRunTtl` like `'30m'` into milliseconds.
- *
- * Throws on anything malformed instead of falling back to the default. This
- * value caps how long an unwatched agent may keep spending tokens, so a typo
- * silently becoming 30 minutes is a billing incident, not a nicety. Same
- * `<n><unit>` shape as `snapshotMaxAge` in `sandbox.ts`, plus seconds so a test
- * or a demo can use a short window.
- */
-export function parseRunTtlMs(value: string | undefined): number {
-  const raw = value ?? DEFAULT_DETACHED_RUN_TTL
-  const match = TTL_PATTERN.exec(raw)
-  const amount = match ? Number(match[1]) : 0
-  const unit = match?.[2]
-  if (!match || amount <= 0 || unit === undefined || !isTtlUnit(unit)) {
-    throw new Error(
-      `withSandbox: detachedRunTtl must look like '<n>s' | '<n>m' | '<n>h' with n > 0, got ${JSON.stringify(raw)}`,
-    )
-  }
-  return amount * TTL_UNIT_MS[unit]
-}
-
 /**
  * Resolve `withSandbox`'s two durability options into the capability payload, or
  * `undefined` when the app has not opted in.
@@ -277,9 +242,6 @@ export function parseRunTtlMs(value: string | undefined): number {
  * `undefined` **silently** rather than a warning: it has not asked for
  * durability, so there is nothing to warn about, and the resulting behavior
  * (destroy on disconnect, no journal) is exactly today's.
- *
- * `parseRunTtlMs` runs here, at setup, so a malformed `detachedRunTtl` fails
- * before an agent starts spending tokens rather than when the reaper first runs.
  */
 export function resolveSandboxDurability<TOffset extends string = string>(
   options:
@@ -295,7 +257,6 @@ export function resolveSandboxDurability<TOffset extends string = string>(
     journalDir: durability.journal ?? DEFAULT_JOURNAL_DIR,
     attach: durability.attach === true,
     detachOnDisconnect: durability.detachOnDisconnect !== false,
-    detachedRunTtlMs: parseRunTtlMs(durability.detachedRunTtl),
     ...(durability.pollIntervalMs === undefined
       ? {}
       : { pollIntervalMs: durability.pollIntervalMs }),

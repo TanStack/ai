@@ -156,7 +156,6 @@ withSandbox(definition, {
   durability: {
     adapter: brandedLog,
     journal: '/tmp/journal',
-    detachedRunTtl: '30m',
     detachOnDisconnect: false,
     attach: true,
     pollIntervalMs: 50,
