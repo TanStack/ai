@@ -196,9 +196,13 @@ export abstract class SandboxCoordinator<
       threadId: input.threadId,
       stream,
     })
-    // Keep the instance alive until the run is terminal; `pipeToRunLog` never
-    // rejects (failures land in the log), so no `.catch` is needed.
-    this.ctx.waitUntil(done.finally(() => this.onRunSettled(input.runId)))
+    // Keep the instance alive until the run is terminal. `pipeToRunLog` never
+    // rejects (failures land in the log), but this must not DEPEND on that:
+    // `.finally` adopts a rejection, which would hand `waitUntil` a rejected
+    // promise. Two-argument `then` settles fulfilled either way while still
+    // running the settle hook.
+    const settle = (): void => this.onRunSettled(input.runId)
+    this.ctx.waitUntil(done.then(settle, settle))
     await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
     return { runId: input.runId }
   }

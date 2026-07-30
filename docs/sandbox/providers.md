@@ -243,14 +243,28 @@ swap one provider for another.
 
 ### `killableProcesses` across the bundled providers
 
+This flag is **measured, not asserted** — a wrong `true` hands the journal reader
+an unstoppable `tail -f` and leaks a process per run, so a provider only declares
+it once killing has been observed to work against a real sandbox. Two of these
+declarations were once `true` on reasoning alone and both turned out to be false
+when probed (Docker's stream destroy left the container-side process in `ps`;
+local-process's `sh -c` did not `exec`, so killing the shell left the command
+alive). Anything that cannot be measured yet stays `false`, because `poll` is
+merely slower while a wrong `follow` is a leak.
+
 | Provider | `killableProcesses` | Why |
 | --- | --- | --- |
-| Local process | `true` | Kills the spawned `sh` wrapper **and** its descendants (signal forwarding on POSIX; on Windows `taskkill /T` plus a verified sweep — see [Windows teardown](#windows-process-teardown-logger)). |
-| Docker | `true` | Destroys the hijacked exec stream, which tears down the container-side process tied to that exec session. |
-| Daytona | `true` | Deletes the Daytona session, terminating its running command. Bounded by session teardown rather than instant, but terminal. |
-| Vercel | `true` | Aborts the controller threaded into `runCommand`'s own signal; Vercel tears the detached command down. |
-| Sprites | `true` | Delegates to the Sprite exec stream's own `kill()`, which terminates the remote process. |
+| Local process | `true` | **Measured.** Kills the process GROUP, not the wrapper: `detached` spawn plus `process.kill(-pid, signal)` on POSIX (killing only the `sh` left the command running — dash does not reliably `exec`); on Windows `taskkill /T` plus a verified sweep — see [Windows teardown](#windows-process-teardown-logger). |
+| Docker | `true` | **Measured.** Signals the process INSIDE the container by the pid the wrapper recorded for itself, process group first and escalating to `KILL`. Destroying the hijacked exec stream is *not* sufficient — it only detaches the client. |
+| Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured — needs `DAYTONA_API_KEY`. |
+| Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured — needs Vercel credentials. |
+| Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals — process group or pid — is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
+
+Each of the remote providers registers the shared journal conformance suite, so
+the claim is falsifiable rather than asserted: with credentials present the suite
+runs against a real sandbox, and without them it reports a **named skip** carrying
+the reason instead of a silent pass.
 
 This flag is required on every provider, including a bring-your-own one. A
 provider that omitted it would be treated as killable, which is the dangerous

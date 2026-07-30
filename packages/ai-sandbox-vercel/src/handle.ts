@@ -31,11 +31,28 @@ export const VERCEL_CAPS: SandboxCapabilities = {
   // Vercel detached commands stream logs out but expose no host→process stdin,
   // so adapters that feed a prompt over stdin must use a file + shell redirect.
   writableStdin: false,
-  // `spawnProcess.kill()` and `signal` abort both call `controller.abort()`,
-  // which is threaded through to `sandbox.runCommand`'s own `signal` — Vercel
-  // tears down the detached command on abort, so a spawned process is
-  // forcibly terminable.
-  killableProcesses: true,
+  // FALSE, and it must not be flipped back without a MEASUREMENT against a real
+  // sandbox. It read `true` on the claim that aborting the `signal` threaded into
+  // `sandbox.runCommand` tears the detached command down. That claim is false, and
+  // it is false in the SDK's own source rather than merely unproven: in
+  // `@vercel/sandbox`'s `session.runCommand`, the `detached` branch forwards
+  // `signal` to `client.runCommand` — the HTTP request that STARTS the command —
+  // and to `pipeLogs`, which returns immediately here because this handle passes
+  // no `stdout`/`stderr` writables. That start request has already resolved by the
+  // time `spawnProcess` returns, so the abort had nothing left to cancel and
+  // `kill()` was a total no-op that left the remote process running. Same shape as
+  // the docker defect: a client-side detach advertised as a kill.
+  //
+  // `kill()` now calls the SDK's real `Command.kill` (a server-side kill), so it
+  // is no longer a no-op — but what that endpoint signals is undocumented, and
+  // `journalFollowCommand` is a THREE-statement shell command
+  // (`mkdir …; : >> …; tail -f …`), so no shell can exec-optimize it and the
+  // `tail -f` is necessarily a CHILD of the `sh` that `runCommand` started. If the
+  // kill is pid-only rather than process-group-wide, every follow read leaks a
+  // `tail -f` — which is exactly the local-process defect. Until that is measured
+  // (see `tests/journal.conformance.test.ts`, gated on real credentials) this stays
+  // false and `journalReadStrategy` picks the slower-but-correct `'poll'`.
+  killableProcesses: false,
   snapshots: false,
   networkPolicy: false,
   // The microVM filesystem persists for the sandbox's lifetime.
@@ -232,11 +249,10 @@ export class VercelHandle implements SandboxHandle {
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
     const controller = new AbortController()
-    if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => controller.abort(), {
-        once: true,
-      })
-    }
+    // Bounds the START request only — see the `killableProcesses` comment. Once
+    // `runCommand` has resolved this signal can no longer reach the process.
+    const abortStart = (): void => controller.abort()
+    opts?.signal?.addEventListener('abort', abortStart, { once: true })
 
     const cmd: Command = await this.sandbox.runCommand({
       cmd: 'sh',
@@ -246,6 +262,30 @@ export class VercelHandle implements SandboxHandle {
       detached: true,
       signal: controller.signal,
     })
+
+    // Terminate the REMOTE command and then detach locally. `Command.kill` is the
+    // SDK's server-side kill (`POST killCommand`); aborting `controller` alone
+    // reaches nothing once the start request has resolved, which is why `kill()`
+    // used to leave the process running. Registered only after `runCommand`
+    // resolves, because `cmd` is what carries the kill.
+    const terminate = async (): Promise<void> => {
+      controller.abort()
+      try {
+        await cmd.kill('SIGKILL')
+      } catch {
+        // Teardown path: the command may already have exited (so the kill 404s)
+        // and the caller has stopped caring about it either way. A throw here
+        // would wedge the caller instead of freeing anything.
+      }
+    }
+    if (opts?.signal) {
+      if (opts.signal.aborted) void terminate()
+      else {
+        opts.signal.addEventListener('abort', () => void terminate(), {
+          once: true,
+        })
+      }
+    }
 
     const stdoutQ = new AsyncChunkQueue()
     const stderrQ = new AsyncChunkQueue()
@@ -283,10 +323,7 @@ export class VercelHandle implements SandboxHandle {
         await pump
         return finished.exitCode
       },
-      kill: () => {
-        controller.abort()
-        return Promise.resolve()
-      },
+      kill: () => terminate(),
     }
   }
 

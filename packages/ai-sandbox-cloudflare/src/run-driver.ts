@@ -9,10 +9,29 @@
  * is persisted under a `seq`, and a thrown stream error is recorded as a
  * synthesized `RUN_ERROR` event plus the record's `error` field. Tailing clients
  * therefore always observe failures; {@link pipeToRunLog} never rejects.
+ *
+ * "Never rejects" is load-bearing rather than aspirational, and it USED TO BE
+ * FALSE HERE: this module is a copy of core's pre-split driver
+ * (`@tanstack/ai-sandbox`'s `src/run.ts`), and in that copy `log.open`, the terminal
+ * `log.finish`, the recovery `append`/`finish` inside the `catch`, and `reread`'s
+ * explicit `throw` were all unguarded. {@link RunController.start} consumes the
+ * returned promise fire-and-forget, so any one of them rejecting was an UNHANDLED
+ * REJECTION — instance-fatal inside a Durable Object, which is precisely where this
+ * copy runs. Every log call is therefore individually guarded now, and because
+ * absorbing a failure silently in the one module whose premise is that nobody is
+ * listening would make the failure invisible, each guard reports through the
+ * optional {@link PipeToRunLogOptions.logger}.
  */
 import { EventType } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk } from '@tanstack/ai'
-import type { RunError, RunEvent, RunEventLog, RunRecord } from './run-log'
+import type {
+  RunError,
+  RunEvent,
+  RunEventLog,
+  RunRecord,
+  TerminalRunStatus,
+} from './run-log'
 
 /** Whether a chunk is the terminal error event the chat engine emits. */
 function isRunErrorChunk(
@@ -50,6 +69,31 @@ export interface PipeToRunLogOptions {
   threadId?: string
   /** Abort consumption mid-stream; the run finishes as `aborted`. */
   signal?: AbortSignal
+  /**
+   * Optional sink for failures this driver ABSORBS rather than rejecting with.
+   * A detached run has no caller to receive an error, so without a logger a
+   * failing event log is invisible to an operator. Same `logger?.errors(...)`
+   * contract core uses in `stream-to-response.ts` and in `run.ts`.
+   */
+  logger?: InternalLogger
+}
+
+/**
+ * Report through a consumer-supplied logger without letting it break the caller.
+ * Every logger call in this module sits on a failure path that must stay total, so
+ * a throwing sink would defeat the guards it exists to report on. Swallowing here
+ * is deliberate: there is no second channel left to report a reporting failure on.
+ */
+function safeLog(
+  logger: InternalLogger | undefined,
+  message: string,
+  context: Record<string, unknown>,
+): void {
+  try {
+    logger?.errors(message, context)
+  } catch {
+    // Intentionally empty: see above.
+  }
 }
 
 /**
@@ -67,43 +111,111 @@ export async function pipeToRunLog(
   stream: AsyncIterable<StreamChunk>,
   opts: PipeToRunLogOptions,
 ): Promise<RunRecord> {
-  const { log, runId, threadId, signal } = opts
-  await log.open(threadId !== undefined ? { runId, threadId } : { runId })
-  if (signal?.aborted) {
-    await log.finish(runId, 'aborted')
-    return reread(log, runId)
+  const { log, runId, threadId, signal, logger } = opts
+  const createdAt = Date.now()
+  let lastSeq = -1
+
+  /**
+   * The record to answer with when the log cannot supply one. Rebuilt locally
+   * rather than thrown, because a caller that no longer exists cannot be told
+   * "the store is unavailable" — and the alternative, rejecting, is fatal here.
+   */
+  const localRecord = (
+    status: TerminalRunStatus,
+    error?: RunError,
+  ): RunRecord => ({
+    runId,
+    ...(threadId !== undefined ? { threadId } : {}),
+    status,
+    lastSeq,
+    ...(error !== undefined ? { error } : {}),
+    createdAt,
+    updatedAt: Date.now(),
+  })
+
+  /**
+   * Record the terminal status and answer with the run's final record. TOTAL BY
+   * CONSTRUCTION: both the write and the re-read are guarded, so this never
+   * throws. The re-read is best effort — an unknown-run rejection or a
+   * `null` from an eventually-consistent backend must not turn a driven run
+   * into a rejection.
+   */
+  const finish = async (
+    status: TerminalRunStatus,
+    error?: RunError,
+  ): Promise<RunRecord> => {
+    try {
+      await log.finish(runId, status, error)
+    } catch (finishError) {
+      safeLog(logger, 'run-driver: recording the terminal run status failed', {
+        runId,
+        status,
+        error: finishError,
+      })
+      // The log still holds the stale `running` row (or nothing at all), so the
+      // locally rebuilt record is the truthful answer here.
+      return localRecord(status, error)
+    }
+    try {
+      const latest = await log.get(runId)
+      if (latest !== null) return latest
+      safeLog(
+        logger,
+        'run-driver: record vanished before the terminal re-read',
+        {
+          runId,
+          status,
+        },
+      )
+    } catch (getError) {
+      safeLog(logger, 'run-driver: re-reading the terminal run record failed', {
+        runId,
+        status,
+        error: getError,
+      })
+    }
+    return localRecord(status, error)
   }
 
   try {
+    // `log.open` is INSIDE the `try` so a log failure at creation is handled like
+    // any other: recorded as a failed run, not rejected at a caller that is not
+    // there. Unguarded, this was the first of the four unhandled-rejection paths.
+    await log.open(threadId !== undefined ? { runId, threadId } : { runId })
+    if (signal?.aborted) return finish('aborted')
+
     for await (const chunk of stream) {
-      if (signal?.aborted) {
-        await log.finish(runId, 'aborted')
-        return reread(log, runId)
-      }
-      await log.append(runId, chunk)
+      if (signal?.aborted) return finish('aborted')
+      lastSeq = await log.append(runId, chunk)
       if (isRunErrorChunk(chunk)) {
-        await log.finish(runId, 'error', runErrorFromChunk(chunk))
-        return reread(log, runId)
+        return finish('error', runErrorFromChunk(chunk))
       }
     }
   } catch (error) {
     // Detached run: no caller to throw to. Record the failure in the log so
     // tailing clients observe it, then return — do NOT rethrow.
-    const message = messageOf(error)
-    await log.append(runId, syntheticRunError(message))
-    await log.finish(runId, 'error', { message })
-    return reread(log, runId)
+    let recorded: RunError = { message: messageOf(error) }
+    safeLog(logger, 'run-driver: the run failed before completing', {
+      runId,
+      error,
+    })
+    try {
+      lastSeq = await log.append(runId, syntheticRunError(recorded.message))
+    } catch (appendError) {
+      // The recovery append is itself a failure path. It must not destroy the
+      // cause it was recording, so the original error stays primary and this
+      // secondary failure is merged into its message and logged separately.
+      const phase = 'appending the synthesized RUN_ERROR failed'
+      safeLog(logger, `run-driver: ${phase}`, { runId, error: appendError })
+      recorded = {
+        ...recorded,
+        message: `${recorded.message}; ${phase}: ${messageOf(appendError)}`,
+      }
+    }
+    return finish('error', recorded)
   }
 
-  await log.finish(runId, 'done')
-  return reread(log, runId)
-}
-
-/** Re-read the now-terminal record; the run was just driven, so it must exist. */
-async function reread(log: RunEventLog, runId: string): Promise<RunRecord> {
-  const latest = await log.get(runId)
-  if (!latest) throw new Error(`run: record for "${runId}" vanished mid-run`)
-  return latest
+  return finish('done')
 }
 
 export interface RunControllerStartInput {
@@ -129,7 +241,11 @@ export interface RunHandle {
 export class RunController {
   private readonly inFlight = new Set<Promise<RunRecord>>()
 
-  constructor(private readonly log: RunEventLog) {}
+  constructor(
+    private readonly log: RunEventLog,
+    /** Forwarded to every run; see {@link PipeToRunLogOptions.logger}. */
+    private readonly logger?: InternalLogger,
+  ) {}
 
   /**
    * Kick off `pipeToRunLog` without awaiting it and return the `runId`
@@ -141,9 +257,17 @@ export class RunController {
       runId: input.runId,
       ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       ...(input.signal !== undefined ? { signal: input.signal } : {}),
+      ...(this.logger !== undefined ? { logger: this.logger } : {}),
     })
     this.inFlight.add(done)
-    void done.finally(() => this.inFlight.delete(done))
+    // Two-argument `then`, deliberately NOT `.finally`: `.finally` returns a new
+    // promise that ADOPTS any rejection, and discarding that promise would make
+    // the rejection unhandled — which kills the instance inside a Durable Object.
+    // Handling both outcomes here means the derived promise always settles
+    // fulfilled, so nothing is left unhandled even if `pipeToRunLog`'s
+    // "never rejects" contract is ever broken again.
+    const forget = (): void => void this.inFlight.delete(done)
+    void done.then(forget, forget)
     return { runId: input.runId, done }
   }
 
@@ -160,8 +284,16 @@ export class RunController {
     return this.log.get(runId)
   }
 
-  /** Await every currently in-flight run's `done` promise. */
+  /**
+   * Await every currently in-flight run's `done` promise.
+   *
+   * `allSettled`, not `all`: this is typically awaited inside a `ctx.waitUntil`,
+   * where `all` would reject on the first failure, abandon the wait on every other
+   * run, and surface that rejection to the platform. Draining is about keeping the
+   * instance alive until the runs settle; each run's own outcome is already in its
+   * record and log.
+   */
   async drain(): Promise<void> {
-    await Promise.all([...this.inFlight])
+    await Promise.allSettled([...this.inFlight])
   }
 }

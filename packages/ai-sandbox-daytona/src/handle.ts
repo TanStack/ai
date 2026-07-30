@@ -38,12 +38,31 @@ export const DAYTONA_CAPS: SandboxCapabilities = {
   // stdin stream, so adapters that feed a prompt over stdin must deliver it via
   // a file + shell redirection instead.
   writableStdin: false,
-  // `spawnProcess.kill()` (and `signal` abort, which feeds the same
-  // controller) stops the poll loop AND deletes the Daytona session via
-  // `deleteSession`, which terminates the session's running command — a
-  // spawned process is forcibly terminable, if slightly delayed vs. a
-  // native signal (bounded by session teardown rather than instant SIGKILL).
-  killableProcesses: true,
+  // FALSE, and it must not be flipped back without a MEASUREMENT against a real
+  // Daytona sandbox. It read `true` on an asserted comment: that `kill()` "deletes
+  // the Daytona session via `deleteSession`, which terminates the session's running
+  // command". Nothing here establishes that, and three things argue against it:
+  //
+  //  1. What `kill()` actually does is `controller.abort()` — a CLIENT-side stop of
+  //     the poll loop. That is the same shape as the docker defect, where
+  //     `stream.destroy()` detached the client while the container-side process
+  //     kept running (measured: `sleep` survived `kill()`).
+  //  2. `kill()` does not await any termination. The `deleteSession` call lives in
+  //     the pump's `finally`, reached only after the loop notices the abort (up to
+  //     one 400ms sleep plus an in-flight logs+status round trip later) and does one
+  //     more full `flush()`. It is also `.catch(() => {})`-swallowed, so a failed
+  //     delete is indistinguishable from a successful one.
+  //  3. `deleteSession`'s own SDK doc describes it as "Clean up a completed
+  //     session"; terminating a RUNNING async command is not a documented effect.
+  //
+  // Even if the session teardown does signal, the session command is a shell
+  // (`cd <cwd> && <command>`) and `journalFollowCommand` is a three-statement
+  // command, so the `tail -f` is necessarily a forked CHILD — the local-process
+  // defect, where killing the `sh` left the command alive. `journalReadStrategy`
+  // therefore takes the slower-but-correct `'poll'` path. A wrong `true` leaks a
+  // `tail -f` per run; see `tests/journal.conformance.test.ts`, which measures this
+  // as soon as `DAYTONA_API_KEY` is present.
+  killableProcesses: false,
   snapshots: false,
   networkPolicy: false,
   // The sandbox filesystem persists for the sandbox's lifetime (across exec

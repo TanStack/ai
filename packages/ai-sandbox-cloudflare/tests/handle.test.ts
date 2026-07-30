@@ -4,6 +4,7 @@
  * spawn output queue, capabilities, and the documented stdin limitation.
  */
 import { describe, expect, it } from 'vitest'
+import { journalReadStrategy } from '@tanstack/ai-sandbox'
 import { CLOUDFLARE_CAPS, CloudflareHandle } from '../src/handle'
 import type { Sandbox } from '@cloudflare/sandbox'
 import type { ExecResult } from '@tanstack/ai-sandbox'
@@ -91,6 +92,51 @@ describe('CloudflareHandle', () => {
     // alike), so a spawned follower process can never be stopped by the
     // caller here.
     expect(CLOUDFLARE_CAPS.killableProcesses).toBe(false)
+  })
+
+  it('killableProcesses: false is EARNED — kill() stops nothing, so reads poll', async () => {
+    // A command that settles only when this test releases it: i.e. one that is
+    // still running while `kill()` is called, which is the only state in which
+    // "is it killable?" means anything.
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const execOpts: Array<Record<string, unknown>> = []
+    const sandbox = {
+      exec: (_command: string, opts: Record<string, unknown>) => {
+        execOpts.push(opts)
+        return gate.then(() => ({ stdout: '', stderr: '', exitCode: 0 }))
+      },
+      setEnvVars: () => Promise.resolve(),
+      destroy: () => Promise.resolve(),
+    } as unknown as Sandbox
+    const handle = new CloudflareHandle('sbx-1', sandbox, '/workspace')
+
+    const proc = await handle.process.spawn('tail -c +1 -f /tmp/journal')
+    await proc.kill()
+
+    // Two independent facts, both required for the declaration to be right:
+    // 1. No AbortSignal ever reaches `exec` — Workers RPC cannot serialize one.
+    expect(execOpts[0]).not.toHaveProperty('signal')
+    // 2. The "killed" command is still running afterwards.
+    let settled = false
+    void proc.wait().then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(settled).toBe(false)
+
+    // Which is exactly why the journal reader must NOT be handed a `tail -f`.
+    expect(journalReadStrategy(handle)).toBe('poll')
+
+    release()
+    expect(await proc.wait()).toBe(0)
   })
 
   it('round-trips files over base64 exec', async () => {
