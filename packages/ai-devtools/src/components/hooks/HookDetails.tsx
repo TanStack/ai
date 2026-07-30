@@ -540,9 +540,7 @@ const HookHeader: Component<{
               : getHookIdentityLabel(props.hook)}
           </span>
           <Show
-            when={
-              props.hook.threadId && props.hook.threadId !== props.hook.id
-            }
+            when={props.hook.threadId && props.hook.threadId !== props.hook.id}
           >
             <span data-testid="ai-devtools-hook-registry-id">
               id {props.hook.id}
