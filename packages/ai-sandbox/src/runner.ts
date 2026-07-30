@@ -238,8 +238,9 @@ async function cleanupJournal(
  *
  * One case this does NOT bound: a run that reaches its sentinel while DETACHED
  * has no host reading it, so nothing observes the sentinel and nothing here
- * runs. That journal leaks until the sandbox dies. Sweeping those needs the
- * store's terminal-run list, i.e. Phase 4 reaper work.
+ * runs. Sweeping those is `pruneJournals`' job (`journal-sweep.ts`): it consults
+ * the run store's status for each journal it finds and deletes only the terminal
+ * ones, from a cron the application schedules rather than from a run.
  */
 export async function* readJournalNdjson(
   handle: SandboxHandle,

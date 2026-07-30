@@ -244,12 +244,14 @@ faithfully (previous section) for the durable path to work at all.
 - **`listReclaimable`** (optional): runs where `status === 'running'` AND
   `detachedSince` is set AND `detachedSince <= now - ttlMs`. The cutoff is
   inclusive: a run detached exactly at the cutoff qualifies. This is a query, not
-  automatic behavior; nothing in the package reclaims runs today, so returning
-  this list has no side effect until a caller acts on it. `detachedSince` is a
-  field a caller sets (through `update`) when a viewer detaches; the framework
-  does not set it for you. `cancelRequested` is present on `RunRecord` and can be
-  read and written like any other field, but nothing in the framework populates
-  or acts on it yet.
+  automatic behavior — the consumer is `reapDetachedRuns` from
+  `@tanstack/ai-sandbox`, which the application schedules itself (cron, queue,
+  `alarm()`, `waitUntil`), so returning this list has no side effect until that
+  sweep runs. `detachedSince` is written for you by `withSandbox`'s detach path
+  (alongside `sandboxKey`) and cleared by the takeover path; drop either field and
+  nothing can reclaim the sandbox. `cancelRequested` is written by
+  `requestRunCancel` and read by `wasCancelRequested`, and the reaper's expiry
+  path goes through `requestRunCancel` to stop a run past its TTL.
 - **`findActiveRun`** (optional): the most recent `'running'` run for
   `threadId` (max `startedAt`), or `null` if none is active. Enables reconnect
   from a stable thread id without a client-held run id.

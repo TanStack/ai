@@ -101,9 +101,9 @@ export interface RunRecord {
    * Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
    * `middleware.ts`) alongside `sandboxKey`, when a disconnect leaves the
    * agent running rather than tearing the sandbox down. A backend must
-   * round-trip this field: `listReclaimable` depends on it, and no reaper
-   * ships yet to sweep the candidates it surfaces (see that method's doc
-   * comment).
+   * round-trip this field: `listReclaimable` depends on it, and
+   * `@tanstack/ai-sandbox`'s `reapDetachedRuns` sweeps the candidates it
+   * surfaces (see that method's doc comment).
    */
   detachedSince?: number
   /**
@@ -190,10 +190,12 @@ export interface RunStore {
    * OPTIONAL: only needed by a reaper. Consumers feature-detect.
    *
    * `detachedSince` is populated by `withSandbox`'s detach path (see
-   * {@link RunRecord.detachedSince}). No reaper ships at this HEAD — this
-   * method only surfaces reclaim candidates; sweeping them (deciding when and
-   * how to tear the sandbox down and finalize the record) is the
-   * application's to build on top of it.
+   * {@link RunRecord.detachedSince}). The sweep over the candidates this
+   * surfaces is `@tanstack/ai-sandbox`'s `reapDetachedRuns`: it finalizes a run
+   * whose agent already finished, expires one past its TTL, and reclaims the
+   * sandbox. That is a function, not a scheduler — the application invokes it
+   * (cron, queue, `alarm()`, `waitUntil`) — and a backend that omits this
+   * method cannot be reaped at all.
    */
   listReclaimable?: (opts: {
     now: number

@@ -585,14 +585,23 @@ falling back to the default — this value caps how long an unwatched agent may
 keep spending tokens, so a typo silently becoming 30 minutes is a billing
 incident.
 
-**Nothing reaps expired runs for you yet.** The TTL is recorded and the store
-contract exposes the query, but no reaper ships. Build the sweep yourself on the
-optional `RunStore.listReclaimable({ now, ttlMs })`, which returns runs that are
+**The reaper ships, but nothing schedules it.** `reapDetachedRuns` from
+`@tanstack/ai-sandbox` is the sweep. It reads the optional
+`RunStore.listReclaimable({ now, ttlMs })` — which returns runs that are
 `'running'`, have a `detachedSince`, and whose `detachedSince <= now - ttlMs`
-(inclusive). Two rules if you do: destroy the sandbox named by `sandboxKey`, and
-do **not** clear `detachedSince` — that marker is the evidence your own TTL
-accounting selected the run on. (The takeover path clears it, because a viewer is
-attached again.)
+(inclusive) — drives each run its out-of-band journal probe says already finished
+to a terminal status so the transcript lands, cancels and terminalizes the ones
+past `detachedRunTtl`, and destroys the sandbox named by `sandboxKey` through
+`sandboxReclaimer`. It never clears `detachedSince`: that marker is the evidence
+its TTL accounting selected the run on. (The takeover path clears it, because a
+viewer is attached again.)
+
+It is a plain async function with no timer and no daemon, so **calling it on a
+schedule is your job** — a cron route, a queue consumer, a Durable Object
+`alarm()`, a `waitUntil`. Treat that as a hard requirement of wiring
+`durability`, not a nice-to-have: until something invokes it, nothing closes a
+detached run's delivery log, so every attached client parks forever,
+`detachedRunTtl` is enforced by nothing, and the sandbox bills indefinitely.
 
 Set `detachOnDisconnect: false` to keep today's destroy-on-disconnect cost
 profile while still getting resumable *delivery* — a reload replays the log, but
@@ -678,7 +687,8 @@ existing record **unchanged** (that is what makes resuming safe), and `update` o
 an unknown `runId` is a **no-op** that must not throw.
 
 `findActiveRun` and `listReclaimable` are optional, but you need the first to
-rejoin by thread and the second to build a reaper. Consumers feature-detect both.
+rejoin by thread and the second for `reapDetachedRuns` to have anything to sweep
+— a store without it cannot be reaped at all. Consumers feature-detect both.
 
 ## Adapter authors
 

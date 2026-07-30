@@ -41,7 +41,7 @@
  * rather than removing it — a superseded driver whose append was refused folds
  * that refusal into a terminal `runs.update`, so the record reads `'failed'` for
  * a run the successor is healthily streaming, and `isTerminalRunStatus` (which
- * `findActiveRun`, the resume driver, and the Phase 4 reaper all branch on) then
+ * `findActiveRun`, the resume driver, and `reapDetachedRuns` all branch on) then
  * answers `true` for a live run. {@link fenceRunStore} closes that seam; both
  * fences share one per-claim latch so they can never disagree about whether the
  * claim is still held.

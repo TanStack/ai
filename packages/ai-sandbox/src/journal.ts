@@ -510,10 +510,11 @@ export function journalStderrReadCommand(
  *
  * **What this does NOT bound:** a run that reaches its sentinel while DETACHED
  * has no host reading its journal, so nothing ever observes the sentinel and
- * nothing calls this. That journal leaks until the sandbox dies, which on a
- * `keepAlive` sandbox may be never. Bounding it needs a sweep over
- * {@link DEFAULT_JOURNAL_DIR} that deletes journals whose runs the store says
- * are terminal — Phase 4 reaper work, deliberately not invented here.
+ * nothing calls this. Bounding it is `pruneJournals`' job (`journal-sweep.ts`):
+ * a sweep over {@link DEFAULT_JOURNAL_DIR} that deletes only the journals whose
+ * runs the store says are terminal. It runs from a cron the application
+ * schedules, not from a run, so such a journal survives until that sweep — on a
+ * `keepAlive` sandbox, indefinitely without one.
  */
 export function journalCleanupCommand(paths: JournalPaths): string {
   return `rm -f ${shellQuote(paths.journal)} ${shellQuote(paths.stderr)}`

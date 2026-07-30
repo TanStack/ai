@@ -321,10 +321,11 @@ function createRunStore(db: DatabaseSync) {
     async listByThread(threadId) {
       return byThread.all(threadId).map(mapRun)
     },
-    // Runs a reaper would sweep: still `running`, and detached since before
+    // Runs the reaper sweeps: still `running`, and detached since before
     // `now - ttlMs`. `withSandbox`'s detach path sets `detachedSince` for you,
-    // but no reaper ships — this method only answers the query, and the sweep
-    // over its result is yours to write. Optional, like the others above.
+    // and `reapDetachedRuns` from `@tanstack/ai-sandbox` consumes this list —
+    // this method only answers the query; scheduling that sweep is the app's
+    // job. Optional, like the others above.
     async listReclaimable({ now, ttlMs }) {
       return reclaimable.all(now - ttlMs).map(mapRun)
     },
@@ -644,8 +645,10 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 // required `runs` methods plus `findActiveRun`.
 import { leanSqlitePersistence } from './lean-sqlite-persistence'
 
-// Nothing renders a thread's past runs here and there is no reaper, so
-// `listByThread` and `listReclaimable` are absent by choice. `findActiveRun` is
+// Nothing renders a thread's past runs here and nothing schedules
+// `reapDetachedRuns`, so `listByThread` and `listReclaimable` are absent by
+// choice — this app accepts that its detached runs are never reaped.
+// `findActiveRun` is
 // implemented, so it stays under test.
 runPersistenceConformance(
   'lean sqlite adapter',
@@ -805,8 +808,8 @@ interface RunStore {
   // render a thread's past agent activity.
   listByThread?(threadId: string): Promise<Array<RunRecord>>
   // Optional. Runs where status is 'running' and detachedSince <= now - ttlMs
-  // (inclusive). This is the query a reaper runs to find abandoned runs;
-  // TanStack AI does not ship a reaper today, so the sweep is yours to write.
+  // (inclusive). This is the query `reapDetachedRuns` (@tanstack/ai-sandbox)
+  // runs to find abandoned runs; scheduling that sweep is the app's job.
   listReclaimable?(opts: {
     now: number
     ttlMs: number
@@ -826,10 +829,12 @@ omission in `skipMethods`. Implement the ones your app needs:
   still-generating thread restores the transcript but never resumes the live
   reply, because `reconstructChat` always reports `activeRun: null`.
 - Skip `listByThread` and you cannot render a thread's past runs.
-- Skip `listReclaimable` and you have no way to query abandoned runs. Nothing in
-  the framework calls it — no reaper ships — but `detachedSince` *is* populated
-  for you by `withSandbox`'s detach path, so this is the query a sweep of your
-  own would build on. See
+- Skip `listReclaimable` and the store cannot be reaped: `reapDetachedRuns`
+  feature-detects it, logs one line, and sweeps nothing — so detached runs are
+  never finalized and their sandboxes never reclaimed. `detachedSince` *is*
+  populated for you by `withSandbox`'s detach path, and note that the reaper is a
+  function the application schedules, so implementing this method is necessary
+  but not by itself sufficient. See
   [Takeover & Detached Runs](../sandbox/takeover#configuration).
 
 The three fields a durable, reclaimable run depends on — `detachedSince`,

@@ -761,12 +761,13 @@ function startRunDriver(driver: RunDriverOptions): void {
           // A viewer is attached again, so the detached clock stops. Cleared
           // under the claim so it cannot race the reaper's read.
           //
-          // PHASE 4 REAPER: do NOT reuse `startRunDriver` for reclaiming
-          // detached runs. A reaper deliberately does the opposite of this
-          // line — it ACTS ON `detachedSince` and must leave the marker
-          // intact for its own TTL accounting — so borrowing this path would
-          // erase the very evidence the reaper selected the run on. Phase 4's
-          // plan names that "the single most likely bug in this phase".
+          // THE REAPER: do NOT reuse `startRunDriver` for reclaiming detached
+          // runs. `@tanstack/ai-sandbox`'s `reapDetachedRuns` deliberately does
+          // the opposite of this line — it ACTS ON `detachedSince` and must
+          // leave the marker intact for its own TTL accounting — so borrowing
+          // this path would erase the very evidence the reaper selected the run
+          // on, resetting the TTL on every sweep so a detached run could never
+          // expire. That is why the reaper has its own drive path.
           await driver.runs.update(runId, { detachedSince: undefined })
           await driver.pipe(
             driver.drive({

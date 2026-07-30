@@ -539,9 +539,13 @@ the translation step, not of everything that can happen during a run.
 Once a run reaches its `{"__exit":N}` sentinel, both journal files are
 deleted. A run that terminates while **detached** (no host reading its
 journal) has no reader to observe the sentinel, so nothing deletes its
-journal; it leaks until the sandbox itself is destroyed. Bounding that is
-future reaper work, not something this journal, reader, or alignment
-primitive provides today.
+journal on the run's own path. `pruneJournals` bounds that: it walks the
+journal directory, asks the run store about each runId it decodes, deletes
+only the journals whose runs are terminal, and keeps everything it cannot
+prove dead (non-terminal, undecodable, or too young to be an orphan). It runs
+from a cron the application schedules, not from a run, so an abandoned journal
+survives until that sweep — this journal, reader, and alignment primitive do
+not clean it up themselves.
 
 The journal, the reader, and `alignToStoredLog` are the primitives a takeover is
 built from. `sandboxRunDriver` is what drives one — see the next section.
@@ -862,8 +866,16 @@ each omission breaks one mechanism: no `driverEpoch` → no fencing; no
 `cancelRequested` → Stop cannot reach a remote driver; no
 `detachedSince`/`sandboxKey` → nothing can reclaim the sandbox. `findActiveRun`
 and `listReclaimable` are optional (feature-detect them), but you need the first
-to rejoin by thread and the second to build a reaper. **No reaper ships** —
-`detachedRunTtl` is recorded and enforced by nothing today.
+to rejoin by thread and the second for `reapDetachedRuns` to have anything to
+sweep — a store without it cannot be reaped at all.
+
+**The reaper ships as a function, not a scheduler.** `reapDetachedRuns` (with
+`sandboxReclaimer` for the sandbox teardown and `pruneJournals` for the journal
+directory) is what enforces `detachedRunTtl`, but nothing in the framework calls
+it: the application must, from its own cron route, queue consumer, Durable Object
+`alarm()`, or `waitUntil`. Wiring `durability` and never scheduling it leaves
+detached delivery logs open forever — every attached tailer parks, the TTL is
+inert, and sandboxes bill indefinitely.
 
 Full wiring, including the client `joinRun` half and the reaper rules, is in
 `docs/sandbox/takeover.md`.

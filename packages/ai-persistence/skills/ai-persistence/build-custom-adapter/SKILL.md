@@ -101,7 +101,10 @@ history. They are engine-independent:
    ascending.
 7. **`runs.listReclaimable` uses an inclusive cutoff** (if implemented):
    `status === 'running' AND detachedSince <= now - ttlMs`. It is a query, not
-   automatic reclamation, and `runs.listByThread` / `runs.listReclaimable` /
+   automatic reclamation: `reapDetachedRuns` from `@tanstack/ai-sandbox` is the
+   sweep that consumes it, and the application schedules that sweep. A store
+   without this method cannot be reaped. `runs.listByThread` /
+   `runs.listReclaimable` /
    `runs.findActiveRun` are all optional: implement only what the app needs
    and leave the rest off the object.
 

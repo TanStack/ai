@@ -60,11 +60,12 @@ export async function requestRunCancel(
  * store failure there must not replace the caller's own reason for tearing
  * down with a store error. The cost of a false negative is that a cancel
  * degrades into a detach — the run record gains `detachedSince`/`sandboxKey`
- * instead of transitioning to `'aborted'`. No reaper sweeps that today:
- * `detachedRunTtlMs` (`@tanstack/ai-sandbox`'s parsed `durability.detachedRunTtl`)
- * is recorded but nothing reads it yet, so recovery is manual until a sweep is
- * built on `RunStore.listReclaimable`. Still strictly better than failing the
- * teardown.
+ * instead of transitioning to `'aborted'`. `@tanstack/ai-sandbox`'s
+ * `reapDetachedRuns` recovers that run once `detachedRunTtlMs` (its parsed
+ * `durability.detachedRunTtl`) has elapsed, so the cost is a delayed teardown
+ * rather than a lost one — provided the application actually schedules that
+ * sweep, which is its job and not the framework's. Still strictly better than
+ * failing the teardown.
  */
 export async function wasCancelRequested(
   runs: RunStore,
