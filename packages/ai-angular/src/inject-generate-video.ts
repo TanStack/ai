@@ -110,7 +110,7 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
 export function injectGenerateVideo<TTransformed = void>(
   options: Omit<
     InjectGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -126,7 +126,6 @@ export function injectGenerateVideo<TTransformed = void>(
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
-  const clientId = options.id || `injectGenerateVideo-${nextId++}`
 
   const result = signal<TOutput | null>(null)
   const jobId = signal<string | null>(null)
@@ -142,13 +141,15 @@ export function injectGenerateVideo<TTransformed = void>(
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
 
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
-    id: clientId,
     ...(bodySource !== undefined && { body: bodySource() }),
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? `injectGenerateVideo-${nextId++}` }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

@@ -237,7 +237,6 @@ describe('createGeneration', () => {
       }
       const { adapter, connect } = createRunContextCaptureAdapter([])
       const gen = createGeneration({
-        id: 'no-auto-fire',
         threadId: 'no-auto-fire',
         connection: adapter,
         initialResumeSnapshot: snapshot,
@@ -407,7 +406,6 @@ describe('createGenerateImage', () => {
     }))
 
     const gen = createGenerateImage({
-      id: 'img-hydrate',
       threadId: 'img-hydrate',
       connection: { ...createMockConnectionAdapter(), hydrateGeneration },
       persistence: true,
@@ -785,7 +783,6 @@ describe('createGenerateVideo', () => {
     // Regression guard for the removed generation resume surface (video).
     const { adapter, connect } = createRunContextCaptureAdapter([])
     const gen = createGenerateVideo({
-      id: 'video-no-auto-fire',
       threadId: 'video-no-auto-fire',
       connection: adapter,
       initialResumeSnapshot: videoResumeSnapshot,

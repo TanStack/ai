@@ -50,7 +50,6 @@ function SpeechGenerationForm({
   const hookOptions = useMemo(() => {
     if (mode === 'streaming') {
       return {
-        id: `speech:${mode}:${config.id}`,
         threadId: `speech:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/speech'),
         body: { provider: config.id },
@@ -60,7 +59,6 @@ function SpeechGenerationForm({
     }
     if (mode === 'direct') {
       return {
-        id: `speech:${mode}:${config.id}`,
         threadId: `speech:${mode}:${config.id}`,
         fetcher: (input: { text: string; voice?: string }) =>
           generateSpeechFn({
@@ -71,7 +69,6 @@ function SpeechGenerationForm({
       }
     }
     return {
-      id: `speech:${mode}:${config.id}`,
       threadId: `speech:${mode}:${config.id}`,
       fetcher: (input: { text: string; voice?: string }) =>
         generateSpeechStreamFn({

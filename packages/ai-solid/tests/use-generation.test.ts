@@ -1146,7 +1146,6 @@ describe('useGenerateVideo', () => {
       )
       const { result } = renderHook(() =>
         useGenerateVideo({
-          id: 'video-no-auto-fire',
           threadId: 'video-no-auto-fire',
           connection: adapter,
           initialResumeSnapshot: videoResumeSnapshot,

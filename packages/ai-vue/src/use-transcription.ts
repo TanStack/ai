@@ -39,7 +39,9 @@ export interface UseTranscriptionOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -118,7 +120,7 @@ export interface UseTranscriptionReturn<
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TranscriptionResult) => TTransformed
   } & GenerationPersistenceOptions,

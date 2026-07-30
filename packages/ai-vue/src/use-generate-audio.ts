@@ -35,7 +35,9 @@ export interface UseGenerateAudioOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -104,7 +106,7 @@ export interface UseGenerateAudioReturn<
 export function useGenerateAudio<TTransformed = void>(
   options: Omit<
     UseGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

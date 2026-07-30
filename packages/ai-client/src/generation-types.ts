@@ -166,23 +166,27 @@ export interface GenerationResumeSnapshot {
 export type GenerationPersistenceOption = boolean
 
 /**
- * The `persistence` / `threadId` pair shared by every generation hook.
+ * The `persistence` / `threadId` / `id` identity shared by every generation hook.
  *
  * Turning persistence on **requires** a `threadId`, the stable scope runs are
  * filed under. Without one the client would hydrate by a generated id that
  * changes every reload, so nothing would ever restore; making it a type error
  * means the compiler asks for the scope instead of the runtime inventing one.
  *
- * Ephemeral generations (no `persistence`, or `persistence: false`) leave
- * `threadId` optional, exactly as before — this adds no requirement to code
- * that does not opt into persistence.
+ * `threadId` is the single identity for the hook, the AG-UI wire thread, and
+ * persistence. Legacy `id` is deprecated and typed `never` whenever
+ * `threadId` is supplied — pass one scope, not two.
  *
- * USAGE: intersect this onto a hook's parameter and subtract the two keys from
- * the options interface, leaving that interface a plain (non-union) object so
- * `Pick` / `Omit` composition elsewhere keeps working:
+ * Ephemeral generations (no `persistence`, or `persistence: false`) may still
+ * pass a deprecated `id` when they have no `threadId`, as a wire/devtools
+ * fallback. Prefer giving them a `threadId` instead.
+ *
+ * USAGE: intersect this onto a hook's parameter and subtract the three keys
+ * from the options interface, leaving that interface a plain (non-union)
+ * object so `Pick` / `Omit` composition elsewhere keeps working:
  *
  * ```ts
- * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
+ * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId' | 'id'> & {
  *   onResult?: (result: ImageGenerationResult) => TTransformed
  * } & GenerationPersistenceOptions
  * ```
@@ -196,10 +200,29 @@ export type GenerationPersistenceOptions =
       persistence: true
       /** Required by `persistence` — the stable scope runs are filed under. */
       threadId: string
+      /**
+       * @deprecated Prefer `threadId`. Not allowed when `threadId` is set —
+       * `threadId` is the single identity for the hook, the wire, and persistence.
+       */
+      id?: never
     }
   | {
       persistence?: false | undefined
-      threadId?: string
+      /** Stable scope for the generation slot (also the wire / devtools identity). */
+      threadId: string
+      /**
+       * @deprecated Prefer `threadId`. Not allowed when `threadId` is set.
+       */
+      id?: never
+    }
+  | {
+      persistence?: false | undefined
+      threadId?: undefined
+      /**
+       * @deprecated Prefer `threadId` as the single identity. Only allowed when
+       * `threadId` is omitted — legacy wire/devtools fallback for ephemeral runs.
+       */
+      id?: string
     }
 
 // ===========================
@@ -272,19 +295,26 @@ export type GenerationTransport<TInput, TResult> =
  */
 // eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
 export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
-  /** Unique identifier for this generation client instance */
+  /**
+   * @deprecated Prefer {@link GenerationClientOptions.threadId}. Legacy instance
+   * id used only as a wire/devtools fallback when `threadId` is omitted. When
+   * both are passed, `threadId` wins and `id` is ignored. Framework hooks type
+   * `id` as `never` whenever `threadId` is set — see
+   * {@link GenerationPersistenceOptions}.
+   */
   id?: string
 
   /**
    * The **scope** this generation belongs to: a stable, app-chosen name for the
-   * slot successive runs fill, not a link to a chat conversation.
+   * slot successive runs fill, not a link to a chat conversation. This is the
+   * single identity for the client — wire thread id, devtools hook id, and
+   * persistence key.
    *
    * A generation hook starts empty and produces many runs over its life — each
    * run gets its own `runId`, but they all belong to one scope. Persistence
-   * keys on this in **both** modes: client-driven writes under
-   * `generation:<threadId>`, server-driven hydrates the last run for it on
-   * mount. It is also sent as the AG-UI thread id on the wire, since the
-   * protocol requires one.
+   * keys on this: server-driven hydrates the last run for it on mount. It is
+   * also sent as the AG-UI thread id on the wire, since the protocol requires
+   * one.
    *
    * Derive it from your own domain — it must be meaningful before any media
    * exists and identical after a reload:
@@ -296,8 +326,8 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * **Required whenever `persistence` is set.** An app that cannot name the
    * scope has nothing to restore *to*, and a generated fallback would key each
    * reload differently — silently restoring nothing. Optional only for
-   * ephemeral runs, where it falls back to `id` (or a generated id) purely to
-   * satisfy the wire and nothing is written.
+   * ephemeral runs, where it falls back to deprecated `id` (or a generated id)
+   * purely to satisfy the wire and nothing is written.
    */
   threadId?: string
 

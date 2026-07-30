@@ -76,7 +76,6 @@ function AudioGenerationForm({
   const hookOptions = useMemo(() => {
     if (mode === 'hooks') {
       return {
-        id: `audio:${mode}:${config.id}`,
         threadId: `audio:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
@@ -85,7 +84,6 @@ function AudioGenerationForm({
       }
     }
     return {
-      id: `audio:${mode}:${config.id}`,
       threadId: `audio:${mode}:${config.id}`,
       fetcher: (input: { prompt: string; duration?: number }) =>
         generateAudioFn({

@@ -81,4 +81,22 @@ describe('generation persistence requires a threadId', () => {
     }
     void _typeCheck
   })
+
+  it('rejects deprecated `id` when `threadId` is supplied', () => {
+    // Type-level only: never invoked, so no renderer is needed.
+    const _typeCheck = () => {
+      // @ts-expect-error id is never when threadId is set — threadId is the single identity
+      useGenerateImage({ connection, threadId: 'hero', id: 'legacy' })
+      // @ts-expect-error id is never when persistence requires threadId
+      useGenerateImage({
+        connection,
+        persistence: true,
+        threadId: 'hero',
+        id: 'legacy',
+      })
+      // Ephemeral runs may still pass a deprecated id alone.
+      useGenerateImage({ connection, id: 'legacy-ephemeral' })
+    }
+    void _typeCheck
+  })
 })

@@ -139,11 +139,13 @@ export class GenerationClient<
           }
       ),
   ) {
-    this.uniqueId = options.id ?? this.generateUniqueId('generation')
-    // AG-UI requires a thread id on every run, so fall back to `id` and then to
-    // a generated one. That fallback is for the WIRE ONLY: it is not stable
-    // across reloads, so persistence must never key on it — see
-    // `resumeSnapshotKey`, which uses the explicit scope below.
+    // `threadId` is the single identity. Deprecated `id` is only a fallback
+    // when no threadId is given (ephemeral runs / legacy call sites).
+    this.uniqueId =
+      options.threadId ?? options.id ?? this.generateUniqueId('generation')
+    // AG-UI requires a thread id on every run, so fall back to uniqueId. The
+    // generated fallback is for the WIRE ONLY: it is not stable across reloads,
+    // so persistence must never key on it — see `persistenceScope` below.
     this.threadId = options.threadId ?? this.uniqueId
     // The persistence scope: the explicit `threadId` and nothing else. The
     // types require it whenever `persistence` is set; this field keeps the

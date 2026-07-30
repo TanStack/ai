@@ -53,14 +53,12 @@ function PersistentGenerationPage() {
   // --- Media: server-driven (persistence: true + connection) ---------------
 
   const image = useGenerateImage({
-    id: 'persistent-generation:image',
     threadId: 'persistent-generation:image',
     connection: fetchServerSentEvents('/api/generate/image'),
     persistence: true,
   })
 
   const audio = useGenerateAudio({
-    id: 'persistent-generation:audio',
     threadId: 'persistent-generation:audio',
     connection: fetchServerSentEvents('/api/generate/audio'),
     // Fal-backed (FAL_KEY): gemini-lyria needs a Gemini key this example's
@@ -70,7 +68,6 @@ function PersistentGenerationPage() {
   })
 
   const speech = useGenerateSpeech({
-    id: 'persistent-generation:speech',
     threadId: 'persistent-generation:speech',
     connection: fetchServerSentEvents('/api/generate/speech'),
     body: { provider: 'openai' },
@@ -78,7 +75,6 @@ function PersistentGenerationPage() {
   })
 
   const transcription = useTranscription({
-    id: 'persistent-generation:transcription',
     threadId: 'persistent-generation:transcription',
     connection: fetchServerSentEvents('/api/transcribe'),
     body: { provider: 'openai' },
@@ -86,7 +82,6 @@ function PersistentGenerationPage() {
   })
 
   const video = useGenerateVideo({
-    id: 'persistent-generation:video',
     threadId: 'persistent-generation:video',
     connection: fetchServerSentEvents('/api/generate/video'),
     persistence: true,
@@ -95,7 +90,6 @@ function PersistentGenerationPage() {
   // --- Text: client-driven (summary text lives in the snapshot) ------------
 
   const summarize = useSummarize({
-    id: 'persistent-generation:summarize',
     threadId: 'persistent-generation:summarize',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { model: 'gpt-5.5' },

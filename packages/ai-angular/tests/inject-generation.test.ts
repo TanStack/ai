@@ -153,7 +153,6 @@ describe('injectGeneration', () => {
     }
     const { adapter, connect } = createRunContextCaptureAdapter([])
     const { result } = renderInjectGeneration({
-      id: 'no-auto-fire',
       threadId: 'no-auto-fire',
       connection: adapter,
       initialResumeSnapshot: snapshot,
@@ -179,7 +178,6 @@ describe('injectGeneration', () => {
       activeRun: null,
     }))
     const { result } = renderInjectGeneration({
-      id: 'hydrate-me',
       threadId: 'hydrate-me',
       connection: { ...adapter, hydrateGeneration },
       persistence: true,
@@ -205,7 +203,6 @@ describe('injectGenerateVideo', () => {
     // Regression guard for the removed generation resume surface (video).
     const { adapter, connect } = createRunContextCaptureAdapter([])
     const { result } = renderInjectGenerateVideo({
-      id: 'video-no-auto-fire',
       threadId: 'video-no-auto-fire',
       connection: adapter,
       initialResumeSnapshot: videoResumeSnapshot,
@@ -260,7 +257,6 @@ describe('injectGenerateImage', () => {
       activeRun: null,
     }))
     const { result } = renderInjectGenerateImage({
-      id: 'img-hydrate',
       threadId: 'img-hydrate',
       connection: { ...adapter, hydrateGeneration },
       persistence: true,

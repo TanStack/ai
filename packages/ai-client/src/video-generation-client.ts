@@ -143,9 +143,12 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           }
       ),
   ) {
-    this.uniqueId = options.id ?? this.generateUniqueId('video')
+    // `threadId` is the single identity. Deprecated `id` is only a fallback
+    // when no threadId is given (ephemeral runs / legacy call sites).
+    this.uniqueId =
+      options.threadId ?? options.id ?? this.generateUniqueId('video')
     // The wire/hydration thread key. Server-driven mode needs a stable key, so
-    // prefer an explicit `threadId`, then `id`, then a generated id.
+    // prefer an explicit `threadId`, then legacy `id`, then a generated id.
     this.threadId = options.threadId ?? this.uniqueId
     this.connection = options.connection
     this.fetcher = options.fetcher

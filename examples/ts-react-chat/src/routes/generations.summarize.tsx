@@ -48,7 +48,6 @@ function StreamingSummarize() {
   // The connect adapter merges `body` into every request payload; the API
   // route reads `model` from `body.data` to pick the openaiSummarize variant.
   const hookReturn = useSummarize({
-    id: 'summarize:streaming',
     threadId: 'summarize:streaming',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { model },
@@ -84,7 +83,6 @@ function DirectSummarize() {
   // mode is non-streaming — the result appears all at once when the
   // server-fn resolves.
   const hookReturn = useSummarize({
-    id: 'summarize:direct',
     threadId: 'summarize:direct',
     fetcher: (input) => summarizeFn({ data: { ...input, model } }),
     persistence: true,
@@ -114,7 +112,6 @@ function ServerFnSummarize() {
   // The server-fn returns an SSE Response; GenerationClient parses it and
   // routes chunks through `onChunk` exactly like the connect-adapter path.
   const hookReturn = useSummarize({
-    id: 'summarize:server-fn',
     threadId: 'summarize:server-fn',
     fetcher: (input) => summarizeStreamFn({ data: { ...input, model } }),
     persistence: true,

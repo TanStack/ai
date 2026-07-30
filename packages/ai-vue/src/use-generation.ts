@@ -37,7 +37,9 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -176,7 +178,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -186,7 +188,6 @@ export function useGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
-  const clientId = options.id || hookId
 
   const result = shallowRef<TOutput | null>(null)
   const isLoading = shallowRef(false)
@@ -201,12 +202,13 @@ export function useGeneration<
   // optional (`body?: Record<string, any>`), and under EOPT we must omit the
   // key when absent rather than assign `undefined`.
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-    id: clientId,
     body: options.body,
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? hookId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

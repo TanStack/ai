@@ -36,7 +36,9 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -172,7 +174,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -182,7 +184,6 @@ export function useGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = createUniqueId()
-  const clientId = options.id || hookId
 
   const [result, setResult] = createSignal<TOutput | null>(null)
   const [isLoading, setIsLoading] = createSignal(false)
@@ -203,12 +204,14 @@ export function useGeneration<
     // strict optional (`body?: Record<string, any>`) and EOPT forbids
     // assigning the source `T | undefined` directly.
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-      id: clientId,
       body: options.body,
+      // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
+      ...(options.threadId !== undefined
+        ? { threadId: options.threadId }
+        : { id: options.id ?? hookId }),
       ...(options.persistence !== undefined && {
         persistence: options.persistence,
       }),
-      ...(options.threadId !== undefined && { threadId: options.threadId }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
       }),

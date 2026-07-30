@@ -153,42 +153,36 @@ function GenerationHooksPage() {
   const [audioDuration, setAudioDuration] = useState(3)
 
   const image = useGenerateImage({
-    id: 'generation-hooks:useGenerateImage',
     threadId: 'generation-hooks:useGenerateImage',
     connection: imageConnection,
     persistence: true,
   })
 
   const audio = useGenerateAudio({
-    id: 'generation-hooks:useGenerateAudio',
     threadId: 'generation-hooks:useGenerateAudio',
     connection: audioConnection,
     persistence: true,
   })
 
   const speech = useGenerateSpeech({
-    id: 'generation-hooks:useGenerateSpeech',
     threadId: 'generation-hooks:useGenerateSpeech',
     connection: speechConnection,
     persistence: true,
   })
 
   const transcription = useTranscription({
-    id: 'generation-hooks:useTranscription',
     threadId: 'generation-hooks:useTranscription',
     connection: transcriptionConnection,
     persistence: true,
   })
 
   const summarize = useSummarize({
-    id: 'generation-hooks:useSummarize',
     threadId: 'generation-hooks:useSummarize',
     connection: summarizeConnection,
     persistence: true,
   })
 
   const video = useGenerateVideo({
-    id: 'generation-hooks:useGenerateVideo',
     threadId: 'generation-hooks:useGenerateVideo',
     connection: videoConnection,
     persistence: true,

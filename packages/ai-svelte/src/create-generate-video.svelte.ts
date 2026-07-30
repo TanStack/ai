@@ -25,7 +25,9 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -166,7 +168,7 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function createGenerateVideo<TTransformed = void>(
   options: Omit<
     CreateGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -177,9 +179,7 @@ export function createGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const clientId =
-    options.id ||
-    `video-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  const fallbackId = `video-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
   // Create reactive state using Svelte 5 runes
   let result = $state<TOutput | null>(null)
@@ -197,13 +197,15 @@ export function createGenerateVideo<TTransformed = void>(
   // is declared `body?: Record<string, any>` (absent vs. present) under
   // `exactOptionalPropertyTypes`. The optional caller `options.body` may be
   // undefined, in which case we want the key to be absent on the target.
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
-    id: clientId,
     body: options.body,
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? fallbackId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

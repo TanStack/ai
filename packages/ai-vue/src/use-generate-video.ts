@@ -34,7 +34,9 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for creating a video job */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -172,7 +174,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -184,7 +186,6 @@ export function useGenerateVideo<TTransformed = void>(
     TTransformed
   >
   const hookId = useId()
-  const clientId = options.id || hookId
 
   const result = shallowRef<TOutput | null>(null)
   const jobId = shallowRef<string | null>(null)
@@ -200,13 +201,15 @@ export function useGenerateVideo<TTransformed = void>(
   // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
   // strict optional and under EOPT we must omit the key when absent rather
   // than assign `undefined`.
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
-    id: clientId,
     body: options.body,
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? hookId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

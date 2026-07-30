@@ -33,7 +33,7 @@ export interface InjectGenerateImageResult<
 export function injectGenerateImage<TTransformed = void>(
   options: Omit<
     InjectGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

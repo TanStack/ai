@@ -25,7 +25,6 @@ function TranscriptionForm({
   const hookOptions = useMemo(() => {
     if (mode === 'streaming') {
       return {
-        id: `transcription:${mode}:${config.id}`,
         threadId: `transcription:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/transcribe'),
         body: { provider: config.id },
@@ -34,7 +33,6 @@ function TranscriptionForm({
     }
     if (mode === 'direct') {
       return {
-        id: `transcription:${mode}:${config.id}`,
         threadId: `transcription:${mode}:${config.id}`,
         fetcher: (input: TranscriptionGenerateInput) =>
           transcribeFn({
@@ -50,7 +48,6 @@ function TranscriptionForm({
       }
     }
     return {
-      id: `transcription:${mode}:${config.id}`,
       threadId: `transcription:${mode}:${config.id}`,
       fetcher: (input: TranscriptionGenerateInput) =>
         transcribeStreamFn({

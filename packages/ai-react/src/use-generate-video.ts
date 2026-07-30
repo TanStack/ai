@@ -24,7 +24,9 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -162,7 +164,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -174,7 +176,8 @@ export function useGenerateVideo<TTransformed = void>(
     TTransformed
   >
   const hookId = useId()
-  const clientId = options.id || hookId
+  // Single identity: prefer `threadId`; deprecated `id` only when no threadId.
+  const clientIdentity = options.threadId ?? options.id ?? hookId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -198,11 +201,13 @@ export function useGenerateVideo<TTransformed = void>(
     // `?.()`'s implicit `undefined` doesn't widen the function
     // return type (which `exactOptionalPropertyTypes` rejects
     // against the strict-optional target).
+    // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
     const baseOptions = {
-      id: clientId,
       body: opts.body,
+      ...(opts.threadId !== undefined
+        ? { threadId: opts.threadId }
+        : { id: opts.id ?? hookId }),
       ...(opts.persistence !== undefined && { persistence: opts.persistence }),
-      ...(opts.threadId !== undefined && { threadId: opts.threadId }),
       ...(opts.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: opts.initialResumeSnapshot,
       }),
@@ -279,7 +284,7 @@ export function useGenerateVideo<TTransformed = void>(
     throw new Error(
       'useGenerateVideo requires either a connection or fetcher option',
     )
-  }, [clientId])
+  }, [clientIdentity, hookId])
 
   // Sync body changes without recreating client
   useEffect(() => {

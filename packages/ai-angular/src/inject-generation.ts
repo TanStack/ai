@@ -33,7 +33,9 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional request body params. Reactive. */
   body?: ReactiveOption<Record<string, any>>
@@ -151,7 +153,7 @@ export function injectGeneration<
 >(
   options: Omit<
     InjectGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -165,7 +167,6 @@ export function injectGeneration<
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
-  const clientId = options.id || `injectGeneration-${nextId++}`
 
   const result = signal<TOutput | null>(null)
   const isLoading = signal(false)
@@ -179,13 +180,15 @@ export function injectGeneration<
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
 
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-    id: clientId,
     ...(bodySource !== undefined && { body: bodySource() }),
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? `injectGeneration-${nextId++}` }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
     }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),

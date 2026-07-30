@@ -28,7 +28,9 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -163,7 +165,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -173,7 +175,8 @@ export function useGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
-  const clientId = options.id || hookId
+  // Single identity: prefer `threadId`; deprecated `id` only when no threadId.
+  const clientIdentity = options.threadId ?? options.id ?? hookId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -194,11 +197,13 @@ export function useGeneration<
     // local source is `Record<string, any> | undefined`). Callbacks
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
+    // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-      id: clientId,
       body: opts.body,
+      ...(opts.threadId !== undefined
+        ? { threadId: opts.threadId }
+        : { id: opts.id ?? hookId }),
       ...(opts.persistence !== undefined && { persistence: opts.persistence }),
-      ...(opts.threadId !== undefined && { threadId: opts.threadId }),
       ...(opts.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: opts.initialResumeSnapshot,
       }),
@@ -264,7 +269,7 @@ export function useGeneration<
     throw new Error(
       'useGeneration requires either a connection or fetcher option',
     )
-  }, [clientId])
+  }, [clientIdentity, hookId])
 
   // Sync body changes without recreating client
   useEffect(() => {

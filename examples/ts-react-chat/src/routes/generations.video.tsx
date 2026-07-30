@@ -13,7 +13,6 @@ function StreamingVideoGeneration() {
   const [prompt, setPrompt] = useState('')
 
   const hookReturn = useGenerateVideo({
-    id: 'video:streaming',
     threadId: 'video:streaming',
     connection: fetchServerSentEvents('/api/generate/video'),
     persistence: true,
@@ -28,7 +27,6 @@ function DirectVideoGeneration() {
   const [prompt, setPrompt] = useState('')
 
   const hookReturn = useGenerateVideo({
-    id: 'video:direct',
     threadId: 'video:direct',
     fetcher: (input) =>
       generateVideoFn({
@@ -46,7 +44,6 @@ function ServerFnVideoGeneration() {
   const [prompt, setPrompt] = useState('')
 
   const hookReturn = useGenerateVideo({
-    id: 'video:server-fn',
     threadId: 'video:server-fn',
     fetcher: (input) =>
       generateVideoStreamFn({

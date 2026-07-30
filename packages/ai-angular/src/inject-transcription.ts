@@ -37,7 +37,7 @@ export interface InjectTranscriptionResult<
 export function injectTranscription<TTransformed = void>(
   options: Omit<
     InjectTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: TranscriptionResult) => TTransformed
   } & GenerationPersistenceOptions,

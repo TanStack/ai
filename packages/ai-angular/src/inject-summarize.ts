@@ -33,7 +33,7 @@ export interface InjectSummarizeResult<
 export function injectSummarize<TTransformed = void>(
   options: Omit<
     InjectSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: SummarizationResult) => TTransformed
   } & GenerationPersistenceOptions,

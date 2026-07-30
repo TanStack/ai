@@ -379,7 +379,6 @@ describe('useGeneration', () => {
       )
       const { result } = renderHook(() =>
         useGeneration({
-          id: 'no-auto-fire',
           threadId: 'no-auto-fire',
           connection: adapter,
           initialResumeSnapshot: {
@@ -417,7 +416,6 @@ describe('useGeneration', () => {
       }))
       const { result } = renderHook(() =>
         useGeneration({
-          id: 'hydrated',
           threadId: 'hydrated',
           connection: { ...adapter, hydrateGeneration },
           persistence: true,
@@ -448,7 +446,6 @@ describe('useGeneration', () => {
       }))
       const { result } = renderHook(() =>
         useGeneration({
-          id: 'running-hydrate',
           threadId: 'running-hydrate',
           // No `joinRun`, so the restored run cannot be tailed.
           connection: { ...adapter, hydrateGeneration },
@@ -665,7 +662,6 @@ describe('useGenerateImage', () => {
 
     const { result } = renderHook(() =>
       useGenerateImage({
-        id: 'img-hydrate',
         threadId: 'img-hydrate',
         connection: { ...adapter, hydrateGeneration },
         persistence: true,
@@ -1010,7 +1006,6 @@ describe('useGenerateVideo', () => {
     )
     const { result } = renderHook(() =>
       useGenerateVideo({
-        id: 'video-no-auto-fire',
         threadId: 'video-no-auto-fire',
         connection: adapter,
         initialResumeSnapshot: videoResumeSnapshot,

@@ -22,7 +22,9 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
   fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -150,7 +152,7 @@ export interface UseGenerateImageReturn<TOutput = ImageGenerationResult> {
 export function useGenerateImage<TTransformed = void>(
   options: Omit<
     UseGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId'
+    'onResult' | 'persistence' | 'threadId' | 'id'
   > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,
