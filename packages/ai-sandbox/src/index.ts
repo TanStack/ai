@@ -141,6 +141,15 @@ export {
 export type { SpawnNdjsonOptions, JournalOptions } from './runner'
 
 // The agent output journal: the durability boundary for a sandboxed run.
+//
+// journalListCommand/journalMtimeListCommand/parseJournalMtimeListing back the
+// journal-directory sweep (`journal-sweep.ts`); journalExitProbeCommand/
+// parseJournalExit back the reaper's out-of-band exit probe (`reap.ts`), the
+// mechanism that lets a sweep learn a detached run finished WITHOUT driving
+// it; decodeJournalRunId recovers the runId a listed filename encodes, fail
+// closed. `normalizeJournalDir` is intentionally NOT exported: it is a path
+// formatting detail of this module's own commands, not something a caller
+// composes with.
 export {
   DEFAULT_JOURNAL_DIR,
   EXIT_SENTINEL_KEY,
@@ -149,8 +158,61 @@ export {
   journalFollowCommand,
   journalReadCommand,
   journalExistsCommand,
+  journalListCommand,
+  journalMtimeListCommand,
+  parseJournalMtimeListing,
+  journalExitProbeCommand,
+  parseJournalExit,
+  decodeJournalRunId,
 } from './journal'
-export type { JournalPaths } from './journal'
+export type {
+  JournalPaths,
+  JournalMtimeListing,
+  JournalDirEntry,
+  DecodedJournalRunId,
+} from './journal'
+
+// Journal-directory sweep: bound the journals a detached run's sentinel never
+// got OBSERVED for (see `journal-sweep.ts`'s module doc for why almost every
+// branch keeps rather than deletes — deleting a live run's journal makes it
+// unresumable, with no undo).
+export {
+  pruneJournals,
+  DEFAULT_ORPHAN_TTL_MS,
+  DEFAULT_MAX_DELETES,
+} from './journal-sweep'
+export type {
+  PruneJournalsOptions,
+  PruneJournalsResult,
+  KeptJournal,
+  KeptJournalReason,
+  PruneJournalsFailure,
+} from './journal-sweep'
+
+// Detached-run reaper: sweep a `RunStore`'s reclaimable runs, driving a run to
+// terminal ONLY once the out-of-band journal probe (`probeRunExit`) already
+// knows the agent exited, or once its TTL has expired — never to find out
+// whether it finished (see `reap.ts`'s module doc for why that design was
+// rejected).
+export {
+  reapDetachedRuns,
+  probeRunExit,
+  DEFAULT_RUN_BUDGET_MS,
+  DEFAULT_MAX_RUNS,
+  DEFAULT_EXIT_PROBE_BYTES,
+} from './reap'
+export type {
+  RunExitProbe,
+  ReapRunOutcome,
+  ReapRunEntry,
+  ReapResult,
+  ReapOptions,
+} from './reap'
+
+// Sandbox reclaim: tear down the sandbox behind a terminal run.
+// `sandboxReclaimer` adapts `reclaimSandbox` to `ReapOptions.reclaim`.
+export { reclaimSandbox, sandboxReclaimer } from './reclaim'
+export type { ReclaimOutcome, ReclaimSandboxOptions } from './reclaim'
 export {
   DEFAULT_JOURNAL_POLL_MS,
   journalReadStrategy,
