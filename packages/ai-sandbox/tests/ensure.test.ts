@@ -140,6 +140,39 @@ describe('ensureSandbox algorithm', () => {
     expect(await ctx.store.get(def.key(ctx))).toBeNull()
   })
 
+  it('destroy does not hand the provider an already-aborted signal', async () => {
+    /*
+     * Teardown runs on the abort path too, so forwarding `ctx.signal` handed a
+     * provider that honors it an already-aborted signal: it would return without
+     * doing anything, and `store.delete` below still ran — orphaning a live,
+     * billed sandbox whose only lookup row is gone (the instance store has no
+     * `list`). Assert the signal's state AT THE PROVIDER BOUNDARY, not merely
+     * that destroy was called.
+     */
+    const provider = makeFakeProvider()
+    const seen: Array<{ present: boolean; aborted: boolean }> = []
+    const originalDestroy = provider.destroy
+    provider.destroy = (input) => {
+      seen.push({
+        present: input.signal !== undefined,
+        aborted: input.signal?.aborted ?? false,
+      })
+      return originalDestroy(input)
+    }
+
+    const controller = new AbortController()
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = { ...baseCtx(), signal: controller.signal }
+    await def.ensure(ctx)
+
+    // The run is cancelled; teardown is a consequence of that very abort.
+    controller.abort()
+    await def.destroy(ctx)
+
+    expect(seen).toEqual([{ present: true, aborted: false }])
+    expect(await ctx.store.get(def.key(ctx))).toBeNull()
+  })
+
   it('serializes concurrent ensures for the same key (one create)', async () => {
     const provider = makeFakeProvider()
     const def = defineSandbox({ id: 'repo', provider, workspace })

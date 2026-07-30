@@ -27,6 +27,17 @@ export interface ReclaimSandboxOptions {
 export type ReclaimOutcome =
   /** The provider was asked to destroy it and the instance record is gone. */
   | 'destroyed'
+  /**
+   * The provider's `destroy` THREW. The instance record was still deleted (see
+   * the ordering note on {@link reclaimSandbox}), so the sandbox — if it is in
+   * fact still running — is now unreachable from here and bills until the
+   * provider's own idle reclamation, if any.
+   *
+   * This is the one outcome that means the cost leak the reaper exists to stop
+   * is still leaking, so it is reported distinctly instead of being folded into
+   * `'destroyed'`, and {@link sandboxReclaimer} logs it above debug level.
+   */
+  | 'destroy-failed'
   /** The run never ran in a sandbox. */
   | 'no-sandbox-key'
   /** No instance record for that key; nothing to do. */
@@ -51,6 +62,10 @@ export type ReclaimOutcome =
  *   at nothing guarantees a failed `resume` on the thread's next turn, which is
  *   strictly worse than an orphaned provider sandbox — one is a broken user
  *   experience, the other is a bounded cost the provider itself will reclaim.
+ *   The delete is therefore unconditional — but a failed `destroy` returns
+ *   `'destroy-failed'`, not `'destroyed'`: the record is gone either way, and an
+ *   operator has to be able to tell "torn down" from "possibly still billing and
+ *   no longer reachable from here".
  */
 export async function reclaimSandbox(
   record: RunRecord,
@@ -78,9 +93,11 @@ export async function reclaimSandbox(
     return 'provider-mismatch'
   }
 
+  let destroyFailed = false
   try {
     await options.provider.destroy({ id: instance.providerSandboxId })
   } catch (error) {
+    destroyFailed = true
     options.logger?.warn(
       'reclaim: provider destroy failed; deleting the record anyway',
       {
@@ -91,8 +108,11 @@ export async function reclaimSandbox(
       },
     )
   }
+  // Unconditional, per the ordering note above — but the OUTCOME must not claim
+  // success when the destroy threw. Reporting `'destroyed'` here made a leaked,
+  // now-unreachable sandbox indistinguishable from a clean teardown.
   await options.instances.delete(key)
-  return 'destroyed'
+  return destroyFailed ? 'destroy-failed' : 'destroyed'
 }
 
 /** Adapt {@link reclaimSandbox} to `ReapOptions.reclaim`. */
@@ -101,11 +121,22 @@ export function sandboxReclaimer(
 ): (record: RunRecord) => Promise<void> {
   return async (record) => {
     const outcome = await reclaimSandbox(record, options)
-    options.logger?.sandbox(`reclaim: ${outcome}`, {
+    const meta = {
       runId: record.runId,
       ...(record.sandboxKey === undefined
         ? {}
         : { sandboxKey: record.sandboxKey }),
-    })
+    }
+    if (outcome === 'destroy-failed') {
+      // ABOVE DEBUG DELIBERATELY. Every other outcome is bookkeeping an operator
+      // never needs to see; this one says a billed sandbox may still be running
+      // with its only lookup row deleted, which nothing downstream will retry.
+      options.logger?.errors(
+        'reclaim: destroy failed; sandbox may still be running',
+        meta,
+      )
+      return
+    }
+    options.logger?.sandbox(`reclaim: ${outcome}`, meta)
   }
 }

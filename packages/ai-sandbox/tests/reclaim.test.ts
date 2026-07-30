@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { reclaimSandbox, sandboxReclaimer } from '../src/reclaim'
-import { makeFakeProvider } from './fakes'
+import { captureLogger, makeFakeProvider } from './fakes'
 import type { RunRecord } from '@tanstack/ai'
 import type { FakeProvider } from './fakes'
 
@@ -76,9 +76,37 @@ describe('reclaimSandbox', () => {
       provider,
       instances,
     })
-    expect(outcome).toBe('destroyed')
+    // The delete is unconditional — but the outcome must NOT claim success.
+    expect(outcome).toBe('destroy-failed')
     expect(await instances.get('k1')).toBeNull()
     expect(destroyed).toEqual([])
+  })
+
+  it('reports destroy-failed, distinctly from destroyed, when the provider throws', async () => {
+    /*
+     * `destroy-failed` is the ONE outcome meaning the cost leak the reaper exists
+     * to stop is still leaking: the sandbox may still be running and, with its
+     * record deleted and no `list` on the store, is now unreachable. Folding it
+     * into `'destroyed'` reported that as a clean teardown.
+     */
+    const { provider } = trackDestroys(makeFakeProvider())
+    provider.destroy = () => Promise.reject(new Error('provider 500'))
+    const failing = await storeWith('k1', 'fake', 'sbx-1')
+    const okProvider = trackDestroys(makeFakeProvider()).provider
+    const succeeding = await storeWith('k2', 'fake', 'sbx-2')
+
+    const failed = await reclaimSandbox(record({ sandboxKey: 'k1' }), {
+      provider,
+      instances: failing,
+    })
+    const ok = await reclaimSandbox(record({ sandboxKey: 'k2' }), {
+      provider: okProvider,
+      instances: succeeding,
+    })
+
+    expect(failed).toBe('destroy-failed')
+    expect(ok).toBe('destroyed')
+    expect(failed).not.toBe(ok)
   })
 
   it('reports no-sandbox-key when the run never ran in a sandbox', async () => {
@@ -154,5 +182,36 @@ describe('sandboxReclaimer', () => {
     await expect(reclaim(record({ sandboxKey: 'k1' }))).rejects.toThrow(
       'store down',
     )
+  })
+
+  it('logs a failed destroy ABOVE debug level, so an operator sees the leak', async () => {
+    const { provider } = trackDestroys(makeFakeProvider())
+    provider.destroy = () => Promise.reject(new Error('provider 500'))
+    const instances = await storeWith('k1', 'fake', 'sbx-1')
+    const { logger, calls } = captureLogger()
+
+    await sandboxReclaimer({ provider, instances, logger })(
+      record({ sandboxKey: 'k1' }),
+    )
+
+    // `logger.sandbox` routes to `debug`, which is off unless someone opted into
+    // sandbox debugging — exactly the wrong level for "a sandbox may still be
+    // billing and is no longer reachable from here".
+    const errors = calls.filter((c) => c.level === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.msg).toContain('destroy failed')
+  })
+
+  it('keeps a successful teardown at debug level', async () => {
+    const { provider } = trackDestroys(makeFakeProvider())
+    const instances = await storeWith('k1', 'fake', 'sbx-1')
+    const { logger, calls } = captureLogger()
+
+    await sandboxReclaimer({ provider, instances, logger })(
+      record({ sandboxKey: 'k1' }),
+    )
+
+    expect(calls.filter((c) => c.level === 'error')).toHaveLength(0)
+    expect(calls.some((c) => c.level === 'debug')).toBe(true)
   })
 })
