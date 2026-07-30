@@ -734,8 +734,8 @@ function messageText(message: ModelMessage): string {
     .map((part: unknown) => {
       if (typeof part !== 'object' || part === null) return ''
       if (Reflect.get(part, 'type') !== 'text') return ''
-      const text: unknown = Reflect.get(part, 'text')
-      return typeof text === 'string' ? text : ''
+      const content: unknown = Reflect.get(part, 'content')
+      return typeof content === 'string' ? content : ''
     })
     .join('')
 }

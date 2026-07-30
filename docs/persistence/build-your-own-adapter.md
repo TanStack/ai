@@ -276,26 +276,34 @@ function createRunStore(db: DatabaseSync) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
       }
-      if (patch.sandboxKey !== undefined) {
+      // `sandboxKey`, `detachedSince`, `cancelRequested`, and `driverEpoch`
+      // are the four fields callers CLEAR by writing `undefined` explicitly
+      // (a takeover clears `detachedSince` this way when a viewer re-attaches).
+      // So these branches key off key presence (`'field' in patch`), not
+      // `!== undefined`. Filter `undefined` out here and a re-attached run
+      // reads as permanently detached, so a TTL sweep reclaims a sandbox
+      // someone is actively watching.
+      if ('sandboxKey' in patch) {
         sets.push('sandbox_key = ?')
-        params.push(patch.sandboxKey)
+        params.push(patch.sandboxKey ?? null)
       }
-      // `detachedSince` is the one field callers CLEAR by writing `undefined`:
-      // a takeover does exactly that when a viewer re-attaches. So this branch
-      // keys off key presence, not `!== undefined`. Filter `undefined` out here
-      // and a re-attached run reads as permanently detached, so a TTL sweep
-      // reclaims a sandbox someone is actively watching.
       if ('detachedSince' in patch) {
         sets.push('detached_since = ?')
         params.push(patch.detachedSince ?? null)
       }
-      if (patch.cancelRequested !== undefined) {
+      if ('cancelRequested' in patch) {
         sets.push('cancel_requested = ?')
-        params.push(patch.cancelRequested ? 1 : 0)
+        params.push(
+          patch.cancelRequested === undefined
+            ? null
+            : patch.cancelRequested
+              ? 1
+              : 0,
+        )
       }
-      if (patch.driverEpoch !== undefined) {
+      if ('driverEpoch' in patch) {
         sets.push('driver_epoch = ?')
-        params.push(patch.driverEpoch)
+        params.push(patch.driverEpoch ?? null)
       }
       if (sets.length === 0) return
       params.push(runId)
