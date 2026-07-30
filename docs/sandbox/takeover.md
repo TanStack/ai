@@ -8,7 +8,7 @@ keywords:
   - run takeover
   - sandboxRunDriver
   - detachOnDisconnect
-  - detachedRunTtl
+  - detachedRunTtlMs
   - requestRunCancel
   - JournalReplayDivergedError
   - driverEpoch
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
       withLocks(locks),
       withSandbox(sandbox, {
         runs,
-        durability: { adapter, detachedRunTtl: '30m' },
+        durability: { adapter },
       }),
     ],
   })
@@ -677,16 +677,18 @@ All of these live under `withSandbox(sandbox, { durability: { … } })`.
 | --- | --- | --- |
 | `adapter` | required | The run's delivery-durable event log. Same instance you hand the transport. |
 | `journal` | `/tmp/tanstack-runs` (`DEFAULT_JOURNAL_DIR`) | Journal directory inside the sandbox. |
-| `detachedRunTtl` | `'30m'` (`DEFAULT_DETACHED_RUN_TTL`) | Wall-clock cap on a running agent with no viewer attached. |
 | `detachOnDisconnect` | `true` whenever durability is wired | Whether a disconnect detaches instead of destroying the sandbox. |
 | `attach` | `false` | Read an existing run's journal instead of starting an agent. Set by an attach route's `drive`, never by a `POST` handler. |
 | `pollIntervalMs` | adapter default | Journal poll interval for providers that cannot follow a file. |
 
-`detachedRunTtl` accepts `'<n>s'`, `'<n>m'`, or `'<n>h'` with `n > 0`, and is
-parsed at `withSandbox` **setup**. Anything malformed throws there rather than
-falling back to the default — this value caps how long an unwatched agent may
-keep spending tokens, so a typo silently becoming 30 minutes is a billing
-incident.
+There is deliberately no `detachedRunTtl` here. The only actor that enforces a
+TTL is `reapDetachedRuns`, which runs from a cron with no chat request in
+flight, so it cannot read anything `withSandbox` publishes on the
+per-request capability bus — a TTL stored here could only ever go unread,
+while the sweep took its own `detachedRunTtlMs`, and the two would silently
+disagree. So the sweep's `detachedRunTtlMs` (milliseconds, no default, no
+string parsing) is the single source of truth; see [Reaping &
+Retention](./reaping) for sizing it.
 
 **The reaper ships, but nothing schedules it.** `reapDetachedRuns` from
 `@tanstack/ai-sandbox` is the sweep. It reads the optional
@@ -694,7 +696,7 @@ incident.
 `'running'`, have a `detachedSince`, and whose `detachedSince <= now - ttlMs`
 (inclusive) — drives each run its out-of-band journal probe says already finished
 to a terminal status so the transcript lands, cancels and terminalizes the ones
-past `detachedRunTtl`, and destroys the sandbox named by `sandboxKey` through
+past `detachedRunTtlMs`, and destroys the sandbox named by `sandboxKey` through
 `sandboxReclaimer`. It never clears `detachedSince`: that marker is the evidence
 its TTL accounting selected the run on. (The takeover path clears it, because a
 viewer is attached again.)
@@ -704,7 +706,7 @@ schedule is your job** — a cron route, a queue consumer, a Durable Object
 `alarm()`, a `waitUntil`. Treat that as a hard requirement of wiring
 `durability`, not a nice-to-have: until something invokes it, nothing closes a
 detached run's delivery log, so every attached client parks forever,
-`detachedRunTtl` is enforced by nothing, and the sandbox bills indefinitely.
+`detachedRunTtlMs` is enforced by nothing, and the sandbox bills indefinitely.
 
 [Reaping & Retention](./reaping) is the whole picture: the sweep's outcomes, why
 it never drives a run to find out whether it finished, `pruneJournals`,

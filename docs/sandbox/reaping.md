@@ -9,7 +9,7 @@ keywords:
   - pruneJournals
   - reclaimSandbox
   - sandboxReclaimer
-  - detachedRunTtl
+  - detachedRunTtlMs
   - retention
 ---
 
@@ -32,10 +32,11 @@ running a broken one, in three distinct ways at once:
   deliberately left OPEN and un-terminalized so a takeover can continue it. If
   nothing ever terminalizes it, every client that attaches parks forever waiting
   for an event that will not arrive.
-- **`detachedRunTtl` is enforced by nothing.** It is not a timer. It is a cutoff
-  the sweep compares `detachedSince` against. With no sweep, `'30m'` is a number
-  in a config object and an abandoned agent burns tokens until something else
-  kills it.
+- **`detachedRunTtlMs` is enforced by nothing.** It is not a timer. It is a
+  cutoff the sweep compares `detachedSince` against, and it exists only as an
+  argument to `reapDetachedRuns` — there is no `withSandbox` equivalent. With no
+  sweep, it is a number nobody ever reads and an abandoned agent burns tokens
+  until something else kills it.
 - **Sandboxes bill indefinitely.** Detach-on-disconnect exists precisely so the
   sandbox is *not* destroyed. Reclaiming it is the sweep's job.
 
@@ -100,6 +101,7 @@ them by `ReapRunOutcome`:
 | `unknown` | The probe could not answer. Left exactly as untouched as `producing`, but an operator should see it. |
 | `budget-exceeded` | Anomaly, and **finalization only**. A run the journal already said was finished outran `runBudgetMs`. The record *is* terminal and the log *is* closed, so this is a diagnostic, not a leak. An expired run that outran its budget reports `expired` instead. |
 | `not-claimed` | Another host holds the claim, or took it mid-drive. Normal — a real viewer attaching mid-sweep is exactly this. |
+| `reclaim-failed` | The run reached terminal and its transcript **is** saved — only `ReapOptions.reclaim` threw, so the sandbox is still up. **Not retryable by the sweep**: the record is terminal by now, so it has already left `listReclaimable` for good, and nothing will sweep it again. This is the outcome that says the cost leak the reaper exists to stop is still leaking; the entry's `error` is the only notice you get. |
 | `failed` | Something threw. Logged, counted, and the sweep continued. |
 
 There is deliberately no "still running" outcome distinct from `producing`, and
@@ -263,8 +265,8 @@ export function sweepDetachedRuns(): Promise<ReapResult> {
     hasFinished,
     drive: driveRun,
     now: Date.now(),
-    // Match the `detachedRunTtl: '30m'` you passed to `withSandbox`. This is
-    // milliseconds; the middleware option is a duration string.
+    // The only place this TTL is configured — there is no `withSandbox`
+    // equivalent. In milliseconds.
     detachedRunTtlMs: 30 * 60 * 1000,
     // Sequential by design — each run costs a lock, a provider round-trip, and a
     // full replay. Keep the batch inside your platform's invocation budget.
@@ -433,8 +435,8 @@ import { reclaimSandbox, sandboxReclaimer } from '@tanstack/ai-sandbox'
 run was bound to, using `RunRecord.sandboxKey` — recorded by the detach path at
 the moment it still knew the compound key, because the reaper has none of the
 inputs (`threadId`, workspace hash, tenant, reuse strategy) needed to re-derive
-it. It answers `'destroyed'`, `'no-sandbox-key'`, `'not-found'`, or
-`'provider-mismatch'`.
+it. It answers `'destroyed'`, `'destroy-failed'`, `'no-sandbox-key'`,
+`'not-found'`, or `'provider-mismatch'`.
 
 Two orderings are load-bearing:
 
@@ -448,7 +450,14 @@ Two orderings are load-bearing:
   wiped, container pruned). Keeping an instance record that points at nothing
   guarantees a failed `resume` on the thread's next turn — a broken user
   experience — whereas an orphaned provider sandbox is a bounded cost the
-  provider itself reclaims.
+  provider itself reclaims. `delete` is therefore unconditional, but the
+  *outcome* must not claim success when `destroy` threw: `'destroy-failed'` is
+  reported instead of `'destroyed'`, because the instance record is gone
+  either way and an operator needs to tell "torn down cleanly" apart from
+  "possibly still billing, and now unreachable from here since
+  `SandboxInstanceStore` has no `list`". `sandboxReclaimer` logs
+  `'destroy-failed'` above debug level for exactly that reason — every other
+  outcome is bookkeeping an operator never needs to see.
 
 `sandboxReclaimer(options)` is the same thing adapted to `ReapOptions.reclaim`:
 it logs the outcome and resolves. The reaper calls it **only** once the record
@@ -458,18 +467,26 @@ locally rebuilt record with no `sandboxKey`, which would answer
 `'no-sandbox-key'` and leak the sandbox silently on exactly the path where
 something already went wrong.
 
-## Sizing `detachedRunTtl` and the sweep interval
+If `sandboxReclaimer` itself throws — rather than resolving to
+`'destroy-failed'` — the reaper reports the run's `ReapRunOutcome` as
+`reclaim-failed` (see the outcome table above): the run's transcript is saved
+and its record is terminal, only the reclaim call failed, and that run has
+already left `listReclaimable` for good, so no later sweep retries it.
 
-`detachedRunTtl` (default `'30m'`, `DEFAULT_DETACHED_RUN_TTL`) is a wall-clock
-cap on a *running agent with nobody watching*. It is parsed at `withSandbox`
-setup, and anything malformed throws there rather than falling back — this value
-caps how long an unwatched agent may keep spending tokens, so a typo silently
-becoming 30 minutes is a billing incident.
+## Sizing `detachedRunTtlMs` and the sweep interval
+
+`detachedRunTtlMs` is a wall-clock cap, in milliseconds, on a *running agent
+with nobody watching*. There is no default and no string parsing: it is a
+required, plain number on `ReapOptions`, and deliberately lives only there —
+`withSandbox` cannot enforce a TTL itself, since `reapDetachedRuns` runs from a
+cron with no chat request in flight and has no capability bus to read it
+from. Passing it directly to the sweep is what keeps it a single source of
+truth instead of two settings that could silently disagree.
 
 Size it from your agent's honest p99 task duration, not from user patience: too
 short and you cancel real work a user was going to come back to; too long and an
 abandoned run bills for that long. If a coding agent legitimately runs 20
-minutes, `'30m'` is tight and `'1h'` is defensible.
+minutes, 30 minutes (`30 * 60 * 1000`) is tight and an hour is defensible.
 
 Then keep the sweep interval well **under** the TTL. The interval bounds how
 long *past* the TTL an expired run survives, and it also bounds how long a run

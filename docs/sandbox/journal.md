@@ -9,6 +9,9 @@ keywords:
   - journalPaths
   - alignToStoredLog
   - killableProcesses
+  - exitSentinelLine
+  - awaitAttachableJournal
+  - journal-stalled
 ---
 
 # The Run Journal
@@ -126,12 +129,13 @@ export function Chat() {
 
 The journal is append-only, and `/tmp/tanstack-runs` is a fixed absolute path
 that outlives any single run, test, or process. Reusing a `runId` therefore does
-not start a fresh journal. It appends to the old one, behind the old run's
-`{"__exit":N}` sentinel.
+not start a fresh journal. It appends to the old one, behind the old run's exit
+sentinel.
 
-A reader stops at the first sentinel it sees. So a reused id makes the second
-run look like it emitted no events at all, or like it failed with the previous
-run's exit code. Nothing throws, nothing warns: you get a silently empty run.
+A reader stops at the last matching sentinel it sees in its tail window. So a
+reused id makes the second run look like it emitted no events at all, or like it
+failed with the previous run's exit code. Nothing throws, nothing warns: you get
+a silently empty run.
 
 This is not enforced, because refusing to append would break the replay the
 append-only rule exists for. Derive the id from something unique per run (a
@@ -198,6 +202,136 @@ const lines = readJournal(handle, {
   strategy: 'poll',
   pollIntervalMs: 100,
 })
+```
+
+## The exit sentinel carries a nonce
+
+The line a run's shell appends after the agent exits is not the bare
+`{"__exit":N}` it once was. It now carries a second field too:
+
+```json
+{"__exit":0,"__nonce":"3f9c1a7b..."}
+```
+
+The agent's stdout and this sentinel line are redirected into the *same*
+unframed journal file, with no framing between them. Without the nonce, any
+line an agent happened to print that was also shaped like `{"__exit":N}` — an
+echoed fixture, a `cat`-ed diagnostics file, a dumped config — was a valid
+sentinel. The reader took the *first* matching line in its tail window, so an
+agent that printed such a line early made `probeRunExit` report a run that was
+still mid-flight as `'finished'`. The reaper then drove that run to terminal
+and reclaimed its sandbox out from under a live agent — the one thing this
+whole journal mechanism promises never to do.
+
+`__nonce` is a per-run value derived from the `runId`:
+`sha256('tanstack-ai-sandbox/journal-exit-sentinel/v1:' + runId)`, truncated to
+32 hex characters. It is **derived, not random**, on purpose: the reaper reads
+journals written by a process that is already gone, with nothing but the
+`runId` to go on, so a successor host has to be able to recompute the same
+nonce the original process wrote. `parseJournalExit` now scans its window from
+the **end** backwards (the shell always writes the real sentinel after all of
+the agent's own output) and refuses a matching line whose `__exit` value is not
+an integer, rather than coercing it to `0`.
+
+Both changes narrow the accidental-forgery class to nothing, but the residual
+is honest: because the nonce is derived rather than secret, an agent that knows
+its own `runId` and reimplements the derivation could still emit a matching
+line on purpose. Closing that would need a secret carried on the run record
+that only a legitimate host can read — a `RunStore` schema change, not
+something this journal-composition module can do on its own.
+
+If you seed a journal by hand — a test, a fixture, a custom harness that is not
+going through `journaledCommand` — write the sentinel with
+`exitSentinelLine(paths, exitCode)` rather than hand-rolling the JSON, so you
+produce the exact bytes the shell's `printf` would:
+
+```ts
+import { exitSentinelLine, journalPaths } from '@tanstack/ai-sandbox'
+
+function seedSentinel(runId: string, exitCode: number): string {
+  const paths = journalPaths(runId)
+  return exitSentinelLine(paths, exitCode)
+  // '{"__exit":0,"__nonce":"..."}' — append this, not a hand-written object.
+}
+```
+
+## A read can fail: `'journal-stalled'`
+
+`readJournal` cannot hang forever waiting for a journal that will never
+produce anything. Both the follow strategy and the poll strategy bound their
+wait for the journal's **first** byte to `DEFAULT_ATTACH_JOURNAL_WAIT_MS`
+(10 seconds by default); a read that receives nothing in that window throws
+`JournalAttachUnavailableError` with `reason: 'journal-stalled'` instead of
+parking.
+
+That bound exists because `journalFollowCommand`'s first act is `: >> file` —
+it has to create the journal before it can tail it. So an attach against a
+`runId` whose journal never existed used to manufacture an empty file and
+follow it forever, and once that file existed, every later existence probe
+(`test -f`) succeeded too, so the same runId hung on every subsequent attach as
+well. The bound applies only to the first byte: once a journal starts
+producing, however long the agent thinks between lines is the agent's
+business, and no deadline here cuts a healthy run short.
+
+```ts
+import {
+  JournalAttachUnavailableError,
+  journalPaths,
+  readJournal,
+} from '@tanstack/ai-sandbox'
+import { handle } from './sandbox-handle'
+
+async function tailWithStallGuard(runId: string) {
+  try {
+    for await (const { line } of readJournal(handle, {
+      paths: journalPaths(runId),
+      runId,
+    })) {
+      console.log(line)
+    }
+  } catch (error) {
+    if (error instanceof JournalAttachUnavailableError && error.reason === 'journal-stalled') {
+      // The journal exists but nothing is appending to it and no sentinel can
+      // arrive — the run's shell was killed before it wrote one, or the read
+      // itself just created an empty file for a runId with no journal.
+    } else {
+      throw error
+    }
+  }
+}
+```
+
+Override the wait per call with `firstByteTimeoutMs`, or pass `0` to disable
+it entirely — only where some other deadline already covers the read, since an
+unbounded read of an empty journal never returns.
+
+### Gating an attach before the read even starts
+
+`readJournal` has no `RunStore` and no `runId` to look one up with, so it
+cannot tell an unknown or terminal run apart from a live one that simply
+hasn't written its first line yet — every case looks the same to it and gets
+the same bounded wait. A caller that *does* have a store can ask a sharper
+question first with `awaitAttachableJournal`: it consults the run record
+before falling back to the same bounded wait, so a stale or mistyped `runId`
+fails fast as `'unknown-run'` or `'terminal-run'` instead of waiting out the
+full timeout.
+
+```ts
+import { awaitAttachableJournal, journalPaths } from '@tanstack/ai-sandbox'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { handle } from './sandbox-handle'
+
+// The same `RunStore` `withSandbox` was given.
+const { runs } = memoryPersistence().stores
+
+async function gateAttach(runId: string) {
+  await awaitAttachableJournal(handle, {
+    paths: journalPaths(runId),
+    runId,
+    runs,
+  })
+  // Only after this resolves is it worth calling `readJournal`.
+}
 ```
 
 ## Replaying a journal against a log you already delivered
@@ -290,7 +424,7 @@ They are emitted only at the tail of a completing run.
 
 ## Journal lifetime
 
-Both files are deleted once the reader observes the `{"__exit":N}` sentinel, for
+Both files are deleted once the reader observes the exit sentinel, for
 a zero and a non-zero exit alike. A read that ends without a sentinel (the
 consumer stopped, the client went away) deletes nothing: the run may still be
 in flight and every byte may still be needed.
