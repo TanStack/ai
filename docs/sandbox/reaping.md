@@ -217,11 +217,13 @@ const { runs } = persistence.stores
 // wrote — otherwise the sweep terminalizes an empty log while the real one stays
 // open. A cron has no incoming request, so synthesize one naming the run.
 //
-// `?runId` is the form to use: it is the only place `durableStream` looks for the
-// run id, so a URL carrying it addresses `agent-runs/<runId>` — the same stream
-// the chat routes' `durabilityFor` addresses. (Core's `memoryStream` also accepts
-// an `X-Run-Id` header; `durableStream` does not.) No resume offset is set,
-// because the reaper is a producer, not a replaying client.
+// `?runId` is the form to use here: `durableStream` resolves a run from the
+// `X-Run-Id` header first, then `?runId` (the same precedence core's own
+// `memoryStream` uses), but a synthesized `Request` has no reason to carry a
+// header when a query param is just as easy to set — either addresses the
+// same `agent-runs/<runId>` the chat routes' `durableStream(request,
+// durableOptions)` addresses. No resume offset is set, because the reaper is
+// a producer, not a replaying client.
 //
 // The same backend and options the chat routes use — see ../resumable-streams/
 // advanced for the full option set. `durableStream` talks to it over HTTP, so a

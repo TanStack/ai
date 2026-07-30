@@ -50,31 +50,21 @@ run instead of two that disagree.
 
 ## Both routes must address the same backend stream
 
-Read this before the snippets, because it is the one thing that silently
-un-wires everything else on this page. A `StreamDurability` is bound to **one
-run**, and each adapter decides which run from what it is handed:
+Read this before the snippets. A `StreamDurability` is bound to **one run**,
+and `durableStream(request, options)` resolves which run through core's
+`resolveResumeRunId`: the `X-Run-Id` header first, then `?runId` on the
+request URL. Core's own `memoryStream` uses the same resolver, so no two
+durability adapters can disagree about which run a request names.
 
-- **`durableStream(request, options)`** names the backend stream
-  `${streamPrefix}/${runId}`, and it takes that `runId` from **`?runId` on the
-  request URL — and nothing else.** With no `?runId` it falls back to
-  `crypto.randomUUID()`.
-- A **POST from `@tanstack/ai-client` has no `?runId`.** The POST URL is kept
-  byte-identical to a plain, non-durable chat request; the run id travels in the
-  AG-UI body (which is what `chatParamsFromRequest` hands back) and in the
-  `X-Run-Id` header. `durableStream` reads neither.
-- A **GET join does** carry it: `joinRun` requests `?offset=-1&runId=<runId>`.
+- A **POST from `@tanstack/ai-client`** carries the run id in the `X-Run-Id`
+  header, not the URL — the POST URL is kept byte-identical to a plain,
+  non-durable chat request.
+- A **GET join** carries it in the URL instead: `joinRun` requests
+  `?offset=-1&runId=<runId>`.
 
-So `durableStream(request, durableOptions)` on both routes is exactly the bug
-that looks correct: the POST writes to a random one-off stream, the GET attaches
-to `agent-runs/<runId>`, and the attach tails a stream nobody ever wrote to. It
-type-checks, it streams, and the takeover is dead. A mid-stream SSE reconnect to
-that POST route fails differently and just as fatally — it arrives carrying
-`Last-Event-ID` but still no `?runId`, and `durableStream` refuses a resume offset
-it cannot attribute to a run (`resume offset requires a runId`).
-
-Resolve the log **from the runId** instead, on every route, through one helper.
-Then a run's stream name is a function of its id and the two routes cannot
-disagree:
+So `durableStream(request, durableOptions)` on both routes resolves the same
+`agent-runs/<runId>` stream, whichever way the run id arrived — nothing to
+rewrite, nothing to force onto a copy of the URL:
 
 ```ts
 import { durableStream } from '@tanstack/ai-durable-stream'
@@ -86,43 +76,24 @@ export const durableOptions = {
   server: 'https://streams.example.com',
   streamPrefix: 'agent-runs',
 }
-
-/**
- * The run's delivery log, addressed by `runId` rather than by whatever the
- * incoming URL happened to say.
- *
- * `durableStream` reads exactly two things off the request: `?runId` (which run)
- * and the resume offset (`Last-Event-ID`, else `?offset`). So force `?runId` onto
- * a copy of the real URL and carry `Last-Event-ID` across — that keeps a GET
- * join's `?offset=-1` and a mid-stream SSE reconnect's `Last-Event-ID` working,
- * while making run identity explicit on the POST that has neither.
- *
- * Headers are copied one by one rather than passing `request` as the init: the
- * POST body has already been consumed by `chatParamsFromRequest` at every call
- * site below, and cloning a consumed body throws.
- */
-export function durabilityFor(runId: string, request: Request) {
-  const url = new URL(request.url)
-  url.searchParams.set('runId', runId)
-  const resumeOffset = request.headers.get('Last-Event-ID')
-  return durableStream(
-    new Request(
-      url,
-      resumeOffset === null ? {} : { headers: { 'Last-Event-ID': resumeOffset } },
-    ),
-    durableOptions,
-  )
-}
 ```
 
-The synthesized `Request` is never sent anywhere — `durableStream` only parses
-it — so rewriting its URL costs nothing.
+A request naming no run at all — neither header nor query — throws rather than
+silently producing into a stream no attach request could ever name:
 
-Two notes so this does not surprise you elsewhere. Core's own `memoryStream`
-resolves the run id with `resolveResumeRunId`, which prefers the `X-Run-Id`
-header and falls back to `?runId`, so `memoryStream(request)` *does* work
-unchanged on a POST route; `durableStream` is the adapter that needs the helper
-above. And a caller with no live `Request` at all — a cron, a Durable Object
+```
+durableStream: a runId is required: send it as an X-Run-Id header or a
+?runId query param
+```
+
+That only bites a client that bypasses `@tanstack/ai-client` (a custom
+`fetch`, a hand-rolled reconnect): make sure it sends one of the two, an
+`X-Run-Id` header on the POST or `?runId` on the URL. A mid-stream SSE
+reconnect to the POST route still works — it arrives carrying `Last-Event-ID`
+and the same `X-Run-Id` header the original POST used, so `durableStream`
+resolves the run and honors the resume offset.
+
+And a caller with no live `Request` at all — a cron, a Durable Object
 `alarm()` — synthesizes one from scratch instead; see the reaper's own
 `durabilityFor` in [Reaping & Retention](./reaping).
 
@@ -138,8 +109,9 @@ import { withLocks } from '@tanstack/ai/locks'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
-// The helper from the section above, addressing the log by `runId`.
-import { durabilityFor } from './durability'
+import { durableStream } from '@tanstack/ai-durable-stream'
+// The options from the section above.
+import { durableOptions } from './durability'
 // Your distributed LockStore. `InMemoryLockStore` is NOT enough here — see
 // "Requirements" below.
 import { locks } from './locks'
@@ -154,11 +126,11 @@ const { runs } = persistence.stores
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
   // ONE adapter instance, handed to both the middleware and the transport, so
-  // the journal path and the delivery log describe the same run. Keyed by the
-  // body's `runId` — NOT by `durableStream(request, …)`, which would read no
-  // `?runId` off this POST's URL and mint a random stream the attach route can
-  // never find.
-  const adapter = durabilityFor(runId, request)
+  // the journal path and the delivery log describe the same run.
+  // `@tanstack/ai-client` sends `X-Run-Id` on every POST, which is exactly what
+  // `durableStream` resolves first, so this already addresses
+  // `agent-runs/<runId>` — the same stream the attach route below reads.
+  const adapter = durableStream(request, durableOptions)
 
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
@@ -200,9 +172,9 @@ The takeover happens in the `GET` handler that already serves resumes. Add a
 `driver` and the same request that replays the log also claims the run and keeps
 driving it.
 
-Every adapter here comes from the **same** `durabilityFor(runId, request)` the
-`POST` route used, so the log this route replays, the log the drive appends to,
-and the log the producing route wrote are provably one stream:
+Every adapter here comes from the **same** `durableStream(request, durableOptions)`
+the `POST` route used, so the log this route replays, the log the drive appends
+to, and the log the producing route wrote are provably one stream:
 `agent-runs/<runId>`.
 
 ```ts
@@ -212,8 +184,8 @@ import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { durableStream } from '@tanstack/ai-durable-stream'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { sandboxRunDriver, withSandbox } from '@tanstack/ai-sandbox'
-// The same helper and the same backend options as the POST route.
-import { durabilityFor, durableOptions } from './durability'
+// The same backend options as the POST route.
+import { durableOptions } from './durability'
 import { locks } from './locks'
 import { sandbox } from './sandbox'
 import type { StreamChunk } from '@tanstack/ai'
@@ -258,9 +230,10 @@ export function GET(request: Request) {
           // here and never on `chat()` — core has no sandbox vocabulary — and it
           // is set only by an attach route, never by a POST handler.
           durability: {
-            // Keyed by the run being taken over, so the journal replay aligns
-            // against the prefix the ORIGINAL host stored.
-            adapter: durabilityFor(input.runId, request),
+            // `request` already names this run — `?runId` on an attach GET —
+            // so `durableStream` resolves the same `agent-runs/<runId>` the
+            // journal replay aligns against.
+            adapter: durableStream(request, durableOptions),
             attach: true,
           },
         }),
@@ -272,21 +245,21 @@ export function GET(request: Request) {
   return resumeServerSentEventsResponse({
     // The replaying adapter is the one adapter here whose `resumeFrom()` matters,
     // and the offset it must return (`?offset=-1` from a join, or an SSE
-    // reconnect's `Last-Event-ID`) lives on the incoming request. Passing the
-    // real request straight through is CORRECT on this route and only this one:
-    // an attach URL carries `?runId`, so `durableStream` resolves the same
-    // `agent-runs/<runId>` the POST route wrote. Do not copy this line into a
-    // POST handler, where there is no `?runId` to read.
+    // reconnect's `Last-Event-ID`) lives on the incoming request. `durableStream`
+    // resolves the run the same way on every route — `X-Run-Id` header first,
+    // then `?runId` — so this addresses the same `agent-runs/<runId>` the POST
+    // route wrote, whichever way a given request names the run.
     adapter: durableStream(request, durableOptions),
     driver: sandboxRunDriver({
       request,
       runs,
       locks,
-      // Per-run log factory: core hands it the runId it resolved from the
-      // request, so every call for this run talks to the same backend stream and
-      // `snapshot()` sees this host's own appends — the state lives in the
-      // Durable Streams backend, not this process.
-      durability: (id) => durabilityFor(id, request),
+      // Per-run log factory. Core resolves the id from this same request
+      // through the same `resolveResumeRunId` `durableStream` uses, so every
+      // call for this run talks to the same backend stream and `snapshot()`
+      // sees this host's own appends — the state lives in the Durable Streams
+      // backend, not this process.
+      durability: () => durableStream(request, durableOptions),
       drive: driveRun,
     }),
   })

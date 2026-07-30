@@ -104,14 +104,19 @@ export function customDurability(
   // The resume offset: native SSE reconnect header first, then a join's ?offset.
   const resume =
     request.headers.get('Last-Event-ID') ?? url.searchParams.get('offset')
-  // Your adapter owns run identity. A real backend decodes the runId from the
-  // resume offset; this example takes the client's chosen id from the
-  // X-Run-Id header (a POST producer) or the ?runId query (a GET join), and
-  // otherwise mints a fresh one.
+  // Your adapter owns run identity. Resolve it the way core's own
+  // `resolveResumeRunId` does, and the way `durableStream` does too: the
+  // X-Run-Id header first (a POST producer sends this), then the ?runId
+  // query (a GET join sends this). Never mint a fresh id when neither is
+  // present — a generated id addresses a log no attach request could ever
+  // name, so the run would appear to work while writing where nobody reads.
   const runId =
-    request.headers.get('X-Run-Id') ??
-    url.searchParams.get('runId') ??
-    crypto.randomUUID()
+    request.headers.get('X-Run-Id') ?? url.searchParams.get('runId')
+  if (runId === null) {
+    throw new Error(
+      'a runId is required: send it as an X-Run-Id header or a ?runId query param',
+    )
+  }
   const log = openLog(runId)
 
   return {
