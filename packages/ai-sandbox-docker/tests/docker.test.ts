@@ -2,17 +2,16 @@ import { describe, expect, it } from 'vitest'
 import Dockerode from 'dockerode'
 import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '../src/index'
+import { dockerDaemonAvailable } from './docker-daemon'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-// Auto-gate: only run when a Docker daemon is reachable.
+// Auto-gate: only run when a Docker daemon is reachable — unless
+// `REQUIRE_DOCKER` is set, in which case an unreachable daemon fails rather than
+// skipping. See `./docker-daemon.ts`.
+const dockerAvailable = await dockerDaemonAvailable('docker provider')
+
+/** For the image-inspection assertions below, which read the daemon directly. */
 const docker = new Dockerode()
-let dockerAvailable = false
-try {
-  await docker.ping()
-  dockerAvailable = true
-} catch {
-  // no daemon — these tests are skipped
-}
 
 const IMAGE = 'alpine:3'
 

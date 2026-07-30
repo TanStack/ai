@@ -1,19 +1,13 @@
-import Dockerode from 'dockerode'
 import { runJournalConformance } from '@tanstack/ai-sandbox/testkit'
 import { dockerSandbox } from '../src/index'
+import { dockerDaemonGate } from './docker-daemon'
 
-// Auto-gate: only run when a Docker daemon is reachable, mirroring
-// docker.test.ts's `dockerAvailable` gate. A missing daemon is not the
-// provider being incapable of journaling — it is this environment lacking a
-// daemon — so the case renders as a `unsupported` skip with the reason,
-// never a silent pass or a hard failure.
-let dockerAvailable = false
-try {
-  await new Dockerode().ping()
-  dockerAvailable = true
-} catch {
-  // no daemon — the suite below declares `unsupported` and skips.
-}
+// A missing daemon is not the provider being incapable of journaling — it is
+// this environment lacking a daemon. Off CI that renders as a NAMED
+// `unsupported` skip carrying the reason, never a silent pass; under
+// `REQUIRE_DOCKER` it is a hard failure. See `./docker-daemon.ts` for why the
+// distinction has to come from the environment.
+const gate = await dockerDaemonGate('journal conformance (docker)')
 
 const IMAGE = 'alpine:3'
 
@@ -24,7 +18,5 @@ runJournalConformance({
     const handle = await provider.create({})
     return { handle, dispose: () => handle.destroy() }
   },
-  ...(dockerAvailable
-    ? {}
-    : { unsupported: { reason: 'no Docker daemon reachable' } }),
+  ...gate,
 })
