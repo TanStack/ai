@@ -6,6 +6,7 @@ import {
   alignedIfAttaching,
   createBridgeEventChannel,
   createRunScopedIdGen,
+  encodeRunId,
   getSandbox,
   getSandboxDurability,
   getSandboxPolicy,
@@ -315,7 +316,14 @@ export class CodexTextAdapter<
         // above (see `resolveDurableRunId`). That mismatch is invisible
         // (the prompt still gets read), but it defeats the whole point of a
         // stable, caller-supplied `runId` for anything keyed off it.
-        const promptPath = `/tmp/tanstack-codex-prompt-${runId}`
+        // `encodeRunId`, because durability makes `runId` CALLER-chosen and this
+        // interpolates it into a filesystem path. Raw, a `/` would silently turn
+        // the basename into a nested path (writing outside `/tmp` or failing on a
+        // missing dir), `..` would climb out of it, and a long id would fail the
+        // spawn with `ENAMETOOLONG`. The encoder collapses every id to one
+        // bounded, injective path segment — the same one `journalPaths` uses, so
+        // the prompt file and the journal agree on how this id spells.
+        const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
         await sandbox.fs.write(promptPath, fullPrompt)
         tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`

@@ -8,6 +8,7 @@ import {
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   createRunScopedIdGen,
+  encodeRunId,
   getSandbox,
   getSandboxDurability,
   getSandboxPolicy,
@@ -393,6 +394,16 @@ export class ClaudeCodeTextAdapter<
         options.messages,
         options.modelOptions?.sessionId,
       )
+      // Both files below name themselves after `runId`, and durability makes
+      // `runId` CALLER-chosen. Raw, a `/` in it would silently turn each basename
+      // into a nested path (writing outside the intended directory, or failing on
+      // one that does not exist), `..` would climb out of that directory, and a
+      // long id would fail the spawn with `ENAMETOOLONG`. `encodeRunId` collapses
+      // any id to one bounded, injective path segment — the same encoder
+      // `journalPaths` uses, so these files and the journal agree on how a given
+      // id spells. Computed once so the two filenames cannot drift apart.
+      const runIdSegment = encodeRunId(runId)
+
       // The bridge MCP config carries the per-run bearer token. Write it to a
       // file and pass claude the PATH, so the token never appears in argv (where
       // any process in the sandbox could read it via `ps` / `/proc/<pid>/cmdline`).
@@ -404,7 +415,7 @@ export class ClaudeCodeTextAdapter<
         // `/workspace` — e.g. local-process on Windows, where git-bash resolves
         // `/workspace` to `C:\Program Files\Git\workspace` and the file is "not
         // found". The bare filename resolves correctly on every provider.
-        const mcpConfigFile = `.tanstack-mcp-bridge-${runId}.json`
+        const mcpConfigFile = `.tanstack-mcp-bridge-${runIdSegment}.json`
         const mcpConfigPath = `${cwd}/${mcpConfigFile}`
         await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
         tempFiles.push(mcpConfigPath)
@@ -427,7 +438,7 @@ export class ClaudeCodeTextAdapter<
       let runCommand = command
       let stdinInput: string | undefined = prompt
       if (sandbox.capabilities.writableStdin === false) {
-        const promptPath = `/tmp/tanstack-claude-prompt-${runId}`
+        const promptPath = `/tmp/tanstack-claude-prompt-${runIdSegment}`
         await sandbox.fs.write(promptPath, prompt)
         tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`

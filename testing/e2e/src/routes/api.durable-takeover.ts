@@ -292,12 +292,16 @@ const { runs } = persistence.stores
 const instances = new InMemorySandboxInstanceStore()
 
 /**
- * The detached-run TTL, in both spellings the two consumers need: the duration
- * string `withSandbox` parses, and the milliseconds `reapDetachedRuns` takes. The
- * two MUST agree — the reaper's inclusive cutoff is what decides expiry, so a
- * disagreement would make the boundary the specs pin meaningless.
+ * The detached-run TTL. `reapDetachedRuns` is its ONE consumer: the reaper's
+ * inclusive `detachedSince <= now - ttl` cutoff is the only thing that decides
+ * expiry, so this single value is what the boundary cases in the spec are
+ * constructed against.
+ *
+ * There is deliberately no second, duration-string spelling passed to
+ * `withSandbox`. `withSandbox`'s durability options carry no TTL — a
+ * `detachedRunTtl` there was parsed and read by nothing, so it could silently
+ * disagree with the value below while looking authoritative.
  */
-const DETACHED_RUN_TTL = '5m'
 const DETACHED_RUN_TTL_MS = 5 * 60 * 1000
 
 /** The ordinary wiring: one lock store, serializing claims in this process. */
@@ -868,7 +872,7 @@ function startResponse(url: URL): Response {
       withSandbox(sandbox, {
         runs,
         instances,
-        durability: { adapter: log, detachedRunTtl: DETACHED_RUN_TTL },
+        durability: { adapter: log },
       }),
     ],
   })

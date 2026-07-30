@@ -8,6 +8,7 @@ import {
   translateAcpStream,
 } from '@tanstack/ai-acp'
 import {
+  DurableAttachNotSupportedError,
   SandboxCapability,
   createBridgeEventChannel,
   alignedIfAttaching,
@@ -263,6 +264,25 @@ export class GrokBuildTextAdapter<
         ? getSandboxDurability(options.capabilities, { optional: true })
         : undefined
       if (durability !== undefined) {
+        // An ATTACH, however, IS fatal, and the asymmetry with the warn below
+        // is the whole point. A FRESH durable ACP run merely fails to record
+        // something recoverable later — bad, but the run itself is correct, and
+        // an app may have accepted that trade knowingly. An attach has already
+        // spent its first attempt: `sandboxRunDriver`'s `drive()` only sets
+        // `attach: true` when a previous host was streaming this run. Continuing
+        // past here reaches `openGrokAcpConnection` + `session.prompt(...)`,
+        // which re-runs the agent from scratch against the workspace that
+        // attempt already mutated and appends its whole output to a log that
+        // still holds the first attempt's. Neither `awaitAttachableJournal` nor
+        // `alignedIfAttaching` is on this path to prevent either. Refusing
+        // loudly is the only outcome that does not corrupt something.
+        if (durability.attach) {
+          throw new DurableAttachNotSupportedError(
+            'grok-build',
+            "protocol: 'acp' drives the harness over a bidirectional ACP " +
+              'connection and never calls spawnNdjson',
+          )
+        }
         logger.warn(
           'grok-build: sandbox durability is wired but this run is using the ' +
             "'acp' protocol, which never journals — this run will not be " +

@@ -6,11 +6,18 @@
  * row — while being silently unrecoverable: there is no journal to replay on
  * reconnect.
  *
- * This is a WARN, not a throw (see the comment above the check in
- * `chatStreamAcp`, matching the precedent in
+ * For a FRESH run this is a WARN, not a throw (see the comment above the check
+ * in `chatStreamAcp`, matching the precedent in
  * `packages/ai-sandbox/src/middleware.ts`'s `InMemoryLockStore` warning): an
  * app can legitimately wire durability once at the middleware level and still
  * choose `protocol: 'acp'` for runs it deliberately never needs to recover.
+ *
+ * An ATTACH is the opposite — a throw, and the asymmetry is the point. A fresh
+ * durable ACP run is merely unrecoverable later; an attach has already spent a
+ * first attempt, so proceeding re-runs the agent against the workspace that
+ * attempt mutated and double-appends its output to the run log. `attach: true`
+ * therefore gets `DurableAttachNotSupportedError` before the ACP connection is
+ * ever opened, never the warn.
  *
  * These tests drive `chatStreamAcp` for real — a fake ACP agent (the actual
  * `@agentclientprotocol/sdk` agent side) spawned over stdio inside a real
@@ -34,9 +41,12 @@ import {
 import { InMemoryRunStore } from '@tanstack/ai'
 import { grokBuildText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type {
+  CapabilityContext,
+  StreamChunk,
+  StreamDurability,
+} from '@tanstack/ai'
 import type { SandboxHandle, SandboxRunDurability } from '@tanstack/ai-sandbox'
-import type { StreamDurability } from '@tanstack/ai'
 
 /**
  * Locate the real `@agentclientprotocol/sdk` install through `@tanstack/ai-acp`'s
@@ -168,12 +178,12 @@ function fakeAdapterLog(): StreamDurability {
  */
 const JOURNAL_DIR = `/tmp/tanstack-grok-durability-warn-${Date.now()}`
 
-function durability(): SandboxRunDurability {
+function durability(attach = false): SandboxRunDurability {
   return {
     runs: new InMemoryRunStore(),
     adapter: fakeAdapterLog(),
     journalDir: JOURNAL_DIR,
-    attach: false,
+    attach,
     detachOnDisconnect: true,
   }
 }
@@ -249,6 +259,55 @@ describe(
       const [message] = logger.warn.mock.calls[0] as [string]
       expect(message).toMatch(/not be recoverable/i)
       expect(message).toContain("protocol: 'streaming-json'")
+
+      await sbx.destroy()
+    })
+
+    it('REFUSES an attach outright, instead of warning and re-running the agent', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write(
+        '/workspace/fake-grok-acp-agent.mjs',
+        FAKE_GROK_ACP_AGENT,
+      )
+      const logger = noopLogger()
+
+      const chunks = await collect(
+        adapter().chatStream({
+          model: 'grok-build',
+          messages: [{ role: 'user', content: 'say pong' }],
+          logger,
+          capabilities: contextWith(sbx, durability(true)),
+        }),
+      )
+
+      // The adapter's `catch` turns any throw into a RUN_ERROR chunk, so assert
+      // on that rather than on a rejection (same convention as
+      // `attach.test.ts`'s `DurableRunIdRequiredError` case).
+      expect(chunks).toHaveLength(1)
+      const error = chunks[0] as { type: string; message?: string }
+      expect(error.type).toBe('RUN_ERROR')
+      expect(error.message).toContain('cannot ATTACH')
+
+      // The refusal must state the CONSEQUENCE, not just the condition — this is
+      // the difference between a message an operator can act on and one they
+      // route to a retry. It names the two corruptions proceeding would cause...
+      expect(error.message).toMatch(/re-run the agent from scratch/i)
+      expect(error.message).toMatch(/double-append/i)
+      // ...and rules out the retry explicitly, because the neighbouring
+      // `JournalAttachUnavailableError` IS retryable and would otherwise be the
+      // natural assumption.
+      expect(error.message).toMatch(/not a transient condition/i)
+
+      // THE POINT OF THE THROW: the agent never ran. `pong` is the fake agent's
+      // only output, so its absence proves `session.prompt(...)` was never
+      // reached — the workspace the previous attempt mutated was not re-driven,
+      // and nothing was appended to the log.
+      expect(textOf(chunks)).toBe('')
+      expect(chunks.some((c) => c.type === 'RUN_STARTED')).toBe(false)
+
+      // And it is a REFUSAL, not the warn escalated: warning here would have
+      // meant the run proceeded.
+      expect(logger.warn).not.toHaveBeenCalled()
 
       await sbx.destroy()
     })

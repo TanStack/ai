@@ -2,10 +2,12 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  DurableAttachNotSupportedError,
   SandboxCapability,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   getSandbox,
+  getSandboxDurability,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
   mergeChunkStreams,
@@ -154,6 +156,45 @@ export class OpencodeTextAdapter<
         options.modelOptions?.directory ??
         this.adapterConfig.directory ??
         DEFAULT_WORKDIR
+
+      // Durability wired onto a path that cannot deliver it. Two outcomes, split
+      // by whether a first attempt has already run.
+      //
+      // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
+      // when a previous host was already streaming this run, so continuing past
+      // here reaches `startOpencodeServerInSandbox` + the session prompt and
+      // re-runs the agent from scratch against the workspace that attempt
+      // already mutated, appending its whole output to a log that still holds
+      // the first attempt's. This adapter has no journal to tail, no
+      // `awaitAttachableJournal` to refuse the attach up front, and no
+      // `alignedIfAttaching` to suppress the already-delivered prefix — so there
+      // is nothing between here and that corruption except this throw.
+      //
+      // A FRESH durable run only fails to be recoverable LATER, which an app may
+      // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
+      // the middleware level and still route some runs through this adapter). So
+      // that is a warn, not a throw: audible, not fatal. Once per run, not per
+      // chunk — a per-chunk warning would be worse than none. Mirrors
+      // `ai-grok-build`'s `chatStreamAcp`.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      if (durability !== undefined) {
+        if (durability.attach) {
+          throw new DurableAttachNotSupportedError(
+            'opencode',
+            'this adapter drives the harness over the opencode HTTP server ' +
+              'and does not journal',
+          )
+        }
+        logger.warn(
+          'opencode: sandbox durability is wired but this adapter never ' +
+            'journals — this run will not be recoverable on reconnect. Use a ' +
+            'journaling harness adapter for runs that must survive a host ' +
+            'restart, or drop durability if these runs are not meant to.',
+          { runId, adapter: 'opencode' },
+        )
+      }
 
       // Project workspace skills / MCP servers into the sandbox before starting
       // the opencode server so the workspace config is in place for the session.

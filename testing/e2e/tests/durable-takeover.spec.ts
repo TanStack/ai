@@ -117,9 +117,11 @@ interface ReapBody {
 }
 
 /**
- * The harness's `detachedRunTtl`, in milliseconds. The route passes the same
- * value to `withSandbox` and to `reapDetachedRuns`, so this is the cutoff the
- * boundary cases below are constructed against.
+ * The detached-run TTL, in milliseconds. The route passes this same value to
+ * `reapDetachedRuns` as `detachedRunTtlMs` — its only consumer, and the only
+ * place a TTL is read at all — so this is the cutoff the boundary cases below
+ * are constructed against. It is deliberately NOT also handed to `withSandbox`:
+ * that option does not exist, so a copy there would be inert.
  */
 const DETACHED_RUN_TTL_MS = 5 * 60 * 1000
 
