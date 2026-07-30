@@ -305,7 +305,7 @@ export function runPersistenceConformance(
       // these on `update`. The reaper and takeover both depend on them
       // surviving a round-trip through the REQUIRED `update`/`get` pair, so
       // this case cannot be declared optional via `skipMethods`.
-      it('round-trips the durable run fields, overwrites driverEpoch, and clears detachedSince on explicit undefined', async (ctx) => {
+      it('round-trips the durable run fields, overwrites driverEpoch, and clears every one of them on explicit undefined', async (ctx) => {
         const store = resolveStore('runs')
         if (!store) return ctx.skip('store not provided')
 
@@ -370,6 +370,42 @@ export function runPersistenceConformance(
         const afterExplicitFalse = await store.get('fc-1')
         expect(afterExplicitFalse?.cancelRequested).toBe(false)
         expect(afterExplicitFalse?.cancelRequested).not.toBeUndefined()
+
+        // 5. An explicit `undefined` clears EVERY durable field, not just
+        // `detachedSince`. Step 3 only exercised one of the four, so a backend
+        // half-converted to `'field' in patch` -- `in` for `detachedSince`,
+        // still `patch.field !== undefined` for the rest -- passed the whole
+        // suite while its clears silently no-opped. Step 4's explicit `false`
+        // also survives a `!== undefined` guard, so nothing else here bites
+        // either. Re-populate first, so each clear has a value to remove and
+        // an assertion that fails when the clear is dropped.
+        await store.update('fc-1', {
+          sandboxKey: 'sandbox-xyz',
+          detachedSince: 900,
+          cancelRequested: true,
+          driverEpoch: 3,
+        })
+        const beforeFullClear = await store.get('fc-1')
+        expect(beforeFullClear?.sandboxKey).toBe('sandbox-xyz')
+        expect(beforeFullClear?.detachedSince).toBe(900)
+        expect(beforeFullClear?.cancelRequested).toBe(true)
+        expect(beforeFullClear?.driverEpoch).toBe(3)
+
+        await store.update('fc-1', {
+          sandboxKey: undefined,
+          detachedSince: undefined,
+          cancelRequested: undefined,
+          driverEpoch: undefined,
+        })
+        const afterFullClear = await store.get('fc-1')
+        expect(afterFullClear?.sandboxKey).toBeUndefined()
+        expect(afterFullClear?.detachedSince).toBeUndefined()
+        expect(afterFullClear?.cancelRequested).toBeUndefined()
+        expect(afterFullClear?.driverEpoch).toBeUndefined()
+        // Clearing the durable fields is not a delete: the run row survives,
+        // and the fields the patch never named keep their values.
+        expect(afterFullClear?.status).toBe('running')
+        expect(afterFullClear?.startedAt).toBe(1)
       })
 
       // `findActiveRun` is optional on the RunStore contract; a backend that

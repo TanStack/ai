@@ -216,3 +216,113 @@ describe('interrupt status shape', () => {
     expect(run?.finishedAt).toBeUndefined()
   })
 })
+
+/**
+ * Adapter that reaches an interrupt boundary and then hangs until the signal
+ * aborts, so the abort lands on a run the middleware already marked
+ * `'interrupted'`. That is the real shape: `chat()` skips its terminal hook at
+ * an actionable-wait/interrupt boundary, so the `finally` block routes any
+ * later cancellation to `onAbort`.
+ */
+function interruptThenHangAdapter(signal: AbortSignal): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'mock',
+    model: 'test-model',
+    '~types': {},
+    chatStream: () =>
+      (async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: 1,
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              { id: 'interrupt-1', reason: 'tool_call', toolCallId: 'tc1' },
+            ],
+          },
+        } satisfies StreamChunk
+        await new Promise<void>((resolve) => {
+          signal.addEventListener('abort', () => resolve(), { once: true })
+        })
+      })(),
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  } as unknown as AnyTextAdapter
+}
+
+async function driveInterruptedAbort(
+  runId: string,
+  reason?: string,
+): Promise<AIPersistence> {
+  const persistence = memoryPersistence()
+  const runs = persistence.stores.runs
+  if (!runs) throw new Error('memoryPersistence must provide a run store')
+  const controller = new AbortController()
+
+  // Non-detachable on purpose: no durability wired, which is the branch that
+  // used to unconditionally terminalize the run.
+  const stream = chat({
+    adapter: interruptThenHangAdapter(controller.signal),
+    messages: [{ role: 'user', content: 'hi' }],
+    runId,
+    threadId: 't1',
+    abortController: controller,
+    middleware: [withPersistence(persistence)],
+  }) as AsyncIterable<StreamChunk>
+
+  const reader = (async () => {
+    try {
+      for await (const _ of stream) {
+        // drain until the abort ends the stream
+      }
+    } catch {
+      // an abort may reject the stream; the status is what is under test
+    }
+  })()
+
+  // Wait for the interrupt boundary to be recorded before aborting.
+  await vi.waitFor(async () => {
+    expect((await runs.get(runId))?.status).toBe('interrupted')
+  })
+  if (reason === undefined) controller.abort()
+  else controller.abort(reason)
+  await reader
+
+  return persistence
+}
+
+describe('chat onAbort on a paused (interrupted) run', () => {
+  it('writes NOTHING for a plain disconnect on a non-detachable interrupted run', async () => {
+    const persistence = await driveInterruptedAbort('interrupted-plain')
+
+    // The thread genuinely is waiting for a human: the interrupt rows stay
+    // `'pending'` and the next request resumes them. Terminalizing the record
+    // here produced a run that claimed to be finished while
+    // `validatePendingResumes` still threw on it.
+    const run = await persistence.stores.runs!.get('interrupted-plain')
+    expect(run?.status).toBe('interrupted')
+    expect(run?.finishedAt).toBeUndefined()
+  })
+
+  it('still writes aborted when an explicit cancel lands on an interrupted run', async () => {
+    const persistence = await driveInterruptedAbort(
+      'interrupted-cancel',
+      RUN_CANCEL_REASON,
+    )
+
+    // The user gave up on the approval. The cancel band stays authoritative —
+    // exempting interrupted runs from it would strand them forever.
+    const run = await persistence.stores.runs!.get('interrupted-cancel')
+    expect(run?.status).toBe('aborted')
+    expect(run?.finishedAt).toBeTypeOf('number')
+  })
+})

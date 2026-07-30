@@ -665,13 +665,23 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         info.cancelRequested === true ||
         (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
 
-      if (cancelled || !detachableRun(ctx)) {
+      // A run paused at an interrupt boundary is waiting for a HUMAN, not for
+      // this socket. `chat()` skips its terminal hook at an actionable-wait
+      // boundary, so its `finally` routes the disconnect here — and
+      // terminalizing then produced a record claiming the run finished while
+      // the interrupt rows stayed `'pending'` and `validatePendingResumes`
+      // still threw on the next request. An explicit cancel is different: the
+      // user gave up on the approval, so the cancel band stays authoritative.
+      const state = runState.get(ctx)
+      if (cancelled || (!detachableRun(ctx) && state?.interrupted !== true)) {
         await abortRun(runs, ctx.runId)
         return
       }
-      // A plain disconnect on a detachable run: write NOTHING. The agent is
-      // still running and a later attach can take it over, so the record stays
-      // `'running'`; the detach path records `detachedSince` for the reaper.
+      // A plain disconnect on a detachable or interrupted run: write NOTHING.
+      // Either the agent is still running and a later attach can take it over
+      // (the record stays `'running'`; the detach path records `detachedSince`
+      // for the reaper), or the run is paused at an interrupt and the record
+      // must stay `'interrupted'` so the pending resumes can still be applied.
     },
   })
 }
