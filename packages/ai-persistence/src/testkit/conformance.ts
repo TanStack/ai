@@ -467,7 +467,7 @@ export function runPersistenceConformance(
         expect(resumed.threadId).toBeUndefined()
 
         await store.update('gen-1', {
-          status: 'complete',
+          status: 'completed',
           finishedAt: 2000,
           result: { images: [{ url: 'https://example.com/a.png' }] },
           artifacts: [
@@ -492,7 +492,7 @@ export function runPersistenceConformance(
         })
         const done = await store.get('gen-1')
         expect(done).toMatchObject({
-          status: 'complete',
+          status: 'completed',
           finishedAt: 2000,
           result: { images: [{ url: 'https://example.com/a.png' }] },
           usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
@@ -504,7 +504,7 @@ export function runPersistenceConformance(
         })
 
         await store.update('gen-1', {
-          status: 'error',
+          status: 'failed',
           error: { message: 'boom', code: 'provider_error' },
         })
         const failed = await store.get('gen-1')
@@ -515,7 +515,7 @@ export function runPersistenceConformance(
         })
 
         // Patching a missing run is a no-op (does not throw, does not create).
-        await store.update('gen-absent', { status: 'complete' })
+        await store.update('gen-absent', { status: 'completed' })
         expect(await store.get('gen-absent')).toBeNull()
       })
 
@@ -560,10 +560,13 @@ export function runPersistenceConformance(
           startedAt: 9000,
           threadId: 'thread-gen-other',
         })
-        await store.update('gen-late', { status: 'complete', finishedAt: 3500 })
+        await store.update('gen-late', {
+          status: 'completed',
+          finishedAt: 3500,
+        })
         expect(await store.findLatestForThread(thread)).toMatchObject({
           runId: 'gen-late',
-          status: 'complete',
+          status: 'completed',
         })
 
         // A run with no thread link is not attributed to any thread.

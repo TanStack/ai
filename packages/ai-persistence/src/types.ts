@@ -162,21 +162,21 @@ export interface RunStore {
   findActiveRun: (threadId: string) => Promise<RunRecord | null>
 }
 
-export type GenerationRunStatus =
-  | 'running'
-  | 'complete'
-  | 'error'
-  | 'interrupted'
+/**
+ * Lifecycle status of a generation run. Deliberately the same vocabulary as
+ * {@link RunStatus}, so an adapter that stores both kinds of run can share one
+ * status column and one set of checks.
+ */
+export type GenerationRunStatus = RunStatus
 
 /**
  * A single generation run (one `generateImage` / `generateVideo` / … call).
  *
- * Its primary identity is `runId` (the run/request id the activity mints — the
- * same AG-UI run id the client sends on the wire) — a generation has no
- * conversation, so `threadId` is only an OPTIONAL *link* to a chat when the
- * product wants one (e.g. to correlate a generation with the thread that
- * triggered it). Do not key generation state on the chat {@link RunStore} /
- * {@link Scope.threadId}.
+ * Its primary identity is `runId`: the run/request id the activity mints, the
+ * same AG-UI run id the client sends on the wire. `threadId` is the SLOT the
+ * run fills, a stable app-chosen name that groups successive runs of the same
+ * thing, and it is what a server-driven client hydrates by. Generation state is
+ * kept here, never in the chat {@link RunStore}.
  *
  * `result` holds terminal result METADATA (ids, model, urls, a provider video
  * job id), never the media bytes — those live in a {@link BlobStore}.
@@ -188,7 +188,13 @@ export type GenerationRunStatus =
  */
 export interface GenerationRunRecord {
   runId: string
-  /** Optional link to the chat conversation that triggered this generation. */
+  /**
+   * The scope this run belongs to: a stable, app-chosen name for the slot
+   * successive runs fill (`product-123-hero`, `video-9-start-frame`), which
+   * `findLatestForThread` hydrates by. `withGenerationPersistence` requires it
+   * and always records it; the field stays optional for records written by
+   * other means.
+   */
   threadId?: string
   /** `'image' | 'audio' | 'tts' | 'video' | 'transcription'`. */
   activity: string
@@ -206,9 +212,9 @@ export interface GenerationRunRecord {
 }
 
 /**
- * Durable store for generation run records — the generation counterpart to
- * {@link RunStore}, keyed by its own `runId` rather than a conversation
- * `threadId`.
+ * Durable store for generation run records, the generation counterpart to
+ * {@link RunStore}. Keyed by its own `runId`, with `threadId` the slot
+ * {@link GenerationRunStore.findLatestForThread} looks runs up by.
  */
 export interface GenerationRunStore {
   /**

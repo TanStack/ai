@@ -329,7 +329,7 @@ export default {
     const stream = generateImage({
       adapter: openaiImage('gpt-image-1'),
       prompt,
-      threadId, // optional link recorded on the job + artifacts
+      threadId, // the slot recorded on the job + artifacts
       stream: true,
       middleware: [
         withGenerationPersistence(generationPersistence(env), { threadId }),

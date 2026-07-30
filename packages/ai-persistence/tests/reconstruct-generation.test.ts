@@ -22,7 +22,7 @@ describe('reconstructGeneration', () => {
       startedAt: 1000,
     })
     await persistence.stores.generationRuns.update('job-done', {
-      status: 'complete',
+      status: 'completed',
       finishedAt: 2000,
       result: { id: 'image-result' },
     })
@@ -152,7 +152,7 @@ describe('getGenerationHydration', () => {
       startedAt: 1000,
     })
     await persistence.stores.generationRuns.update('job-old', {
-      status: 'complete',
+      status: 'completed',
       finishedAt: 1500,
       result: { id: 'old-result' },
     })
@@ -165,7 +165,7 @@ describe('getGenerationHydration', () => {
       startedAt: 2000,
     })
     await persistence.stores.generationRuns.update('job-new', {
-      status: 'complete',
+      status: 'completed',
       finishedAt: 2500,
       result: { id: 'new-result' },
     })

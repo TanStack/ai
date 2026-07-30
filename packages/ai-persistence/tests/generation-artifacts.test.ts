@@ -384,7 +384,7 @@ describe('withGenerationPersistence generation artifacts', () => {
       activity: 'image',
       provider: 'test-image-provider',
       model: 'test-image-model',
-      status: 'complete',
+      status: 'completed',
     })
     expect(job?.finishedAt).toEqual(expect.any(Number))
     // Terminal result metadata is captured on the job (never the media bytes).
@@ -439,7 +439,7 @@ describe('withGenerationPersistence generation artifacts', () => {
     const job = await persistence.stores.generationRuns.get('run-error')
     expect(job).toMatchObject({
       runId: 'run-error',
-      status: 'error',
+      status: 'failed',
       error: { message: 'boom' },
     })
   })

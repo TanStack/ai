@@ -1560,7 +1560,7 @@ export function withGenerationPersistence(
       info: GenerationFinishInfo,
     ) {
       await generationRuns.update(runIdOf(ctx), {
-        status: 'complete',
+        status: 'completed',
         finishedAt: Date.now(),
         ...(info.usage ? { usage: info.usage } : {}),
       })
@@ -1568,7 +1568,7 @@ export function withGenerationPersistence(
 
     async onError(ctx: GenerationMiddlewareContext, info: GenerationErrorInfo) {
       await generationRuns.update(runIdOf(ctx), {
-        status: 'error',
+        status: 'failed',
         finishedAt: Date.now(),
         error: {
           message:

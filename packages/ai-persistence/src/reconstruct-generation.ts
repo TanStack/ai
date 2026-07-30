@@ -62,9 +62,9 @@ function snapshotStatus(
   switch (status) {
     case 'running':
       return 'running'
-    case 'complete':
+    case 'completed':
       return 'complete'
-    case 'error':
+    case 'failed':
     case 'interrupted':
       return 'error'
   }

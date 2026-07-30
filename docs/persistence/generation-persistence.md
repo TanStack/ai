@@ -57,11 +57,11 @@ The record's lifecycle is small — one status field the middleware advances:
 ```mermaid
 stateDiagram-v2
     [*] --> running : generation starts (idempotent createOrResume)
-    running --> complete : finish — result metadata saved
-    running --> error : error
+    running --> completed : finish, result metadata saved
+    running --> failed : error
     running --> interrupted : abort
-    complete --> [*]
-    error --> [*]
+    completed --> [*]
+    failed --> [*]
     interrupted --> [*]
 ```
 

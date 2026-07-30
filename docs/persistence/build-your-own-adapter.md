@@ -131,15 +131,16 @@ subtle bugs.
 The records the stores hold form a small schema. The thread is not a table of
 its own — it exists as the `thread_id` key the other records hang off — and
 `metadata` is independent of all of it (its identity is `(namespace, key)`).
-Note the asymmetry on the generation side: a chat run always belongs to a
-thread, but a generation run is keyed by its own `run_id` and links to a thread
-only optionally:
+Note the asymmetry on the generation side. A chat run belongs to a thread, and
+its own `run_id` is secondary. A generation run is keyed by its own `run_id`
+first, and its `thread_id` names the slot the run fills, which is what
+`findLatestForThread` hydrates by:
 
 ```mermaid
 erDiagram
     MESSAGES ||--o{ RUN : "thread_id — a thread has many runs"
     RUN ||--o{ INTERRUPT : "run_id — a run may pause on interrupts"
-    MESSAGES ||..o{ GENERATION_RUN : "thread_id — optional link"
+    MESSAGES ||..o{ GENERATION_RUN : "thread_id, the slot a run fills"
     GENERATION_RUN ||--o{ ARTIFACT : "run_id — a run produces artifacts"
     ARTIFACT ||--|| BLOB : "blob_key — the bytes"
 
@@ -163,9 +164,9 @@ erDiagram
     }
     GENERATION_RUN {
         string run_id PK
-        string thread_id "optional"
+        string thread_id "the slot this run fills"
         string activity "image | audio | tts | video | transcription"
-        string status "running | complete | error | interrupted"
+        string status "running | completed | failed | interrupted"
     }
     ARTIFACT {
         string artifact_id PK
@@ -673,8 +674,8 @@ import type {
 function toGenerationRunStatus(value: unknown): GenerationRunStatus {
   switch (value) {
     case 'running':
-    case 'complete':
-    case 'error':
+    case 'completed':
+    case 'failed':
     case 'interrupted':
       return value
     default:
@@ -1351,18 +1352,22 @@ reject nullish values outright the way the SQLite store above does.
 
 ### GenerationRunStore
 
-The generation counterpart to `RunStore`, keyed by `runId` rather than a
-conversation `threadId`. `withGenerationPersistence` requires this store, not
-`runs`.
+The generation counterpart to `RunStore`. Keyed by its own `runId`, with
+`threadId` the slot `findLatestForThread` looks runs up by.
+`withGenerationPersistence` requires this store, not `runs`.
+
+Its `status` uses the same vocabulary as a chat run's `RunStatus`, so one status
+column and one set of checks cover both tables.
 
 ```ts
 import type { PersistedArtifactRef, TokenUsage } from '@tanstack/ai'
 
-type GenerationRunStatus = 'running' | 'complete' | 'error' | 'interrupted'
+// The same vocabulary as a chat run's `RunStatus`.
+type GenerationRunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
 interface GenerationRunRecord {
   runId: string
-  threadId?: string // optional link to a chat conversation
+  threadId?: string // the slot this run fills, hydrated by findLatestForThread
   activity: string // 'image' | 'audio' | 'tts' | 'video' | 'transcription'
   provider: string
   model: string
