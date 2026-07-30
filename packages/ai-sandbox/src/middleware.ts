@@ -123,7 +123,7 @@ function tenantFrom(
  * falls back to a process-lifetime in-memory default, which is correct for a
  * single process but NOT across replicas.
  */
-export interface SandboxMiddlewareOptions {
+export interface SandboxMiddlewareOptions<TOffset extends string = string> {
   /**
    * Durable instance map (which provider sandbox to resume for a key). Pass
    * your own store to make resume survive across processes/replicas.
@@ -156,8 +156,12 @@ export interface SandboxMiddlewareOptions {
   /**
    * Delivery durability for the run's event log, plus the journal and detach
    * knobs. Requires `runs`; either alone is not durable.
+   *
+   * `TOffset` is inferred from the adapter passed here, so a branded-cursor
+   * backend (`durableStream`) wires without a cast and without the call site
+   * ever naming the parameter.
    */
-  durability?: SandboxDurabilityOptions
+  durability?: SandboxDurabilityOptions<TOffset>
 }
 
 /**
@@ -167,7 +171,12 @@ export interface SandboxMiddlewareOptions {
  */
 function buildEnsureCtx(
   ctx: ChatMiddlewareContext,
-  options: SandboxMiddlewareOptions | undefined,
+  // Narrowed to the two seams it reads rather than taking the whole options
+  // object: `SandboxMiddlewareOptions` is now generic in the durability offset,
+  // and `SandboxMiddlewareOptions<TOffset>` is not assignable to
+  // `SandboxMiddlewareOptions<string>`. Both members here are offset-free, so
+  // the narrowing keeps this helper independent of that parameter entirely.
+  options: Pick<SandboxMiddlewareOptions, 'instances' | 'locks'> | undefined,
 ): SandboxEnsureContext {
   return {
     threadId: ctx.threadId,
@@ -216,9 +225,9 @@ async function dispatchDefinitionHooks(
   }
 }
 
-export function withSandbox(
+export function withSandbox<TOffset extends string = string>(
   definition: SandboxDefinition,
-  options?: SandboxMiddlewareOptions,
+  options?: SandboxMiddlewareOptions<TOffset>,
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
@@ -243,7 +252,11 @@ export function withSandbox(
 
       // Resolving here (not lazily on the abort path) is what makes a malformed
       // `detachedRunTtl` fail before an agent starts spending tokens.
-      const durability = resolveSandboxDurability(options)
+      // `TOffset` is passed explicitly: `options` is possibly `undefined` here,
+      // so inference has nothing to work from on that branch and would fall
+      // back to the `= string` default, re-erecting the very wall this
+      // parameter exists to remove.
+      const durability = resolveSandboxDurability<TOffset>(options)
       if (durability !== undefined) {
         provideSandboxDurability(ctx, durability)
         // A neutral boolean core owns, so `@tanstack/ai-persistence` can ask

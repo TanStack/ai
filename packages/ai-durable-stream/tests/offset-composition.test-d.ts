@@ -28,8 +28,15 @@
  * cast.
  */
 import { expectTypeOf } from 'vitest'
-import type { ReapOptions, SandboxRunDriverOptions } from '@tanstack/ai-sandbox'
-import type { StreamDurability } from '@tanstack/ai'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import type {
+  ReapOptions,
+  SandboxDefinition,
+  SandboxDurabilityOptions,
+  SandboxRunDriverOptions,
+  SandboxRunDurability,
+} from '@tanstack/ai-sandbox'
+import type { RunStore, StreamDurability } from '@tanstack/ai'
 import type { DurableStreamOffset, durableStream } from '../src'
 
 declare const logFor: (runId: string) => ReturnType<typeof durableStream>
@@ -77,3 +84,36 @@ threaded.read('not-a-cursor')
 expectTypeOf<
   Parameters<SandboxRunDriverOptions<DurableStreamOffset>['durability']>
 >().toEqualTypeOf<[runId: string]>()
+
+// ---------------------------------------------------------------------------
+// The other half of the durable path: `withSandbox`'s durability option, i.e.
+// the POST handler that STARTS the run.
+//
+// `SandboxDurabilityOptions.adapter` hardcoded `StreamDurability`, so the exact
+// wiring `docs/sandbox/takeover.md` prescribes could be written on the resume
+// route (via `sandboxRunDriver`, above) but NOT on the route that starts the
+// run — the same TS2322 on `read`, from the opposite end of the same feature.
+// This is what forced the takeover doc's POST-handler snippet to use
+// `memoryStream`.
+// ---------------------------------------------------------------------------
+
+declare const definition: SandboxDefinition
+declare const runs: RunStore
+
+const startOption: SandboxDurabilityOptions<DurableStreamOffset> = {
+  adapter: durability,
+}
+void startOption
+
+// Inference, with no `TOffset` written anywhere — the shape an application
+// actually types.
+withSandbox(definition, { runs, durability: { adapter: durability } })
+withSandbox(definition, {
+  runs,
+  durability: { adapter: durability, attach: true, journal: '/tmp/runs' },
+})
+
+// A real `durableStream` also satisfies the bus payload's offset-covariant view
+// of a log, which is what lets one concrete capability instantiation carry it.
+const busLog: SandboxRunDurability['adapter'] = durability
+void busLog

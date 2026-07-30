@@ -17,13 +17,22 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /** `withSandbox(sandbox, { durability })`. */
-export interface SandboxDurabilityOptions {
+export interface SandboxDurabilityOptions<TOffset extends string = string> {
   /**
    * Delivery-durable event log for the run. Same key and shape as the
    * transport's `durability.adapter`, so one adapter instance can be handed to
    * both `withSandbox` and `toServerSentEventsResponse`.
+   *
+   * Generic in the offset type, defaulted to `string`, for the same reason
+   * {@link SandboxRunDriverOptions} and {@link ReapOptions} are:
+   * `StreamDurability` is INVARIANT in `TOffset` (`read` takes an offset in),
+   * so a backend that brands its cursors — `@tanstack/ai-durable-stream`'s
+   * `durableStream`, the multi-host production backend the sandbox docs point
+   * at — is not assignable to `StreamDurability<string>`. Without the parameter
+   * the resume route could be wired with it and the route that STARTS the run
+   * could not.
    */
-  adapter: StreamDurability
+  adapter: StreamDurability<TOffset>
   /** Journal directory inside the sandbox. Defaults to `/tmp/tanstack-runs`. */
   journal?: string
   /**
@@ -62,10 +71,33 @@ export interface SandboxDurabilityOptions {
   attachWaitMs?: number
 }
 
+/**
+ * The view of a caller's event log that the capability bus carries.
+ *
+ * Deliberately NOT the whole `StreamDurability`. `read` is the only member that
+ * takes an offset *in*, which is what makes `StreamDurability` invariant in
+ * `TOffset` and a branded-cursor backend unassignable to
+ * `StreamDurability<string>`. Every other member mentions the offset only in a
+ * return position, so this type is a genuine SUPERTYPE of
+ * `StreamDurability<TOffset>` for every `TOffset extends string` — which is the
+ * one property that lets a single concrete capability instantiation accept a
+ * branded backend. `createCapability<T>()` forces exactly one instantiation
+ * (the value type is a plain type argument, and TypeScript has no higher-kinded
+ * types), so the payload cannot be parameterized the way the *option* above is.
+ *
+ * Dropping `read` costs nothing, and that is a property of the seam rather than
+ * luck: the bus is the JOURNAL/ALIGNMENT seam, and alignment reads the stored
+ * prefix through `snapshot()` — never `read()`, which tails an open log forever
+ * (see `alignToStoredLog`). Replay *by offset* belongs to the delivery seam,
+ * and that seam (`toServerSentEventsResponse`, `sandboxRunDriver`) receives the
+ * application's own adapter directly, with its brand intact.
+ */
+export type SandboxDurabilityLog = Omit<StreamDurability, 'read'>
+
 /** Resolved durability, published on the capability bus by `withSandbox`. */
 export interface SandboxRunDurability {
   runs: RunStore
-  adapter: StreamDurability
+  adapter: SandboxDurabilityLog
   journalDir: string
   attach: boolean
   detachOnDisconnect: boolean
@@ -249,9 +281,9 @@ export function parseRunTtlMs(value: string | undefined): number {
  * `parseRunTtlMs` runs here, at setup, so a malformed `detachedRunTtl` fails
  * before an agent starts spending tokens rather than when the reaper first runs.
  */
-export function resolveSandboxDurability(
+export function resolveSandboxDurability<TOffset extends string = string>(
   options:
-    | { runs?: RunStore; durability?: SandboxDurabilityOptions }
+    | { runs?: RunStore; durability?: SandboxDurabilityOptions<TOffset> }
     | undefined,
 ): SandboxRunDurability | undefined {
   const runs = options?.runs

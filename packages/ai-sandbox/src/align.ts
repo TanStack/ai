@@ -166,8 +166,14 @@ export interface AlignToStoredLogOptions<TOffset extends string = string> {
    * Generic in the offset type, defaulted to `string`, for the same reason
    * {@link RunDeps} is: a branded-cursor backend's `StreamDurability<TOffset>`
    * is not assignable to `StreamDurability<string>`.
+   *
+   * Narrowed to `snapshot` — the only member this transform touches, as the
+   * function docs below spell out — so the capability-bus view of a log
+   * (`SandboxDurabilityLog`, which omits the offset-invariant `read`) can be
+   * passed straight through by `alignedIfAttaching`. A full `StreamDurability`
+   * still satisfies it, so no existing caller changes.
    */
-  durability: StreamDurability<TOffset>
+  durability: Pick<StreamDurability<TOffset>, 'snapshot'>
   /** Optional sink for the alignment summary. */
   logger?: InternalLogger
   /**

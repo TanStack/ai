@@ -25,15 +25,20 @@
  * `packages/ai-durable-stream/tests/offset-composition.test-d.ts`.
  */
 import { expectTypeOf } from 'vitest'
+import { withSandbox } from '../src'
 import type {
   AlignToStoredLogOptions,
   ReapOptions,
   RunDeps,
+  SandboxDefinition,
+  SandboxDurabilityOptions,
+  SandboxMiddlewareOptions,
   SandboxRunDriverOptions,
+  SandboxRunDurability,
 } from '../src'
 import type { PipeToRunLogOptions, RunController } from '../src/run'
 import type { awaitLogQuiescence, fenceDurability } from '../src/claim'
-import type { StreamChunk, StreamDurability } from '@tanstack/ai'
+import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /** Same shape as `DurableStreamOffset`: a branded cursor plus two sentinels. */
 type BrandedOffset = `branded:${string}` | '-1' | 'now'
@@ -110,22 +115,100 @@ declare const branded: StreamDurability<BrandedOffset>
 branded.read('not-a-cursor')
 
 // ---------------------------------------------------------------------------
+// `withSandbox`'s durability option — the POST-handler half of the durable
+// path, and the last place the offset wall stood.
+//
+// The driver and the reaper (above) accept a branded backend, but
+// `SandboxDurabilityOptions.adapter` hardcoded `StreamDurability`, so
+// `withSandbox(sandbox, { runs, durability: { adapter } })` — the route that
+// STARTS a durable run — rejected the very adapter the resume route accepted:
+//
+//   error TS2322: Type 'StreamDurability<DurableStreamOffset>' is not
+//     assignable to type 'StreamDurability<string>'.
+//     Types of property 'read' are incompatible.
+//       Type 'string' is not assignable to type 'DurableStreamOffset'.
+//
+// An application could therefore wire the recommended production backend on
+// only one of the two routes it needs.
+// ---------------------------------------------------------------------------
+
+declare const definition: SandboxDefinition
+declare const runs: RunStore
+
+const brandedOption: SandboxDurabilityOptions<BrandedOffset> = {
+  adapter: brandedLog,
+}
+const brandedMiddlewareOptions: SandboxMiddlewareOptions<BrandedOffset> = {
+  runs,
+  durability: { adapter: brandedLog },
+}
+void brandedOption
+void brandedMiddlewareOptions
+
+// Inference at the real call site: an application never writes `TOffset`, so a
+// bare `withSandbox(...)` call is what has to compile.
+withSandbox(definition, { runs, durability: { adapter: brandedLog } })
+
+// …including with every other knob present, so the parameter is not silently
+// pinned by a sibling property.
+withSandbox(definition, {
+  runs,
+  durability: {
+    adapter: brandedLog,
+    journal: '/tmp/journal',
+    detachedRunTtl: '30m',
+    detachOnDisconnect: false,
+    attach: true,
+    pollIntervalMs: 50,
+    attachWaitMs: 1_000,
+  },
+})
+
+// The bus payload is NOT parameterized, and that is the deliberate half of the
+// fix: `createCapability<T>()` forces one concrete instantiation, so the
+// payload's log is typed as the offset-covariant view (`read` omitted) that
+// every `StreamDurability<TOffset>` is assignable to. Assert both directions —
+// a branded log goes IN, and nothing tries to take an offset back OUT through
+// `read`.
+declare const payload: SandboxRunDurability
+const payloadLog: SandboxRunDurability['adapter'] = brandedLog
+void payloadLog
+expectTypeOf<SandboxRunDurability['adapter']>().not.toHaveProperty('read')
+expectTypeOf(payload.adapter.snapshot).toBeCallableWith()
+
+// ---------------------------------------------------------------------------
 // Backward compatibility: the `= string` default is what keeps every existing
 // call site compiling with no change.
 // ---------------------------------------------------------------------------
 
 declare const plainFactory: (runId: string) => StreamDurability
 
+declare const plainLog: StreamDurability
+
 const defaultDriver: SandboxRunDriverOptions['durability'] = plainFactory
 const defaultReap: ReapOptions['durability'] = plainFactory
 const defaultDeps: RunDeps['durability'] = plainFactory
+const defaultOption: SandboxDurabilityOptions['adapter'] = plainLog
+const defaultMiddleware: SandboxMiddlewareOptions = {
+  runs,
+  durability: { adapter: plainLog },
+}
 void defaultDriver
 void defaultReap
 void defaultDeps
+void defaultOption
+void defaultMiddleware
+
+// A call site that names no offset at all — today's every-existing-app shape.
+withSandbox(definition, { runs, durability: { adapter: plainLog } })
+withSandbox(definition)
 
 expectTypeOf<SandboxRunDriverOptions['durability']>().toEqualTypeOf<
   (runId: string) => StreamDurability<string>
 >()
 expectTypeOf<ReapOptions['durability']>().toEqualTypeOf<
   (runId: string) => StreamDurability<string>
+>()
+expectTypeOf<SandboxDurabilityOptions['adapter']>().toEqualTypeOf<
+  StreamDurability<string>
 >()

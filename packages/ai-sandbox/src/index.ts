@@ -276,6 +276,7 @@ export {
 } from './durability'
 export type {
   SandboxDurabilityOptions,
+  SandboxDurabilityLog,
   SandboxRunDurability,
 } from './durability'
 
