@@ -91,9 +91,74 @@ describe('local-process process', () => {
 
   it('advertises killableProcesses (killTree forcibly kills spawned processes)', async () => {
     const sbx = await fresh()
+    // NOTE: this only reads a module constant. What makes the constant TRUE is
+    // asserted end-to-end below and in `kill-tree.test.ts` — without those, a
+    // wrong `true` here would still pass and would silently push
+    // `journal-reader` onto its `'follow'` strategy.
     expect(sbx.capabilities.killableProcesses).toBe(true)
     await sbx.destroy()
   })
+})
+
+/**
+ * `killTree` has two entirely separate implementations (`handle.ts`): on Windows
+ * it walks `taskkill /T` plus an MSYS sweep — covered end-to-end in
+ * `kill-tree.test.ts` — and on POSIX it just signals the `sh` wrapper and trusts
+ * sh to forward on exec. Nothing asserted that the POSIX branch actually kills
+ * anything on any platform, so this closes that half.
+ *
+ * A command line no other process will match, so a `ps` sweep attributes a
+ * survivor to THIS test. The bracket keeps the grep from matching its own
+ * command line.
+ */
+const KILL_PROBE_SLEEP = '987654321'
+const KILL_PROBE_GREP = '98765[4]321'
+
+// The proof is a host process census, which is not portable: this asserts the
+// POSIX `child.kill(signal)` branch, and on Windows `killTree` never reaches it.
+const posixOnly = process.platform === 'win32' ? it.skip : it
+
+describe('local-process killTree — POSIX child.kill(signal) branch', () => {
+  posixOnly(
+    'a killed spawn is really gone from the host process table (skipped on Windows: killTree takes the taskkill/MSYS-sweep branch there, covered in kill-tree.test.ts)',
+    async () => {
+      const sbx = await fresh()
+
+      /** Rows for the probe in the HOST process table — `ps`, not the handle. */
+      const probeRows = async (): Promise<string> => {
+        const r = await sbx.process.exec(
+          `ps ax -o args= | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
+        )
+        expect(r.exitCode).toBe(0)
+        return r.stdout.trim()
+      }
+
+      const proc = await sbx.process.spawn(`sleep ${KILL_PROBE_SLEEP}`)
+      // Guard the guard: if the probe were never visible, its absence after the
+      // kill would prove nothing at all.
+      let visible = await probeRows()
+      for (let i = 0; i < 20 && visible === ''; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        visible = await probeRows()
+      }
+      expect(visible).toContain(KILL_PROBE_SLEEP)
+
+      // Default signal on purpose — the realistic call path, and the one
+      // `killableProcesses: true` is a promise about.
+      await proc.kill()
+      await proc.wait()
+
+      let survivors = await probeRows()
+      for (let i = 0; i < 20 && survivors !== ''; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        survivors = await probeRows()
+      }
+      expect(survivors).toBe('')
+
+      await sbx.destroy()
+    },
+    30_000,
+  )
 })
 
 describe('local-process + spawnNdjson (real agent-CLI streaming)', () => {
@@ -209,7 +274,14 @@ describe('local-process + bootstrap + ensure', () => {
       'pnpm',
     )
     await sbx.destroy()
-  })
+    // Explicit timeout: this spawns several real shells (setup command + two
+    // package-manager probes) and took 1.9–3.9s unloaded, so vitest's 5s DEFAULT
+    // left almost no headroom and it timed out intermittently under parallel
+    // load. Nothing here asserts latency — the assertions are on `ranSetup` and
+    // the detected package manager — so the deadline was measuring the machine,
+    // not the behaviour. Matches the 30s every other process-spawning test in
+    // this package already uses.
+  }, 30_000)
 
   it('ensure() creates a sandbox and resumes it on a second run', async () => {
     const def = defineSandbox({

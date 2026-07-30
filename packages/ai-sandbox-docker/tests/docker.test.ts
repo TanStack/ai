@@ -5,9 +5,10 @@ import { dockerSandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 // Auto-gate: only run when a Docker daemon is reachable.
+const docker = new Dockerode()
 let dockerAvailable = false
 try {
-  await new Dockerode().ping()
+  await docker.ping()
   dockerAvailable = true
 } catch {
   // no daemon — these tests are skipped
@@ -15,22 +16,28 @@ try {
 
 const IMAGE = 'alpine:3'
 
+/**
+ * A command line no other process on the machine will match, so a `ps` sweep
+ * inside the container attributes a survivor to THIS test and nothing else. The
+ * bracket in the grep pattern below keeps the grep from matching its own
+ * command line.
+ */
+const KILL_PROBE_SLEEP = '987654321'
+const KILL_PROBE_GREP = '98765[4]321'
+
 describe.skipIf(!dockerAvailable)(
   'docker provider (gated on a reachable daemon)',
   () => {
     it('creates a container, runs exec, fs round-trip, snapshot + destroy', async () => {
       const provider = dockerSandbox({ image: IMAGE })
       let sbx: SandboxHandle | undefined
+      let snapshotTag: string | undefined
       try {
         sbx = await provider.create({})
 
         const echo = await sbx.process.exec('echo hello-docker')
         expect(echo.stdout.trim()).toBe('hello-docker')
         expect(echo.exitCode).toBe(0)
-
-        // kill()/abort destroy the hijacked exec stream, forcibly terminating
-        // the container-side process.
-        expect(sbx.capabilities.killableProcesses).toBe(true)
 
         await sbx.fs.write('/workspace/note.txt', 'inside the container')
         expect(await sbx.fs.exists('/workspace/note.txt')).toBe(true)
@@ -46,6 +53,69 @@ describe.skipIf(!dockerAvailable)(
 
         const snap = await sbx.snapshot?.('test')
         expect(snap?.id).toMatch(/tanstack-ai-sandbox-snapshot/)
+        snapshotTag = snap?.id
+
+        // The returned id is a template string composed BEFORE the commit runs,
+        // so asserting its shape proves nothing about whether a snapshot exists
+        // — delete the `container.commit()` call and a shape assertion still
+        // passes. Inspect the image instead: this is the package's only snapshot
+        // coverage, so it has to fail when no image was actually committed.
+        const inspected = await docker.getImage(snapshotTag!).inspect()
+        expect(inspected.RepoTags).toContain(snapshotTag)
+        // ...and the snapshot really captured this container's filesystem.
+        expect(inspected.Id).not.toBe('')
+      } finally {
+        if (snapshotTag !== undefined) {
+          await docker
+            .getImage(snapshotTag)
+            .remove({ force: true })
+            .catch(() => {
+              // Best effort: never mask the real assertion failure.
+            })
+        }
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
+    it('kill() actually terminates the container-side process, not just the client stream', async () => {
+      const provider = dockerSandbox({ image: IMAGE })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+        const handle = sbx
+
+        /** The probe process's rows in the container's own process table. */
+        const probeRows = async (): Promise<string> =>
+          (
+            await handle.process.exec(
+              `ps | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
+            )
+          ).stdout.trim()
+
+        const proc = await handle.process.spawn(
+          `echo up; sleep ${KILL_PROBE_SLEEP}`,
+        )
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('up')) break
+        }
+
+        // Guard the guard: if the probe were never visible here, its absence
+        // after kill() would prove nothing.
+        expect(await probeRows()).toContain(KILL_PROBE_SLEEP)
+
+        await proc.kill()
+
+        // `killableProcesses: true` claims the process is FORCIBLY terminated,
+        // so ask the container — do not take the handle's word for it. Reading
+        // `capabilities.killableProcesses` here would only re-read a module
+        // constant, and passed even when kill() was a no-op that left this
+        // `sleep` running until the container was removed.
+        let survivors = await probeRows()
+        for (let i = 0; i < 20 && survivors !== ''; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          survivors = await probeRows()
+        }
+        expect(survivors).toBe('')
       } finally {
         await sbx?.destroy()
       }

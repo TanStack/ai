@@ -6,6 +6,7 @@ export {
   LOCAL_PROCESS_CAPS,
   msysDescendantWinPids,
   parseMsysProcessTable,
+  taskkillPid,
 } from './handle'
 export type {
   LocalProcessHandleOptions,

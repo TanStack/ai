@@ -118,11 +118,16 @@ export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   ports: true,
   backgroundProcesses: true,
   writableStdin: true,
-  // `killTree` forcibly kills the spawned `sh` wrapper AND its descendants
-  // (signal-forwarding on POSIX; on Windows `taskkill /T` plus a verified sweep
-  // of the MSYS descendants `/T` cannot reach — see `killTree`), and the same
-  // `killTree` runs on `signal` abort in both `exec` and `spawn` — so a
-  // spawned process is always forcibly terminable by the caller.
+  // `killTree` forcibly kills the spawned `sh` wrapper AND its descendants — on
+  // POSIX by signalling the whole process GROUP (the wrapper is spawned
+  // `detached`, so a negative pid reaches every descendant), on Windows by
+  // `taskkill /T` plus a verified sweep of the MSYS descendants `/T` cannot
+  // reach. The same `killTree` runs on `signal` abort in both `exec` and
+  // `spawn`, so a spawned process is always forcibly terminable by the caller.
+  //
+  // Signalling the wrapper alone is NOT enough on either platform and this must
+  // not be "simplified" back to that: `sh -c '<cmd>'` does not reliably exec its
+  // command, so killing the `sh` leaves the command running (see `killTree`).
   killableProcesses: true,
   snapshots: false,
   networkPolicy: false,
@@ -270,10 +275,10 @@ function isAlive(pid: number): boolean {
  * What a finished `taskkill` invocation actually means.
  *
  * - `killed` — it exited `0`; the pid it was given is gone.
- * - `already-exited` — status `128`, or a "not found" / "does not exist"
- *   message. The process was gone before we asked. This is SUCCESS: nothing
- *   leaked, and retrying or reporting it would make every normal teardown look
- *   like a failure.
+ * - `already-exited` — the process was gone before we asked. This is SUCCESS:
+ *   nothing leaked, and retrying or reporting it would make every normal
+ *   teardown look like a failure. taskkill says this three different ways, all
+ *   of which must be recognized (see {@link ALREADY_EXITED_STDERR}).
  * - `failed` — any other nonzero status: a real refusal (access denied, a
  *   protected process). Worth reporting.
  *
@@ -283,19 +288,48 @@ function isAlive(pid: number): boolean {
  */
 export type TaskkillOutcome = 'killed' | 'already-exited' | 'failed'
 
+/**
+ * taskkill wordings that all mean "it was already gone".
+ *
+ * Status `128` with `The process "<pid>" not found.` is the overwhelmingly
+ * common one (verified against a pid whose process had already exited). The
+ * others come out of `/T`, which reports per tree member and can hit a child
+ * that exits mid-walk:
+ *
+ * - `… could not be terminated. Reason: There is no running instance of the
+ *   task.` — status `1`, matching NEITHER of the two wordings this regex
+ *   originally covered, so it was classified `failed` and logged a warning on
+ *   what is a completely normal teardown. That misclassification is the known
+ *   suspect for the intermittent single-warning failure of the
+ *   "a normal kill neither throws nor reports a failure" case below.
+ * - `does not exist` — the older wording.
+ *
+ * A refusal (`Access is denied.`, `This is critical system process.`) must NOT
+ * match: those mean the process is still running and the caller has leaked it.
+ */
+const ALREADY_EXITED_STDERR =
+  /not found|does not exist|no running instance of the task/i
+
 export function classifyTaskkillResult(
   status: number | null,
   stderr: string,
 ): TaskkillOutcome {
   if (status === 0) return 'killed'
-  if (status === 128 || /not found|does not exist/i.test(stderr)) {
+  if (status === 128 || ALREADY_EXITED_STDERR.test(stderr)) {
     return 'already-exited'
   }
   return 'failed'
 }
 
-/** `taskkill` one pid. Returns whether the process is gone afterwards. */
-function taskkillPid(
+/**
+ * `taskkill` one pid. Returns whether the process is gone afterwards.
+ *
+ * Exported for tests alongside {@link classifyTaskkillResult}: the classifier
+ * can be unit-tested on fixed strings, but only driving the real binary proves
+ * the warning channel actually fires — and that the raw stderr reaches the log,
+ * without which an intermittent misclassification is undiagnosable.
+ */
+export function taskkillPid(
   pid: number,
   tree: boolean,
   logger?: LocalProcessLogger,
@@ -327,9 +361,20 @@ function taskkillPid(
  * We spawn every command through `sh -c <command>`, so `child` is the `sh`
  * wrapper. `child.kill()` signals only that wrapper — its grandchildren (e.g.
  * `node` → a harness binary like `opencode serve`) keep running and hold their
- * ports, orphaning a server that then blocks the next run's port. On POSIX we
- * signal the wrapper (sh forwards on exec); Windows has no process groups, so
- * we walk the tree with `taskkill /T` and then sweep what `/T` cannot reach.
+ * ports, orphaning a server that then blocks the next run's port.
+ *
+ * ON POSIX we signal the process GROUP (`process.kill(-pid, …)`), which is why
+ * `spawn` passes `detached: true` (see {@link spawnDetached}) to make the
+ * wrapper its own group leader. Signalling the bare wrapper is NOT enough, and
+ * the comment that used to sit here — "sh forwards on exec" — was wrong: `sh -c
+ * '<cmd>'` does not reliably exec its command. Measured on Linux (node:22,
+ * `/bin/sh` → dash): `sh -c 'sleep 987654321'` shows BOTH `sh` and `sleep` in
+ * `ps`, and `child.kill('SIGKILL')` leaves `sleep` running. That is the POSIX
+ * twin of the Windows `tail.exe` leak below, and it made
+ * `killableProcesses: true` false on every platform.
+ *
+ * ON WINDOWS there are no process groups, so we walk the tree with
+ * `taskkill /T` and then sweep what `/T` cannot reach.
  *
  * WHY `taskkill /T` IS NOT ENOUGH (measured, git-bash `sh` on Windows 11). For a
  * multi-statement command — e.g. `journalFollowCommand`'s
@@ -358,8 +403,26 @@ function killTree(
   logger?: LocalProcessLogger,
 ): void {
   const pid = child.pid
-  if (pid === undefined || process.platform !== 'win32') {
-    child.kill(signal)
+  if (pid === undefined) return
+  if (process.platform !== 'win32') {
+    try {
+      // Negative pid = "the whole group", reaching the descendants that
+      // signalling `pid` alone would orphan.
+      process.kill(-pid, signal ?? 'SIGTERM')
+    } catch (error) {
+      // ESRCH means the group is already gone — the ordinary "it exited on its
+      // own" teardown, not a failure, and must stay silent (see the
+      // already-exited reasoning on `classifyTaskkillResult`). Anything else and
+      // we still try the wrapper alone: worse than a group kill, better than
+      // giving up.
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        logger?.warn('local-process: could not signal the process group', {
+          pid,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        child.kill(signal)
+      }
+    }
     return
   }
 
@@ -383,6 +446,21 @@ function killTree(
     })
   }
 }
+
+/**
+ * `spawn` options that make {@link killTree}'s POSIX branch able to do its job.
+ *
+ * `detached: true` puts the `sh` wrapper in its own process group, so
+ * `process.kill(-pid, …)` reaches the command and its descendants. Without it
+ * the wrapper shares OUR group and the negative pid would signal the test
+ * runner / host process itself — so this flag and that kill are a single
+ * mechanism and must not be separated.
+ *
+ * WINDOWS IS DELIBERATELY EXCLUDED: `detached` there means "give the child its
+ * own console", which can flash a console window, and the Windows branch of
+ * `killTree` uses `taskkill /T` instead and has no use for a group.
+ */
+const spawnDetached = process.platform !== 'win32'
 
 export interface LocalProcessHandleOptions {
   /** Real host directory backing this sandbox (its workspace root). */
@@ -554,6 +632,7 @@ export class LocalProcessHandle implements SandboxHandle {
       const child = spawn(posixShell(), ['-c', command], {
         cwd: this.resolveCwd(opts?.cwd),
         env: this.mergedEnv(opts?.env),
+        detached: spawnDetached,
       })
       let stdout = ''
       let stderr = ''
@@ -579,6 +658,7 @@ export class LocalProcessHandle implements SandboxHandle {
     const child = spawn(posixShell(), ['-c', command], {
       cwd: this.resolveCwd(opts?.cwd),
       env: this.mergedEnv(opts?.env),
+      detached: spawnDetached,
     })
     if (opts?.signal) {
       opts.signal.addEventListener(

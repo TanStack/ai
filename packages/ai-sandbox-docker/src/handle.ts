@@ -7,6 +7,7 @@
  * dependency); the container image must provide `sh`, `base64`, and coreutils
  * (true for node:* / debian-based images).
  */
+import { randomUUID } from 'node:crypto'
 import { PassThrough, Writable } from 'node:stream'
 import {
   UnsupportedCapabilityError,
@@ -35,9 +36,18 @@ export const DOCKER_CAPS: SandboxCapabilities = {
   // over stdin loses its streamed output. Declare stdin non-writable so adapters
   // use the file-redirect path (`cmd < promptfile`) instead — reliable here.
   writableStdin: false,
-  // `spawnProcess.kill()` and `signal` abort both destroy the hijacked exec
-  // stream (`stream.destroy()`), which tears down the container-side process
-  // tied to that exec session — a spawned process is forcibly terminable.
+  // `spawnProcess.kill()` and `signal` abort signal the container-side process
+  // INSIDE the container, by the pid it recorded for itself on startup (see
+  // `pidRecordingCommand`), and only then destroy the hijacked exec stream —
+  // so a spawned process is genuinely, forcibly terminable.
+  //
+  // Destroying the stream is NOT sufficient on its own and must never be the
+  // whole story here: it detaches the client from the exec session while Docker
+  // leaves the exec's process running (measured — a `sleep` spawned through
+  // this handle survived `kill()` and was still in the container's `ps` until
+  // the container itself was removed). That is precisely the orphan leak this
+  // capability promises callers is impossible, and `journal-reader` reads it to
+  // choose its `'follow'` (killable) vs `'poll'` strategy.
   killableProcesses: true,
   snapshots: true,
   networkPolicy: false,
@@ -48,6 +58,71 @@ export const DOCKER_CAPS: SandboxCapabilities = {
 /** POSIX single-quote escape for embedding paths in `sh -c`. */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * Wrap `command` so the container-side process records its own pid to
+ * `pidFile` before becoming the command.
+ *
+ * This is what makes killing possible at all. `stream.destroy()` on the
+ * hijacked exec stream only detaches the CLIENT; the exec's process keeps
+ * running inside the container, and `docker` exposes no "signal this exec" API
+ * (`container.kill` signals PID 1, killing the whole sandbox). The pid the
+ * process reports for itself is the only handle we get on it.
+ *
+ * `exec` matters: without it the recorded pid would be a wrapper shell, and
+ * killing that shell would leave the real command behind — the exact leak shape
+ * this is here to prevent.
+ */
+function pidRecordingCommand(command: string, pidFile: string): string {
+  return `echo $$ > ${q(pidFile)}; exec sh -c ${q(command)}`
+}
+
+/**
+ * A `kill -<sig>` argument for a Node signal name or number. Anything
+ * unrecognized degrades to `TERM` rather than interpolating attacker-influenced
+ * text into a shell command.
+ */
+function killSignalArg(signal?: NodeJS.Signals | number): string {
+  if (typeof signal === 'number' && Number.isInteger(signal) && signal > 0) {
+    return String(signal)
+  }
+  if (typeof signal === 'string') {
+    const name = signal.replace(/^SIG/, '')
+    if (/^[A-Z][A-Z0-9]*$/.test(name)) return name
+  }
+  return 'TERM'
+}
+
+/**
+ * Shell that signals the pid recorded in `pidFile`, then removes the file.
+ *
+ * The process GROUP is signalled first (`kill -SIG -<pid>`): a docker-exec
+ * process is its own group leader, so the negative form also reaches background
+ * grandchildren (`cmd & …`) that signalling the bare pid would orphan. If it is
+ * not a group leader the negative form fails harmlessly and the bare pid is
+ * signalled instead. Either way we escalate to `KILL`, because a process
+ * ignoring `TERM` is still a leak.
+ *
+ * Every step is `|| true`-shaped (`2>/dev/null`, trailing `:`) so teardown can
+ * never fail: callers are `kill()` and abort handlers, where a throw would wedge
+ * the caller instead of freeing anything.
+ */
+function killRecordedPidCommand(
+  pidFile: string,
+  signal?: NodeJS.Signals | number,
+): string {
+  const sig = killSignalArg(signal)
+  return [
+    `pid=$(cat ${q(pidFile)} 2>/dev/null)`,
+    `if [ -n "$pid" ]; then`,
+    `  kill -${sig} -"$pid" 2>/dev/null || kill -${sig} "$pid" 2>/dev/null`,
+    `  sleep 0.2`,
+    `  kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null`,
+    `fi`,
+    `rm -f ${q(pidFile)}`,
+    `:`,
+  ].join('\n')
 }
 
 /**
@@ -196,12 +271,37 @@ export class DockerHandle implements SandboxHandle {
     )
   }
 
+  /**
+   * Signal the container-side process that recorded its pid to `pidFile`.
+   * Fire-and-forget by design: this runs from teardown paths (`kill()`, abort
+   * handlers) that must not throw, and the caller has already stopped caring
+   * about the process.
+   */
+  private killRecordedPid(
+    pidFile: string,
+    signal?: NodeJS.Signals | number,
+  ): void {
+    void this.exec(killRecordedPidCommand(pidFile, signal)).catch(() => {
+      // Nothing actionable: the container may already be stopping, which is
+      // itself a terminal kill of everything inside it.
+    })
+  }
+
   private async exec(
     command: string,
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
+    // Only pay for the pid-recording wrapper when the caller can actually abort
+    // — `exec` also backs every fs operation, which never needs a kill path.
+    const pidFile = opts?.signal
+      ? `/tmp/.tanstack-sandbox-exec-${randomUUID()}.pid`
+      : undefined
     const exec = await this.container.exec({
-      Cmd: ['sh', '-c', command],
+      Cmd: [
+        'sh',
+        '-c',
+        pidFile ? pidRecordingCommand(command, pidFile) : command,
+      ],
       AttachStdout: true,
       AttachStderr: true,
       WorkingDir: opts?.cwd ? this.abs(opts.cwd) : this.workdir,
@@ -226,13 +326,23 @@ export class DockerHandle implements SandboxHandle {
     this.docker.modem.demuxStream(stream, outW, errW)
 
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => stream.destroy(), {
-        once: true,
-      })
+      opts.signal.addEventListener(
+        'abort',
+        () => {
+          // Kill inside the container FIRST — detaching the stream on its own
+          // leaves the command running (see `pidRecordingCommand`).
+          if (pidFile) this.killRecordedPid(pidFile)
+          stream.destroy()
+        },
+        { once: true },
+      )
     }
 
     await new Promise<void>((resolve, reject) => {
       stream.on('end', resolve)
+      // A destroyed stream (abort) emits only `close`, never `end`, so without
+      // this an aborted exec would never settle at all.
+      stream.on('close', resolve)
       stream.on('error', reject)
     })
 
@@ -248,8 +358,9 @@ export class DockerHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
+    const pidFile = `/tmp/.tanstack-sandbox-spawn-${randomUUID()}.pid`
     const exec = await this.container.exec({
-      Cmd: ['sh', '-c', command],
+      Cmd: ['sh', '-c', pidRecordingCommand(command, pidFile)],
       AttachStdin: true,
       AttachStdout: true,
       AttachStderr: true,
@@ -276,9 +387,14 @@ export class DockerHandle implements SandboxHandle {
     stream.on('close', endOutputs)
     stream.on('error', endOutputs)
     if (opts?.signal) {
-      opts.signal.addEventListener('abort', () => stream.destroy(), {
-        once: true,
-      })
+      opts.signal.addEventListener(
+        'abort',
+        () => {
+          this.killRecordedPid(pidFile)
+          stream.destroy()
+        },
+        { once: true },
+      )
     }
 
     return {
@@ -311,7 +427,10 @@ export class DockerHandle implements SandboxHandle {
         const info = await exec.inspect()
         return info.ExitCode ?? 0
       },
-      kill: () => {
+      kill: (signal) => {
+        // Signal the container-side process, THEN detach. Detaching alone would
+        // leave it running (see `pidRecordingCommand`) — a silent orphan leak.
+        this.killRecordedPid(pidFile, signal)
         stream.destroy()
         return Promise.resolve()
       },

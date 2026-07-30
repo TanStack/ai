@@ -30,6 +30,7 @@ import {
   localProcessSandbox,
   msysDescendantWinPids,
   parseMsysProcessTable,
+  taskkillPid,
 } from '../src/index'
 
 /** Real `ps` output captured from git-bash on Windows 11, trimmed to the shape that matters. */
@@ -111,6 +112,21 @@ describe('classifyTaskkillResult', () => {
     ).toBe('already-exited')
   })
 
+  it('treats /T\'s "no running instance of the task" as already-exited', () => {
+    // The wording `/T` uses when a tree member exits between taskkill
+    // enumerating it and signalling it. It comes back with status 1 and matches
+    // NEITHER "not found" nor "does not exist", so it used to be classified
+    // `failed` — logging a warning on an ordinary teardown race. That is the
+    // known suspect for the intermittent single-warning failure of "a normal
+    // kill neither throws nor reports a failure" below.
+    expect(
+      classifyTaskkillResult(
+        1,
+        'ERROR: The process with PID 1234 (child process of PID 5678) could not be terminated.\r\nReason: There is no running instance of the task.\r\n',
+      ),
+    ).toBe('already-exited')
+  })
+
   it('treats any other nonzero status as a real failure', () => {
     // A launched taskkill is not a successful taskkill — `spawnSync` reporting
     // no `error` says only that the binary ran.
@@ -118,6 +134,24 @@ describe('classifyTaskkillResult', () => {
       'failed',
     )
     expect(classifyTaskkillResult(null, '')).toBe('failed')
+  })
+
+  it('keeps a genuine refusal a failure even though it shares /T\'s "could not be terminated" prefix', () => {
+    // The widening above must not swallow these: the process is still running
+    // and the caller has leaked it. Both are verbatim taskkill output (captured
+    // against pid 4 and pid 0 respectively on Windows 11).
+    expect(
+      classifyTaskkillResult(
+        1,
+        'ERROR: The process with PID 4 could not be terminated.\r\nReason: Access is denied.\r\r\n',
+      ),
+    ).toBe('failed')
+    expect(
+      classifyTaskkillResult(
+        1,
+        'ERROR: The process with PID 0 could not be terminated.\r\nReason: This is critical system process. Taskkill cannot end this process.\r\n',
+      ),
+    ).toBe('failed')
   })
 })
 
@@ -176,6 +210,21 @@ describe('killTree leaves no orphaned descendants (Windows/MSYS)', () => {
   )
 })
 
+/**
+ * A captured warning, kept WITH its `meta`.
+ *
+ * Capturing only `message` is what made this suite's one intermittent failure
+ * undiagnosable: it printed
+ * `expected [ "local-process: taskkill failed to kill a process" ] to deeply
+ * equal []` and threw away the `status`/`stderr` that says WHICH taskkill
+ * wording was misclassified. `taskkillPid` already logs the raw stderr in
+ * `meta`; asserting on the full record is what puts it in the failure output.
+ */
+interface CapturedWarning {
+  message: string
+  meta?: Record<string, unknown>
+}
+
 describe('killTree teardown is total by construction', () => {
   it('a normal kill neither throws nor reports a failure', async () => {
     // Teardown paths on this branch (`SpawnHandle.kill`, `signal` abort
@@ -183,11 +232,11 @@ describe('killTree teardown is total by construction', () => {
     // would wedge a run at 'running' with its tailers parked, and treating the
     // ordinary "it already exited" case as an error would cry wolf on every
     // clean teardown. Both are asserted here rather than left to review.
-    const warnings: Array<string> = []
+    const warnings: Array<CapturedWarning> = []
     const noisy = localProcessSandbox({
       baseDir,
       removeOnDestroy: true,
-      logger: { warn: (message) => warnings.push(message) },
+      logger: { warn: (message, meta) => warnings.push({ message, meta }) },
     })
     const sbx = await noisy.create({})
 
@@ -200,7 +249,41 @@ describe('killTree teardown is total by construction', () => {
     await done.wait()
     await expect(done.kill()).resolves.toBeUndefined()
 
+    // Asserting the whole record (not just `message`) so a future intermittent
+    // failure prints the raw taskkill status + stderr and is diagnosable on the
+    // first occurrence. Do NOT relax this to "warnings are allowed" — the
+    // warning firing here IS the signal that a benign wording is misclassified.
     expect(warnings).toEqual([])
     await sbx.destroy()
   }, 30_000)
+
+  // Counterpart to the assertion above: it is only meaningful if a warning CAN
+  // fire. Windows-only because the warning is emitted by the `taskkill` branch,
+  // which `killTree` never reaches on POSIX.
+  windowsOnly(
+    'reports a genuine refusal as a failure, with the raw taskkill stderr attached',
+    () => {
+      const warnings: Array<CapturedWarning> = []
+      // pid 0 is the System Idle Process: taskkill always refuses it ("This is
+      // critical system process"), so this is a real, reproducible refusal that
+      // cannot harm the machine — nothing is signalled and no real process is
+      // targeted. `tree: false` so taskkill never walks a live tree.
+      const gone = taskkillPid(0, false, {
+        warn: (message, meta) => warnings.push({ message, meta }),
+      })
+
+      expect(gone).toBe(false)
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]?.message).toBe(
+        'local-process: taskkill failed to kill a process',
+      )
+      // The raw stderr must reach the log — that is what makes an intermittent
+      // misclassification diagnosable instead of a mystery.
+      expect(warnings[0]?.meta).toMatchObject({ pid: 0, status: 1 })
+      expect(String(warnings[0]?.meta?.stderr)).toContain(
+        'could not be terminated',
+      )
+    },
+    30_000,
+  )
 })
