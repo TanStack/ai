@@ -26,10 +26,11 @@ description: >
   whenever a harness adapter needs a sandbox or when building sandbox providers.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.1.0'
+library_version: '0.2.4'
 sources:
   - 'TanStack/ai:docs/sandbox/overview.md'
   - 'TanStack/ai:docs/sandbox/takeover.md'
+  - 'TanStack/ai:docs/sandbox/reaping.md'
 ---
 
 # Sandboxes
@@ -264,11 +265,10 @@ Declare hooks on `defineSandbox({ hooks })` (sandbox-scoped) or on any chat
 middleware via the `sandbox` group (run-scoped):
 
 ```typescript
-import {
-  defineSandbox,
-  defineChatMiddleware,
-  withSandbox,
-} from '@tanstack/ai-sandbox'
+import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+// `defineChatMiddleware` is core's, not this package's — `@tanstack/ai-sandbox`
+// consumes it too (see its own `src/middleware.ts`).
+import { defineChatMiddleware } from '@tanstack/ai'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 // Sandbox-scoped hooks (all optional):
@@ -473,12 +473,21 @@ takeover needs the prefix a previous host already wrote to still be there), so
 reusing a `runId` appends to the previous run's journal file. A reader stops at
 the FIRST `{"__exit":N}` sentinel it encounters, which is the earlier run's, so
 the new run appears to emit nothing, or to fail with the previous run's exit
-code. Every harness adapter (Claude Code, Codex, Grok Build, ACP, OpenCode)
-does `options.runId ?? this.generateId()`, so a caller who wants durability
-must supply its own stable `runId` per run; omitting it silently falls back to
-a fresh random id each call, and no successor host can derive that run's
-journal path. This is the easiest way to lose the feature without any error
-being raised.
+code. Uniqueness is therefore the caller's job and is deliberately not
+enforced — refusing to append would break the append-only property a takeover
+depends on.
+
+**Absence, unlike reuse, IS enforced.** Every harness adapter routes through
+`resolveDurableRunId(options.runId, { durable, adapter, fallback })`, which
+throws `DurableRunIdRequiredError` when sandbox durability is wired and no
+`runId` was passed — a generated id is never minted for a durable run, not even
+one that is discarded, because no successor host could recompute its journal
+path. The `fallback()` to a generated id survives only for non-durable runs,
+where several `chat()` paths legitimately pass `runId` as a conditional spread.
+The journaling adapters are **Claude Code, Codex, and Grok Build**; ACP and
+OpenCode do not journal and pass `durable: false`, so they keep the fallback
+unconditionally today and inherit the enforcement automatically if either gains
+journaling.
 
 ### Reading strategy
 
@@ -715,8 +724,16 @@ EXISTING journal instead of starting a second agent. It belongs there and never
 on `chat()` (core has no sandbox vocabulary), and it is set only by an attach
 route, never by a `POST` handler. Load the thread from the message store: the
 client sent no history because it is reconnecting, not asking a question — and
-pass the run record's `threadId`, or the adapter mints a fresh one and the very
-first chunk fails alignment with `JournalReplayThreadIdMismatchError`.
+pass the run record's `threadId`. Forget it and the attach **refuses up front**
+with `DurableThreadIdRequiredError` rather than failing mid-stream: every emitted
+chunk carries `threadId`, so a generated one differs from the stored log in its
+very first chunk. `resolveDurableThreadId` throws only in the durable-AND-
+attaching quadrant — a durable *fresh* run legitimately mints its `threadId`,
+since it is the run that establishes it. `JournalReplayThreadIdMismatchError` is
+still what surfaces if a mismatched `threadId` reaches `alignToStoredLog` by some
+other route; `sandboxRunDriver` itself forwards `active.threadId` into
+`drive({ runId, threadId, signal })`, so the remaining gap is application `drive`
+code that does not pass it on to `chat()`.
 
 The response is byte-identical whether or not you pass `driver`: it still
 replays from the durability log. The drive runs beside it, appending to the
@@ -869,16 +886,82 @@ and `listReclaimable` are optional (feature-detect them), but you need the first
 to rejoin by thread and the second for `reapDetachedRuns` to have anything to
 sweep — a store without it cannot be reaped at all.
 
-**The reaper ships as a function, not a scheduler.** `reapDetachedRuns` (with
-`sandboxReclaimer` for the sandbox teardown and `pruneJournals` for the journal
-directory) is what enforces `detachedRunTtl`, but nothing in the framework calls
-it: the application must, from its own cron route, queue consumer, Durable Object
-`alarm()`, or `waitUntil`. Wiring `durability` and never scheduling it leaves
-detached delivery logs open forever — every attached tailer parks, the TTL is
-inert, and sandboxes bill indefinitely.
+### The reaper ships as a function, not a scheduler
 
-Full wiring, including the client `joinRun` half and the reaper rules, is in
-`docs/sandbox/takeover.md`.
+`reapDetachedRuns` (with `sandboxReclaimer` for the sandbox teardown and
+`pruneJournals` for the journal directory) is what closes out a detached run, but
+nothing in the framework calls it: the application must, from its own cron route,
+queue consumer, Durable Object `alarm()`, or `waitUntil`. Wiring `durability` and
+never scheduling it leaves detached delivery logs open forever — every attached
+tailer parks, the TTL is inert, and sandboxes bill indefinitely.
+
+**`hasFinished` is a REQUIRED option, not a nicety.** The sweep must never drive a
+run to find out whether it finished: `pipeToRunLog` is total, so it always writes a
+terminal status and always calls `close()`, which on a live run means a false
+transcript, every tailer's stream ended, and a record that has left
+`listReclaimable` forever (so the sandbox can never be reclaimed). So the sentinel
+is detected **out of band**, and neither the delivery log (frozen at the last
+delivered chunk once the viewer left) nor this package (`SandboxInstanceStore` has
+no `list`) can answer it. `probeRunExit` is the shipped implementation; only your
+application can map a `sandboxKey` to a live handle for it. Anything it cannot
+answer must be `unknown`, never `finished`:
+
+```typescript
+import {
+  probeRunExit,
+  reapDetachedRuns,
+  sandboxReclaimer,
+} from '@tanstack/ai-sandbox'
+import type { RunRecord } from '@tanstack/ai'
+import type { ReapResult, RunExitProbe } from '@tanstack/ai-sandbox'
+
+async function hasFinished(record: RunRecord): Promise<RunExitProbe> {
+  if (record.sandboxKey === undefined) return { state: 'unknown' }
+  try {
+    const instance = await instances.get(record.sandboxKey)
+    if (instance === null) return { state: 'unknown' }
+    const handle = await sandbox.provider.resume({
+      id: instance.providerSandboxId,
+    })
+    if (handle === null) return { state: 'unknown' }
+    return await probeRunExit({ handle, runId: record.runId })
+  } catch (error) {
+    return { state: 'unknown', error }
+  }
+}
+
+export function sweepDetachedRuns(): Promise<ReapResult> {
+  return reapDetachedRuns({
+    runs, // the SAME RunStore the chat routes use
+    locks, // the same distributed LockStore withSandbox gets
+    durability: durabilityFor, // per-run factory resolving the SAME log
+    hasFinished,
+    drive: driveRun, // the same `drive` the attach route passes sandboxRunDriver
+    now: Date.now(),
+    detachedRunTtlMs: 30 * 60 * 1000,
+    reclaim: sandboxReclaimer({ provider: sandbox.provider, instances }),
+  })
+}
+```
+
+`reapDetachedRuns` resolves rather than rejects; read its `outcomes` tally. Note
+that `'producing'`, `'unknown'`, and `'not-claimed'` mean the run was left
+untouched, whereas `'budget-exceeded'` is the opposite — the record IS terminal,
+the log IS closed, and `reclaim` fired; it flags a run the probe said had finished
+that would not replay in time, i.e. a misbehaving journal read, translation, or
+log. `'reclaim-failed'` means the transcript saved but the sandbox is still up, and
+no later sweep will retry it.
+
+**`withSandbox`'s `detachedRunTtl` and `ReapOptions.detachedRunTtlMs` are two
+separate, unlinked configs.** The middleware option is parsed to milliseconds at
+setup (so a malformed duration fails fast), but nothing reads the parsed value —
+the TTL that actually decides expiry is the `detachedRunTtlMs` you pass to
+`reapDetachedRuns`, which is required and independent. Setting `detachedRunTtl`
+alone changes nothing; keep the two in sync by hand.
+
+Full reaper wiring — every outcome, `pruneJournals`' keep/delete table, and the
+scheduling shapes — is in `docs/sandbox/reaping.md`. The attach/takeover half,
+including the client `joinRun` side, is in `docs/sandbox/takeover.md`.
 
 ## Events
 

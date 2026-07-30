@@ -237,8 +237,10 @@ statements at factory scope, `INSERT ... ON CONFLICT`, JSON as `text`, epoch ms
 as `integer`. Wrap sync calls in `async` methods; the contracts are promise-based.
 
 **MongoDB** — one collection per record type, `_id` set to the natural key
-(`threadId`, `runId`, `interruptId`, and `` `${namespace}�${key}` `` or a
-compound unique index on `{ namespace, key }` — never a `:`-joined string).
+(`threadId`, `runId`, `interruptId`). For `metadata`, use `_id: { namespace, key }`
+— a compound `_id` subdocument, or a unique index on `{ namespace, key }` — never
+a delimiter-joined string. Invariant: `('a:b','c')` and `('a','b:c')` must stay
+distinct records, and the conformance suite checks it.
 `createOrResume` is `updateOne({ _id }, { $setOnInsert: doc }, { upsert: true })`
 then a `findOne` — `$setOnInsert` is the insert-if-absent primitive. Guard the
 `E11000` duplicate-key race and re-read. `list*` need `.sort({ requestedAt: 1 })`.
@@ -249,7 +251,7 @@ indexes you have to maintain by hand (a sorted set per thread and per run,
 scored by `requestedAt`). A common split is Postgres for `messages`/`runs`/
 `interrupts` and Redis for locks; compose them with `composePersistence`.
 
-**Anything else** — you only need the five invariants above. The core never
+**Anything else** — you only need the seven invariants above. The core never
 inspects your storage.
 
 ## Adopt part of it

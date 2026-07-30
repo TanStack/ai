@@ -37,8 +37,10 @@ Durable Object   -> LockStore                              (withLocks — NOT a 
 ```
 
 These do not compose into one object. `AIPersistence.stores` accepts exactly
-four keys; putting `locks` in the map — or in a `composePersistence` override —
-throws `Unknown AIPersistence store key: locks` and fails to type-check. Return
+four keys. Putting `locks` in the map throws
+`Unknown AIPersistence store key: locks`; putting it in a `composePersistence`
+override throws `Unknown AIPersistence override key: locks`. Both also fail to
+type-check. Return
 the state persistence from one factory and the lock store from another, then
 wire them as two middlewares.
 
@@ -101,10 +103,15 @@ The invariants are the whole game, whichever route you take:
 | `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                                                                                                        |
 
 On `runs`, `findActiveRun`, `listByThread`, and `listReclaimable` are optional
-methods. Implement only the ones the app needs: the middleware feature-detects
-them and degrades to "not supported" when one is absent. The conformance
-testkit does not. Any you leave out must be listed in `skipMethods` or the
-suite fails, so declare them and it reports the omission as a skip.
+methods. Implement only the ones the app needs. `withPersistence` calls **none**
+of the three — the consumers are `reconstruct.ts` (`findActiveRun`, for
+rejoin-by-thread) and `@tanstack/ai-sandbox`'s `reapDetachedRuns`
+(`listReclaimable`, without which the store cannot be reaped); nothing in the
+framework calls `listByThread`. Each consumer feature-detects with
+`store.method?.(...)` and degrades to "not supported" when a method is absent.
+The conformance testkit does not. Any you leave out must be listed in
+`skipMethods` or the suite fails, so declare them and it reports the omission as
+a skip.
 
 `RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
 so the table gets two columns rather than one JSON blob: `error` for the

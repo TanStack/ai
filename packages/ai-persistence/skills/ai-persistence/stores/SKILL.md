@@ -84,16 +84,34 @@ interface MessageStore {
 
 ### `RunStore`
 
-`RunStatus`, `RunRecord`, `RunStore`, `defineRunStore`, and `isTerminalRunStatus`
-are defined in `@tanstack/ai` and re-exported from `@tanstack/ai-persistence`.
-Import from either; the recipes in this skill import from
-`@tanstack/ai-persistence` so an adapter author needs only one package name.
+`RunStatus`, `TerminalRunStatus`, `RunRecord`, `RunStore`, `defineRunStore`, and
+`isTerminalRunStatus` are defined in `@tanstack/ai` and re-exported from
+`@tanstack/ai-persistence`. Import those from either; the recipes in this skill
+import from `@tanstack/ai-persistence` so an adapter author needs only one
+package name.
 
-Three methods are required. Three are optional: implement only the ones your
-backend needs, and leave the rest off the object entirely (not `undefined`,
-just absent). The middleware feature-detects each with `store.method?.(...)`
-and degrades to "not supported" when a method is missing. A three-method
-`RunStore` is a fully valid backend.
+**`RunError` is the exception — it is NOT re-exported.** Import it from
+`@tanstack/ai` directly (`import type { RunError } from '@tanstack/ai'`); the
+`@tanstack/ai-persistence` barrel has no such export and the import fails to
+resolve.
+
+Three methods are required (`createOrResume` / `update` / `get`). Three are
+optional: implement only the ones your backend needs, and leave the rest off the
+object entirely (not `undefined`, just absent). A three-method `RunStore` is a
+fully valid backend.
+
+`withPersistence` itself calls **none** of the three optional methods, so leaving
+all of them off costs nothing in the middleware. Their consumers are elsewhere,
+and each absence disables exactly one feature:
+
+| method            | consumer                                                       | absent ⇒                                             |
+| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
+| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun?.(threadId)`)     | no rejoin-by-thread; reconstruction answers `null`    |
+| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`                    | the store cannot be reaped at all                    |
+| `listByThread`    | application code — nothing in the framework calls it            | nothing framework-side breaks                        |
+
+Each consumer feature-detects with `store.method?.(...)` and degrades rather than
+throwing.
 
 The conformance testkit does not feature-detect. An optional method that is
 missing and not declared in `skipMethods` fails the suite, so an omission is
@@ -101,8 +119,10 @@ always a choice you made on purpose rather than a check that quietly did not
 run. Declare yours and the suite reports them as skipped with a reason:
 
 ```ts
+// The shipped sqlite example implements findActiveRun and listReclaimable and
+// declares only the one it omits.
 runPersistenceConformance('sqlite', () => persistence, {
-  skipMethods: ['runs.listByThread', 'runs.listReclaimable'],
+  skipMethods: ['runs.listByThread'],
 })
 ```
 
@@ -405,8 +425,8 @@ silently reporting a pass; a declared one is reported as a SKIPPED vitest
 case, never as a pass. A case that did not run must never be
 indistinguishable from one that did. See
 `examples/ts-react-chat/src/lib/sqlite-persistence.test.ts` for a worked
-example that skips `listByThread` and `listReclaimable` while keeping
-`findActiveRun` under test.
+example: it declares `skipMethods: ['runs.listByThread']` only, keeping both
+`findActiveRun` and `listReclaimable` under test.
 
 Reference implementation: `memoryPersistence()` in `@tanstack/ai-persistence`.
 

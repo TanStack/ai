@@ -9,7 +9,7 @@ description: >
   NOT Vercel AI SDK — uses chat() not streamText().
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/getting-started/quick-start.md'
   - 'TanStack/ai:docs/chat/streaming.md'

@@ -9,7 +9,7 @@ description: >
   execution progress via code_mode:* custom events in useChat.
 type: core
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.3.8'
 sources:
   - 'TanStack/ai:docs/code-mode/code-mode.md'
   - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'

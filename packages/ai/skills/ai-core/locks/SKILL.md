@@ -10,7 +10,7 @@ description: >
   exclusion — NOT for storing messages/runs (use withPersistence).
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/advanced/locks.md'
   - 'TanStack/ai:packages/ai/src/activities/chat/middleware/locks.ts'

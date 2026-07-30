@@ -12,7 +12,7 @@ description: >
   BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK).
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/adapters/openai.md'
   - 'TanStack/ai:docs/adapters/anthropic.md'

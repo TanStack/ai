@@ -9,7 +9,7 @@ description: >
   in UI.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/tools/tools.md'
   - 'TanStack/ai:docs/tools/server-tools.md'
