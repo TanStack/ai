@@ -128,7 +128,6 @@ function durabilityWith(
     journalDir: JOURNAL_DIR,
     attach,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 60_000,
   }
 }
 

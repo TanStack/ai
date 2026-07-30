@@ -226,7 +226,6 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
     journalDir: '/tmp/tanstack-runs',
     attach: false,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 30 * 60_000,
   })
   return ctx
 }

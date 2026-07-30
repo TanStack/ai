@@ -159,7 +159,6 @@ function durabilityWith(
     journalDir: `/tmp/tanstack-runs-attach-${crypto.randomUUID()}`,
     attach: false,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 30 * 60_000,
     ...overrides,
   }
 }

@@ -175,7 +175,6 @@ function durability(): SandboxRunDurability {
     journalDir: JOURNAL_DIR,
     attach: false,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 60_000,
   }
 }
 

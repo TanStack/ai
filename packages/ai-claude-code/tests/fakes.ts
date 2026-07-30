@@ -41,7 +41,6 @@ export function fakeDurability(
     journalDir: '/tmp/tanstack-runs',
     attach: false,
     detachOnDisconnect: true,
-    detachedRunTtlMs: 30 * 60_000,
     ...overrides,
   }
 }
