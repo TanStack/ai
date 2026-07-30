@@ -194,7 +194,7 @@ import {
   reapDetachedRuns,
   sandboxReclaimer,
 } from '@tanstack/ai-sandbox'
-import { memoryStream } from '@tanstack/ai'
+import { durableStream } from '@tanstack/ai-durable-stream'
 import type { RunRecord } from '@tanstack/ai'
 import type { ReapResult, RunExitProbe } from '@tanstack/ai-sandbox'
 // Your distributed LockStore, the same one `withSandbox` gets.
@@ -216,12 +216,19 @@ const { runs } = persistence.stores
 // open. A cron has no incoming request, so synthesize one naming the run: every
 // adapter reads the run id from `X-Run-Id` or `?runId`.
 //
-// `memoryStream` is the development stand-in (its log lives in a process-global
-// map, so a sweep in the same process sees it). In production hand back the same
-// backend your chat routes use, configured identically.
+// The same backend and options the chat routes use — see ../resumable-streams/
+// advanced for the full option set. `durableStream` talks to it over HTTP, so a
+// synthesized request works exactly like a real one: the run's state lives in
+// the backend, not in this process.
+const durableOptions = {
+  server: 'https://streams.example.com',
+  streamPrefix: 'agent-runs',
+}
+
 function durabilityFor(runId: string) {
-  return memoryStream(
+  return durableStream(
     new Request(`https://reaper.internal/?runId=${encodeURIComponent(runId)}`),
+    durableOptions,
   )
 }
 

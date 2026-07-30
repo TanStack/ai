@@ -54,11 +54,11 @@ run instead of two that disagree.
 import {
   chat,
   chatParamsFromRequest,
-  memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { withLocks } from '@tanstack/ai/locks'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { durableStream } from '@tanstack/ai-durable-stream'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
 // Your distributed LockStore. `InMemoryLockStore` is NOT enough here — see
@@ -72,11 +72,19 @@ import { sandbox } from './sandbox'
 const persistence = memoryPersistence()
 const { runs } = persistence.stores
 
+// The external Durable Streams backend every replica can reach — see
+// ../resumable-streams/advanced for the full option set (auth headers, batch
+// size, reconnect tuning).
+const durableOptions = {
+  server: 'https://streams.example.com',
+  streamPrefix: 'agent-runs',
+}
+
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
   // ONE adapter instance, handed to both the middleware and the transport, so
   // the journal path and the delivery log describe the same run.
-  const adapter = memoryStream(request)
+  const adapter = durableStream(request, durableOptions)
 
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
@@ -117,9 +125,10 @@ The takeover happens in the `GET` handler that already serves resumes. Add a
 driving it.
 
 ```ts
-import { chat, memoryStream, resumeServerSentEventsResponse } from '@tanstack/ai'
+import { chat, resumeServerSentEventsResponse } from '@tanstack/ai'
 import { withLocks } from '@tanstack/ai/locks'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { durableStream } from '@tanstack/ai-durable-stream'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { sandboxRunDriver, withSandbox } from '@tanstack/ai-sandbox'
 import { locks } from './locks'
@@ -128,6 +137,13 @@ import type { StreamChunk } from '@tanstack/ai'
 
 const persistence = memoryPersistence()
 const { messages: messageStore, runs } = persistence.stores
+
+// The same external Durable Streams backend the POST handler uses — see
+// ../resumable-streams/advanced for the full option set.
+const durableOptions = {
+  server: 'https://streams.example.com',
+  streamPrefix: 'agent-runs',
+}
 
 /**
  * The claim hands `drive` an `AbortSignal` that fires the moment this host loses
@@ -165,7 +181,10 @@ export function GET(request: Request) {
           // EXISTING journal instead of starting a second agent. It belongs
           // here and never on `chat()` — core has no sandbox vocabulary — and it
           // is set only by an attach route, never by a POST handler.
-          durability: { adapter: memoryStream(request), attach: true },
+          durability: {
+            adapter: durableStream(request, durableOptions),
+            attach: true,
+          },
         }),
       ],
     })
@@ -173,17 +192,18 @@ export function GET(request: Request) {
   }
 
   return resumeServerSentEventsResponse({
-    adapter: memoryStream(request),
+    adapter: durableStream(request, durableOptions),
     driver: sandboxRunDriver({
       request,
       runs,
       locks,
-      // Per-run log factory. `memoryStream` keys its log by the run the request
-      // names, so every call for one run shares one log; swap in
-      // `durableStream(request, options)` for production. Whatever you use MUST
-      // return the same instance per `runId` within a process, or `snapshot()`
-      // will not see this host's own appends.
-      durability: () => memoryStream(request),
+      // Per-run log factory, keyed by the run this request names, so every call
+      // for this run talks to the same backend stream and `snapshot()` sees this
+      // host's own appends — the state lives in the Durable Streams backend, not
+      // this process. A caller with no live `Request` (a cron, an `alarm()`) can
+      // synthesize one naming the run instead; see the reaper's `durabilityFor`
+      // in ../sandbox/reaping.
+      durability: () => durableStream(request, durableOptions),
       drive: driveRun,
     }),
   })
