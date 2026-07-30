@@ -109,7 +109,6 @@ export {
   type VideoGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
-  type GenerationPersistence,
   type GenerationResumeSnapshot,
   type GenerationResumeState,
   type GenerationResumeStatus,

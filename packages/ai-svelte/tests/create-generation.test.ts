@@ -107,26 +107,6 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
   return { adapter, connect, runContexts }
 }
 
-/**
- * Storage adapter backed by a plain Map, seeded with raw (untyped) records the
- * way real storage hands them back — the client re-validates whatever it reads.
- */
-function createMapPersistence(seed: Record<string, unknown> = {}) {
-  const store = new Map(Object.entries(seed))
-  return {
-    store,
-    getItem: vi.fn(async (key: string) => {
-      return store.get(key) as GenerationResumeSnapshot | undefined
-    }),
-    setItem: vi.fn(async (key: string, value: GenerationResumeSnapshot) => {
-      store.set(key, value)
-    }),
-    removeItem: vi.fn(async (key: string) => {
-      store.delete(key)
-    }),
-  }
-}
-
 // Snapshot hydration and removal both run through promise queues detached from
 // the caller, so tests wait a macrotask for them to settle.
 function flushAsync(): Promise<void> {
@@ -256,115 +236,20 @@ describe('createGeneration', () => {
         status: 'running',
       }
       const { adapter, connect } = createRunContextCaptureAdapter([])
-      const getItem = vi.fn(() => snapshot)
       const gen = createGeneration({
         id: 'no-auto-fire',
         threadId: 'no-auto-fire',
         connection: adapter,
-        persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         initialResumeSnapshot: snapshot,
       })
 
       await Promise.resolve()
 
       expect(connect).not.toHaveBeenCalled()
-      // An explicit `initialResumeSnapshot` seed takes precedence over
-      // storage, so the client skips its hydration read entirely.
-      expect(getItem).not.toHaveBeenCalled()
       expect(gen.isLoading).toBe(false)
       expect(gen.status).toBe('idle')
       // The persisted snapshot remains exposed as read-only state.
       expect(gen.runId).toBe(snapshot.resumeState?.runId)
-    })
-  })
-
-  describe('resume snapshot persistence', () => {
-    it('repaints a stored running snapshot with no joinRun as an interrupted error on creation', async () => {
-      const persistence = createMapPersistence({
-        'generation:hydrate-me': {
-          schemaVersion: 1,
-          resumeState: { threadId: 'thread-stored', runId: 'run-stored' },
-          status: 'running',
-        },
-      })
-
-      const gen = createGeneration({
-        id: 'hydrate-me',
-        threadId: 'hydrate-me',
-        connection: createMockConnectionAdapter(),
-        persistence,
-      })
-
-      // Hydration is async — the storage read is awaited off the constructor.
-      expect(gen.runId).toBeNull()
-      await flushAsync()
-
-      expect(persistence.getItem).toHaveBeenCalledTimes(1)
-      expect(persistence.getItem).toHaveBeenCalledWith('generation:hydrate-me')
-      // Without a `joinRun` handler the restored run cannot be tailed, so it
-      // surfaces as an interrupted error instead of a `generating` status
-      // that would never settle.
-      expect(gen.error?.message).toMatch(/interrupted/)
-      expect(gen.runId).toBeNull()
-      expect(gen.status).toBe('error')
-      expect(gen.isLoading).toBe(false)
-    })
-
-    it('repaints status from a stored complete snapshot on creation without starting a run', async () => {
-      const persistence = createMapPersistence({
-        'generation:complete-me': {
-          schemaVersion: 1,
-          resumeState: null,
-          status: 'complete',
-          result: { id: 'result-1', model: 'image-model' },
-        },
-      })
-
-      const gen = createGeneration({
-        id: 'complete-me',
-        threadId: 'complete-me',
-        connection: createMockConnectionAdapter(),
-        persistence,
-      })
-
-      await flushAsync()
-
-      // A completed snapshot repaints the normal `status` field to `success`.
-      expect(gen.status).toBe('success')
-      // The base function injects no reconstructResult, so `result` stays null.
-      expect(gen.result).toBeNull()
-      expect(gen.runId).toBeNull()
-    })
-
-    it('clears resumeState and removes the persisted record on reset', async () => {
-      const persistence = createMapPersistence({
-        'generation:reset-me': {
-          schemaVersion: 1,
-          resumeState: { threadId: 'thread-stored', runId: 'run-stored' },
-          status: 'running',
-        },
-      })
-
-      const gen = createGeneration({
-        id: 'reset-me',
-        threadId: 'reset-me',
-        connection: createMockConnectionAdapter(),
-        persistence,
-      })
-
-      await flushAsync()
-      // The restored running snapshot has no `joinRun` handler, so it
-      // surfaces as an interrupted error.
-      expect(gen.error?.message).toMatch(/interrupted/)
-      expect(gen.runId).toBeNull()
-
-      gen.reset()
-
-      expect(gen.runId).toBeNull()
-
-      await flushAsync()
-      expect(persistence.removeItem).toHaveBeenCalledWith('generation:reset-me')
-      expect(persistence.store.has('generation:reset-me')).toBe(false)
     })
   })
 
@@ -506,25 +391,26 @@ describe('createGenerateImage', () => {
         mediaType: 'image',
       },
     }
-    const persistence = createMapPersistence({
-      'generation:img-hydrate': {
-        schemaVersion: 1,
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
         resumeState: null,
-        status: 'complete',
-        activity: 'image',
+        status: 'complete' as const,
+        activity: 'image' as const,
         result: {
           id: 'img-restored',
           model: 'test-image',
           artifacts: [artifact],
         },
       },
-    })
+      activeRun: null,
+    }))
 
     const gen = createGenerateImage({
       id: 'img-hydrate',
       threadId: 'img-hydrate',
-      connection: createMockConnectionAdapter(),
-      persistence,
+      connection: { ...createMockConnectionAdapter(), hydrateGeneration },
+      persistence: true,
     })
 
     await flushAsync()
@@ -898,22 +784,19 @@ describe('createGenerateVideo', () => {
   it('does not auto-fire a video generation on setup from a persisted running snapshot', async () => {
     // Regression guard for the removed generation resume surface (video).
     const { adapter, connect } = createRunContextCaptureAdapter([])
-    const getItem = vi.fn(() => videoResumeSnapshot)
     const gen = createGenerateVideo({
       id: 'video-no-auto-fire',
       threadId: 'video-no-auto-fire',
       connection: adapter,
-      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,
     })
 
     await Promise.resolve()
 
     expect(connect).not.toHaveBeenCalled()
-    expect(getItem).not.toHaveBeenCalled()
     expect(gen.isLoading).toBe(false)
     expect(gen.status).toBe('idle')
-    // The seeded in-flight identity is exposed as read-only `resumeState`.
+    // The seeded in-flight identity is exposed as the read-only `runId`.
     expect(gen.runId).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 

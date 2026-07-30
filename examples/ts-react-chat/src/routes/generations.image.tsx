@@ -5,7 +5,6 @@ import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
-import { generationPersistence } from '../lib/generation-persistence'
 
 // This page shows BOTH persistence modes, each on the transport that supports
 // it — the mode is not a separate tab, it follows from how the run is sent.
@@ -20,7 +19,6 @@ import { generationPersistence } from '../lib/generation-persistence'
 //   status, errors, result metadata — never image bytes) written to
 //   localStorage under `generation:<threadId>` and read back on mount. Because
 //   the bytes are never cached, `result` returns without its image.
-const imagePersistence = generationPersistence
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -60,7 +58,7 @@ function DirectImageGeneration() {
       generateImageFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
-    persistence: imagePersistence,
+    persistence: true,
   })
 
   return (
@@ -85,7 +83,7 @@ function ServerFnImageGeneration() {
       generateImageStreamFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
-    persistence: imagePersistence,
+    persistence: true,
   })
 
   return (

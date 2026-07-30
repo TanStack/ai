@@ -11,7 +11,6 @@ import { injectGenerateImage } from '../src/inject-generate-image'
 import type { PersistedArtifactRef, StreamChunk } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
-  GenerationPersistence,
   GenerationResumeSnapshot,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
@@ -87,38 +86,6 @@ const videoResumeSnapshot: GenerationResumeSnapshot = {
   status: 'running',
 }
 
-/**
- * Storage adapter backed by a Map, so a test can seed a persisted record and
- * then assert on what the client read, wrote, and removed.
- */
-function createMapPersistence(
-  seed?: Record<string, GenerationResumeSnapshot>,
-): {
-  persistence: GenerationPersistence
-  store: Map<string, GenerationResumeSnapshot>
-  getItem: ReturnType<typeof vi.fn>
-  setItem: ReturnType<typeof vi.fn>
-  removeItem: ReturnType<typeof vi.fn>
-} {
-  const store = new Map<string, GenerationResumeSnapshot>(
-    Object.entries(seed ?? {}),
-  )
-  const getItem = vi.fn((key: string) => store.get(key) ?? null)
-  const setItem = vi.fn((key: string, value: GenerationResumeSnapshot) => {
-    store.set(key, value)
-  })
-  const removeItem = vi.fn((key: string) => {
-    store.delete(key)
-  })
-  return {
-    persistence: { getItem, setItem, removeItem },
-    store,
-    getItem,
-    setItem,
-    removeItem,
-  }
-}
-
 // Hydration and snapshot removal both run through awaited promise chains, so
 // drain the microtask queue rather than awaiting a single tick.
 async function flushPromises(): Promise<void> {
@@ -185,44 +152,42 @@ describe('injectGeneration', () => {
       status: 'running',
     }
     const { adapter, connect } = createRunContextCaptureAdapter([])
-    const getItem = vi.fn(() => snapshot)
     const { result } = renderInjectGeneration({
       id: 'no-auto-fire',
       threadId: 'no-auto-fire',
       connection: adapter,
-      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: snapshot,
     })
 
     await Promise.resolve()
 
     expect(connect).not.toHaveBeenCalled()
-    expect(getItem).not.toHaveBeenCalled()
     expect(result.isLoading()).toBe(false)
     expect(result.status()).toBe('idle')
     // The persisted snapshot remains exposed as read-only state.
     expect(result.runId()).toBe(snapshot.resumeState?.runId)
   })
 
-  it('hydrates a persisted snapshot from storage on construction', async () => {
+  it('hydrates a snapshot from the server on mount', async () => {
     const { adapter, connect } = createRunContextCaptureAdapter([])
-    const { persistence, getItem } = createMapPersistence({
-      'generation:hydrate-me': {
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
         resumeState: { threadId: 'thread-stored', runId: 'run-stored' },
-        status: 'running',
+        status: 'running' as const,
       },
-    })
+      activeRun: null,
+    }))
     const { result } = renderInjectGeneration({
       id: 'hydrate-me',
       threadId: 'hydrate-me',
-      connection: adapter,
-      persistence,
+      connection: { ...adapter, hydrateGeneration },
+      persistence: true,
     })
 
     await flushPromises()
 
-    expect(getItem).toHaveBeenCalledTimes(1)
-    expect(getItem).toHaveBeenCalledWith('generation:hydrate-me')
+    expect(hydrateGeneration).toHaveBeenCalledWith('hydrate-me')
     // Hydration only surfaces state; it never restarts the run.
     expect(connect).not.toHaveBeenCalled()
     // Without a `joinRun` handler the restored run cannot be tailed, so it
@@ -233,90 +198,26 @@ describe('injectGeneration', () => {
     expect(result.isLoading()).toBe(false)
     expect(result.runId()).toBeNull()
   })
-
-  it('clears resume state and removes the persisted record on reset', async () => {
-    const snapshot: GenerationResumeSnapshot = {
-      resumeState: { threadId: 'thread-reset', runId: 'run-reset' },
-      status: 'running',
-    }
-    const { adapter } = createRunContextCaptureAdapter([])
-    const { persistence, removeItem, store } = createMapPersistence({
-      'generation:reset-me': snapshot,
-    })
-    const { result } = renderInjectGeneration({
-      id: 'reset-me',
-      threadId: 'reset-me',
-      connection: adapter,
-      persistence,
-      initialResumeSnapshot: snapshot,
-    })
-
-    // The seeded in-flight identity is exposed as read-only `resumeState`.
-    expect(result.runId()).toBe(snapshot.resumeState?.runId)
-
-    result.reset()
-    await flushPromises()
-
-    expect(result.runId()).toBeNull()
-    expect(removeItem).toHaveBeenCalledWith('generation:reset-me')
-    expect(store.has('generation:reset-me')).toBe(false)
-  })
 })
 
 describe('injectGenerateVideo', () => {
   it('does not auto-fire a video generation after render from a persisted running snapshot', async () => {
     // Regression guard for the removed generation resume surface (video).
     const { adapter, connect } = createRunContextCaptureAdapter([])
-    const getItem = vi.fn(() => videoResumeSnapshot)
     const { result } = renderInjectGenerateVideo({
       id: 'video-no-auto-fire',
       threadId: 'video-no-auto-fire',
       connection: adapter,
-      persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
       initialResumeSnapshot: videoResumeSnapshot,
     })
 
     await Promise.resolve()
 
     expect(connect).not.toHaveBeenCalled()
-    expect(getItem).not.toHaveBeenCalled()
     expect(result.isLoading()).toBe(false)
     expect(result.status()).toBe('idle')
     // The seeded in-flight identity is exposed as read-only `resumeState`.
     expect(result.runId()).toBe(videoResumeSnapshot.resumeState?.runId)
-  })
-
-  it('hydrates from storage and clears the persisted record on reset', async () => {
-    const { adapter, connect } = createRunContextCaptureAdapter([])
-    const { persistence, getItem, removeItem, store } = createMapPersistence({
-      'generation:video-hydrate': videoResumeSnapshot,
-    })
-    const { result } = renderInjectGenerateVideo({
-      id: 'video-hydrate',
-      threadId: 'video-hydrate',
-      connection: adapter,
-      persistence,
-    })
-
-    await flushPromises()
-
-    expect(getItem).toHaveBeenCalledTimes(1)
-    expect(getItem).toHaveBeenCalledWith('generation:video-hydrate')
-    expect(connect).not.toHaveBeenCalled()
-    // Without a `joinRun` handler the restored run cannot be tailed, so it
-    // surfaces as an interrupted error instead of a `generating` status
-    // that would never settle.
-    expect(result.error()?.message).toMatch(/interrupted/)
-    expect(result.status()).toBe('error')
-    expect(result.isLoading()).toBe(false)
-    expect(result.runId()).toBeNull()
-
-    result.reset()
-    await flushPromises()
-
-    expect(result.runId()).toBeNull()
-    expect(removeItem).toHaveBeenCalledWith('generation:video-hydrate')
-    expect(store.has('generation:video-hydrate')).toBe(false)
   })
 })
 
@@ -344,28 +245,30 @@ describe('injectGenerateImage', () => {
       },
     }
     const { adapter, connect } = createRunContextCaptureAdapter([])
-    const { persistence, getItem } = createMapPersistence({
-      'generation:img-hydrate': {
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
         resumeState: null,
-        status: 'complete',
-        activity: 'image',
+        status: 'complete' as const,
+        activity: 'image' as const,
         result: {
           id: 'img-restored',
           model: 'test-image',
           artifacts: [artifact],
         },
       },
-    })
+      activeRun: null,
+    }))
     const { result } = renderInjectGenerateImage({
       id: 'img-hydrate',
       threadId: 'img-hydrate',
-      connection: adapter,
-      persistence,
+      connection: { ...adapter, hydrateGeneration },
+      persistence: true,
     })
 
     await flushPromises()
 
-    expect(getItem).toHaveBeenCalledWith('generation:img-hydrate')
+    expect(hydrateGeneration).toHaveBeenCalledWith('img-hydrate')
 
     // A completed snapshot repaints the normal `status` field to `success`.
     expect(result.status()).toBe('success')

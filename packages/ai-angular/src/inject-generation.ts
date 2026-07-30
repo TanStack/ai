@@ -18,7 +18,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistence,
   GenerationPersistenceOptions,
   GenerationRestoredResult,
   GenerationResumeSnapshot,
@@ -50,7 +49,7 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
    *   `generation:<threadId>` as a run streams and read back on mount. Media bytes are
    *   never stored.
    */
-  persistence?: boolean | GenerationPersistence
+  persistence?: boolean
   /**
    * The **scope** this generation belongs to: a stable, app-chosen name for the
    * slot successive runs fill — not a link to a chat conversation.

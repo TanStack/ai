@@ -5,10 +5,8 @@ import type { UseSummarizeReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { summarizeFn, summarizeStreamFn } from '../lib/server-fns'
 import type { StreamChunk } from '@tanstack/ai'
-import { generationPersistence } from '../lib/generation-persistence'
 
 // Persist each variant's lightweight resume snapshot across reloads.
-const summarizePersistence = generationPersistence
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) has rapidly transformed from a niche academic pursuit into one of the most influential technologies of the 21st century. The development of large language models, in particular, has demonstrated capabilities that were previously thought to be decades away. These models can generate human-like text, translate languages, write code, and even engage in complex reasoning tasks.
 
@@ -54,7 +52,7 @@ function StreamingSummarize() {
     threadId: 'summarize:streaming',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { model },
-    persistence: summarizePersistence,
+    persistence: true,
     onChunk: (chunk) =>
       setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })
@@ -89,7 +87,7 @@ function DirectSummarize() {
     id: 'summarize:direct',
     threadId: 'summarize:direct',
     fetcher: (input) => summarizeFn({ data: { ...input, model } }),
-    persistence: summarizePersistence,
+    persistence: true,
   })
 
   return (
@@ -119,7 +117,7 @@ function ServerFnSummarize() {
     id: 'summarize:server-fn',
     threadId: 'summarize:server-fn',
     fetcher: (input) => summarizeStreamFn({ data: { ...input, model } }),
-    persistence: summarizePersistence,
+    persistence: true,
     onChunk: (chunk) =>
       setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })

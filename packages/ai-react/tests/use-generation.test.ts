@@ -19,7 +19,6 @@ import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   GenerationResumeSnapshot,
-  GenerationPersistence,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -378,21 +377,11 @@ describe('useGeneration', () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const persistence: GenerationPersistence = {
-        getItem: vi.fn(() => ({
-          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-          status: 'running' as const,
-        })),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
       const { result } = renderHook(() =>
         useGeneration({
           id: 'no-auto-fire',
           threadId: 'no-auto-fire',
           connection: adapter,
-          persistence: persistence,
           initialResumeSnapshot: {
             resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
             status: 'running',
@@ -405,9 +394,6 @@ describe('useGeneration', () => {
       })
 
       expect(connect).not.toHaveBeenCalled()
-      // The explicit initialResumeSnapshot seed takes precedence over storage,
-      // so automatic hydration (getItem) is skipped entirely.
-      expect(persistence.getItem).not.toHaveBeenCalled()
       expect(result.current.isLoading).toBe(false)
       expect(result.current.status).toBe('idle')
       // The persisted run id is still exposed as display state.
@@ -416,26 +402,25 @@ describe('useGeneration', () => {
   })
 
   describe('persistence', () => {
-    it('repaints status from a stored complete snapshot on mount without starting a run', async () => {
+    it('repaints status from a hydrated complete snapshot on mount without starting a run', async () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const persistence: GenerationPersistence = {
-        getItem: vi.fn(() => ({
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
           resumeState: null,
           status: 'complete' as const,
           result: { id: 'result-1', model: 'image-model' },
-        })),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
+        },
+        activeRun: null,
+      }))
       const { result } = renderHook(() =>
         useGeneration({
           id: 'hydrated',
           threadId: 'hydrated',
-          connection: adapter,
-          persistence: persistence,
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
         }),
       )
 
@@ -443,32 +428,31 @@ describe('useGeneration', () => {
       await waitFor(() => {
         expect(result.current.status).toBe('success')
       })
-      expect(persistence.getItem).toHaveBeenCalledWith('generation:hydrated')
       expect(connect).not.toHaveBeenCalled()
       // The base hook injects no reconstructResult, so `result` stays null.
       expect(result.current.result).toBeNull()
       expect(result.current.runId).toBeNull()
     })
 
-    it('repaints a stored running snapshot with no joinRun as an interrupted error on mount', async () => {
+    it('repaints a hydrated running snapshot with no joinRun as an interrupted error on mount', async () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const persistence: GenerationPersistence = {
-        getItem: vi.fn(() => ({
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
           resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
           status: 'running' as const,
-        })),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      }
-
+        },
+        activeRun: null,
+      }))
       const { result } = renderHook(() =>
         useGeneration({
           id: 'running-hydrate',
           threadId: 'running-hydrate',
-          connection: adapter,
-          persistence: persistence,
+          // No `joinRun`, so the restored run cannot be tailed.
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
         }),
       )
 
@@ -663,8 +647,10 @@ describe('useGenerateImage', () => {
         mediaType: 'image',
       },
     }
-    const persistence: GenerationPersistence = {
-      getItem: vi.fn(() => ({
+    const adapter = createMockConnectionAdapter()
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
         resumeState: null,
         status: 'complete' as const,
         activity: 'image' as const,
@@ -673,18 +659,16 @@ describe('useGenerateImage', () => {
           model: 'test-image',
           artifacts: [artifact],
         },
-      })),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    }
-    const adapter = createMockConnectionAdapter()
+      },
+      activeRun: null,
+    }))
 
     const { result } = renderHook(() =>
       useGenerateImage({
         id: 'img-hydrate',
         threadId: 'img-hydrate',
-        connection: adapter,
-        persistence: persistence,
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
       }),
     )
 
@@ -1024,18 +1008,11 @@ describe('useGenerateVideo', () => {
     const { adapter, connect } = createRunContextCaptureAdapter(
       createReplayVideoChunks(),
     )
-    const persistence: GenerationPersistence = {
-      getItem: vi.fn(() => videoResumeSnapshot),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    }
-
     const { result } = renderHook(() =>
       useGenerateVideo({
         id: 'video-no-auto-fire',
         threadId: 'video-no-auto-fire',
         connection: adapter,
-        persistence: persistence,
         initialResumeSnapshot: videoResumeSnapshot,
       }),
     )
@@ -1045,10 +1022,9 @@ describe('useGenerateVideo', () => {
     })
 
     expect(connect).not.toHaveBeenCalled()
-    expect(persistence.getItem).not.toHaveBeenCalled()
     expect(result.current.isLoading).toBe(false)
     expect(result.current.status).toBe('idle')
-    // The seeded in-flight identity is exposed as read-only `resumeState`.
+    // The seeded in-flight identity is exposed as the read-only `runId`.
     expect(result.current.runId).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 })

@@ -10,12 +10,10 @@ import type {
 } from '../lib/audio-providers'
 import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
-import { generationPersistence } from '../lib/generation-persistence'
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
 // Persist each variant's lightweight resume snapshot across reloads.
-const transcriptionPersistence = generationPersistence
 
 function TranscriptionForm({
   mode,
@@ -31,7 +29,7 @@ function TranscriptionForm({
         threadId: `transcription:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/transcribe'),
         body: { provider: config.id },
-        persistence: transcriptionPersistence,
+        persistence: true,
       }
     }
     if (mode === 'direct') {
@@ -48,7 +46,7 @@ function TranscriptionForm({
               provider: config.id,
             },
           }),
-        persistence: transcriptionPersistence,
+        persistence: true,
       }
     }
     return {
@@ -64,7 +62,7 @@ function TranscriptionForm({
             provider: config.id,
           },
         }),
-      persistence: transcriptionPersistence,
+      persistence: true,
     }
   }, [mode, config.id])
 

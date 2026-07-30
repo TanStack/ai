@@ -76,7 +76,6 @@ export async function POST(request: Request) {
     stream: true,
     middleware: [
       withGenerationPersistence(persistence, {
-        threadId,
         // Stamp the durable serve URL (the GET route below) onto every
         // persisted artifact ref, and rewrite the live result's media field to
         // it. Both the live and the restored result then render from your own

@@ -267,13 +267,11 @@ describe('useGeneration', () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const getItem = vi.fn(() => snapshot)
       const { result } = renderHook(() =>
         useGeneration({
           id: 'no-auto-fire',
           threadId: 'no-auto-fire',
           connection: adapter,
-          persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
           initialResumeSnapshot: snapshot,
         }),
       )
@@ -282,7 +280,6 @@ describe('useGeneration', () => {
       await nextTick()
 
       expect(connect).not.toHaveBeenCalled()
-      expect(getItem).not.toHaveBeenCalled()
       expect(result.isLoading.value).toBe(false)
       expect(result.status.value).toBe('idle')
       // The persisted snapshot remains exposed as read-only state.
@@ -351,18 +348,22 @@ describe('useGeneration', () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const getItem = vi.fn(() => ({
-        resumeState: null,
-        status: 'complete' as const,
-        result: { id: 'result-1', model: 'image-model' },
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          result: { id: 'result-1', model: 'image-model' },
+        },
+        activeRun: null,
       }))
 
       const { result } = renderHook(() =>
         useGeneration({
           id: 'hydrated',
           threadId: 'hydrated',
-          connection: adapter,
-          persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
         }),
       )
 
@@ -371,7 +372,7 @@ describe('useGeneration', () => {
 
       // A completed snapshot repaints the normal `status` field to `success`.
       expect(result.status.value).toBe('success')
-      expect(getItem).toHaveBeenCalledWith('generation:hydrated')
+      expect(hydrateGeneration).toHaveBeenCalledWith('hydrated')
       expect(connect).not.toHaveBeenCalled()
       // The base hook injects no reconstructResult, so `result` stays null.
       expect(result.result.value).toBeNull()
@@ -382,17 +383,21 @@ describe('useGeneration', () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
       )
-      const getItem = vi.fn(() => ({
-        resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-        status: 'running' as const,
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+          status: 'running' as const,
+        },
+        activeRun: null,
       }))
 
       const { result } = renderHook(() =>
         useGeneration({
           id: 'running-hydrate',
           threadId: 'running-hydrate',
-          connection: adapter,
-          persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
         }),
       )
 
@@ -602,13 +607,17 @@ describe('useGenerateImage', () => {
       },
     }))
     const adapter = createMockConnectionAdapter()
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: await getItem(),
+      activeRun: null,
+    }))
 
     const { result } = renderHook(() =>
       useGenerateImage({
         id: 'img-hydrate',
         threadId: 'img-hydrate',
-        connection: adapter,
-        persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
       }),
     )
 
@@ -1036,13 +1045,11 @@ describe('useGenerateVideo', () => {
     const { adapter, connect } = createRunContextCaptureAdapter(
       createReplayVideoChunks(),
     )
-    const getItem = vi.fn(() => videoResumeSnapshot)
     const { result } = renderHook(() =>
       useGenerateVideo({
         id: 'video-no-auto-fire',
         threadId: 'video-no-auto-fire',
         connection: adapter,
-        persistence: { getItem, setItem: vi.fn(), removeItem: vi.fn() },
         initialResumeSnapshot: videoResumeSnapshot,
       }),
     )
@@ -1051,10 +1058,9 @@ describe('useGenerateVideo', () => {
     await nextTick()
 
     expect(connect).not.toHaveBeenCalled()
-    expect(getItem).not.toHaveBeenCalled()
     expect(result.isLoading.value).toBe(false)
     expect(result.status.value).toBe('idle')
-    // The seeded in-flight identity is exposed as read-only `resumeState`.
+    // The seeded in-flight identity is exposed as the read-only `runId`.
     expect(result.runId.value).toBe(videoResumeSnapshot.resumeState?.runId)
   })
 

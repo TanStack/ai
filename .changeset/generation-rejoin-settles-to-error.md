@@ -14,6 +14,6 @@ of hanging on `generating`.
 - `GenerationClient` / `VideoGenerationClient` `dispose()` no longer calls
   `stop()`: a teardown (unmount / React StrictMode dispose) must not mark the
   run non-resumable and wipe the `running` snapshot the way a user-driven
-  `stop()` intentionally does — that destroyed client-driven resume state so a
-  remount could never rejoin. It now aborts only the in-flight delivery, keeps
+  `stop()` intentionally does — that destroyed the resume state so a remount
+  could never rejoin. It now aborts only the in-flight delivery, keeps
   the snapshot resumable, and re-arms mount hydration so a remount rejoins.

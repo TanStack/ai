@@ -77,7 +77,6 @@ export type {
   GenerationResultSnapshot,
   GenerationErrorSnapshot,
   GenerationEventSnapshot,
-  GenerationPersistence,
   GenerationPersistenceOption,
   GenerationPersistenceOptions,
   GenerationClientOptions,

@@ -34,7 +34,6 @@ import type {
   TTSResult,
 } from '@tanstack/ai'
 import type { LucideIcon } from 'lucide-react'
-import { generationPersistence } from '../lib/generation-persistence'
 
 const SAMPLE_WAV_BASE64 = createToneWavBase64()
 const SAMPLE_AUDIO_DATA_URL = `data:audio/wav;base64,${SAMPLE_WAV_BASE64}`
@@ -157,42 +156,42 @@ function GenerationHooksPage() {
     id: 'generation-hooks:useGenerateImage',
     threadId: 'generation-hooks:useGenerateImage',
     connection: imageConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const audio = useGenerateAudio({
     id: 'generation-hooks:useGenerateAudio',
     threadId: 'generation-hooks:useGenerateAudio',
     connection: audioConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const speech = useGenerateSpeech({
     id: 'generation-hooks:useGenerateSpeech',
     threadId: 'generation-hooks:useGenerateSpeech',
     connection: speechConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const transcription = useTranscription({
     id: 'generation-hooks:useTranscription',
     threadId: 'generation-hooks:useTranscription',
     connection: transcriptionConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const summarize = useSummarize({
     id: 'generation-hooks:useSummarize',
     threadId: 'generation-hooks:useSummarize',
     connection: summarizeConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const video = useGenerateVideo({
     id: 'generation-hooks:useGenerateVideo',
     threadId: 'generation-hooks:useGenerateVideo',
     connection: videoConnection,
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const loadingCount = [

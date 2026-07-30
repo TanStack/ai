@@ -6,7 +6,6 @@ import type {
 import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
-import type { ChatStorageAdapter } from './types'
 import type {
   GenerationDevtoolsBridgeFactory,
   VideoDevtoolsBridgeFactory,
@@ -151,37 +150,28 @@ export interface GenerationResumeSnapshot {
 }
 
 /**
- * Storage adapter for the lightweight generation resume snapshot. This is the
- * same generic {@link ChatStorageAdapter} contract the chat client uses, so the
- * `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
- * factories work here too. Only the snapshot is ever written — never the
- * generated media bytes.
- */
-export type GenerationPersistence = ChatStorageAdapter<GenerationResumeSnapshot>
-
-/**
- * The `persistence` option for a generation client. Mirrors the chat client's
- * {@link ChatPersistenceOption}.
+ * The `persistence` option for a generation client.
  *
- * - `false` (default) / omitted: ephemeral. Nothing is written; a reload starts
+ * - `false` (default) / omitted: ephemeral. Nothing is recorded; a reload starts
  *   from empty.
- * - `true`: server-driven. Nothing is cached in the browser. On mount the client
- *   hydrates the last generation for its `threadId` from the server (via a
- *   `hydrateGeneration` handler — from the connection, or supplied as an
- *   option) and repaints that snapshot — it never auto-starts a run.
- * - a {@link GenerationPersistence} adapter: client-driven. The lightweight
- *   resume snapshot is cached in the browser under `generation:<threadId>` as a
- *   run streams and read back (validated) on mount.
+ * - `true`: server-driven. On mount the client hydrates the last generation for
+ *   its `threadId` from the server (via a `hydrateGeneration` handler, from the
+ *   connection or supplied as an option) and repaints that snapshot. It never
+ *   auto-starts a run.
+ *
+ * The record lives on the server, written by `withGenerationPersistence`. The
+ * browser caches nothing, so a generation's history is never duplicated into
+ * client storage.
  */
-export type GenerationPersistenceOption = boolean | GenerationPersistence
+export type GenerationPersistenceOption = boolean
 
 /**
  * The `persistence` / `threadId` pair shared by every generation hook.
  *
- * Turning persistence on **requires** a `threadId` — the stable scope runs are
- * filed under. Without one the client would key on a generated id that changes
- * every reload, so nothing would ever restore; making it a type error means the
- * compiler asks for the scope instead of the runtime silently inventing one.
+ * Turning persistence on **requires** a `threadId`, the stable scope runs are
+ * filed under. Without one the client would hydrate by a generated id that
+ * changes every reload, so nothing would ever restore; making it a type error
+ * means the compiler asks for the scope instead of the runtime inventing one.
  *
  * Ephemeral generations (no `persistence`, or `persistence: false`) leave
  * `threadId` optional, exactly as before — this adds no requirement to code
@@ -203,7 +193,7 @@ export type GenerationPersistenceOption = boolean | GenerationPersistence
  */
 export type GenerationPersistenceOptions =
   | {
-      persistence: true | GenerationPersistence
+      persistence: true
       /** Required by `persistence` — the stable scope runs are filed under. */
       threadId: string
     }
@@ -333,16 +323,10 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * {@link GenerationPersistenceOption}.
    *
    * - Omit or `false`: ephemeral, in-memory only.
-   * - `true`: server-driven. The client caches nothing and, on mount, hydrates
-   *   the last generation for its `threadId` from the server (needs a
-   *   `hydrateGeneration` handler — from the connection, or the option below)
-   *   and repaints that snapshot. It never auto-starts a run.
-   * - a {@link GenerationPersistence} adapter (any {@link ChatStorageAdapter},
-   *   including the shared `localStoragePersistence` / `sessionStoragePersistence`
-   *   / `indexedDBPersistence` factories): client-driven. The client writes the
-   *   lightweight snapshot under the key `generation:<threadId>` as a run streams, and
-   *   reads it back (validated) on construction unless `initialResumeSnapshot` is
-   *   provided. Generated media bytes are never written.
+   * - `true`: server-driven. On mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
+   *   from the connection or the option below) and repaints that snapshot. It
+   *   never auto-starts a run.
    */
   persistence?: GenerationPersistenceOption
 

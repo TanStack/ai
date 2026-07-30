@@ -20,7 +20,6 @@ import {
   useTranscription,
 } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { generationPersistence } from '../lib/generation-persistence'
 
 /**
  * Every generation surface, persisted, on one page — the manual-verification
@@ -34,13 +33,12 @@ import { generationPersistence } from '../lib/generation-persistence'
  * `reconstructGeneration`, so a full reload restores the result — and if the
  * run is still in flight, the hook rejoins its stream and finishes it in place.
  *
- * `summarize` is text, not a generation kind, so it can't be server-persisted
- * the same way. It uses the CLIENT adapter (`generationPersistence`,
- * localStorage): the summary text lives in the resume snapshot itself, so a
- * reload restores it without any server round-trip.
+ * `summarize` produces text rather than media, so it stores no artifacts, but it
+ * persists the same way: the summary text rides on the run record, and the
+ * mount-time hydration repaints it.
  *
- * Each hook has a stable `threadId` — that is the scope the run is filed under
- * and the storage key, so it must not change across reloads.
+ * Each hook has a stable `threadId` — the scope the run is filed under and the
+ * key hydration looks it up by, so it must not change across reloads.
  */
 
 function PersistentGenerationPage() {
@@ -101,7 +99,7 @@ function PersistentGenerationPage() {
     threadId: 'persistent-generation:summarize',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { model: 'gpt-5.5' },
-    persistence: generationPersistence,
+    persistence: true,
   })
 
   const handleTranscribe = async (

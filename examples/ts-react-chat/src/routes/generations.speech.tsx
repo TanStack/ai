@@ -9,14 +9,12 @@ import {
   type SpeechProviderConfig,
   type SpeechProviderId,
 } from '../lib/audio-providers'
-import { generationPersistence } from '../lib/generation-persistence'
 
 type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
 // Persist each variant's lightweight resume snapshot across reloads.
-const speechPersistence = generationPersistence
 
 function toSpeechOutput(raw: {
   audio: string
@@ -56,7 +54,7 @@ function SpeechGenerationForm({
         threadId: `speech:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/speech'),
         body: { provider: config.id },
-        persistence: speechPersistence,
+        persistence: true,
         onResult: toSpeechOutput,
       }
     }
@@ -68,7 +66,7 @@ function SpeechGenerationForm({
           generateSpeechFn({
             data: { ...input, provider: config.id },
           }),
-        persistence: speechPersistence,
+        persistence: true,
         onResult: toSpeechOutput,
       }
     }
@@ -79,7 +77,7 @@ function SpeechGenerationForm({
         generateSpeechStreamFn({
           data: { ...input, provider: config.id },
         }),
-      persistence: speechPersistence,
+      persistence: true,
       onResult: toSpeechOutput,
     }
   }, [mode, config.id])

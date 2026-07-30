@@ -5,11 +5,9 @@ import type { UseGenerateVideoReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { generateVideoFn, generateVideoStreamFn } from '../lib/server-fns'
-import { generationPersistence } from '../lib/generation-persistence'
 
 // Persist each variant's lightweight resume snapshot across reloads. For a
 // long video run this keeps the job id around after a reload.
-const videoPersistence = generationPersistence
 
 function StreamingVideoGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -18,7 +16,7 @@ function StreamingVideoGeneration() {
     id: 'video:streaming',
     threadId: 'video:streaming',
     connection: fetchServerSentEvents('/api/generate/video'),
-    persistence: videoPersistence,
+    persistence: true,
   })
 
   return (
@@ -36,7 +34,7 @@ function DirectVideoGeneration() {
       generateVideoFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
-    persistence: videoPersistence,
+    persistence: true,
   })
 
   return (
@@ -54,7 +52,7 @@ function ServerFnVideoGeneration() {
       generateVideoStreamFn({
         data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
       }),
-    persistence: videoPersistence,
+    persistence: true,
   })
 
   return (

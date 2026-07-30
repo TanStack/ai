@@ -6,15 +6,17 @@ import {
 } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { replayGenerationIfResuming } from '../lib/generation-durability'
+import { generationServerPersistence } from '../lib/generation-server-store'
 
 /**
  * Text summarization with DELIVERY durability, so a mid-run reload rejoins and
  * tails the stream to completion — the same resumability the media routes get.
  *
- * Summarize is not a generation "kind" (no media artifacts to persist), so this
- * page drives its STATE persistence from the client (`generationPersistence`
- * localStorage) — the finished summary restores from there on a done-refresh.
- * The only server-side piece needed for a *mid-run* reload is the delivery log:
+ * Summarize produces text, not media, so there are no artifacts to store: the
+ * run record alone is enough for `persistence: true` to repaint the last summary
+ * after a reload, and `reconstructGeneration` serves it from the GET below.
+ *
+ * A *mid-run* reload additionally needs the delivery log:
  * `memoryStream` records the chunks, and the run's `runId` is threaded into
  * `summarize()` so the emitted `RUN_STARTED` is keyed by the same id the client
  * rejoins with. Without that alignment the client's `joinRun` GET would tail a
@@ -34,6 +36,15 @@ export const Route = createFileRoute('/api/summarize')({
           typeof body.threadId === 'string' ? body.threadId : undefined
         const runId = typeof body.runId === 'string' ? body.runId : undefined
 
+        // Persistence needs the scope named. Reject a request without one
+        // rather than filing the run somewhere no client could hydrate by.
+        if (!threadId) {
+          return new Response(
+            '`threadId` is required — it is the scope this summary is filed under.',
+            { status: 400 },
+          )
+        }
+
         const stream = summarize({
           adapter: openaiSummarize(model ?? 'gpt-5.5'),
           text,
@@ -41,7 +52,13 @@ export const Route = createFileRoute('/api/summarize')({
           style,
           stream: true,
           ...(runId ? { runId } : {}),
-          ...(threadId ? { threadId } : {}),
+          threadId,
+          // A summary is text, so only the run record is persisted: no artifact
+          // stores, no bytes. That is enough for `persistence: true` to repaint
+          // the last summary after a reload.
+          middleware: [
+            withGenerationPersistence(generationServerPersistence()),
+          ],
         })
 
         // Delivery durability: chunks are logged and id-tagged, so a mount-time
@@ -53,12 +70,14 @@ export const Route = createFileRoute('/api/summarize')({
         })
       },
 
-      // `joinRun` replay — re-attach to a summarize run still in flight from a
-      // previous request. 404 when the run is unknown or its log has aged out,
-      // rather than the SPA shell the client cannot parse as SSE.
-      GET: ({ request }) =>
+      // Two jobs, resolved in order:
+      // 1. `joinRun` delivery replay, when the request carries a resume offset.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, so a finished summary restores after a reload even
+      //    once its delivery log has aged out.
+      GET: async ({ request }) =>
         replayGenerationIfResuming(request) ??
-        new Response('no resumable run', { status: 404 }),
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })

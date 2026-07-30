@@ -26,7 +26,6 @@ import type {
   GenerationResumeSnapshot,
   GenerationRestoredResult,
   GenerationResumeState,
-  GenerationPersistence,
 } from './generation-types'
 
 /**
@@ -111,7 +110,6 @@ export class GenerationClient<
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
   private readonly threadId: string
   private readonly persistenceScope: string | undefined
-  private readonly resumePersistence: GenerationPersistence | undefined
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -123,11 +121,7 @@ export class GenerationClient<
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
   private resumeSnapshot: GenerationResumeSnapshot | undefined
-  private resumeSnapshotPersistenceQueue: Promise<void> = Promise.resolve()
-  private resumeSnapshotHydration: Promise<void> | undefined
-  private queuedSnapshotSignature: string | undefined
   private lastEmittedResumeState: string | undefined
-  private resumePersistenceError: Error | undefined = undefined
   private abortController: AbortController | null = null
   private rejoinedRunId: string | undefined
   private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
@@ -160,16 +154,9 @@ export class GenerationClient<
     this.hydrateGenerationHandler = options.hydrateGeneration
     this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
-    // `persistence` is `false`/omitted (ephemeral), `true` (server-driven: cache
-    // nothing, hydrate the last generation for `threadId` on mount), or a storage
-    // adapter (client-driven: cache the lightweight resume snapshot locally).
-    // Only the server-driven mode leaves `resumePersistence` undefined AND turns
-    // on mount hydration.
-    if (options.persistence === true) {
-      this.serverDriven = true
-    } else if (options.persistence) {
-      this.resumePersistence = options.persistence
-    }
+    // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
+    // hydrate the last generation for `threadId` from the server on mount).
+    this.serverDriven = options.persistence === true
     // The types require `threadId` alongside `persistence`, so this only fires
     // for JS callers. Warn rather than fall back silently: keying on the
     // generated wire id would write a different slot every reload, restoring
@@ -200,16 +187,12 @@ export class GenerationClient<
       options.devtoolsBridgeFactory ?? createNoOpGenerationDevtoolsBridge
     )<TOutput>(this.buildDevtoolsBridgeOptions())
 
-    // Mount hydration — both the client-driven storage read
-    // (`maybeHydrateResumeSnapshot`) and the server-driven network fetch
-    // (`maybeHydrateFromServer`) — is deliberately NOT run here. The framework
+    // Mount hydration (`maybeHydrateFromServer`) is deliberately NOT run here. The framework
     // hooks build this client inside `useMemo`, so the constructor executes in
-    // React's render phase; hydrating here would either setState during render
-    // (client-driven, a "state update on a component that hasn't mounted yet"
-    // warning) or re-fire the hydrate GET on every discarded/speculative render
-    // (server-driven, flooding the connection pool when several clients mount
-    // together). Both are kicked off once from `mountDevtools`, which the hooks
-    // call from a commit-phase mount effect. `initialResumeSnapshot` above still
+    // React's render phase; hydrating here would re-fire the hydrate GET on
+    // every discarded/speculative render, flooding the connection pool when
+    // several clients mount together. It is kicked off once from
+    // `mountDevtools`, which the hooks call from a commit-phase mount effect. `initialResumeSnapshot` above still
     // seeds SSR/first paint synchronously.
   }
 
@@ -236,7 +219,6 @@ export class GenerationClient<
     // StrictMode's mount → cleanup → mount replay against the same memoized
     // client) leaves the client usable again.
     this.disposed = false
-    this.maybeHydrateResumeSnapshot()
     this.maybeHydrateFromServer()
     // Re-attach to an in-flight run whose snapshot is already loaded — the
     // remount case. On the FIRST mount the snapshot loads asynchronously and
@@ -429,7 +411,6 @@ export class GenerationClient<
         status: 'idle',
       }
       this.notifyResumeSnapshotChanged()
-      void this.persistResumeSnapshot(this.resumeSnapshot)
     }
   }
 
@@ -494,9 +475,8 @@ export class GenerationClient<
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
     // Re-arm mount hydration + rejoin so a remount resumes from the (preserved)
-    // snapshot. `mountDevtools` re-runs the hydration entry points and
-    // `maybeResumeInFlight`, all individually guarded.
-    this.resumeSnapshotHydration = undefined
+    // snapshot. `mountDevtools` re-runs the hydration entry point and
+    // `maybeResumeInFlight`, both individually guarded.
     this.serverHydrationStarted = false
     this.rejoinedRunId = undefined
   }
@@ -515,10 +495,6 @@ export class GenerationClient<
 
   getError(): Error | undefined {
     return this.error
-  }
-
-  getResumePersistenceError(): Error | undefined {
-    return this.resumePersistenceError
   }
 
   getStatus(): GenerationClientState {
@@ -648,7 +624,6 @@ export class GenerationClient<
       chunk,
     )
     this.notifyResumeSnapshotChanged()
-    void this.persistResumeSnapshot(this.resumeSnapshot)
   }
 
   /**
@@ -806,7 +781,6 @@ export class GenerationClient<
           : {}),
     }
     this.notifyResumeSnapshotChanged()
-    void this.persistResumeSnapshot(this.resumeSnapshot)
   }
 
   /**
@@ -825,7 +799,7 @@ export class GenerationClient<
     if (this.status !== 'error') this.setStatus('error')
     this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
-    if (!this.resumeSnapshot && !this.resumePersistence) return
+    if (!this.resumeSnapshot && !this.serverDriven) return
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -839,67 +813,12 @@ export class GenerationClient<
       error: { message: error.message },
     }
     this.notifyResumeSnapshotChanged()
-    void this.persistResumeSnapshot(this.resumeSnapshot)
   }
 
   private clearResumeSnapshot(): void {
     this.resumeSnapshot = undefined
-    this.queuedSnapshotSignature = undefined
     this.lastEmittedResumeState = undefined
     this.notifyResumeSnapshotChanged()
-    if (!this.resumePersistence) {
-      return
-    }
-    this.resumeSnapshotPersistenceQueue =
-      this.resumeSnapshotPersistenceQueue.then(
-        () => this.removePersistedResumeSnapshot(),
-        () => this.removePersistedResumeSnapshot(),
-      )
-  }
-
-  /**
-   * Storage key for this client's snapshot. The `generation:` segment keeps
-   * a generation client and a chat client that share an id (and a storage
-   * adapter with the default key prefix) from overwriting each other.
-   */
-  /**
-   * Storage key for the client-driven snapshot. Keys on the explicit scope so
-   * both persistence modes address the same slot — server-driven hydrates by
-   * `threadId` too. Falls back to the wire id only for the JS-caller case the
-   * constructor already warned about.
-   */
-  private get resumeSnapshotKey(): string {
-    return `generation:${this.persistenceScope ?? this.threadId}`
-  }
-
-  private maybeHydrateResumeSnapshot(): void {
-    if (!this.resumePersistence || this.resumeSnapshotHydration) return
-    // An explicit `initialResumeSnapshot` seed takes precedence over storage.
-    if (this.resumeSnapshot) return
-    this.resumeSnapshotHydration = this.hydrateResumeSnapshot()
-  }
-
-  private async hydrateResumeSnapshot(): Promise<void> {
-    let stored: unknown
-    try {
-      stored = await this.resumePersistence?.getItem(this.resumeSnapshotKey)
-    } catch (error) {
-      // A corrupt record (e.g. truncated JSON) or unavailable storage must
-      // not break construction; the app just starts without a snapshot.
-      console.warn(
-        '[TanStack AI] Failed to read persisted generation resume snapshot',
-        error,
-      )
-      return
-    }
-    if (stored === null || stored === undefined) return
-    const snapshot = parseGenerationResumeSnapshot(stored)
-    if (!snapshot) return
-    // Live state wins: adopt the stored snapshot only if nothing has been
-    // observed since construction.
-    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
-    // If the stored run was still generating, re-attach and finish it in place.
-    this.repaintRestoredSnapshot(snapshot)
   }
 
   /**
@@ -1008,78 +927,6 @@ export class GenerationClient<
       }
     })()
   }
-
-  private async persistResumeSnapshot(
-    snapshot: GenerationResumeSnapshot,
-  ): Promise<void> {
-    if (!this.resumePersistence) {
-      return
-    }
-
-    // Skip writes that only differ in `lastEvent` — for a long streaming run
-    // this collapses hundreds of per-chunk writes into the handful where the
-    // snapshot materially changed. (`lastEvent` in storage is best-effort;
-    // hydration drops it anyway.)
-    const signature = resumeSnapshotSignature(snapshot)
-    if (signature === this.queuedSnapshotSignature) {
-      return
-    }
-    this.queuedSnapshotSignature = signature
-
-    this.resumeSnapshotPersistenceQueue =
-      this.resumeSnapshotPersistenceQueue.then(
-        () => this.writeResumeSnapshot(snapshot),
-        () => this.writeResumeSnapshot(snapshot),
-      )
-    await this.resumeSnapshotPersistenceQueue
-  }
-
-  private async writeResumeSnapshot(
-    snapshot: GenerationResumeSnapshot,
-  ): Promise<void> {
-    try {
-      await this.resumePersistence?.setItem(this.resumeSnapshotKey, snapshot)
-      this.resumePersistenceError = undefined
-    } catch (error) {
-      // Warn only on the transition into failure, not once per write.
-      if (!this.resumePersistenceError) {
-        console.warn(
-          '[TanStack AI] Failed to persist generation resume snapshot',
-          error,
-        )
-      }
-      this.resumePersistenceError =
-        error instanceof Error ? error : new Error(String(error))
-      // Allow the next snapshot change to retry even if it is materially
-      // identical to this failed write.
-      this.queuedSnapshotSignature = undefined
-    }
-  }
-
-  private async removePersistedResumeSnapshot(): Promise<void> {
-    try {
-      await this.resumePersistence?.removeItem(this.resumeSnapshotKey)
-      this.resumePersistenceError = undefined
-    } catch (error) {
-      if (!this.resumePersistenceError) {
-        console.warn(
-          '[TanStack AI] Failed to remove persisted generation resume snapshot',
-          error,
-        )
-      }
-      this.resumePersistenceError =
-        error instanceof Error ? error : new Error(String(error))
-    }
-  }
-}
-
-/**
- * Stable serialization of the snapshot minus `lastEvent`, used to detect
- * material changes between persistence writes.
- */
-function resumeSnapshotSignature(snapshot: GenerationResumeSnapshot): string {
-  const { lastEvent: _lastEvent, ...significant } = snapshot
-  return JSON.stringify(significant)
 }
 
 function completeProgressValue(

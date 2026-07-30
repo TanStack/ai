@@ -115,12 +115,13 @@ chat's identity _is_ its `threadId`. Without a stable one, each load is a new
 chat. Generate it server-side or from a route param the user owns; do not
 randomize per mount.
 
-## Generation hooks: two modes, mirroring chat
+## Generation hooks: server-driven only
 
 The generation hooks (`useGenerateImage`, `useGenerateVideo`, `useGeneration`,
-`useSummarize`, `useTranscription`, …) take the **same `persistence` option** as
-`useChat` — `boolean | adapter` — with the same two-mode split. **The hooks are
-transparent, mirroring `useChat`:** whichever mode, a reload repaints the hook's
+`useSummarize`, `useTranscription`, …) take a `persistence` option too, but it is
+**boolean only** — there is no storage-adapter mode, and the browser caches
+nothing. **The hooks are transparent, mirroring `useChat`:** a reload repaints the
+hook's
 **normal** fields — `status` (`'idle'` / `'generating'` / `'success'` /
 `'error'`), `error`, and `result` — as if the run had just finished. There is
 **no** `resumeSnapshot`, `resumeState`, `pendingArtifacts`, or `resultArtifacts`
@@ -132,39 +133,7 @@ id), **never the generated media bytes**.
 The hook return is exactly `generate` / `result` / `isLoading` / `error` /
 `status` / `stop` / `reset` / `runId`.
 
-### Mode A — client-driven (a storage adapter)
-
-```tsx
-const image = useGenerateImage({
-  threadId: 'hero-image', // REQUIRED by persistence — key is `generation:<threadId>`
-  connection: fetchServerSentEvents('/api/generate/image'),
-  persistence: localStoragePersistence(), // bare — no type argument
-})
-// After a reload: image.status / image.result / image.error are the last run's
-// outcome, read exactly like a fresh run. image.runId is non-null only WHILE a
-// run is streaming.
-```
-
-- The lightweight snapshot is cached in the browser under `generation:<threadId>`
-  as a run streams, and read back on mount.
-- **`threadId` is REQUIRED whenever `persistence` is set** — it is a type error
-  to omit it, in BOTH modes. It is the generation's _scope_: a stable,
-  app-chosen name for the slot successive runs fill (`product-123-hero`,
-  `video-9-start-frame`), NOT a link to a chat conversation. Never suggest
-  falling back to `id`: `id` is the devtools/instance label only and never keys
-  storage.
-- `localStoragePersistence()` (and the session / IndexedDB factories) take **no**
-  type argument here — a bare call defaults to the generation snapshot shape.
-- Hydration is automatic on mount and validated
-  (`parseGenerationResumeSnapshot`); an explicit `initialResumeSnapshot` seed
-  skips it.
-- The `generation:` key segment means a chat and a generation client can share
-  a threadId and an adapter without colliding.
-- `result` needs byte storage to come back. A client snapshot never holds the
-  bytes, so on its own a reload restores `status` and `error` while `result`
-  stays `null` (see byte storage below).
-
-### Mode B — server-driven (`persistence: true`)
+### Turning it on (`persistence: true`)
 
 ```tsx
 const image = useGenerateImage({
@@ -176,8 +145,7 @@ const image = useGenerateImage({
 // generation for `threadId`, fetched from the server — nothing was cached.
 ```
 
-The server half of Mode B — the same route handles the run and the hydration
-`GET`:
+The server half — the same route handles the run and the hydration `GET`:
 
 ```ts
 import {
@@ -206,7 +174,7 @@ export async function POST(request: Request) {
       adapter: openaiImage('gpt-image-2'),
       prompt: input.prompt,
       stream: true,
-      middleware: [withGenerationPersistence(persistence, { threadId })],
+      middleware: [withGenerationPersistence(persistence)],
     }),
   )
 }
@@ -238,7 +206,7 @@ export function GET(request: Request) {
   `withGenerationPersistence` on the generation route. See
   `ai-core/media-generation` and `ai-persistence`.
 - Best for multi-device / compliance (no generation metadata in browser
-  storage), exactly like chat Mode B.
+  storage), exactly like chat's server-authoritative mode.
 
 ### Restoring media: byte storage + `artifactUrl`
 
@@ -248,7 +216,6 @@ export function GET(request: Request) {
 
 ```ts
 withGenerationPersistence(persistence, {
-  threadId,
   artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
 })
 ```
@@ -261,10 +228,10 @@ own origin. `result.artifacts` is the whole artifact surface on the hook.
 Without byte storage, a reload restores `status` / `error` and `result` stays
 `null`.
 
-Common to both modes:
+Also worth knowing:
 
-- `stop()` marks the record no longer resumable; `reset()` deletes it (Mode A) or
-  clears the in-memory snapshot (Mode B).
+- `stop()` marks the record no longer resumable; `reset()` clears the in-memory
+  snapshot.
 - Nothing auto-runs from a hydrated record — `generate(...)` is always explicit.
 - Use `status` / `result` for a finished run; use `runId` to tell that a run was
   still generating when the page closed, and to name it to your own server (to

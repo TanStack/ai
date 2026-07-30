@@ -7,13 +7,10 @@ Fix generation mount hydration to run in the commit phase, and restore TTS
 results.
 
 - The `GenerationClient` / `VideoGenerationClient` used to kick off mount
-  hydration (both the client-driven storage read and the server-driven network
-  fetch) from their constructor. Framework hooks build the client inside
-  `useMemo`, so that ran in React's render phase — a client-driven restore fired
-  a "state update on a component that hasn't mounted yet" warning, and several
-  server-driven clients mounting together re-fired the hydrate GET on every
-  discarded/speculative render, flooding the connection pool
-  (`ERR_INSUFFICIENT_RESOURCES`). Hydration now runs once from `mountDevtools`
+  hydration from their constructor. Framework hooks build the client inside
+  `useMemo`, so that ran in React's render phase, and several clients mounting
+  together re-fired the hydrate GET on every discarded/speculative render,
+  flooding the connection pool (`ERR_INSUFFICIENT_RESOURCES`). Hydration now runs once from `mountDevtools`
   (the hooks' commit-phase mount effect), guarded by `serverHydrationStarted`.
   `initialResumeSnapshot` still seeds SSR/first paint. Note for direct
   (non-framework) `GenerationClient`/`VideoGenerationClient` users: mount

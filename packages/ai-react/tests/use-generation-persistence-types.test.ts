@@ -21,10 +21,8 @@ import { useGenerateVideo } from '../src/use-generate-video'
 import { useGeneration } from '../src/use-generation'
 import { useSummarize } from '../src/use-summarize'
 import { useTranscription } from '../src/use-transcription'
-import type { GenerationPersistence } from '@tanstack/ai-client'
 
 const connection = {} as never
-const adapter = {} as GenerationPersistence
 
 describe('generation persistence requires a threadId', () => {
   it('rejects `persistence: true` without a threadId', () => {
@@ -44,22 +42,10 @@ describe('generation persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('rejects a storage adapter without a threadId', () => {
-    // Type-level only: never invoked, so no renderer is needed.
-    const _typeCheck = () => {
-      // @ts-expect-error threadId is required whenever persistence is set
-      useGenerateImage({ connection, persistence: adapter })
-      // @ts-expect-error threadId is required whenever persistence is set
-      useGeneration({ connection, persistence: adapter })
-    }
-    void _typeCheck
-  })
-
   it('accepts persistence when a threadId is supplied', () => {
     // Type-level only: never invoked, so no renderer is needed.
     const _typeCheck = () => {
       useGenerateImage({ connection, persistence: true, threadId: 'hero' })
-      useGenerateImage({ connection, persistence: adapter, threadId: 'hero' })
       useGeneration({ connection, persistence: true, threadId: 'hero' })
     }
     void _typeCheck

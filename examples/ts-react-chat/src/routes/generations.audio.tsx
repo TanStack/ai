@@ -10,12 +10,10 @@ import {
   type AudioProviderConfig,
   type AudioProviderId,
 } from '../lib/audio-providers'
-import { generationPersistence } from '../lib/generation-persistence'
 
 type Mode = 'hooks' | 'server-fn'
 
 // Persist each variant's lightweight resume snapshot across reloads.
-const audioPersistence = generationPersistence
 
 interface AudioOutput {
   url: string
@@ -82,7 +80,7 @@ function AudioGenerationForm({
         threadId: `audio:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
-        persistence: audioPersistence,
+        persistence: true,
         onResult: toAudioOutput,
       }
     }
@@ -93,7 +91,7 @@ function AudioGenerationForm({
         generateAudioFn({
           data: { ...input, provider: config.id, model: selectedModel },
         }),
-      persistence: audioPersistence,
+      persistence: true,
       onResult: toAudioOutput,
     }
   }, [mode, config.id, selectedModel])
