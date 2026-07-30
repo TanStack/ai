@@ -472,10 +472,35 @@ export function withSandbox<TOffset extends string = string>(
         // the two facts a later attach and the reaper both need. `update` is a
         // documented no-op for an unknown runId, so a vanished record does not
         // turn teardown into a throw.
-        await durability.runs.update(ctx.runId, {
-          detachedSince: Date.now(),
-          sandboxKey: definition.key(state.ensureCtx),
-        })
+        //
+        // GUARDED, and on failure this branch is ABANDONED for the destroy one
+        // below. This was the only unguarded await left on the abort path, and a
+        // rejection here was the worst shape available: `provideRunDetached`
+        // never ran, so core terminalized the log with a synthetic `RUN_ERROR`
+        // and recorded a healthy detached run as failed — the exact harm this
+        // branch exists to prevent; `detachedSince`/`sandboxKey` were never
+        // written, so `listReclaimable` could never surface the run and
+        // `reapDetachedRuns` could never reclaim it; and `definition.destroy`
+        // was not reached either, so the sandbox ran forever with no recovery
+        // path at all. A DESTROYED sandbox beats an unreachable one. This is the
+        // same reasoning `drainWatcher` already applies to its own `stop()` — a
+        // rejection there "leaks the sandbox on exactly the abort path that must
+        // ALWAYS tear down" — carried across to the write that decides whether
+        // the run is reachable at all.
+        try {
+          await durability.runs.update(ctx.runId, {
+            detachedSince: Date.now(),
+            sandboxKey: definition.key(state.ensureCtx),
+          })
+        } catch (error) {
+          state.logger?.warn(
+            'sandbox detach record write failed; destroying instead of detaching',
+            { runId: ctx.runId, error },
+          )
+          await definition.destroy(state.ensureCtx)
+          await definition.hooks?.onDestroy?.()
+          return
+        }
         // Publish the VERDICT, not just the record fields. Core's durable
         // delivery sink reads it (see `RunDetachedCapability`) and leaves the
         // run's log OPEN instead of appending a synthetic terminal `RUN_ERROR`

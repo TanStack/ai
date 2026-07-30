@@ -12,10 +12,11 @@
  * `setup` and `onAbort` are called directly), never a re-implementation of the
  * hook bodies, so the assertions pin production code rather than a sketch of it.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DetachableRunCapability,
   InMemoryRunStore,
+  RunDetachedCapability,
   memoryStream,
 } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
@@ -270,6 +271,39 @@ describe('withSandbox — detach vs destroy', () => {
     await expect(h.abort()).resolves.toBeUndefined()
     expect(h.destroys()).toBe(0)
     expect(await runs.get('gone')).toBeNull()
+  })
+
+  it('falls through to DESTROY when the detach record write fails', async () => {
+    // The record write was the ONLY unguarded await on the abort path. A
+    // rejecting `update` made `onAbort` reject, and then: `provideRunDetached`
+    // never ran, so core terminalized the log with a synthetic `RUN_ERROR` and
+    // recorded a healthy detached run as failed — exactly what this branch
+    // exists to prevent; `detachedSince`/`sandboxKey` were never written, so
+    // `listReclaimable` could never surface the run and `reapDetachedRuns` could
+    // never reclaim it; and `definition.destroy` was not reached either. The
+    // sandbox ran forever with no recovery path.
+    //
+    // A destroyed sandbox beats an unreachable one, which is the same reasoning
+    // `drainWatcher` already applies to its own guarded `stop()`: a rejection
+    // there would leak the sandbox "on exactly the abort path that must ALWAYS
+    // tear down".
+    const runs = await seededRuns()
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+    // Spied AFTER setup, so only the abort-path write fails.
+    vi.spyOn(runs, 'update').mockRejectedValue(new Error('run store down'))
+
+    await expect(h.abort({ cancelRequested: false })).resolves.toBeUndefined()
+
+    expect(h.destroys()).toBe(1)
+    expect(h.onDestroys()).toBe(1)
+    // The detach VERDICT must not be published for a detach that did not happen:
+    // core would leave the log open for a takeover that can never be found.
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+    expect(
+      h.logged.some(
+        (c) => c.level === 'warn' && c.msg.includes('detach record write'),
+      ),
+    ).toBe(true)
   })
 
   it('rejects at setup when detachedRunTtl is malformed', async () => {

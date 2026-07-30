@@ -546,7 +546,7 @@ describe('reapDetachedRuns — claiming and quiescence', () => {
     expect(entryFor(result, quiet.runId).outcome).toBe('finalized')
   })
 
-  it('reports not-claimed when another host already terminalized the run', async () => {
+  it('reports not-claimed when another host already terminalized the run, without writing a cancel onto it', async () => {
     const h = makeHarness()
     const raced = await h.seed({
       detachedSince: NOW - TTL - 1,
@@ -563,6 +563,104 @@ describe('reapDetachedRuns — claiming and quiescence', () => {
     expect(entryFor(result, raced.runId).outcome).toBe('not-claimed')
     expect(h.driven).toEqual([mine.runId])
     expect(h.reclaimed.map((record) => record.runId)).toEqual([mine.runId])
+    // The cancel is recorded INSIDE the claim, so a refused claim writes
+    // NOTHING. Recorded before the claim it landed on an already-terminal
+    // record — harmless here only by luck, and the same write on a run whose
+    // viewer had returned is the poisoning case the next test covers.
+    expect(h.updatesOf(raced.runId)).toEqual([])
+    expect((await h.runs.get(raced.runId))?.cancelRequested).toBeUndefined()
+  })
+
+  it('never cancels a run whose viewer came back between the listing and the claim', async () => {
+    // `expired` derived from the LISTED record is stale by the time the claim is
+    // held. `startRunDriver` clears `detachedSince` when a real viewer attaches,
+    // deliberately stopping the TTL clock; it takes the same per-run lock, so
+    // the clear lands while this sweep is queued behind it.
+    //
+    // Nothing anywhere in the tree clears `cancelRequested`, so writing it on a
+    // now-live run is PERMANENT — and the claim is then refused, which
+    // `'not-claimed'` documents as normal, so the poisoning write is invisible.
+    // On that viewer's next ordinary disconnect `middleware.ts`'s
+    // `wasCancelRequested` read skips the detach branch and destroys the sandbox
+    // of a healthy, actively-viewed run.
+    const h = makeHarness()
+    const returning = await h.seed({
+      detachedSince: NOW - TTL - 1,
+      sandboxKey: 'k-back',
+    })
+    const done = await h.seed({ detachedSince: NOW - 60_000 })
+    h.probes.set(done.runId, { state: 'finished', exitCode: 0 })
+    let viewerReturned = false
+    const locks = lockStoreWith((key) => {
+      if (key.includes(returning.runId)) viewerReturned = true
+      return new AbortController().signal
+    })
+    // Applied through the store the sweep itself reads, so the re-read under the
+    // lock is the only thing that can notice.
+    const realGet = h.runs.get.bind(h.runs)
+    vi.spyOn(h.runs, 'get').mockImplementation(async (runId) => {
+      if (viewerReturned && runId === returning.runId) {
+        viewerReturned = false
+        await h.runs.update(runId, { detachedSince: undefined })
+      }
+      return realGet(runId)
+    })
+
+    const result = await reapDetachedRuns(h.options({ locks }))
+
+    expect((await h.runs.get(returning.runId))?.cancelRequested).toBeUndefined()
+    expect(h.order).not.toContain(`cancel:${returning.runId}`)
+    expect(h.driven).not.toContain(returning.runId)
+    expect(h.logOf(returning.runId).appended).toEqual([])
+    expect(h.logOf(returning.runId).closes).toBe(0)
+    expect(entryFor(result, returning.runId).outcome).toBe('not-claimed')
+    expect((await h.runs.get(returning.runId))?.status).toBe('running')
+    // The sandbox of the run the viewer is watching stays up.
+    expect(h.reclaimed.map((record) => record.runId)).toEqual([done.runId])
+    // ...and the genuinely finished run in the SAME sweep still went through, so
+    // none of the above passes merely because nothing was swept.
+    expect(entryFor(result, done.runId).outcome).toBe('finalized')
+  })
+
+  it('arms the run budget only after the lock and quiescence, so a queued claim cannot discard a finished transcript', async () => {
+    // The budget must bound the DRIVE, not the queue. Armed before
+    // `locks.withLock` and `awaitLogQuiescence` — both of which consume it — the
+    // effective budget was `runBudgetMs − fenceQuietMs − lockWait`. Another host
+    // holding the lock for longer than the budget meant the claim was acquired
+    // with the timer ALREADY fired, `pipeToRunLog` hit its entry `signal.aborted`
+    // check before pulling one chunk, and a FINISHED agent's transcript was
+    // recorded `'aborted'` with the log closed — unreplayable forever, since a
+    // terminal record drops out of `listReclaimable`, and then its sandbox was
+    // destroyed while holding the only copy.
+    const h = makeHarness()
+    const queued = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-queued',
+    })
+    const live = await h.seed({ detachedSince: NOW - 60_000 })
+    h.probes.set(queued.runId, { state: 'finished', exitCode: 0 })
+    // Both consumers at once, each on its own longer than the whole budget: a
+    // predecessor holding the lock, and the quiescence window.
+    const locks: LockStore = {
+      withLock: async (_key, fn) => {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        return fn(new AbortController().signal)
+      },
+    }
+
+    const result = await reapDetachedRuns(
+      h.options({ locks, runBudgetMs: 50, fenceQuietMs: 25 }),
+    )
+
+    const entry = entryFor(result, queued.runId)
+    expect(entry.outcome).toBe('finalized')
+    expect(entry.status).toBe('completed')
+    expect(h.logOf(queued.runId).appended).toHaveLength(2)
+    expect(result.outcomes['budget-exceeded']).toBe(0)
+    expect(h.reclaimed.map((record) => record.runId)).toEqual([queued.runId])
+    // The leave-alone half of the same sweep, so the assertions above are not
+    // passing because nothing was considered.
+    expect(entryFor(result, live.runId).outcome).toBe('producing')
   })
 
   it('links the drive to the claim lease, suppresses the terminal write, and reclaims nothing', async () => {
@@ -659,6 +757,64 @@ describe('reapDetachedRuns — totality', () => {
     // A run inside the budget is unaffected; the budget is per-run, not per-sweep.
     expect(entryFor(result, normal.runId).outcome).toBe('finalized')
     expect(entryFor(result, normal.runId).terminalizedAnyway).toBeUndefined()
+  })
+
+  it('reports a failed reclaim distinctly from a failed sweep, with the transcript still saved', async () => {
+    // `reclaimSandbox` deliberately does not guard `instances.get` (the caller is
+    // meant to record it) and neither does `sandboxReclaimer`, so a throwing
+    // instance store landed in the outer catch as a bare `'failed'` with no
+    // `status` and no `exitCode`. By then the record is terminal and the log
+    // closed, so the run is out of `listReclaimable` FOREVER: the sandbox leaks
+    // with no retry, attributed to a generic sweep failure an operator cannot
+    // tell apart from a run that was never finalized at all.
+    const h = makeHarness()
+    const { logger, calls } = captureLogger()
+    const leaked = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-leak',
+    })
+    const clean = await h.seed({
+      detachedSince: NOW - 60_000,
+      sandboxKey: 'k-ok',
+    })
+    h.probes.set(leaked.runId, { state: 'finished', exitCode: 5 })
+    h.probes.set(clean.runId, { state: 'finished', exitCode: 0 })
+
+    const result = await reapDetachedRuns(
+      h.options({
+        logger,
+        reclaim: (record) => {
+          h.reclaimed.push(record)
+          return record.runId === leaked.runId
+            ? Promise.reject(new Error('instance store down'))
+            : Promise.resolve()
+        },
+      }),
+    )
+
+    const entry = entryFor(result, leaked.runId)
+    expect(entry.outcome).toBe('reclaim-failed')
+    // The transcript-saved half of the signal: the drive succeeded, so the
+    // status and the exit code are reported exactly as `'finalized'` reports
+    // them. `'failed'` carried neither.
+    expect(entry.status).toBe('completed')
+    expect(entry.exitCode).toBe(5)
+    expect(entry.error).toBeInstanceOf(Error)
+    expect(h.logOf(leaked.runId).appended).toHaveLength(2)
+    expect(h.logOf(leaked.runId).closes).toBe(1)
+    expect((await h.runs.get(leaked.runId))?.status).toBe('completed')
+    expect(calls.some((call) => call.level === 'error')).toBe(true)
+    expect(result.outcomes).toMatchObject({
+      'reclaim-failed': 1,
+      finalized: 1,
+      failed: 0,
+    })
+    // The sweep continued and the healthy run was reclaimed normally.
+    expect(entryFor(result, clean.runId).outcome).toBe('finalized')
+    expect(h.reclaimed.map((record) => record.runId)).toEqual([
+      leaked.runId,
+      clean.runId,
+    ])
   })
 
   it('applies the default budget when none is given', async () => {

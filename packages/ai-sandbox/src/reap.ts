@@ -66,6 +66,8 @@ import { isTerminalRunStatus, requestRunCancel } from '@tanstack/ai'
 import {
   DEFAULT_FENCE_QUIET_MS,
   RunClaimLostError,
+  // Thrown, not merely caught: the expiry re-derivation under the lock refuses
+  // its own claim when the run's viewer has come back.
   RunClaimNotAcquiredError,
   awaitLogQuiescence,
   fenceDurability,
@@ -174,6 +176,20 @@ export type ReapRunOutcome =
    * reached terminal in another host's hands between the listing and the claim.
    */
   | 'not-claimed'
+  /**
+   * The transcript IS saved and the record IS terminal — only
+   * {@link ReapOptions.reclaim} threw, so the sandbox is still up.
+   *
+   * A DISTINCT outcome rather than `'failed'`, because the two need opposite
+   * operator responses and `'failed'` cannot express this one: it carries no
+   * `status` and no `exitCode`, so "transcript saved, sandbox NOT reclaimed"
+   * read identically to "the sweep failed and the run was never finalized".
+   *
+   * NOT RETRYABLE BY THE SWEEP. The record is terminal by now, so the run has
+   * left `listReclaimable` for good; the sandbox leaks until something else
+   * tears it down. This entry, with its `error`, is the only notice of that.
+   */
+  | 'reclaim-failed'
   /** Something threw. Logged, recorded here, and the sweep continued. */
   | 'failed'
 
@@ -310,6 +326,7 @@ function emptyOutcomes(): Record<ReapRunOutcome, number> {
     unknown: 0,
     'budget-exceeded': 0,
     'not-claimed': 0,
+    'reclaim-failed': 0,
     failed: 0,
   }
 }
@@ -364,9 +381,14 @@ function isClaimRefusal(error: unknown): boolean {
  *    `close()`. Driving past this point is the whole defect described in the
  *    module doc.
  * 3. Claim, so two hosts never drive one run.
- * 4. Quiesce, so a predecessor still writing is observed rather than raced.
- * 5. Pipe with BOTH authoritative seams fenced, mirroring `driver.ts`.
- * 6. Reclaim, and ONLY once the record actually reached terminal.
+ * 4. **Re-derive expiry from a record read INSIDE the lock**, and only then
+ *    record the cancel. The listed record is stale by the time the claim is
+ *    held, and the cancel is sticky.
+ * 5. Quiesce, so a predecessor still writing is observed rather than raced.
+ * 6. **Arm the run budget**, so it bounds the drive rather than the queue the
+ *    two steps above stood in.
+ * 7. Pipe with BOTH authoritative seams fenced, mirroring `driver.ts`.
+ * 8. Reclaim, and ONLY once the record actually reached terminal.
  */
 async function reapOne<TOffset extends string>(
   record: RunRecord,
@@ -411,19 +433,9 @@ async function reapOne<TOffset extends string>(
       exitCode = probe.exitCode
     }
 
-    if (expired) {
-      // BEFORE the drive, never after. `withSandbox`'s `onAbort` resolves the
-      // out-of-band cancel band from the record, so recording the intent first is
-      // what makes the teardown an explicit cancel that DESTROYS the sandbox
-      // rather than a second detach that re-arms `detachedSince` and leaves the
-      // run to be swept again forever. Recorded after the drive it is pure
-      // bookkeeping on a run that already tore down the wrong way.
-      await requestRunCancel(runs, runId)
-    }
-
-    // A safety net, not a mechanism (see the module doc). `AbortSignal.any` is
-    // this package's idiom for linking one — see `testkit/takeover-conformance.ts`.
-    const budget = AbortSignal.timeout(ctx.runBudgetMs)
+    // Armed INSIDE the claim, below. Read after it for the outcome, so it is
+    // hoisted here rather than declared in the callback.
+    let budget: AbortSignal | undefined
     const final = await withRunClaim(
       {
         runs,
@@ -433,15 +445,68 @@ async function reapOne<TOffset extends string>(
         ...(logger === undefined ? {} : { logger }),
       },
       async (claim) => {
-        // `claim.signal` is in the composed signal because losing the lease MUST
-        // stop the drive: a successor that took the run over is appending to the
-        // same log, and this drive continuing would double every chunk.
-        const signal = AbortSignal.any([claim.signal, budget])
+        if (expired) {
+          // RE-DERIVED FROM A RECORD READ INSIDE THE LOCK, never from the listed
+          // one. `stream-to-response.ts`'s `startRunDriver` CLEARS
+          // `detachedSince` when a real viewer attaches — deliberately stopping
+          // the TTL clock — and it takes this same per-run lock, so an
+          // expiry decided at listing time is stale by the time the claim is
+          // held. Cancelling on the stale value poisoned a now-live run:
+          // nothing in the tree ever clears `cancelRequested`, so on that
+          // viewer's next ORDINARY disconnect `middleware.ts`'s
+          // `wasCancelRequested` read skips the detach branch and destroys the
+          // sandbox of a healthy, actively-viewed run.
+          const current = await runs.get(runId)
+          if (current === null) {
+            throw new RunClaimNotAcquiredError(runId, 'unknown')
+          }
+          if (
+            current.detachedSince === undefined ||
+            current.detachedSince > ctx.cutoff
+          ) {
+            // The viewer came back. `'not-claimed'` already documents "a real
+            // viewer attaching mid-sweep is exactly this", and refusing here
+            // leaves the run as untouched as the leave-alone path does: no
+            // cancel, no append, no terminal record, no `close()`.
+            throw new RunClaimNotAcquiredError(runId, 'superseded')
+          }
+          // BEFORE the drive, never after — and never before the claim.
+          // `withSandbox`'s `onAbort` resolves the out-of-band cancel band from
+          // the record, so recording the intent first is what makes the teardown
+          // an explicit cancel that DESTROYS the sandbox rather than a second
+          // detach that re-arms `detachedSince` and leaves the run to be swept
+          // again forever. Recorded after the drive it is pure bookkeeping on a
+          // run that already tore down the wrong way. Recorded before the CLAIM
+          // it is an unfenced, sticky write on a record this host does not own,
+          // derived from a value the lock exists to make current.
+          await requestRunCancel(runs, runId)
+        }
         // Before the first append, never after: `pipeToRunLog` snapshots to align.
         await awaitLogQuiescence(
           ctx.options.durability(runId),
           ctx.fenceQuietMs,
         )
+        // A safety net, not a mechanism (see the module doc). `AbortSignal.any`
+        // is this package's idiom for linking one — see
+        // `testkit/takeover-conformance.ts`.
+        //
+        // ARMED HERE, not before `withRunClaim`. Both the lock wait and the
+        // quiescence wait consume a timer started earlier: quiescence always
+        // sleeps at least one `fenceQuietMs` and may sleep six, and lock
+        // acquisition waits behind whoever holds it, unbounded. The effective
+        // budget was silently `runBudgetMs − fenceQuietMs − lockWait`, and once
+        // it went negative the claim was acquired with the timer already fired:
+        // `pipeToRunLog` hit its entry `signal.aborted` check before pulling one
+        // chunk, so a FINISHED agent's transcript was recorded `'aborted'` and
+        // its log closed — and a terminal record leaves `listReclaimable`
+        // forever, so that transcript was then unreplayable while `reclaim`
+        // destroyed the sandbox holding the only copy. The budget bounds the
+        // DRIVE, not the queue.
+        budget = AbortSignal.timeout(ctx.runBudgetMs)
+        // `claim.signal` is in the composed signal because losing the lease MUST
+        // stop the drive: a successor that took the run over is appending to the
+        // same log, and this drive continuing would double every chunk.
+        const signal = AbortSignal.any([claim.signal, budget])
         return pipeToRunLog(ctx.options.drive({ runId, threadId, signal }), {
           // BOTH seams, over the SAME claim, as `driver.ts` explains: fencing the
           // log alone just moves the harm to "a dead host marks the successor's
@@ -471,7 +536,9 @@ async function reapOne<TOffset extends string>(
     // that ends the drive of a still-producing expired run. That is the designed
     // path, not a misbehaving one, and reporting it as the anomaly made
     // `'expired'` unreachable for exactly the runs the TTL exists to expire.
-    if (budget.aborted && !expired) {
+    // `budget` is armed inside the claim, so reaching here means it was armed;
+    // `?? false` keeps the read total rather than asserting that.
+    if ((budget?.aborted ?? false) && !expired) {
       outcome = 'budget-exceeded'
     } else if (!terminal) {
       // The terminal write was SUPPRESSED and `finish`'s re-read answered with a
@@ -483,13 +550,33 @@ async function reapOne<TOffset extends string>(
       outcome = expired ? 'expired' : 'finalized'
     }
 
+    let reclaimError: unknown
     if (terminal && ctx.options.reclaim !== undefined) {
-      // `record`, NOT `final`. When the terminal `update` fails, `finish` returns
-      // a LOCALLY REBUILT record that carries only `runId`/`threadId`/`startedAt`
-      // plus the terminal patch — no `sandboxKey` — so `reclaimSandbox` would see
-      // `undefined`, answer `'no-sandbox-key'`, and the sandbox would leak
-      // silently on exactly the path where something already went wrong.
-      await ctx.options.reclaim(record)
+      try {
+        // `record`, NOT `final`. When the terminal `update` fails, `finish` returns
+        // a LOCALLY REBUILT record that carries only `runId`/`threadId`/`startedAt`
+        // plus the terminal patch — no `sandboxKey` — so `reclaimSandbox` would see
+        // `undefined`, answer `'no-sandbox-key'`, and the sandbox would leak
+        // silently on exactly the path where something already went wrong.
+        await ctx.options.reclaim(record)
+      } catch (error) {
+        // CAUGHT HERE rather than in the outer catch, which would report a bare
+        // `'failed'` with no `status` and no `exitCode`. `reclaimSandbox`
+        // deliberately does not guard `instances.get` (its contract is that the
+        // CALLER records the failure) and neither does `sandboxReclaimer`, so a
+        // throwing instance store landed there. By this point the record is
+        // terminal and the log closed, so the run is out of `listReclaimable`
+        // forever and no later sweep will retry: the sandbox leaks, and an
+        // operator reading `'failed'` cannot tell "transcript saved, sandbox NOT
+        // reclaimed" from "the sweep failed and the run was never finalized".
+        reclaimError = error
+        outcome = 'reclaim-failed'
+        safeLog(logger, 'errors', `reap: reclaiming run ${runId} failed`, {
+          runId,
+          status: final.status,
+          error,
+        })
+      }
     }
 
     return {
@@ -500,6 +587,7 @@ async function reapOne<TOffset extends string>(
       ...(outcome === 'budget-exceeded'
         ? { terminalizedAnyway: terminal }
         : {}),
+      ...(reclaimError === undefined ? {} : { error: reclaimError }),
     }
   } catch (error) {
     if (isClaimRefusal(error)) {
