@@ -3,10 +3,12 @@ import {
   DetachableRunCapability,
   InMemoryRunStore,
   RUN_CANCEL_REASON,
+  RunDetachedCapability,
   getDetachableRun,
   isCancelRequestedReason,
   isTerminalRunStatus,
   provideDetachableRun,
+  provideRunDetached,
   requestRunCancel,
   wasCancelRequested,
 } from '../src/index'
@@ -226,5 +228,24 @@ describe('DetachableRunCapability', () => {
     provideDetachableRun(ctx, true)
     expect(getDetachableRun(ctx, { optional: true })).toBe(true)
     expect(DetachableRunCapability.capabilityName).toBe('detachable-run')
+  })
+
+  // ABSENCE is the negative, so `false` must not be representable. A capability
+  // typed `boolean` lets `provide…(ctx, false)` compile, and a consumer that
+  // tests PRESENCE (`getDetachableRun(ctx, { optional: true }) !== undefined`)
+  // rather than the value would read that published `false` as "detachable".
+  // Both capabilities are `createCapability<true>()` so the mistake cannot be
+  // written down. The `@ts-expect-error`s below FAIL the typecheck if either
+  // widens back to `boolean`.
+  it('cannot publish a negative — absence is the only negative', () => {
+    const ctx = { capabilities: new CapabilityRegistry() }
+    // @ts-expect-error `false` is not a valid detachable-run marker
+    provideDetachableRun(ctx, false)
+    // @ts-expect-error `false` is not a valid run-detached marker
+    provideRunDetached(ctx, false)
+    // @ts-expect-error a plain `boolean` cannot be published either
+    provideDetachableRun(ctx, Math.random() > 0.5)
+    expect(DetachableRunCapability.capabilityName).toBe('detachable-run')
+    expect(RunDetachedCapability.capabilityName).toBe('run-detached')
   })
 })

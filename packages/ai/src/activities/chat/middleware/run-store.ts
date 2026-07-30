@@ -45,15 +45,48 @@ const TERMINAL: Record<TerminalRunStatus, true> = {
   aborted: true,
 }
 
+// Same exhaustiveness trick over the FULL union, for {@link isRunStatus}.
+const ALL_STATUSES: Record<RunStatus, true> = {
+  running: true,
+  interrupted: true,
+  completed: true,
+  failed: true,
+  aborted: true,
+}
+
+/**
+ * Whether `value` is a {@link RunStatus} — the guard a backend validates a row
+ * with at DESERIALIZATION.
+ *
+ * `RunStatus` is a compile-time claim about a storage column. A row arrives as
+ * JSON out of D1, a Durable Object, or Postgres, and nothing in the type system
+ * checked what that column actually held, so a `RunStore` implementation should
+ * run its row's `status` through this before handing the record on. The readers
+ * downstream act DESTRUCTIVELY on the answer — `@tanstack/ai-sandbox`'s journal
+ * sweep DELETES the journal of a run it believes terminal — so a row that lies
+ * about its status is not a display bug.
+ */
+export function isRunStatus(value: unknown): value is RunStatus {
+  return typeof value === 'string' && Object.hasOwn(ALL_STATUSES, value)
+}
+
 /**
  * Whether `status` means no further events will be appended. Narrows, so a
  * caller inside the guard can pass `status` where a {@link TerminalRunStatus}
  * is required without a cast.
+ *
+ * `Object.hasOwn`, never `in`: `in` walks the prototype chain, so a row whose
+ * `status` column held `'toString'` or `'constructor'` would be reported
+ * terminal. `status` is TYPED `RunStatus`, but every value reaching here comes
+ * off a user-implemented {@link RunStore} and the type is only a claim (see
+ * {@link isRunStatus}). A false `true` deletes a live run's journal
+ * (`@tanstack/ai-sandbox`'s journal sweep), fails its attach as `'terminal-run'`
+ * (`attach-preflight`), and refuses to drive it (`stream-to-response.ts`).
  */
 export function isTerminalRunStatus(
   status: RunStatus,
 ): status is TerminalRunStatus {
-  return status in TERMINAL
+  return Object.hasOwn(TERMINAL, status)
 }
 
 /**
@@ -242,9 +275,14 @@ export function defineRunStore<const T extends RunStore>(store: T): T {
  *
  * Consumers read it with `{ optional: true }`: absent means "not detachable",
  * which is every app that has not wired durability.
+ *
+ * Typed `true`, not `boolean`: ABSENCE is the negative, so a published `false`
+ * has no meaning — and a consumer that tests PRESENCE rather than the value
+ * would read one as "detachable". Narrowing the payload makes that
+ * unrepresentable instead of merely undocumented.
  */
 export const DetachableRunCapability =
-  createCapability<boolean>()('detachable-run')
+  createCapability<true>()('detachable-run')
 
 /**
  * Destructured accessors: `getDetachableRun(ctx, { optional: true })` /
@@ -277,8 +315,12 @@ export const [getDetachableRun, provideDetachableRun] = DetachableRunCapability
  *
  * Read with `{ optional: true }`: absent means "not detached", which is every
  * other exit path and every app that has not wired durability.
+ *
+ * Typed `true`, not `boolean`, for the same reason as
+ * {@link DetachableRunCapability}: absence is the only negative, so publishing
+ * `false` must not be representable.
  */
-export const RunDetachedCapability = createCapability<boolean>()('run-detached')
+export const RunDetachedCapability = createCapability<true>()('run-detached')
 
 /**
  * Destructured accessors: `getRunDetached(ctx, { optional: true })` /

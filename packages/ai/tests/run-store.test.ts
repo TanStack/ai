@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   InMemoryRunStore,
   defineRunStore,
+  isRunStatus,
   isTerminalRunStatus,
 } from '../src/index'
 import type {
@@ -11,6 +12,40 @@ import type {
   RunStatus,
   TerminalRunStatus,
 } from '../src/index'
+
+/**
+ * Keys that exist on every object through `Object.prototype`, so a
+ * prototype-chain `in` check answers `true` for each of them.
+ *
+ * `__proto__` is included deliberately: `JSON.parse` installs it as an OWN data
+ * property (unlike an object literal, where it would set the prototype), which is
+ * precisely how it reaches a store row.
+ */
+const PROTOTYPE_KEYS = [
+  'toString',
+  'constructor',
+  'valueOf',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  '__proto__',
+]
+
+/**
+ * A row as a user-implemented `RunStore` actually produces one.
+ *
+ * `JSON.parse` is `any`, and widening its result to `RunRecord` with no
+ * validation is exactly what a real backend's deserializer does — JSON out of
+ * D1, a Durable Object, or Postgres. Nothing in the type system checks what the
+ * `status` column held, so reproducing that unsoundness here (rather than
+ * casting around it) is what makes these fixtures faithful to the boundary the
+ * guards below exist to defend.
+ */
+function rowFromJson(status: string): RunRecord {
+  const record: RunRecord = JSON.parse(
+    JSON.stringify({ runId: 'r1', threadId: 't1', startedAt: 1, status }),
+  )
+  return record
+}
 
 describe('isTerminalRunStatus', () => {
   it('treats completed/failed/aborted as terminal and running/interrupted as not', () => {
@@ -32,6 +67,56 @@ describe('isTerminalRunStatus', () => {
       terminal = status
     }
     expect(terminal).toBe('failed')
+  })
+
+  // A malformed row is not hypothetical: EVERY value that reaches this guard
+  // comes off a user-implemented `RunStore`, and nothing validates it there. A
+  // `status` of `'toString'` inherits from `Object.prototype`, so a
+  // prototype-chain `in` check answers `true` for it — and a false `true` here
+  // is DESTRUCTIVE: `@tanstack/ai-sandbox`'s journal sweep DELETES the journal
+  // of a run it believes terminal, making a LIVE run unresumable with no undo.
+  // `attach-preflight` fails the attach as `'terminal-run'`, and core's resume
+  // driver refuses to drive the run. Hence `Object.hasOwn`, never `in`.
+  it('is not fooled by an Object.prototype key on a malformed store row', () => {
+    for (const key of PROTOTYPE_KEYS) {
+      expect(isTerminalRunStatus(rowFromJson(key).status)).toBe(false)
+    }
+  })
+})
+
+describe('isRunStatus', () => {
+  it('accepts every RunStatus', () => {
+    // Keyed by the union, so a new member is a compile error here until it is
+    // added — the same exhaustiveness trick the implementation uses.
+    const all: Record<RunStatus, true> = {
+      running: true,
+      interrupted: true,
+      completed: true,
+      failed: true,
+      aborted: true,
+    }
+    for (const status of Object.keys(all)) {
+      expect(isRunStatus(status)).toBe(true)
+    }
+  })
+
+  it('rejects Object.prototype keys and non-strings alike', () => {
+    for (const key of PROTOTYPE_KEYS) {
+      expect(isRunStatus(key)).toBe(false)
+    }
+    for (const value of [undefined, null, 0, 1, true, {}, [], 'RUNNING', '']) {
+      expect(isRunStatus(value)).toBe(false)
+    }
+  })
+
+  it('narrows unknown to RunStatus, so a backend can validate a row', () => {
+    // The assignment is the assertion: it only compiles if the predicate narrows
+    // `unknown` to `RunStatus`. This is the boundary use — a deserializer
+    // checking a JSON column before handing the record on.
+    const fromColumn: unknown = 'interrupted'
+    let status: RunStatus | undefined
+    if (isRunStatus(fromColumn)) status = fromColumn
+    expect(status).toBe('interrupted')
   })
 })
 

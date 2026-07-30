@@ -232,6 +232,7 @@ export type {
 // Run lifecycle types — shared by @tanstack/ai-persistence (the `runs` store)
 // and @tanstack/ai-sandbox (the run driver), so one record describes one run.
 export {
+  isRunStatus,
   isTerminalRunStatus,
   defineRunStore,
   InMemoryRunStore,
