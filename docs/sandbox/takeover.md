@@ -603,6 +603,11 @@ schedule is your job** — a cron route, a queue consumer, a Durable Object
 detached run's delivery log, so every attached client parks forever,
 `detachedRunTtl` is enforced by nothing, and the sandbox bills indefinitely.
 
+[Reaping & Retention](./reaping) is the whole picture: the sweep's outcomes, why
+it never drives a run to find out whether it finished, `pruneJournals`,
+`reclaimSandbox`, ready-to-paste schedules for Node, Vercel Cron, and a
+Cloudflare `alarm()`, and how to size the TTL against the sweep interval.
+
 Set `detachOnDisconnect: false` to keep today's destroy-on-disconnect cost
 profile while still getting resumable *delivery* — a reload replays the log, but
 the agent does not survive the disconnect. An explicit cancel destroys the
@@ -633,8 +638,14 @@ itself**, so there is nothing to wire: passing `chat()`'s stream to the response
 helper is already mandatory, and both sides hold the same object.
 
 ```ts
-// You do not write this — `withSandbox` does, on its detach branch.
-provideRunDetached(ctx, true)
+import { provideRunDetached } from '@tanstack/ai'
+import type { CapabilityContext } from '@tanstack/ai'
+
+// You do not write this — `withSandbox` does, on its detach branch, from a hook
+// that already holds the middleware context. Shown only so the fact is legible.
+function markRunDetached(ctx: CapabilityContext): void {
+  provideRunDetached(ctx, true)
+}
 ```
 
 Only a plain, intentless disconnect of a detachable run publishes it. An explicit

@@ -835,7 +835,9 @@ omission in `skipMethods`. Implement the ones your app needs:
   populated for you by `withSandbox`'s detach path, and note that the reaper is a
   function the application schedules, so implementing this method is necessary
   but not by itself sufficient. See
-  [Takeover & Detached Runs](../sandbox/takeover#configuration).
+  [Takeover & Detached Runs](../sandbox/takeover#configuration) for the option,
+  and [Reaping & Retention](../sandbox/reaping) for the sweep itself and the
+  schedules that drive it.
 
 The three fields a durable, reclaimable run depends on — `detachedSince`,
 `cancelRequested`, and `driverEpoch` — are the ones a hand-written backend tends

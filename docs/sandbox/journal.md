@@ -263,11 +263,13 @@ a zero and a non-zero exit alike. A read that ends without a sentinel (the
 consumer stopped, the client went away) deletes nothing: the run may still be
 in flight and every byte may still be needed.
 
-One case is not bounded today. A run that reaches its sentinel with nobody
-reading its journal has no reader to observe the sentinel, so nothing cleans up,
-and that journal survives until the sandbox does not. Bounding it needs a sweep
-over `/tmp/tanstack-runs` driven by a store's list of terminal runs, which does
-not exist yet.
+One case needs a sweep. A run that reaches its sentinel with nobody reading its
+journal has no reader to observe the sentinel, so nothing cleans up, and that
+journal would survive until the sandbox does not. `pruneJournals` from
+`@tanstack/ai-sandbox` bounds it: a sweep over the journal directory that deletes
+only the journals whose runs the `RunStore` reports terminal, and keeps
+everything else. Like the run reaper, it is a function your application
+schedules — see [Reaping & Retention](./reaping).
 
 ## What you can build on this today
 
