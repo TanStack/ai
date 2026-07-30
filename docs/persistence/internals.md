@@ -50,12 +50,16 @@ stored transcript is loaded and used.
 
 ## Generation middleware lifecycle
 
-`withGenerationPersistence(persistence, { threadId })` records the job: `onStart` creates or
-resumes the run record, `onFinish`, `onError`, and `onAbort` terminalize it,
-and a result transform captures the terminal result metadata (ids, urls — never
-media bytes) onto the record. When `artifacts` and `blobs` are both provided it
-also persists the generated media and merges the durable refs onto both the
-result and the run record.
+`withGenerationPersistence(persistence, { threadId })` records the job across
+three points:
+
+- `onStart` creates or resumes the run record.
+- `onFinish` / `onError` / `onAbort` terminalize it.
+- A result transform captures the terminal result metadata (ids, urls, never
+  media bytes) onto the record.
+
+When `artifacts` and `blobs` are both provided it also persists the generated
+media and merges the durable refs onto both the result and the run record.
 
 Generation uses its own `generationRuns` store (`GenerationRunStore`), never chat's
 `runs` / `messages`. A generation has no conversation, so the run is keyed on

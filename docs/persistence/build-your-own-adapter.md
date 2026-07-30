@@ -36,33 +36,55 @@ const persistence: ChatTranscriptPersistence = {
 }
 ```
 
-Each store is independent. Provide only the ones you need. For chat: `messages`
-for the transcript, `runs` for run lifecycle, `interrupts` for durable approvals
-(needs `runs`), `metadata` for namespaced key/value state. For generation:
-`generationRuns` for the generation run lifecycle (the counterpart to `runs`, keyed by its own
-`runId`), plus `artifacts` and `blobs` to keep generated media bytes (see
-[Generation & media stores](#generation--media-stores)). The middleware turns on
-behavior for whatever stores it finds, so a `messages`-only adapter is a valid
-adapter.
+Each store is independent, so provide only the ones you need.
+
+For chat:
+
+- `messages` — the transcript.
+- `runs` — run lifecycle.
+- `interrupts` — durable approvals. Needs `runs`.
+- `metadata` — namespaced key/value state.
+
+For generation:
+
+- `generationRuns` — the generation run lifecycle. The counterpart to `runs`,
+  keyed by its own `runId`.
+- `artifacts` + `blobs` — keep the generated media bytes. See
+  [Generation & media stores](#generation--media-stores).
+
+The middleware turns on behavior for whatever stores it finds, so a
+`messages`-only adapter is a valid adapter.
 
 Those seven — `messages`, `runs`, `interrupts`, `metadata`, `generationRuns`,
 `artifacts`, `blobs` — are the *only* keys `stores` accepts; anything else
 throws `Unknown AIPersistence store key` at construction. Need a mutex across
 instances? That is `withLocks`; see [Locks](../advanced/locks).
 
-Type each store with its `define*Store` helper — `defineMessageStore`,
-`defineRunStore`, `defineInterruptStore`, `defineMetadataStore`,
-`defineGenerationRunStore`, `defineArtifactStore`, `defineBlobStore` — as the
-sections below do. Each checks the object against the contract inline
-(autocomplete, no
-`: MessageStore` annotation) and composes into `defineAIPersistence`, which
-tracks **exact presence**: the stores you pass are defined, autocompleted keys on
-`persistence.stores`, and accessing one you did not pass is a compile error.
+Type each store with its `define*Store` helper, as the sections below do. There
+is one per store:
 
-Annotate the value with a named shape — `ChatPersistence` for all four,
-`ChatTranscriptPersistence` for the floor. Bare `AIPersistence` is the
-all-optional bag, and `withPersistence` rejects it because `stores.messages` is
-possibly `undefined`.
+- `defineMessageStore`
+- `defineRunStore`
+- `defineInterruptStore`
+- `defineMetadataStore`
+- `defineGenerationRunStore`
+- `defineArtifactStore`
+- `defineBlobStore`
+
+Each checks the object against the contract inline (autocomplete, no
+`: MessageStore` annotation) and composes into `defineAIPersistence`, which
+tracks **exact presence**:
+
+- The stores you pass are defined, and their keys autocomplete on
+  `persistence.stores`.
+- Accessing one you did not pass is a compile error.
+
+Annotate the value with a named shape:
+
+- `ChatPersistence` — all four chat stores.
+- `ChatTranscriptPersistence` — the `messages` floor.
+- `AIPersistence` — the all-optional bag. `withPersistence` rejects it, because
+  `stores.messages` is possibly `undefined`.
 
 Every method signature and invariant is in the
 [store interface reference](#store-interface-reference) at the end of this page.
@@ -164,9 +186,11 @@ CREATE TABLE IF NOT EXISTS metadata (
 
 ### 2. Messages: full-transcript overwrite
 
-`saveThread` always receives the complete, authoritative history. It is a
-replace, not an append. `loadThread` returns `[]` for a thread that was never
-saved, never `null`.
+Two contracts to hold:
+
+- `saveThread` always receives the complete, authoritative history. It is a
+  replace, not an append.
+- `loadThread` returns `[]` for a thread that was never saved, never `null`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -206,10 +230,12 @@ query instead.
 
 ### 3. Runs: idempotent create, patch, get
 
-`createOrResume` must be idempotent. If the run id already exists, return the
-stored record unchanged, so resuming a run never resets its `startedAt` or
-status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
-`update` on an unknown run id is a no-op.
+Two contracts to hold:
+
+- `createOrResume` must be idempotent. If the run id already exists, return the
+  stored record unchanged, so resuming a run never resets its `startedAt` or
+  status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
+- `update` on an unknown run id is a no-op.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -535,14 +561,17 @@ export async function POST(request: Request) {
 
 ## Generation & media stores
 
-Everything above builds a **chat** adapter. [Media generation](./generation-persistence)
-persists differently: it does not use the chat `runs` store. Instead
-`withGenerationPersistence` requires a `generationRuns` store — a `GenerationRunStore`
-keyed by `runId` (the run/request id a generation mints), the counterpart to
-`runs`. A generation has no conversation, so `threadId` is only an optional
-*link* on the run record. Keeping the generated bytes is an optional add-on on
-top of `generationRuns`: an `artifacts` store (metadata) and a `blobs` store (the bytes),
-which must be provided **together**.
+Everything above builds a **chat** adapter.
+[Media generation](./generation-persistence) persists differently: it does not
+use the chat `runs` store at all.
+
+- **Required:** a `generationRuns` store, a `GenerationRunStore` keyed by
+  `runId` (the run/request id a generation mints). It is the counterpart to
+  `runs`.
+- **Optional, to keep the generated bytes:** an `artifacts` store (metadata) and
+  a `blobs` store (the bytes). These two must be provided **together**.
+
+`threadId` is the slot the run belongs to, recorded on each run record.
 
 These are three more tables alongside the four from the schema in step 1:
 
@@ -586,13 +615,16 @@ CREATE TABLE IF NOT EXISTS blobs (
 
 ### Generation runs: idempotent create, patch, latest-for-thread
 
-`GenerationRunStore` is the generation analogue of `RunStore`. `createOrResume`
-is idempotent — a second call for a `runId` returns the stored record unchanged,
-so resuming a run never resets its `startedAt`, `activity`, or status.
-`INSERT ... ON CONFLICT DO NOTHING` gives you that. `update` on an unknown
-`runId` is a no-op. `findLatestForThread` returns the run with the greatest
-`startedAt` linked to a thread — `reconstructGeneration` calls it to hydrate the
-last generation for a thread on a server-driven client's mount.
+`GenerationRunStore` is the generation analogue of `RunStore`. Three contracts
+to hold:
+
+- `createOrResume` is idempotent. A second call for a `runId` returns the stored
+  record unchanged, so resuming a run never resets its `startedAt`, `activity`,
+  or status. `INSERT ... ON CONFLICT DO NOTHING` gives you that.
+- `update` on an unknown `runId` is a no-op.
+- `findLatestForThread` returns the run with the greatest `startedAt` linked to a
+  thread. `reconstructGeneration` calls it to hydrate the last generation for a
+  thread on a server-driven client's mount.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -728,11 +760,13 @@ function createGenerationRunStore(db: DatabaseSync) {
 
 ### Artifacts: media metadata
 
-`ArtifactStore` holds one metadata row per generated file — its `runId`,
+`ArtifactStore` holds one metadata row per generated file: its `runId`,
 `mimeType`, `size`, and a `createdAt`. The bytes live in the blob store below.
-`save` is an upsert, `list(runId)` returns every artifact for a run (`[]` when
-none). `delete` / `deleteForRun` are required — retention and erasure are the
-point of storing media durably, and they mirror `BlobStore.delete`.
+
+- `save` is an upsert.
+- `list(runId)` returns every artifact for a run, `[]` when there are none.
+- `delete` / `deleteForRun` are required. Retention and erasure are the point of
+  storing media durably, and they mirror `BlobStore.delete`.
 
 Persist `blobKey` verbatim. It records where these bytes actually went, and a
 `storageKey` mapper can put them anywhere, so a reader cannot recompute the
@@ -812,9 +846,11 @@ function createArtifactStore(db: DatabaseSync) {
 `BlobStore` is a small object store. `withGenerationPersistence` writes each
 generated file under the key `artifacts/<runId>/<artifactId>`, so a
 prefix-filtered `list({ prefix: 'artifacts/<runId>/' })` enumerates a run's
-media. `put` accepts any `BlobBody` (a stream, buffer, string, or `Blob`); the
-helper below normalizes it to bytes. `list` matches `prefix` literally and pages
-with a keyset cursor.
+media.
+
+- `put` accepts any `BlobBody`: a stream, buffer, string, or `Blob`. The helper
+  below normalizes it to bytes.
+- `list` matches `prefix` literally and pages with a keyset cursor.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -1213,14 +1249,17 @@ interface RunStore {
 }
 ```
 
-Implement `createOrResume` idempotently: a second call for an existing `runId`
-returns the stored record unchanged, which is what makes resuming a run safe.
-`update` against an unknown `runId` is a no-op. Retries may repeat the same run
-id. `findActiveRun` must do real work: stub it to `null` and `reconstructChat`
-always reports `activeRun: null`, so a client that reloads (or switches back to)
-a still-generating thread restores the transcript but never resumes the live
-reply — and nothing detects it, because `null` is also the right answer for an
-idle thread.
+Three contracts to hold:
+
+- `createOrResume` must be idempotent. A second call for an existing `runId`
+  returns the stored record unchanged, which is what makes resuming a run safe.
+  Retries may repeat the same run id.
+- `update` against an unknown `runId` is a no-op.
+- `findActiveRun` must do real work. Stub it to `null` and `reconstructChat`
+  always reports `activeRun: null`, so a client that reloads (or switches back
+  to) a still-generating thread restores the transcript but never resumes the
+  live reply. Nothing detects it either, because `null` is also the right answer
+  for an idle thread.
 
 Every method on a store you provide is required. A backend that genuinely has no
 run lifecycle should declare `ChatTranscriptStores` and omit `runs` entirely
@@ -1415,11 +1454,14 @@ interface BlobStore {
 }
 ```
 
-`list` matches `prefix` literally and case-sensitively (escape SQL `LIKE`
-metacharacters). When `limit` is given and more keys match, return
-`truncated: true` with a `cursor`; passing that cursor back returns the
-strictly-following keys, so paging visits every key exactly once. `limit: 0`
-yields an empty, untruncated page.
+Three contracts to hold for `list`:
+
+- `prefix` matches literally and case-sensitively. Escape SQL `LIKE`
+  metacharacters.
+- When `limit` is given and more keys match, return `truncated: true` with a
+  `cursor`. Passing that cursor back returns the strictly-following keys, so
+  paging visits every key exactly once.
+- `limit: 0` yields an empty, untruncated page.
 
 ## Where to go next
 

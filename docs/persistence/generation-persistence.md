@@ -15,6 +15,20 @@ Reach for it when a run is long enough that a reload matters: video, batch
 images, long audio, a big transcription. For a quick one-shot image you show and
 forget, skip it.
 
+## The id it all hangs on
+
+Every mode below keys on `threadId`, and for a generation that is a **slot**, not
+a conversation: a stable, app-chosen name for the place successive runs fill
+(`product-7-hero`, `video-9-start-frame`). Each run gets its own `runId` and its
+own record, and restore hands back the newest run in the slot.
+
+Two things to get right:
+
+- Pass the same string to the hook and to `withGenerationPersistence`.
+- Keep it stable across reloads.
+
+[Id map](./id-map) covers how to choose one and what goes wrong when it drifts.
+
 ## Choose a mode
 
 Generation persistence mirrors chat's `persistence` option:
@@ -27,9 +41,9 @@ Generation persistence mirrors chat's `persistence` option:
   empty.
 
 Either way the server keeps a **generation job** record:
-`withGenerationPersistence(persistence, { threadId })` needs a `generationRuns` store (a
-`GenerationRunStore` keyed by the run's own `runId`; a generation has no conversation
-of its own, so `threadId` is only an optional link). `memoryPersistence()` ships
+`withGenerationPersistence(persistence, { threadId })` needs a `generationRuns`
+store (a `GenerationRunStore` keyed by the run's own `runId`, with the
+`threadId` recorded as the slot the run belongs to). `memoryPersistence()` ships
 one out of the box; see
 [Build your own adapter](./build-your-own-adapter#generation--media-stores) for
 your own backend.

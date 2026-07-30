@@ -164,13 +164,13 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Thinking & Reasoning",
@@ -243,31 +243,36 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
+        },
+        {
+          "label": "Id Map",
+          "to": "persistence/id-map",
+          "addedAt": "2026-07-30"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Generation Persistence",
           "to": "persistence/generation-persistence",
           "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Keep Generated Files",
           "to": "persistence/keep-generated-files",
           "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Controls",
@@ -279,7 +284,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-07-24",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Migrations",
@@ -291,7 +296,7 @@
           "label": "Internals",
           "to": "persistence/internals",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-30"
         }
       ]
     },
@@ -390,7 +395,7 @@
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Audio Recording",
@@ -408,19 +413,19 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-07-30"
         }
       ]
     },
@@ -674,19 +679,19 @@
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         }
       ]
     },

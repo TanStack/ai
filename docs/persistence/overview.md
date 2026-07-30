@@ -83,10 +83,15 @@ replays the live stream to a reconnecting client"]
 Run ids are too ephemeral to reconnect by — a reloading client may not know the
 current one. Reconnection therefore resolves from the stable `threadId`: the
 store answers "does this thread have a live run?" (`findActiveRun`), and only
-then does the client tail that run's log. The anatomy of a thread and its runs
-is covered in [Threads and runs](../chat/streaming#threads-and-runs) in the
-streaming guide; what persistence records about them is in
-[Chat persistence](./chat-persistence#threads-runs-and-turns).
+then does the client tail that run's log.
+
+`threadId` is the key every durable record is filed under, on chat and on the
+generation hooks alike, so getting it right is what makes restore work at all.
+[Id map](./id-map) is the short version of both ids: what each means on each side,
+how to choose a thread id, and why a reload never asks for a run id. The protocol
+anatomy of a thread and its runs is in
+[Threads and runs](../chat/streaming#threads-and-runs); what persistence records
+about them is in [Chat persistence](./chat-persistence#threads-runs-and-turns).
 
 ## State persistence has two halves
 
@@ -365,8 +370,11 @@ The last three are the generation counterpart to the chat stores, used by
 `withGenerationPersistence` rather than `withPersistence` — see
 [Generation persistence](./generation-persistence).
 
-Named shapes: `ChatTranscriptStores` (messages floor), `ChatPersistenceStores`
-(all four), `ChatWithInterruptsStores`. See [Controls](./controls).
+Named shapes, covered in [Controls](./controls):
+
+- `ChatTranscriptStores` — the `messages` floor.
+- `ChatPersistenceStores` — all four chat stores.
+- `ChatWithInterruptsStores` — `messages` + `runs` + `interrupts`.
 
 Need a mutex across instances (cross-worker coordination)? Use `withLocks` and a
 `LockStore` from `@tanstack/ai/locks`; see [Locks](../advanced/locks).
@@ -383,6 +391,7 @@ matching your database loads itself. The full skill list is in
 
 ## Where to go next
 
+- [Id map](./id-map): `threadId` vs `runId`, and what each means on chat and on generation.
 - [Chat persistence](./chat-persistence): the server middleware, the authoritative-history contract, and durable interrupts.
 - [Client persistence](./client-persistence): client- vs server-authoritative modes (`persistence: true`), reload restore, storage backends, and mid-stream rejoin.
 - [Generation persistence](./generation-persistence): the same modes for media runs (image, audio, TTS, video, transcription), backed by a `generationRuns` store.

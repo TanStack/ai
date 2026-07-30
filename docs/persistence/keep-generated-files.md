@@ -13,14 +13,22 @@ provider's link.
 
 This is a server-side opt-in that layers on **top of** the `generationRuns` store
 [Generation persistence](./generation-persistence) already requires. Byte storage
-adds two more stores: an `artifacts` store (metadata) and a `blobs` store (the
-bytes). The two must be provided together — provide both and
-`withGenerationPersistence` writes each generated file's bytes to the blob store,
-records an `ArtifactRecord`, and attaches durable references to the result and the
-run record; provide neither and only the run record is kept.
-`memoryPersistence()` ships all three stores (`generationRuns`, `artifacts`, `blobs`), so it
-works out of the box; any backend that implements `ArtifactStore` and `BlobStore`
-(see [Build your own adapter](./build-your-own-adapter#generation--media-stores))
+adds two more stores, which must be provided together:
+
+- an `artifacts` store — the metadata.
+- a `blobs` store — the bytes.
+
+What each choice gets you:
+
+- **Both provided** — `withGenerationPersistence` writes each generated file's
+  bytes to the blob store, records an `ArtifactRecord`, and attaches durable
+  references to the result and the run record.
+- **Neither provided** — only the run record is kept.
+
+`memoryPersistence()` ships all three stores (`generationRuns`, `artifacts`,
+`blobs`), so it works out of the box. Any backend that implements `ArtifactStore`
+and `BlobStore` (see
+[Build your own adapter](./build-your-own-adapter#generation--media-stores))
 works the same way.
 
 ## Serve the stored bytes
@@ -159,14 +167,18 @@ What gets stored is the **generated output**. When a provider returns an
 expiring link, the middleware downloads it and keeps the bytes — that is the
 whole point of this page.
 
-Prompt media is different. Media you send *in* as base64 (`source: { type:
-'data' }`) is stored alongside the output, because the bytes are already in
-hand. Media you send in as a **URL** (`source: { type: 'url' }`) is **not
-fetched**, and no artifact is recorded for it. That URL comes from the caller,
-so downloading it server-side would let anyone name an address your server can
-reach — cloud metadata endpoints, `localhost` admin services — and then read the
-response back through the artifact `GET` route. The copy is also redundant:
-whoever supplied the URL already had the media.
+Prompt media is different, and it splits by how you sent it:
+
+- **base64** (`source: { type: 'data' }`) — stored alongside the output, because
+  the bytes are already in hand.
+- **a URL** (`source: { type: 'url' }`) — **not fetched**, and no artifact is
+  recorded for it.
+
+Two reasons a caller-supplied URL is left alone. Downloading it server-side
+would let anyone name an address your server can reach (cloud metadata
+endpoints, `localhost` admin services) and then read the response back through
+the artifact `GET` route. The copy is also redundant: whoever supplied the URL
+already had the media.
 
 If you do need a durable copy of caller-supplied media — a "paste an image URL"
 input box, say — opt in with `allowInputUrl`, which is a predicate rather than a
@@ -179,11 +191,15 @@ const inputUrlOptions = withGenerationPersistence(persistence, {
 })
 ```
 
-Every artifact fetch — input or output — is limited to `http:` / `https:`,
-aborted after `artifactFetchTimeoutMs` (default 30s), and capped at
-`maxArtifactBytes` (default 100 MiB) as the body drains. Input fetches add a
-loopback / private / link-local host block and refuse redirects, so a `302`
-cannot hop somewhere the check never saw.
+Every artifact fetch, input or output, is bounded three ways:
+
+- The scheme must be `http:` or `https:`.
+- It is aborted after `artifactFetchTimeoutMs` (default 30s).
+- It is capped at `maxArtifactBytes` (default 100 MiB) as the body drains.
+
+Input fetches add two more: a loopback / private / link-local host block, and a
+refusal to follow redirects, so a `302` cannot hop somewhere the check never
+saw.
 
 Treat those as a backstop, not the control: a hostname that *resolves* to a
 private address still passes a literal-IP check. Keep `allowInputUrl` narrow,
@@ -194,19 +210,23 @@ egress-restricted proxy that can check the address actually connected to.
 
 `artifactUrl` is what makes the stored bytes reachable from the client without
 any extra plumbing. For each persisted ref it returns the app-origin URL that
-serves those bytes (the `GET` route above), and `withGenerationPersistence`
-does two things with it: it stamps the URL onto the ref (`ref.url`) and it
-rewrites the live result's media field to the same URL — `result.images[i].url`
-for images, `result.url` for a video, `result.audio.url` for audio. So the live
-result already points at your origin, not the provider's expiring link.
+serves those bytes (the `GET` route above), and `withGenerationPersistence` does
+two things with it:
+
+- Stamps the URL onto the ref, as `ref.url`.
+- Rewrites the live result's media field to the same URL: `result.images[i].url`
+  for images, `result.url` for a video, `result.audio.url` for audio.
+
+So the live result already points at your origin, not the provider's expiring
+link.
 
 Those durable refs ride along on `result.artifacts`, and they are what a reload
 restores from. In [Generation persistence](./generation-persistence), the
 generation hook rebuilds `result` from the persisted refs on mount, resolving
 each media field to its durable `ref.url` — so the restored result renders the
-same media the live run showed. The refs are the only artifact surface: there
-are no separate top-level artifact fields on the hook, final refs live on
-`result.artifacts` and in-flight ones on `resumeState.pendingArtifacts`.
+same media the live run showed. `result.artifacts` is the whole artifact surface
+on the hook: there are no separate top-level artifact fields to read, live or
+restored.
 
 ## Where to go next
 

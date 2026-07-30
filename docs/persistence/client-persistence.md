@@ -46,6 +46,12 @@ function Chat() {
 `localStoragePersistence()` needs no type argument and no codec: it defaults to
 the chat record shape and a JSON codec. That is the whole opt-in.
 
+The `threadId` is doing the real work here: it is the key the record is written
+under and looked up by, so a fresh id per mount restores nothing. Derive it from
+your own domain (a conversation id, a route param). [Id map](./id-map) covers how
+to pick one, how it differs from the `runId` the hook reports, and what both mean
+on the generation hooks.
+
 ## What a reload restores
 
 The client stores one record per `threadId`, the transcript plus a small resume
@@ -72,8 +78,10 @@ pointer. On the next load `useChat` reads it and:
 
 The generation hooks (`useGenerateImage` / `useGenerateVideo` / …) make the same
 choice: `persistence: true` is server-driven and a storage adapter is
-client-driven. A reload restores the last known `status` / `result` / `error`
-for the run — it does not restart provider work. Only a run that is still
+client-driven. They key on `threadId` too, but there it names a slot successive
+runs fill rather than a conversation ([Id map](./id-map)). A reload
+restores the last known `status` / `result` / `error` for that slot's newest run
+— it does not restart provider work. Only a run that is still
 streaming against a server-side durable stream can be re-attached and finished
 in place. See [Generation persistence](./generation-persistence) for the
 generation-specific setup.

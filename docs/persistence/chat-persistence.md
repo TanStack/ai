@@ -87,6 +87,10 @@ record of them, anchored on the thread:
 - Interrupt records carry both ids — the `runId` of the execution they paused
   and the `threadId` of the conversation they live in.
 
+[Id map](./id-map) is the practical companion to this: how to choose a thread
+id, why both client and server must file under the same one, when to read
+`useChat`'s `runId`, and what the same two ids mean on the generation hooks.
+
 ## Send the full transcript, or none of it
 
 `withPersistence` follows one rule, the authoritative-history contract:
@@ -119,10 +123,14 @@ Streaming snapshots default off (finish is the authoritative save); enable
 them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
-On **error**, the run is marked `failed`. On **abort**, the run is marked
-`interrupted`. Resumes accepted in `onConfig` are **not** consumed until a
-success boundary (interrupt or finish), so a failed run leaves pending
-interrupts retryable with the same resume batch.
+How a run that does not finish cleanly is recorded:
+
+- On **error**, the run is marked `failed`.
+- On **abort**, the run is marked `interrupted`.
+
+Resumes accepted in `onConfig` are **not** consumed until a success boundary (an
+interrupt or a finish), so a failed run leaves pending interrupts retryable with
+the same resume batch.
 
 Every run record moves through this lifecycle — all three end states are
 terminal for that record, because a continuation after an interrupt is a new run

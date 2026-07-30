@@ -232,7 +232,10 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-OpenAI accepts up to four known speaker references; `known_speaker_names` and `known_speaker_references` must be provided together with matching lengths. The diarization model does not support `prompt`, `include`, or `timestamp_granularities`; the adapter rejects those combinations before making the API request.
+Two constraints the adapter enforces before it calls the API:
+
+- Up to four known speaker references. `known_speaker_names` and `known_speaker_references` must be provided together, with matching lengths.
+- The diarization model does not support `prompt`, `include`, or `timestamp_granularities`. Those combinations are rejected.
 
 ## Response Format
 

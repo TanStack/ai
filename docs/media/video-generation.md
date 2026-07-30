@@ -584,21 +584,25 @@ Adapters that haven't declared a per-model duration map keep the plain
 
 Gemini Omni Flash (`gemini-omni-flash-preview`) is Google's multimodal
 video-generation model with conversational editing. It only serves the
-[Interactions API](https://ai.google.dev/gemini-api/docs/omni) — the same
-`geminiVideo()` adapter routes it automatically: `generateVideo` creates a
-background interaction, `getVideoJobStatus` polls it by id, and the
-finished clip comes back **inline as a `data:video/mp4;base64,…` URL**
-(when Google delivers by reference instead, the Files API URI passes
-through and needs your API key to download, like Veo).
+[Interactions API](https://ai.google.dev/gemini-api/docs/omni), and the same
+`geminiVideo()` adapter routes it automatically:
 
-Clips are 720p at 24 FPS, and `duration` accepts any value in the **3–10
-second** range (fractional seconds included), defaulting to 10 seconds when
-omitted. `availableDurations()` reports
-`{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`; out-of-range
-`duration` values are rejected at job creation, and `snapDuration(n)` snaps
-raw seconds into the range (clamping to its bounds and rounding to whole
-seconds). The `size` option maps onto the interaction's output aspect
-ratio:
+- `generateVideo` creates a background interaction.
+- `getVideoJobStatus` polls it by id.
+- The finished clip comes back **inline as a `data:video/mp4;base64,…` URL**.
+  When Google delivers by reference instead, the Files API URI passes through
+  and needs your API key to download, like Veo.
+
+Clips are 720p at 24 FPS. `duration` accepts any value in the **3–10 second**
+range (fractional seconds included), defaulting to 10 seconds when omitted:
+
+- `availableDurations()` reports
+  `{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`.
+- Out-of-range `duration` values are rejected at job creation.
+- `snapDuration(n)` snaps raw seconds into the range, clamping to its bounds and
+  rounding to whole seconds.
+
+The `size` option maps onto the interaction's output aspect ratio:
 
 ```typescript ignore
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
@@ -617,13 +621,14 @@ const status = await getVideoJobStatus({ adapter, jobId })
 // status.url → 'data:video/mp4;base64,…' once completed
 ```
 
-Image and video prompt parts are sent to the interaction as content blocks
-— grouped as images, then videos, then the text prompt (Omni doesn't use
-Veo's `metadata.role` routing) — so you can condition the generation on
-stills or short reference clips. `data` sources
-are sent inline as base64; `url` sources pass through as-is — the adapter
-never downloads them, so use Gemini Files API URIs (upload large media via
-the Files API first).
+Image and video prompt parts are sent to the interaction as content blocks,
+grouped as images, then videos, then the text prompt (Omni doesn't use Veo's
+`metadata.role` routing), so you can condition the generation on stills or short
+reference clips. How each source is sent:
+
+- `data` sources are sent inline as base64.
+- `url` sources pass through as-is. The adapter never downloads them, so use
+  Gemini Files API URIs (upload large media via the Files API first).
 
 #### Conversational video editing
 

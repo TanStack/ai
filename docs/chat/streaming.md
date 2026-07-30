@@ -126,7 +126,9 @@ flowchart LR
 Because run ids are ephemeral, anything long-lived anchors on the thread:
 [resumable streams](../resumable-streams/overview) log delivery per `runId`,
 while [server persistence](../persistence/chat-persistence#threads-runs-and-turns)
-stores the transcript per `threadId`.
+stores the transcript per `threadId`. The media generation hooks take a
+`threadId` too, where it names a slot rather than a conversation — see
+[Id map](../persistence/id-map).
 
 ### Type-Safe Tool Call Events
 
@@ -334,7 +336,11 @@ export async function POST(request: Request) {
 
 ## Queueing Messages
 
-By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts a `QueueConfig` object, a plain shorthand string, or a strategy function:
+By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts any of three forms:
+
+- a `QueueConfig` object
+- a plain shorthand string
+- a strategy function
 
 ```tsx group=queueing-messages
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";

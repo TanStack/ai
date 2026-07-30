@@ -164,9 +164,11 @@ const httpUrl = `${baseUrl}/chat/http`
 const sseUrl = `${baseUrl}/chat/sse`
 ```
 
-Use the URL your runtime can reach. iOS simulators can often use `localhost` or
-`127.0.0.1`, Android emulators commonly use `10.0.2.2` to reach the host
-machine, and physical devices need a LAN or tunneled URL.
+Use the URL your runtime can reach:
+
+- **iOS simulator** — often `localhost` or `127.0.0.1`.
+- **Android emulator** — commonly `10.0.2.2` to reach the host machine.
+- **A physical device** — a LAN or tunneled URL.
 
 Prefer `xhrHttpStream()` for Expo and React Native. It pairs with
 `toHttpResponse()` and reads newline-delimited JSON through incremental XHR
@@ -246,7 +248,13 @@ The factory receives the conversation messages plus any per-request `data` you p
 
 > **Tip:** `stream()` is **request-scoped**. The factory is invoked once per `sendMessage`, the iterable runs to completion, and the connection closes. If you need a single long-lived channel that multiplexes many sends — for example a WebSocket — use [`subscribe` / `send`](#persistent-transports-websockets-and-friends) instead.
 
-`stream()` also takes an optional second argument of persistence handlers — `{ hydrate, hydrateGeneration, joinRun }` — spread onto the adapter, so server-driven persistence (`persistence: true`) works without an HTTP endpoint. Each handler is typically a one-line call into your server: `hydrate` restores a chat thread, `hydrateGeneration` restores a generation's last run, and `joinRun` replays a run still in flight. See [Generation Persistence](../persistence/generation-persistence#server-functions--direct) for the full server-function wiring.
+`stream()` also takes an optional second argument of persistence handlers, spread onto the adapter, so server-driven persistence (`persistence: true`) works without an HTTP endpoint. Each is typically a one-line call into your server:
+
+- `hydrate` — restores a chat thread.
+- `hydrateGeneration` — restores a generation's last run.
+- `joinRun` — replays a run still in flight.
+
+See [Generation Persistence](../persistence/generation-persistence#server-functions--direct) for the full server-function wiring.
 
 ## Server Functions via `fetcher`
 
@@ -277,7 +285,12 @@ const { messages, sendMessage } = useChat({
 });
 ```
 
-The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return a `Response` — whose SSE body the chat client parses for you — **or** an `AsyncIterable<StreamChunk>`, which is yielded directly. If your server function returns the stream itself (instead of wrapping it in a `Response`), the fetcher handles that too. Sync and `Promise`-wrapped returns are both accepted.
+The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return either:
+
+- a `Response` — the chat client parses its SSE body for you.
+- an `AsyncIterable<StreamChunk>` — yielded directly. This covers a server function that returns the stream itself rather than wrapping it in a `Response`.
+
+Sync and `Promise`-wrapped returns are both accepted.
 
 > **Tip:** The generation hooks (`useGenerateImage` and siblings) take the same server-function shape a step further: alongside their `fetcher` they accept `hydrateGeneration` and `joinRun` options, so `persistence: true` hydrates and rejoins through server functions with no HTTP route at all. See [Generation Persistence — Server functions / direct](../persistence/generation-persistence#server-functions--direct).
 
@@ -489,7 +502,12 @@ const myAdapter: ConnectConnectionAdapter = {
 const { messages } = useChat({ connection: myAdapter });
 ```
 
-`runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response. If your `connect` stream completes without emitting `RUN_FINISHED`, the runtime synthesizes one for you; if it throws, a `RUN_ERROR` is synthesized.
+`runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response.
+
+The runtime covers the terminal event either way:
+
+- Your `connect` stream completes without emitting `RUN_FINISHED`: one is synthesized for you.
+- Your `connect` stream throws: a `RUN_ERROR` is synthesized.
 
 ## The Adapter Interface
 
@@ -531,7 +549,10 @@ export type ConnectionAdapter =
   | SubscribeConnectionAdapter;
 ```
 
-Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` pair via `normalizeConnectionAdapter()`. If you provide `connect`, it gets wrapped in an async queue; if you provide `subscribe` + `send` natively, they're used as-is.
+Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` pair via `normalizeConnectionAdapter()`:
+
+- Provide `connect` and it gets wrapped in an async queue.
+- Provide `subscribe` + `send` natively and they are used as-is.
 
 ## Authentication
 

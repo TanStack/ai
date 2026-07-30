@@ -230,13 +230,17 @@ HTTPS URLs, [Files API](https://ai.google.dev/gemini-api/docs/files) URIs, and
 `gs://` references all work without buffering the image in your runtime's
 memory.
 
-Two paths have no URL passthrough and must upload real bytes — OpenAI's
-`/images/edits` (and Sora `input_reference`), and Gemini **Veo** (its predict
-API accepts only inline bytes or a `gs://` reference). For these, an HTTP(S)
-URL input would have to be downloaded and buffered in memory, which can OOM
-memory-constrained runtimes (e.g. Cloudflare Workers). So by default they
-**throw** on an HTTP(S) URL image input rather than fetch it. Pass a `data:`
-URI (or a `gs://` reference for Veo), or opt into fetching with `allowUrlFetch`:
+Two paths have no URL passthrough and must upload real bytes:
+
+- OpenAI's `/images/edits`, and Sora `input_reference`.
+- Gemini **Veo** — its predict API accepts only inline bytes or a `gs://`
+  reference.
+
+For these, an HTTP(S) URL input would have to be downloaded and buffered in
+memory, which can OOM memory-constrained runtimes (e.g. Cloudflare Workers). So
+by default they **throw** on an HTTP(S) URL image input rather than fetch it.
+Pass a `data:` URI (or a `gs://` reference for Veo), or opt into fetching with
+`allowUrlFetch`:
 
 ```typescript ignore
 import { createOpenaiImage } from '@tanstack/ai-openai/adapters'
