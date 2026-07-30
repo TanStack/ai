@@ -8,9 +8,9 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 /**
  * Drives the real OpenRouter SDK request path with its documented
- * `reasoning.enabled` opt-out. The companion spec inspects aimock's request
- * journal to verify the adapter normalizes it before the SDK serializes the
- * request body.
+ * `reasoning.enabled` opt-out or an empty reasoning object. The companion
+ * spec inspects aimock's request journal to verify the adapter normalizes or
+ * omits the option before the SDK serializes the request body.
  */
 export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
   server: {
@@ -18,6 +18,8 @@ export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
       POST: async ({ request }) => {
         const url = new URL(request.url)
         const testId = url.searchParams.get('testId') ?? undefined
+        const scenario =
+          url.searchParams.get('scenario') === 'empty' ? 'empty' : 'disabled'
 
         const httpClient = new HTTPClient()
         if (testId) {
@@ -39,12 +41,16 @@ export const Route = createFileRoute('/api/openrouter-reasoning-wire')({
             messages: [
               {
                 role: 'user',
-                content: '[reasoning-wire] disable reasoning',
+                content:
+                  scenario === 'empty'
+                    ? '[reasoning-wire] empty reasoning'
+                    : '[reasoning-wire] disable reasoning',
               },
             ],
-            modelOptions: {
-              reasoning: { enabled: false },
-            },
+            modelOptions:
+              scenario === 'empty'
+                ? { reasoning: {} }
+                : { reasoning: { enabled: false } },
           })) {
             // Drain the stream.
           }
