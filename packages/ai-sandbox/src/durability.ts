@@ -235,6 +235,48 @@ export function resolveDurableThreadId(
 }
 
 /**
+ * An ATTACH was driven into a code path that can never replay a run.
+ *
+ * The third sibling of {@link DurableRunIdRequiredError} and
+ * {@link DurableThreadIdRequiredError}, and the one that is not about a missing
+ * id: here every id is present and the path itself is the problem.
+ *
+ * `sandboxRunDriver`'s `drive()` re-invokes `chat()` with `attach: true`. On a
+ * JOURNALING path that is genuinely a replay — `spawnNdjson` tails the journal
+ * the previous host wrote, `awaitAttachableJournal` refuses a hopeless attach up
+ * front, and `alignedIfAttaching` suppresses the prefix already delivered. A
+ * protocol path with none of those three has no journal to tail and nothing to
+ * align against, so `attach: true` does not resume anything: it starts the agent
+ * over from scratch against the workspace the first attempt already mutated, and
+ * appends its entire output to a log that still holds the first attempt's.
+ *
+ * Deliberately NOT a `JournalAttachUnavailableError`. That error means "a
+ * journal that should exist has not appeared yet" — retryable, scoped to a wait
+ * (`attachWaitMs`). This condition is categorically different: the path cannot
+ * attach AT ALL, so telling a caller to wait would point it at something that is
+ * never coming. A 5xx/501-shaped refusal, not a 504.
+ *
+ * `reason` names the missing capability in the adapter's own vocabulary (which
+ * protocol, which spawn path), because the fix is always to change how the run
+ * is spawned or routed, never to retry.
+ */
+export class DurableAttachNotSupportedError extends Error {
+  constructor(
+    readonly adapter: string,
+    readonly reason: string,
+  ) {
+    super(
+      `${adapter}: this code path cannot ATTACH to an existing durable run (${reason}). ` +
+        `It does not journal, so there is no stored output to replay and no alignment to suppress what was already delivered. ` +
+        `Proceeding would re-run the agent from scratch against the workspace the previous attempt already modified, and double-append its entire output to the run log. ` +
+        `Route the attach through a journaling spawn path, or drop \`runs\`/\`durability\` from withSandbox(...) so the run is never resumed in the first place. ` +
+        `This is not a transient condition — unlike \`JournalAttachUnavailableError\`, waiting and retrying can never make it succeed.`,
+    )
+    this.name = 'DurableAttachNotSupportedError'
+  }
+}
+
+/**
  * Resolve `withSandbox`'s two durability options into the capability payload, or
  * `undefined` when the app has not opted in.
  *

@@ -238,8 +238,17 @@ function hexEscapeAllBytes(input: string): string {
  * released version with `encodeRunId` in it), so there is no compatibility
  * obligation and no changeset is warranted — there is nothing in the wild to
  * migrate.
+ *
+ * EXPORTED for adapters that derive their OWN in-sandbox paths from a `runId`
+ * (`ai-codex`'s prompt file and MCP bridge config, `ai-claude-code`'s prompt
+ * file). Durability makes `runId` caller-chosen, so an unencoded interpolation
+ * lets a `/` produce a directory-bearing path, `..` escape the workdir, and an
+ * over-long id fail the spawn with `ENAMETOOLONG` — the same hazards
+ * {@link journalPaths} already routes through here. Reuse this rather than
+ * writing a second encoder: a divergent copy would reintroduce the
+ * non-injectivity documented above.
  */
-function encodeRunId(runId: string): string {
+export function encodeRunId(runId: string): string {
   if (runId.length === 0) {
     throw new Error('journal: runId must not be empty')
   }

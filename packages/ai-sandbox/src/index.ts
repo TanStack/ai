@@ -151,11 +151,15 @@ export type { SpawnNdjsonOptions, JournalOptions } from './runner'
 // that seeds a journal by hand (a fake host, a test); the
 // mechanism that lets a sweep learn a detached run finished WITHOUT driving
 // it; decodeJournalRunId recovers the runId a listed filename encodes, fail
-// closed. `normalizeJournalDir` is intentionally NOT exported: it is a path
+// closed. `encodeRunId` is exported for adapters that derive their OWN
+// in-sandbox paths from a caller-supplied `runId` (prompt files, MCP bridge
+// configs) and must not hand-roll a second, divergent encoder.
+// `normalizeJournalDir` is intentionally NOT exported: it is a path
 // formatting detail of this module's own commands, not something a caller
 // composes with.
 export {
   DEFAULT_JOURNAL_DIR,
+  encodeRunId,
   EXIT_SENTINEL_KEY,
   EXIT_SENTINEL_NONCE_KEY,
   exitSentinelLine,
@@ -273,6 +277,7 @@ export {
   SandboxDurabilityCapability,
   getSandboxDurability,
   provideSandboxDurability,
+  DurableAttachNotSupportedError,
   DurableRunIdRequiredError,
   DurableThreadIdRequiredError,
   resolveDurableRunId,

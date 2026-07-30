@@ -21,6 +21,7 @@ import {
   DEFAULT_MAX_RUNS,
   DEFAULT_ORPHAN_TTL_MS,
   DEFAULT_RUN_BUDGET_MS,
+  DurableAttachNotSupportedError,
   DurableRunIdRequiredError,
   DurableThreadIdRequiredError,
   JournalAttachUnavailableError,
@@ -33,6 +34,7 @@ import {
   alignedIfAttaching,
   alignToStoredLog,
   decodeJournalRunId,
+  encodeRunId,
   getSandboxDurability,
   isBridgeCustomChunk,
   journalExitProbeCommand,
@@ -231,6 +233,24 @@ describe('barrel: error classes are values, not types (instanceof must work)', (
     expect(err.adapter).toBe('grok-build')
   })
 
+  it('DurableAttachNotSupportedError', () => {
+    const err = new DurableAttachNotSupportedError('acp', 'chatStreamAcp')
+    expect(err).toBeInstanceOf(DurableAttachNotSupportedError)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.adapter).toBe('acp')
+    expect(err.reason).toBe('chatStreamAcp')
+    // The message must be actionable on its own: which adapter, that the path
+    // cannot replay, and what proceeding would cost. A caller that only logs
+    // `err.message` still learns it is a routing defect, not a config typo.
+    expect(err.message).toContain('acp')
+    expect(err.message).toContain('chatStreamAcp')
+    expect(err.message).toContain('cannot ATTACH')
+    expect(err.message).toContain('double-append')
+    // Distinct from the retryable attach error, so a caller branching on the
+    // wait-scoped one can never accidentally swallow this.
+    expect(err).not.toBeInstanceOf(JournalAttachUnavailableError)
+  })
+
   it('JournalReplayDivergedError', () => {
     const err = new JournalReplayDivergedError(3, 'a', 'b')
     expect(err).toBeInstanceOf(JournalReplayDivergedError)
@@ -325,6 +345,32 @@ describe('barrel: journal directory commands + parsers', () => {
     expect(decodeJournalRunId('not-a-journal-name')).toEqual({
       kind: 'malformed',
     })
+  })
+
+  it('encodeRunId resolves through the barrel and is still injective on the documented colliding pair', () => {
+    // `@` (0x40) and the literal `_40` both encoded to `_40` under the prior
+    // scheme that treated `_` as safe — the exact collision `encodeRunId`'s doc
+    // records. Two runs sharing one journal means one takeover replays the
+    // other's transcript, so this is the property adapters are being handed.
+    expect(encodeRunId('@')).toBe('_40')
+    expect(encodeRunId('_40')).toBe('_5f40')
+    expect(encodeRunId('@')).not.toBe(encodeRunId('_40'))
+
+    // The hazards the codex/claude-code prompt-file and MCP-bridge paths need
+    // it for. `.` stays literal (it is a safe character), so traversal is
+    // defeated by escaping the SEPARATOR: the result is one filename segment,
+    // and `..` with no `/` around it cannot climb anywhere.
+    expect(encodeRunId('a/../b')).toBe('a_2f.._2fb')
+    expect(encodeRunId('a/../b')).not.toContain('/')
+    // And a caller-supplied id cannot blow the filename limit at spawn.
+    expect(encodeRunId('x'.repeat(4096)).length).toBeLessThanOrEqual(240)
+
+    // And it agrees with the journal path the same runId produces, which is the
+    // whole reason a second copy must not exist.
+    const weird = 'run/../id_@'
+    expect(journalPaths(weird, '/tmp/barrel-journal-test').journal).toBe(
+      `/tmp/barrel-journal-test/${encodeRunId(weird)}.ndjson`,
+    )
   })
 })
 

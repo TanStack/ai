@@ -598,7 +598,7 @@ export function durableSandboxMiddleware(
     adapter,
     middleware: withSandbox(sandbox, {
       runs,
-      durability: { adapter, detachedRunTtl: '30m' },
+      durability: { adapter },
     }),
   }
 }
@@ -952,12 +952,10 @@ that would not replay in time, i.e. a misbehaving journal read, translation, or
 log. `'reclaim-failed'` means the transcript saved but the sandbox is still up, and
 no later sweep will retry it.
 
-**`withSandbox`'s `detachedRunTtl` and `ReapOptions.detachedRunTtlMs` are two
-separate, unlinked configs.** The middleware option is parsed to milliseconds at
-setup (so a malformed duration fails fast), but nothing reads the parsed value —
-the TTL that actually decides expiry is the `detachedRunTtlMs` you pass to
-`reapDetachedRuns`, which is required and independent. Setting `detachedRunTtl`
-alone changes nothing; keep the two in sync by hand.
+**`ReapOptions.detachedRunTtlMs` is the ONLY detached-run TTL.** It is required,
+passed directly to `reapDetachedRuns`, and nothing derives it from `withSandbox`
+— there is no TTL option on `durability`, and no other config to keep it in sync
+with.
 
 Full reaper wiring — every outcome, `pruneJournals`' keep/delete table, and the
 scheduling shapes — is in `docs/sandbox/reaping.md`. The attach/takeover half,
