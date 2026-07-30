@@ -16,6 +16,7 @@ import {
   createRunScopedIdGen,
   defineSandbox,
   defineWorkspace,
+  exitSentinelLine,
   getSandboxDurability,
   journalPaths,
   probeRunExit,
@@ -184,8 +185,11 @@ function journalFileExists(runId: string, sandboxKey: string): boolean {
 
 /**
  * The run's journal as NDJSON, exactly as `journaledCommand` would have written
- * it: one line per journal line, then the `{"__exit":N}` sentinel once the agent
- * is done. `parseJournalExit` reads the sentinel and nothing else, so the line
+ * it: one line per journal line, then the real `{"__exit":N,"__nonce":"…"}`
+ * sentinel once the agent is done — built with {@link exitSentinelLine}, the
+ * SAME helper `journaledCommand`'s `printf` and the reader are asserted against
+ * byte-for-byte, so this harness cannot drift onto a shape `parseJournalExit`
+ * refuses. `parseJournalExit` reads the sentinel and nothing else, so the line
  * payloads only have to be valid JSON that does not carry the sentinel key.
  */
 function journalContent(runId: string): string {
@@ -195,7 +199,7 @@ function journalContent(runId: string): string {
   for (let line = 1; line <= journal.lines; line += 1) {
     text += `{"line":${line}}\n`
   }
-  if (journal.done) text += `{"__exit":0}\n`
+  if (journal.done) text += `${exitSentinelLine(journalPaths(runId), 0)}\n`
   return text
 }
 
