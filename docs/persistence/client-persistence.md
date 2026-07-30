@@ -81,7 +81,7 @@ choice: `persistence: true` is server-driven and a storage adapter is
 client-driven. They key on `threadId` too, but there it names a slot successive
 runs fill rather than a conversation ([Id map](./id-map)). A reload
 restores the last known `status` / `result` / `error` for that slot's newest run
-— it does not restart provider work. Only a run that is still
+It does not restart provider work. Only a run that is still
 streaming against a server-side durable stream can be re-attached and finished
 in place. See [Generation persistence](./generation-persistence) for the
 generation-specific setup.

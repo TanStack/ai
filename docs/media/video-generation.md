@@ -593,7 +593,7 @@ video-generation model with conversational editing. It only serves the
   When Google delivers by reference instead, the Files API URI passes through
   and needs your API key to download, like Veo.
 
-Clips are 720p at 24 FPS. `duration` accepts any value in the **3–10 second**
+Clips are 720p at 24 FPS. `duration` accepts any value in the **3 to 10 second**
 range (fractional seconds included), defaulting to 10 seconds when omitted:
 
 - `availableDurations()` reports

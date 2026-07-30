@@ -23,7 +23,7 @@ TanStack AI provides framework hooks for every generation type: image, audio, sp
 > same `persistence` option `useChat` does, so a long run's status and result
 > come back after a page reload or a dropped connection. It restores by
 > `threadId`, which for a generation names the slot successive runs fill
-> (`product-7-hero`) rather than a conversation — see
+> (`product-7-hero`) rather than a conversation. See
 > [Id map](../persistence/id-map). Setup is in
 > [Generation Persistence](../persistence/generation-persistence).
 

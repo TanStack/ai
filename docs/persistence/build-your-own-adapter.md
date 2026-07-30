@@ -40,16 +40,16 @@ Each store is independent, so provide only the ones you need.
 
 For chat:
 
-- `messages` — the transcript.
-- `runs` — run lifecycle.
-- `interrupts` — durable approvals. Needs `runs`.
-- `metadata` — namespaced key/value state.
+- `messages`: the transcript.
+- `runs`: run lifecycle.
+- `interrupts`: durable approvals. Needs `runs`.
+- `metadata`: namespaced key/value state.
 
 For generation:
 
-- `generationRuns` — the generation run lifecycle. The counterpart to `runs`,
+- `generationRuns`: the generation run lifecycle. The counterpart to `runs`,
   keyed by its own `runId`.
-- `artifacts` + `blobs` — keep the generated media bytes. See
+- `artifacts` + `blobs`: keep the generated media bytes. See
   [Generation & media stores](#generation--media-stores).
 
 The middleware turns on behavior for whatever stores it finds, so a
@@ -81,9 +81,9 @@ tracks **exact presence**:
 
 Annotate the value with a named shape:
 
-- `ChatPersistence` — all four chat stores.
-- `ChatTranscriptPersistence` — the `messages` floor.
-- `AIPersistence` — the all-optional bag. `withPersistence` rejects it, because
+- `ChatPersistence`: all four chat stores.
+- `ChatTranscriptPersistence`: the `messages` floor.
+- `AIPersistence`: the all-optional bag. `withPersistence` rejects it, because
   `stores.messages` is possibly `undefined`.
 
 Every method signature and invariant is in the

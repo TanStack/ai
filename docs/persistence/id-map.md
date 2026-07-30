@@ -125,7 +125,7 @@ another client started is not yours to cancel, so it is not reported here.
 
 ```mermaid
 flowchart TB
-    subgraph chat ["useChat — threadId: support-42"]
+    subgraph chat ["useChat, threadId: support-42"]
         direction LR
         c1["run r1
 tool loop, one turn"] --> c2["run r2
@@ -133,7 +133,7 @@ interrupted"] --> c3["run r3
 the resume of that same turn"]
     end
 
-    subgraph gen ["useGenerateImage — threadId: product-7-hero"]
+    subgraph gen ["useGenerateImage, threadId: product-7-hero"]
         direction LR
         g1["job g1
 first attempt"] --> g2["job g2

@@ -166,9 +166,9 @@ const sseUrl = `${baseUrl}/chat/sse`
 
 Use the URL your runtime can reach:
 
-- **iOS simulator** — often `localhost` or `127.0.0.1`.
-- **Android emulator** — commonly `10.0.2.2` to reach the host machine.
-- **A physical device** — a LAN or tunneled URL.
+- **iOS simulator**: often `localhost` or `127.0.0.1`.
+- **Android emulator**: commonly `10.0.2.2` to reach the host machine.
+- **A physical device**: a LAN or tunneled URL.
 
 Prefer `xhrHttpStream()` for Expo and React Native. It pairs with
 `toHttpResponse()` and reads newline-delimited JSON through incremental XHR
@@ -250,9 +250,9 @@ The factory receives the conversation messages plus any per-request `data` you p
 
 `stream()` also takes an optional second argument of persistence handlers, spread onto the adapter, so server-driven persistence (`persistence: true`) works without an HTTP endpoint. Each is typically a one-line call into your server:
 
-- `hydrate` — restores a chat thread.
-- `hydrateGeneration` — restores a generation's last run.
-- `joinRun` — replays a run still in flight.
+- `hydrate`: restores a chat thread.
+- `hydrateGeneration`: restores a generation's last run.
+- `joinRun`: replays a run still in flight.
 
 See [Generation Persistence](../persistence/generation-persistence#server-functions--direct) for the full server-function wiring.
 
@@ -287,8 +287,8 @@ const { messages, sendMessage } = useChat({
 
 The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return either:
 
-- a `Response` — the chat client parses its SSE body for you.
-- an `AsyncIterable<StreamChunk>` — yielded directly. This covers a server function that returns the stream itself rather than wrapping it in a `Response`.
+- a `Response`: the chat client parses its SSE body for you.
+- an `AsyncIterable<StreamChunk>`: yielded directly. This covers a server function that returns the stream itself rather than wrapping it in a `Response`.
 
 Sync and `Promise`-wrapped returns are both accepted.
 

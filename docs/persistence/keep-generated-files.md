@@ -15,15 +15,15 @@ This is a server-side opt-in that layers on **top of** the `generationRuns` stor
 [Generation persistence](./generation-persistence) already requires. Byte storage
 adds two more stores, which must be provided together:
 
-- an `artifacts` store — the metadata.
-- a `blobs` store — the bytes.
+- an `artifacts` store: the metadata.
+- a `blobs` store: the bytes.
 
 What each choice gets you:
 
-- **Both provided** — `withGenerationPersistence` writes each generated file's
+- **Both provided**: `withGenerationPersistence` writes each generated file's
   bytes to the blob store, records an `ArtifactRecord`, and attaches durable
   references to the result and the run record.
-- **Neither provided** — only the run record is kept.
+- **Neither provided**: only the run record is kept.
 
 `memoryPersistence()` ships all three stores (`generationRuns`, `artifacts`,
 `blobs`), so it works out of the box. Any backend that implements `ArtifactStore`
@@ -169,9 +169,9 @@ whole point of this page.
 
 Prompt media is different, and it splits by how you sent it:
 
-- **base64** (`source: { type: 'data' }`) — stored alongside the output, because
+- **base64** (`source: { type: 'data' }`): stored alongside the output, because
   the bytes are already in hand.
-- **a URL** (`source: { type: 'url' }`) — **not fetched**, and no artifact is
+- **a URL** (`source: { type: 'url' }`): **not fetched**, and no artifact is
   recorded for it.
 
 Two reasons a caller-supplied URL is left alone. Downloading it server-side

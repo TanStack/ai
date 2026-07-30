@@ -233,7 +233,7 @@ memory.
 Two paths have no URL passthrough and must upload real bytes:
 
 - OpenAI's `/images/edits`, and Sora `input_reference`.
-- Gemini **Veo** — its predict API accepts only inline bytes or a `gs://`
+- Gemini **Veo**: its predict API accepts only inline bytes or a `gs://`
   reference.
 
 For these, an HTTP(S) URL input would have to be downloaded and buffered in

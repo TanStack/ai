@@ -372,9 +372,9 @@ The last three are the generation counterpart to the chat stores, used by
 
 Named shapes, covered in [Controls](./controls):
 
-- `ChatTranscriptStores` — the `messages` floor.
-- `ChatPersistenceStores` — all four chat stores.
-- `ChatWithInterruptsStores` — `messages` + `runs` + `interrupts`.
+- `ChatTranscriptStores`: the `messages` floor.
+- `ChatPersistenceStores`: all four chat stores.
+- `ChatWithInterruptsStores`: `messages` + `runs` + `interrupts`.
 
 Need a mutex across instances (cross-worker coordination)? Use `withLocks` and a
 `LockStore` from `@tanstack/ai/locks`; see [Locks](../advanced/locks).
