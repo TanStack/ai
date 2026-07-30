@@ -213,8 +213,13 @@ const { runs } = persistence.stores
 
 // The per-run log factory, and it MUST resolve the same log the producing route
 // wrote — otherwise the sweep terminalizes an empty log while the real one stays
-// open. A cron has no incoming request, so synthesize one naming the run: every
-// adapter reads the run id from `X-Run-Id` or `?runId`.
+// open. A cron has no incoming request, so synthesize one naming the run.
+//
+// `?runId` is the form to use: it is the only place `durableStream` looks for the
+// run id, so a URL carrying it addresses `agent-runs/<runId>` — the same stream
+// the chat routes' `durabilityFor` addresses. (Core's `memoryStream` also accepts
+// an `X-Run-Id` header; `durableStream` does not.) No resume offset is set,
+// because the reaper is a producer, not a replaying client.
 //
 // The same backend and options the chat routes use — see ../resumable-streams/
 // advanced for the full option set. `durableStream` talks to it over HTTP, so a
@@ -226,10 +231,9 @@ const durableOptions = {
 }
 
 function durabilityFor(runId: string) {
-  return durableStream(
-    new Request(`https://reaper.internal/?runId=${encodeURIComponent(runId)}`),
-    durableOptions,
-  )
+  const url = new URL('https://reaper.internal/')
+  url.searchParams.set('runId', runId)
+  return durableStream(new Request(url), durableOptions)
 }
 
 // Only the application can map a recorded `sandboxKey` back to a live handle:

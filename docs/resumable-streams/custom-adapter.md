@@ -38,8 +38,24 @@ Get these wrong and resume breaks in subtle ways:
   envelope, so it must survive that: core rejects an empty offset, one
   containing `NUL`/CR/LF, one with leading or trailing whitespace, or a
   duplicate.
-- **`read` replays strictly *after* the offset**, oldest first, and stops at the
-  first `RUN_FINISHED` / `RUN_ERROR`.
+- **`read` replays strictly *after* the offset**, oldest first, and ends when the
+  log is **closed** — never when it sees a terminal chunk. This is the rule most
+  likely to be "simplified" back, so here is the reason, quoted from the
+  invariant `memoryStream`'s own `read` loop carries in
+  `packages/ai/src/stream-durability.ts` (a test pins it):
+
+  > A terminal chunk (`RUN_FINISHED` / `RUN_ERROR`) does NOT end the read: an
+  > agent-loop run emits one per iteration (`finishReason` `"tool_calls"` then
+  > `"stop"`), so stopping on the first would truncate a tool-calling run at its
+  > first tool call. The producer signals true completion by calling `close()`
+  > (it does so on every exit — see `StreamDurability.close`), which sets
+  > `log.complete`. Read tails until then, or until the caller aborts.
+
+  So an adapter that returns at the first terminal chunk truncates **every**
+  resumed tool-calling run — the resumed client sees the first tool call and
+  then a clean end, which it reads as "the run is over". `close()` is your only
+  end-of-log signal, and core awaits it on every producer exit (completion,
+  cancellation, and failure), so tailing until then always terminates.
 - **`read` must never end the response empty while the run is still producing.**
   Park (wait for the next append) instead. A clean end with no new data tells
   the client the run is over; if it isn't, the client fails with
@@ -64,7 +80,6 @@ Write the adapter against your store's operations. Here it is over an
 append-only per-run log you provide; swap `RunLog` for your backend:
 
 ```ts ignore
-import { EventType } from '@tanstack/ai'
 import type { StreamChunk, StreamDurability } from '@tanstack/ai'
 
 // Your backend, one append-only log per run. Back it with Redis Streams, a
@@ -79,10 +94,6 @@ interface RunLog {
   markComplete: () => Promise<void>
   // Everything stored so far, in append order. Must not wait for more.
   readAll: () => Promise<Array<{ cursor: string; chunk: StreamChunk }>>
-}
-
-function isTerminal(chunk: StreamChunk): boolean {
-  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
 }
 
 export function customDurability(
@@ -115,9 +126,12 @@ export function customDurability(
         const entries = await log.readAfter(cursor)
         for (const entry of entries) {
           cursor = entry.cursor
+          // Yield terminal chunks like any other. An agent-loop run emits a
+          // RUN_FINISHED per iteration, so returning on one would truncate a
+          // resumed tool-calling run at its first tool call.
           yield { offset: entry.cursor, chunk: entry.chunk }
-          if (isTerminal(entry.chunk)) return
         }
+        // The ONLY end-of-log condition: the producer called `close()`.
         if (await log.isComplete()) return
         // Park. Do NOT end the response here while the producer is alive.
         await log.waitForChange(signal)
@@ -274,6 +288,8 @@ Core still treats the value as opaque; the brand only tightens your own code.
 Core awaits `close()` on every producer exit (normal completion, cancellation,
 and failure) and appends a terminal `RUN_ERROR` on cancel/failure before
 closing. Your `close()` must make `read`'s `isComplete()` return `true` and wake
-parked readers, so a caught-up reader stops rather than hanging. If your backend
+parked readers, so a caught-up reader stops rather than hanging — it is the only
+thing that ends a `read`, since the terminal chunk it appended does not (see
+[the rules](#the-rules-that-matter)). If your backend
 producer can die without running `close()` (process crash), add a lease/reaper
 that terminalizes abandoned logs. See [Process death](./advanced#process-death).

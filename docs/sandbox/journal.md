@@ -30,42 +30,74 @@ Because there is no pipe, there is no reader whose disappearance can signal the
 agent. And because the journal is a file, a reader can start at byte 0 whenever
 it likes.
 
-The three built-in harness adapters (`grokBuildText`, `claudeCodeText`,
-`codexText`) journal every run. You get the file for free. What you have to
-supply is the one thing that makes it findable again.
+## You have to ask for a journal
+
+**Journaling is not on by default, and this is the first thing to get right —
+everything else on this page assumes the file exists.** The three built-in
+harness adapters (`grokBuildText`, `claudeCodeText`, `codexText`) journal a run
+only when that run is **durable**, which means `withSandbox` was given **both**
+`runs` and `durability` — `withSandbox(sandbox, { runs, durability: { adapter } })`,
+as the snippet below does. Pass neither (a plain `withSandbox(sandbox)`) or only one, and there is no
+journal at all: `journalOptionsFor` answers `undefined`, `spawnNdjson` takes its
+original unjournaled path, and the agent's stdout is a pipe again, exactly as it
+was before this feature existed. Nothing warns — a half-configured app has not
+asked for durability, so there is nothing to warn about. If you go looking for
+`/tmp/tanstack-runs/<runId>.ndjson` after running a plain `withSandbox(sandbox)`,
+you will not find it, and the reason is here rather than in your provider.
+
+Why both: a record with no event log cannot be replayed, and a log with no record
+cannot be found, claimed, or reaped. There is no useful half.
 
 ## Give every run an id you can recompute
 
 The journal path is derived from `runId` alone, so a `runId` you cannot
-reproduce is a journal nobody can find. Each adapter falls back to a random
-internal id when the caller supplies none, which is fine for a run you only
-watch once and useless for anything else.
+reproduce is a journal nobody can find. Adapters fall back to a random internal
+id on a **non-durable** run; on a durable one there is no fallback at all —
+`chatStream` throws `DurableRunIdRequiredError`, deliberately, because an id no
+successor host can recompute produces a run that streams normally and is
+silently unrecoverable.
 
-The fix is one line: forward the `runId` the request already carries.
+So forward the `runId` the request already carries, alongside the two stores that
+turn journaling on:
 
 ```ts
 import {
   chat,
   chatParamsFromRequest,
+  memoryStream,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
 // Your `defineSandbox(...)` result.
 import { sandbox } from './sandbox'
 
+// Single-process stand-ins, enough to see a journal on your laptop. A real
+// deployment needs a store and a stream backend every replica can reach — see
+// ./takeover for that wiring, plus the distributed lock it requires.
+const persistence = memoryPersistence()
+const { runs } = persistence.stores
+
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  // One instance, handed to both the middleware and the transport, so the
+  // journal and the delivery log describe the same run. `memoryStream` reads the
+  // run id from the `X-Run-Id` header `@tanstack/ai-client` sends, so it needs
+  // no help on a POST route; `durableStream` does — see ./takeover.
+  const adapter = memoryStream(request)
   const stream = chat({
     adapter: claudeCodeText('claude-sonnet-4-6'),
     messages,
     threadId,
-    // Without this the adapter mints an id nothing else can recompute, and the
-    // journal is written to a path no later reader can derive.
+    // Without this a durable run throws: the journal path and the deterministic
+    // message ids are both derived from it, so a later reader can only find the
+    // journal of a run whose `runId` it can recompute.
     runId,
-    middleware: [withSandbox(sandbox)],
+    // BOTH options, or there is no journal to read.
+    middleware: [withSandbox(sandbox, { runs, durability: { adapter } })],
   })
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream, { durability: { adapter } })
 }
 ```
 

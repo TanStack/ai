@@ -23,7 +23,9 @@ you compose a separate middleware.
 It is also not the agent's *output*. This page keeps a sandbox findable across
 processes; keeping the run's event stream readable across processes is
 [The Run Journal](./journal). The two compose: a resumed sandbox still holds the
-journal of every run that executed in it, under `/tmp/tanstack-runs`.
+journal of every **durable** run that executed in it, under `/tmp/tanstack-runs`.
+(Durable meaning `withSandbox` was given both `runs` and `durability` — journaling
+is opt-in, and a run without it leaves no file there.)
 
 Two pieces:
 
