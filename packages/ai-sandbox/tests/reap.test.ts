@@ -486,6 +486,45 @@ describe('reapDetachedRuns — expiring a run past its TTL', () => {
     expect(h.driven).not.toContain(fresh.runId)
     expect(entryFor(result, fresh.runId).outcome).toBe('producing')
   })
+
+  it('reports expired — not the budget anomaly — when the budget stops a STILL-PRODUCING agent', async () => {
+    // The realistic expiry: the agent is mid-sentence, and nothing polls the
+    // cancel recorded a moment ago (`wasCancelRequested`'s only reader is
+    // `withSandbox`'s `onAbort`, which runs after something else has aborted), so
+    // `runBudgetMs` is what ends this drive. That is the DESIGNED stop on this
+    // path, so labelling it `'budget-exceeded'` — which `reap.ts` defines as the
+    // journal read, translation, or log misbehaving — made `'expired'` unreachable
+    // for exactly the runs the TTL exists to expire.
+    const h = makeHarness()
+    const expired = await h.seed({ detachedSince: NOW - TTL - 1 })
+    const wedged = await h.seed({ detachedSince: NOW - 60_000 })
+    // Not expired, probe says finished: the budget IS the anomaly here.
+    h.probes.set(wedged.runId, { state: 'finished', exitCode: 0 })
+    const drive: ReapOptions['drive'] = (input) => {
+      h.driven.push(input.runId)
+      return (async function* forever() {
+        while (!input.signal.aborted) {
+          yield textChunk(input.runId)
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        }
+      })()
+    }
+
+    const result = await reapDetachedRuns(h.options({ drive, runBudgetMs: 1 }))
+
+    const entry = entryFor(result, expired.runId)
+    expect(entry.outcome).toBe('expired')
+    // The exact status, not merely "terminal": a run the reaper force-expired
+    // while its agent was still producing did NOT complete. `'completed'` here is
+    // a false transcript for a run whose sandbox is about to be destroyed.
+    expect(entry.status).toBe('aborted')
+    expect((await h.runs.get(expired.runId))?.status).toBe('aborted')
+    expect(entry.terminalizedAnyway).toBeUndefined()
+    // Terminal, so the sandbox is still reclaimed — the cost leak stays closed.
+    expect(h.reclaimed.map((record) => record.runId)).toContain(expired.runId)
+    // The anomaly is still reported where it IS one: the finalization path.
+    expect(entryFor(result, wedged.runId).outcome).toBe('budget-exceeded')
+  })
 })
 
 describe('reapDetachedRuns — claiming and quiescence', () => {

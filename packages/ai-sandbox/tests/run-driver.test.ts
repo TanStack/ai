@@ -84,6 +84,33 @@ async function* abortAfterFirstChunk(
 }
 
 /**
+ * The producer shape a well-behaved signal-aware stream actually has, and the
+ * one that made an aborted run be recorded as `'completed'`: it observes the
+ * abort and simply ENDS ITS STREAM. `chat()` does exactly this. The consuming
+ * `for await` loop then exits NORMALLY, so the per-chunk abort check is never
+ * reached again and control used to fall through to the success path.
+ *
+ * Distinct from {@link abortAfterFirstChunk} on purpose: that one yields once
+ * MORE after aborting, so the in-loop check catches it. Only a producer that
+ * stops — or an abort that lands between two chunks — reaches the gap.
+ */
+async function* returnsOnAbort(
+  controller: AbortController,
+): AsyncGenerator<StreamChunk> {
+  yield textChunk('before-abort')
+  controller.abort()
+}
+
+/** Reacts to its own abort by throwing, the way an `AbortError` producer does. */
+async function* throwsOnAbort(
+  controller: AbortController,
+): AsyncGenerator<StreamChunk> {
+  yield textChunk('before-abort')
+  controller.abort()
+  throw new DOMException('The operation was aborted', 'AbortError')
+}
+
+/**
  * A `memoryStream` durability that counts `close()` calls (so terminalization
  * is asserted directly rather than inferred from a hang) and can be made to
  * fail a chosen `append` or its `close`.
@@ -292,6 +319,112 @@ describe('pipeToRunLog', () => {
         deltas.push(chunk.delta)
     }
     expect(deltas).toEqual(['before-abort'])
+  })
+})
+
+/**
+ * The four producer reactions to an abort signal, asserted as EXACT terminal
+ * statuses rather than as "terminal".
+ *
+ * "Terminal" is the weak assertion that let the defect ship: an aborted run
+ * recorded as `'completed'` is terminal too, so a test that only checked
+ * terminality passed against the bug. The status string is the whole fact.
+ *
+ * The first case is the one that was broken and the reason this block exists.
+ * It was measured on the reaper's TTL-expiry path, where a run the reaper had
+ * force-expired — and whose sandbox it had already destroyed — came back as
+ * `{"status":"completed"}`. It is not a reaper quirk: any caller whose producer
+ * ends its stream on abort got a false `'completed'`, a takeover that loses its
+ * claim mid-drive included.
+ */
+describe('pipeToRunLog abort classification', () => {
+  it('records aborted when the producer reacts to the abort by ENDING its stream', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('a1')
+    const controller = new AbortController()
+
+    const record = await pipeToRunLog(returnsOnAbort(controller), {
+      runs,
+      durability: () => durability,
+      runId: 'a1',
+      threadId: 't1',
+      signal: controller.signal,
+    })
+
+    // NOT `'completed'`: an aborted run did not complete, whatever the producer
+    // did on its way out.
+    expect(record.status).toBe('aborted')
+    expect((await runs.get('a1'))?.status).toBe('aborted')
+    expect(record.error).toBeUndefined()
+    expect(calls.closes).toBe(1)
+    // What the producer really delivered is still replayable.
+    const deltas: Array<string> = []
+    for (const chunk of await replay('a1')) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+    expect(deltas).toEqual(['before-abort'])
+  })
+
+  it('still records failed when the producer THROWS on the abort', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('a2')
+    const controller = new AbortController()
+
+    const record = await pipeToRunLog(throwsOnAbort(controller), {
+      runs,
+      durability: () => durability,
+      runId: 'a2',
+      threadId: 't1',
+      signal: controller.signal,
+    })
+
+    // Unchanged by the abort re-check: a producer that threw reported a failure,
+    // and the thrown value is what a tailing client must be shown. The
+    // synthesized `RUN_ERROR` is the only channel it has.
+    expect(record.status).toBe('failed')
+    expect(record.error?.message).toContain('aborted')
+    expect(calls.closes).toBe(1)
+    const types = (await replay('a2')).map((chunk) => chunk.type)
+    expect(types).toContain(EventType.RUN_ERROR)
+  })
+
+  it('records completed when the stream ends normally and the signal never fired', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('a3')
+    const controller = new AbortController()
+
+    const record = await pipeToRunLog(twoChunks(), {
+      runs,
+      durability: () => durability,
+      runId: 'a3',
+      threadId: 't1',
+      // A live, never-fired signal: the re-check must not turn a genuine
+      // completion into an abort just because a signal was supplied.
+      signal: controller.signal,
+    })
+
+    expect(record.status).toBe('completed')
+    expect((await runs.get('a3'))?.status).toBe('completed')
+    expect(calls.closes).toBe(1)
+  })
+
+  it('records failed on a provider error even with a live signal attached', async () => {
+    const runs = new InMemoryRunStore()
+    const { durability, calls } = recordingDurability('a4')
+    const controller = new AbortController()
+
+    const record = await pipeToRunLog(throwing(), {
+      runs,
+      durability: () => durability,
+      runId: 'a4',
+      threadId: 't1',
+      signal: controller.signal,
+    })
+
+    expect(record.status).toBe('failed')
+    expect(record.error?.message).toContain('provider exploded')
+    expect(calls.closes).toBe(1)
   })
 })
 

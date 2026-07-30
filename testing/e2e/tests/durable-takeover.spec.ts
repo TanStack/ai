@@ -540,29 +540,31 @@ function expectUntouched(before: StateBody, after: StateBody): void {
 /**
  * What the sweep reports for a run it expired while its agent was STILL WORKING.
  *
- * `'budget-exceeded'`, not `'expired'`, and that is a measured property of the
- * library rather than of this harness. Nothing polls `RunRecord.cancelRequested`
- * to abort a live drive — `wasCancelRequested` has exactly one reader,
- * `withSandbox`'s `onAbort`, which runs only once something else has already
- * aborted — so on this path `ReapOptions.runBudgetMs` is the ONLY thing that ends
- * the drive, and its expiry is what `reap.ts` labels an anomaly. Pinned so that
- * gap cannot close (or widen) silently.
+ * `'expired'`, which is what the TTL path is FOR. It read `'budget-exceeded'`
+ * while two defects stacked. Nothing polls `RunRecord.cancelRequested` to abort a
+ * live drive — `wasCancelRequested` has exactly one reader, `withSandbox`'s
+ * `onAbort`, which runs only once something else has already aborted — so
+ * `ReapOptions.runBudgetMs` is the only thing that ends this drive; and `reap.ts`
+ * used to label ANY budget expiry the anomaly it only is on the finalization path,
+ * where the probe already said the agent was done. On the expiry path the budget is
+ * the designed stop, so `'expired'` is now reported and the anomaly is reserved for
+ * the case that really is one.
  */
-const EXPIRED_LIVE_OUTCOME = 'budget-exceeded'
+const EXPIRED_LIVE_OUTCOME = 'expired'
 
 /**
  * The acted-on half of an expiry: the run is terminal, the sandbox is gone, and
  * nothing was invented about what the agent produced.
  *
- * The exact terminal STATUS is deliberately not pinned. `reap.ts`'s own module doc
- * tabulates it as a property of how the drive reacts to the budget signal — a
- * signal-aware producer exits its loop normally, so `pipeToRunLog` sees a stream
- * that ended and records `'completed'` (measured here), while one that throws
- * records `'failed'`. What the expiry path actually has to achieve is that the run
- * stops being a reclaim candidate and its sandbox stops costing money, and those
- * are asserted exactly. The two facts below it are the guard against the danger in
- * terminalizing a live run at all: no synthesized chunk in the log, and no
- * invented assistant turn in the transcript.
+ * The terminal STATUS is `'aborted'`, pinned exactly. It used to be `'completed'`
+ * — `pipeToRunLog` checked its abort signal only per chunk, so a signal-aware
+ * producer that ended its stream made the loop exit normally and the success path
+ * ran — which meant a run the reaper had force-expired, and whose sandbox it had
+ * just destroyed, was recorded as having completed successfully. `not.toBe(
+ * 'running')` is the assertion that let that through: `'completed'` is terminal
+ * too. The two facts below are the other half of the same guard, against the
+ * danger in terminalizing a live run at all: no synthesized chunk in the log, and
+ * no invented assistant turn in the transcript.
  */
 async function expectExpiredAndTornDown(runId: string): Promise<StateBody> {
   const after = await stateUntil(
@@ -574,7 +576,9 @@ async function expectExpiredAndTornDown(runId: string): Promise<StateBody> {
   // cancel that DESTROYS the sandbox rather than a second detach that re-arms
   // `detachedSince` and leaves the run to be swept forever.
   expect(after.record?.cancelRequested).toBe(true)
-  expect(after.record?.status).not.toBe('running')
+  // The agent was mid-sentence when the reaper stopped it. Anything but
+  // `'aborted'` here is a transcript that claims something that did not happen.
+  expect(after.record?.status).toBe('aborted')
   expect(typeof after.record?.finishedAt).toBe('number')
   // The cost leak is closed: the agent cannot keep burning tokens in a sandbox
   // nobody is reading.
@@ -1095,7 +1099,10 @@ test.describe('durable runs — the reaper', () => {
     expect(body.reap.probed).toBe(1)
     expect(reapEntry(body, fresh).outcome).toBe('producing')
     expect(reapEntry(body, expired).outcome).toBe(EXPIRED_LIVE_OUTCOME)
-    expect(reapEntry(body, expired).terminalizedAnyway).toBe(true)
+    // `terminalizedAnyway` is reported on `'budget-exceeded'` only — it exists so
+    // an operator reading the anomaly does not have to infer that the record still
+    // reached terminal. On the expiry path the outcome itself already says so.
+    expect(reapEntry(body, expired).terminalizedAnyway).toBeUndefined()
 
     await expectExpiredAndTornDown(expired)
     expectUntouched(before, await state(fresh))

@@ -275,7 +275,9 @@ async function finish(
  * - normal completion → `completed`
  * - a `RUN_ERROR` chunk → append it, then `failed`
  * - the stream throws → append a synthesized `RUN_ERROR`, then `failed`
- * - `signal` aborts mid-stream → stop consuming, `aborted`
+ * - `signal` aborts at ANY point before the stream ends → `aborted`, whether the
+ *   producer keeps yielding, ends its stream, or is never asked for another
+ *   chunk. An abort outranks a clean exit: the run did not complete.
  */
 export async function pipeToRunLog<TOffset extends string = string>(
   stream: AsyncIterable<StreamChunk>,
@@ -340,6 +342,28 @@ export async function pipeToRunLog<TOffset extends string = string>(
     return finish(ctx, 'failed', recorded)
   }
 
+  // RE-CHECKED after the loop, and this is the common shape rather than the
+  // exotic one. The in-loop check only fires if the producer yields at least
+  // once MORE after the abort; two ways past it are routine:
+  //
+  // - The producer is signal-aware and reacts by ENDING its stream. `chat()`
+  //   does exactly this, so the loop exits NORMALLY.
+  // - The abort lands BETWEEN two chunks, while the loop is suspended on a
+  //   producer that then finishes on its own.
+  //
+  // Falling through to `'completed'` in either case is a false transcript, not
+  // a cosmetic mislabel: it was measured on the reaper's TTL-expiry path, where
+  // a run the reaper had force-expired — and whose sandbox it had already
+  // destroyed — was recorded as having completed successfully. Any caller whose
+  // producer ends its stream on abort reaches the same gap, a takeover that
+  // loses its claim mid-drive included, which is why the check belongs here and
+  // not in one caller.
+  //
+  // A producer that THREW on the abort is deliberately untouched: it returned
+  // from inside the `catch` above as `'failed'`, because a thrown value is a
+  // reported failure a tailing client must be shown, and this driver's log is
+  // that client's only channel.
+  if (signal?.aborted) return finish(ctx, 'aborted')
   return finish(ctx, 'completed')
 }
 

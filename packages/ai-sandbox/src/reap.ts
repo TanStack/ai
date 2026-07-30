@@ -15,25 +15,30 @@
  * | producer's reaction to the budget signal | stored status | `close()` |
  * | ---------------------------------------- | ------------- | --------- |
  * | ignores it and keeps producing           | `aborted`     | called    |
- * | returns on abort (the realistic `drive`)  | `completed`   | called    |
+ * | returns on abort (the realistic `drive`)  | `aborted`     | called    |
  * | throws an AbortError                     | `failed`      | called    |
  *
- * The middle row is the fatal one, and it is the shape a well-behaved `drive`
- * actually has: a signal-aware producer exits its loop NORMALLY, so
- * `pipeToRunLog` sees a stream that ended and records a healthy mid-flight run as
- * `'completed'` with a `finishedAt`. That is a false transcript, it closes a log
- * that commit `5a1f821c9` deliberately leaves OPEN for takeover (ending every
- * attached client's stream), and — worst — a terminal record drops out of
- * `listReclaimable` forever, so TTL expiry can never reclaim that run's sandbox.
- * A cost leak with no recovery path. There is therefore no "still running"
- * outcome in {@link ReapRunOutcome}: it is unreachable by construction, not
- * merely unlikely.
+ * The middle row USED to read `completed`, which was the fatal one: a signal-aware
+ * producer exits its loop NORMALLY, and `pipeToRunLog` only checked its signal
+ * per chunk, so a healthy mid-flight run was recorded as `'completed'` with a
+ * `finishedAt` — a false transcript. That gap is fixed (`run.ts` re-checks the
+ * signal after the loop), so the status is now honest on all three rows. The rule
+ * above is UNCHANGED, because the status was never the whole harm: every row
+ * writes a terminal record and closes a log that commit `5a1f821c9` deliberately
+ * leaves OPEN for takeover (ending every attached client's stream), and a terminal
+ * record drops out of `listReclaimable` forever, so TTL expiry can never reclaim
+ * that run's sandbox. A cost leak with no recovery path. There is therefore no
+ * "still running" outcome in {@link ReapRunOutcome}: it is unreachable by
+ * construction, not merely unlikely.
  *
  * So sentinel-reached is detected OUT OF BAND, through the in-sandbox journal
  * ({@link probeRunExit}), and `pipeToRunLog` is entered only for a run already
  * KNOWN to have finished, or for one whose TTL has expired (terminal either way).
- * `runBudgetMs` degrades from a load-bearing mechanism into a safety net whose
- * expiry is a genuine anomaly — see `'budget-exceeded'`.
+ * On the FINALIZATION path `runBudgetMs` therefore degrades from a load-bearing
+ * mechanism into a safety net whose expiry is a genuine anomaly — see
+ * `'budget-exceeded'`. On the EXPIRY path it stays load-bearing: nothing polls the
+ * cancel this module records, so the budget is what ends the drive of an expired
+ * run whose agent is still producing, and its expiry there is the designed path.
  *
  * WHY THE PROBE IS INJECTED (`ReapOptions.hasFinished`) rather than resolved
  * here, exactly like `ReapOptions.reclaim`:
@@ -90,6 +95,11 @@ import type {
  * run finished — see the module doc for why that design was rejected — so this is
  * generous rather than tight: it only has to stop a drive that has genuinely
  * wedged on a run the journal already said was over.
+ *
+ * On the expiry path it is not merely a net: it is what stops a still-producing
+ * agent, since nothing polls the cancel recorded before that drive. A caller that
+ * expires live agents may want a tighter value there than a finalization replay
+ * needs.
  */
 export const DEFAULT_RUN_BUDGET_MS = 30_000
 
@@ -131,6 +141,12 @@ export type ReapRunOutcome =
   /**
    * Past `detachedRunTtlMs`. Cancelled first, then driven to terminal. The probe
    * is skipped: the outcome is terminal whether the agent finished or not.
+   *
+   * Reported even when {@link ReapOptions.runBudgetMs} is what ended the drive —
+   * on this path that is the mechanism rather than an anomaly, so `'expired'` is
+   * the truthful outcome. The run's own `status` distinguishes the two shapes:
+   * an agent that had already finished replays to `'completed'`, while one still
+   * producing when the budget fired is `'aborted'`.
    */
   | 'expired'
   /**
@@ -146,6 +162,10 @@ export type ReapRunOutcome =
    * closed (`pipeToRunLog` guarantees both), so this is a diagnostic, not a leak
    * — but a finished run that would not replay in 30s means the journal read, the
    * translation, or the log is misbehaving.
+   *
+   * FINALIZATION ONLY. An expired run that outran its budget reports `'expired'`:
+   * there was no probe on that path and the agent may legitimately still have been
+   * producing, so the budget firing is the designed stop, not a misbehaving replay.
    */
   | 'budget-exceeded'
   /**
@@ -441,7 +461,17 @@ async function reapOne<TOffset extends string>(
 
     const terminal = isTerminalRunStatus(final.status)
     let outcome: ReapRunOutcome
-    if (budget.aborted) {
+    // `&& !expired` is the whole subtlety. The budget is an ANOMALY only on the
+    // finalization path, where the probe already said the agent hit its sentinel
+    // and a replay that will not finish in 30s means the journal read, the
+    // translation, or the log is misbehaving. On the EXPIRY path there was no
+    // probe and the agent may well be mid-sentence: `requestRunCancel` writes a
+    // record field whose only reader is `withSandbox`'s `onAbort` (which runs
+    // after something else has already aborted), so the budget is the sole thing
+    // that ends the drive of a still-producing expired run. That is the designed
+    // path, not a misbehaving one, and reporting it as the anomaly made
+    // `'expired'` unreachable for exactly the runs the TTL exists to expire.
+    if (budget.aborted && !expired) {
       outcome = 'budget-exceeded'
     } else if (!terminal) {
       // The terminal write was SUPPRESSED and `finish`'s re-read answered with a

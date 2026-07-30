@@ -95,10 +95,10 @@ them by `ReapRunOutcome`:
 | Outcome | Meaning |
 | --- | --- |
 | `finalized` | The probe saw the exit sentinel, the run was driven to terminal, the transcript is saved. The happy path. |
-| `expired` | Past `detachedRunTtlMs`. Cancelled first (so the teardown is an explicit cancel that destroys the sandbox), then driven to terminal. The probe is skipped — the outcome is terminal either way. |
+| `expired` | Past `detachedRunTtlMs`. Cancelled first (so the teardown is an explicit cancel that destroys the sandbox), then driven to terminal. The probe is skipped — the outcome is terminal either way. Reported even when `runBudgetMs` is what ended the drive: on this path that is the mechanism, not an anomaly. The run's `status` tells the two apart — an agent that had already finished replays to `completed`, one still producing when the budget fired is `aborted`. |
 | `producing` | Still working. `pipeToRunLog` was never entered: nothing appended, no record written, `close()` not called, `detachedSince` untouched. |
 | `unknown` | The probe could not answer. Left exactly as untouched as `producing`, but an operator should see it. |
-| `budget-exceeded` | Anomaly. A run the journal already said was finished outran `runBudgetMs`. The record *is* terminal and the log *is* closed, so this is a diagnostic, not a leak. |
+| `budget-exceeded` | Anomaly, and **finalization only**. A run the journal already said was finished outran `runBudgetMs`. The record *is* terminal and the log *is* closed, so this is a diagnostic, not a leak. An expired run that outran its budget reports `expired` instead. |
 | `not-claimed` | Another host holds the claim, or took it mid-drive. Normal — a real viewer attaching mid-sweep is exactly this. |
 | `failed` | Something threw. Logged, counted, and the sweep continued. |
 
@@ -120,21 +120,29 @@ three producer shapes are destructive:
 | The producer's reaction to the budget signal | Stored status | `close()` |
 | --- | --- | --- |
 | Ignores it and keeps producing | `aborted` | called |
-| Returns on abort (the realistic `drive`) | `completed` | called |
+| Returns on abort (the realistic `drive`) | `aborted` | called |
 | Throws an `AbortError` | `failed` | called |
 
-The middle row is fatal, and it is the shape a *well-behaved* `drive` actually
-has. A signal-aware producer exits its loop normally, so `pipeToRunLog` sees a
-stream that ended and records a healthy mid-flight run as `'completed'` with a
-`finishedAt`. That is a false transcript; it closes a log that was deliberately
-left open, ending every attached client's stream; and — worst — a terminal record
-drops out of `listReclaimable` **forever**, so TTL expiry can never reclaim that
-run's sandbox. A cost leak with no recovery path.
+The middle row used to read `completed`, and that was the fatal one: a
+signal-aware producer — the shape a *well-behaved* `drive` actually has — exits
+its loop normally, and `pipeToRunLog` checked its abort signal only per chunk, so
+a healthy mid-flight run was recorded as `'completed'` with a `finishedAt`. That
+gap is fixed; `pipeToRunLog` re-checks the signal after the loop, so an aborted
+drive is never recorded as completed.
+
+The rule is unchanged, though, because the status was never the whole harm: every
+row above writes a terminal record and closes a log that was deliberately left
+open, ending every attached client's stream — and a terminal record drops out of
+`listReclaimable` **forever**, so TTL expiry can never reclaim that run's sandbox.
+A cost leak with no recovery path.
 
 So finished-ness is learned **out of band**, from the in-sandbox journal, and
 `pipeToRunLog` is entered only for a run already known to have finished or one
-whose TTL has expired (terminal either way). `runBudgetMs` degrades from a
-load-bearing mechanism into a safety net whose expiry is a genuine anomaly.
+whose TTL has expired (terminal either way). On the finalization path `runBudgetMs`
+therefore degrades from a load-bearing mechanism into a safety net whose expiry is
+a genuine anomaly. On the expiry path it stays load-bearing: nothing polls the
+cancel the reaper records, so the budget is what stops an expired run whose agent
+is still producing.
 
 The sweep also **never clears `detachedSince`**. That field is what the reaper
 selects on and the evidence its TTL accounting used. Clearing it would reset the
