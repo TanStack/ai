@@ -475,15 +475,20 @@ That rejection is deliberate, and it is what makes the `reclaim-failed` outcome
 reachable at all. `ReapOptions.reclaim` is `(record) => Promise<void>`, so a
 rejection is the sweep's only channel for "the sandbox was NOT reclaimed":
 
+Wire the reclaimer as shown above (`reclaim: sandboxReclaimer({ provider,
+instances })`), then inspect the summary the sweep hands back:
+
 ```ts
 import { SandboxReclaimFailedError } from '@tanstack/ai-sandbox'
+import type { ReapResult } from '@tanstack/ai-sandbox'
 
-const result = await reapDetachedRuns({
-  /* ... */ reclaim: sandboxReclaimer({ provider, instances }),
-})
+export function alertOnLeakedSandboxes(
+  result: ReapResult,
+  alert: (message: string, detail: Record<string, unknown>) => void,
+): void {
+  // Watch this counter — it is the leak alarm.
+  if (result.outcomes['reclaim-failed'] === 0) return
 
-// Watch this counter — it is the leak alarm.
-if (result.outcomes['reclaim-failed'] > 0) {
   for (const run of result.runs) {
     if (run.outcome !== 'reclaim-failed') continue
     // The transcript IS saved and the record IS terminal; only the teardown
@@ -493,6 +498,7 @@ if (result.outcomes['reclaim-failed'] > 0) {
       run.error instanceof SandboxReclaimFailedError
         ? run.error.sandboxKey
         : undefined
+
     alert('sandbox may still be billing', {
       runId: run.runId,
       status: run.status,
