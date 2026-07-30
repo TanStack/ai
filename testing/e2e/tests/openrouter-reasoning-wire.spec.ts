@@ -27,6 +27,8 @@ test.describe('openrouter — reasoning wire format', () => {
       const captured = entries.find(
         (entry) => entry.headers?.['x-test-id'] === testId,
       )
+      expect(captured).toBeDefined()
+      expect(captured?.body).toEqual(expect.any(Object))
 
       if (scenario === 'disabled') {
         expect(captured?.body?.reasoning).toEqual({ effort: 'none' })
