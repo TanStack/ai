@@ -108,28 +108,82 @@ export function getBytePlusVoiceApiKeyFromEnv(): string {
 
 /**
  * Returns an Ark client config with the default Ark base URL applied when not
- * already set.
+ * already set, and any trailing slashes trimmed so path joins stay
+ * single-slashed.
+ *
+ * The returned `baseURL` is always a string: adapters that build request paths
+ * by interpolation can use it directly without re-applying a default (which
+ * would otherwise risk interpolating `undefined` into a URL). The config's own
+ * type is preserved, so adapter-specific config fields survive the call.
  */
-export function withBytePlusArkDefaults(
-  config: BytePlusArkConfig,
-): BytePlusArkConfig {
+export function withBytePlusArkDefaults<TConfig extends BytePlusArkConfig>(
+  config: TConfig,
+): Omit<TConfig, 'baseURL'> & { baseURL: string } {
   return {
     ...config,
-    baseURL: config.baseURL || BYTEPLUS_ARK_BASE_URL,
+    baseURL: (config.baseURL || BYTEPLUS_ARK_BASE_URL).replace(/\/+$/, ''),
   }
 }
 
 /**
  * Returns a Seed Speech config with the default voice base URL applied (and
  * any trailing slashes trimmed) when not already set.
+ *
+ * As with {@link withBytePlusArkDefaults}, the returned `baseURL` is always a
+ * string, so adapters can interpolate it without re-applying a fallback, and
+ * the config's own type is preserved.
  */
-export function withBytePlusVoiceDefaults(
-  config: BytePlusVoiceConfig,
-): BytePlusVoiceConfig {
+export function withBytePlusVoiceDefaults<TConfig extends BytePlusVoiceConfig>(
+  config: TConfig,
+): Omit<TConfig, 'baseURL'> & { baseURL: string } {
   return {
     ...config,
     baseURL: (config.baseURL || BYTEPLUS_VOICE_BASE_URL).replace(/\/+$/, ''),
   }
+}
+
+/**
+ * Normalizes the OpenAI-shaped `defaultHeaders` config field (which accepts a
+ * `Headers` instance, an entry list, or a record with nullable values) into
+ * the plain record the header builders below take. Non-string values are
+ * dropped rather than serialized.
+ *
+ * Shared by every fetch-based adapter (image, video, speech): they all read
+ * `defaultHeaders` off a config typed by the OpenAI SDK but issue plain JSON
+ * requests.
+ */
+export function toHeaderRecord(
+  headers: BytePlusArkConfig['defaultHeaders'],
+): Record<string, string> {
+  const record: Record<string, string> = {}
+  if (!headers) return record
+
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      record[key] = value
+    })
+    return record
+  }
+
+  // The entry-list form is typed as arrays of nullable values rather than
+  // strict [name, value] tuples, so both halves are checked.
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      if (typeof key === 'string' && typeof value === 'string') {
+        record[key] = value
+      }
+    }
+    return record
+  }
+
+  // Record form. A value may be null/undefined (openai's "unset this header"
+  // signal) or an array for a repeated header; neither maps onto a single
+  // string, so both are dropped.
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === 'string') record[key] = value
+  }
+
+  return record
 }
 
 /**
@@ -140,9 +194,13 @@ export function bytePlusArkHeaders(
   extraHeaders?: Record<string, string>,
 ): Record<string, string> {
   return {
+    // `extraHeaders` first so the Authorization / Content-Type below always
+    // win — otherwise a caller-supplied `Authorization` in `defaultHeaders`
+    // could silently clobber the bearer token and turn every request into a
+    // 401 that looks like a bad key.
+    ...extraHeaders,
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
-    ...extraHeaders,
   }
 }
 
@@ -154,9 +212,32 @@ export function bytePlusVoiceHeaders(
   extraHeaders?: Record<string, string>,
 ): Record<string, string> {
   return {
+    // `extraHeaders` first so the X-Api-Key / Content-Type below always win —
+    // see {@link bytePlusArkHeaders}. Seed Speech answers a clobbered key with
+    // `45000010 Invalid X-Api-Key`, which reads as a misconfigured key rather
+    // than a header collision.
+    ...extraHeaders,
     'Content-Type': 'application/json',
     'X-Api-Key': apiKey,
-    ...extraHeaders,
+  }
+}
+
+/**
+ * Reads a response body as JSON, tolerating the non-JSON failures both
+ * BytePlus hosts can return (an empty body, or an HTML error page from a proxy
+ * in front of the API).
+ *
+ * Returns the parsed value, the raw text when it is not JSON, or `undefined`
+ * for an empty body — all three of which {@link bytePlusArkError} and
+ * {@link bytePlusVoiceError} know how to render.
+ */
+export async function readJsonBody(response: Response): Promise<unknown> {
+  const text = await response.text()
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
   }
 }
 

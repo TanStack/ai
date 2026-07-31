@@ -11,6 +11,7 @@ import {
   withBytePlusArkDefaults,
   withBytePlusVoiceDefaults,
 } from '../src/index'
+import { readJsonBody, toHeaderRecord } from '../src/utils/client'
 
 const ENV_KEYS = [
   'ARK_API_KEY',
@@ -90,6 +91,34 @@ describe('config defaults', () => {
     expect(config.baseURL).toBe('https://ark.eu-west.bytepluses.com/api/v3')
   })
 
+  it('trims trailing slashes from an explicit Ark base URL', () => {
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      baseURL: 'https://ark.eu-west.bytepluses.com/api/v3//',
+    })
+    expect(config.baseURL).toBe('https://ark.eu-west.bytepluses.com/api/v3')
+  })
+
+  it('resolves a base URL for a null or empty override', () => {
+    // openai's ClientOptions types baseURL as nullable, so adapters that
+    // interpolate it must never see undefined.
+    expect(
+      withBytePlusArkDefaults({ apiKey: 'ark-test-key', baseURL: null })
+        .baseURL,
+    ).toBe(BYTEPLUS_ARK_BASE_URL)
+    expect(
+      withBytePlusArkDefaults({ apiKey: 'ark-test-key', baseURL: '' }).baseURL,
+    ).toBe(BYTEPLUS_ARK_BASE_URL)
+  })
+
+  it('preserves adapter-specific config fields', () => {
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      maxRetries: 4,
+    })
+    expect(config.maxRetries).toBe(4)
+  })
+
   it('applies the Seed Speech base URL', () => {
     const config = withBytePlusVoiceDefaults({ apiKey: 'voice-test-key' })
     expect(config.baseURL).toBe(BYTEPLUS_VOICE_BASE_URL)
@@ -119,10 +148,102 @@ describe('headers', () => {
     })
   })
 
-  it('merges extra headers over the defaults', () => {
+  it('merges extra headers alongside the auth headers', () => {
     expect(
       bytePlusArkHeaders('ark-test-key', { 'X-Test-Id': 'abc' }),
     ).toMatchObject({ 'X-Test-Id': 'abc' })
+  })
+
+  it('does not let extra headers clobber the Ark bearer token', () => {
+    // A caller-supplied Authorization in defaultHeaders would otherwise turn
+    // every request into a 401 that reads like a bad API key.
+    expect(
+      bytePlusArkHeaders('ark-test-key', {
+        Authorization: 'Bearer wrong-key',
+        'Content-Type': 'text/plain',
+      }),
+    ).toEqual({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ark-test-key',
+    })
+  })
+
+  it('does not let extra headers clobber X-Api-Key', () => {
+    expect(
+      bytePlusVoiceHeaders('voice-test-key', {
+        'X-Api-Key': 'wrong-key',
+        'Content-Type': 'text/plain',
+        'X-Test-Id': 'abc',
+      }),
+    ).toEqual({
+      'Content-Type': 'application/json',
+      'X-Api-Key': 'voice-test-key',
+      'X-Test-Id': 'abc',
+    })
+  })
+})
+
+describe('toHeaderRecord', () => {
+  it('returns an empty record for absent headers', () => {
+    expect(toHeaderRecord(undefined)).toEqual({})
+    expect(toHeaderRecord(null)).toEqual({})
+  })
+
+  it('flattens a Headers instance', () => {
+    const headers = new Headers({ 'X-Test-Id': 'abc' })
+    expect(toHeaderRecord(headers)).toEqual({ 'x-test-id': 'abc' })
+  })
+
+  it('reads an entry list', () => {
+    expect(
+      toHeaderRecord([
+        ['X-Test-Id', 'abc'],
+        ['X-Other', 'def'],
+      ]),
+    ).toEqual({ 'X-Test-Id': 'abc', 'X-Other': 'def' })
+  })
+
+  it('drops non-string values rather than serializing them', () => {
+    // openai's ClientOptions allows null/undefined as a "remove this header"
+    // signal, and an array for a repeated header. None of the three maps onto
+    // a single string, and none may reach the request as "null" or "a,b".
+    expect(
+      toHeaderRecord({
+        'X-Test-Id': 'abc',
+        'X-Removed': null,
+        'X-Absent': undefined,
+        'X-Repeated': ['a', 'b'],
+      }),
+    ).toEqual({ 'X-Test-Id': 'abc' })
+  })
+
+  it('skips entry-list pairs with a null value', () => {
+    expect(
+      toHeaderRecord([
+        ['X-Test-Id', 'abc'],
+        ['X-Removed', null],
+      ]),
+    ).toEqual({ 'X-Test-Id': 'abc' })
+  })
+})
+
+describe('readJsonBody', () => {
+  it('parses a JSON body', async () => {
+    const response = new Response(JSON.stringify({ id: 'cgt-1' }))
+    await expect(readJsonBody(response)).resolves.toEqual({ id: 'cgt-1' })
+  })
+
+  it('returns undefined for an empty body', async () => {
+    await expect(readJsonBody(new Response(''))).resolves.toBeUndefined()
+  })
+
+  it('falls back to raw text for a non-JSON body', async () => {
+    // Proxies in front of either host answer with HTML, which must still reach
+    // the error formatters instead of throwing a SyntaxError here.
+    const response = new Response('<html>Bad Gateway</html>', { status: 502 })
+    await expect(readJsonBody(response)).resolves.toBe(
+      '<html>Bad Gateway</html>',
+    )
   })
 })
 

@@ -106,6 +106,41 @@ return toServerSentEventsResponse(stream)
 **Generated video URLs expire after 24 hours** (the task record itself is kept
 for 7 days), so download anything you need to keep.
 
+### Image (Seedream)
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { byteplusImage } from '@tanstack/ai-byteplus'
+
+const result = await generateImage({
+  adapter: byteplusImage('seedream-4-0-250828'),
+  prompt: 'a guitar being played in a store',
+  size: '2K',
+  modelOptions: { watermark: false },
+})
+
+console.log(result.images[0]?.url)
+```
+
+`size` takes either a token (`1K`, `2K`, `4K`) or explicit pixels
+(`2048x2048`) — never a mix. Pass image parts in the `prompt` array to edit or
+condition on existing images (up to 14 references, 10 on
+`dola-seedream-5-0-pro-260628`).
+
+Two behaviors surprise people:
+
+- **`watermark` defaults to `true`.** BytePlus stamps "AI generated" into the
+  bottom-right corner unless you pass `watermark: false`. The adapter never
+  sets it implicitly, so the provider default applies.
+- **`numberOfImages` is an upper bound, not a count.** Seedream has no `n`
+  parameter; asking for more than one image maps to its group-image mode
+  (`sequential_image_generation: 'auto'` with `max_images`), where the model
+  decides how many images the prompt actually warrants. A request for four can
+  return fewer, and the adapter logs a warning when it does.
+
+Result URLs expire after 24 hours; pass `response_format: 'b64_json'` in
+`modelOptions` to get bytes inline instead.
+
 ## Supported models
 
 - **Chat** — `dola-seed-2-1-turbo-260628`, the `seed-2-0-*` family,

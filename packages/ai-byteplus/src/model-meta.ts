@@ -235,9 +235,11 @@ const GLM_4_7_251222 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    // Live-probed 2026-07-31: accepts json_schema, despite the docs table
-    // saying otherwise.
-    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
+    // Adherence-probed 2026-07-31: ACCEPTS a json_schema with 200 but ignores
+    // it and answers in prose, so it is not a structured-output model. A
+    // status-code-only probe reads this as support — see the note on
+    // BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS.
+    capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -366,12 +368,20 @@ export function emitsEncryptedContent(model: string): boolean {
  * Chat models that accept `response_format: {type: 'json_schema'}`.
  *
  * Live-probed against all 18 chat models on 2026-07-31, not docs-derived — the
- * BytePlus capability tables are wrong for five. The seven models NOT listed here
- * (`seed-2-0-lite-260428`, `seed-2-0-mini-260428`,
- * `seed-2-0-code-preview-260328`, both `deepseek-v4-*`, `deepseek-v3-2-251201`
- * and `gpt-oss-120b-250805`) answer a JSON schema with 400 InvalidParameter —
- * and they reject `{type: 'json_object'}` too, so there is no JSON-mode
- * fallback and structured output must go through tool-shaped extraction.
+ * BytePlus capability tables are wrong here in both directions.
+ *
+ * Membership needs TWO things, because the API has both failure modes:
+ * 1. The request is accepted. Seven models (`seed-2-0-lite-260428`,
+ *    `seed-2-0-mini-260428`, `seed-2-0-code-preview-260328`, both
+ *    `deepseek-v4-*`, `deepseek-v3-2-251201`, `gpt-oss-120b-250805`) answer a
+ *    JSON schema with 400 InvalidParameter — and reject
+ *    `{type: 'json_object'}` too, so there is no JSON-mode fallback.
+ * 2. The schema is actually honoured. `glm-4-7-251222` accepts the request
+ *    with 200 and then ignores the schema, answering in prose (reproduced
+ *    twice by the adherence probe). A status-code-only probe wrongly reads
+ *    that as support, so it is excluded.
+ *
+ * Models that fail either check need tool-shaped extraction instead.
  *
  * Note that the default chat model `seed-2-0-lite-260428` is one of the
  * rejecting models: structured-output work needs `seed-2-0-lite-260228` or
@@ -388,7 +398,6 @@ export const BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS = [
   SEED_1_6_FLASH_250715.name,
   SEED_1_6_FLASH_250615.name,
   GLM_5_2_260617.name,
-  GLM_4_7_251222.name,
 ] as const
 
 const STRUCTURED_OUTPUT_MODEL_SET: ReadonlySet<string> = new Set(
@@ -479,11 +488,15 @@ export type BytePlusVideoRatio =
 /**
  * Resolution tiers accepted by the Seedance task API.
  *
- * `480p`, `720p` and `1080p` are probe-verified; `2k`/`4k` (Seedance 2.0 only)
- * come from the BytePlus video docs and should be re-checked against a live
- * 4K task before being relied on.
+ * All four are probe-verified per model (2026-07-31). Two findings contradict
+ * the BytePlus prose docs: there is **no 2K tier on any Seedance model** —
+ * `2k`/`2K` is rejected everywhere, including on the 2.0 flagship documented
+ * as reaching 4K — and `4k` exists only on `dreamina-seedance-2-0-260128`.
+ *
+ * The API matches this field case-insensitively (`4K`, `4k` and `1080P` are
+ * all accepted), so this package standardizes on the lowercase spelling.
  */
-export type BytePlusVideoResolution = '480p' | '720p' | '1080p' | '2k' | '4k'
+export type BytePlusVideoResolution = '480p' | '720p' | '1080p' | '4k'
 
 /**
  * Generic `size` template for Seedance models: either a bare aspect ratio
@@ -582,14 +595,17 @@ export type BytePlusVideoModelInputModalitiesByName = {
 
 /**
  * Type-only map from video model name to the resolutions it accepts.
+ *
+ * Probe-verified per model on 2026-07-31. Note `seedance-1-0-pro-fast-251015`
+ * does accept `1080p`, despite the BytePlus docs listing it as 480p/720p.
  */
 export type BytePlusVideoModelResolutionByName = {
-  [DREAMINA_SEEDANCE_2_0.name]: BytePlusVideoResolution
+  [DREAMINA_SEEDANCE_2_0.name]: '480p' | '720p' | '1080p' | '4k'
   [DREAMINA_SEEDANCE_2_0_FAST.name]: '480p' | '720p'
   [DREAMINA_SEEDANCE_2_0_MINI.name]: '480p' | '720p'
   [SEEDANCE_1_5_PRO.name]: '480p' | '720p' | '1080p'
   [SEEDANCE_1_0_PRO.name]: '480p' | '720p' | '1080p'
-  [SEEDANCE_1_0_PRO_FAST.name]: '480p' | '720p'
+  [SEEDANCE_1_0_PRO_FAST.name]: '480p' | '720p' | '1080p'
 }
 
 /**

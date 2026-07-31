@@ -77,14 +77,21 @@ describe('chat capability sets', () => {
     }
   })
 
+  it('excludes glm-4-7, which accepts a schema but ignores it', () => {
+    // The only model that fails on adherence rather than on the request: it
+    // answers 200 and then returns prose. Pinned separately so a future
+    // status-code-only probe does not "restore" it.
+    expect(supportsStructuredOutput('glm-4-7-251222')).toBe(false)
+  })
+
   it('includes the models the docs wrongly mark as unsupported', () => {
-    for (const model of [
-      'seed-2-0-pro-260328',
-      'glm-5-2-260617',
-      'glm-4-7-251222',
-    ]) {
+    for (const model of ['seed-2-0-pro-260328', 'glm-5-2-260617']) {
       expect(supportsStructuredOutput(model)).toBe(true)
     }
+  })
+
+  it('has exactly the ten verified structured-output models', () => {
+    expect(BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS).toHaveLength(10)
   })
 
   it('reports unknown models as unsupported rather than throwing', () => {
