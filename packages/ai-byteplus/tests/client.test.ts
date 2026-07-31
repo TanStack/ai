@@ -12,7 +12,11 @@ import {
   withBytePlusVoiceDefaults,
 } from '../src/index'
 
-const ENV_KEYS = ['ARK_API_KEY', 'BYTEPLUS_VOICE_API_KEY'] as const
+const ENV_KEYS = [
+  'ARK_API_KEY',
+  'BYTEPLUS_API_KEY',
+  'BYTEPLUS_VOICE_API_KEY',
+] as const
 const originalEnv = new Map(ENV_KEYS.map((key) => [key, process.env[key]]))
 
 afterEach(() => {
@@ -32,9 +36,24 @@ describe('API key resolution', () => {
     expect(getBytePlusArkApiKeyFromEnv()).toBe('ark-test-key')
   })
 
-  it('names ARK_API_KEY when it is missing', () => {
+  it('falls back to BYTEPLUS_API_KEY when ARK_API_KEY is unset', () => {
     delete process.env.ARK_API_KEY
-    expect(() => getBytePlusArkApiKeyFromEnv()).toThrow(/ARK_API_KEY/)
+    process.env.BYTEPLUS_API_KEY = 'byteplus-test-key'
+    expect(getBytePlusArkApiKeyFromEnv()).toBe('byteplus-test-key')
+  })
+
+  it('prefers ARK_API_KEY over the BYTEPLUS_API_KEY fallback', () => {
+    process.env.ARK_API_KEY = 'ark-test-key'
+    process.env.BYTEPLUS_API_KEY = 'byteplus-test-key'
+    expect(getBytePlusArkApiKeyFromEnv()).toBe('ark-test-key')
+  })
+
+  it('names both variables when neither is set', () => {
+    delete process.env.ARK_API_KEY
+    delete process.env.BYTEPLUS_API_KEY
+    expect(() => getBytePlusArkApiKeyFromEnv()).toThrow(
+      /ARK_API_KEY or BYTEPLUS_API_KEY/,
+    )
   })
 
   it('reads the Seed Speech key from BYTEPLUS_VOICE_API_KEY', () => {
@@ -139,6 +158,19 @@ describe('error formatting', () => {
     )
     expect(error.message).toBe(
       'BytePlus Seed Speech speech synthesis failed (401 45000010): Invalid X-Api-Key',
+    )
+  })
+
+  it('serializes an object body that carries no message', () => {
+    expect(
+      bytePlusArkError(500, { error: { type: 'server_error' } }).message,
+    ).toBe(
+      'BytePlus Ark request failed (500): {"error":{"type":"server_error"}}',
+    )
+    expect(
+      bytePlusVoiceError(500, { detail: 'upstream timeout' }).message,
+    ).toBe(
+      'BytePlus Seed Speech request failed (500): {"detail":"upstream timeout"}',
     )
   })
 

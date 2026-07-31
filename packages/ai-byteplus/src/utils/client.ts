@@ -17,8 +17,10 @@ import type { ClientOptions } from 'openai'
 /**
  * Default Ark data-plane base URL (Asia-Pacific south-east).
  *
- * The EU endpoint (`https://ark.eu-west.bytepluses.com/api/v3`) serves chat
- * and image only — Seedance video is not available there.
+ * Per the BytePlus docs the EU endpoint
+ * (`https://ark.eu-west.bytepluses.com/api/v3`) serves chat and image only —
+ * Seedance video is not available there. Docs-derived: only the ap-southeast
+ * host was exercised live.
  */
 export const BYTEPLUS_ARK_BASE_URL =
   'https://ark.ap-southeast.bytepluses.com/api/v3'
@@ -68,16 +70,21 @@ export interface BytePlusVoiceConfig {
 }
 
 /**
- * Gets the BytePlus Ark API key from environment variables.
- * @throws Error if ARK_API_KEY is not found
+ * Gets the BytePlus Ark API key from environment variables, preferring
+ * `ARK_API_KEY` and falling back to `BYTEPLUS_API_KEY`.
+ * @throws Error if neither variable is set
  */
 export function getBytePlusArkApiKeyFromEnv(): string {
   try {
     return getApiKeyFromEnv('ARK_API_KEY')
   } catch {
-    throw new Error(
-      'ARK_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
-    )
+    try {
+      return getApiKeyFromEnv('BYTEPLUS_API_KEY')
+    } catch {
+      throw new Error(
+        'ARK_API_KEY or BYTEPLUS_API_KEY is required. Please set one of these environment variables or use the factory function with an explicit API key.',
+      )
+    }
   }
 }
 
@@ -153,6 +160,22 @@ export function bytePlusVoiceHeaders(
   }
 }
 
+/**
+ * Best-effort human-readable rendering of a response body we could not pull a
+ * `message` out of — a raw string passes through, any other object is
+ * serialized so the detail reaches the error instead of being dropped.
+ */
+function describeBody(body: unknown): string | undefined {
+  if (typeof body === 'string') return body || undefined
+  if (typeof body !== 'object' || body === null) return undefined
+  try {
+    return JSON.stringify(body)
+  } catch {
+    // Circular or otherwise unserializable — the status code stands alone.
+    return undefined
+  }
+}
+
 function readStringField(value: unknown, field: string): string | undefined {
   if (typeof value !== 'object' || value === null || !(field in value)) {
     return undefined
@@ -183,7 +206,7 @@ export function bytePlusArkError(
       : undefined
   const code = readStringField(error, 'code')
   const message = readStringField(error, 'message')
-  const detail = message ?? (typeof body === 'string' ? body : undefined)
+  const detail = message ?? describeBody(body)
   return new Error(
     `${prefix} failed (${status}${code ? ` ${code}` : ''})${
       detail ? `: ${detail}` : ''
@@ -207,7 +230,7 @@ export function bytePlusVoiceError(
     : 'BytePlus Seed Speech request'
   const code = readStringField(body, 'code')
   const message = readStringField(body, 'message')
-  const detail = message ?? (typeof body === 'string' ? body : undefined)
+  const detail = message ?? describeBody(body)
   return new Error(
     `${prefix} failed (${status}${code ? ` ${code}` : ''})${
       detail ? `: ${detail}` : ''

@@ -61,15 +61,29 @@ describe('chat capability sets', () => {
     }
   })
 
+  // The live probe contradicts the BytePlus capability tables for five models,
+  // so both directions are pinned here.
   it('excludes the models that reject a JSON schema', () => {
     for (const model of [
-      'seed-2-0-pro-260328',
+      'seed-2-0-lite-260428',
+      'seed-2-0-mini-260428',
       'seed-2-0-code-preview-260328',
-      'glm-5-2-260617',
       'deepseek-v4-pro-260425',
+      'deepseek-v4-flash-260425',
+      'deepseek-v3-2-251201',
       'gpt-oss-120b-250805',
     ]) {
       expect(supportsStructuredOutput(model)).toBe(false)
+    }
+  })
+
+  it('includes the models the docs wrongly mark as unsupported', () => {
+    for (const model of [
+      'seed-2-0-pro-260328',
+      'glm-5-2-260617',
+      'glm-4-7-251222',
+    ]) {
+      expect(supportsStructuredOutput(model)).toBe(true)
     }
   })
 

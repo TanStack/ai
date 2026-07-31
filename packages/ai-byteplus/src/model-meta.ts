@@ -1,8 +1,13 @@
 /**
  * BytePlus ModelArk model metadata.
  *
- * Every model id in this file was verified live against
- * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. BytePlus
+ * Every Ark model id in this file — chat, video and image — was verified live
+ * against `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. The
+ * two Seed Speech ids are the exception: they live on the voice host, which
+ * needs a separate key that was not available, so they are docs-derived.
+ * Capability metadata is a mix of probed and docs-derived facts; anything not
+ * confirmed against the live API is annotated as such at its declaration.
+ * BytePlus
  * deactivates model ids aggressively (the whole `seedance-1-0-lite-*` family,
  * `seed-1-6-lite-*`, `seedream-3-0-*`, and the `doubao-`/`skylark-` names are
  * all 404s internationally), so only dated, probe-confirmed ids are shipped.
@@ -68,7 +73,8 @@ const SEED_2_0_LITE_260428 = {
   supports: {
     input: ['text', 'image', 'video', 'audio'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
+    // Live-probed: rejects both json_schema and json_object.
+    capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -81,7 +87,8 @@ const SEED_2_0_MINI_260428 = {
   supports: {
     input: ['text', 'image', 'video', 'audio'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
+    // Live-probed: rejects both json_schema and json_object.
+    capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -94,7 +101,8 @@ const SEED_2_0_PRO_260328 = {
   supports: {
     input: ['text', 'image', 'video'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling'],
+    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -211,7 +219,8 @@ const GLM_5_2_260617 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling'],
+    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -224,7 +233,8 @@ const GLM_4_7_251222 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling'],
+    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -255,7 +265,7 @@ const DEEPSEEK_V4_FLASH_260425 = {
   },
 } as const satisfies ModelMeta
 
-// Reasoning is the one model on Ark that defaults to `thinking: disabled`.
+// The one model on Ark that defaults to `thinking: disabled`.
 const DEEPSEEK_V3_2_251201 = {
   name: 'deepseek-v3-2-251201',
   context_window: 128_000,
@@ -264,7 +274,8 @@ const DEEPSEEK_V3_2_251201 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
+    // Live-probed: rejects both json_schema and json_object.
+    capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
 } as const satisfies ModelMeta
@@ -351,14 +362,21 @@ export function emitsEncryptedContent(model: string): boolean {
 /**
  * Chat models that accept `response_format: {type: 'json_schema'}`.
  *
- * The remaining models (`seed-2-0-pro-260328`, `seed-2-0-code-preview-260328`,
- * the GLM and DeepSeek-v4 families, and `gpt-oss-120b-250805`) reject a JSON
- * schema, so structured output has to fall back to tool-shaped extraction.
+ * This list is live-probed, not docs-derived — the BytePlus capability tables
+ * are wrong for five of these models. The seven models NOT listed here
+ * (`seed-2-0-lite-260428`, `seed-2-0-mini-260428`,
+ * `seed-2-0-code-preview-260328`, both `deepseek-v4-*`, `deepseek-v3-2-251201`
+ * and `gpt-oss-120b-250805`) answer a JSON schema with 400 InvalidParameter —
+ * and they reject `{type: 'json_object'}` too, so there is no JSON-mode
+ * fallback and structured output must go through tool-shaped extraction.
+ *
+ * Note that the default chat model `seed-2-0-lite-260428` is one of the
+ * rejecting models: structured-output work needs `seed-2-0-lite-260228` or
+ * `dola-seed-2-1-turbo-260628`.
  */
 export const BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS = [
   DOLA_SEED_2_1_TURBO.name,
-  SEED_2_0_LITE_260428.name,
-  SEED_2_0_MINI_260428.name,
+  SEED_2_0_PRO_260328.name,
   SEED_2_0_LITE_260228.name,
   SEED_2_0_MINI_260215.name,
   SEED_1_8_251228.name,
@@ -366,7 +384,8 @@ export const BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS = [
   SEED_1_6_250615.name,
   SEED_1_6_FLASH_250715.name,
   SEED_1_6_FLASH_250615.name,
-  DEEPSEEK_V3_2_251201.name,
+  GLM_5_2_260617.name,
+  GLM_4_7_251222.name,
 ] as const
 
 const STRUCTURED_OUTPUT_MODEL_SET: ReadonlySet<string> = new Set(
@@ -473,6 +492,11 @@ export type BytePlusVideoSize<
   TResolution extends BytePlusVideoResolution = BytePlusVideoResolution,
 > = BytePlusVideoRatio | `${BytePlusVideoRatio}_${TResolution}`
 
+// The Seedance 2.0 family's `audio` input modality is docs-derived, not
+// live-probed: the docs' multimodal-reference caps list `reference_audio`
+// parts (up to 3, never sent without a visual reference). Every 2.0 model id
+// below is itself probe-verified live; only the audio-reference capability
+// rests on the docs.
 const DREAMINA_SEEDANCE_2_0 = {
   name: 'dreamina-seedance-2-0-260128',
   supports: {
@@ -729,6 +753,10 @@ export type BytePlusImageModelSizeByName = {
  * Maximum number of reference images accepted per editing request.
  * Seedream 5.0 Pro caps at 10 references; the other editing-capable models
  * accept up to 14.
+ *
+ * Docs-derived, not live-probed. The 14 for `seedream-5-0-260128` is weaker
+ * still — the docs never state a cap for that model, so it is inferred from
+ * the rest of the family.
  */
 export const BYTEPLUS_IMAGE_MAX_REFERENCE_IMAGES: {
   readonly [K in BytePlusImageModel]: number

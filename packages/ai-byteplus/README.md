@@ -27,27 +27,32 @@ export BYTEPLUS_VOICE_API_KEY="..."
 ```
 
 Ark keys are region-isolated. The default base URL is the Asia-Pacific
-south-east endpoint (`https://ark.ap-southeast.bytepluses.com/api/v3`); the EU
-endpoint serves chat and image only.
+south-east endpoint (`https://ark.ap-southeast.bytepluses.com/api/v3`); per the
+BytePlus docs the EU endpoint serves chat and image only (docs-derived — only
+the ap-southeast host was exercised live).
 
 ## Usage
 
 ### Chat
 
 ```typescript
+import { chat } from '@tanstack/ai'
 import { byteplusText } from '@tanstack/ai-byteplus'
-import { generate } from '@tanstack/ai'
 
+// The adapter carries the model — there is no separate `model` option.
 const adapter = byteplusText('seed-2-0-lite-260428')
 
-const result = await generate({
+const text = await chat({
   adapter,
-  model: 'seed-2-0-lite-260428',
   messages: [{ role: 'user', content: 'Explain diffusion models briefly' }],
+  stream: false,
 })
 
-console.log(result.text)
+console.log(text)
 ```
+
+Drop `stream: false` to get the default streaming form, which yields
+`StreamChunk`s you can iterate with `for await`.
 
 Seed models reason by default. Reasoning arrives as a separate stream of
 `reasoning_content` deltas and is surfaced as reasoning content, not answer
@@ -55,24 +60,51 @@ text. Pass `thinking: { type: 'disabled' }` in provider options to turn it off.
 
 ### Video (Seedance)
 
-```typescript
-import { byteplusVideo } from '@tanstack/ai-byteplus'
-import { generateVideo } from '@tanstack/ai'
+Seedance is an async task API, so `generateVideo()` only opens the job and
+returns its `jobId`. Poll `getVideoJobStatus()` until the job settles — the
+video URL arrives with the terminal status.
 
-const result = await generateVideo({
-  adapter: byteplusVideo('seedance-1-5-pro-251215'),
-  model: 'seedance-1-5-pro-251215',
+```typescript
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { byteplusVideo } from '@tanstack/ai-byteplus'
+
+const adapter = byteplusVideo('seedance-1-5-pro-251215')
+
+const { jobId } = await generateVideo({
+  adapter,
   prompt: 'a guitar being played in a store',
   size: '16:9_720p',
   duration: 5,
 })
 
-console.log(result.url)
+let status = await getVideoJobStatus({ adapter, jobId })
+while (status.status === 'pending' || status.status === 'processing') {
+  await new Promise((resolve) => setTimeout(resolve, 5000))
+  status = await getVideoJobStatus({ adapter, jobId })
+}
+
+console.log(status.status === 'completed' ? status.url : status.error)
 ```
 
-Seedance runs as an async task: the adapter creates the task, polls it, then
-reads the result URL. **Generated video URLs expire after 24 hours** (the task
-record itself is kept for 7 days), so download anything you need to keep.
+To let the core drive the whole lifecycle instead, pass `stream: true` and hand
+the resulting chunk stream to your transport:
+
+```typescript
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { byteplusVideo } from '@tanstack/ai-byteplus'
+
+const stream = generateVideo({
+  adapter: byteplusVideo('seedance-1-5-pro-251215'),
+  prompt: 'a guitar being played in a store',
+  stream: true,
+  pollingInterval: 5000,
+})
+
+return toServerSentEventsResponse(stream)
+```
+
+**Generated video URLs expire after 24 hours** (the task record itself is kept
+for 7 days), so download anything you need to keep.
 
 ## Supported models
 
@@ -87,7 +119,10 @@ record itself is kept for 7 days), so download anything you need to keep.
 - **Speech** — `seed-audio-1.0` (TTS) and `seed-asr` (transcription).
 
 BytePlus retires model ids aggressively, so only dated ids that were verified
-live against the API are exported. `BYTEPLUS_CHAT_MODELS`,
+live against the API are exported. (The two Seed Speech ids are the exception:
+`seed-audio-1.0` is undated, `seed-asr` is a synthetic id for an
+endpoint-addressed API that takes no `model` field, and neither could be
+verified live pending a Seed Speech key.) `BYTEPLUS_CHAT_MODELS`,
 `BYTEPLUS_VIDEO_MODELS`, `BYTEPLUS_IMAGE_MODELS`, `BYTEPLUS_TTS_MODELS` and
 `BYTEPLUS_TRANSCRIPTION_MODELS` are the authoritative lists.
 
