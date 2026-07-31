@@ -89,7 +89,7 @@ values arrive from untyped JavaScript.
 
 - `withPersistence` requires `messages`.
 - `interrupts` requires `runs`: an interrupt record is scoped to a run.
-- `withGenerationPersistence` requires `runs`.
+- `withGenerationPersistence` requires `generationRuns`.
 
 To define a partial backend directly rather than by composing, use
 `defineAIPersistence({ stores: { ... } })` and pass only the stores you have.

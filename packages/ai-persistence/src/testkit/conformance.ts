@@ -1,5 +1,5 @@
 /**
- * Shared conformance suite for the `AIPersistence` **state** contract.
+ * Shared conformance suite for the `AIPersistence` store contract.
  *
  * Every backend runs this identical suite — the in-memory reference store and
  * every adapter you write against your own database — so that schema drift or
@@ -7,18 +7,41 @@
  * store the persistence exposes and is the authoritative compatibility gate for
  * the store interfaces in `../types.ts`.
  *
- * Locks are not part of this suite — they are a separate coordination concern
- * (`LockStore` + `withLocks`), not state stores.
+ * Covers all seven stores: the four chat state stores (`messages`, `runs`,
+ * `interrupts`, `metadata`) and the three generation stores (`generationRuns`,
+ * `artifacts`, `blobs`). Locks are not part of this suite — they are a separate
+ * coordination concern (`LockStore` + `withLocks`), not a store.
  *
- * SKIPPING: a backend that deliberately omits a state store must declare it in
+ * SKIPPING: a backend that deliberately omits a store must declare it in
  * `options.skip`. A store that is absent AND not listed in `skip` fails the
- * suite loudly — silent gaps are not allowed.
+ * suite loudly — silent gaps are not allowed. A chat-only adapter therefore
+ * passes `skip: ['generationRuns', 'artifacts', 'blobs']`, and a
+ * generation-only one skips the four state stores.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { ModelMessage } from '@tanstack/ai'
-import type { AIPersistence, AIPersistenceStores } from '../types'
+import type {
+  AIPersistence,
+  AIPersistenceStores,
+  ArtifactRecord,
+} from '../types'
 
 type MakePersistence = () => Promise<AIPersistence> | AIPersistence
+
+/**
+ * Unwrap a value the store contract says must be present. Fails the test with a
+ * readable message instead of a non-null assertion (banned in this package) or
+ * an early `return` that would pass silently.
+ */
+function required<TValue>(
+  value: TValue | null | undefined,
+  what: string,
+): TValue {
+  if (value == null) {
+    throw new Error(`AIPersistence conformance: expected ${what} to exist`)
+  }
+  return value
+}
 
 export interface PersistenceConformanceOptions {
   /**
@@ -31,7 +54,8 @@ export interface PersistenceConformanceOptions {
 
 /**
  * Register a Vitest suite that validates `makePersistence()` against the full
- * `AIPersistence` contract.
+ * `AIPersistence` contract — every store it provides, and none it declares
+ * skipped.
  */
 export function runPersistenceConformance(
   name: string,
@@ -395,6 +419,404 @@ export function runPersistenceConformance(
         expect(
           (await store.listByRun('run-order')).map((r) => r.interruptId),
         ).toEqual(['int-early', 'int-mid', 'int-late'])
+      })
+    })
+
+    describe('generationRuns', () => {
+      it('creates, resumes idempotently, updates, and gets', async () => {
+        const store = resolveStore('generationRuns')
+        if (!store) return
+
+        expect(await store.get('gen-missing')).toBeNull()
+
+        const created = await store.createOrResume({
+          runId: 'gen-1',
+          threadId: 'gen-thread-1',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          startedAt: 1000,
+        })
+        expect(created).toMatchObject({
+          runId: 'gen-1',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          status: 'running',
+          startedAt: 1000,
+        })
+        // threadId is the slot the run fills and is required: it must round-trip
+        // exactly, since findLatestForThread is the only query that finds a run.
+        expect(created.threadId).toBe('gen-thread-1')
+
+        // Idempotent: the stored record comes back untouched by the new input.
+        const resumed = await store.createOrResume({
+          runId: 'gen-1',
+          activity: 'video',
+          provider: 'google',
+          model: 'veo-3',
+          startedAt: 9999,
+          threadId: 'thread-late',
+        })
+        expect(resumed).toMatchObject({
+          runId: 'gen-1',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          startedAt: 1000,
+        })
+        // Idempotency covers threadId too: the late scope must not overwrite the
+        // one the run was filed under.
+        expect(resumed.threadId).toBe('gen-thread-1')
+
+        await store.update('gen-1', {
+          status: 'completed',
+          finishedAt: 2000,
+          result: { images: [{ url: 'https://example.com/a.png' }] },
+          artifacts: [
+            {
+              role: 'output',
+              artifactId: 'art-1',
+              runId: 'gen-1',
+              threadId: 'thread-gen',
+              name: 'a.png',
+              mimeType: 'image/png',
+              size: 3,
+              createdAt: '2024-01-01T00:00:00.000Z',
+              source: {
+                activity: 'image',
+                path: 'images.0',
+                provider: 'openai',
+                model: 'gpt-image-1',
+              },
+            },
+          ],
+          usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        })
+        const done = await store.get('gen-1')
+        expect(done).toMatchObject({
+          status: 'completed',
+          finishedAt: 2000,
+          result: { images: [{ url: 'https://example.com/a.png' }] },
+          usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        })
+        expect(done?.artifacts).toHaveLength(1)
+        expect(done?.artifacts?.[0]).toMatchObject({
+          artifactId: 'art-1',
+          mimeType: 'image/png',
+        })
+
+        await store.update('gen-1', {
+          status: 'failed',
+          error: { message: 'boom', code: 'provider_error' },
+        })
+        const failed = await store.get('gen-1')
+        expect(failed?.status).toBe('failed')
+        expect(failed?.error).toEqual({
+          message: 'boom',
+          code: 'provider_error',
+        })
+
+        // Patching a missing run is a no-op (does not throw, does not create).
+        await store.update('gen-absent', { status: 'completed' })
+        expect(await store.get('gen-absent')).toBeNull()
+      })
+
+      // `findLatestForThread` is REQUIRED: `reconstructGeneration` hydrates a
+      // server-driven client from the stable thread id alone, so a backend that
+      // always answers `null` silently restores nothing rather than degrading.
+      it('findLatestForThread returns the most recently started linked run', async () => {
+        const store = resolveStore('generationRuns')
+        if (!store) return
+
+        const thread = 'thread-gen-latest'
+        expect(await store.findLatestForThread(thread)).toBeNull()
+
+        // Insert out of order so insertion order cannot stand in for startedAt.
+        await store.createOrResume({
+          runId: 'gen-late',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          startedAt: 3000,
+          threadId: thread,
+        })
+        await store.createOrResume({
+          runId: 'gen-early',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          startedAt: 1000,
+          threadId: thread,
+        })
+        expect(await store.findLatestForThread(thread)).toMatchObject({
+          runId: 'gen-late',
+        })
+
+        // Another thread's run is never returned, and unlike findActiveRun a
+        // TERMINAL run still counts — this is "the latest", not "the active".
+        await store.createOrResume({
+          runId: 'gen-other',
+          activity: 'image',
+          provider: 'openai',
+          model: 'gpt-image-1',
+          startedAt: 9000,
+          threadId: 'thread-gen-other',
+        })
+        await store.update('gen-late', {
+          status: 'completed',
+          finishedAt: 3500,
+        })
+        expect(await store.findLatestForThread(thread)).toMatchObject({
+          runId: 'gen-late',
+          status: 'completed',
+        })
+
+        // A run with no thread link is not attributed to any thread.
+        expect(await store.findLatestForThread('thread-unlinked')).toBeNull()
+      })
+    })
+
+    describe('artifacts', () => {
+      const artifact = (
+        overrides: Partial<ArtifactRecord> & Pick<ArtifactRecord, 'artifactId'>,
+      ): ArtifactRecord => ({
+        runId: 'run-art',
+        threadId: 'thread-art',
+        name: 'image.png',
+        mimeType: 'image/png',
+        size: 3,
+        createdAt: 100,
+        ...overrides,
+      })
+
+      it('saves as an upsert, gets, and lists by run', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        expect(await store.get('art-missing')).toBeNull()
+        expect(await store.list('run-unknown')).toEqual([])
+
+        await store.save(
+          artifact({
+            artifactId: 'art-a',
+            blobKey: 'artifacts/run-art/art-a',
+            createdAt: 100,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'art-b',
+            sourceUrl: 'https://provider.example/expiring.png',
+            createdAt: 200,
+          }),
+        )
+        await store.save(
+          artifact({ artifactId: 'art-c', runId: 'run-art-other' }),
+        )
+
+        expect(await store.get('art-a')).toMatchObject({
+          artifactId: 'art-a',
+          runId: 'run-art',
+          threadId: 'thread-art',
+          blobKey: 'artifacts/run-art/art-a',
+          name: 'image.png',
+          mimeType: 'image/png',
+          size: 3,
+          createdAt: 100,
+        })
+        expect(await store.get('art-b')).toMatchObject({
+          sourceUrl: 'https://provider.example/expiring.png',
+        })
+
+        expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
+          'art-a',
+          'art-b',
+        ])
+
+        // save() is insert-OR-OVERWRITE: re-saving an id corrects the record.
+        await store.save(
+          artifact({ artifactId: 'art-a', name: 'renamed.png', size: 9 }),
+        )
+        const updated = await store.get('art-a')
+        expect(updated).toMatchObject({ name: 'renamed.png', size: 9 })
+        expect(updated?.blobKey).toBeUndefined()
+        expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
+          'art-a',
+          'art-b',
+        ])
+      })
+
+      it('deletes one artifact and every artifact for a run', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        await store.save(artifact({ artifactId: 'art-d1', runId: 'run-del' }))
+        await store.save(artifact({ artifactId: 'art-d2', runId: 'run-del' }))
+        await store.save(
+          artifact({ artifactId: 'art-keep', runId: 'run-keep' }),
+        )
+
+        await store.delete('art-d1')
+        expect(await store.get('art-d1')).toBeNull()
+        expect((await store.list('run-del')).map((r) => r.artifactId)).toEqual([
+          'art-d2',
+        ])
+
+        // Deleting an absent id is a silent no-op, mirroring BlobStore.delete.
+        await store.delete('art-d1')
+
+        await store.deleteForRun('run-del')
+        expect(await store.list('run-del')).toEqual([])
+        expect(await store.get('art-d2')).toBeNull()
+        // Scoped to the run: another run's artifacts survive.
+        expect((await store.list('run-keep')).map((r) => r.artifactId)).toEqual(
+          ['art-keep'],
+        )
+        // deleteForRun on a run with no artifacts is a no-op.
+        await store.deleteForRun('run-del')
+      })
+    })
+
+    describe('blobs', () => {
+      it('round-trips bytes and metadata through put/get/head', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        expect(await store.get('blob-missing')).toBeNull()
+        expect(await store.head('blob-missing')).toBeNull()
+
+        const bytes = new Uint8Array([1, 2, 3, 4])
+        const put = await store.put('blob/a', bytes, {
+          contentType: 'image/png',
+          customMetadata: { runId: 'run-blob' },
+        })
+        expect(put).toMatchObject({
+          key: 'blob/a',
+          size: 4,
+          contentType: 'image/png',
+          customMetadata: { runId: 'run-blob' },
+        })
+
+        const object = required(await store.get('blob/a'), 'blob/a')
+        expect(new Uint8Array(await object.arrayBuffer())).toEqual(bytes)
+        expect(object).toMatchObject({
+          key: 'blob/a',
+          size: 4,
+          contentType: 'image/png',
+          customMetadata: { runId: 'run-blob' },
+        })
+
+        const head = await store.head('blob/a')
+        expect(head).toMatchObject({ key: 'blob/a', size: 4 })
+
+        // A string body encodes as UTF-8 and reads back through text().
+        await store.put('blob/text', 'héllo')
+        const text = required(await store.get('blob/text'), 'blob/text')
+        expect(await text.text()).toBe('héllo')
+
+        // An ArrayBuffer body is accepted too.
+        await store.put('blob/buffer', new Uint8Array([9, 9]).buffer)
+        const buffered = required(await store.get('blob/buffer'), 'blob/buffer')
+        expect(new Uint8Array(await buffered.arrayBuffer())).toEqual(
+          new Uint8Array([9, 9]),
+        )
+      })
+
+      it('overwrites an existing key and deletes silently', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        const first = await store.put('blob/over', new Uint8Array([1]), {
+          contentType: 'text/plain',
+          customMetadata: { v: '1' },
+        })
+        const second = await store.put('blob/over', new Uint8Array([2, 2, 2]), {
+          contentType: 'application/octet-stream',
+          customMetadata: { v: '2' },
+        })
+
+        expect(second).toMatchObject({
+          size: 3,
+          contentType: 'application/octet-stream',
+          customMetadata: { v: '2' },
+        })
+        // When a backend exposes etags at all, new bytes get a new one.
+        if (first.etag !== undefined && second.etag !== undefined) {
+          expect(second.etag).not.toBe(first.etag)
+        }
+        const after = required(await store.get('blob/over'), 'blob/over')
+        expect(new Uint8Array(await after.arrayBuffer())).toEqual(
+          new Uint8Array([2, 2, 2]),
+        )
+
+        await store.delete('blob/over')
+        expect(await store.get('blob/over')).toBeNull()
+        expect(await store.head('blob/over')).toBeNull()
+        // Deleting an absent key is a no-op, not an error.
+        await store.delete('blob/over')
+      })
+
+      it('lists by literal prefix in ascending key order', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        // `_` and `%` are LIKE metacharacters: a SQL backend that forgets to
+        // escape them would match `list-x/…` here. And SQLite's LIKE is
+        // case-insensitive for ASCII, so `LIST_/` must not match either.
+        await store.put('list_/b', new Uint8Array([2]))
+        await store.put('list_/a', new Uint8Array([1]))
+        await store.put('list_/c', new Uint8Array([3]))
+        await store.put('list-x/d', new Uint8Array([4]))
+        await store.put('LIST_/e', new Uint8Array([5]))
+
+        const page = await store.list({ prefix: 'list_/' })
+        expect(page.objects.map((o) => o.key)).toEqual([
+          'list_/a',
+          'list_/b',
+          'list_/c',
+        ])
+        expect(page.truncated).toBeFalsy()
+
+        expect(
+          (await store.list({ prefix: 'list_/nothing-here' })).objects,
+        ).toEqual([])
+      })
+
+      it('pages with a cursor and returns an empty page for limit 0', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        for (const key of ['page/a', 'page/b', 'page/c', 'page/d', 'page/e']) {
+          await store.put(key, new Uint8Array([1]))
+        }
+
+        const empty = await store.list({ prefix: 'page/', limit: 0 })
+        expect(empty.objects).toEqual([])
+        expect(empty.truncated).toBeFalsy()
+        expect(empty.cursor).toBeUndefined()
+
+        // Walk every key exactly once: each page's cursor resumes strictly
+        // after the last key it returned.
+        const seen: Array<string> = []
+        let cursor: string | undefined
+        for (let guard = 0; guard < 10; guard++) {
+          const result = await store.list({
+            prefix: 'page/',
+            limit: 2,
+            ...(cursor !== undefined ? { cursor } : {}),
+          })
+          seen.push(...result.objects.map((o) => o.key))
+          if (!result.truncated) break
+          expect(result.cursor).toBe(result.objects.at(-1)?.key)
+          cursor = result.cursor
+        }
+        expect(seen).toEqual(['page/a', 'page/b', 'page/c', 'page/d', 'page/e'])
+
+        // An exact-fit limit is not truncated: no key matches beyond the page.
+        const exact = await store.list({ prefix: 'page/', limit: 5 })
+        expect(exact.objects.map((o) => o.key)).toEqual(seen)
+        expect(exact.truncated).toBeFalsy()
       })
     })
 

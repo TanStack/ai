@@ -7,6 +7,11 @@ description: >
   client cache).
   Reload restore, pending interrupts, mid-stream rejoin with delivery
   durability. Use for SPA reload durability — NOT server history alone.
+  Also covers generation hooks (useGenerateImage etc.), same two modes as chat:
+  client-driven (adapter) persists a lightweight resume snapshot under
+  generation:<threadId> (threadId is REQUIRED with persistence); server-driven
+  (persistence: true) hydrates the last generation from the server on mount,
+  nothing cached.
   No extra package: the adapters ship in the framework packages.
 type: sub-skill
 library: tanstack-ai
@@ -109,6 +114,137 @@ Persistence keys on `threadId`. The hooks have **no separate `id` option** — a
 chat's identity _is_ its `threadId`. Without a stable one, each load is a new
 chat. Generate it server-side or from a route param the user owns; do not
 randomize per mount.
+
+## Generation hooks: server-driven only
+
+The generation hooks (`useGenerateImage`, `useGenerateVideo`, `useGeneration`,
+`useSummarize`, `useTranscription`, …) take a `persistence` option too, but it is
+**boolean only** — there is no storage-adapter mode, and the browser caches
+nothing. **The hooks are transparent, mirroring `useChat`:** a reload repaints the
+hook's
+**normal** fields — `status` (`'idle'` / `'generating'` / `'success'` /
+`'error'`), `error`, and `result` — as if the run had just finished. There is
+**no** `resumeSnapshot`, `resumeState`, `pendingArtifacts`, or `resultArtifacts`
+field. The one extra field is `runId`: the id of the generation job currently
+running, or `null` when nothing is in flight. The persisted record holds run
+identity, status, error, and result metadata (ids, model, a provider video job
+id), **never the generated media bytes**.
+
+The hook return is exactly `generate` / `result` / `isLoading` / `error` /
+`status` / `stop` / `reset` / `runId`.
+
+### Turning it on (`persistence: true`)
+
+```tsx
+const image = useGenerateImage({
+  threadId, // REQUIRED — the scope the last generation is hydrated under
+  connection: fetchServerSentEvents('/api/generate/image'),
+  persistence: true,
+})
+// After a reload: image.status / image.result / image.error are the last
+// generation for `threadId`, fetched from the server — nothing was cached.
+```
+
+The server half — the same route handles the run and the hydration `GET`:
+
+```ts
+import {
+  generateImage,
+  generationParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import {
+  memoryPersistence,
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+
+// Needs `stores.generationRuns`; `memoryPersistence()` ships one.
+const persistence = memoryPersistence()
+
+export async function POST(request: Request) {
+  const { input, threadId } = await generationParamsFromRequest(
+    'image',
+    request,
+  )
+  if (typeof input.prompt !== 'string') {
+    throw new Error('This endpoint accepts text image prompts only.')
+  }
+  if (threadId === undefined) {
+    throw new Error('Generation persistence requires a `threadId`.')
+  }
+
+  return toServerSentEventsResponse(
+    generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: input.prompt,
+      // The stable slot this run fills. Required by persistence: the run record
+      // is filed under it, and the client hydrates by it on mount.
+      threadId,
+      stream: true,
+      middleware: [withGenerationPersistence(persistence)],
+    }),
+  )
+}
+
+// Mount-time hydration: resolves `?runId=` (preferred) or the latest run linked
+// to `?threadId=`, and returns `{ resumeSnapshot, activeRun }`.
+export function GET(request: Request) {
+  return reconstructGeneration(persistence, request, {
+    // Multi-user routes MUST authorize: the ids come from the caller. Derive
+    // identity from server-side session state, then check ownership.
+    authorize: async (id, req) => {
+      // const user = await auth(req)
+      // return user != null && (await db.threadOwnedBy(user.id, id))
+      void id
+      void req
+      return true
+    },
+  })
+}
+```
+
+- Nothing is cached client-side. On mount the client hydrates the **last
+  generation** for its `threadId` from the server via the connection's
+  `hydrateGeneration` handler (the SSE/HTTP adapters issue a `GET` with
+  `?threadId=` to the same endpoint URL) and repaints it into the normal fields.
+- The server `GET` returns `reconstructGeneration(persistence, request)` from
+  `@tanstack/ai-persistence` — it resolves the run by `?runId=` (preferred) or
+  the latest run linked to `?threadId=`, and needs `stores.generationRuns`. Pair it with
+  `withGenerationPersistence` on the generation route. See
+  `ai-core/media-generation` and `ai-persistence`.
+- Best for multi-device / compliance (no generation metadata in browser
+  storage), exactly like chat's server-authoritative mode.
+
+### Restoring media: byte storage + `artifactUrl`
+
+`result` comes back with its media only when the **server** persists the bytes
+(`stores.artifacts` + `stores.blobs`) AND `withGenerationPersistence` is given an
+`artifactUrl` mapper:
+
+```ts
+withGenerationPersistence(persistence, {
+  artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
+})
+```
+
+`artifactUrl` stamps a durable app-origin URL onto each persisted ref and
+rewrites the live result's media to it, so live and restored results match. The
+durable refs travel on `result.artifacts`; on restore the hook rebuilds `result`
+from them, so `result.images[i].url` (or a video's `result.url`) serves from your
+own origin. `result.artifacts` is the whole artifact surface on the hook.
+Without byte storage, a reload restores `status` / `error` and `result` stays
+`null`.
+
+Also worth knowing:
+
+- `stop()` marks the record no longer resumable; `reset()` clears the in-memory
+  snapshot.
+- Nothing auto-runs from a hydrated record — `generate(...)` is always explicit.
+- Use `status` / `result` for a finished run; use `runId` to tell that a run was
+  still generating when the page closed, and to name it to your own server (to
+  cancel or poll the provider job — `stop()` only aborts the local stream).
 
 ## Common mistakes
 

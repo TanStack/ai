@@ -877,6 +877,12 @@ export interface ChatClientBaseOptions<
     pendingInterrupts: BoundInterrupts<TTools>,
   ) => void
 
+  /**
+   * Callback when the id of the run this client has in flight changes: the new
+   * id when a run starts (a send, or a `joinRun` rejoin), `null` when it settles.
+   */
+  onRunIdChange?: (runId: string | null) => void
+
   /** Callback when the immutable interrupt state snapshot changes. */
   onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
 

@@ -20,6 +20,42 @@ to end, then shows how to map the same contracts onto a database schema you
 already have. The runnable version of everything here lives in the
 `examples/ts-react-chat` app (`src/lib/sqlite-persistence.ts`).
 
+## Which stores do you need?
+
+There are seven stores and you almost certainly do not want all of them. Each one
+switches on a single capability. Find the column for what you are building and
+implement the rows marked ✅:
+
+| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+How to read it:
+
+- **Columns stack.** Want durable approvals *and* generated files? Implement the
+  union of those two columns.
+- **The four chat columns all need `messages`.** `withPersistence` refuses to run
+  without it, so it is the floor for anything chat-related.
+- **The two generation columns feed `withGenerationPersistence`** instead, and
+  need none of the chat stores. Chat and generation persistence are independent;
+  see [Generation persistence](./generation-persistence).
+
+Two pairs cannot be split:
+
+- `interrupts` needs `runs`. An interrupt record is scoped to a run.
+- `artifacts` and `blobs` go together. Metadata with no bytes, or bytes with
+  nothing describing them, is not a usable combination.
+
+So the smallest adapter worth shipping is a single `messages` store, and the
+common production shape is `messages` + `runs` + `interrupts`. The guide below
+builds them in that order.
+
 ## What an adapter is
 
 An adapter is an object with a `stores` map:
@@ -36,33 +72,114 @@ const persistence: ChatTranscriptPersistence = {
 }
 ```
 
-Each store is independent. Provide only the ones you need: `messages` for the
-transcript, `runs` for run lifecycle, `interrupts` for durable approvals (needs
-`runs`), `metadata` for namespaced key/value state. The middleware turns on
-behavior for whatever stores it finds, so a `messages`-only adapter is a valid
-adapter.
+Each store is independent, so provide only the ones you need.
 
-Those four are the *only* keys `stores` accepts — anything else throws
-`Unknown AIPersistence store key` at construction. Need a mutex across
+For chat:
+
+- `messages`: the transcript.
+- `runs`: run lifecycle.
+- `interrupts`: durable approvals. Needs `runs`.
+- `metadata`: namespaced key/value state.
+
+For generation:
+
+- `generationRuns`: the generation run lifecycle. The counterpart to `runs`,
+  keyed by its own `runId`.
+- `artifacts` + `blobs`: keep the generated media bytes. See
+  [Generation & media stores](#generation--media-stores).
+
+The middleware turns on behavior for whatever stores it finds, so a
+`messages`-only adapter is a valid adapter.
+
+Those seven — `messages`, `runs`, `interrupts`, `metadata`, `generationRuns`,
+`artifacts`, `blobs` — are the *only* keys `stores` accepts; anything else
+throws `Unknown AIPersistence store key` at construction. Need a mutex across
 instances? That is `withLocks`; see [Locks](../advanced/locks).
 
-Type each store with its `define*Store` helper — `defineMessageStore`,
-`defineRunStore`, `defineInterruptStore`, `defineMetadataStore` — as the sections
-below do. Each checks the object against the contract inline (autocomplete, no
-`: MessageStore` annotation) and composes into `defineAIPersistence`, which
-tracks **exact presence**: the stores you pass are defined, autocompleted keys on
-`persistence.stores`, and accessing one you did not pass is a compile error.
+Type each store with its `define*Store` helper, as the sections below do. There
+is one per store:
 
-Annotate the value with a named shape — `ChatPersistence` for all four,
-`ChatTranscriptPersistence` for the floor. Bare `AIPersistence` is the
-all-optional bag, and `withPersistence` rejects it because `stores.messages` is
-possibly `undefined`.
+- `defineMessageStore`
+- `defineRunStore`
+- `defineInterruptStore`
+- `defineMetadataStore`
+- `defineGenerationRunStore`
+- `defineArtifactStore`
+- `defineBlobStore`
+
+Each checks the object against the contract inline (autocomplete, no
+`: MessageStore` annotation) and composes into `defineAIPersistence`, which
+tracks **exact presence**:
+
+- The stores you pass are defined, and their keys autocomplete on
+  `persistence.stores`.
+- Accessing one you did not pass is a compile error.
+
+Annotate the value with a named shape:
+
+- `ChatPersistence`: all four chat stores.
+- `ChatTranscriptPersistence`: the `messages` floor.
+- `AIPersistence`: the all-optional bag. `withPersistence` rejects it, because
+  `stores.messages` is possibly `undefined`.
 
 Every method signature and invariant is in the
 [store interface reference](#store-interface-reference) at the end of this page.
 The invariants (idempotent creates, insert-if-absent, ordered listings) are what
 the shared conformance suite checks, and getting one wrong is the usual source of
 subtle bugs.
+
+The records the stores hold form a small schema. The thread is not a table of
+its own — it exists as the `thread_id` key the other records hang off — and
+`metadata` is independent of all of it (its identity is `(namespace, key)`).
+Note the asymmetry on the generation side. A chat run belongs to a thread, and
+its own `run_id` is secondary. A generation run is keyed by its own `run_id`
+first, and its `thread_id` names the slot the run fills, which is what
+`findLatestForThread` hydrates by:
+
+```mermaid
+erDiagram
+    MESSAGES ||--o{ RUN : "thread_id — a thread has many runs"
+    RUN ||--o{ INTERRUPT : "run_id — a run may pause on interrupts"
+    MESSAGES ||..o{ GENERATION_RUN : "thread_id, the slot a run fills"
+    GENERATION_RUN ||--o{ ARTIFACT : "run_id — a run produces artifacts"
+    ARTIFACT ||--|| BLOB : "blob_key — the bytes"
+
+    MESSAGES {
+        string thread_id PK
+        json messages_json "full transcript, overwritten on save"
+    }
+    RUN {
+        string run_id PK
+        string thread_id
+        string status "running | completed | failed | interrupted"
+        int started_at
+        int finished_at
+    }
+    INTERRUPT {
+        string interrupt_id PK
+        string run_id
+        string thread_id
+        string status "pending | resolved | cancelled"
+        int requested_at
+    }
+    GENERATION_RUN {
+        string run_id PK
+        string thread_id "the slot this run fills"
+        string activity "image | audio | tts | video | transcription"
+        string status "running | completed | failed | interrupted"
+    }
+    ARTIFACT {
+        string artifact_id PK
+        string run_id
+        string blob_key "where the bytes live"
+        string mime_type
+        int size
+    }
+    BLOB {
+        string key PK
+        blob bytes
+    }
+```
 
 ## New database: a SQLite adapter start to finish
 
@@ -106,9 +223,11 @@ CREATE TABLE IF NOT EXISTS metadata (
 
 ### 2. Messages: full-transcript overwrite
 
-`saveThread` always receives the complete, authoritative history. It is a
-replace, not an append. `loadThread` returns `[]` for a thread that was never
-saved, never `null`.
+Two contracts to hold:
+
+- `saveThread` always receives the complete, authoritative history. It is a
+  replace, not an append.
+- `loadThread` returns `[]` for a thread that was never saved, never `null`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -148,10 +267,12 @@ query instead.
 
 ### 3. Runs: idempotent create, patch, get
 
-`createOrResume` must be idempotent. If the run id already exists, return the
-stored record unchanged, so resuming a run never resets its `startedAt` or
-status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
-`update` on an unknown run id is a no-op.
+Two contracts to hold:
+
+- `createOrResume` must be idempotent. If the run id already exists, return the
+  stored record unchanged, so resuming a run never resets its `startedAt` or
+  status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
+- `update` on an unknown run id is a no-op.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -475,6 +596,504 @@ export async function POST(request: Request) {
 }
 ```
 
+## Generation & media stores
+
+Everything above builds a **chat** adapter.
+[Media generation](./generation-persistence) persists differently: it does not
+use the chat `runs` store at all.
+
+- **Required:** a `generationRuns` store, a `GenerationRunStore` keyed by
+  `runId` (the run/request id a generation mints). It is the counterpart to
+  `runs`.
+- **Optional, to keep the generated bytes:** an `artifacts` store (metadata) and
+  a `blobs` store (the bytes). These two must be provided **together**.
+
+`threadId` is the slot the run belongs to, recorded on each run record.
+
+These are three more tables alongside the four from the schema in step 1:
+
+```sql
+CREATE TABLE IF NOT EXISTS generation_runs (
+  run_id text PRIMARY KEY NOT NULL,
+  thread_id text NOT NULL,
+  activity text NOT NULL,
+  provider text NOT NULL,
+  model text NOT NULL,
+  status text NOT NULL,
+  started_at integer NOT NULL,
+  finished_at integer,
+  error_json text,
+  result_json text,
+  artifacts_json text,
+  usage_json text
+);
+CREATE TABLE IF NOT EXISTS artifacts (
+  artifact_id text PRIMARY KEY NOT NULL,
+  run_id text NOT NULL,
+  thread_id text NOT NULL,
+  blob_key text,
+  name text NOT NULL,
+  mime_type text NOT NULL,
+  size integer NOT NULL,
+  source_url text,
+  created_at integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS blobs (
+  key text PRIMARY KEY NOT NULL,
+  bytes blob NOT NULL,
+  size integer NOT NULL,
+  etag text NOT NULL,
+  content_type text,
+  custom_metadata_json text,
+  created_at integer NOT NULL,
+  updated_at integer NOT NULL
+);
+```
+
+### Generation runs: idempotent create, patch, latest-for-thread
+
+`GenerationRunStore` is the generation analogue of `RunStore`. Three contracts
+to hold:
+
+- `createOrResume` is idempotent. A second call for a `runId` returns the stored
+  record unchanged, so resuming a run never resets its `startedAt`, `activity`,
+  or status. `INSERT ... ON CONFLICT DO NOTHING` gives you that.
+- `update` on an unknown `runId` is a no-op.
+- `findLatestForThread` returns the run with the greatest `startedAt` linked to a
+  thread. `reconstructGeneration` calls it to hydrate the last generation for a
+  thread on a server-driven client's mount.
+
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import { defineGenerationRunStore } from '@tanstack/ai-persistence'
+import type {
+  GenerationRunRecord,
+  GenerationRunStatus,
+} from '@tanstack/ai-persistence'
+
+function toGenerationRunStatus(value: unknown): GenerationRunStatus {
+  switch (value) {
+    case 'running':
+    case 'completed':
+    case 'failed':
+    case 'interrupted':
+      return value
+    default:
+      throw new TypeError(`Unexpected generation run status: ${String(value)}`)
+  }
+}
+
+// `node:sqlite` types columns as a SQL-value union, so coerce/narrow each field
+// (String / Number / typeof) and JSON-parse the text columns — no cast.
+function mapGenerationRun(row: Record<string, unknown>): GenerationRunRecord {
+  return {
+    runId: String(row.run_id),
+    threadId: String(row.thread_id),
+    activity: String(row.activity),
+    provider: String(row.provider),
+    model: String(row.model),
+    status: toGenerationRunStatus(row.status),
+    startedAt: Number(row.started_at),
+    ...(row.finished_at != null ? { finishedAt: Number(row.finished_at) } : {}),
+    ...(typeof row.error_json === 'string'
+      ? { error: JSON.parse(row.error_json) }
+      : {}),
+    ...(typeof row.result_json === 'string'
+      ? { result: JSON.parse(row.result_json) }
+      : {}),
+    ...(typeof row.artifacts_json === 'string'
+      ? { artifacts: JSON.parse(row.artifacts_json) }
+      : {}),
+    ...(typeof row.usage_json === 'string'
+      ? { usage: JSON.parse(row.usage_json) }
+      : {}),
+  }
+}
+
+function createGenerationRunStore(db: DatabaseSync) {
+  const select = db.prepare('SELECT * FROM generation_runs WHERE run_id = ?')
+  const insert = db.prepare(
+    `INSERT INTO generation_runs
+       (run_id, thread_id, activity, provider, model, status, started_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(run_id) DO NOTHING`,
+  )
+  const latest = db.prepare(
+    `SELECT * FROM generation_runs WHERE thread_id = ?
+     ORDER BY started_at DESC LIMIT 1`,
+  )
+  return defineGenerationRunStore({
+    async createOrResume(input) {
+      const existing = select.get(input.runId)
+      if (existing) return mapGenerationRun(existing)
+      const status: GenerationRunStatus = input.status ?? 'running'
+      insert.run(
+        input.runId,
+        input.threadId,
+        input.activity,
+        input.provider,
+        input.model,
+        status,
+        input.startedAt,
+      )
+      return {
+        runId: input.runId,
+        threadId: input.threadId,
+        activity: input.activity,
+        provider: input.provider,
+        model: input.model,
+        status,
+        startedAt: input.startedAt,
+      }
+    },
+    async update(runId, patch) {
+      const sets: Array<string> = []
+      const params: Array<string | number> = []
+      if (patch.status !== undefined) {
+        sets.push('status = ?')
+        params.push(patch.status)
+      }
+      if (patch.finishedAt !== undefined) {
+        sets.push('finished_at = ?')
+        params.push(patch.finishedAt)
+      }
+      if (patch.error !== undefined) {
+        sets.push('error_json = ?')
+        params.push(JSON.stringify(patch.error))
+      }
+      if (patch.result !== undefined) {
+        sets.push('result_json = ?')
+        params.push(JSON.stringify(patch.result))
+      }
+      if (patch.artifacts !== undefined) {
+        sets.push('artifacts_json = ?')
+        params.push(JSON.stringify(patch.artifacts))
+      }
+      if (patch.usage !== undefined) {
+        sets.push('usage_json = ?')
+        params.push(JSON.stringify(patch.usage))
+      }
+      // Empty patch, or an unknown run id, touches nothing (UPDATE no-ops).
+      if (sets.length === 0) return
+      params.push(runId)
+      db.prepare(
+        `UPDATE generation_runs SET ${sets.join(', ')} WHERE run_id = ?`,
+      ).run(...params)
+    },
+    async get(runId) {
+      const row = select.get(runId)
+      return row ? mapGenerationRun(row) : null
+    },
+    // The most recent run linked to a thread. `reconstructGeneration` calls this
+    // so a server-driven client (`persistence: true`) hydrates the last
+    // generation for its thread by the stable thread id, without a run id.
+    async findLatestForThread(threadId) {
+      const row = latest.get(threadId)
+      return row ? mapGenerationRun(row) : null
+    },
+  })
+}
+```
+
+### Artifacts: media metadata
+
+`ArtifactStore` holds one metadata row per generated file: its `runId`,
+`mimeType`, `size`, and a `createdAt`. The bytes live in the blob store below.
+
+- `save` is an upsert.
+- `list(runId)` returns every artifact for a run, `[]` when there are none.
+- `delete` / `deleteForRun` are required. Retention and erasure are the point of
+  storing media durably, and they mirror `BlobStore.delete`.
+
+Persist `blobKey` verbatim. It records where these bytes actually went, and a
+`storageKey` mapper can put them anywhere, so a reader cannot recompute the
+path — `resolveArtifactBlobKey(record)` falls back to the default convention
+only for rows written before the column existed. Drop it and every artifact
+stored under a custom key becomes unreadable.
+
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import { defineArtifactStore } from '@tanstack/ai-persistence'
+import type { ArtifactRecord } from '@tanstack/ai-persistence'
+
+function mapArtifact(row: Record<string, unknown>): ArtifactRecord {
+  return {
+    artifactId: String(row.artifact_id),
+    runId: String(row.run_id),
+    threadId: String(row.thread_id),
+    ...(typeof row.blob_key === 'string' ? { blobKey: row.blob_key } : {}),
+    name: String(row.name),
+    mimeType: String(row.mime_type),
+    size: Number(row.size),
+    ...(typeof row.source_url === 'string'
+      ? { sourceUrl: row.source_url }
+      : {}),
+    createdAt: Number(row.created_at),
+  }
+}
+
+function createArtifactStore(db: DatabaseSync) {
+  const upsert = db.prepare(
+    `INSERT INTO artifacts
+       (artifact_id, run_id, thread_id, blob_key, name, mime_type, size, source_url, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(artifact_id) DO UPDATE SET
+       run_id = excluded.run_id, thread_id = excluded.thread_id,
+       blob_key = excluded.blob_key, name = excluded.name,
+       mime_type = excluded.mime_type, size = excluded.size,
+       source_url = excluded.source_url, created_at = excluded.created_at`,
+  )
+  const selectOne = db.prepare('SELECT * FROM artifacts WHERE artifact_id = ?')
+  const byRun = db.prepare(
+    'SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC',
+  )
+  return defineArtifactStore({
+    async save(record) {
+      upsert.run(
+        record.artifactId,
+        record.runId,
+        record.threadId,
+        record.blobKey ?? null,
+        record.name,
+        record.mimeType,
+        record.size,
+        record.sourceUrl ?? null,
+        record.createdAt,
+      )
+    },
+    async get(artifactId) {
+      const row = selectOne.get(artifactId)
+      return row ? mapArtifact(row) : null
+    },
+    async list(runId) {
+      return byRun.all(runId).map(mapArtifact)
+    },
+    async delete(artifactId) {
+      db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)
+    },
+    async deleteForRun(runId) {
+      db.prepare('DELETE FROM artifacts WHERE run_id = ?').run(runId)
+    },
+  })
+}
+```
+
+### Blobs: the bytes
+
+`BlobStore` is a small object store. `withGenerationPersistence` writes each
+generated file under the key `artifacts/<runId>/<artifactId>`, so a
+prefix-filtered `list({ prefix: 'artifacts/<runId>/' })` enumerates a run's
+media.
+
+- `put` accepts any `BlobBody`: a stream, buffer, string, or `Blob`. The helper
+  below normalizes it to bytes.
+- `list` matches `prefix` literally and pages with a keyset cursor.
+
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import { defineBlobStore } from '@tanstack/ai-persistence'
+import type {
+  BlobBody,
+  BlobObject,
+  BlobRecord,
+} from '@tanstack/ai-persistence'
+
+async function toBytes(body: BlobBody): Promise<Uint8Array> {
+  if (typeof body === 'string') return new TextEncoder().encode(body)
+  if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0))
+  if (ArrayBuffer.isView(body)) {
+    return new Uint8Array(body.buffer, body.byteOffset, body.byteLength).slice()
+  }
+  if (body instanceof Blob) {
+    return new Uint8Array(await body.arrayBuffer())
+  }
+  // ReadableStream<Uint8Array>: drain it into one buffer.
+  const reader = body.getReader()
+  const chunks: Array<Uint8Array> = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    total += value.byteLength
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
+
+function mapBlobRecord(row: Record<string, unknown>): BlobRecord {
+  return {
+    key: String(row.key),
+    ...(row.size != null ? { size: Number(row.size) } : {}),
+    ...(typeof row.etag === 'string' ? { etag: row.etag } : {}),
+    ...(typeof row.content_type === 'string'
+      ? { contentType: row.content_type }
+      : {}),
+    ...(typeof row.custom_metadata_json === 'string'
+      ? { customMetadata: JSON.parse(row.custom_metadata_json) }
+      : {}),
+    ...(row.created_at != null ? { createdAt: Number(row.created_at) } : {}),
+    ...(row.updated_at != null ? { updatedAt: Number(row.updated_at) } : {}),
+  }
+}
+
+function blobObject(record: BlobRecord, bytes: Uint8Array): BlobObject {
+  return {
+    ...record,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice())
+        controller.close()
+      },
+    }),
+    arrayBuffer() {
+      const copy = new ArrayBuffer(bytes.byteLength)
+      new Uint8Array(copy).set(bytes)
+      return Promise.resolve(copy)
+    },
+    text: () => Promise.resolve(new TextDecoder().decode(bytes)),
+  }
+}
+
+function createBlobStore(db: DatabaseSync) {
+  const upsert = db.prepare(
+    `INSERT INTO blobs
+       (key, bytes, size, etag, content_type, custom_metadata_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       bytes = excluded.bytes, size = excluded.size, etag = excluded.etag,
+       content_type = excluded.content_type,
+       custom_metadata_json = excluded.custom_metadata_json,
+       updated_at = excluded.updated_at`,
+  )
+  const selectCreated = db.prepare('SELECT created_at FROM blobs WHERE key = ?')
+  const selectOne = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  return defineBlobStore({
+    async put(key, body, options) {
+      const bytes = await toBytes(body)
+      const now = Date.now()
+      const prior = selectCreated.get(key)
+      const createdAt =
+        prior && prior.created_at != null ? Number(prior.created_at) : now
+      const etag = String(now)
+      upsert.run(
+        key,
+        bytes,
+        bytes.byteLength,
+        etag,
+        options?.contentType ?? null,
+        options?.customMetadata ? JSON.stringify(options.customMetadata) : null,
+        createdAt,
+        now,
+      )
+      return {
+        key,
+        size: bytes.byteLength,
+        etag,
+        createdAt,
+        updatedAt: now,
+        ...(options?.contentType !== undefined
+          ? { contentType: options.contentType }
+          : {}),
+        ...(options?.customMetadata !== undefined
+          ? { customMetadata: options.customMetadata }
+          : {}),
+      }
+    },
+    async get(key) {
+      const row = selectOne.get(key)
+      if (!row) return null
+      const bytes =
+        row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
+      return blobObject(mapBlobRecord(row), bytes)
+    },
+    async head(key) {
+      const row = selectOne.get(key)
+      return row ? mapBlobRecord(row) : null
+    },
+    async delete(key) {
+      db.prepare('DELETE FROM blobs WHERE key = ?').run(key)
+    },
+    async list(options) {
+      if (options?.limit === 0) return { objects: [], truncated: false }
+      // Match the prefix with `substr(...) = ?` rather than LIKE: SQLite's LIKE
+      // is case-INsensitive for ASCII and treats `%`/`_` as wildcards, while the
+      // contract says a prefix matches literally and case-sensitively. Then page
+      // with a keyset cursor (keys strictly greater than the last one returned).
+      const prefix = options?.prefix ?? ''
+      const params: Array<string | number> = [prefix, prefix]
+      let where = 'substr(key, 1, length(?)) = ?'
+      if (options?.cursor !== undefined) {
+        where += ' AND key > ?'
+        params.push(options.cursor)
+      }
+      let sql = `SELECT * FROM blobs WHERE ${where} ORDER BY key ASC`
+      const limit = options?.limit
+      if (limit !== undefined) {
+        sql += ' LIMIT ?' // fetch one extra row to detect truncation
+        params.push(limit + 1)
+      }
+      const rows = db
+        .prepare(sql)
+        .all(...params)
+        .map(mapBlobRecord)
+      if (limit !== undefined && rows.length > limit) {
+        const page = rows.slice(0, limit)
+        const cursor = page.at(-1)?.key
+        return {
+          objects: page,
+          truncated: true,
+          ...(cursor !== undefined ? { cursor } : {}),
+        }
+      }
+      return { objects: rows, truncated: false }
+    },
+  })
+}
+```
+
+### Assemble a generation adapter
+
+Hand the three stores to `defineAIPersistence` the same way. `generationRuns` alone is a
+valid generation adapter (run records, no byte storage); add `artifacts` +
+`blobs` — together — to keep the media:
+
+```ts
+import { DatabaseSync } from 'node:sqlite'
+import { defineAIPersistence } from '@tanstack/ai-persistence'
+// The three generation store factories and the schema string, from your modules.
+import { createArtifactStore } from './artifact-store'
+import { createBlobStore } from './blob-store'
+import { createGenerationRunStore } from './generation-run-store'
+import { GENERATION_SCHEMA_SQL } from './generation-schema'
+
+export function generationPersistence(options: {
+  url: string
+  migrate?: boolean
+}) {
+  const db = new DatabaseSync(options.url)
+  if (options.migrate) db.exec(GENERATION_SCHEMA_SQL)
+  return defineAIPersistence({
+    stores: {
+      generationRuns: createGenerationRunStore(db),
+      artifacts: createArtifactStore(db),
+      blobs: createBlobStore(db),
+    },
+  })
+}
+```
+
+Pass the result to `withGenerationPersistence` on a `generateImage` /
+`generateVideo` / … call; see [Generation persistence](./generation-persistence).
+You can also fold these stores into an existing chat adapter with
+`composePersistence`, so one backend serves both `withPersistence` and
+`withGenerationPersistence`.
+
 ## Existing database: map the contracts onto your schema
 
 You do not have to create the four tables above. If you already have a database,
@@ -529,8 +1148,20 @@ runPersistenceConformance('my sqlite adapter', () =>
 )
 ```
 
-The adapter above provides all four stores, so there is nothing to declare. A
-partial adapter lists what it deliberately omits:
+The suite covers all seven stores — the four chat state stores and the three
+generation stores from the section above — so an adapter lists whatever it
+deliberately omits. A chat-only adapter skips the generation half:
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { chatOnlyPersistence } from './chat-only'
+
+runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
+```
+
+and a transcript-only one skips more:
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -539,15 +1170,24 @@ import { transcriptOnlyPersistence } from './transcript-only'
 runPersistenceConformance(
   'transcript-only adapter',
   () => transcriptOnlyPersistence(),
-  { skip: ['runs', 'interrupts', 'metadata'] },
+  {
+    skip: [
+      'runs',
+      'interrupts',
+      'metadata',
+      'generationRuns',
+      'artifacts',
+      'blobs',
+    ],
+  },
 )
 ```
 
-`skip` accepts only the four state store keys. A store that is absent and not
-listed fails the suite loudly, so you cannot ship a half-wired adapter by
-accident. When this is green, your adapter is a drop-in for `withPersistence`.
-The `examples/ts-react-chat` app runs exactly this test against its SQLite
-backend.
+`skip` accepts only store keys. A store that is absent and not listed fails the
+suite loudly, so you cannot ship a half-wired adapter by accident. When this is
+green, your adapter is a drop-in for `withPersistence` (and, with the generation
+stores, `withGenerationPersistence`). The `examples/ts-react-chat` app runs
+exactly this test against its SQLite backend, which provides all seven.
 
 ## Let your coding agent write it
 
@@ -646,14 +1286,17 @@ interface RunStore {
 }
 ```
 
-Implement `createOrResume` idempotently: a second call for an existing `runId`
-returns the stored record unchanged, which is what makes resuming a run safe.
-`update` against an unknown `runId` is a no-op. Retries may repeat the same run
-id. `findActiveRun` must do real work: stub it to `null` and `reconstructChat`
-always reports `activeRun: null`, so a client that reloads (or switches back to)
-a still-generating thread restores the transcript but never resumes the live
-reply — and nothing detects it, because `null` is also the right answer for an
-idle thread.
+Three contracts to hold:
+
+- `createOrResume` must be idempotent. A second call for an existing `runId`
+  returns the stored record unchanged, which is what makes resuming a run safe.
+  Retries may repeat the same run id.
+- `update` against an unknown `runId` is a no-op.
+- `findActiveRun` must do real work. Stub it to `null` and `reconstructChat`
+  always reports `activeRun: null`, so a client that reloads (or switches back
+  to) a still-generating thread restores the transcript but never resumes the
+  live reply. Nothing detects it either, because `null` is also the right answer
+  for an idle thread.
 
 Every method on a store you provide is required. A backend that genuinely has no
 run lifecycle should declare `ChatTranscriptStores` and omit `runs` entirely
@@ -706,6 +1349,161 @@ Namespaces and value schemas are application-owned, and `(scope, key)` is the
 composite identity. A stored `null` is indistinguishable from absence at the type
 level, so wrap a value you must persist as `null` (e.g. `{ value: null }`), or
 reject nullish values outright the way the SQLite store above does.
+
+### GenerationRunStore
+
+The generation counterpart to `RunStore`. Keyed by its own `runId`, with
+`threadId` the slot `findLatestForThread` looks runs up by.
+`withGenerationPersistence` requires this store, not `runs`.
+
+Its `status` uses the same vocabulary as a chat run's `RunStatus`, so one status
+column and one set of checks cover both tables.
+
+```ts
+import type { PersistedArtifactRef, TokenUsage } from '@tanstack/ai'
+
+// The same vocabulary as a chat run's `RunStatus`.
+type GenerationRunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
+
+interface GenerationRunRecord {
+  runId: string
+  threadId: string // the slot this run fills, hydrated by findLatestForThread
+  activity: string // 'image' | 'audio' | 'tts' | 'video' | 'transcription'
+  provider: string
+  model: string
+  status: GenerationRunStatus
+  startedAt: number // epoch ms
+  finishedAt?: number // epoch ms, set once the run reaches a terminal status
+  error?: { message: string; code?: string }
+  result?: unknown // terminal result metadata (ids, urls) — never media bytes
+  artifacts?: Array<PersistedArtifactRef> // present with an artifacts + blobs backend
+  usage?: TokenUsage
+}
+
+interface GenerationRunStore {
+  createOrResume(input: {
+    runId: string
+    activity: string
+    provider: string
+    model: string
+    startedAt: number
+    threadId: string
+    status?: GenerationRunStatus
+  }): Promise<GenerationRunRecord>
+  update(
+    runId: string,
+    patch: Partial<
+      Pick<
+        GenerationRunRecord,
+        'status' | 'finishedAt' | 'error' | 'result' | 'artifacts' | 'usage'
+      >
+    >,
+  ): Promise<void>
+  get(runId: string): Promise<GenerationRunRecord | null>
+  // The most recent run filed under a thread (greatest `startedAt`), or null.
+  // Required: it is the only query that hydrates a generation, so an adapter
+  // without it would be indistinguishable from one whose thread has no runs —
+  // `persistence: true` would silently restore nothing, forever.
+  findLatestForThread(threadId: string): Promise<GenerationRunRecord | null>
+}
+```
+
+Implement `createOrResume` idempotently: a second call for an existing `runId`
+returns the stored record unchanged (`startedAt` / `activity` / `provider` /
+`model` / `threadId` are not mutated), which is what makes resuming a run safe.
+`update` against an unknown `runId` is a no-op.
+
+### ArtifactStore
+
+Metadata rows for persisted media. The bytes live in a `BlobStore`; this record
+holds the descriptive metadata and an optional `sourceUrl` for reference-only
+backends. Provide it together with a `BlobStore` to keep generated bytes.
+
+```ts
+interface ArtifactRecord {
+  artifactId: string
+  runId: string
+  threadId: string
+  blobKey?: string // where the bytes live; absent on pre-blobKey records
+  name: string
+  mimeType: string
+  size: number
+  sourceUrl?: string // where the bytes were fetched FROM (provenance)
+  createdAt: number // epoch ms
+}
+
+interface ArtifactStore {
+  save(record: ArtifactRecord): Promise<void>
+  get(artifactId: string): Promise<ArtifactRecord | null>
+  list(runId: string): Promise<Array<ArtifactRecord>> // [] when the run has none
+  delete(artifactId: string): Promise<void>
+  deleteForRun(runId: string): Promise<void>
+}
+```
+
+### BlobStore
+
+A durable object/blob store for the bytes. `withGenerationPersistence` writes
+each generated file under the key `artifacts/<runId>/<artifactId>`.
+
+```ts
+type BlobBody =
+  | ReadableStream<Uint8Array>
+  | ArrayBuffer
+  | ArrayBufferView
+  | string
+  | Blob
+
+interface BlobRecord {
+  key: string
+  size?: number
+  etag?: string
+  contentType?: string
+  customMetadata?: Record<string, string>
+  createdAt?: number // epoch ms first written
+  updatedAt?: number // epoch ms last overwritten
+}
+
+interface BlobObject extends BlobRecord {
+  arrayBuffer(): Promise<ArrayBuffer>
+  text(): Promise<string>
+  body?: ReadableStream<Uint8Array>
+}
+
+interface BlobListPage {
+  objects: Array<BlobRecord>
+  cursor?: string // present only when `truncated`
+  truncated?: boolean
+}
+
+interface BlobPutOptions {
+  contentType?: string
+  customMetadata?: Record<string, string>
+}
+
+interface BlobListOptions {
+  prefix?: string
+  cursor?: string
+  limit?: number
+}
+
+interface BlobStore {
+  put(key: string, body: BlobBody, options?: BlobPutOptions): Promise<BlobRecord>
+  get(key: string): Promise<BlobObject | null>
+  head(key: string): Promise<BlobRecord | null>
+  delete(key: string): Promise<void>
+  list(options?: BlobListOptions): Promise<BlobListPage>
+}
+```
+
+Three contracts to hold for `list`:
+
+- `prefix` matches literally and case-sensitively. Escape SQL `LIKE`
+  metacharacters.
+- When `limit` is given and more keys match, return `truncated: true` with a
+  `cursor`. Passing that cursor back returns the strictly-following keys, so
+  paging visits every key exactly once.
+- `limit: 0` yields an empty, untruncated page.
 
 ## Where to go next
 

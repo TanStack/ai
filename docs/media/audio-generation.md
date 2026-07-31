@@ -161,6 +161,10 @@ flow. It mirrors the API of `useGenerateSpeech`, `useGenerateImage`, and
 other media hooks — see [Generation Hooks](./generation-hooks) for the full
 shape.
 
+> **Note:** For long tracks, keep the run's status and result across a reload or
+> a dropped connection — and the audio after the provider's URL expires — with
+> [Generation Persistence](../persistence/generation-persistence).
+
 ### Server (streaming SSE route)
 
 ```typescript

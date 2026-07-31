@@ -201,8 +201,14 @@ describe('injectChat — reactive options', () => {
 })
 
 describe('injectChat — resume', () => {
-  it('forwards onResumeStateChange to ChatClient', async () => {
-    const onResumeStateChange = vi.fn()
+  it('surfaces a run that pauses on an interrupt through the public signals', async () => {
+    // `onResumeStateChange` is NOT an `injectChat` option (it is omitted here
+    // exactly as in React / Solid / Vue / Svelte / Preact). The same
+    // information reaches the caller as reactive state: the pending interrupts
+    // through `interrupts` / `pendingInterrupts` (and the
+    // `onInterruptStateChange` callback), and the run identity through the
+    // `runId` signal while a run is in flight.
+    const onInterruptStateChange = vi.fn()
     const adapter = createMockConnectionAdapter({
       chunks: [
         {
@@ -229,22 +235,25 @@ describe('injectChat — resume', () => {
         },
       ],
     })
-    const { result } = renderInjectChat({
+    const { result, flush } = renderInjectChat({
       connection: adapter,
       threadId: 'thread-1',
-      onResumeStateChange,
+      onInterruptStateChange,
     })
 
     await result.sendMessage('Hi')
+    flush()
 
-    // A run that pauses on an interrupt forwards interrupt (state) resume —
-    // the thread/run ids to target on a follow-up. No delivery cursor.
-    expect(onResumeStateChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        threadId: 'thread-1',
-        runId: expect.any(String),
-      }),
+    expect(result.interrupts()).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'interrupt-1' })]),
+    )
+    expect(result.pendingInterrupts()).toBe(result.interrupts())
+    expect(onInterruptStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interrupts: expect.arrayContaining([
+          expect.objectContaining({ id: 'interrupt-1' }),
+        ]),
+      }),
     )
   })
 })

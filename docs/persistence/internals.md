@@ -50,18 +50,29 @@ stored transcript is loaded and used.
 
 ## Generation middleware lifecycle
 
-`withGenerationPersistence(persistence)` records the run: `onStart` creates or
-resumes the run record, and `onFinish`, `onError`, and `onAbort` terminalize
-it. Durable media storage (artifact metadata plus blob bytes) is a follow-up
-feature.
+`withGenerationPersistence(persistence)` records the job across
+three points:
 
-**Do not treat this as the long-term generation model.** Today it reuses chat
-`RunStore` and dual-keys `(runId, threadId)` both to `requestId`. That is a
-stopgap: **generation jobs must not fake `threadId = requestId`.** `threadId`
-is the shared conversation key (`Scope.threadId`); a generation job's primary
-id is `requestId` / `jobId`. The follow-up should introduce a dedicated
-generation job store (and later artifact store), not chat `RunStore` /
-`MessageStore`.
+- `onStart` creates or resumes the run record.
+- `onFinish` / `onError` / `onAbort` terminalize it.
+- A result transform captures the terminal result metadata (ids, urls, never
+  media bytes) onto the record.
+
+When `artifacts` and `blobs` are both provided it also persists the generated
+media and merges the durable refs onto both the result and the run record.
+
+Generation uses its own `generationRuns` store (`GenerationRunStore`), never chat's
+`runs` / `messages`. A generation has no conversation, so the run is keyed on
+its own `runId` (`ctx.runId ?? ctx.requestId`), and `threadId` never becomes the
+job's primary identity.
+
+`threadId` is nonetheless **required**: it is the slot the run is filed under,
+and `GenerationRunRecord.threadId` is a required field. The middleware resolves
+it as `opts.threadId ?? ctx.threadId` — normally the `threadId` the caller
+passed the activity, with the option as an override — and **throws** when
+neither supplies one. It is never faked from the request id: a run filed under
+an invented scope can never be hydrated by one, so restoring would silently
+return nothing forever.
 
 ## Composition semantics
 
@@ -95,8 +106,9 @@ removed. Unknown store keys are rejected statically and by runtime validation.
 Middleware adds entrypoint validation:
 
 - chat requires `messages`; rejects `interrupts` without `runs`.
-- generation requires `runs`.
+- generation requires `generationRuns`.
 - `reconstructChat` requires `messages`.
+- `reconstructGeneration` requires `generationRuns`.
 
 The runtime checks are required because JavaScript, configuration loading, and
 explicitly widened types can bypass static guarantees.

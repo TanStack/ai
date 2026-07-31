@@ -6,6 +6,8 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { summarizeFn, summarizeStreamFn } from '../lib/server-fns'
 import type { StreamChunk } from '@tanstack/ai'
 
+// Persist each variant's lightweight resume snapshot across reloads.
+
 const SAMPLE_TEXT = `Artificial intelligence (AI) has rapidly transformed from a niche academic pursuit into one of the most influential technologies of the 21st century. The development of large language models, in particular, has demonstrated capabilities that were previously thought to be decades away. These models can generate human-like text, translate languages, write code, and even engage in complex reasoning tasks.
 
 The implications of this technology are far-reaching. In healthcare, AI systems are being used to analyze medical images, predict patient outcomes, and accelerate drug discovery. In education, personalized learning systems adapt to individual student needs. In creative fields, AI tools are being used to generate art, music, and literature, raising profound questions about authorship and creativity.
@@ -46,8 +48,10 @@ function StreamingSummarize() {
   // The connect adapter merges `body` into every request payload; the API
   // route reads `model` from `body.data` to pick the openaiSummarize variant.
   const hookReturn = useSummarize({
+    threadId: 'summarize:streaming',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { model },
+    persistence: true,
     onChunk: (chunk) =>
       setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })
@@ -79,7 +83,9 @@ function DirectSummarize() {
   // mode is non-streaming — the result appears all at once when the
   // server-fn resolves.
   const hookReturn = useSummarize({
+    threadId: 'summarize:direct',
     fetcher: (input) => summarizeFn({ data: { ...input, model } }),
+    persistence: true,
   })
 
   return (
@@ -106,7 +112,9 @@ function ServerFnSummarize() {
   // The server-fn returns an SSE Response; GenerationClient parses it and
   // routes chunks through `onChunk` exactly like the connect-adapter path.
   const hookReturn = useSummarize({
+    threadId: 'summarize:server-fn',
     fetcher: (input) => summarizeStreamFn({ data: { ...input, model } }),
+    persistence: true,
     onChunk: (chunk) =>
       setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })

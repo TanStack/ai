@@ -7,8 +7,9 @@
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { sqlitePersistence } from './sqlite-persistence'
 
-// All four state stores are provided, so nothing is skipped. (Locks are not a
-// state store and the suite does not cover them — this backend has no
+// All seven stores are provided — the four chat state stores plus
+// `generationRuns` + `artifacts` + `blobs` — so nothing is skipped. (Locks are
+// not a store and the suite does not cover them — this backend has no
 // distributed lock primitive, which is a separate `withLocks` concern.)
 runPersistenceConformance('ts-react-chat example (node:sqlite)', () =>
   sqlitePersistence({ url: ':memory:', migrate: true }),

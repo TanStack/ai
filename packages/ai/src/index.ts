@@ -114,8 +114,12 @@ export {
 } from './stream-to-response'
 
 // Delivery durability (transport layer)
-export { memoryStream } from './stream-durability'
-export type { MemoryStreamOptions, StreamDurability } from './stream-durability'
+export { memoryStream, replayRunStream } from './stream-durability'
+export type {
+  MemoryStreamInit,
+  MemoryStreamOptions,
+  StreamDurability,
+} from './stream-durability'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -201,6 +205,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {

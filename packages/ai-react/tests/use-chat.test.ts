@@ -13,6 +13,7 @@ import {
 } from './test-utils'
 import type {
   ChatClientPersistence,
+  ConnectConnectionAdapter,
   ResumableConnectConnectionAdapter,
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
@@ -321,14 +322,54 @@ describe('useChat', () => {
 
     it('does not expose delivery-cursor resume/autoResume machinery', () => {
       // Delivery-durability resume is now transparent (the resumable SSE
-      // connection adapter reattaches via native Last-Event-ID). useChat only
-      // keeps interrupt (state) resume: `resumeInterrupts` + `resumeState`.
+      // connection adapter reattaches via native Last-EventID). useChat only
+      // keeps interrupt (state) resume: `resumeInterrupts` + `runId`.
       const adapter = createMockConnectionAdapter()
       const { result } = renderUseChat({ connection: adapter })
 
       expect(result.current).not.toHaveProperty('resume')
+      expect(result.current).not.toHaveProperty('resumeState')
       expect(typeof result.current.resumeInterrupts).toBe('function')
-      expect(result.current.resumeState).toBeNull()
+      expect(result.current.runId).toBeNull()
+    })
+
+    it('exposes the run id while a send is in flight and clears it after', async () => {
+      // Hold the stream open after RUN_STARTED so the in-flight value can be
+      // observed, then release it and check the id is cleared on settle.
+      let release: (() => void) | undefined
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: runContext?.runId ?? 'r1',
+            threadId: runContext?.threadId ?? 't1',
+            timestamp: 1,
+          }
+          await held
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: runContext?.runId ?? 'r1',
+            threadId: runContext?.threadId ?? 't1',
+            finishReason: 'stop',
+            timestamp: 2,
+          }
+        },
+      }
+      const { result } = renderUseChat({ connection: adapter })
+
+      const send = result.current.sendMessage('hi')
+      await waitFor(() => {
+        expect(result.current.runId).toMatch(/^run-/)
+      })
+
+      await act(async () => {
+        release?.()
+        await send
+      })
+      expect(result.current.runId).toBeNull()
     })
 
     it('rejoins an in-flight run on mount without aborting it (live off)', async () => {
@@ -2156,14 +2197,13 @@ describe('useChat', () => {
       const { result } = renderUseChat({ connection: adapter, live: true })
 
       await waitFor(() => {
-        expect(result.current.resumeState).toEqual({
-          threadId: 'thread-live',
-          runId: 'run-live-interrupt',
-        })
         expect(result.current.pendingInterrupts).toEqual([
           expect.objectContaining({ id: 'interrupt-live' }),
         ])
       })
+      // A run this client never started (it arrived over the subscription) is
+      // not this client's to cancel, and a paused run is not in flight either.
+      expect(result.current.runId).toBeNull()
     })
 
     it('should expose sessionGenerating and update from stream run events', async () => {

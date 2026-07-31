@@ -14,9 +14,12 @@ import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AIPersistence,
+  ArtifactStore,
+  BlobStore,
   ChatPersistence,
   ChatTranscriptPersistence,
   ChatTranscriptStores,
+  GenerationRunStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -33,6 +36,7 @@ declare const replacementRuns: RunStore & {
 }
 declare const interrupts: InterruptStore
 declare const metadata: MetadataStore
+declare const generationRuns: GenerationRunStore
 declare const locks: LockStore
 
 const messagesOnly = defineAIPersistence({ stores: { messages } })
@@ -123,8 +127,18 @@ const uncertainInherited = composePersistence(base, {
 })
 expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 
-// Named shapes
-expectTypeOf(memoryPersistence()).toEqualTypeOf<ChatPersistence>()
+// Named shapes — memoryPersistence now includes generation stores too
+expectTypeOf(memoryPersistence()).toEqualTypeOf<
+  AIPersistence<{
+    messages: MessageStore
+    runs: RunStore
+    generationRuns: GenerationRunStore
+    interrupts: InterruptStore
+    metadata: MetadataStore
+    artifacts: ArtifactStore
+    blobs: BlobStore
+  }>
+>()
 const transcript: ChatTranscriptPersistence = messagesOnly
 void transcript
 declare const fullChat: ChatPersistence
@@ -138,10 +152,27 @@ withPersistence(defineAIPersistence({ stores: { runs } }))
 // @ts-expect-error a known interrupt store requires a known run store
 withPersistence(defineAIPersistence({ stores: { interrupts, messages } }))
 
-// Generation requires runs
-withGenerationPersistence(defineAIPersistence({ stores: { runs } }))
-// @ts-expect-error generation persistence requires runs
-withGenerationPersistence(messagesOnly)
+// Generation requires generationRuns
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }), {
+  threadId: 'scope',
+})
+// @ts-expect-error generation persistence requires generationRuns
+withGenerationPersistence(messagesOnly, { threadId: 'scope' })
+// @ts-expect-error a runs store alone does not satisfy generation persistence
+withGenerationPersistence(defineAIPersistence({ stores: { runs } }), {
+  threadId: 'scope',
+})
+
+// The scope is resolved at call time, not in the type: the middleware takes
+// `opts.threadId ?? ctx.threadId`, so the usual case is an activity that
+// carries its own `threadId` and a middleware given no options at all. Both the
+// options object and its `threadId` are therefore optional, and options without
+// a `threadId` are legal too. Supplying neither is caught at `onStart` — see
+// "throws when no threadId is available" in tests/generation-artifacts.test.ts.
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }), {
+  artifactUrl: () => undefined,
+})
+withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }))
 
 const chatWithRemovedRuns = composePersistence(base, {
   overrides: { runs: false },

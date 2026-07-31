@@ -214,8 +214,32 @@ function wakeWaiters(log: MemoryLog): void {
 }
 
 /**
+ * Explicit construction for {@link memoryStream}, for callers that don't have
+ * the incoming `Request` — e.g. a TanStack Start server function implementing
+ * a `joinRun` replay for a run id it received as call data:
+ *
+ * ```ts
+ * const durability = memoryStream({ runId })
+ * for await (const chunk of replayRunStream(durability)) yield chunk
+ * ```
+ */
+export interface MemoryStreamInit {
+  /** The run this durability adapter attaches to. */
+  runId: string
+  /**
+   * Resume offset captured by the consumer (`resumeFrom()` returns it).
+   * Defaults to `null` (a producer / from-start reader).
+   */
+  offset?: string | null
+}
+
+/**
  * The zero-infrastructure delivery-durability backend. Its versioned cursor is
  * deliberately private: callers and core only pass the returned string back.
+ *
+ * Construct from the incoming `Request` (HTTP transports) or from an explicit
+ * {@link MemoryStreamInit} (server functions / direct calls that already know
+ * the run id).
  *
  * Logs live in a process-global map, so this backend is for development, tests,
  * and single-process deployments only. Completed runs are evicted after a grace
@@ -223,11 +247,17 @@ function wakeWaiters(log: MemoryLog): void {
  * run fails loudly rather than hanging.
  */
 export function memoryStream(
-  request: Request,
+  source: Request | MemoryStreamInit,
   options: MemoryStreamOptions = {},
 ): StreamDurability {
-  const resumeOffset = readResumeOffset(request)
-  const runId = resolveMemoryRunId(request, resumeOffset)
+  const resumeOffset =
+    source instanceof Request
+      ? readResumeOffset(source)
+      : (source.offset ?? null)
+  const runId =
+    source instanceof Request
+      ? resolveMemoryRunId(source, resumeOffset)
+      : assertValidRunId(source.runId)
   const firstChunkDeadlineMs =
     options.firstChunkDeadlineMs ?? DEFAULT_FIRST_CHUNK_DEADLINE_MS
 
@@ -344,5 +374,43 @@ export function memoryStream(
         })
       }
     },
+  }
+}
+
+/**
+ * Replay a run's delivery-durability log as a bare stream of chunks, for
+ * callers that serve a `joinRun` handler without an HTTP `Response` — e.g. a
+ * TanStack Start server function returning an async iterable:
+ *
+ * ```ts
+ * async function* joinImageRun({ data: runId }: { data: string }) {
+ *   yield* replayRunStream(memoryStream({ runId }))
+ * }
+ *
+ * // Serve it from a server function whose handler is the generator above
+ * // (`createServerFn({ method: 'GET' }).inputValidator(...)`).
+ * ```
+ *
+ * NOTE: the example deliberately declares the generator separately instead of
+ * inlining it into the server-fn builder chain. TanStack Start's server-fn
+ * Vite plugin decides whether a module needs compiling by regex-matching the
+ * SOURCE for a dotted `handler(` call, and JSDoc survives into `dist` — an
+ * inlined chain here would make every Start app treat this package as a
+ * server-fn module and try to resolve its framework's `@tanstack/*-start`
+ * package, failing the build wherever that framework is not the one installed.
+ *
+ * Reads from `offset` (default `'-1'` — from the start) and tails until the
+ * producer closes the log or `signal` aborts, exactly like the HTTP
+ * `resumeServerSentEventsResponse` path.
+ */
+export async function* replayRunStream<TOffset extends string>(
+  durability: StreamDurability<TOffset>,
+  offset?: TOffset,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  // '-1' is the from-start replay sentinel every shipped backend honors.
+  const from = offset ?? ('-1' as TOffset)
+  for await (const { chunk } of durability.read(from, signal)) {
+    yield chunk
   }
 }

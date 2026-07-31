@@ -299,7 +299,7 @@ const gen = createGeneration({
 
 **Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `updateBody` -- all state properties are reactive getters.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`, `updateBody` -- all state properties are reactive getters.
 
 ### `createGenerateImage(options)`
 

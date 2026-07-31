@@ -1,4 +1,9 @@
-import type { ModelMessage, Scope, TokenUsage } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  PersistedArtifactRef,
+  Scope,
+  TokenUsage,
+} from '@tanstack/ai'
 
 // Re-export the shared identity type so app code can import Scope from either
 // `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
@@ -38,9 +43,10 @@ export type { Scope }
 //
 // TIMESTAMP CONVENTION
 // --------------------
-// Store *records* (`RunRecord`, `InterruptRecord`) speak **epoch
-// milliseconds** (`number`), the native unit for SQL/`BIGINT` columns and
-// `Date.now()`. Wire/result references that leave the persistence layer speak
+// Store *records* (`RunRecord`, `InterruptRecord`, `ArtifactRecord`,
+// `BlobRecord`) speak **epoch milliseconds** (`number`), the native unit for
+// SQL/`BIGINT` columns and `Date.now()`. Wire/result references that leave the
+// persistence layer (e.g. core's `PersistedArtifactRef.createdAt`) speak
 // **ISO-8601 strings**. The middleware performs the number→ISO conversion at
 // the boundary; do not mix the two on a single field.
 
@@ -80,12 +86,19 @@ export interface MessageStore {
 export type RunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
 /**
- * A single **chat** run (one agent turn within a conversation).
+ * A single **chat** run: one `RUN_STARTED` → `RUN_FINISHED` cycle of the
+ * AG-UI protocol, persisted.
+ *
+ * A run is NOT a conversational turn, in either direction. It contains many
+ * agent-loop turns (each tool-call cycle is a turn whose text accumulates
+ * separately), and one user-visible turn may span several runs, because
+ * resuming after an interrupt mints a fresh `runId` — which is why
+ * {@link RunStore.findActiveRun} reconnects from the stable `threadId` rather
+ * than a run id.
  *
  * `threadId` is the conversation key ({@link Scope.threadId}) — never a
- * generation `requestId`. Generation jobs must not reuse this record by
- * faking `threadId = requestId`; they need a separate job store (see
- * `withGenerationPersistence` JSDoc).
+ * generation `requestId`. Generation runs do not use this record; they have
+ * their own {@link GenerationRunRecord}.
  *
  * @property startedAt - Epoch ms when the run was first created.
  * @property finishedAt - Epoch ms when the run reached a terminal status.
@@ -147,6 +160,110 @@ export interface RunStore {
    * `null` is also the correct answer when nothing is running.
    */
   findActiveRun: (threadId: string) => Promise<RunRecord | null>
+}
+
+/**
+ * Lifecycle status of a generation run. Deliberately the same vocabulary as
+ * {@link RunStatus}, so an adapter that stores both kinds of run can share one
+ * status column and one set of checks.
+ */
+export type GenerationRunStatus = RunStatus
+
+/**
+ * A single generation run (one `generateImage` / `generateVideo` / … call).
+ *
+ * Its primary identity is `runId`: the run/request id the activity mints, the
+ * same AG-UI run id the client sends on the wire. `threadId` is the SLOT the
+ * run fills, a stable app-chosen name that groups successive runs of the same
+ * thing, and it is what a server-driven client hydrates by. Generation state is
+ * kept here, never in the chat {@link RunStore}.
+ *
+ * `result` holds terminal result METADATA (ids, model, urls, a provider video
+ * job id), never the media bytes — those live in a {@link BlobStore}.
+ * `artifacts` are the durable {@link PersistedArtifactRef}s, present only when
+ * byte storage is on.
+ *
+ * @property startedAt - Epoch ms when the run was first created.
+ * @property finishedAt - Epoch ms when the run reached a terminal status.
+ */
+export interface GenerationRunRecord {
+  runId: string
+  /**
+   * The scope this run belongs to: a stable, app-chosen name for the slot
+   * successive runs fill (`product-123-hero`, `video-9-start-frame`).
+   *
+   * REQUIRED, per the store-contract rule at the top of this file.
+   * {@link GenerationRunStore.findLatestForThread} is the only query that
+   * hydrates a run, and it keys on this — so a record without one can be
+   * written and then never found again. `withGenerationPersistence` already
+   * refuses to start a run without a scope, and a server-driven client
+   * discards a snapshot that arrives without one, so an optional field here
+   * only described a record no path could produce and no client would accept.
+   */
+  threadId: string
+  /** `'image' | 'audio' | 'tts' | 'video' | 'transcription'`. */
+  activity: string
+  provider: string
+  model: string
+  status: GenerationRunStatus
+  startedAt: number
+  finishedAt?: number
+  error?: { message: string; code?: string }
+  /** Terminal result metadata (ids, model, urls). Never the media bytes. */
+  result?: unknown
+  /** Durable artifact references, when an artifacts + blobs backend is used. */
+  artifacts?: Array<PersistedArtifactRef>
+  usage?: TokenUsage
+}
+
+/**
+ * Durable store for generation run records, the generation counterpart to
+ * {@link RunStore}. Keyed by its own `runId`, with `threadId` the slot
+ * {@link GenerationRunStore.findLatestForThread} looks runs up by.
+ */
+export interface GenerationRunStore {
+  /**
+   * Create a run record, or return the existing one if `runId` is already
+   * present (resume).
+   *
+   * INVARIANT (idempotency): a second call for a `runId` returns the existing
+   * record unchanged; `startedAt`/`activity`/`provider`/`model`/`threadId` are
+   * not mutated. `status` defaults to `'running'` on first creation.
+   */
+  createOrResume: (
+    input: Pick<
+      GenerationRunRecord,
+      'runId' | 'threadId' | 'activity' | 'provider' | 'model' | 'startedAt'
+    > & { status?: GenerationRunStatus },
+  ) => Promise<GenerationRunRecord>
+  /**
+   * Patch a run record's mutable fields.
+   *
+   * INVARIANT: patching a `runId` that does not exist is a **no-op** — it must
+   * not throw and must not create a record.
+   */
+  update: (
+    runId: string,
+    patch: Partial<
+      Pick<
+        GenerationRunRecord,
+        'status' | 'finishedAt' | 'error' | 'result' | 'artifacts' | 'usage'
+      >
+    >,
+  ) => Promise<void>
+  /** Return the run record for `runId`, or `null` if none exists. */
+  get: (runId: string) => Promise<GenerationRunRecord | null>
+  /**
+   * The most recent run linked to `threadId`, or `null`.
+   *
+   * REQUIRED, per the store-contract rule at the top of this file: a
+   * server-authoritative client hydrates by the stable thread id on every
+   * mount, so an adapter without this would be indistinguishable from one that
+   * legitimately has no run — `persistence: true` would silently restore
+   * nothing, forever. `null` is the correct answer only when the thread really
+   * has no runs. The chat parallel is {@link RunStore.findActiveRun}.
+   */
+  findLatestForThread: (threadId: string) => Promise<GenerationRunRecord | null>
 }
 
 /** Lifecycle status of a human-in-the-loop interrupt. */
@@ -289,6 +406,163 @@ export function defineInterruptStore(store: InterruptStore): InterruptStore {
 export function defineMetadataStore(store: MetadataStore): MetadataStore {
   return store
 }
+/** Type a {@link GenerationRunStore} implementation inline. */
+export function defineGenerationRunStore(
+  store: GenerationRunStore,
+): GenerationRunStore {
+  return store
+}
+/** Type an {@link ArtifactStore} implementation inline. */
+export function defineArtifactStore(store: ArtifactStore): ArtifactStore {
+  return store
+}
+/** Type a {@link BlobStore} implementation inline. */
+export function defineBlobStore(store: BlobStore): BlobStore {
+  return store
+}
+
+/**
+ * Metadata row describing a persisted artifact (generated media, tool output).
+ *
+ * The bytes themselves live in a {@link BlobStore}; this record holds the
+ * descriptive metadata and an optional `sourceUrl` for reference-only
+ * backends.
+ *
+ * @property createdAt - Epoch ms. (Core's wire-facing `PersistedArtifactRef`
+ *   exposes the same instant as an ISO string; see the timestamp convention.)
+ */
+export interface ArtifactRecord {
+  artifactId: string
+  runId: string
+  threadId: string
+  /**
+   * The blob-store key these bytes actually live under.
+   *
+   * Optional for backwards compatibility: records written before this existed
+   * resolve via the default `artifacts/<runId>/<artifactId>` convention. New
+   * records always carry it, which is what lets `storageKey` put bytes anywhere
+   * — a reader can no longer recompute the path, so it has to be remembered.
+   * Use `resolveArtifactBlobKey(record)` rather than reading it directly.
+   */
+  blobKey?: string
+  name: string
+  mimeType: string
+  size: number
+  sourceUrl?: string
+  createdAt: number
+}
+
+/** Durable store for artifact metadata records. */
+export interface ArtifactStore {
+  /** Insert or overwrite the artifact metadata record. */
+  save: (record: ArtifactRecord) => Promise<void>
+  /** Return the artifact for `artifactId`, or `null` if none exists. */
+  get: (artifactId: string) => Promise<ArtifactRecord | null>
+  /** All artifacts for a run. Returns `[]` when the run has none. */
+  list: (runId: string) => Promise<Array<ArtifactRecord>>
+  /**
+   * Delete a single artifact by id. A no-op if absent, mirroring
+   * {@link BlobStore.delete} — the two are written and deleted as a pair, so
+   * their contracts match.
+   */
+  delete: (artifactId: string) => Promise<void>
+  /**
+   * Delete every artifact belonging to `runId`. A no-op when the run has none.
+   *
+   * Required rather than feature-detected: retention and erasure are the point
+   * of storing media durably, and an adapter silently lacking deletion is
+   * indistinguishable from one where there was nothing to delete.
+   */
+  deleteForRun: (runId: string) => Promise<void>
+}
+
+/**
+ * Accepted body shapes for {@link BlobStore.put}. `ArrayBufferView` already
+ * covers `Uint8Array` and every other typed-array/`DataView`, so no separate
+ * `Uint8Array` member is needed.
+ */
+export type BlobBody =
+  | ReadableStream<Uint8Array>
+  | ArrayBuffer
+  | ArrayBufferView
+  | string
+  | Blob
+
+/**
+ * Metadata for a stored blob.
+ *
+ * @property size - Byte length, when known.
+ * @property createdAt - Epoch ms first written.
+ * @property updatedAt - Epoch ms last overwritten.
+ */
+export interface BlobRecord {
+  key: string
+  size?: number
+  etag?: string
+  contentType?: string
+  customMetadata?: Record<string, string>
+  createdAt?: number
+  updatedAt?: number
+}
+
+/** A stored blob's metadata plus lazy accessors for its bytes. */
+export interface BlobObject extends BlobRecord {
+  arrayBuffer: () => Promise<ArrayBuffer>
+  text: () => Promise<string>
+  body?: ReadableStream<Uint8Array>
+}
+
+/**
+ * One page of a {@link BlobStore.list} scan.
+ *
+ * @property cursor - Opaque continuation token; present only when `truncated`.
+ * @property truncated - `true` when more objects match beyond this page.
+ */
+export interface BlobListPage {
+  objects: Array<BlobRecord>
+  cursor?: string
+  truncated?: boolean
+}
+
+export interface BlobPutOptions {
+  contentType?: string
+  customMetadata?: Record<string, string>
+}
+
+export interface BlobListOptions {
+  prefix?: string
+  cursor?: string
+  limit?: number
+}
+
+/** Durable object/blob store (byte-storing or reference-only backends). */
+export interface BlobStore {
+  /** Insert or overwrite the object at `key`, returning its metadata. */
+  put: (
+    key: string,
+    body: BlobBody,
+    options?: BlobPutOptions,
+  ) => Promise<BlobRecord>
+  /** Return the object at `key` (metadata + byte accessors), or `null`. */
+  get: (key: string) => Promise<BlobObject | null>
+  /** Return only the metadata for `key`, or `null`. */
+  head: (key: string) => Promise<BlobRecord | null>
+  /** Remove the object at `key`. A no-op if absent. */
+  delete: (key: string) => Promise<void>
+  /**
+   * List objects, optionally filtered by `prefix`, in ascending key order.
+   *
+   * CURSOR SEMANTICS: `prefix` matches literally and case-sensitively (SQL
+   * backends must escape LIKE metacharacters, so `run_` matches only the exact
+   * bytes `run_`, not `_` as a wildcard). When `limit` is given and more keys
+   * match, the page is `truncated: true` with a `cursor`; passing that `cursor`
+   * back returns the strictly-following keys (keys `> cursor`). Cursor ordering
+   * is the same byte ordering as the sort, so paging visits every key exactly
+   * once with no gaps or repeats. `limit: 0` yields an empty, untruncated page
+   * with no cursor.
+   */
+  list: (options?: BlobListOptions) => Promise<BlobListPage>
+}
 
 /**
  * Sparse bag of **state** store keys — composition / validation only.
@@ -306,6 +580,9 @@ export interface AIPersistenceStores {
   runs?: RunStore
   interrupts?: InterruptStore
   metadata?: MetadataStore
+  generationRuns?: GenerationRunStore
+  artifacts?: ArtifactStore
+  blobs?: BlobStore
 }
 
 /**
@@ -476,8 +753,11 @@ export type ComposedAIPersistenceStores<
 const storeKeys = [
   'messages',
   'runs',
+  'generationRuns',
   'interrupts',
   'metadata',
+  'artifacts',
+  'blobs',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)
@@ -512,15 +792,24 @@ export function validateChatPersistenceStores(
 }
 
 /**
- * Generation middleware entrypoint rule: `runs` is required (run lifecycle is
- * the only generation state this middleware tracks).
+ * Generation middleware entrypoint rule: `generationRuns` is required (the
+ * generation run lifecycle is keyed on its own `runId`, not a chat conversation
+ * `threadId`). When artifact persistence is used, `artifacts` and `blobs` must
+ * be provided together.
  */
 export function validateGenerationPersistenceStores(
   persistence: AIPersistence,
 ): void {
   validatePersistenceStoreKeys(persistence)
-  if (!persistence.stores.runs) {
-    throw new Error('Generation persistence requires stores.runs.')
+  const hasArtifacts = persistence.stores.artifacts !== undefined
+  const hasBlobs = persistence.stores.blobs !== undefined
+  if (hasArtifacts !== hasBlobs) {
+    throw new Error(
+      'Generation artifact persistence requires both stores.artifacts and stores.blobs.',
+    )
+  }
+  if (!persistence.stores.generationRuns) {
+    throw new Error('Generation persistence requires stores.generationRuns.')
   }
 }
 
@@ -533,6 +822,21 @@ export function validateReconstructChatStores(
   validatePersistenceStoreKeys(persistence)
   if (!persistence.stores.messages) {
     throw new Error('reconstructChat requires stores.messages.')
+  }
+}
+
+/**
+ * Server hydrate entrypoint rule for generation: `generationRuns` is required.
+ * The run store resolves the latest generation for a thread (or a specific run
+ * id), so a server-authoritative client can hydrate the last generation's
+ * status, result, and artifact refs on load.
+ */
+export function validateReconstructGenerationStores(
+  persistence: AIPersistence,
+): void {
+  validatePersistenceStoreKeys(persistence)
+  if (!persistence.stores.generationRuns) {
+    throw new Error('reconstructGeneration requires stores.generationRuns.')
   }
 }
 

@@ -162,6 +162,41 @@ describe('ChatClient resume', () => {
     expect(client.getResumeState()).toBeNull()
   })
 
+  it('reports the current run id for an ordinary run and clears it on finish', async () => {
+    const seen: Array<string | null> = []
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        runStarted,
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      onRunIdChange: (runId) => seen.push(runId),
+    })
+    expect(client.getCurrentRunId()).toBeNull()
+
+    await client.append({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+      createdAt: new Date(),
+    })
+
+    // A run with no interrupt leaves no resume state, but its id was still
+    // reported while it was in flight, then cleared when it settled.
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getCurrentRunId()).toBeNull()
+    expect(seen).toEqual([contexts[0]?.runId, null])
+  })
+
   it('preserves resume state and tracks pending interrupts on interrupt terminal', async () => {
     const { adapter } = recordingAdapter([
       (ctx) => [

@@ -88,10 +88,10 @@ function createWebStoragePersistence<TValue>(
  * adapter can be constructed safely on the server.
  *
  * The `serialize` / `deserialize` codec defaults to `JSON.stringify` /
- * `JSON.parse`, so the common case needs no codec. `TValue` defaults to
- * {@link ChatPersistedState}, so `localStoragePersistence()` drops straight into
- * the `persistence` option with no type argument. Pass a codec only for values
- * JSON can't round-trip losslessly, and a type argument for non-chat storage.
+ * `JSON.parse`, so the common case needs no codec. `TValue` defaults to the
+ * chat persisted-state shape — the only `persistence` option that takes an
+ * adapter — so `localStoragePersistence()` needs no type argument. Pass an
+ * explicit `TValue` for a standalone store holding something else.
  */
 export function localStoragePersistence<TValue = ChatPersistedState>(
   options: WebStoragePersistenceOptions<TValue> = {},
@@ -102,7 +102,7 @@ export function localStoragePersistence<TValue = ChatPersistedState>(
 /**
  * A `ChatStorageAdapter` backed by `window.sessionStorage` (scoped to the tab
  * and cleared when it closes). Identical to {@link localStoragePersistence} in
- * every other respect: `ChatPersistedState` default `TValue`, `tanstack-ai:`
+ * every other respect: chat persisted-state default `TValue`, `tanstack-ai:`
  * default `keyPrefix`, lazy per-operation {@link StorageUnavailableError} on
  * SSR, and a JSON codec that defaults to `JSON.stringify` / `JSON.parse`.
  */
@@ -121,7 +121,8 @@ export function sessionStoragePersistence<TValue = ChatPersistedState>(
  *
  * No serialize/deserialize codec is needed or accepted — values are stored via
  * IndexedDB's native structured clone, so `Date`, `Map`, `ArrayBuffer`, etc.
- * round-trip without a JSON step. `TValue` defaults to {@link ChatPersistedState}.
+ * round-trip without a JSON step. `TValue` defaults to the chat persisted-state
+ * shape; pass an explicit one for a standalone store holding something else.
  */
 export function indexedDBPersistence<TValue = ChatPersistedState>(
   options: IndexedDBPersistenceOptions = {},

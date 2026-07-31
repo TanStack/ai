@@ -1,4 +1,6 @@
 import type {
+  GenerationRunRecord,
+  GenerationRunStore,
   InterruptStore,
   MessageStore,
   MetadataStore,
@@ -44,6 +46,39 @@ export function createRunStore(): RunStore {
         .filter((run) => run.threadId === threadId && run.status === 'running')
         .sort((a, b) => b.startedAt - a.startedAt)
       return Promise.resolve(active[0] ?? null)
+    },
+  }
+}
+
+export function createGenerationRunStore(): GenerationRunStore {
+  const generationRuns = new Map<string, GenerationRunRecord>()
+  return {
+    createOrResume: (input) => {
+      const existing = generationRuns.get(input.runId)
+      if (existing) return Promise.resolve(existing)
+      const record: GenerationRunRecord = {
+        runId: input.runId,
+        threadId: input.threadId,
+        activity: input.activity,
+        provider: input.provider,
+        model: input.model,
+        status: input.status ?? 'running',
+        startedAt: input.startedAt,
+      }
+      generationRuns.set(record.runId, record)
+      return Promise.resolve(record)
+    },
+    update: (runId, patch) => {
+      const existing = generationRuns.get(runId)
+      if (existing) generationRuns.set(runId, { ...existing, ...patch })
+      return Promise.resolve()
+    },
+    get: (runId) => Promise.resolve(generationRuns.get(runId) ?? null),
+    findLatestForThread: (threadId) => {
+      const linked = [...generationRuns.values()]
+        .filter((run) => run.threadId === threadId)
+        .sort((a, b) => b.startedAt - a.startedAt)
+      return Promise.resolve(linked[0] ?? null)
     },
   }
 }
