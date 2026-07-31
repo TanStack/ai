@@ -2,10 +2,11 @@ import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
-  BYTEPLUS_ARK_BASE_URL,
   bytePlusArkError,
   bytePlusArkHeaders,
   getBytePlusArkApiKeyFromEnv,
+  readJsonBody,
+  toHeaderRecord,
   withBytePlusArkDefaults,
 } from '../utils/client'
 import { getBytePlusVideoDurationOptions } from '../model-meta'
@@ -63,43 +64,6 @@ const TASKS_PATH = '/contents/generations/tasks'
 const VIDEO_URL_TTL_MS = 24 * 60 * 60 * 1000
 
 /**
- * Normalizes the OpenAI-shaped `defaultHeaders` config field (which accepts a
- * `Headers` instance, an entry list, or a record with nullable values) into
- * the plain record the Ark header builder takes. Non-string values are
- * dropped rather than serialized.
- */
-function toHeaderRecord(headers: unknown): Record<string, string> {
-  const record: Record<string, string> = {}
-  if (!headers) return record
-
-  if (headers instanceof Headers) {
-    headers.forEach((value, key) => {
-      record[key] = value
-    })
-    return record
-  }
-
-  if (Array.isArray(headers)) {
-    for (const pair of headers) {
-      if (!Array.isArray(pair)) continue
-      const [key, value] = pair
-      if (typeof key === 'string' && typeof value === 'string') {
-        record[key] = value
-      }
-    }
-    return record
-  }
-
-  if (typeof headers === 'object') {
-    for (const [key, value] of Object.entries(headers)) {
-      if (typeof value === 'string') record[key] = value
-    }
-  }
-
-  return record
-}
-
-/**
  * Converts a media prompt part into the URL string Seedance's `content[]`
  * takes: public URLs pass through (BytePlus fetches them server-side), data
  * sources become base64 data URIs.
@@ -114,17 +78,6 @@ function mediaPartToUrl(
   if (source.type === 'url') return source.value
   if (source.value.startsWith('data:')) return source.value
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`
-}
-
-/** Reads a response body as JSON, falling back to raw text for error pages. */
-async function readJsonBody(response: Response): Promise<unknown> {
-  const text = await response.text()
-  if (!text) return undefined
-  try {
-    return JSON.parse(text)
-  } catch {
-    return text
-  }
 }
 
 /** Coerces a usage count that the API types as a string but sends as a number. */
@@ -228,17 +181,14 @@ export class BytePlusVideoAdapter<
 > {
   readonly name = 'byteplus' as const
 
-  private readonly clientConfig: BytePlusVideoConfig
-  /** Ark base URL, trailing slashes trimmed so path joins stay single-slashed. */
-  private readonly baseURL: string
+  /** Config with the Ark base URL resolved and its trailing slashes trimmed. */
+  private readonly clientConfig: Omit<BytePlusVideoConfig, 'baseURL'> & {
+    baseURL: string
+  }
 
   constructor(config: BytePlusVideoConfig, model: TModel) {
     super({}, model)
     this.clientConfig = withBytePlusArkDefaults(config)
-    this.baseURL = (this.clientConfig.baseURL ?? BYTEPLUS_ARK_BASE_URL).replace(
-      /\/+$/,
-      '',
-    )
   }
 
   private async request(
@@ -246,7 +196,7 @@ export class BytePlusVideoAdapter<
     init?: Omit<RequestInit, 'headers'>,
   ): Promise<{ response: Response; body: unknown }> {
     const fetchImpl = this.clientConfig.fetch ?? fetch
-    const response = await fetchImpl(`${this.baseURL}${path}`, {
+    const response = await fetchImpl(`${this.clientConfig.baseURL}${path}`, {
       ...init,
       headers: bytePlusArkHeaders(
         this.clientConfig.apiKey,
@@ -267,8 +217,12 @@ export class BytePlusVideoAdapter<
     const content: Array<BytePlusVideoContentPart> = []
     if (resolved.text) content.push({ type: 'text', text: resolved.text })
 
-    let frameRoles = 0
-    let referenceRoles = 0
+    let firstFrames = 0
+    let lastFrames = 0
+    // Audio counts as a reference for the mode-exclusivity check but not for
+    // the "audio can't be the only reference" rule, which wants a visual.
+    let visualReferences = 0
+    let audioReferences = 0
 
     for (const part of resolved.images) {
       const role = part.metadata?.role
@@ -287,7 +241,7 @@ export class BytePlusVideoAdapter<
                 `'end_frame' image or switch to a model with first-and-last-frame support.`,
             )
           }
-          frameRoles++
+          lastFrames++
           content.push({
             type: 'image_url',
             image_url: { url: mediaPartToUrl(part) },
@@ -304,7 +258,7 @@ export class BytePlusVideoAdapter<
                 `'start_frame' / 'end_frame' images instead.`,
             )
           }
-          referenceRoles++
+          visualReferences++
           content.push({
             type: 'image_url',
             image_url: { url: mediaPartToUrl(part) },
@@ -316,7 +270,7 @@ export class BytePlusVideoAdapter<
         // default and the fal / Veo adapters' positional convention.
         case 'start_frame':
         case undefined: {
-          frameRoles++
+          firstFrames++
           content.push({
             type: 'image_url',
             image_url: { url: mediaPartToUrl(part) },
@@ -337,7 +291,7 @@ export class BytePlusVideoAdapter<
             `video is available on the Seedance 2.0 family only.`,
         )
       }
-      referenceRoles++
+      visualReferences++
       content.push({
         type: 'video_url',
         video_url: { url: mediaPartToUrl(part) },
@@ -352,6 +306,7 @@ export class BytePlusVideoAdapter<
             `audio is available on the Seedance 2.0 family only.`,
         )
       }
+      audioReferences++
       content.push({
         type: 'audio_url',
         audio_url: { url: mediaPartToUrl(part) },
@@ -359,7 +314,8 @@ export class BytePlusVideoAdapter<
       })
     }
 
-    if (frameRoles > 0 && referenceRoles > 0) {
+    const frames = firstFrames + lastFrames
+    if (frames > 0 && visualReferences + audioReferences > 0) {
       throw new Error(
         `byteplus: first/last frame inputs cannot be combined with reference ` +
           `media on model ${model}. Use either frame roles ('start_frame', ` +
@@ -368,7 +324,32 @@ export class BytePlusVideoAdapter<
       )
     }
 
-    if (resolved.audios.length > 0 && referenceRoles === 0) {
+    if (firstFrames > 1) {
+      throw new Error(
+        `byteplus: ${model} accepts at most one opening frame; received ` +
+          `${firstFrames} un-roled or 'start_frame' images. Use metadata.role ` +
+          `('end_frame', 'reference') to disambiguate the others.`,
+      )
+    }
+
+    if (lastFrames > 1) {
+      throw new Error(
+        `byteplus: ${model} accepts at most one closing frame; received ` +
+          `${lastFrames} 'end_frame' images.`,
+      )
+    }
+
+    // Seedance treats a closing frame as the second half of first-and-last-
+    // frame mode: on its own it fails with "last frame image content cannot be
+    // mixed with first frame or reference image content".
+    if (lastFrames > 0 && firstFrames === 0) {
+      throw new Error(
+        `byteplus: a closing frame needs an opening frame alongside it on ` +
+          `model ${model}. Add a 'start_frame' image, or drop the 'end_frame' role.`,
+      )
+    }
+
+    if (audioReferences > 0 && visualReferences === 0) {
       throw new Error(
         `byteplus: a reference audio input cannot be the only reference on ` +
           `model ${model}. Pair it with a reference image or video.`,

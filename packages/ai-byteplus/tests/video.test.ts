@@ -145,6 +145,37 @@ describe('createVideoJob', () => {
     })
   })
 
+  it('merges configured defaultHeaders into the request', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(
+      'seedance-1-0-pro-250528',
+      'ark-test-key',
+      { fetch: fetchMock, defaultHeaders: { 'X-Test-Id': 'video-1' } },
+    )
+
+    await adapter.createVideoJob(createOptions())
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      Authorization: 'Bearer ark-test-key',
+      'X-Test-Id': 'video-1',
+    })
+  })
+
+  it('honours a custom baseURL, trailing slashes and all', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(
+      'seedance-1-0-pro-250528',
+      'ark-test-key',
+      { fetch: fetchMock, baseURL: 'https://proxy.example.com/api/v3//' },
+    )
+
+    await adapter.createVideoJob(createOptions())
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://proxy.example.com/api/v3/contents/generations/tasks',
+    )
+  })
+
   it('splits the size template into ratio and resolution', async () => {
     const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
@@ -419,6 +450,58 @@ describe('createVideoJob content roles', () => {
         }),
       ),
     ).rejects.toThrow(/cannot be combined with reference media/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the mode mix, not the audio rule, for a frame plus audio', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [
+            imagePart('https://example.com/open.jpg', 'start_frame'),
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://x/a.mp3' },
+            },
+          ],
+        }),
+      ),
+      // Advising the caller to add another reference would still fail — the
+      // real defect is the frame/reference mix.
+    ).rejects.toThrow(/cannot be combined with reference media/)
+  })
+
+  it('rejects more than one opening frame', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [
+            imagePart('https://example.com/a.jpg'),
+            imagePart('https://example.com/b.jpg', 'start_frame'),
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/at most one opening frame; received 2/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a closing frame with no opening frame', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [imagePart('https://example.com/close.jpg', 'end_frame')],
+        }),
+      ),
+    ).rejects.toThrow(/closing frame needs an opening frame/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
