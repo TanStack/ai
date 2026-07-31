@@ -77,7 +77,7 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 | Run unit tests (affected)     | `pnpm test:lib`     |
 | Watch unit tests              | `pnpm test:lib:dev` |
 | Type-check (affected)         | `pnpm test:types`   |
-| Lint (affected)               | `pnpm test:eslint`  |
+| Lint (affected)               | `pnpm test:oxlint`  |
 | Verify build artifacts        | `pnpm test:build`   |
 | Format the repo               | `pnpm format`       |
 | Build (affected)              | `pnpm build`        |
@@ -135,7 +135,7 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not �
 
 - Place tests under `packages/<pkg>/tests/` with the suffix `.test.ts` (or `.test.tsx` for JSX).
 - Vitest's defaults discover anything matching `**/*.{test,spec}.?(c|m)[jt]s?(x)` — no per-package config is needed.
-- Tests are typechecked by `tsc` and linted by ESLint.
+- Tests are typechecked by `tsc` and linted by oxlint.
 
 ## Adding E2E test coverage (required)
 
@@ -195,9 +195,11 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 
 1. Push your branch and open a PR against `main`.
 2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
-3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
+3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, oxlint, unit tests, typecheck, build artifacts, build), the `Coverage` regression gate, and the full E2E suite.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
+
+The PR template lists the steps. The `Test plan` section is required — describe how a reviewer can verify your change.
 
 ### Automated Grok review
 
