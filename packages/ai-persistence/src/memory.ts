@@ -74,19 +74,19 @@ class MemoryGenerationRunStore implements GenerationRunStore {
   createOrResume(
     input: Pick<
       GenerationRunRecord,
-      'runId' | 'activity' | 'provider' | 'model' | 'startedAt'
-    > & { threadId?: string; status?: GenerationRunRecord['status'] },
+      'runId' | 'threadId' | 'activity' | 'provider' | 'model' | 'startedAt'
+    > & { status?: GenerationRunRecord['status'] },
   ): Promise<GenerationRunRecord> {
     const existing = this.generationRuns.get(input.runId)
     if (existing) return Promise.resolve(existing)
     const record: GenerationRunRecord = {
       runId: input.runId,
+      threadId: input.threadId,
       activity: input.activity,
       provider: input.provider,
       model: input.model,
       status: input.status ?? 'running',
       startedAt: input.startedAt,
-      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
     }
     this.generationRuns.set(record.runId, record)
     return Promise.resolve(record)

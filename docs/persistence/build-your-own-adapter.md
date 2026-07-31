@@ -615,7 +615,7 @@ These are three more tables alongside the four from the schema in step 1:
 ```sql
 CREATE TABLE IF NOT EXISTS generation_runs (
   run_id text PRIMARY KEY NOT NULL,
-  thread_id text,
+  thread_id text NOT NULL,
   activity text NOT NULL,
   provider text NOT NULL,
   model text NOT NULL,
@@ -688,7 +688,7 @@ function toGenerationRunStatus(value: unknown): GenerationRunStatus {
 function mapGenerationRun(row: Record<string, unknown>): GenerationRunRecord {
   return {
     runId: String(row.run_id),
-    ...(typeof row.thread_id === 'string' ? { threadId: row.thread_id } : {}),
+    threadId: String(row.thread_id),
     activity: String(row.activity),
     provider: String(row.provider),
     model: String(row.model),
@@ -729,7 +729,7 @@ function createGenerationRunStore(db: DatabaseSync) {
       const status: GenerationRunStatus = input.status ?? 'running'
       insert.run(
         input.runId,
-        input.threadId ?? null,
+        input.threadId,
         input.activity,
         input.provider,
         input.model,
@@ -738,12 +738,12 @@ function createGenerationRunStore(db: DatabaseSync) {
       )
       return {
         runId: input.runId,
+        threadId: input.threadId,
         activity: input.activity,
         provider: input.provider,
         model: input.model,
         status,
         startedAt: input.startedAt,
-        ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       }
     },
     async update(runId, patch) {
@@ -1367,7 +1367,7 @@ type GenerationRunStatus = 'running' | 'completed' | 'failed' | 'interrupted'
 
 interface GenerationRunRecord {
   runId: string
-  threadId?: string // the slot this run fills, hydrated by findLatestForThread
+  threadId: string // the slot this run fills, hydrated by findLatestForThread
   activity: string // 'image' | 'audio' | 'tts' | 'video' | 'transcription'
   provider: string
   model: string
@@ -1387,7 +1387,7 @@ interface GenerationRunStore {
     provider: string
     model: string
     startedAt: number
-    threadId?: string
+    threadId: string
     status?: GenerationRunStatus
   }): Promise<GenerationRunRecord>
   update(
@@ -1400,10 +1400,11 @@ interface GenerationRunStore {
     >,
   ): Promise<void>
   get(runId: string): Promise<GenerationRunRecord | null>
-  // The most recent run linked to a thread (greatest `startedAt`), or null.
-  // Optional, but implement it: `reconstructGeneration` feature-detects it to
-  // hydrate the last generation for a thread by its stable thread id.
-  findLatestForThread?(threadId: string): Promise<GenerationRunRecord | null>
+  // The most recent run filed under a thread (greatest `startedAt`), or null.
+  // Required: it is the only query that hydrates a generation, so an adapter
+  // without it would be indistinguishable from one whose thread has no runs —
+  // `persistence: true` would silently restore nothing, forever.
+  findLatestForThread(threadId: string): Promise<GenerationRunRecord | null>
 }
 ```
 

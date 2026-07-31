@@ -57,8 +57,10 @@ the result to `withPersistence`. The core never inspects your tables.
 `messages` + optional `runs` / `interrupts` / `metadata`. Generation persistence
 keys on its own `runId` and uses `generationRuns` (required by `withGenerationPersistence`) plus an
 optional `artifacts` + `blobs` **pair** — provide both or neither — to store the
-generated media bytes at blob key `artifacts/<runId>/<artifactId>`. `threadId` on
-a generation is only an optional _link_ to a chat, never the job's identity. To
+generated media bytes at blob key `artifacts/<runId>/<artifactId>`. A generation
+run's identity is its own `runId`, but `threadId` is **required** on the record:
+it is the stable slot successive runs fill, and `findLatestForThread` — the only
+query that hydrates a run — keys on it. To
 build the R2/D1-backed byte stores for a Worker, see
 **ai-persistence/build-cloudflare-artifact-store**.
 

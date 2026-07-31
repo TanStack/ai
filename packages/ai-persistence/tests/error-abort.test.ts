@@ -318,6 +318,7 @@ describe('generation persistence error/abort hooks', () => {
 
     await persistence.stores.generationRuns.createOrResume({
       runId: 'req-abort',
+      threadId: 'thread-test',
       activity: 'image',
       provider: 'test',
       model: 'test-model',
@@ -344,6 +345,7 @@ describe('generation persistence error/abort hooks', () => {
     })
     await persistence.stores.generationRuns.createOrResume({
       runId: 'req-err',
+      threadId: 'thread-test',
       activity: 'image',
       provider: 'test',
       model: 'test-model',

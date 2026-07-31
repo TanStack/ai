@@ -17,7 +17,7 @@ import type { AIPersistence, GenerationRunRecord } from './types'
 export interface ReconstructedGeneration {
   resumeSnapshot: {
     schemaVersion: 1
-    resumeState: { threadId?: string; runId: string } | null
+    resumeState: { threadId: string; runId: string } | null
     status: 'idle' | 'running' | 'complete' | 'error'
     result?: unknown
     error?: { message: string; code?: string }
@@ -78,10 +78,7 @@ function runToSnapshot(
     schemaVersion: 1,
     resumeState:
       status === 'running'
-        ? {
-            runId: run.runId,
-            ...(run.threadId !== undefined ? { threadId: run.threadId } : {}),
-          }
+        ? { runId: run.runId, threadId: run.threadId }
         : null,
     status,
     ...(run.result !== undefined ? { result: run.result } : {}),

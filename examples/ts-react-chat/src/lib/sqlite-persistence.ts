@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 CREATE TABLE IF NOT EXISTS generation_runs (
   run_id text PRIMARY KEY NOT NULL,
-  thread_id text,
+  thread_id text NOT NULL,
   activity text NOT NULL,
   provider text NOT NULL,
   model text NOT NULL,
@@ -170,7 +170,7 @@ interface MetadataRow {
 }
 interface GenerationRunRow {
   run_id: string
-  thread_id: string | null
+  thread_id: string
   activity: string
   provider: string
   model: string
@@ -469,15 +469,16 @@ function createMetadataStore(db: DatabaseSync) {
 // GenerationRunStore — the generation counterpart to RunStore.
 // ---------------------------------------------------------------------------
 //
-// Keyed by its own `runId` (the id the generation activity mints), NOT by a
-// conversation: a generation has no thread of its own, so `thread_id` is a
-// nullable *link* back to the chat that triggered it. That asymmetry is the
-// whole reason this is a separate table from `runs` rather than a status column
-// on it.
+// Keyed by its own `runId` (the id the generation activity mints), with
+// `thread_id` the stable slot successive runs fill. `thread_id` is NOT NULL:
+// `findLatestForThread` is the only query that hydrates a run, so a row without
+// one could be written and then never read back. This stays a separate table
+// from `runs` rather than a status column on it because a generation run
+// carries its own activity/provider/model and its own artifacts.
 function mapGenerationRun(row: GenerationRunRow): GenerationRunRecord {
   return {
     runId: row.run_id,
-    ...(row.thread_id != null ? { threadId: row.thread_id } : {}),
+    threadId: row.thread_id,
     activity: row.activity,
     provider: row.provider,
     model: row.model,
@@ -526,7 +527,7 @@ function createGenerationRunStore(db: DatabaseSync) {
       const status: GenerationRunStatus = input.status ?? 'running'
       insertStmt.run(
         input.runId,
-        input.threadId ?? null,
+        input.threadId,
         input.activity,
         input.provider,
         input.model,
@@ -541,14 +542,12 @@ function createGenerationRunStore(db: DatabaseSync) {
           ? mapGenerationRun(created)
           : {
               runId: input.runId,
+              threadId: input.threadId,
               activity: input.activity,
               provider: input.provider,
               model: input.model,
               status,
               startedAt: input.startedAt,
-              ...(input.threadId !== undefined
-                ? { threadId: input.threadId }
-                : {}),
             },
       )
     },

@@ -326,7 +326,7 @@ const generationHydrationSchema = z.object({
       schemaVersion: z.literal(1),
       resumeState: z
         .object({
-          threadId: z.string().optional(),
+          threadId: z.string(),
           runId: z.string(),
         })
         .nullable(),

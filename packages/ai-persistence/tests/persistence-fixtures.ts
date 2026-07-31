@@ -58,12 +58,12 @@ export function createGenerationRunStore(): GenerationRunStore {
       if (existing) return Promise.resolve(existing)
       const record: GenerationRunRecord = {
         runId: input.runId,
+        threadId: input.threadId,
         activity: input.activity,
         provider: input.provider,
         model: input.model,
         status: input.status ?? 'running',
         startedAt: input.startedAt,
-        ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
       }
       generationRuns.set(record.runId, record)
       return Promise.resolve(record)

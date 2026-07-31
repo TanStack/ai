@@ -431,6 +431,7 @@ export function runPersistenceConformance(
 
         const created = await store.createOrResume({
           runId: 'gen-1',
+          threadId: 'gen-thread-1',
           activity: 'image',
           provider: 'openai',
           model: 'gpt-image-1',
@@ -444,9 +445,9 @@ export function runPersistenceConformance(
           status: 'running',
           startedAt: 1000,
         })
-        // A generation has no conversation of its own: threadId is an optional
-        // link, absent (not null/empty) when the caller did not supply one.
-        expect(created.threadId).toBeUndefined()
+        // threadId is the slot the run fills and is required: it must round-trip
+        // exactly, since findLatestForThread is the only query that finds a run.
+        expect(created.threadId).toBe('gen-thread-1')
 
         // Idempotent: the stored record comes back untouched by the new input.
         const resumed = await store.createOrResume({
@@ -464,7 +465,9 @@ export function runPersistenceConformance(
           model: 'gpt-image-1',
           startedAt: 1000,
         })
-        expect(resumed.threadId).toBeUndefined()
+        // Idempotency covers threadId too: the late scope must not overwrite the
+        // one the run was filed under.
+        expect(resumed.threadId).toBe('gen-thread-1')
 
         await store.update('gen-1', {
           status: 'completed',

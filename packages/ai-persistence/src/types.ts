@@ -190,12 +190,17 @@ export interface GenerationRunRecord {
   runId: string
   /**
    * The scope this run belongs to: a stable, app-chosen name for the slot
-   * successive runs fill (`product-123-hero`, `video-9-start-frame`), which
-   * `findLatestForThread` hydrates by. `withGenerationPersistence` requires it
-   * and always records it; the field stays optional for records written by
-   * other means.
+   * successive runs fill (`product-123-hero`, `video-9-start-frame`).
+   *
+   * REQUIRED, per the store-contract rule at the top of this file.
+   * {@link GenerationRunStore.findLatestForThread} is the only query that
+   * hydrates a run, and it keys on this — so a record without one can be
+   * written and then never found again. `withGenerationPersistence` already
+   * refuses to start a run without a scope, and a server-driven client
+   * discards a snapshot that arrives without one, so an optional field here
+   * only described a record no path could produce and no client would accept.
    */
-  threadId?: string
+  threadId: string
   /** `'image' | 'audio' | 'tts' | 'video' | 'transcription'`. */
   activity: string
   provider: string
@@ -228,8 +233,8 @@ export interface GenerationRunStore {
   createOrResume: (
     input: Pick<
       GenerationRunRecord,
-      'runId' | 'activity' | 'provider' | 'model' | 'startedAt'
-    > & { threadId?: string; status?: GenerationRunStatus },
+      'runId' | 'threadId' | 'activity' | 'provider' | 'model' | 'startedAt'
+    > & { status?: GenerationRunStatus },
   ) => Promise<GenerationRunRecord>
   /**
    * Patch a run record's mutable fields.

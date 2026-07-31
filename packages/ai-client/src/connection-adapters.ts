@@ -791,7 +791,7 @@ export interface ConnectConnectionAdapter {
 export interface GenerationHydrationResult {
   resumeSnapshot: {
     schemaVersion?: 1
-    resumeState: { threadId?: string; runId: string } | null
+    resumeState: { threadId: string; runId: string } | null
     status: 'idle' | 'running' | 'complete' | 'error'
     result?: unknown
     error?: { message: string; code?: string }

@@ -164,15 +164,21 @@ import {
 const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
-  const { input } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest('image', request)
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
+  }
+  if (threadId === undefined) {
+    throw new Error('Generation persistence requires a `threadId`.')
   }
 
   return toServerSentEventsResponse(
     generateImage({
       adapter: openaiImage('gpt-image-2'),
       prompt: input.prompt,
+      // The stable slot this run fills. Required by persistence: the run record
+      // is filed under it, and the client hydrates by it on mount.
+      threadId,
       stream: true,
       middleware: [withGenerationPersistence(persistence)],
     }),
