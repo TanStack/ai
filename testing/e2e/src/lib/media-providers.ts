@@ -21,6 +21,12 @@ import {
   createElevenLabsSpeech,
   createElevenLabsTranscription,
 } from '@tanstack/ai-elevenlabs'
+import {
+  createBytePlusImage,
+  createBytePlusSpeech,
+  createBytePlusTranscription,
+  createBytePlusVideo,
+} from '@tanstack/ai-byteplus'
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
@@ -39,6 +45,16 @@ function llmockBase(aimockPort?: number): string {
 
 function openaiUrl(aimockPort?: number): string {
   return `${llmockBase(aimockPort)}/v1`
+}
+
+/**
+ * BytePlus Ark (chat, Seedream image, Seedance video) serves its data plane
+ * under `/api/v3`. The Seed Speech adapters (TTS/ASR) are *not* on Ark — they
+ * take the bare host and append `/api/v3/...` themselves, so they get
+ * `llmockBase()` instead.
+ */
+function bytePlusArkUrl(aimockPort?: number): string {
+  return `${llmockBase(aimockPort)}/api/v3`
 }
 
 function testHeaders(testId?: string): Record<string, string> | undefined {
@@ -77,6 +93,18 @@ export function createImageAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    // Seedream posts a non-OpenAI body (`size` as a 1K/2K token, no `n`,
+    // `watermark`, `sequential_image_generation`) to /images/generations, but
+    // aimock's native handler only reads `model` + `prompt` and answers with
+    // the shared `{ created, data: [{ url }] }` envelope Seedream also uses —
+    // so the Ark path needs no mount of its own.
+    // seedream-4-0-250828 deliberately: it's the one Seedream model whose
+    // response shape was captured from a live call during Phase 0.
+    byteplus: () =>
+      createBytePlusImage('seedream-4-0-250828', DUMMY_KEY, {
+        baseURL: bytePlusArkUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No image adapter for provider: ${provider}`)
@@ -108,6 +136,14 @@ export function createTTSAdapter(
       createElevenLabsSpeech('eleven_multilingual_v2', DUMMY_KEY, {
         baseUrl: llmockBase(aimockPort),
         headers,
+      }),
+    // Seed Speech is a separate BytePlus product from Ark with its own key and
+    // its own host, so this takes the bare mock base — the adapter appends
+    // `/api/v3/tts/create`, which `byteplusTTSMount()` serves.
+    byteplus: () =>
+      createBytePlusSpeech('seed-audio-1.0', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
   }
   const factory = factories[provider]
@@ -143,6 +179,13 @@ export function createTranscriptionAdapter(
       createElevenLabsTranscription('scribe_v1', DUMMY_KEY, {
         baseUrl: llmockBase(aimockPort),
         headers,
+      }),
+    // Same Seed Speech host as the TTS adapter above; the adapter appends
+    // `/api/v3/auc/bigmodel/recognize/flash`, served by `byteplusASRMount()`.
+    byteplus: () =>
+      createBytePlusTranscription('seed-asr', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
   }
   const factory = factories[provider]
@@ -185,6 +228,13 @@ export function createVideoAdapter(
       createGeminiVideo('veo-3.1-generate-preview', DUMMY_KEY, {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       } as unknown as Parameters<typeof createGeminiVideo>[2]),
+    // Seedance's create→poll task API has no aimock equivalent, so it runs
+    // through `byteplusSeedanceMount()` on the Ark prefix.
+    byteplus: () =>
+      createBytePlusVideo('seedance-1-0-pro-fast-251015', DUMMY_KEY, {
+        baseURL: bytePlusArkUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No video adapter for provider: ${provider}`)
