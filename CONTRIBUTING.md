@@ -107,10 +107,13 @@ When a drop is intentional — deleting well-tested code, for instance — re-ba
 pnpm test:coverage:update
 ```
 
-Two known limitations:
+**The baseline is Linux numbers, because CI is the thing enforcing it.** A few packages cover different amounts on different platforms — `ai-sandbox-local-process` reads ~20pp higher on Windows, since its process-spawn code branches on platform. If you re-baseline on macOS or Windows you will commit numbers CI can't reproduce and the gate will fail for everyone. Take the values from the `Coverage` job's table on a green run instead, or re-baseline in a Linux container.
+
+Three known limitations:
 
 - Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
 - `preact-ai-devtools`, `react-ai-devtools`, and `solid-ai-devtools` have no tests and sit at 0%.
+- `ai-acp` and `ai-sandbox` have tests that fail on Windows for unrelated reasons (`EBUSY` on temp-dir unlink; a POSIX-vs-Windows path assertion), so they can't be measured there at all.
 
 ## TypeScript configuration
 
