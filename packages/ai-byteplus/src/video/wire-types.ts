@@ -288,9 +288,6 @@ export interface BytePlusVideoTaskListResponse {
   total?: number
 }
 
-/**
- * Response of `DELETE /contents/generations/tasks/{id}`, which cancels a
- * `queued` task and deletes anything already terminal. The documented success
- * body is an empty object.
- */
-export interface BytePlusVideoDeleteResponse {}
+// `DELETE /contents/generations/tasks/{id}` cancels a `queued` task and
+// deletes anything already terminal; its documented success body is an empty
+// object, so no response interface is declared for it.
