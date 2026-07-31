@@ -65,6 +65,7 @@ jobs:
       - name: Coverage for this PR
         if: steps.affected.outputs.list != ''
         run: |
+          rm -rf packages/*/coverage
           pnpm exec nx run-many --targets=test:coverage --projects="${{ steps.affected.outputs.list }}"
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
@@ -75,6 +76,10 @@ jobs:
         if: steps.affected.outputs.list != ''
         run: |
           git checkout --force --detach "$NX_BASE"
+          # coverage/ is gitignored, so the checkout leaves this PR's results in
+          # place — without this the base collection silently re-reads head's
+          # numbers and every delta comes out as 0.00.
+          rm -rf packages/*/coverage
           pnpm install --frozen-lockfile
           # Packages added by this PR do not exist on the base commit.
           printf '%s\n' "${{ steps.affected.outputs.list }}" | tr ',' '\n' | sort > /tmp/wanted
