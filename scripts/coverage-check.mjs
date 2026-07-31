@@ -1,91 +1,117 @@
-// Compares the coverage produced by `test:coverage` against the committed
-// baseline in coverage-baseline.json and fails when a package regressed.
+// Compares coverage between two runs and fails when a package regressed.
+//
+// Both sides are measured in the same CI job — the PR head and its merge-base
+// with main — so there is no baseline file to keep in sync, no per-platform
+// skew, and packages can be added or removed without anyone updating a
+// checked-in number.
 //
 // Usage:
-//   node scripts/coverage-check.mjs            # compare, exit 1 on a drop
-//   node scripts/coverage-check.mjs --update   # rewrite the baseline
+//   node scripts/coverage-check.mjs --collect <dir>          # after a coverage run
+//   node scripts/coverage-check.mjs --base <dir> --head <dir>
 //
-// ponytail: a committed baseline file is the whole ratchet — no coverage
-// service and no historical database. Results surface on the PR via
-// $GITHUB_STEP_SUMMARY; for per-line annotations, upload the lcov files that
-// `test:coverage` already writes.
+// ponytail: two directories of json-summary files and a subtraction. No
+// coverage service, no history, no baseline to maintain.
 import {
   appendFileSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
 
-const BASELINE = 'coverage-baseline.json'
 const METRICS = ['statements', 'branches', 'functions', 'lines']
 
-// Coverage percentages wobble slightly between runs (v8 attributes some
-// bytes differently depending on JIT timing), so require a real drop.
+// Coverage percentages wobble slightly between runs (v8 attributes some bytes
+// differently depending on JIT timing), so require a real drop.
 const TOLERANCE = 0.5
 
-const update = process.argv.includes('--update')
-
-/** @returns {Record<string, Record<string, number>>} */
-function readBaseline() {
-  try {
-    return JSON.parse(readFileSync(BASELINE, 'utf8'))
-  } catch (error) {
-    if (error.code === 'ENOENT') return {}
-    throw error
-  }
+function arg(name) {
+  const i = process.argv.indexOf(name)
+  return i === -1 ? undefined : process.argv[i + 1]
 }
 
-/** Collect the fresh coverage summaries written by this run. */
-function readCurrent() {
-  const current = {}
+/** Reduce a vitest json-summary to the four totals we compare. */
+function totals(summary) {
+  // A package with no source loaded reports totals of 0/0 as 100%; that is not
+  // a number worth comparing.
+  if (summary.total.statements.total === 0) return undefined
+  return Object.fromEntries(
+    METRICS.map((metric) => [metric, summary.total[metric].pct]),
+  )
+}
+
+/**
+ * Copy this run's summaries into `dir`, one small file per package, so they
+ * survive the `git checkout` that happens between the two coverage runs.
+ */
+function collect(dir) {
+  mkdirSync(dir, { recursive: true })
+  let n = 0
   for (const entry of readdirSync('packages', { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const summaryPath = join(
-      'packages',
-      entry.name,
-      'coverage',
-      'coverage-summary.json',
-    )
     let summary
     try {
-      summary = JSON.parse(readFileSync(summaryPath, 'utf8'))
+      summary = JSON.parse(
+        readFileSync(
+          join('packages', entry.name, 'coverage', 'coverage-summary.json'),
+          'utf8',
+        ),
+      )
     } catch (error) {
-      // Not every package is affected on every run — no summary means the
-      // package was not measured, which is different from measuring 0%.
+      // No summary means the package was not measured in this run, which is
+      // different from it measuring 0%.
       if (error.code === 'ENOENT') continue
       throw error
     }
-    // A package with no source loaded reports totals of 0/0 as 100%; that is
-    // not a number worth ratcheting against.
-    if (summary.total.statements.total === 0) continue
-    current[entry.name] = Object.fromEntries(
-      METRICS.map((metric) => [metric, summary.total[metric].pct]),
-    )
+    const metrics = totals(summary)
+    if (!metrics) continue
+    writeFileSync(join(dir, `${entry.name}.json`), JSON.stringify(metrics))
+    n++
   }
-  return current
+  console.log(`Collected ${n} coverage summary/summaries into ${dir}`)
 }
 
-const baseline = readBaseline()
-const current = readCurrent()
-const names = Object.keys(current).sort()
+function read(dir) {
+  let files
+  try {
+    files = readdirSync(dir)
+  } catch (error) {
+    // A missing directory means that side measured nothing at all.
+    if (error.code === 'ENOENT') return {}
+    throw error
+  }
+  return Object.fromEntries(
+    files
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => [
+        file.replace(/\.json$/, ''),
+        JSON.parse(readFileSync(join(dir, file), 'utf8')),
+      ]),
+  )
+}
+
+const collectDir = arg('--collect')
+if (collectDir) {
+  collect(collectDir)
+  process.exit(0)
+}
+
+const baseDir = arg('--base')
+const headDir = arg('--head')
+if (!baseDir || !headDir) {
+  console.error(
+    'Usage: coverage-check.mjs --collect <dir> | --base <dir> --head <dir>',
+  )
+  process.exit(2)
+}
+
+const base = read(baseDir)
+const head = read(headDir)
+const names = Object.keys(head).sort()
 
 if (names.length === 0) {
-  console.error(
-    `No coverage summaries found under packages/*/coverage/. Run \`pnpm test:coverage\` first.`,
-  )
-  process.exit(1)
-}
-
-if (update) {
-  const merged = { ...baseline, ...current }
-  const sorted = Object.fromEntries(
-    Object.keys(merged)
-      .sort()
-      .map((key) => [key, merged[key]]),
-  )
-  writeFileSync(BASELINE, `${JSON.stringify(sorted, null, 2)}\n`)
-  console.log(`Updated ${BASELINE} with ${names.length} package(s).`)
+  console.log('No packages were measured — nothing to compare.')
   process.exit(0)
 }
 
@@ -94,28 +120,35 @@ const additions = []
 const rows = []
 
 for (const name of names) {
-  const before = baseline[name]
-  const after = current[name]
+  const before = base[name]
+  const after = head[name]
   if (!before) {
+    // New package, or one whose suite could not be measured on the base
+    // commit. There is nothing to regress against.
     additions.push(name)
-    rows.push([name, ...METRICS.map((m) => `${after[m].toFixed(2)}%`), 'new'])
+    rows.push([
+      name,
+      ...METRICS.map((metric) => `${after[metric].toFixed(2)}%`),
+      'new',
+    ])
     continue
   }
   const deltas = METRICS.map((metric) => after[metric] - before[metric])
   const dropped = METRICS.filter((metric, i) => deltas[i] < -TOLERANCE)
-  if (dropped.length > 0) {
-    regressions.push({ name, before, after, dropped })
-  }
+  if (dropped.length > 0) regressions.push({ name, before, after, dropped })
   rows.push([
     name,
     ...METRICS.map((metric, i) => {
-      const delta = deltas[i]
-      const sign = delta > 0 ? '+' : ''
-      return `${after[metric].toFixed(2)}% (${sign}${delta.toFixed(2)})`
+      const sign = deltas[i] > 0 ? '+' : ''
+      return `${after[metric].toFixed(2)}% (${sign}${deltas[i].toFixed(2)})`
     }),
     dropped.length > 0 ? 'DROP' : 'ok',
   ])
 }
+
+const removed = Object.keys(base)
+  .filter((name) => !head[name])
+  .sort()
 
 const header = ['package', ...METRICS, '']
 const widths = header.map((_, column) =>
@@ -131,54 +164,37 @@ console.log(line(header))
 console.log(widths.map((width) => '-'.repeat(width)).join('  '))
 for (const row of rows) console.log(line(row))
 
-// Anything the baseline needs to absorb, rendered paste-ready. Coverage is a
-// CI-only job and a few packages measure differently per platform, so a
-// contributor must never regenerate the baseline on their own machine — they
-// copy these entries out of the run instead.
-const staleNames = [
-  ...new Set([...additions, ...regressions.map((r) => r.name)]),
-].sort()
-const pasteBlock = staleNames
-  .map((name) => `  ${JSON.stringify(name)}: ${JSON.stringify(current[name])},`)
-  .join('\n')
-
 if (additions.length > 0) {
   console.log(
-    `\n${additions.length} package(s) missing from ${BASELINE}: ${additions.join(', ')}`,
+    `\n${additions.length} package(s) had no coverage on the base commit` +
+      ` (new, or unmeasurable there): ${additions.join(', ')}`,
   )
 }
+if (removed.length > 0) {
+  console.log(`\nNot measured on this PR: ${removed.join(', ')}`)
+}
 
-// ponytail: $GITHUB_STEP_SUMMARY renders on the run page with no token, no
-// permissions and no API call. A sticky PR comment needs `pull-requests:
-// write` — add that only if the summary tab turns out to be too easy to miss.
 if (process.env.GITHUB_STEP_SUMMARY) {
-  const verdict =
-    regressions.length > 0
-      ? `❌ Coverage dropped in ${regressions.length} package(s).`
-      : `✅ Coverage held for ${names.length} measured package(s).`
   const md = [
     `## Coverage`,
     ``,
-    verdict,
+    regressions.length > 0
+      ? `❌ Coverage dropped in ${regressions.length} package(s).`
+      : `✅ Coverage held across ${names.length} measured package(s).`,
     ``,
-    `Baseline: \`${BASELINE}\`. Fails on a drop of more than ${TOLERANCE}pp. Packages not affected by this PR are not measured and not listed.`,
+    `Each package is measured twice in this job — on this PR and on its merge-base` +
+      ` with \`main\` — and compared. A drop of more than ${TOLERANCE}pp in any metric fails.` +
+      ` Packages your PR doesn't affect are not measured and not listed.`,
     ``,
     `| package | ${METRICS.join(' | ')} | |`,
     `| --- | ${METRICS.map(() => '---:').join(' | ')} | --- |`,
     ...rows.map((row) => `| ${row.join(' | ')} |`),
   ]
-  if (pasteBlock) {
+  if (additions.length > 0) {
     md.push(
       ``,
-      `### Updating the baseline`,
-      ``,
-      `Coverage runs in CI only, and some packages measure differently per platform —`,
-      `do not regenerate the baseline on your own machine. If these numbers are the`,
-      `intended ones, paste the entries below into \`${BASELINE}\` and push:`,
-      ``,
-      '```json',
-      pasteBlock,
-      '```',
+      `> No coverage on the base commit, so nothing to compare against:` +
+        ` ${additions.join(', ')}.`,
     )
   }
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md.join('\n')}\n`)
@@ -193,12 +209,8 @@ if (regressions.length > 0) {
       )
     }
   }
-  console.error(
-    `\nAdd tests to restore coverage. If the drop is intentional, paste these` +
-      ` entries into ${BASELINE} and push — do not regenerate the baseline` +
-      ` locally, some packages measure differently per platform:\n\n${pasteBlock}`,
-  )
+  console.error(`\nAdd tests covering the code this PR changed.`)
   process.exit(1)
 }
 
-console.log(`\nCoverage held for ${names.length} measured package(s).`)
+console.log(`\nCoverage held across ${names.length} measured package(s).`)
