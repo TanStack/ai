@@ -35,7 +35,8 @@ interface BlobStore {
     body: BlobBody,
     options?: BlobPutOptions,
   ): Promise<BlobRecord>
-  get(key: string): Promise<BlobObject | null> // metadata + byte accessors
+  // metadata + byte accessors; `options.range` reads one slice (for `206`s)
+  get(key: string, options?: BlobGetOptions): Promise<BlobObject | null>
   head(key: string): Promise<BlobRecord | null> // metadata only
   delete(key: string): Promise<void> // no-op if absent
   list(options?: BlobListOptions): Promise<BlobListPage>
@@ -52,10 +53,43 @@ interface ArtifactStore {
 ```
 
 `BlobBody` is `ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView |
-string | Blob` — which is exactly what `R2Bucket.put` accepts, so the body flows
-straight through with no conversion. `BlobPutOptions` is
-`{ contentType?, customMetadata? }`; `BlobListOptions` is
-`{ prefix?, cursor?, limit? }`; `BlobListPage` is
+string | Blob`. The non-stream shapes flow straight into `R2Bucket.put`
+unchanged — but a `ReadableStream` body does **not**, in the general case:
+workerd's `put` requires a stream with a known length (a `Response` body or the
+readable half of a `FixedLengthStream`), and the artifact middleware hands you a
+`TransformStream`-wrapped body whenever it fetched the bytes from a provider
+URL — i.e. essentially every generated artifact. Passing that stream to
+`bucket.put` throws `TypeError: Provided readable stream must have a known
+length`.
+
+**When does that actually happen?** The wrapper only exists to enforce
+`maxArtifactBytes` during the drain, so the middleware applies it only when
+nothing else bounds the transfer:
+
+| Provider response                       | Body handed to `put`              | R2 path             |
+| --------------------------------------- | --------------------------------- | ------------------- |
+| `content-length`, no `content-encoding` | untouched, declared length intact | `bucket.put` direct |
+| chunked (no declared length)            | wrapped, length-less              | multipart           |
+| `content-encoding: gzip`                | wrapped, length-less              | multipart           |
+
+A provider CDN normally sends `content-length`, so the first row is the common
+case and `bucket.put(key, body)` just works. The recipe below is what makes the
+other two rows work: it re-declares the length from
+`BlobPutOptions.expectedLength` when the middleware could vouch for one, and
+otherwise streams through a multipart upload (one 8 MiB part at a time — flat
+memory at any artifact size). Write it once and every response shape is
+covered.
+
+`withGenerationPersistence(persistence, { maxArtifactBytes: false })` drops the
+ceiling and the wrapper altogether, so even a chunked reply arrives untouched.
+It buys nothing extra for R2 (a chunked body has no length to preserve), so
+choose it on its own merits: no limit on what an origin can stream into your
+bucket. Keep the cap when `allowInputUrl` lets callers name the URL.
+
+`BlobPutOptions` is
+`{ contentType?, customMetadata?, expectedLength? }`; `BlobGetOptions` is
+`{ range?: { offset: number, length?: number } }` and maps onto R2's own
+`range`; `BlobListOptions` is `{ prefix?, cursor?, limit? }`; `BlobListPage` is
 `{ objects: BlobRecord[], cursor?, truncated? }`.
 
 ## 1. BlobStore backed by R2
@@ -68,8 +102,77 @@ ms — R2 tracks only the single `uploaded` instant, so map it to both. `get` /
 object plus the mapped metadata.
 
 ```ts ignore
-import { defineBlobStore } from '@tanstack/ai-persistence'
+import { defineBlobStore, resolveBlobRange } from '@tanstack/ai-persistence'
 import type { BlobObject, BlobRecord } from '@tanstack/ai-persistence'
+
+// R2 multipart requires every part but the last to be ≥ 5 MiB. Buffering one
+// part at a time keeps peak memory flat regardless of artifact size.
+const MULTIPART_PART_SIZE = 8 * 1024 * 1024
+
+/** Drain `reader` until `limit` bytes accumulate or the stream ends. */
+async function readUpTo(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  limit: number,
+): Promise<{ bytes: Uint8Array; eof: boolean }> {
+  let bytes = new Uint8Array(0)
+  for (;;) {
+    if (bytes.byteLength >= limit) return { bytes, eof: false }
+    const { value, done } = await reader.read()
+    if (done) return { bytes, eof: true }
+    const merged = new Uint8Array(bytes.byteLength + value.byteLength)
+    merged.set(bytes)
+    merged.set(value, bytes.byteLength)
+    bytes = merged
+  }
+}
+
+/**
+ * `R2Bucket.put` requires a stream with a known length; a pass-through
+ * TransformStream (what the middleware sends for URL-fetched artifacts) has
+ * none. Re-declare the length when `expectedLength` provides it — the
+ * middleware only sets it when it is the exact decoded byte count — and
+ * otherwise stream through a multipart upload, one buffered part at a time.
+ */
+async function putStream(
+  bucket: R2Bucket,
+  key: string,
+  body: ReadableStream<Uint8Array>,
+  options: R2PutOptions,
+  expectedLength: number | undefined,
+): Promise<R2Object | null> {
+  if (expectedLength !== undefined) {
+    return bucket.put(
+      key,
+      body.pipeThrough(new FixedLengthStream(expectedLength)),
+      options,
+    )
+  }
+  const reader = body.getReader()
+  const first = await readUpTo(reader, MULTIPART_PART_SIZE)
+  if (first.eof) {
+    // The whole body fit in one part — a plain put is enough.
+    return bucket.put(key, first.bytes, options)
+  }
+  const upload = await bucket.createMultipartUpload(key, options)
+  try {
+    const parts: Array<R2UploadedPart> = [
+      await upload.uploadPart(1, first.bytes),
+    ]
+    let partNumber = 2
+    for (;;) {
+      const part = await readUpTo(reader, MULTIPART_PART_SIZE)
+      if (part.bytes.byteLength > 0) {
+        parts.push(await upload.uploadPart(partNumber, part.bytes))
+        partNumber += 1
+      }
+      if (part.eof) break
+    }
+    return await upload.complete(parts)
+  } catch (error) {
+    await upload.abort().catch(() => undefined)
+    throw error
+  }
+}
 
 function toRecord(obj: R2Object): BlobRecord {
   const uploaded = obj.uploaded.getTime()
@@ -89,24 +192,54 @@ function toRecord(obj: R2Object): BlobRecord {
 export function r2BlobStore(bucket: R2Bucket) {
   return defineBlobStore({
     async put(key, body, options) {
-      const obj = await bucket.put(key, body, {
+      const r2Options = {
         ...(options?.contentType
           ? { httpMetadata: { contentType: options.contentType } }
           : {}),
         ...(options?.customMetadata
           ? { customMetadata: options.customMetadata }
           : {}),
-      })
+      }
+      const obj =
+        body instanceof ReadableStream
+          ? await putStream(
+              bucket,
+              key,
+              body,
+              r2Options,
+              options?.expectedLength,
+            )
+          : await bucket.put(key, body, r2Options)
       // R2.put returns null only when an onlyIf precondition fails — not used here.
       if (!obj) throw new Error(`R2 put failed for ${key}`)
       return toRecord(obj)
     },
 
-    async get(key): Promise<BlobObject | null> {
-      const obj = await bucket.get(key)
+    async get(key, options): Promise<BlobObject | null> {
+      // A ranged read is what a serve route turns into `206` — R2 slices in
+      // the bucket, so a seek never streams the whole object. `resolveBlobRange`
+      // clamps a too-long length and throws on an offset past the end (the
+      // route answers `416` from `record.size` before ever calling in). The
+      // extra `head` buys that clamp deterministically — one class-B op
+      // against streaming bytes you did not need to send.
+      const head = options?.range ? await bucket.head(key) : null
+      const served =
+        options?.range && head
+          ? resolveBlobRange(head.size, options.range)
+          : undefined
+      const obj = await bucket.get(
+        key,
+        served
+          ? { range: { offset: served.offset, length: served.length } }
+          : {},
+      )
       if (!obj) return null
       return {
+        // `toRecord(obj)` reports the WHOLE object's size even on a ranged
+        // read — R2's `R2Object.size` is the object, not the slice — which is
+        // exactly the contract, and what `Content-Range`'s total needs.
         ...toRecord(obj),
+        ...(served ? { range: served } : {}),
         body: obj.body,
         arrayBuffer: () => obj.arrayBuffer(),
         text: () => obj.text(),
@@ -147,6 +280,14 @@ Invariants that matter (asserted by the conformance testkit):
 
 - `get` / `head` return `null` for a missing key; `delete` is a silent no-op.
 - `put` **overwrites** an existing key.
+- `put` accepts a `ReadableStream` body with **no declared length** — the
+  middleware streams URL-fetched artifacts as exactly that. This is where the
+  naive "pass the body straight to `bucket.put`" recipe fails at runtime
+  (workerd requires a known length), which is what `putStream` above handles.
+- `get` honours `options.range`: it returns **only** that slice, reports it as
+  `range`, and keeps `size` on the whole object. That is the `206` a video
+  player's seeking depends on, and R2 slices in the bucket so the bytes never
+  cross the Worker.
 - `list` filters by `prefix` literally (R2 prefix is a literal byte prefix — no
   glob), returns keys in ascending order, and pages via the opaque `cursor` when
   `truncated`. R2's own cursor is opaque and satisfies this directly. `limit: 0`
@@ -332,6 +473,10 @@ export default {
       threadId, // the slot recorded on the job + artifacts
       stream: true,
       middleware: [
+        // Nothing is buffered: the artifact streams from the provider CDN
+        // into R2. Add `maxArtifactBytes: false` if you want no ceiling at
+        // all on what an origin can stream into your bucket (the default is
+        // 1 GiB); it is not needed for the streaming itself.
         withGenerationPersistence(generationPersistence(env), { threadId }),
       ],
     })
@@ -348,8 +493,19 @@ A GET route resolves an `artifactId` to its record and its stored bytes.
 key off `artifactBlobKey({ runId, artifactId })` internally, so you never build
 the key yourself.
 
+Honour `Range` requests: `<video>` seeking is built on `206` / `Content-Range`,
+and Safari refuses to play a source that ignores `Range` entirely. Images never
+notice; a few-hundred-MB clip is unwatchable without it. Pass `range` to
+`retrieveBlob` — the store slices in R2 — rather than reaching into the bucket
+binding from the route, which would tie the route to R2 and bypass the store's
+own key resolution.
+
 ```ts ignore
-import { retrieveArtifact, retrieveBlob } from '@tanstack/ai-persistence'
+import {
+  parseRangeHeader,
+  retrieveArtifact,
+  retrieveBlob,
+} from '@tanstack/ai-persistence'
 import { generationPersistence } from './lib/generation-persistence'
 
 export async function GET(request: Request, env: Env) {
@@ -361,13 +517,43 @@ export async function GET(request: Request, env: Env) {
   const record = await retrieveArtifact(persistence, artifactId)
   if (!record) return new Response('Not found', { status: 404 })
 
-  const blob = await retrieveBlob(persistence, record) // pass the record: no 2nd lookup
+  // `parseRangeHeader` resolves the header against the size on the record —
+  // suffix ranges included — so an unsatisfiable range is a 416 here and the
+  // store only ever sees a range it can serve.
+  const range = parseRangeHeader(request.headers.get('range'), record.size)
+  if (range === 'unsatisfiable') {
+    return new Response('Range not satisfiable', {
+      status: 416,
+      headers: { 'content-range': `bytes */${record.size}` },
+    })
+  }
+
+  // Pass the record, not the id: no second metadata lookup.
+  const blob = await retrieveBlob(
+    persistence,
+    record,
+    range ? { range } : undefined,
+  )
   if (!blob?.body) return new Response('Not found', { status: 404 })
 
+  // `accept-ranges` on every response, including the whole-file one: it is how
+  // a player learns it may seek at all.
+  const headers = {
+    'content-type': record.mimeType,
+    'accept-ranges': 'bytes',
+  }
+  if (!blob.range) {
+    return new Response(blob.body, {
+      headers: { ...headers, 'content-length': String(record.size) },
+    })
+  }
+  const { offset, length } = blob.range
   return new Response(blob.body, {
+    status: 206,
     headers: {
-      'content-type': record.mimeType,
-      'content-length': String(record.size),
+      ...headers,
+      'content-length': String(length),
+      'content-range': `bytes ${offset}-${offset + length - 1}/${record.size}`,
     },
   })
 }
@@ -419,6 +605,12 @@ between runs (see **ai-persistence/build-cloudflare-adapter** for the
 
 - `put` then `get` round-trips bytes and metadata; `get`/`head` return `null` for
   a missing key; `delete` is a silent no-op on an absent key.
+- `put` accepts a `ReadableStream` body with no declared length (a
+  `TransformStream`-wrapped stream) and records the real drained size — the
+  shape every URL-fetched artifact arrives in.
+- `get` with a `range` returns just that slice, reports it as `range`, and
+  still reports the whole object's `size` — what a `206` / `Content-Range`
+  response is built from.
 - `put` overwrites an existing key (and its `contentType`/`customMetadata`).
 - `list` filters by `prefix` **literally and case-sensitively**, returns
   ascending keys, pages through the `cursor` when `truncated` without gaps or

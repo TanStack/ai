@@ -31,6 +31,7 @@ import {
   defineMessageStore,
   defineMetadataStore,
   defineRunStore,
+  resolveBlobRange,
 } from '@tanstack/ai-persistence'
 import type {
   ModelMessage,
@@ -724,9 +725,15 @@ function mapBlobRecord(row: BlobRow): BlobRecord {
   }
 }
 
-function blobObject(record: BlobRecord, bytes: Uint8Array): BlobObject {
+function blobObject(
+  record: BlobRecord,
+  bytes: Uint8Array,
+  range?: { offset: number; length: number },
+): BlobObject {
   return {
     ...record,
+    // `size` keeps describing the whole object; `range` describes these bytes.
+    ...(range ? { range } : {}),
     body: new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(bytes.slice())
@@ -754,6 +761,9 @@ function createBlobStore(db: DatabaseSync) {
        updated_at = excluded.updated_at`,
   )
   const selectStmt = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  const rangeStmt = db.prepare(
+    'SELECT substr(body, ?, ?) AS body FROM blobs WHERE key = ?',
+  )
   const createdAtStmt = db.prepare('SELECT created_at FROM blobs WHERE key = ?')
   const deleteStmt = db.prepare('DELETE FROM blobs WHERE key = ?')
   // Prefix match via `substr(...) = ?` rather than LIKE: SQLite's LIKE is
@@ -799,10 +809,26 @@ function createBlobStore(db: DatabaseSync) {
       )
       return record
     },
-    get(key) {
+    get(key, options) {
       const row = selectStmt.get(key) as BlobRow | undefined
+      if (!row) return Promise.resolve(null)
+      if (!options?.range) {
+        return Promise.resolve(blobObject(mapBlobRecord(row), row.body))
+      }
+      // Clamp the request to the object the way every byte-storing backend
+      // must — `resolveBlobRange` is the shared implementation, and it throws
+      // on an offset past the end so an unsatisfiable range can't be served as
+      // a 206. A route answers 416 from `record.size` before getting here.
+      const served = resolveBlobRange(row.size, options.range)
+      // Slice in SQLite (1-based, byte-wise over a BLOB) rather than loading
+      // the whole object to hand back a few bytes of it — the difference
+      // between seeking a video and reading it end to end.
+      const sliced = rangeStmt.get(served.offset + 1, served.length, key) as
+        | Pick<BlobRow, 'body'>
+        | undefined
+      if (!sliced) return Promise.resolve(null)
       return Promise.resolve(
-        row ? blobObject(mapBlobRecord(row), row.body) : null,
+        blobObject(mapBlobRecord(row), sliced.body, served),
       )
     },
     head(key) {

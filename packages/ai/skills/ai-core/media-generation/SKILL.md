@@ -620,6 +620,13 @@ export async function GET(req: Request) {
 }
 ```
 
+That route is enough for images. **Video needs `Range`**: seeking a `<video>`
+is built on `206` / `Content-Range`, and Safari refuses to play a source that
+ignores `Range` at all. Resolve the header against `record.size` (`416` when it
+does not fit), pass `retrieveBlob(persistence, record, { range })`, and answer
+`206` from the returned `blob.range` plus `accept-ranges: bytes`. The full
+route is in the persistence docs under **Serve video: honour `Range`**.
+
 On the client, `persistence` is **boolean only**: `persistence: true` hydrates
 the last generation for the thread on mount, via the connection's
 `hydrateGeneration` handler backed by a `reconstructGeneration` GET route. There

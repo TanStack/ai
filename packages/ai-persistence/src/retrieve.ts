@@ -1,4 +1,9 @@
-import type { AIPersistence, ArtifactRecord, BlobObject } from './types'
+import type {
+  AIPersistence,
+  ArtifactRecord,
+  BlobGetOptions,
+  BlobObject,
+} from './types'
 
 /**
  * The DEFAULT blob-store key a generation artifact's bytes are stored under,
@@ -44,10 +49,17 @@ export async function retrieveArtifact(
  * (resolved to its record first) or an already-loaded {@link ArtifactRecord}
  * (no second metadata lookup). Returns `null` when the artifact, its record, or
  * its blob is missing, or the stores are not configured.
+ *
+ * Pass `options.range` to read one slice — how a serve route answers a `Range`
+ * request with `206` + `Content-Range` instead of the whole file, which is what
+ * `<video>` seeking is built on. Resolve the range against `record.size` and
+ * reply `416` yourself when it does not fit; the store is handed satisfiable
+ * ranges only. The returned object's `range` reports the slice actually served.
  */
 export async function retrieveBlob(
   persistence: AIPersistence,
   artifact: string | ArtifactRecord,
+  options?: BlobGetOptions,
 ): Promise<BlobObject | null> {
   const record =
     typeof artifact === 'string'
@@ -57,6 +69,7 @@ export async function retrieveBlob(
 
   const blob = await persistence.stores.blobs?.get(
     resolveArtifactBlobKey(record),
+    options,
   )
   return blob ?? null
 }
