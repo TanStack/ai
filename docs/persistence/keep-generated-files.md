@@ -350,8 +350,10 @@ const uncappedOptions = withGenerationPersistence(persistence, {
 ```
 
 Reach for that when you trust the origins you fetch from and would rather have
-no ceiling than a generous one. Keep the cap when `allowInputUrl` lets callers
-name the URL — there the origin is by definition not one you control.
+no ceiling than a generous one. Your storage backend's own limits still apply —
+R2, for instance, caps a single-shot upload at 5 GiB and a multipart one at
+10,000 parts. Keep the cap when `allowInputUrl` lets callers name the URL:
+there the origin is by definition not one you control.
 
 ## Wire the durable URL through to the client
 

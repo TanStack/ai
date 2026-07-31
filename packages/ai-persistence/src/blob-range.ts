@@ -78,7 +78,11 @@ export function parseRangeHeader(
   // bytes with a 206 that claims they are the right ones.
   if (rawStart === '') {
     const suffix = Number(rawEnd)
-    if (suffix === 0) return 'unsatisfiable'
+    // A zero-length suffix names no bytes, and NO range is satisfiable against
+    // a zero-byte object — without the size check, `bytes=-1` on an empty
+    // artifact resolves to `{ offset: 0 }` and throws out of the store instead
+    // of answering 416.
+    if (suffix === 0 || size === 0) return 'unsatisfiable'
     return { offset: Math.max(0, size - suffix) }
   }
 

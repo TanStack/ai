@@ -979,6 +979,16 @@ function createBlobStore(db: DatabaseSync) {
   )
   const selectCreated = db.prepare('SELECT created_at FROM blobs WHERE key = ?')
   const selectOne = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  // Metadata without the bytes, and the bounded slice: a ranged read must not
+  // load the whole object to hand back a piece of it.
+  const selectMeta = db.prepare(
+    `SELECT key, size, etag, content_type, custom_metadata_json,
+            created_at, updated_at
+       FROM blobs WHERE key = ?`,
+  )
+  const selectSlice = db.prepare(
+    'SELECT substr(bytes, ?, ?) AS bytes FROM blobs WHERE key = ?',
+  )
   return defineBlobStore({
     async put(key, body, options) {
       const bytes = await toBytes(body)
@@ -1012,23 +1022,29 @@ function createBlobStore(db: DatabaseSync) {
       }
     },
     async get(key, options) {
-      const row = selectOne.get(key)
-      if (!row) return null
+      if (!options?.range) {
+        const row = selectOne.get(key)
+        if (!row) return null
+        const bytes =
+          row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
+        return blobObject(mapBlobRecord(row), bytes)
+      }
+      // Metadata first, WITHOUT the bytes, so the clamp costs no I/O...
+      const meta = selectMeta.get(key)
+      if (!meta) return null
+      const served = resolveBlobRange(Number(meta.size), options.range)
+      // ...then let SQLite cut the slice (`substr` is 1-based and byte-wise
+      // over a BLOB). Reading the row whole and slicing in JS would load the
+      // entire object on every video seek — the cost ranges exist to avoid.
+      const slice = selectSlice.get(served.offset + 1, served.length, key)
+      if (!slice) return null
       const bytes =
-        row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
-      if (!options?.range) return blobObject(mapBlobRecord(row), bytes)
-      // Clamp against the real size, then serve just that slice — a video
-      // seek asks for a few hundred KB of a file you should not re-read whole.
-      // (Push the slice into SQL with `substr(bytes, ?, ?)` for real sizes.)
-      const served = resolveBlobRange(bytes.byteLength, options.range)
-      return blobObject(
-        mapBlobRecord(row),
-        bytes.subarray(served.offset, served.offset + served.length),
-        served,
-      )
+        slice.bytes instanceof Uint8Array ? slice.bytes : new Uint8Array()
+      return blobObject(mapBlobRecord(meta), bytes, served)
     },
     async head(key) {
-      const row = selectOne.get(key)
+      // Metadata only: never pull the bytes to answer a question about them.
+      const row = selectMeta.get(key)
       return row ? mapBlobRecord(row) : null
     },
     async delete(key) {

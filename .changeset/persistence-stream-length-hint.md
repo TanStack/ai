@@ -2,7 +2,7 @@
 '@tanstack/ai-persistence': minor
 ---
 
-Streamed artifact bodies can now be persisted to length-strict blob stores (Cloudflare R2), `maxArtifactBytes` can be turned off for a zero-copy path onto R2, and `BlobStore.get` can serve byte ranges.
+Streamed artifact bodies can now be persisted to length-strict blob stores (Cloudflare R2), `maxArtifactBytes` can be turned off, and `BlobStore.get` can serve byte ranges.
 
 **The bug.** URL-fetched artifacts arrived at `BlobStore.put` as a `TransformStream`-wrapped body — the wrapper that enforces `maxArtifactBytes` as the body drains. A transform's readable side carries no declared length, so runtimes that require one for a single-shot upload (workerd's `R2Bucket.put`) rejected every URL-sourced artifact with `TypeError: Provided readable stream must have a known length`. Byte bodies never hit this, which is why the old conformance suite (byte bodies only) and any store that buffers were unaffected.
 

@@ -63,6 +63,11 @@ describe('parseRangeHeader', () => {
     expect(parseRangeHeader('bytes=1000-', 1000)).toBe('unsatisfiable')
     expect(parseRangeHeader('bytes=1500-1600', 1000)).toBe('unsatisfiable')
     expect(parseRangeHeader('bytes=-0', 1000)).toBe('unsatisfiable')
+    // No range is satisfiable against a zero-byte object — including the
+    // suffix form, which would otherwise resolve to `{ offset: 0 }` and throw
+    // out of the store instead of answering 416.
+    expect(parseRangeHeader('bytes=-1', 0)).toBe('unsatisfiable')
+    expect(parseRangeHeader('bytes=0-', 0)).toBe('unsatisfiable')
   })
 
   it('ignores an invalid byte-range-spec rather than rejecting it', () => {

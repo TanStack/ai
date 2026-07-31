@@ -194,15 +194,18 @@ interface ArtifactRow {
   source_url: string | null
   created_at: number
 }
-interface BlobRow {
+/** A `blobs` row without the bytes — what a metadata read selects. */
+interface BlobMetaRow {
   key: string
-  body: Uint8Array
   size: number
   etag: string
   content_type: string | null
   custom_metadata_json: string | null
   created_at: number
   updated_at: number
+}
+interface BlobRow extends BlobMetaRow {
+  body: Uint8Array
 }
 
 function parseJson<T>(text: string): T {
@@ -707,7 +710,7 @@ async function bytesFromBlobBody(body: BlobBody): Promise<Uint8Array> {
   return bytes
 }
 
-function mapBlobRecord(row: BlobRow): BlobRecord {
+function mapBlobRecord(row: BlobMetaRow): BlobRecord {
   return {
     key: row.key,
     size: row.size,
@@ -761,6 +764,14 @@ function createBlobStore(db: DatabaseSync) {
        updated_at = excluded.updated_at`,
   )
   const selectStmt = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  // Everything EXCEPT `body`. A ranged read needs the metadata to clamp
+  // against, and `SELECT *` would materialize the whole object just to hand
+  // back a slice of it — the cost a range request exists to avoid.
+  const selectMetaStmt = db.prepare(
+    `SELECT key, size, etag, content_type, custom_metadata_json,
+            created_at, updated_at
+       FROM blobs WHERE key = ?`,
+  )
   const rangeStmt = db.prepare(
     'SELECT substr(body, ?, ?) AS body FROM blobs WHERE key = ?',
   )
@@ -810,29 +821,35 @@ function createBlobStore(db: DatabaseSync) {
       return record
     },
     get(key, options) {
-      const row = selectStmt.get(key) as BlobRow | undefined
-      if (!row) return Promise.resolve(null)
       if (!options?.range) {
-        return Promise.resolve(blobObject(mapBlobRecord(row), row.body))
+        const row = selectStmt.get(key) as BlobRow | undefined
+        return Promise.resolve(
+          row ? blobObject(mapBlobRecord(row), row.body) : null,
+        )
       }
-      // Clamp the request to the object the way every byte-storing backend
-      // must — `resolveBlobRange` is the shared implementation, and it throws
-      // on an offset past the end so an unsatisfiable range can't be served as
-      // a 206. A route answers 416 from `record.size` before getting here.
-      const served = resolveBlobRange(row.size, options.range)
-      // Slice in SQLite (1-based, byte-wise over a BLOB) rather than loading
-      // the whole object to hand back a few bytes of it — the difference
-      // between seeking a video and reading it end to end.
+      // Metadata WITHOUT the bytes, then the slice: clamp the request to the
+      // object the way every byte-storing backend must. `resolveBlobRange` is
+      // the shared implementation, and it throws on an offset past the end so
+      // an unsatisfiable range can't be served as a 206 — a route answers 416
+      // from `record.size` before getting here.
+      const meta = selectMetaStmt.get(key) as BlobMetaRow | undefined
+      if (!meta) return Promise.resolve(null)
+      const served = resolveBlobRange(meta.size, options.range)
+      // Slice in SQLite (1-based, byte-wise over a BLOB), so seeking inside a
+      // video reads a few hundred KB and not the whole clip. Reading the row
+      // with `SELECT *` first would have loaded it anyway, which is the whole
+      // cost a range request exists to avoid.
       const sliced = rangeStmt.get(served.offset + 1, served.length, key) as
         | Pick<BlobRow, 'body'>
         | undefined
       if (!sliced) return Promise.resolve(null)
       return Promise.resolve(
-        blobObject(mapBlobRecord(row), sliced.body, served),
+        blobObject(mapBlobRecord(meta), sliced.body, served),
       )
     },
     head(key) {
-      const row = selectStmt.get(key) as BlobRow | undefined
+      // Metadata only: never pull the bytes for a question about the object.
+      const row = selectMetaStmt.get(key) as BlobMetaRow | undefined
       return Promise.resolve(row ? mapBlobRecord(row) : null)
     },
     delete(key) {
