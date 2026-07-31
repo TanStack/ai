@@ -180,41 +180,48 @@ describe('killTree leaves no orphaned descendants (Windows/MSYS)', () => {
     'kills the `tail` that `taskkill /T` cannot reach',
     async () => {
       const sbx = await provider.create({})
-      await sbx.fs.write('/workspace/j.ndjson', 'line1\n')
-      // The exact shape of `journalFollowCommand`: a statement list whose last
-      // command MSYS runs under an intermediate shell that then exits.
-      const proc = await sbx.process.spawn(
-        `mkdir -p '/tmp/tanstack-kt' 2>/dev/null; : >> 'j.ndjson' 2>/dev/null; tail -c +1 -f 'j.ndjson' 2>/dev/null`,
-        { cwd: '/workspace' },
-      )
-      // Wait for real output so `tail` is definitely up before we look for it.
-      for await (const chunk of proc.stdout) {
-        if (chunk.includes('line1')) break
+      // `finally`, not a trailing `destroy()`: a throw from
+      // `parseMsysProcessTable`, `kill()`, or either assertion would otherwise
+      // leak the sandbox AND the `tail.exe` this very test exists to prove is
+      // killable — the suite would poison the machine it is diagnosing.
+      try {
+        await sbx.fs.write('/workspace/j.ndjson', 'line1\n')
+        // The exact shape of `journalFollowCommand`: a statement list whose last
+        // command MSYS runs under an intermediate shell that then exits.
+        const proc = await sbx.process.spawn(
+          `mkdir -p '/tmp/tanstack-kt' 2>/dev/null; : >> 'j.ndjson' 2>/dev/null; tail -c +1 -f 'j.ndjson' 2>/dev/null`,
+          { cwd: '/workspace' },
+        )
+        // Wait for real output so `tail` is definitely up before we look for it.
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('line1')) break
+        }
+
+        const table = parseMsysProcessTable(
+          (await sbx.process.exec('ps', { cwd: '/workspace' })).stdout,
+        )
+        const descendants = msysDescendantWinPids(table, proc.pid)
+        // Guard the guard: if this is empty the assertion below is vacuous.
+        expect(descendants.length).toBeGreaterThan(0)
+
+        await proc.kill()
+        // Windows process teardown is not instantaneous — and a FIXED sleep is
+        // the same "assume, don't verify" mistake this suite exists to catch. 500ms
+        // was under the real cost: `taskkill /T` alone measures ~1.9-3.0s on a
+        // loaded machine, so this asserted before the kill had landed and failed
+        // ~1 run in 4 under full-suite load (leaving the very `tail.exe` it is
+        // meant to prove dead). Poll for the outcome instead, up to a bound.
+        const deadline = Date.now() + 15_000
+        let survivors = descendants.filter((pid) => isAlive(pid))
+        while (survivors.length > 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          survivors = survivors.filter((pid) => isAlive(pid))
+        }
+
+        expect(survivors).toEqual([])
+      } finally {
+        await sbx.destroy()
       }
-
-      const table = parseMsysProcessTable(
-        (await sbx.process.exec('ps', { cwd: '/workspace' })).stdout,
-      )
-      const descendants = msysDescendantWinPids(table, proc.pid)
-      // Guard the guard: if this is empty the assertion below is vacuous.
-      expect(descendants.length).toBeGreaterThan(0)
-
-      await proc.kill()
-      // Windows process teardown is not instantaneous — and a FIXED sleep is
-      // the same "assume, don't verify" mistake this suite exists to catch. 500ms
-      // was under the real cost: `taskkill /T` alone measures ~1.9-3.0s on a
-      // loaded machine, so this asserted before the kill had landed and failed
-      // ~1 run in 4 under full-suite load (leaving the very `tail.exe` it is
-      // meant to prove dead). Poll for the outcome instead, up to a bound.
-      const deadline = Date.now() + 15_000
-      let survivors = descendants.filter((pid) => isAlive(pid))
-      while (survivors.length > 0 && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        survivors = survivors.filter((pid) => isAlive(pid))
-      }
-
-      expect(survivors).toEqual([])
-      await sbx.destroy()
     },
     30_000,
   )
@@ -250,21 +257,25 @@ describe('killTree teardown is total by construction', () => {
     })
     const sbx = await noisy.create({})
 
-    // Kill a live process...
-    const live = await sbx.process.spawn('sleep 30')
-    await expect(live.kill()).resolves.toBeUndefined()
+    // `finally`: the `sleep 30` below outlives a failed assertion otherwise.
+    try {
+      // Kill a live process...
+      const live = await sbx.process.spawn('sleep 30')
+      await expect(live.kill()).resolves.toBeUndefined()
 
-    // ...and one that has already exited on its own.
-    const done = await sbx.process.spawn('exit 0')
-    await done.wait()
-    await expect(done.kill()).resolves.toBeUndefined()
+      // ...and one that has already exited on its own.
+      const done = await sbx.process.spawn('exit 0')
+      await done.wait()
+      await expect(done.kill()).resolves.toBeUndefined()
 
-    // Asserting the whole record (not just `message`) so a future intermittent
-    // failure prints the raw taskkill status + stderr and is diagnosable on the
-    // first occurrence. Do NOT relax this to "warnings are allowed" — the
-    // warning firing here IS the signal that a benign wording is misclassified.
-    expect(warnings).toEqual([])
-    await sbx.destroy()
+      // Asserting the whole record (not just `message`) so a future intermittent
+      // failure prints the raw taskkill status + stderr and is diagnosable on the
+      // first occurrence. Do NOT relax this to "warnings are allowed" — the
+      // warning firing here IS the signal that a benign wording is misclassified.
+      expect(warnings).toEqual([])
+    } finally {
+      await sbx.destroy()
+    }
   }, 30_000)
 
   // Counterpart to the assertion above: it is only meaningful if a warning CAN

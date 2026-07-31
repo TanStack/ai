@@ -332,14 +332,20 @@ describe.skipIf(!dockerAvailable)(
         await proc.kill()
 
         // BusyBox `ps` prints argv, so a survivor is attributable to this test
-        // by its unique sleep duration. Poll: the racing shell may not have
-        // reached `sleep` yet when kill() ran, in which case the kill lands on
-        // its group and the process never appears at all — either way nothing
-        // may be running once things settle.
-        for (let i = 0; i < 12; i += 1) {
+        // by its unique sleep duration. Poll until the probe is EMPTY, then
+        // assert once — do not assert inside the loop. `kill()` resolves when the
+        // daemon accepted the signal, not when the container-side process has
+        // finished dying, so a per-poll assertion turns a few milliseconds of
+        // teardown into a failure. The bound is the real assertion: the orphan
+        // this test exists to catch (`stream.destroy()` detaching only the
+        // client) leaves `sleep` running indefinitely, so it never empties and
+        // still fails here.
+        let rows = await probeRows()
+        for (let i = 0; i < 12 && rows !== ''; i += 1) {
           await new Promise((resolve) => setTimeout(resolve, 250))
-          expect(await probeRows()).toBe('')
+          rows = await probeRows()
         }
+        expect(rows).toBe('')
       } finally {
         await sbx?.destroy()
       }

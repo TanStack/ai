@@ -95,12 +95,40 @@ function resolvePaths(options: JournaledOptions) {
   return journalPaths(options.journal.runId, options.journal.dir)
 }
 
-/** Strip the runner-only options, leaving what `handle.process.spawn` accepts. */
+/**
+ * Strip the runner-only options, leaving what `handle.process.spawn` accepts.
+ *
+ * `signal` is deliberately KEPT: on the UNJOURNALED path the host holds the
+ * agent's stdout pipe, so a client disconnect should take the process down with
+ * it. The journaled path must not forward it — see
+ * {@link toJournaledSpawnOptions}.
+ */
 function toProcessOptions(options: SpawnNdjsonOptions): ProcessOptions {
   const { onNonJsonLine, input, journal, ...rest } = options
   void onNonJsonLine
   void input
   void journal
+  return rest
+}
+
+/**
+ * The journaled agent's spawn options: {@link toProcessOptions} MINUS `signal`.
+ *
+ * The request's signal must never reach the agent process on this path. Providers
+ * DO act on it at spawn time — local-process registers it to `killTree` the
+ * process group, and daytona and docker honor it too — so forwarding it means a
+ * client disconnect kills the journaled agent. The agent then writes no exit
+ * sentinel, and a successor host takes over a run that is already dead: the exact
+ * opposite of the guarantee documented on {@link startJournaledAgent}, and of the
+ * reason the journal is a file rather than a pipe.
+ *
+ * The signal is still honored for the READ. `readJournalNdjson` forwards it to
+ * `readJournal` and `awaitAttachableJournal` on its own, so a disconnecting
+ * client stops tailing immediately. Only the agent spawn outlives the request.
+ */
+function toJournaledSpawnOptions(options: JournaledOptions): ProcessOptions {
+  const { signal, ...rest } = toProcessOptions(options)
+  void signal
   return rest
 }
 
@@ -143,7 +171,7 @@ export async function startJournaledAgent(
   const paths = resolvePaths(options)
   const proc = await handle.process.spawn(
     journaledCommand(command, paths),
-    toProcessOptions(options),
+    toJournaledSpawnOptions(options),
   )
   if (options.input !== undefined) {
     await proc.stdin.write(options.input)

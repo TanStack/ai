@@ -786,10 +786,23 @@ export function durableStream(
    * deadline. Timing out is a loud failure, never a truncated result: an
    * aborted `readWindows` ends its iteration quietly, so the flag is rechecked
    * after the loop and thrown.
+   *
+   * `ensureCreated()` first, exactly as `append` and `read` do. A snapshot of a
+   * stream the backend does not hold yet must answer "nothing has been
+   * delivered", not reject: `sandboxRunDriver`'s `pipe` calls
+   * `awaitLogQuiescence` — two `snapshot()` reads — BEFORE the first append, so
+   * the very first producer of every durable run snapshots a stream no `PUT` has
+   * created. Reading straight through would surface that as
+   * `httpFailure('read', ...)` and fail the run at its first chunk. It also keeps
+   * this adapter's contract identical to core's `memoryStream`, which resolves to
+   * `[]` for an unknown run; two `StreamDurability` implementations must not
+   * disagree about so basic a case. `ensureCreated` is idempotent and memoised,
+   * so this costs nothing once the stream exists.
    */
   const collectSnapshot = async (): Promise<
     Array<{ offset: DurableStreamOffset; chunk: StreamChunk }>
   > => {
+    await ensureCreated()
     const controller = new AbortController()
     let timedOut = false
     const timer = setTimeout(() => {

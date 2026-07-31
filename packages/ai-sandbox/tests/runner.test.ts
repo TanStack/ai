@@ -17,7 +17,12 @@ import {
 } from '../src/journal'
 import { alignToStoredLog } from '../src/align'
 import type { StreamChunk } from '@tanstack/ai'
-import type { ExecResult, SandboxHandle, SpawnHandle } from '../src/contracts'
+import type {
+  ExecResult,
+  ProcessOptions,
+  SandboxHandle,
+  SpawnHandle,
+} from '../src/contracts'
 
 /**
  * The exit sentinel for run `r1` — the only runId these journal fixtures use.
@@ -168,6 +173,55 @@ describe('startJournaledAgent', () => {
     expect(commands[0]).toContain(`>> '/tmp/tanstack-runs/r1.ndjson'`)
     expect(commands[0]).toContain(`2>> '/tmp/tanstack-runs/r1.err'`)
     expect(commands[0]).toContain('claude -p')
+  })
+
+  // The request's AbortSignal must NOT reach the agent spawn on the journaled
+  // path. Providers act on it at spawn time — local-process registers it to
+  // `killTree` the process group, and daytona and docker honor it too — so
+  // forwarding it means a client disconnect kills the journaled agent. It then
+  // writes no exit sentinel, and a successor host takes over a run that is
+  // already dead: exactly what journaling to a file instead of a pipe exists to
+  // prevent. The signal is still honored for the TAIL read, which
+  // `readJournalNdjson` wires up itself.
+  it('does not forward the request signal to the agent spawn, but keeps the other process options', async () => {
+    const seen: Array<ProcessOptions | undefined> = []
+    const controller = new AbortController()
+    const handle: SandboxHandle = {
+      ...handleSpawning([]),
+      process: {
+        exec: () => Promise.reject(new Error('unused')),
+        spawn: (_command, opts) => {
+          seen.push(opts)
+          return Promise.resolve({
+            pid: -1,
+            stdout: fromChunks([]),
+            stderr: fromChunks([]),
+            stdin: {
+              write: () => Promise.resolve(),
+              end: () => Promise.resolve(),
+            },
+            wait: () => Promise.resolve(0),
+            kill: () => Promise.resolve(),
+          })
+        },
+      },
+    }
+
+    await startJournaledAgent(handle, 'claude -p', {
+      journal: { runId: 'r1' },
+      signal: controller.signal,
+      cwd: '/workspace',
+    })
+
+    expect(seen).toHaveLength(1)
+    const opts = seen[0]
+    expect(opts).toBeDefined()
+    // Asserting on the KEY, not on `opts?.signal === undefined`: passing
+    // `signal: undefined` explicitly would satisfy the latter while still letting
+    // a provider that checks `'signal' in opts` register an abort handler.
+    expect(opts !== undefined && 'signal' in opts).toBe(false)
+    // The strip is surgical — everything else a spawn needs still arrives.
+    expect(opts?.cwd).toBe('/workspace')
   })
 
   it('writes stdin input then closes it, exactly as the unjournaled path does', async () => {

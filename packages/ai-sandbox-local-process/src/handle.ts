@@ -773,9 +773,41 @@ export class LocalProcessHandle implements SandboxHandle {
     const exited = await Promise.all(
       live.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)),
     )
-    const stragglers = live
-      .filter((_, i) => exited[i] === false)
-      .map((child) => child.pid)
+
+    // ESCALATE to SIGKILL on POSIX for anything that survived the first signal.
+    // `killTree` sends `signal ?? 'SIGTERM'` exactly once, which a child may
+    // ignore or block — and `LOCAL_PROCESS_CAPS.killableProcesses: true` promises
+    // forcible termination, not a polite request. The Windows branch already
+    // escalates (`taskkill /F`, then per-stray) and the Docker handle escalates to
+    // SIGKILL unconditionally, so without this POSIX is the weak half of one
+    // contract. It matters beyond the promise: a survivor keeps its CWD handle on
+    // the very directory `removeDirWithRetry` is about to delete.
+    //
+    // Escalation lives HERE and not in `killTree` on purpose, so an explicit
+    // `SpawnHandle.kill('SIGTERM')` keeps its single-signal meaning for callers
+    // who chose that signal deliberately. Only teardown, which must be total,
+    // upgrades.
+    const survivors = live.filter((_, i) => exited[i] === false)
+    if (survivors.length > 0 && process.platform !== 'win32') {
+      for (const child of survivors) {
+        killTree(child, 'SIGKILL', this.options.logger)
+      }
+      const killedAfterEscalation = await Promise.all(
+        survivors.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)),
+      )
+      const leaked = survivors
+        .filter((_, i) => killedAfterEscalation[i] === false)
+        .map((child) => child.pid)
+      if (leaked.length > 0) {
+        this.options.logger?.warn(
+          'local-process: children survived SIGKILL; teardown continues',
+          { root: this.root, pids: leaked },
+        )
+      }
+      return
+    }
+
+    const stragglers = survivors.map((child) => child.pid)
     if (stragglers.length > 0) {
       this.options.logger?.warn(
         'local-process: children still running after kill; teardown continues',

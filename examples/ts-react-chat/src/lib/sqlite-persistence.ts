@@ -148,6 +148,63 @@ CREATE TABLE IF NOT EXISTS blobs (
 );
 `
 
+/**
+ * Columns added to `runs` after the table first shipped.
+ *
+ * `CREATE TABLE IF NOT EXISTS` does NOT alter a table that already exists, so a
+ * `.data/*.db` written by an earlier version of this example has none of these.
+ * Without an additive migration that file breaks hard, and early: `createRunStore`
+ * prepares its `listReclaimable` statement eagerly, and `node:sqlite` resolves
+ * column names at prepare time, so `sqlitePersistence()` itself throws
+ * `no such column: detached_since` before a single request is served — `update`
+ * would fail the same way.
+ *
+ * SQLite has no `ADD COLUMN IF NOT EXISTS`, so {@link addMissingColumns} consults
+ * `PRAGMA table_info` instead of relying on a caught error. Adding a nullable
+ * column needs no table rewrite. A production adapter would keep versioned
+ * migration files; this stays honest about being an example.
+ */
+const RUNS_ADDED_COLUMNS: ReadonlyArray<{ name: string; type: string }> = [
+  { name: 'error_code', type: 'text' },
+  { name: 'usage_json', type: 'text' },
+  { name: 'sandbox_key', type: 'text' },
+  { name: 'detached_since', type: 'integer' },
+  { name: 'cancel_requested', type: 'integer' },
+  { name: 'driver_epoch', type: 'integer' },
+]
+
+/** `PRAGMA table_info` row, narrowed to the one field this uses. */
+interface TableInfoRow {
+  name: string
+}
+
+function hasName(value: unknown): value is TableInfoRow {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof (value as { name: unknown }).name === 'string'
+  )
+}
+
+/** Bring an existing `runs` table up to the current schema. Idempotent. */
+function addMissingColumns(db: DatabaseSync): void {
+  const existing = new Set(
+    db
+      .prepare(`PRAGMA table_info(runs)`)
+      .all()
+      .filter(hasName)
+      .map((row) => row.name),
+  )
+  // An empty set means the table does not exist at all, in which case SCHEMA_SQL
+  // just created it complete and there is nothing to add.
+  if (existing.size === 0) return
+  for (const column of RUNS_ADDED_COLUMNS) {
+    if (existing.has(column.name)) continue
+    db.exec(`ALTER TABLE runs ADD COLUMN ${column.name} ${column.type}`)
+  }
+}
+
 // Row shapes as SQLite hands them back (JSON columns are still text here).
 interface MessagesRow {
   messages_json: string
@@ -1041,7 +1098,10 @@ export function sqlitePersistence(
   ensureParentDirectory(filename)
   const db = new DatabaseSync(filename)
   try {
-    if (options.migrate) db.exec(SCHEMA_SQL)
+    if (options.migrate) {
+      db.exec(SCHEMA_SQL)
+      addMissingColumns(db)
+    }
   } catch (error) {
     db.close()
     throw error
