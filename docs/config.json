@@ -181,6 +181,7 @@
     },
     {
       "label": "Interrupts",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -216,6 +217,7 @@
     },
     {
       "label": "Resumable Streams",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -237,6 +239,7 @@
     },
     {
       "label": "Persistence",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -294,6 +297,7 @@
     },
     {
       "label": "Structured Outputs",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -441,6 +445,7 @@
     },
     {
       "label": "Sandboxes",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -512,6 +517,7 @@
     },
     {
       "label": "Memory",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -777,6 +783,7 @@
     },
     {
       "label": "Community Adapters",
+      "tab": "guides",
       "children": [
         {
           "label": "Community Adapters Guide",
