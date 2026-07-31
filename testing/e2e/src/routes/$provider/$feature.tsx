@@ -455,6 +455,14 @@ function ChatFeature({
         queue={queue}
         cancelQueued={cancelQueued}
         onSendMessage={(text) => {
+          // Exercises the hook-level per-call body channel
+          // (`SendMessageOptions.body`): the marker must reach the wire under
+          // `forwardedProps`, merged with (not replacing) the chat-level
+          // `body` keys. Asserted by per-call-body.spec.ts.
+          if (text.startsWith('[per-call-body]')) {
+            sendMessage(text, { body: { perCallBodyMarker: testId } })
+            return
+          }
           sendMessage(text)
         }}
         onSendMessageWithImage={

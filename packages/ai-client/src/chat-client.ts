@@ -1858,7 +1858,9 @@ export class ChatClient<
    * @param body - Optional body parameters to merge with the client's base body for this request.
    *               Uses shallow merge with per-message body taking priority.
    * @param sendOptions - Per-call overrides, e.g. `{ whenBusy: 'interrupt' }` to
-   *                      override the configured queue policy for this one send.
+   *                      override the configured queue policy for this one send,
+   *                      or `{ body }` as an alternative to the positional `body`
+   *                      argument (the positional argument wins if both are set).
    *
    * @example
    * ```ts
@@ -1868,8 +1870,12 @@ export class ChatClient<
    * // Text message with custom body params
    * await client.sendMessage('Hello!', { temperature: 0.7 })
    *
-   * // Per-call whenBusy override (body must still be the 2nd arg on ChatClient)
+   * // Per-call whenBusy override
    * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
+   *
+   * // Per-call body via options — same effect as the positional arg. This is
+   * // the shape the framework hooks (`useChat`, `injectChat`, …) forward.
+   * await client.sendMessage('Hello!', undefined, { body: { temperature: 0.7 } })
    *
    * // Multimodal message with image
    * await client.sendMessage({
@@ -1908,13 +1914,17 @@ export class ChatClient<
       )
     }
 
+    // Positional `body` wins over `sendOptions.body` — the positional arg
+    // predates the option and existing callers may pass both.
+    const resolvedBody = body ?? sendOptions?.body
+
     if (this.isSendBusy()) {
       const { action, id } = this.decideWhenBusy(content, sendOptions)
       if (action === 'drop') {
         return
       }
       if (action === 'queue') {
-        this.enqueueMessage(content, body, id)
+        this.enqueueMessage(content, resolvedBody, id)
         return
       }
       // 'interrupt': abort the current stream, then send now.
@@ -1931,7 +1941,7 @@ export class ChatClient<
     }
 
     try {
-      await this.deliverMessage(content, body)
+      await this.deliverMessage(content, resolvedBody)
     } finally {
       this.sendInFlight = false
     }

@@ -3342,6 +3342,55 @@ describe('ChatClient', () => {
       expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
     })
 
+    it('should merge sendOptions.body into the request (hook-style per-call body)', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { model: 'gpt-5.5', temperature: 0.7 },
+      })
+
+      // The framework hooks call sendMessage(content, undefined, sendOptions),
+      // so `sendOptions.body` is their only per-call body channel.
+      await client.sendMessage('Hello', undefined, {
+        body: { model: 'gpt-6', maxTokens: 100 },
+      })
+
+      expect(capturedData?.['model']).toBe('gpt-6') // From sendOptions.body
+      expect(capturedData?.['temperature']).toBe(0.7) // From base body
+      expect(capturedData?.['maxTokens']).toBe(100) // From sendOptions.body
+    })
+
+    it('positional body wins over sendOptions.body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage(
+        'Hello',
+        { tag: 'positional' },
+        { body: { tag: 'options', extra: true } },
+      )
+
+      // The positional arg replaces (not merges with) sendOptions.body.
+      expect(capturedData?.['tag']).toBe('positional')
+      expect(capturedData?.['extra']).toBeUndefined()
+    })
+
     it('should accept forwardedProps option and merge into request body', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, any> | undefined

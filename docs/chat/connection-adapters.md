@@ -81,6 +81,24 @@ const { messages } = useChat({
 
 > **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
 
+**Per-call body.** For data that belongs to one specific message (attachment ids, a one-off flag), pass `body` in `sendMessage`'s options — it is shallow-merged into `forwardedProps` with the highest priority, for that request only:
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  body: { provider: "openai" },
+});
+
+// forwardedProps for this request: { provider: "openai", attachmentIds: [...] }
+await sendMessage("Summarize the attached files", {
+  body: { attachmentIds: ["att_1", "att_2"] },
+});
+```
+
+This is race-free where updating a reactive chat-level `body`/`forwardedProps` option right before sending is not (reactive option changes can flush after the send). On `ChatClient` directly, the positional `body` argument does the same thing and wins if both are provided.
+
 ### Resumable SSE
 
 `fetchServerSentEvents` watches SSE `id:` values. If a connection drops after

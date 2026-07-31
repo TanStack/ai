@@ -124,6 +124,29 @@ describe('injectChat — streaming', () => {
     expect(result.isLoading()).toBe(false)
   })
 
+  it('merges sendMessage options.body into the request', async () => {
+    let capturedData: Record<string, any> | undefined
+    const adapter = createMockConnectionAdapter({
+      chunks: createTextChunks('Hello there'),
+      onConnect: (_messages, data) => {
+        capturedData = data
+      },
+    })
+    const { result, flush } = renderInjectChat({
+      connection: adapter,
+      body: { provider: 'openai' },
+    })
+
+    // injectChat has no positional body arg — options.body is the per-call
+    // channel, merged over the chat-level `body` option.
+    await result.sendMessage('Hi', { body: { attachmentIds: ['a1', 'a2'] } })
+    await tick()
+    flush()
+
+    expect(capturedData?.['provider']).toBe('openai')
+    expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
+  })
+
   it('initializes with provided messages', () => {
     const adapter = createMockConnectionAdapter()
     const initialMessages = [

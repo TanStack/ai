@@ -479,6 +479,20 @@ export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
 export interface SendMessageOptions {
   /** Overrides the configured `whenBusy` for this one send. */
   whenBusy?: WhenBusy
+  /**
+   * Body parameters merged into this request's wire `forwardedProps`
+   * (shallow merge, highest priority — wins over the chat-level `body` and
+   * `forwardedProps` options on key collisions).
+   *
+   * Equivalent to the positional `body` argument of `ChatClient.sendMessage`;
+   * if both are provided, the positional argument wins. The framework hooks
+   * (`useChat`, `injectChat`, …) expose `sendMessage(content, options)`
+   * without the positional argument, so this option is the way to pass a
+   * per-call body through them — chat-level `forwardedProps` set via
+   * reactive options can flush asynchronously, which makes "set option,
+   * then send" racy for data that belongs to one specific message.
+   */
+  body?: Record<string, any>
 }
 
 /**
