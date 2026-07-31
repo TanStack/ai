@@ -88,13 +88,13 @@ export interface BytePlusTTSProviderOptions {
 /**
  * BytePlus-specific extension of `TTSResult`.
  *
- * The cross-provider `TTSResult` has nowhere to put word timings or the
- * temporary download URL, so callers who want them narrow the result:
+ * The cross-provider `TTSResult` has nowhere to put the subtitle timings or
+ * the temporary download URL, so callers who want them narrow the result:
  *
  * ```ts
  * const result: BytePlusTTSResult = await generateSpeech({ adapter, text })
- * for (const entry of result.subtitle ?? []) {
- *   console.log(entry.text, entry.start_time)
+ * for (const sentence of result.subtitle?.sentences ?? []) {
+ *   console.log(sentence.text, sentence.start_time)
  * }
  * ```
  */
