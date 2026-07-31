@@ -64,9 +64,13 @@ jobs:
           echo "Measuring: ${list:-<none>}"
       - name: Coverage for this PR
         if: steps.affected.outputs.list != ''
+        # Via env, not `${{ }}` inside run: project names come from the PR's own
+        # files, so interpolating them into the shell would be injectable.
+        env:
+          PROJECTS: ${{ steps.affected.outputs.list }}
         run: |
           rm -rf packages/*/coverage
-          pnpm exec nx run-many --targets=test:coverage --projects="${{ steps.affected.outputs.list }}"
+          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS"
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
       # restores seeded by the Coverage workflow on main: the task hashes are
@@ -74,6 +78,8 @@ jobs:
       # so the summaries come back without the tests re-running.
       - name: Coverage for the merge base
         if: steps.affected.outputs.list != ''
+        env:
+          PROJECTS: ${{ steps.affected.outputs.list }}
         run: |
           git checkout --force --detach "$NX_BASE"
           # coverage/ is gitignored, so the checkout leaves this PR's results in
@@ -82,7 +88,7 @@ jobs:
           rm -rf packages/*/coverage
           pnpm install --frozen-lockfile
           # Packages added by this PR do not exist on the base commit.
-          printf '%s\n' "${{ steps.affected.outputs.list }}" | tr ',' '\n' | sort > /tmp/wanted
+          printf '%s\n' "$PROJECTS" | tr ',' '\n' | sort > /tmp/wanted
           pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
           base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
           if [ -z "$base_list" ]; then
