@@ -73,7 +73,7 @@ const SEED_2_0_LITE_260428 = {
   supports: {
     input: ['text', 'image', 'video', 'audio'],
     output: ['text'],
-    // Live-probed: rejects both json_schema and json_object.
+    // Live-probed 2026-07-31: rejects both json_schema and json_object.
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
@@ -87,7 +87,7 @@ const SEED_2_0_MINI_260428 = {
   supports: {
     input: ['text', 'image', 'video', 'audio'],
     output: ['text'],
-    // Live-probed: rejects both json_schema and json_object.
+    // Live-probed 2026-07-31: rejects both json_schema and json_object.
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
@@ -101,7 +101,8 @@ const SEED_2_0_PRO_260328 = {
   supports: {
     input: ['text', 'image', 'video'],
     output: ['text'],
-    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    // Live-probed 2026-07-31: accepts json_schema, despite the docs table
+    // saying otherwise.
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
@@ -219,7 +220,8 @@ const GLM_5_2_260617 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    // Live-probed 2026-07-31: accepts json_schema, despite the docs table
+    // saying otherwise.
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
@@ -233,7 +235,8 @@ const GLM_4_7_251222 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    // Live-probed: accepts json_schema, despite the docs table saying otherwise.
+    // Live-probed 2026-07-31: accepts json_schema, despite the docs table
+    // saying otherwise.
     capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
     tools: [] as const,
   },
@@ -274,7 +277,7 @@ const DEEPSEEK_V3_2_251201 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    // Live-probed: rejects both json_schema and json_object.
+    // Live-probed 2026-07-31: rejects both json_schema and json_object.
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
@@ -362,8 +365,8 @@ export function emitsEncryptedContent(model: string): boolean {
 /**
  * Chat models that accept `response_format: {type: 'json_schema'}`.
  *
- * This list is live-probed, not docs-derived — the BytePlus capability tables
- * are wrong for five of these models. The seven models NOT listed here
+ * Live-probed against all 18 chat models on 2026-07-31, not docs-derived — the
+ * BytePlus capability tables are wrong for five. The seven models NOT listed here
  * (`seed-2-0-lite-260428`, `seed-2-0-mini-260428`,
  * `seed-2-0-code-preview-260328`, both `deepseek-v4-*`, `deepseek-v3-2-251201`
  * and `gpt-oss-120b-250805`) answer a JSON schema with 400 InvalidParameter —
