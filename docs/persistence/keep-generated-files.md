@@ -135,6 +135,83 @@ export async function GET(request: Request) {
 }
 ```
 
+### Serve video: honour `Range`
+
+The route above is enough for images. Video is not: seeking a `<video>` is
+built on HTTP range requests, and a source that answers every `Range` with the
+whole file cannot be scrubbed: Safari refuses to play it at all, and every
+other browser downloads the entire clip before it starts. Pass `range` to
+`retrieveBlob` and answer `206`:
+
+```ts group=generation-bytes
+import { parseRangeHeader } from '@tanstack/ai-persistence'
+import type { ArtifactRecord } from '@tanstack/ai-persistence'
+
+// The same route, seek-aware. `parseRangeHeader` resolves the header against
+// the size on the record, including suffix ranges (`bytes=-500` is the LAST
+// 500 bytes) and the unsatisfiable case. `blob.range` then reports the slice
+// actually served, and `artifact.size` the whole file: the two numbers
+// `Content-Range` needs.
+export async function serveArtifactBytes(
+  request: Request,
+  artifact: ArtifactRecord,
+) {
+  const range = parseRangeHeader(request.headers.get('range'), artifact.size)
+  if (range === 'unsatisfiable') {
+    return new Response('range not satisfiable', {
+      status: 416,
+      headers: { 'content-range': `bytes */${artifact.size}` },
+    })
+  }
+
+  const blob = await retrieveBlob(
+    persistence,
+    artifact,
+    range ? { range } : undefined,
+  )
+  if (!blob) return new Response('not found', { status: 404 })
+
+  const body = blob.body ?? (await blob.arrayBuffer())
+  // `accept-ranges` on every response, including the whole-file one: it is how
+  // the player learns it may seek at all.
+  const headers = {
+    'content-type': artifact.mimeType,
+    'accept-ranges': 'bytes',
+  }
+  if (!blob.range) {
+    return new Response(body, {
+      headers: { ...headers, 'content-length': String(artifact.size) },
+    })
+  }
+  const { offset, length } = blob.range
+  return new Response(body, {
+    status: 206,
+    headers: {
+      ...headers,
+      'content-length': String(length),
+      'content-range': `bytes ${offset}-${offset + length - 1}/${artifact.size}`,
+    },
+  })
+}
+```
+
+The client side needs nothing special, which is the point. Given a route that
+answers ranges, the browser drives the rest:
+
+```tsx
+import type { PersistedArtifactRef } from '@tanstack/ai'
+
+export function GeneratedVideo({ artifact }: { artifact: PersistedArtifactRef }) {
+  // `artifact.url` is the app-origin URL `artifactUrl` stamped on the ref.
+  return <video src={artifact.url} controls preload="metadata" />
+}
+```
+
+`preload="metadata"` has the player fetch the header bytes with a range request
+and show the duration and scrubber without pulling the clip down. A store must
+support ranged reads for any of this to work; the
+[conformance testkit](./store-reference#blobstore) asserts it.
+
 `memoryPersistence` keeps everything in process memory, which is right for
 development and tests; point `generationRuns` / `artifacts` / `blobs` at a durable backend
 for production. Control what gets captured with `withGenerationPersistence`'s
@@ -204,7 +281,8 @@ Every artifact fetch, input or output, is bounded three ways:
 
 - The scheme must be `http:` or `https:`.
 - It is aborted after `artifactFetchTimeoutMs` (default 30s).
-- It is capped at `maxArtifactBytes` (default 100 MiB) as the body drains.
+- It is capped at `maxArtifactBytes` (default 1 GiB) as the body drains, or not
+  at all when you pass `false`; see [Nothing is buffered](#nothing-is-buffered).
 
 Input fetches add two more: a loopback / private / link-local host block, and a
 refusal to follow redirects, so a `302` cannot hop somewhere the check never
@@ -214,6 +292,68 @@ Treat those as a backstop, not the control: a hostname that *resolves* to a
 private address still passes a literal-IP check. Keep `allowInputUrl` narrow,
 and for stronger isolation inject `artifactFetch` to route downloads through an
 egress-restricted proxy that can check the address actually connected to.
+
+## Nothing is buffered
+
+A provider URL is **streamed** into the blob store: the middleware never holds
+the artifact in memory, and `size` on the record is counted as the bytes drain.
+A 2 GB video costs a streaming store (R2, S3, a filesystem) the same memory as
+a 2 KB icon. `memoryPersistence` is the exception, and only because holding the
+bytes in process *is* what it does: it is a dev/test store, not a production
+one.
+
+`maxArtifactBytes` is therefore a bound on **transfer**, not on memory. What it
+buys is a ceiling on what a runaway or hostile origin can make you pull and
+store: `content-length` is advisory, so an origin can declare 1 KB and send
+forever. That is the only reason there is a default at all.
+
+### The body reaches your store untouched when it can
+
+Enforcing the cap during the drain means wrapping the body in a
+`TransformStream` that counts, and a transform's readable side carries **no
+declared length**, which is exactly what workerd's `R2Bucket.put` needs for a
+single-shot upload. So the wrapper is applied only where it is load-bearing:
+
+| The response                                            | What your store gets                        |
+| ------------------------------------------------------- | ------------------------------------------- |
+| declares a `content-length`, no `content-encoding`       | the `fetch` body **untouched**, length intact |
+| chunked, no declared length                              | the counting wrapper                        |
+| `content-encoding: gzip` (declared length is compressed) | the counting wrapper                        |
+
+In the first row nothing is lost by skipping the counter: the declared length
+was already checked against the cap, and HTTP framing holds the origin to it,
+a body cannot exceed a length it declared. That is the common case for a
+provider CDN, so on Cloudflare the default configuration already streams
+straight through:
+
+```ts ignore
+// Inside your BlobStore.put on workerd: nothing buffered, no multipart, no
+// hint needed. (`R2Bucket` comes from @cloudflare/workers-types.)
+const putStraightToR2 = (bucket: R2Bucket, key: string, body: BlobBody) =>
+  bucket.put(key, body)
+```
+
+The other two rows genuinely need the counter, because a chunked reply declares
+nothing, and a compressed one can decode to arbitrarily more than it declared
+(a decompression bomb). For those, `BlobPutOptions.expectedLength` is absent
+too, and a length-strict store falls back to a multipart upload that buffers
+one 8 MiB part at a time, so memory stays flat whatever the artifact's size. The
+`ai-persistence/build-cloudflare-artifact-store` skill ships that recipe.
+
+To drop the ceiling entirely (no counter on any response, no limit on what an
+origin can stream into your bucket) pass `false`:
+
+```ts group=generation-bytes
+const uncappedOptions = withGenerationPersistence(persistence, {
+  maxArtifactBytes: false,
+})
+```
+
+Reach for that when you trust the origins you fetch from and would rather have
+no ceiling than a generous one. Your storage backend's own limits still apply,
+R2, for instance, caps a single-shot upload at 5 GiB and a multipart one at
+10,000 parts. Keep the cap when `allowInputUrl` lets callers name the URL:
+there the origin is by definition not one you control.
 
 ## Wire the durable URL through to the client
 

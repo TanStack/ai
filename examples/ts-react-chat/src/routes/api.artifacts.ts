@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { retrieveArtifact, retrieveBlob } from '@tanstack/ai-persistence'
+import {
+  parseRangeHeader,
+  retrieveArtifact,
+  retrieveBlob,
+} from '@tanstack/ai-persistence'
 import { generationServerPersistence } from '../lib/generation-server-store'
 
 /**
@@ -33,17 +37,57 @@ export const Route = createFileRoute('/api/artifacts')({
         // comes from the caller, and `ArtifactRecord` carries the `threadId`
         // to check it against. This demo is single-user, so there is no
         // session to check.
-        const blob = await retrieveBlob(persistence, artifact)
+
+        // Video seeking is built on `Range`: the browser asks for a slice and
+        // expects `206` + `Content-Range`, and Safari refuses to play a source
+        // that ignores `Range` outright. `parseRangeHeader` resolves the
+        // header against the known size, so an unsatisfiable range is a `416`
+        // here rather than a bad `206`.
+        const range = parseRangeHeader(
+          request.headers.get('range'),
+          artifact.size,
+        )
+        if (range === 'unsatisfiable') {
+          return new Response('range not satisfiable', {
+            status: 416,
+            headers: { 'content-range': `bytes */${artifact.size}` },
+          })
+        }
+
+        const blob = await retrieveBlob(
+          persistence,
+          artifact,
+          range ? { range } : undefined,
+        )
         if (!blob) return new Response('not found', { status: 404 })
 
-        return new Response(blob.body ?? (await blob.arrayBuffer()), {
+        const cacheHeaders = {
+          'content-type': artifact.mimeType,
+          // Artifact ids are content-addressed by run: the bytes behind an id
+          // never change, so this is safe to cache hard. `private` because a
+          // real deployment serves these per-user.
+          'cache-control': 'private, max-age=31536000, immutable',
+          // Advertised on every response, so a player knows it can seek.
+          'accept-ranges': 'bytes',
+        }
+        const body = blob.body ?? (await blob.arrayBuffer())
+
+        if (blob.range) {
+          const { offset, length } = blob.range
+          return new Response(body, {
+            status: 206,
+            headers: {
+              ...cacheHeaders,
+              'content-length': String(length),
+              'content-range': `bytes ${offset}-${offset + length - 1}/${artifact.size}`,
+            },
+          })
+        }
+
+        return new Response(body, {
           headers: {
-            'content-type': artifact.mimeType,
+            ...cacheHeaders,
             'content-length': String(artifact.size),
-            // Artifact ids are content-addressed by run: the bytes behind an id
-            // never change, so this is safe to cache hard. `private` because a
-            // real deployment serves these per-user.
-            'cache-control': 'private, max-age=31536000, immutable',
           },
         })
       },

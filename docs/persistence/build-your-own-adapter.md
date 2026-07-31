@@ -99,11 +99,11 @@ The middleware turns on behavior for whatever stores it finds, so a
 `messages`-only adapter is a valid adapter.
 
 Those seven keys (`messages`, `runs`, `interrupts`, `metadata`,
-`generationRuns`, `artifacts`, `blobs`) are the *only* ones `stores` accepts; anything else
-throws `Unknown AIPersistence store key` at construction. Need a mutex across
+`generationRuns`, `artifacts`, `blobs`) are the *only* ones `stores` accepts;
+anything else throws `Unknown AIPersistence store key` at construction. Need a mutex across
 instances? That is `withLocks`; see [Locks](../advanced/locks).
 
-Type each store with its `define*Store` helper, as the sections below do. There
+Type each store with its `define*Store` helper, as both walkthroughs do. There
 is one per store:
 
 - `defineMessageStore`

@@ -303,11 +303,14 @@ media.
 
 - `put` accepts any `BlobBody`: a stream, buffer, string, or `Blob`. The helper
   below normalizes it to bytes.
+- `get` honours `options.range` by returning only that slice, which is what a
+  media player's seeking needs. See the
+  [`BlobStore` contracts](./store-reference#blobstore).
 - `list` matches `prefix` literally and pages with a keyset cursor.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
-import { defineBlobStore } from '@tanstack/ai-persistence'
+import { defineBlobStore, resolveBlobRange } from '@tanstack/ai-persistence'
 import type {
   BlobBody,
   BlobObject,
@@ -358,9 +361,15 @@ function mapBlobRecord(row: Record<string, unknown>): BlobRecord {
   }
 }
 
-function blobObject(record: BlobRecord, bytes: Uint8Array): BlobObject {
+function blobObject(
+  record: BlobRecord,
+  bytes: Uint8Array,
+  range?: { offset: number; length: number },
+): BlobObject {
   return {
     ...record,
+    // `size` keeps describing the whole object; `range` describes these bytes.
+    ...(range ? { range } : {}),
     body: new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(bytes.slice())
@@ -389,6 +398,16 @@ function createBlobStore(db: DatabaseSync) {
   )
   const selectCreated = db.prepare('SELECT created_at FROM blobs WHERE key = ?')
   const selectOne = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  // Metadata without the bytes, and the bounded slice: a ranged read must not
+  // load the whole object to hand back a piece of it.
+  const selectMeta = db.prepare(
+    `SELECT key, size, etag, content_type, custom_metadata_json,
+            created_at, updated_at
+       FROM blobs WHERE key = ?`,
+  )
+  const selectSlice = db.prepare(
+    'SELECT substr(bytes, ?, ?) AS bytes FROM blobs WHERE key = ?',
+  )
   return defineBlobStore({
     async put(key, body, options) {
       const bytes = await toBytes(body)
@@ -421,15 +440,30 @@ function createBlobStore(db: DatabaseSync) {
           : {}),
       }
     },
-    async get(key) {
-      const row = selectOne.get(key)
-      if (!row) return null
+    async get(key, options) {
+      if (!options?.range) {
+        const row = selectOne.get(key)
+        if (!row) return null
+        const bytes =
+          row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
+        return blobObject(mapBlobRecord(row), bytes)
+      }
+      // Metadata first, WITHOUT the bytes, so the clamp costs no I/O...
+      const meta = selectMeta.get(key)
+      if (!meta) return null
+      const served = resolveBlobRange(Number(meta.size), options.range)
+      // ...then let SQLite cut the slice (`substr` is 1-based and byte-wise
+      // over a BLOB). Reading the row whole and slicing in JS would load the
+      // entire object on every video seek, the cost ranges exist to avoid.
+      const slice = selectSlice.get(served.offset + 1, served.length, key)
+      if (!slice) return null
       const bytes =
-        row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
-      return blobObject(mapBlobRecord(row), bytes)
+        slice.bytes instanceof Uint8Array ? slice.bytes : new Uint8Array()
+      return blobObject(mapBlobRecord(meta), bytes, served)
     },
     async head(key) {
-      const row = selectOne.get(key)
+      // Metadata only: never pull the bytes to answer a question about them.
+      const row = selectMeta.get(key)
       return row ? mapBlobRecord(row) : null
     },
     async delete(key) {
