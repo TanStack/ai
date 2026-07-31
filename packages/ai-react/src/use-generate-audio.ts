@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructAudioResult } from '@tanstack/ai-client'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
@@ -147,21 +147,17 @@ export function useGenerateAudio<TTransformed = void>(
 ): UseGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useGenerateAudio',
-    outputKind: 'audio' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     AudioGenerateInput,
     AudioGenerationResult,
     TTransformed
-  >({
-    ...options,
-    devtools,
-    reconstructResult: reconstructAudioResult,
-  })
+  >(
+    { ...options, reconstructResult: reconstructAudioResult },
+    {
+      hookName: 'useGenerateAudio',
+      outputKind: 'audio',
+    },
+  )
 
   return generation
 }

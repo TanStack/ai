@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructSummarizeResult } from '@tanstack/ai-client'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
@@ -146,21 +146,17 @@ export function useSummarize<TTransformed = void>(
 ): UseSummarizeReturn<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useSummarize',
-    outputKind: 'text' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     SummarizeGenerateInput,
     SummarizationResult,
     TTransformed
-  >({
-    ...options,
-    devtools,
-    reconstructResult: reconstructSummarizeResult,
-  })
+  >(
+    { ...options, reconstructResult: reconstructSummarizeResult },
+    {
+      hookName: 'useSummarize',
+      outputKind: 'text',
+    },
+  )
 
   return generation
 }

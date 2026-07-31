@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructImageResult } from '@tanstack/ai-client'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
@@ -149,21 +149,17 @@ export function useGenerateImage<TTransformed = void>(
 ): UseGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useGenerateImage',
-    outputKind: 'image' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     ImageGenerateInput,
     ImageGenerationResult,
     TTransformed
-  >({
-    ...options,
-    devtools,
-    reconstructResult: reconstructImageResult,
-  })
+  >(
+    { ...options, reconstructResult: reconstructImageResult },
+    {
+      hookName: 'useGenerateImage',
+      outputKind: 'image',
+    },
+  )
 
   return generation
 }

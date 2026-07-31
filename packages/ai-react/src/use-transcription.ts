@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructTranscriptionResult } from '@tanstack/ai-client'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
@@ -151,17 +151,17 @@ export function useTranscription<TTransformed = void>(
 ): UseTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useTranscription',
-    outputKind: 'text' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     TranscriptionGenerateInput,
     TranscriptionResult,
     TTransformed
-  >({ ...options, devtools, reconstructResult: reconstructTranscriptionResult })
+  >(
+    { ...options, reconstructResult: reconstructTranscriptionResult },
+    {
+      hookName: 'useTranscription',
+      outputKind: 'text',
+    },
+  )
 
   return generation
 }

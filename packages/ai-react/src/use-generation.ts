@@ -3,6 +3,7 @@ import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsClientMetadata,
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
@@ -163,6 +164,34 @@ export function useGeneration<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
 > {
+  return useGenerationWithDevtoolsIdentity<TInput, TResult, TTransformed>(
+    options,
+    { hookName: 'useGeneration' },
+  )
+}
+
+interface GenerationDevtoolsIdentity {
+  hookName: AIDevtoolsClientMetadata['hookName']
+  outputKind?: AIDevtoolsClientMetadata['outputKind']
+}
+
+/** @internal */
+export function useGenerationWithDevtoolsIdentity<
+  TInput extends Record<string, any>,
+  TResult,
+  TTransformed = void,
+>(
+  options: Omit<
+    UseGenerationOptions<TInput, TResult>,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: TResult) => TTransformed
+  } & GenerationPersistenceOptions,
+  devtoolsIdentity: GenerationDevtoolsIdentity,
+): UseGenerationReturn<
+  InferGenerationOutputFromReturn<TResult, TTransformed>,
+  TInput
+> {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
   // The hook identity is `threadId`. `hookId` is only a React recreation key.
@@ -199,9 +228,12 @@ export function useGeneration<
         : {}),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
-        hookName: 'useGeneration',
-        framework: 'react',
         ...opts.devtools,
+        framework: 'react',
+        hookName: devtoolsIdentity.hookName,
+        ...(devtoolsIdentity.outputKind !== undefined && {
+          outputKind: devtoolsIdentity.outputKind,
+        }),
       },
       // The transform's raw return type (`TTransformed`) and the stored output
       // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
