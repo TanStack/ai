@@ -170,6 +170,59 @@ describe.skipIf(!dockerAvailable)(
       }
     }, 120_000)
 
+    it('treats a cleanly-exited process as nothing to kill: no wait, no warning', async () => {
+      const warnings: Array<string> = []
+      const provider = dockerSandbox({
+        image: IMAGE,
+        logger: {
+          warn: (message) => {
+            warnings.push(message)
+          },
+        },
+      })
+      let sbx: SandboxHandle | undefined
+      try {
+        sbx = await provider.create({})
+
+        // `journal-reader`'s `followJournal` calls `proc.kill()` from a `finally`
+        // on EVERY exit path, so this — a container-side command that ended on
+        // its own, then a kill — is the NORMAL teardown, not an edge case.
+        const proc = await sbx.process.spawn('echo done')
+        for await (const _chunk of proc.stdout) {
+          // drain to EOF, so the wrapper has exited and its pid file is gone
+        }
+        expect(await proc.wait()).toBe(0)
+        // Let the fire-and-forget `rm -f` land, so the kill below really does
+        // face an absent pid file.
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        const started = Date.now()
+        await proc.kill()
+        const elapsed = Date.now() - started
+
+        // BOTH harms, because either one regresses on its own.
+        //
+        // THE CLOCK. The pid read is a bounded retry — `PID_WAIT_TIMEOUT_MS`
+        // (2s) at `PID_WAIT_INTERVAL_MS` — and it exists for the fast-abort race
+        // covered below, so it must stay. But "absent" also means "the owner
+        // exited and we removed it", and inferring the first from the second
+        // made every ordinary teardown block ~2s inside `await proc.kill()`.
+        // Measured at 2083ms before the `exited` state; a round trip that skips
+        // the loop is tens of milliseconds. 1s separates them with room to
+        // spare on a loaded machine.
+        expect(elapsed).toBeLessThan(1000)
+
+        // THE CHANNEL. That warning is the only in-band evidence for
+        // `killableProcesses: true` — the kill shell is built never to fail, so
+        // its exit code carries nothing. A channel that fires on every clean
+        // teardown cannot support the claim, so silence here is load-bearing,
+        // not cosmetic.
+        expect(warnings).toEqual([])
+      } finally {
+        await sbx?.destroy()
+      }
+    }, 120_000)
+
     it('reports a kill it could not perform instead of resolving as if it worked', async () => {
       const warnings: Array<{
         message: string
@@ -187,10 +240,28 @@ describe.skipIf(!dockerAvailable)(
       try {
         sbx = await provider.create({})
         const handle = sbx
+        const probeRows = async (): Promise<string> =>
+          (
+            await handle.process.exec(
+              `ps | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
+            )
+          ).stdout.trim()
         // Drive the unperformable case: delete the pid file out from under a
-        // live spawn, which is exactly the shape of "this process never recorded
-        // a pid" (its exec never started, or it died before its `echo $$`). The
-        // kill shell then waits, finds nothing, and sends NO signal.
+        // STILL-RUNNING spawn, which is exactly the shape of "this process never
+        // recorded a pid" (its exec never started, or it died before its
+        // `echo $$`). The kill shell then waits, finds nothing, and sends NO
+        // signal — and the process really does survive, which is what makes this
+        // a genuine refusal rather than a modelled one.
+        //
+        // THAT "STILL-RUNNING" IS THE WHOLE DISTINCTION, and the reason this test
+        // keeps its shape after the `exited` fix. An absent pid file means two
+        // different things: "not written yet / never written" (here — nothing can
+        // be signalled, so warn) and "the owner exited and we cleaned up" (the
+        // sibling test above — nothing NEEDS signalling, so stay silent). The
+        // handle no longer infers either from the file alone; it tracks which
+        // happened. This case is the first, so the warning is earned. The
+        // assertions below prove that from the container's own process table
+        // rather than trusting the shape of the setup.
         //
         // Asserting only that `kill()` RESOLVED would pass against a kill that
         // did nothing at all — the shell is built never to fail, so its exit
@@ -209,6 +280,9 @@ describe.skipIf(!dockerAvailable)(
         )
         expect(listed.stdout.trim()).not.toBe('')
         await handle.process.exec('rm -f /tmp/.tanstack-sandbox-spawn-*.pid')
+        // Guard the guard, part two: the probe is alive going in, so its presence
+        // afterwards is a survival and not a process that was never there.
+        expect(await probeRows()).toContain(KILL_PROBE_SLEEP)
 
         await proc.kill()
 
@@ -216,6 +290,13 @@ describe.skipIf(!dockerAvailable)(
         expect(
           warnings.some((w) => /no pid was recorded/.test(w.message)),
         ).toBe(true)
+
+        // …and the refusal it reports is REAL. Without this the test would pass
+        // against a handle that warned about a process it had in fact killed —
+        // i.e. against the cried-wolf channel the sibling test forbids. The
+        // container's own `ps` is the arbiter: the probe is still running,
+        // because no signal was ever sent to it.
+        expect(await probeRows()).toContain(KILL_PROBE_SLEEP)
       } finally {
         // The probe outlives the un-performable kill by construction; removing
         // the container is what actually ends it.

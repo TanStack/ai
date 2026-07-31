@@ -61,6 +61,16 @@ export const DOCKER_CAPS: SandboxCapabilities = {
   //      handle could not perform is therefore reported, not assumed.
   //   3. `docker.test.ts` asks the container's own `ps` whether the probe is
   //      gone — evidence from the kernel, not from this constant.
+  // Point 2 only counts while the channel STAYS QUIET on healthy teardowns. It
+  // did not: `followJournal` kills in a `finally` on every exit path, so once the
+  // pid file was removed on clean exit, "absent" meant both "not written yet" and
+  // "the owner exited and we cleaned up" — and every ordinary teardown warned
+  // about an orphan that did not exist (and blocked ~2s doing so). A warning that
+  // fires when nothing is wrong is not evidence of anything, so the handle now
+  // tracks WHICH of the two happened (`PidFileState`) instead of guessing from
+  // the file. `docker.test.ts` pins both directions: silence after a clean exit,
+  // and a warning — with the survivor still in `ps` — after a real refusal.
+  //
   // If the pid was never recorded (the process died before its `echo $$`, or the
   // exec never started) that too is reported, via `KILL_NO_PID_MARKER`. The
   // residual gap is honest and narrow: a kill can still be refused, and then
@@ -227,6 +237,48 @@ function killRecordedPidCommand(
     `rm -f ${f}`,
     `:`,
   ].join('\n')
+}
+
+/**
+ * Lifecycle of ONE pid file, shared between the wrapper's exit handlers and its
+ * kill path.
+ *
+ * It exists because "the pid file is absent" answers two different questions and
+ * the kill shell can only see one of them. To that shell an absent file means
+ * "not written YET", so it waits {@link PID_WAIT_TIMEOUT_MS} and then reports a
+ * possible orphan — correct for the fast-abort race it was added for, and wrong
+ * for the far more common case where the container-side process exited on its own
+ * and {@link DockerHandle.removePidFile} deleted the file. In that case there is
+ * nothing to signal, so waiting 2s inside `await proc.kill()` and then warning
+ * about an orphan is a lie plus a delay.
+ *
+ * `followJournal` makes it the norm, not an edge case: its `finally` calls
+ * `proc.kill()` on EVERY exit path, including the clean ones. Since that warning
+ * is the only in-band evidence for `killableProcesses: true`, a channel that
+ * fires on every ordinary teardown cannot support the claim.
+ */
+interface PidFileState {
+  /**
+   * The wrapper exited on its own and WE removed its pid file, so the file's
+   * absence is not evidence about any live process. Makes a subsequent
+   * `killRecordedPid` a no-op.
+   */
+  exited: boolean
+  /**
+   * A kill was requested, so the kill shell owns the pid file (it reads, then
+   * `rm -f`s it) and the exit handlers must not remove it out from under the
+   * `cat`.
+   */
+  killRequested: boolean
+  /**
+   * The in-flight kill, memoised so concurrent kills JOIN it rather than issue a
+   * second one. Both the abort listener and `followJournal`'s `finally` fire on
+   * the abort path; without this the second kill is a `container.exec()` round
+   * trip behind the first, arrives after that shell's `rm -f`, and pays the full
+   * wait before reporting the same false orphan. The first kill escalates to
+   * `SIGKILL` unconditionally, so a second one has nothing to add anyway.
+   */
+  kill?: Promise<void>
 }
 
 /**
@@ -400,8 +452,32 @@ export class DockerHandle implements SandboxHandle {
    * (see {@link killRecordedPidCommand}) or a rejected exec both reach the
    * logger, so an unkillable process is visible rather than silently assumed
    * dead.
+   *
+   * A NO-OP ONCE THE OWNER HAS EXITED. `state.exited` says the pid file is gone
+   * because we removed it, not because the container-side shell has yet to write
+   * it — see {@link PidFileState}. Without that distinction every clean teardown
+   * (`followJournal` kills in a `finally` on all paths) spent
+   * {@link PID_WAIT_TIMEOUT_MS} waiting for a file nothing would ever write and
+   * then warned about an orphan that did not exist, which is exactly the
+   * cried-wolf channel `killableProcesses: true` cannot be evidenced by.
+   *
+   * ONE KILL PER WRAPPER. Concurrent callers join the first kill's promise
+   * instead of issuing a second `container.exec()` that would arrive after the
+   * first shell's `rm -f` and report the same phantom. The first escalates to
+   * `SIGKILL` unconditionally, so a second adds nothing.
    */
-  private async killRecordedPid(
+  private killRecordedPid(
+    pidFile: string,
+    state: PidFileState,
+    signal?: NodeJS.Signals | number,
+  ): Promise<void> {
+    if (state.exited) return Promise.resolve()
+    state.killRequested = true
+    state.kill ??= this.runRecordedKill(pidFile, signal)
+    return state.kill
+  }
+
+  private async runRecordedKill(
     pidFile: string,
     signal?: NodeJS.Signals | number,
   ): Promise<void> {
@@ -487,37 +563,47 @@ export class DockerHandle implements SandboxHandle {
     })
     this.docker.modem.demuxStream(stream, outW, errW)
 
-    let aborted = false
-    if (opts?.signal) {
-      opts.signal.addEventListener(
-        'abort',
-        () => {
-          aborted = true
-          // Kill inside the container FIRST — detaching the stream on its own
-          // leaves the command running (see `pidRecordingCommand`). This one
-          // handler cannot await (an `AbortSignal` listener is synchronous), so
-          // the kill is dispatched and its own reporting is left to
-          // `killRecordedPid`'s logger. `SpawnHandle.kill` — the path a caller
-          // sequences teardown on — DOES await.
-          if (pidFile) void this.killRecordedPid(pidFile)
-          stream.destroy()
-        },
-        { once: true },
-      )
+    const state: PidFileState = { exited: false, killRequested: false }
+    const signal = opts?.signal
+    // Named so it can be DETACHED below. With `{ once: true }` alone the
+    // listener outlives the exec, so an abort fired after the command had
+    // already finished re-entered the kill path for a pid file we had removed —
+    // 2s of waiting and a phantom orphan warning for a process that was long
+    // gone.
+    const onAbort = (): void => {
+      // Kill inside the container FIRST — detaching the stream on its own
+      // leaves the command running (see `pidRecordingCommand`). This one
+      // handler cannot await (an `AbortSignal` listener is synchronous), so
+      // the kill is dispatched and its own reporting is left to
+      // `killRecordedPid`'s logger. `SpawnHandle.kill` — the path a caller
+      // sequences teardown on — DOES await.
+      if (pidFile !== undefined) void this.killRecordedPid(pidFile, state)
+      stream.destroy()
     }
+    if (signal) signal.addEventListener('abort', onAbort, { once: true })
 
-    await new Promise<void>((resolve, reject) => {
-      stream.on('end', resolve)
-      // A destroyed stream (abort) emits only `close`, never `end`, so without
-      // this an aborted exec would never settle at all.
-      stream.on('close', resolve)
-      stream.on('error', reject)
-    })
-
-    // The wrapper exited on its own, so nothing will ever read its pid file
-    // again. On the abort path `killRecordedPidCommand` removes it instead —
-    // removing it here too would race that kill's `cat`.
-    if (pidFile !== undefined && !aborted) this.removePidFile(pidFile)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        stream.on('end', resolve)
+        // A destroyed stream (abort) emits only `close`, never `end`, so without
+        // this an aborted exec would never settle at all.
+        stream.on('close', resolve)
+        stream.on('error', reject)
+      })
+    } finally {
+      // `finally`, not a statement after the `await`: `stream.on('error')`
+      // REJECTS, and on that path the straight-line cleanup never ran at all —
+      // so an erroring exec left its pid file in the container's `/tmp` for the
+      // container's whole life, the exact leak this cleanup exists to prevent.
+      if (signal) signal.removeEventListener('abort', onAbort)
+      // The wrapper exited (or failed) on its own, so nothing will ever read its
+      // pid file again. On the kill path `killRecordedPidCommand` removes it
+      // instead — removing it here too would race that kill's `cat`.
+      if (pidFile !== undefined && !state.killRequested) {
+        state.exited = true
+        this.removePidFile(pidFile)
+      }
+    }
 
     const info = await exec.inspect()
     return {
@@ -559,24 +645,42 @@ export class DockerHandle implements SandboxHandle {
     stream.on('end', endOutputs)
     stream.on('close', endOutputs)
     stream.on('error', endOutputs)
-    // `kill()`/abort own the pid file (their shell removes it, after reading it);
-    // this covers the process that simply exits, whose file nothing would ever
-    // clean up. `end` fires only on a clean EOF, never on a destroyed stream.
-    let killRequested = false
-    stream.on('end', () => {
-      if (!killRequested) this.removePidFile(pidFile)
-    })
-    if (opts?.signal) {
-      opts.signal.addEventListener(
-        'abort',
-        () => {
-          // Synchronous listener — cannot await. See the twin comment in `exec`.
-          killRequested = true
-          void this.killRecordedPid(pidFile)
-          stream.destroy()
-        },
-        { once: true },
-      )
+    const state: PidFileState = { exited: false, killRequested: false }
+    /*
+     * The owner exited without anyone killing it, so ITS pid file is ours to
+     * remove — and, just as importantly, its absence from here on means "gone",
+     * not "not written yet" (`state.exited`; see `PidFileState`). `kill()`/abort
+     * own the file instead when they ran, because their shell reads it before
+     * `rm -f`-ing it.
+     *
+     * All three events, not just `end`: `end` fires only on a clean EOF, so a
+     * stream reaching `close` or `error` without one — a broken connection to
+     * the daemon, a container stopping under us — used to leak the file for the
+     * container's whole life. `state.exited` keeps the removal idempotent across
+     * the `end`+`close` pair a clean exit emits.
+     */
+    const ownerExited = (): void => {
+      if (state.killRequested || state.exited) return
+      state.exited = true
+      this.removePidFile(pidFile)
+    }
+    stream.on('end', ownerExited)
+    stream.on('close', ownerExited)
+    stream.on('error', ownerExited)
+    const signal = opts?.signal
+    // Detached once the stream settles — see the twin comment in `exec` for why
+    // a listener outliving its process is a source of phantom orphan warnings.
+    const onAbort = (): void => {
+      // Synchronous listener — cannot await. See the twin comment in `exec`.
+      void this.killRecordedPid(pidFile, state)
+      stream.destroy()
+    }
+    if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true })
+      const detach = (): void => signal.removeEventListener('abort', onAbort)
+      stream.on('end', detach)
+      stream.on('close', detach)
+      stream.on('error', detach)
     }
 
     return {
@@ -629,10 +733,15 @@ export class DockerHandle implements SandboxHandle {
        *
        * Never rejects — see `killRecordedPid`. A kill the container refused is
        * reported through the handle's `logger`, not thrown.
+       *
+       * CHEAP AND SILENT WHEN THE PROCESS ALREADY EXITED. Callers kill
+       * unconditionally in `finally` blocks — `journal-reader`'s `followJournal`
+       * does so on every exit path, clean ones included — so this is routinely
+       * called on a process that is already gone. That case is not a failed kill:
+       * no wait, no signal, no warning (see `PidFileState`).
        */
-      kill: async (signal) => {
-        killRequested = true
-        await this.killRecordedPid(pidFile, signal)
+      kill: async (killSignal) => {
+        await this.killRecordedPid(pidFile, state, killSignal)
         stream.destroy()
       },
     }
