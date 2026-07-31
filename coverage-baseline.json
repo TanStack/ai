@@ -1,0 +1,290 @@
+{
+  "ai": {
+    "statements": 88.66,
+    "branches": 77.81,
+    "functions": 90.11,
+    "lines": 89.92
+  },
+  "ai-angular": {
+    "statements": 76.57,
+    "branches": 60.81,
+    "functions": 63.33,
+    "lines": 80.17
+  },
+  "ai-anthropic": {
+    "statements": 83.87,
+    "branches": 74.88,
+    "functions": 85.24,
+    "lines": 84.4
+  },
+  "ai-bedrock": {
+    "statements": 83.7,
+    "branches": 74.31,
+    "functions": 82.35,
+    "lines": 84.16
+  },
+  "ai-claude-code": {
+    "statements": 83.2,
+    "branches": 67.06,
+    "functions": 86,
+    "lines": 85.59
+  },
+  "ai-client": {
+    "statements": 84.97,
+    "branches": 76.47,
+    "functions": 83.01,
+    "lines": 86.47
+  },
+  "ai-code-mode": {
+    "statements": 91.58,
+    "branches": 85.07,
+    "functions": 86,
+    "lines": 92.53
+  },
+  "ai-code-mode-skills": {
+    "statements": 80.68,
+    "branches": 72.75,
+    "functions": 86.36,
+    "lines": 81.59
+  },
+  "ai-codex": {
+    "statements": 91.72,
+    "branches": 80.49,
+    "functions": 89.13,
+    "lines": 92.61
+  },
+  "ai-devtools": {
+    "statements": 80.25,
+    "branches": 69.87,
+    "functions": 82.85,
+    "lines": 81.77
+  },
+  "ai-durable-stream": {
+    "statements": 87.42,
+    "branches": 80.97,
+    "functions": 93.18,
+    "lines": 89.7
+  },
+  "ai-elevenlabs": {
+    "statements": 65.26,
+    "branches": 57.6,
+    "functions": 50.68,
+    "lines": 66.42
+  },
+  "ai-event-client": {
+    "statements": 28.8,
+    "branches": 19.69,
+    "functions": 44,
+    "lines": 29.16
+  },
+  "ai-fal": {
+    "statements": 90.12,
+    "branches": 83.05,
+    "functions": 90.47,
+    "lines": 90.19
+  },
+  "ai-gemini": {
+    "statements": 59.35,
+    "branches": 60.25,
+    "functions": 51.24,
+    "lines": 60
+  },
+  "ai-grok": {
+    "statements": 41.78,
+    "branches": 43.95,
+    "functions": 51.63,
+    "lines": 42.56
+  },
+  "ai-grok-build": {
+    "statements": 69.63,
+    "branches": 51.47,
+    "functions": 71.02,
+    "lines": 71.01
+  },
+  "ai-groq": {
+    "statements": 39.08,
+    "branches": 42.6,
+    "functions": 59.45,
+    "lines": 40.74
+  },
+  "ai-isolate-cloudflare": {
+    "statements": 94.11,
+    "branches": 70.66,
+    "functions": 100,
+    "lines": 93.96
+  },
+  "ai-isolate-node": {
+    "statements": 84,
+    "branches": 43.39,
+    "functions": 100,
+    "lines": 83.78
+  },
+  "ai-isolate-quickjs": {
+    "statements": 87.23,
+    "branches": 65.07,
+    "functions": 88.23,
+    "lines": 89.05
+  },
+  "ai-mcp": {
+    "statements": 95.6,
+    "branches": 84.23,
+    "functions": 98.63,
+    "lines": 98.8
+  },
+  "ai-memory": {
+    "statements": 71.42,
+    "branches": 52.53,
+    "functions": 77.69,
+    "lines": 73.21
+  },
+  "ai-mistral": {
+    "statements": 68,
+    "branches": 55.64,
+    "functions": 76.47,
+    "lines": 69.16
+  },
+  "ai-ollama": {
+    "statements": 28.31,
+    "branches": 68.12,
+    "functions": 86.95,
+    "lines": 28.15
+  },
+  "ai-openai": {
+    "statements": 48,
+    "branches": 50.58,
+    "functions": 50,
+    "lines": 48.31
+  },
+  "ai-opencode": {
+    "statements": 61.79,
+    "branches": 52.9,
+    "functions": 56.62,
+    "lines": 63.67
+  },
+  "ai-openrouter": {
+    "statements": 47.35,
+    "branches": 49.65,
+    "functions": 81.7,
+    "lines": 47.38
+  },
+  "ai-persistence": {
+    "statements": 92.15,
+    "branches": 79.17,
+    "functions": 99.4,
+    "lines": 95.44
+  },
+  "ai-preact": {
+    "statements": 88.99,
+    "branches": 78.37,
+    "functions": 92.85,
+    "lines": 92.55
+  },
+  "ai-react": {
+    "statements": 77.82,
+    "branches": 66.03,
+    "functions": 75.86,
+    "lines": 77.75
+  },
+  "ai-react-ui": {
+    "statements": 12.14,
+    "branches": 5.47,
+    "functions": 14.28,
+    "lines": 11.42
+  },
+  "ai-sandbox-cloudflare": {
+    "statements": 37.92,
+    "branches": 32.13,
+    "functions": 41.98,
+    "lines": 38.4
+  },
+  "ai-sandbox-daytona": {
+    "statements": 12.42,
+    "branches": 3.07,
+    "functions": 6.25,
+    "lines": 13.54
+  },
+  "ai-sandbox-docker": {
+    "statements": 62.01,
+    "branches": 47.36,
+    "functions": 56.6,
+    "lines": 64.32
+  },
+  "ai-sandbox-local-process": {
+    "statements": 87.71,
+    "branches": 66.66,
+    "functions": 89.47,
+    "lines": 91.33
+  },
+  "ai-sandbox-sprites": {
+    "statements": 70.75,
+    "branches": 55.46,
+    "functions": 70.87,
+    "lines": 73.88
+  },
+  "ai-sandbox-vercel": {
+    "statements": 5.44,
+    "branches": 15.47,
+    "functions": 2.27,
+    "lines": 6.01
+  },
+  "ai-solid": {
+    "statements": 95.27,
+    "branches": 70.13,
+    "functions": 93.87,
+    "lines": 95.81
+  },
+  "ai-solid-ui": {
+    "statements": 2.87,
+    "branches": 3.63,
+    "functions": 0.94,
+    "lines": 4.02
+  },
+  "ai-svelte": {
+    "statements": 73.51,
+    "branches": 59.25,
+    "functions": 72.99,
+    "lines": 74.72
+  },
+  "ai-utils": {
+    "statements": 77.33,
+    "branches": 75,
+    "functions": 90.9,
+    "lines": 77.61
+  },
+  "ai-vue": {
+    "statements": 78.18,
+    "branches": 56.42,
+    "functions": 81.91,
+    "lines": 83.95
+  },
+  "ai-vue-ui": {
+    "statements": 4.43,
+    "branches": 4.41,
+    "functions": 2.56,
+    "lines": 4.76
+  },
+  "openai-base": {
+    "statements": 73.66,
+    "branches": 57.91,
+    "functions": 63.82,
+    "lines": 74.15
+  },
+  "preact-ai-devtools": {
+    "statements": 0,
+    "branches": 0,
+    "functions": 100,
+    "lines": 0
+  },
+  "react-ai-devtools": {
+    "statements": 0,
+    "branches": 0,
+    "functions": 100,
+    "lines": 0
+  },
+  "solid-ai-devtools": {
+    "statements": 0,
+    "branches": 0,
+    "functions": 100,
+    "lines": 0
+  }
+}

@@ -55,7 +55,10 @@ pnpm test:lib:dev          # Watch mode for unit tests
 pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
-pnpm test:coverage         # Generate coverage reports
+pnpm test:coverage         # Generate coverage reports (affected)
+pnpm test:coverage:all     # Generate coverage reports (every package)
+pnpm test:coverage:check   # Coverage + fail if it dropped vs coverage-baseline.json
+pnpm test:coverage:update  # Re-baseline coverage-baseline.json
 pnpm test:knip             # Check for unused dependencies
 pnpm test:sherif           # Check pnpm workspace consistency
 pnpm test:docs             # Verify documentation links
@@ -319,7 +322,10 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 
 - Unit tests in `*.test.ts` files alongside source
 - Uses Vitest with happy-dom for DOM testing
-- Test coverage via `pnpm test:coverage`
+- Test coverage via `pnpm test:coverage`; the `Coverage` CI job runs
+  `pnpm test:coverage:check`, which fails when any package drops more than
+  0.5pp below the percentages committed in `coverage-baseline.json`. Re-baseline
+  intentional drops with `pnpm test:coverage:update`. See CONTRIBUTING.md.
 - **E2E tests are mandatory** — see E2E Testing section below
 
 ### E2E Testing (REQUIRED)

@@ -72,22 +72,43 @@ The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on 
 
 All commands are run from the repo root. Nx handles affected detection and caching.
 
-| Goal                          | Command             |
-| ----------------------------- | ------------------- |
-| Run unit tests (affected)     | `pnpm test:lib`     |
-| Watch unit tests              | `pnpm test:lib:dev` |
-| Type-check (affected)         | `pnpm test:types`   |
-| Lint (affected)               | `pnpm test:eslint`  |
-| Verify build artifacts        | `pnpm test:build`   |
-| Format the repo               | `pnpm format`       |
-| Build (affected)              | `pnpm build`        |
-| Build everything              | `pnpm build:all`    |
-| Run the full CI suite locally | `pnpm test`         |
-| Run the affected-PR check     | `pnpm test:pr`      |
-| E2E suite                     | `pnpm test:e2e`     |
-| E2E with Playwright UI        | `pnpm test:e2e:ui`  |
+| Goal                          | Command                     |
+| ----------------------------- | --------------------------- |
+| Run unit tests (affected)     | `pnpm test:lib`             |
+| Watch unit tests              | `pnpm test:lib:dev`         |
+| Coverage (affected)           | `pnpm test:coverage`        |
+| Coverage for every package    | `pnpm test:coverage:all`    |
+| Coverage + regression check   | `pnpm test:coverage:check`  |
+| Re-baseline coverage          | `pnpm test:coverage:update` |
+| Type-check (affected)         | `pnpm test:types`           |
+| Lint (affected)               | `pnpm test:eslint`          |
+| Verify build artifacts        | `pnpm test:build`           |
+| Format the repo               | `pnpm format`               |
+| Build (affected)              | `pnpm build`                |
+| Build everything              | `pnpm build:all`            |
+| Run the full CI suite locally | `pnpm test`                 |
+| Run the affected-PR check     | `pnpm test:pr`              |
+| E2E suite                     | `pnpm test:e2e`             |
+| E2E with Playwright UI        | `pnpm test:e2e:ui`          |
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
+
+## Coverage
+
+Every package has a `test:coverage` script (`vitest run --coverage`, measured over `src/**` with the v8 provider). Per-package percentages are committed to `coverage-baseline.json` at the repo root.
+
+The `Coverage` job on every PR runs `pnpm test:coverage:check`, which measures the affected packages and fails if any metric (statements, branches, functions, lines) drops more than 0.5 percentage points below the baseline. Packages that weren't affected are skipped, not treated as 0%.
+
+When a drop is intentional — deleting well-tested code, for instance — re-baseline and commit the result:
+
+```bash
+pnpm test:coverage:update
+```
+
+Two known limitations:
+
+- Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
+- `preact-ai-devtools`, `react-ai-devtools`, and `solid-ai-devtools` have no tests and sit at 0%.
 
 ## TypeScript configuration
 
