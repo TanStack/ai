@@ -67,6 +67,7 @@
   },
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "openai": "^6.41.0"
   }
 }

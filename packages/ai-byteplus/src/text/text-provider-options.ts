@@ -1,15 +1,20 @@
 /**
  * BytePlus ModelArk chat provider options.
  *
- * These are the Ark-only extensions on top of the OpenAI-compatible
- * `/chat/completions` body. Everything else (temperature, top_p, tools,
- * response_format, …) is handled by the shared OpenAI base adapter.
+ * Ark's `/chat/completions` is OpenAI-compatible, so most of this is the
+ * familiar sampling surface; `thinking`, `reasoning_effort`,
+ * `repetition_penalty` and `service_tier` are the Ark-only additions.
  *
- * Verified live against `https://ark.ap-southeast.bytepluses.com/api/v3`
- * (2026-07-31): `thinking: {type: 'enabled'}` returns `reasoning_content` +
- * `encrypted_content` on the assistant message, and OpenAI-shaped
- * `tools[].type: 'function'` is accepted (the docs' `'function_call'` value
- * is rejected with 400 InvalidParameter).
+ * Every field below was accepted by a live request against
+ * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. Two probe
+ * results are encoded as TSDoc warnings rather than types because they are
+ * cross-field constraints TypeScript can't express: `max_tokens` and
+ * `max_completion_tokens` are mutually exclusive, and `reasoning_effort`
+ * combined with `thinking: {type: 'disabled'}` is a 400.
+ *
+ * `response_format` is deliberately absent — the chat activity owns it via
+ * `outputSchema` / structured output, and Ark rejects `json_object` outright
+ * on every model.
  */
 
 /**
@@ -27,6 +32,10 @@ export interface BytePlusThinkingOption {
 /**
  * Reasoning budget hint. `none` and `xhigh` are only accepted by
  * `glm-5-2-260617`; `max` by `glm-5-2-260617` and the `deepseek-v4-*` models.
+ *
+ * Cannot be combined with `thinking: {type: 'disabled'}` — Ark rejects the
+ * pair with `400 InvalidParameter` ("Invalid combination of reasoning_effort
+ * and thinking type").
  */
 export type BytePlusReasoningEffort =
   | 'none'
@@ -44,9 +53,30 @@ export type BytePlusReasoningEffort =
 export type BytePlusServiceTier = 'default' | 'flex'
 
 /**
+ * Forces the model to call one specific function.
+ */
+export interface BytePlusNamedToolChoice {
+  type: 'function'
+  function: { name: string }
+}
+
+/**
+ * Controls which (if any) tool the model calls.
+ */
+export type BytePlusToolChoice =
+  | 'none'
+  | 'auto'
+  | 'required'
+  | BytePlusNamedToolChoice
+
+/**
  * Provider options for BytePlus chat models.
  */
 export interface BytePlusTextProviderOptions {
+  // --------------------------------------------------------------------
+  // Ark-only
+  // --------------------------------------------------------------------
+
   /** Reasoning switch — see {@link BytePlusThinkingOption}. */
   thinking?: BytePlusThinkingOption
 
@@ -60,4 +90,62 @@ export interface BytePlusTextProviderOptions {
 
   /** Request routing tier — see {@link BytePlusServiceTier}. */
   service_tier?: BytePlusServiceTier
+
+  // --------------------------------------------------------------------
+  // OpenAI-compatible sampling surface
+  // --------------------------------------------------------------------
+
+  /** Sampling temperature. Higher values produce more varied output. */
+  temperature?: number
+
+  /** Nucleus sampling cutoff. */
+  top_p?: number
+
+  /** Restricts sampling to the `k` most likely tokens. */
+  top_k?: number
+
+  /**
+   * Maximum tokens to generate. Mutually exclusive with
+   * `max_completion_tokens` — sending both is a 400.
+   */
+  max_tokens?: number
+
+  /**
+   * OpenAI's newer name for {@link BytePlusTextProviderOptions.max_tokens}.
+   * Mutually exclusive with it.
+   */
+  max_completion_tokens?: number
+
+  /** Penalizes tokens by how often they have already appeared. */
+  frequency_penalty?: number
+
+  /** Penalizes tokens that have appeared at all, regardless of count. */
+  presence_penalty?: number
+
+  /** Up to four strings that stop generation when produced. */
+  stop?: string | Array<string>
+
+  /** Number of completions to generate. */
+  n?: number
+
+  /** Best-effort determinism hint for repeated identical requests. */
+  seed?: number
+
+  /** Return log probabilities for the generated tokens. */
+  logprobs?: boolean
+
+  /** How many alternatives to report per token. Requires `logprobs`. */
+  top_logprobs?: number
+
+  /** Additive bias per token id, applied before sampling. */
+  logit_bias?: Record<string, number>
+
+  /** Opaque end-user identifier forwarded for abuse monitoring. */
+  user?: string
+
+  /** Whether the model may emit several tool calls in one turn. */
+  parallel_tool_calls?: boolean
+
+  /** Tool-selection strategy — see {@link BytePlusToolChoice}. */
+  tool_choice?: BytePlusToolChoice
 }

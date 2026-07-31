@@ -1544,6 +1544,9 @@ importers:
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.41.0
         version: 6.41.0(ws@8.21.0)(zod@4.3.6)
