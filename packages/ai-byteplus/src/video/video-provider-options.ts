@@ -30,8 +30,10 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import { isKnownBytePlusVideoModel } from '../model-meta'
 import type {
   BytePlusVideoModel,
+  BytePlusVideoModelOrString,
   BytePlusVideoRatio,
   BytePlusVideoResolution,
 } from '../model-meta'
@@ -248,8 +250,10 @@ const BYTEPLUS_VIDEO_LAST_FRAME_MODELS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * True when the model supports reference-media mode (reference images, video
- * and audio).
+ * True when the model is *known* to support reference-media mode (reference
+ * images, video and audio). An id this package has no metadata for answers
+ * `false`; callers must decide whether that means "no" or "unknown" — the
+ * adapter treats it as unknown and lets Ark rule.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -258,7 +262,8 @@ export function supportsReferenceMedia(model: string): boolean {
 }
 
 /**
- * True when the model supports pinning the video's closing frame.
+ * True when the model is *known* to support pinning the video's closing
+ * frame. Same unknown-id caveat as {@link supportsReferenceMedia}.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -295,19 +300,23 @@ export function parseBytePlusVideoSize(
  * Validates a resolution against a model's tiers, returning it lowercased.
  *
  * Used for both halves of the request: the resolution parsed out of the
- * generic `size`, and a `modelOptions.resolution` that overrides it.
+ * generic `size`, and a `modelOptions.resolution` that overrides it. A model
+ * this package has no table for is normalized but not checked — see
+ * {@link BytePlusVideoModelOrString}.
  *
- * @throws Error when the model does not offer the tier.
+ * @throws Error when a known model does not offer the tier.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export function resolveBytePlusVideoResolution(
-  model: BytePlusVideoModel,
+  model: BytePlusVideoModelOrString,
   resolution: string,
-): BytePlusVideoResolution {
-  const normalized = resolution.toLowerCase() as BytePlusVideoResolution
+): string {
+  const normalized = resolution.toLowerCase()
+  if (!isKnownBytePlusVideoModel(model)) return normalized
+
   const allowed = BYTEPLUS_VIDEO_RESOLUTIONS[model]
-  if (!allowed.includes(normalized)) {
+  if (!allowed.includes(normalized as BytePlusVideoResolution)) {
     throw new Error(
       `byteplus: resolution "${resolution}" is not supported by model ` +
         `"${model}". Supported resolutions: ${allowed.join(', ')}.`,
@@ -320,17 +329,22 @@ export function resolveBytePlusVideoResolution(
  * Validates a `size` template against a model and returns the request fields
  * it maps onto, with the resolution lowercased.
  *
- * @throws Error when the template is malformed, the ratio is unknown, or the
- * resolution is not offered by this model.
+ * For an unknown model only the template's *shape* is checked — enough to
+ * split it into `ratio` and `resolution` — because a future model may bring
+ * ratios and tiers that do not exist today. Ark validates the values.
+ *
+ * @throws Error when the template is malformed, or (known models only) the
+ * ratio is unknown or the resolution is not offered by this model.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export function resolveBytePlusVideoSize(
-  model: BytePlusVideoModel,
+  model: BytePlusVideoModelOrString,
   size: string,
-): { ratio: string; resolution?: BytePlusVideoResolution } {
+): { ratio: string; resolution?: string } {
   const parsed = parseBytePlusVideoSize(size)
-  if (!parsed || !BYTEPLUS_VIDEO_RATIOS.includes(parsed.ratio)) {
+  const known = isKnownBytePlusVideoModel(model)
+  if (!parsed || (known && !BYTEPLUS_VIDEO_RATIOS.includes(parsed.ratio))) {
     throw new Error(
       `byteplus: size "${size}" is not supported by model "${model}". Expected ` +
         `"ratio" or "ratio_resolution" (e.g. "16:9_720p") with ratio one of: ` +

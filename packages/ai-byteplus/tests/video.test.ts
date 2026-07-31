@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   BytePlusVideoAdapter,
   byteplusVideo,
   createBytePlusVideo,
 } from '../src/adapters/video'
+import { isKnownBytePlusVideoModel } from '../src/model-meta'
+import type {
+  BytePlusVideoSize,
+  ResolveBytePlusVideoSize,
+} from '../src/model-meta'
 import type {
   BytePlusVideoCreateRequest,
   BytePlusVideoTask,
@@ -890,6 +895,158 @@ describe('getVideoUrl', () => {
     await expect(adapter.getVideoUrl(JOB_ID)).rejects.toThrow(
       `Video job not found: ${JOB_ID}`,
     )
+  })
+})
+
+// Seedance 2.5 was announced 2026-07-31 as a consumer product with the Ark
+// API "available soon"; no 2.5 id resolves on the data plane yet. Rather than
+// ship a guessed id, the factories accept any string so the real id works the
+// day BytePlus publishes it. These cover that path.
+describe('unknown model ids', () => {
+  const FUTURE = 'dreamina-seedance-2-5-260901'
+
+  it('accepts a bare string through the factories', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    expect(adapter.model).toBe(FUTURE)
+    expect(await adapter.createVideoJob(createOptions())).toEqual({
+      jobId: JOB_ID,
+      model: FUTURE,
+    })
+  })
+
+  it('passes resolutions and ratios through without the per-model table', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    // '8k' and '32:9' exist on no model today; a future model may have both.
+    await adapter.createVideoJob(createOptions({ size: '32:9_8K' }))
+
+    expect(sentRequest(fetchMock)).toMatchObject({
+      ratio: '32:9',
+      resolution: '8k',
+    })
+  })
+
+  it('sends an unknown model duration verbatim rather than clamping it', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    // 20s is outside every range shipping today; clamping to 15 would corrupt
+    // a legitimate request for a model with a longer ceiling.
+    await adapter.createVideoJob(createOptions({ duration: 20 }))
+
+    expect(sentRequest(fetchMock).duration).toBe(20)
+  })
+
+  it('passes provider options through ungated', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    // draft is 1.5-pro-only and priority is 2.0-only today; on an unknown
+    // model neither is second-guessed.
+    await adapter.createVideoJob(
+      createOptions({ modelOptions: { draft: true, priority: 3 } }),
+    )
+
+    expect(sentRequest(fetchMock)).toMatchObject({ draft: true, priority: 3 })
+  })
+
+  it('stands down the media-shape guards', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    // Frame + reference is mutually exclusive on every model today. If 2.5
+    // relaxes it, blocking the request locally would defeat the escape hatch.
+    await adapter.createVideoJob(
+      createOptions({
+        prompt: [
+          imagePart('https://example.com/open.jpg', 'start_frame'),
+          imagePart('https://example.com/ref.jpg', 'reference'),
+        ],
+      }),
+    )
+
+    expect(sentRequest(fetchMock).content).toEqual([
+      {
+        type: 'image_url',
+        image_url: { url: 'https://example.com/open.jpg' },
+        role: 'first_frame',
+      },
+      {
+        type: 'image_url',
+        image_url: { url: 'https://example.com/ref.jpg' },
+        role: 'reference_image',
+      },
+    ])
+  })
+
+  it('still rejects roles the wire format cannot carry on any model', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key', {
+      fetch: fetchMock,
+    })
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [imagePart('https://example.com/m.png', 'mask')],
+        }),
+      ),
+    ).rejects.toThrow(/has no 'mask' image input/)
+  })
+
+  it('reports the union of known ranges as its duration hint', () => {
+    const adapter = createBytePlusVideo(FUTURE, 'ark-test-key')
+
+    expect(adapter.availableDurations()).toEqual({
+      kind: 'range',
+      min: 2,
+      max: 15,
+      step: 1,
+      unit: 'seconds',
+    })
+  })
+
+  it('knows which ids it has metadata for', () => {
+    expect(isKnownBytePlusVideoModel('seedance-1-5-pro-251215')).toBe(true)
+    expect(isKnownBytePlusVideoModel(FUTURE)).toBe(false)
+  })
+})
+
+describe('model id typing', () => {
+  it('accepts a bare string while keeping known ids narrowed', () => {
+    // A plain string compiles through both factories — the escape hatch's
+    // whole point. `toBeCallableWith` checks the signature without running
+    // byteplusVideo, which would need ARK_API_KEY.
+    expectTypeOf(byteplusVideo).toBeCallableWith('dreamina-seedance-2-5-260901')
+    const adapter = createBytePlusVideo('dreamina-seedance-2-5-260901', 'k')
+    expectTypeOf(adapter.model).toEqualTypeOf<'dreamina-seedance-2-5-260901'>()
+
+    // Known ids keep their probe-verified size union, so a tier the model
+    // does not offer stays a compile error.
+    expectTypeOf<
+      ResolveBytePlusVideoSize<'dreamina-seedance-2-0-fast-260128'>
+    >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p'>>()
+    expectTypeOf<
+      ResolveBytePlusVideoSize<'dreamina-seedance-2-0-260128'>
+    >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p' | '1080p' | '4k'>>()
+
+    // An unknown id widens instead.
+    expectTypeOf<ResolveBytePlusVideoSize<'anything-else'>>().toEqualTypeOf<
+      BytePlusVideoSize | (string & {})
+    >()
   })
 })
 

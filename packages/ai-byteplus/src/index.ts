@@ -186,9 +186,11 @@ export {
   BYTEPLUS_TRANSCRIPTION_MODELS,
   BYTEPLUS_TTS_MODELS,
   BYTEPLUS_VIDEO_DURATIONS,
+  BYTEPLUS_VIDEO_FALLBACK_DURATIONS,
   BYTEPLUS_VIDEO_MODELS,
   emitsEncryptedContent,
   getBytePlusVideoDurationOptions,
+  isKnownBytePlusVideoModel,
   supportsStructuredOutput,
 } from './model-meta'
 export type {
@@ -209,11 +211,14 @@ export type {
   BytePlusVideoModel,
   BytePlusVideoModelDurationByName,
   BytePlusVideoModelInputModalitiesByName,
+  BytePlusVideoModelOrString,
   BytePlusVideoModelResolutionByName,
   BytePlusVideoModelSizeByName,
   BytePlusVideoRatio,
   BytePlusVideoResolution,
   BytePlusVideoSize,
+  ResolveBytePlusVideoInputModalities,
+  ResolveBytePlusVideoSize,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from './model-meta'

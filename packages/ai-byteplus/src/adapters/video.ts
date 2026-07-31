@@ -9,7 +9,10 @@ import {
   toHeaderRecord,
   withBytePlusArkDefaults,
 } from '../utils/client'
-import { getBytePlusVideoDurationOptions } from '../model-meta'
+import {
+  getBytePlusVideoDurationOptions,
+  isKnownBytePlusVideoModel,
+} from '../model-meta'
 import {
   resolveBytePlusVideoResolution,
   resolveBytePlusVideoSize,
@@ -36,15 +39,11 @@ import type {
   BytePlusVideoTaskStatus,
   BytePlusVideoTaskUsage,
 } from '../video/wire-types'
+import type { BytePlusVideoProviderOptions } from '../video/video-provider-options'
 import type {
-  BytePlusVideoModelProviderOptionsByName,
-  BytePlusVideoProviderOptions,
-} from '../video/video-provider-options'
-import type {
-  BytePlusVideoModel,
-  BytePlusVideoModelDurationByName,
-  BytePlusVideoModelInputModalitiesByName,
-  BytePlusVideoModelSizeByName,
+  BytePlusVideoModelOrString,
+  ResolveBytePlusVideoInputModalities,
+  ResolveBytePlusVideoSize,
 } from '../model-meta'
 import type { BytePlusArkConfig } from '../utils/client'
 
@@ -171,14 +170,14 @@ function describeTaskFailure(task: BytePlusVideoTask): string | undefined {
  * ```
  */
 export class BytePlusVideoAdapter<
-  TModel extends BytePlusVideoModel,
+  TModel extends BytePlusVideoModelOrString,
 > extends BaseVideoAdapter<
   TModel,
   BytePlusVideoProviderOptions,
-  BytePlusVideoModelProviderOptionsByName,
-  BytePlusVideoModelSizeByName,
-  BytePlusVideoModelInputModalitiesByName,
-  BytePlusVideoModelDurationByName
+  Record<TModel, BytePlusVideoProviderOptions>,
+  Record<TModel, ResolveBytePlusVideoSize<TModel>>,
+  Record<TModel, ResolveBytePlusVideoInputModalities<TModel>>,
+  Record<TModel, number>
 > {
   readonly name = 'byteplus' as const
 
@@ -218,6 +217,15 @@ export class BytePlusVideoAdapter<
     const content: Array<BytePlusVideoContentPart> = []
     if (resolved.text) content.push({ type: 'text', text: resolved.text })
 
+    // Every rule below except the role vocabulary itself is a claim about a
+    // *specific* model's capabilities, drawn from probing the six models that
+    // exist today. None of it can be true of a model that does not exist yet,
+    // so for an unknown id the guards stand down and Ark rules — otherwise the
+    // escape hatch would block exactly the requests it exists to enable (see
+    // BytePlusVideoModelOrString). 'mask' / 'control' still throw: Seedance's
+    // wire format has no field to carry them on any model.
+    const gated = isKnownBytePlusVideoModel(model)
+
     let firstFrames = 0
     let lastFrames = 0
     // Audio counts as a reference for the mode-exclusivity check but not for
@@ -235,7 +243,7 @@ export class BytePlusVideoAdapter<
               `Use 'start_frame', 'end_frame' or 'reference'.`,
           )
         case 'end_frame': {
-          if (!supportsLastFrame(model)) {
+          if (gated && !supportsLastFrame(model)) {
             throw new Error(
               `byteplus: ${model} does not support a closing frame — it does ` +
                 `text-to-video and first-frame image-to-video only. Drop the ` +
@@ -252,7 +260,7 @@ export class BytePlusVideoAdapter<
         }
         case 'reference':
         case 'character': {
-          if (!supportsReferenceMedia(model)) {
+          if (gated && !supportsReferenceMedia(model)) {
             throw new Error(
               `byteplus: ${model} does not support reference images. Reference ` +
                 `media is available on the Seedance 2.0 family; on this model use ` +
@@ -286,7 +294,7 @@ export class BytePlusVideoAdapter<
     // un-roled video with "reference media mode requires video role to be
     // reference_video", and has no frame-style role for either modality.
     for (const part of resolved.videos) {
-      if (!supportsReferenceMedia(model)) {
+      if (gated && !supportsReferenceMedia(model)) {
         throw new Error(
           `byteplus: ${model} does not accept video prompt parts. Reference ` +
             `video is available on the Seedance 2.0 family only.`,
@@ -301,7 +309,7 @@ export class BytePlusVideoAdapter<
     }
 
     for (const part of resolved.audios) {
-      if (!supportsReferenceMedia(model)) {
+      if (gated && !supportsReferenceMedia(model)) {
         throw new Error(
           `byteplus: ${model} does not accept audio prompt parts. Reference ` +
             `audio is available on the Seedance 2.0 family only.`,
@@ -316,7 +324,7 @@ export class BytePlusVideoAdapter<
     }
 
     const frames = firstFrames + lastFrames
-    if (frames > 0 && visualReferences + audioReferences > 0) {
+    if (gated && frames > 0 && visualReferences + audioReferences > 0) {
       throw new Error(
         `byteplus: first/last frame inputs cannot be combined with reference ` +
           `media on model ${model}. Use either frame roles ('start_frame', ` +
@@ -325,7 +333,7 @@ export class BytePlusVideoAdapter<
       )
     }
 
-    if (firstFrames > 1) {
+    if (gated && firstFrames > 1) {
       throw new Error(
         `byteplus: ${model} accepts at most one opening frame; received ` +
           `${firstFrames} un-roled or 'start_frame' images. Use metadata.role ` +
@@ -333,7 +341,7 @@ export class BytePlusVideoAdapter<
       )
     }
 
-    if (lastFrames > 1) {
+    if (gated && lastFrames > 1) {
       throw new Error(
         `byteplus: ${model} accepts at most one closing frame; received ` +
           `${lastFrames} 'end_frame' images.`,
@@ -343,14 +351,14 @@ export class BytePlusVideoAdapter<
     // Seedance treats a closing frame as the second half of first-and-last-
     // frame mode: on its own it fails with "last frame image content cannot be
     // mixed with first frame or reference image content".
-    if (lastFrames > 0 && firstFrames === 0) {
+    if (gated && lastFrames > 0 && firstFrames === 0) {
       throw new Error(
         `byteplus: a closing frame needs an opening frame alongside it on ` +
           `model ${model}. Add a 'start_frame' image, or drop the 'end_frame' role.`,
       )
     }
 
-    if (audioReferences > 0 && visualReferences === 0) {
+    if (gated && audioReferences > 0 && visualReferences === 0) {
       throw new Error(
         `byteplus: a reference audio input cannot be the only reference on ` +
           `model ${model}. Pair it with a reference image or video.`,
@@ -370,8 +378,8 @@ export class BytePlusVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<
       BytePlusVideoProviderOptions,
-      BytePlusVideoModelSizeByName[TModel],
-      BytePlusVideoModelDurationByName[TModel]
+      ResolveBytePlusVideoSize<TModel>,
+      number
     >,
   ): Promise<VideoJobResult> {
     const { size, modelOptions, logger } = options
@@ -387,9 +395,16 @@ export class BytePlusVideoAdapter<
     // Coerce the requested duration into the model's range rather than letting
     // the API reject it. `modelOptions.duration` is deliberately not snapped:
     // it is the escape hatch for `-1` (model picks the length).
+    //
+    // An unknown model's duration goes through verbatim. Snapping it would
+    // mean clamping against the ranges today's models happen to have, so a
+    // future model's legitimate 20-second request would silently become 15 —
+    // corrupting the request instead of protecting it.
     const duration =
       options.duration !== undefined
-        ? this.snapDuration(options.duration)
+        ? isKnownBytePlusVideoModel(model)
+          ? this.snapDuration(options.duration)
+          : options.duration
         : undefined
 
     const request: BytePlusVideoCreateRequest = {
@@ -554,11 +569,12 @@ export class BytePlusVideoAdapter<
 
   /**
    * Seedance accepts any whole second inside a per-model range: 4–15s on the
-   * 2.0 family, 4–12s on 1.5-pro, 2–12s on the 1.0 models.
+   * 2.0 family, 4–12s on 1.5-pro, 2–12s on the 1.0 models. An unknown model
+   * reports the union of those ranges as a UI hint — see
+   * `BYTEPLUS_VIDEO_FALLBACK_DURATIONS`, which `createVideoJob` does not snap
+   * against.
    */
-  override availableDurations(): DurationOptions<
-    BytePlusVideoModelDurationByName[TModel]
-  > {
+  override availableDurations(): DurationOptions<number> {
     return getBytePlusVideoDurationOptions(this.model)
   }
 
@@ -566,9 +582,7 @@ export class BytePlusVideoAdapter<
    * Coerce a raw seconds value to the closest duration this model accepts
    * (clamped to its range and rounded to whole seconds).
    */
-  override snapDuration(
-    seconds: number,
-  ): BytePlusVideoModelDurationByName[TModel] | undefined {
+  override snapDuration(seconds: number): number | undefined {
     return snapToDurationOption(seconds, this.availableDurations())
   }
 }
@@ -596,7 +610,7 @@ export class BytePlusVideoAdapter<
  * })
  * ```
  */
-export function createBytePlusVideo<TModel extends BytePlusVideoModel>(
+export function createBytePlusVideo<TModel extends BytePlusVideoModelOrString>(
   model: TModel,
   apiKey: string,
   config?: Omit<BytePlusVideoConfig, 'apiKey'>,
@@ -633,8 +647,36 @@ export function createBytePlusVideo<TModel extends BytePlusVideoModel>(
  *
  * const status = await getVideoJobStatus({ adapter, jobId })
  * ```
+ *
+ * ## Models this package does not know yet
+ *
+ * `model` also accepts any string, so a Seedance id BytePlus publishes after
+ * this release works without upgrading. **Seedance 2.5 is the case this exists
+ * for**: announced 2026-07-31 as a consumer product, with the Ark API listed
+ * as "available soon". As of that date no 2.5 id resolves on the data plane —
+ * 21 candidate ids were probed and every one returned 404
+ * `InvalidEndpointOrModel.NotFound` while known controls returned 400
+ * `MissingParameter` — so this package deliberately ships no guessed id.
+ *
+ * New ids land in the ModelArk release notes
+ * (https://docs.byteplus.com/en/docs/ModelArk/1159178) first. To check whether
+ * one is live, POST `/contents/generations/tasks` with only `{"model": id}`:
+ * 404 `InvalidEndpointOrModel.NotFound` means not yet, 400 `MissingParameter`
+ * (about `content`) means it is.
+ *
+ * An unknown id relaxes both halves of the adapter: the `size` type widens to
+ * any string, provider options are ungated, and the runtime guards that encode
+ * per-model capabilities — resolution tiers, closing-frame and reference-media
+ * support, frame cardinality and mode exclusivity, duration snapping — stand
+ * down so Ark decides. Known ids are unaffected.
+ *
+ * @example
+ * ```typescript
+ * // The day BytePlus publishes the id, before this package ships it:
+ * const adapter = byteplusVideo('dreamina-seedance-2-5-XXXXXX')
+ * ```
  */
-export function byteplusVideo<TModel extends BytePlusVideoModel>(
+export function byteplusVideo<TModel extends BytePlusVideoModelOrString>(
   model: TModel,
   config?: Omit<BytePlusVideoConfig, 'apiKey'>,
 ): BytePlusVideoAdapter<TModel> {

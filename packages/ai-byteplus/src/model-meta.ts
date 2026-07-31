@@ -618,6 +618,66 @@ export type BytePlusVideoModelSizeByName = {
 }
 
 /**
+ * A Seedance model id: one this package knows, or any other string.
+ *
+ * The open half is a deliberate escape hatch for models BytePlus ships between
+ * releases of this package. **Seedance 2.5 is the live example**: it was
+ * announced 2026-07-31 as a consumer product only, with the Ark API listed as
+ * "available soon". No 2.5 model id resolves on the data plane yet (21
+ * candidate ids all returned 404 `InvalidEndpointOrModel.NotFound` against
+ * controls that returned 400 `MissingParameter`), so shipping a guessed id
+ * would be shipping a broken one. Passing the real id the day BytePlus
+ * publishes it works without upgrading.
+ *
+ * Watch surface: the ModelArk release notes
+ * (https://docs.byteplus.com/en/docs/ModelArk/1159178) list new model ids
+ * first. To re-probe, POST `/contents/generations/tasks` with only
+ * `{"model": "<id>"}` — 404 `InvalidEndpointOrModel.NotFound` means the id is
+ * not live, 400 `MissingParameter` (complaining about `content`) means it is.
+ *
+ * Unknown ids trade compile-time narrowing for reach: the full size surface is
+ * accepted, provider options are ungated, and the adapter's model-specific
+ * runtime guards stand down so a new model's legitimate request reaches Ark.
+ * Known ids keep their probe-verified narrowing.
+ */
+export type BytePlusVideoModelOrString = BytePlusVideoModel | (string & {})
+
+/**
+ * Resolve the `size` type for a video model: the model's probe-verified
+ * template union when known, otherwise the full template surface plus any
+ * string (a future model may bring ratios or resolution tiers that do not
+ * exist today).
+ */
+export type ResolveBytePlusVideoSize<TModel extends string> =
+  TModel extends BytePlusVideoModel
+    ? BytePlusVideoModelSizeByName[TModel]
+    : BytePlusVideoSize | (string & {})
+
+/**
+ * Resolve the accepted non-text prompt modalities for a video model. Unknown
+ * models accept all three rather than none, so a new model's reference media
+ * is not a compile error.
+ */
+export type ResolveBytePlusVideoInputModalities<TModel extends string> =
+  TModel extends BytePlusVideoModel
+    ? BytePlusVideoModelInputModalitiesByName[TModel]
+    : readonly ['image', 'video', 'audio']
+
+const VIDEO_MODEL_SET: ReadonlySet<string> = new Set(BYTEPLUS_VIDEO_MODELS)
+
+/**
+ * True when the id is one this package has probe-verified metadata for.
+ *
+ * The adapter uses this to decide whether its model-specific guards apply:
+ * see {@link BytePlusVideoModelOrString}.
+ */
+export function isKnownBytePlusVideoModel(
+  model: string,
+): model is BytePlusVideoModel {
+  return VIDEO_MODEL_SET.has(model)
+}
+
+/**
  * Per-model duration type. Seedance accepts any integer second inside the
  * model's range, so this is a continuous range expressed as `number` — a
  * literal union cannot represent it. (The API also accepts `duration: -1` on
@@ -681,12 +741,33 @@ export const BYTEPLUS_VIDEO_DURATIONS: {
 }
 
 /**
- * Look up the duration options for a Seedance video model.
+ * Duration hint for a model this package has no table for.
+ *
+ * Spans every range Seedance has shipped so far (2s on the 1.0 models through
+ * 15s on the 2.0 family) so `availableDurations()` can still drive a UI. It is
+ * a hint, not a contract: the adapter does **not** snap an unknown model's
+ * duration against it, because clamping a future model's legitimate 20-second
+ * request down to 15 would corrupt the request rather than protect it.
  */
-export function getBytePlusVideoDurationOptions<
-  TModel extends BytePlusVideoModel,
->(model: TModel): DurationOptions<BytePlusVideoModelDurationByName[TModel]> {
-  return BYTEPLUS_VIDEO_DURATIONS[model]
+export const BYTEPLUS_VIDEO_FALLBACK_DURATIONS: DurationOptions<number> = {
+  kind: 'range',
+  min: 2,
+  max: 15,
+  step: 1,
+  unit: 'seconds',
+}
+
+/**
+ * Look up the duration options for a Seedance video model, falling back to
+ * {@link BYTEPLUS_VIDEO_FALLBACK_DURATIONS} for an id this package does not
+ * know.
+ */
+export function getBytePlusVideoDurationOptions(
+  model: BytePlusVideoModelOrString,
+): DurationOptions<number> {
+  return isKnownBytePlusVideoModel(model)
+    ? BYTEPLUS_VIDEO_DURATIONS[model]
+    : BYTEPLUS_VIDEO_FALLBACK_DURATIONS
 }
 
 // ============================================================================
