@@ -271,6 +271,104 @@ Run the CLI against a live server to generate per-server `interface` types, then
 
 > See [MCP Type Generation](./mcp-codegen) for the full `mcp.config.ts` setup, the `generate` CLI, and how to wire the generated types into `createMCPClient` and `createMCPClients`.
 
+## Tool Titles & Annotations
+
+MCP servers can ship display and behavior metadata alongside each tool: a human-readable `title` and a set of `annotations` hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`, plus a legacy `annotations.title`). `@tanstack/ai-mcp` forwards all of it onto each discovered tool's `metadata.mcp`, on **both** the auto-discovery and explicit-definition paths, so you can label tools in your UI and decide which ones need a confirmation step.
+
+| `metadata.mcp` field | Value |
+|---|---|
+| `title` | Display name, resolved with the spec's precedence: the tool's `title` → `annotations.title` → `name`. Always set. |
+| `annotations` | The server's `annotations` object, forwarded verbatim. Absent when the server declares none. |
+| `serverToolName` | Server-native (unprefixed) tool name. |
+| `serverId` | The client's `prefix` (undefined when there is none). |
+| `uiResourceUri` | [MCP Apps](../mcp/apps) widget link, when the tool declares one. |
+
+Read the block back with the exported `McpToolMetadata` type — `Tool.metadata` is `Record<string, any>`, so annotating the access is what gives you type safety:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { McpToolMetadata } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+})
+
+// Require approval for anything the server does NOT advertise as read-only.
+const tools = (await mcp.tools()).map((tool) => {
+  const meta: McpToolMetadata | undefined = tool.metadata?.mcp
+  return { ...tool, needsApproval: meta?.annotations?.readOnlyHint !== true }
+})
+```
+
+> **Annotations are hints, not guarantees.** The MCP spec is explicit that every field — including `title` — is advisory and may not faithfully describe what the tool does. Use them for labels and to *tighten* a confirmation flow (as above: default to requiring approval, relax only on `readOnlyHint`), never as a security boundary for an untrusted server.
+
+Titles are display-only: they never change the tool `name` sent to the model, and a `prefix` still applies to the name (`wx_get_weather`), not to the title.
+
+To label tools in your UI, expose the forwarded metadata from a server route — the MCP client itself must stay server-side:
+
+```ts ignore
+// src/routes/api.mcp-tools.ts
+import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { McpToolMetadata } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/mcp-tools')({
+  server: {
+    handlers: {
+      GET: async () => {
+        await using mcp = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
+        const catalog = (await mcp.tools()).map((tool) => {
+          const meta: McpToolMetadata | undefined = tool.metadata?.mcp
+          return {
+            name: tool.name,
+            title: meta?.title ?? tool.name,
+            description: tool.description,
+            readOnly: meta?.annotations?.readOnlyHint === true,
+          }
+        })
+        return Response.json({ tools: catalog })
+      },
+    },
+  },
+})
+```
+
+```tsx
+// src/components/ToolCatalog.tsx
+import { useEffect, useState } from 'react'
+
+interface ToolSummary {
+  name: string
+  title: string
+  description?: string
+  readOnly: boolean
+}
+
+export function ToolCatalog() {
+  const [tools, setTools] = useState<Array<ToolSummary>>([])
+
+  useEffect(() => {
+    fetch('/api/mcp-tools')
+      .then((res) => res.json())
+      .then((body: { tools: Array<ToolSummary> }) => setTools(body.tools))
+  }, [])
+
+  return (
+    <ul>
+      {tools.map((tool) => (
+        <li key={tool.name}>
+          {/* Server-declared title, with the hint driving the badge */}
+          <strong>{tool.title}</strong> {tool.readOnly ? '(read-only)' : '(writes)'}
+          <div>{tool.description}</div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
 ## Multi-Server Pool
 
 `createMCPClients` connects to many servers in parallel and merges their tools into one flat array. Each server's tools are automatically prefixed with the config key to prevent name collisions.

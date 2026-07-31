@@ -7,10 +7,12 @@ import {
   MCPTaskRequiredToolError,
 } from '../src/errors'
 import {
+  makeServerWithAnnotatedTool,
   makeServerWithTaskRequiredTool,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { McpToolMetadata } from '../src/types'
 
 describe('createMCPClient', () => {
   it('connects and returns discovered tools', async () => {
@@ -111,6 +113,40 @@ describe('createMCPClient', () => {
       serverToolName: 'get_weather',
       serverId: 'wx',
     })
+  })
+
+  it('forwards server annotations + display title on auto-discovery', async () => {
+    const { clientTransport } = await makeServerWithAnnotatedTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const tool = (await client.tools()).find((t) => t.name === 'get_weather')!
+    const mcp: McpToolMetadata | undefined = tool.metadata?.mcp
+    expect(mcp?.annotations).toEqual({
+      title: 'Legacy Weather Title',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    })
+    // Top-level `title` wins over the legacy `annotations.title`.
+    expect(mcp?.title).toBe('Weather Lookup')
+  })
+
+  it('forwards server annotations + display title on bound definitions', async () => {
+    const { clientTransport } = await makeServerWithAnnotatedTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const { toolDefinition } = await import('@tanstack/ai')
+    const { z } = await import('zod')
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    // The explicit path binds the caller's definition, but the SERVER's
+    // annotations still have to reach the host (mirrors auto-discovery).
+    const tools = await client.tools([getWeather])
+    const mcp: McpToolMetadata | undefined = tools[0].metadata?.mcp
+    expect(mcp?.annotations?.readOnlyHint).toBe(true)
+    expect(mcp?.title).toBe('Weather Lookup')
   })
 
   it('excludes task-required tools from auto-discovery', async () => {

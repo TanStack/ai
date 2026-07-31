@@ -5,7 +5,12 @@ import {
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
-import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
+import {
+  makeMcpExecute,
+  requiresTaskExecution,
+  toolMcpMetadata,
+  toServerTools,
+} from './tools'
 import { isTransportInstance, resolveTransport } from './transport'
 import type { TransportConfig } from './transport'
 import type {
@@ -150,7 +155,8 @@ class MCPClientImpl<
         if (this.prefix) tool.name = `${this.prefix}_${def.name}`
         if (options.lazy) tool.lazy = true
         // Stamp MCP metadata so `serverToolNameOf` (and the call handler) can
-        // recover the UNPREFIXED native name + serverId — mirror toServerTools.
+        // recover the UNPREFIXED native name + serverId, and so the server's
+        // display title / annotations reach the host — mirror toServerTools.
         // `metadata.mcp` is `unknown`; only spread it when it's a plain object.
         const existingMcp = tool.metadata?.mcp
         const mcpBase =
@@ -159,7 +165,7 @@ class MCPClientImpl<
             : {}
         tool.metadata = {
           ...tool.metadata,
-          mcp: { ...mcpBase, serverToolName: def.name, serverId: this.prefix },
+          mcp: { ...mcpBase, ...toolMcpMetadata(serverTool, this.prefix) },
         }
         return tool
       })

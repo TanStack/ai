@@ -1,8 +1,46 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { TransportInput } from './transport'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
 export type AnyToolDefinition = ToolDefinition<any, any, string>
+
+/**
+ * The `mcp` block stamped onto every tool this package produces
+ * (`tool.metadata.mcp`), on BOTH the auto-discovery and explicit
+ * `tools(defs)` paths.
+ *
+ * `metadata` on a `ServerTool` is `Record<string, any>`, so reading it back is
+ * untyped by construction — annotate the access with this interface to get the
+ * real shape without a cast:
+ *
+ * ```ts
+ * const mcp: McpToolMetadata | undefined = tool.metadata?.mcp
+ * if (mcp?.annotations?.readOnlyHint) {
+ *   // e.g. skip the approval prompt for a read-only tool
+ * }
+ * ```
+ */
+export interface McpToolMetadata {
+  /** Server-native (UNPREFIXED) tool name, even when the client sets a `prefix`. */
+  serverToolName?: string
+  /** The owning client's `prefix` (the value a widget sends as `serverId`). */
+  serverId?: string
+  /** MCP Apps widget link, from the tool def's `_meta.ui.resourceUri`. */
+  uiResourceUri?: string
+  /**
+   * Human-readable display name, resolved with the MCP spec's precedence:
+   * `title` → `annotations.title` → `name`. Always set, so a UI can render it
+   * without re-implementing the fallback chain.
+   */
+  title?: string
+  /**
+   * The server's `annotations` for this tool, forwarded verbatim (absent when
+   * the server declares none). All fields are **hints** — useful for display
+   * and for shaping an approval UI, never a security boundary.
+   */
+  annotations?: ToolAnnotations
+}
 
 /** Compile-time-only descriptor of an MCP server, emitted by the codegen CLI. */
 export interface ServerDescriptor {
