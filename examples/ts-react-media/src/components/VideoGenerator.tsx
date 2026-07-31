@@ -56,6 +56,7 @@ export default function VideoGenerator({
   const falModels = filteredModels.filter((m) => m.provider === 'fal')
   const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
   const geminiModels = filteredModels.filter((m) => m.provider === 'gemini')
+  const byteplusModels = filteredModels.filter((m) => m.provider === 'byteplus')
 
   // Gemini Omni Flash additionally accepts video prompt parts (a reference
   // clip or a video to edit). Offer the upload whenever an Omni model is in
@@ -371,6 +372,13 @@ export default function VideoGenerator({
             </optgroup>
             <optgroup label="Google (direct)">
               {geminiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="BytePlus (direct)">
+              {byteplusModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name}
                 </option>

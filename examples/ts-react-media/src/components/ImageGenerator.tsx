@@ -28,6 +28,7 @@ function getImageSrc(image: { url?: string; b64Json?: string }): string {
 const falModels = IMAGE_MODELS.filter((m) => m.provider === 'fal')
 const geminiModels = IMAGE_MODELS.filter((m) => m.provider === 'gemini')
 const xaiModels = IMAGE_MODELS.filter((m) => m.provider === 'xai')
+const byteplusModels = IMAGE_MODELS.filter((m) => m.provider === 'byteplus')
 
 export default function ImageGenerator({
   onImageGenerated,
@@ -164,6 +165,13 @@ export default function ImageGenerator({
             </optgroup>
             <optgroup label="xAI (direct)">
               {xaiModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="BytePlus (direct)">
+              {byteplusModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name}
                 </option>

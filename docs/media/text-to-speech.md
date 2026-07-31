@@ -2,7 +2,7 @@
 title: Text-to-Speech
 id: text-to-speech
 order: 3
-description: "Convert text to spoken audio with OpenAI TTS and Gemini voice models via TanStack AI's generateSpeech() API."
+description: "Convert text to spoken audio with OpenAI TTS, Gemini voice models, and BytePlus Seed Speech via TanStack AI's generateSpeech() API."
 keywords:
   - tanstack ai
   - text-to-speech
@@ -23,6 +23,7 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 
 - **OpenAI**: TTS-1, TTS-1-HD, and audio-capable GPT-4o models
 - **Gemini**: Gemini 2.5 Flash TTS (experimental)
+- **BytePlus**: Seed Speech (`seed-audio-1.0`)
 - **fal.ai**: Kokoro, ElevenLabs, MiniMax, Chatterbox, Dia, Orpheus, F5-TTS, VibeVoice, and more
 
 ## Basic Usage
@@ -108,6 +109,28 @@ const result = await generateSpeech({
   },
 })
 ```
+
+### BytePlus Seed Speech
+
+Seed Speech is a **separate BytePlus product from ModelArk**, so it uses its own key (`BYTEPLUS_VOICE_API_KEY`) rather than the `ARK_API_KEY` the chat, image and video adapters read. Voice ids go on the wire as Seed Speech's `speaker`:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'Welcome to TanStack AI!',
+  voice: 'en_female_stokie_uranus_bigtts',
+  format: 'mp3',
+})
+
+console.log(result.contentType) // "audio/mpeg"
+```
+
+Formats are `wav`, `mp3`, `pcm` and `ogg_opus`, and synthesis is **capped at 120 seconds of output**. Set `modelOptions.enable_subtitle` for sentence- and word-level timings — note those timings are in milliseconds while `duration` is in seconds.
+
+Seed Speech has no top-level `speaker` field: the adapter sends `voice` as `references: [{ speaker }]`. Because `modelOptions.references` **replaces** that array rather than merging into it, passing `references` for voice cloning silently drops `voice` — include a `speaker` member yourself if you still want a stock voice. See the [BytePlus adapter](../adapters/byteplus#text-to-speech-seed-speech) for the voice-id naming conventions.
 
 ## Options
 
@@ -508,6 +531,7 @@ The TTS adapters use the same environment variables as other adapters:
 
 - **OpenAI**: `OPENAI_API_KEY`
 - **Gemini**: `GOOGLE_API_KEY` or `GEMINI_API_KEY`
+- **BytePlus**: `BYTEPLUS_VOICE_API_KEY` (Seed Speech is a different product from ModelArk — the `ARK_API_KEY` used by the chat/image/video adapters is not accepted here)
 
 ## Explicit API Keys
 

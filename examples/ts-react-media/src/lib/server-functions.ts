@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
 import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
+import { byteplusImage, byteplusVideo } from '@tanstack/ai-byteplus'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
 import type {
@@ -99,6 +100,10 @@ function videoAdapterForModel(model: string) {
   }
   if (model === 'grok-imagine-video-1.5/image-to-video') {
     return grokVideo('grok-imagine-video-1.5')
+  }
+  if (model === 'dreamina-seedance-2-0-260128') {
+    // BytePlus ModelArk Seedance task API (ARK_API_KEY).
+    return byteplusVideo('dreamina-seedance-2-0-260128')
   }
   if (model.startsWith('gemini-omni-flash-preview')) {
     // Both UI entries (text-to-video and image-to-video) run on the one
@@ -226,6 +231,18 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           size: '1024x1024',
         })
       }
+      case 'dola-seedream-5-0-pro-260628': {
+        // BytePlus Seedream via ModelArk (ARK_API_KEY). `size` is either a
+        // 1K/2K/4K token or an explicit WIDTHxHEIGHT string — never both.
+        // Seedream models accept reference images, so image prompt parts are
+        // passed straight through.
+        return generateImage({
+          adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
+          prompt: asImagePrompt(data.prompt),
+          numberOfImages: 1,
+          size: '2K',
+        })
+      }
       default:
         throw new Error(`Unknown model: ${data.model}`)
     }
@@ -303,6 +320,19 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         // (billed seconds) and usage.cost (exact USD).
         return generateVideo({
           adapter: grokVideo('grok-imagine-video'),
+          prompt: asTextPrompt(data.prompt),
+          size: '16:9_720p',
+          duration: 5,
+        })
+      }
+      case 'dreamina-seedance-2-0-260128': {
+        // BytePlus Seedance via ModelArk (ARK_API_KEY). `size` is a "ratio" or
+        // "ratio_resolution" template; durations are 4-15 integer seconds.
+        // Seedance option applicability is per model and Ark 400s on an
+        // inapplicable field, so no service_tier/frames/camera_fixed here —
+        // the 2.0 family rejects all three.
+        return generateVideo({
+          adapter: byteplusVideo('dreamina-seedance-2-0-260128'),
           prompt: asTextPrompt(data.prompt),
           size: '16:9_720p',
           duration: 5,
