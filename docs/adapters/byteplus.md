@@ -335,6 +335,27 @@ Resolutions are per model too, and the shipped table comes from live probes rath
 
 Reference media follows the shared [role hints](../media/video-generation#role-hints) — `start_frame`, `end_frame` and `reference`. The Seedance 2.0 family takes full multimodal references (reference images, video and audio); the 1.x models take start/end frames only, and `seedance-1-0-pro-fast-251015` takes a start frame only.
 
+### Seedance 2.5
+
+Seedance 2.5 was announced on 2026-07-31, initially on BytePlus's consumer surfaces. Its Ark id — `dreamina-seedance-2-5-260628` — is real and reachable, but it is **activation-gated per account**: until the model is switched on in the Ark Console, Ark answers `404 ModelNotOpen`.
+
+Because its capabilities could not be probed from a non-activated account, 2.5 is **deliberately absent from the typed model tables** above. It is still usable today — `byteplusVideo()`'s model parameter accepts any string, so an id BytePlus publishes after this release works without upgrading the package:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { byteplusVideo } from '@tanstack/ai-byteplus'
+
+// Activate Seedance 2.5 in the Ark Console first, or this 404s.
+const { jobId } = await generateVideo({
+  adapter: byteplusVideo('dreamina-seedance-2-5-260628'),
+  prompt: 'a guitar being played in a store',
+  size: '16:9_720p',
+  duration: 5,
+})
+```
+
+An unknown id relaxes both halves of the adapter: `size` widens to any string, provider options are ungated, and the local runtime guards that encode per-model capabilities — resolution tiers, closing-frame and reference-media support, frame cardinality and mode exclusivity, duration snapping — stand down so Ark validates the request instead. Known ids keep their probe-verified narrowing. Typed narrowing for 2.5 follows in a package update once its capabilities can be verified.
+
 ### Seedance here vs. Seedance via fal
 
 Seedance is also reachable through [`@tanstack/ai-fal`](./fal), which proxies it alongside hundreds of other hosted models. This adapter talks to BytePlus directly, which means BytePlus billing and rate limits, model ids in BytePlus's own naming, and the first-class Seedance request fields above (`camera_fixed`, `draft`, `priority`, reference-media roles) rather than fal's normalized subset. Pick whichever matches the account you already have; there is no reason to install both just for Seedance.
@@ -472,7 +493,7 @@ Audio can be a `File`, base64, a data URL or a public URL, up to two hours and 1
 ## Supported models
 
 - **Chat** — `dola-seed-2-1-turbo-260628`, `seed-2-0-lite-260428`, `seed-2-0-mini-260428`, `seed-2-0-pro-260328`, `seed-2-0-lite-260228`, `seed-2-0-mini-260215`, `seed-2-0-code-preview-260328`, `seed-1-8-251228`, `seed-1-6-250915`, `seed-1-6-250615`, `seed-1-6-flash-250715`, `seed-1-6-flash-250615`, `glm-5-2-260617`, `glm-4-7-251222`, `deepseek-v4-pro-260425`, `deepseek-v4-flash-260425`, `deepseek-v3-2-251201`, `gpt-oss-120b-250805`.
-- **Video** — `dreamina-seedance-2-0-260128`, `dreamina-seedance-2-0-fast-260128`, `dreamina-seedance-2-0-mini-260615`, `seedance-1-5-pro-251215`, `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015`.
+- **Video** — `dreamina-seedance-2-0-260128`, `dreamina-seedance-2-0-fast-260128`, `dreamina-seedance-2-0-mini-260615`, `seedance-1-5-pro-251215`, `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015`. (Seedance 2.5, `dreamina-seedance-2-5-260628`, is untyped-but-usable pending account activation — see [Seedance 2.5](#seedance-25).)
 - **Image** — `dola-seedream-5-0-pro-260628`, `seedream-5-0-260128`, `seedream-5-0-lite-260128`, `seedream-4-5-251128`, `seedream-4-0-250828`.
 - **Speech** — `seed-audio-1.0` (TTS) and `seed-asr` (transcription).
 

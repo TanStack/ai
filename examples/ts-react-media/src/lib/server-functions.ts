@@ -2,9 +2,23 @@ import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
 import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
-import { byteplusImage, byteplusVideo } from '@tanstack/ai-byteplus'
+import {
+  BYTEPLUS_VIDEO_MODELS,
+  byteplusImage,
+  byteplusVideo,
+  getBytePlusVideoDurationOptions,
+  resolveBytePlusVideoResolution,
+  supportsLastFrame,
+  supportsReferenceMedia,
+} from '@tanstack/ai-byteplus'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
+import type {
+  BytePlusVideoModel,
+  BytePlusVideoModelOrString,
+  BytePlusVideoProviderOptions,
+  BytePlusVideoResolution,
+} from '@tanstack/ai-byteplus'
 import type {
   ImagePart,
   MediaInputMetadata,
@@ -13,6 +27,8 @@ import type {
   VideoPart,
 } from '@tanstack/ai/client'
 import type { OmniTaskMode } from './models'
+import type { SeedanceCapability, SeedanceJobOptions } from './seedance'
+import { SEEDANCE_RESOLUTION_TIERS } from './seedance'
 
 /** A prompt restricted to text — accepted by every (incl. text-only) model. */
 type TextPrompt = string | Array<TextPart>
@@ -455,4 +471,157 @@ export const getVideoUrlFn = createServerFn({ method: 'GET' })
       adapter,
       jobId: data.jobId,
     })
+  })
+
+// ============================================================================
+// Seedance Studio — BytePlus ModelArk direct (ARK_API_KEY, server-side only)
+// ============================================================================
+
+/**
+ * The tiers a model accepts. `resolveBytePlusVideoResolution` is the package's
+ * exported gate for exactly this decision — it throws on a tier the model does
+ * not offer — so probing it keeps one source of truth for a matrix that is
+ * neither uniform nor guessable (there is no 2K tier anywhere, and 4k exists
+ * only on `dreamina-seedance-2-0-260128`).
+ */
+function acceptedResolutions(
+  model: BytePlusVideoModel,
+): Array<BytePlusVideoResolution> {
+  return SEEDANCE_RESOLUTION_TIERS.filter((tier) => {
+    try {
+      resolveBytePlusVideoResolution(model, tier)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
+/**
+ * Per-model capability table for the Seedance Studio, read out of the adapter
+ * package on the server. No API key is involved: these are static metadata
+ * lookups, not calls to Ark.
+ */
+export const getSeedanceCapabilitiesFn = createServerFn({
+  method: 'GET',
+}).handler(
+  (): Array<SeedanceCapability> =>
+    BYTEPLUS_VIDEO_MODELS.map((model) => {
+      const durations = getBytePlusVideoDurationOptions(model)
+      if (durations.kind !== 'range') {
+        throw new Error(
+          `Expected a duration range for ${model}, got "${durations.kind}"`,
+        )
+      }
+      return {
+        model,
+        resolutions: acceptedResolutions(model),
+        duration: {
+          min: durations.min,
+          max: durations.max,
+          step: durations.step ?? 1,
+        },
+        supportsLastFrame: supportsLastFrame(model),
+        supportsReferenceMedia: supportsReferenceMedia(model),
+      }
+    }),
+)
+
+export const createSeedanceJobFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: {
+      prompt: MediaPrompt
+      // Open by design: the studio's advanced field takes an id this package
+      // has no metadata for (Seedance 2.5 today), which the adapter forwards
+      // ungated for Ark to judge.
+      model: BytePlusVideoModelOrString
+      options?: SeedanceJobOptions
+    }) => {
+      if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+      if (!data.model) throw new Error('Model is required')
+      return data
+    },
+  )
+  .handler(async ({ data }) => {
+    const options = data.options ?? {}
+
+    // The studio's camelCase controls map one-to-one onto the provider's own
+    // request fields. Applicability is per model and Ark 400s on a field the
+    // model doesn't take (it does not ignore it), so the client only sends
+    // what the selected model accepts — see `SEEDANCE_MODELS` in lib/seedance.
+    //
+    // `ratio` / `resolution` are typed against the tiers this package knows,
+    // so a custom model id sends its sizing through the generic `size`
+    // template instead (see `SeedanceJobOptions.size`).
+    const modelOptions: BytePlusVideoProviderOptions = {
+      ...(options.size === undefined &&
+        options.ratio !== undefined && { ratio: options.ratio }),
+      ...(options.size === undefined &&
+        options.resolution !== undefined && {
+          resolution: options.resolution,
+        }),
+      // `-1` (let the model choose the length) is only reachable through
+      // provider options: the generic `duration` gets snapped into range.
+      ...(options.duration === -1 && { duration: -1 }),
+      ...(options.frames !== undefined && { frames: options.frames }),
+      ...(options.seed !== undefined && { seed: options.seed }),
+      ...(options.watermark !== undefined && { watermark: options.watermark }),
+      ...(options.generateAudio !== undefined && {
+        generate_audio: options.generateAudio,
+      }),
+      ...(options.cameraFixed !== undefined && {
+        camera_fixed: options.cameraFixed,
+      }),
+      ...(options.serviceTier !== undefined && {
+        service_tier: options.serviceTier,
+      }),
+      ...(options.draft !== undefined && { draft: options.draft }),
+      ...(options.priority !== undefined && { priority: options.priority }),
+    }
+
+    // `frames` takes precedence over `duration` server-side, so never send
+    // both; `-1` already went through modelOptions above.
+    const duration =
+      options.frames === undefined &&
+      options.duration !== undefined &&
+      options.duration > 0
+        ? options.duration
+        : undefined
+
+    return await generateVideo({
+      // For a model this package knows, the adapter snaps `duration` into its
+      // range and validates the resolution tier, prompt roles and
+      // frame/reference exclusivity before anything reaches Ark. For a custom
+      // id every one of those guards is off by design: the duration goes
+      // through verbatim and Ark is the authority.
+      adapter: byteplusVideo(data.model),
+      prompt: asImagePrompt(data.prompt),
+      ...(options.size !== undefined && { size: options.size }),
+      ...(duration !== undefined && { duration }),
+      modelOptions,
+    })
+  })
+
+export const getSeedanceJobFn = createServerFn({ method: 'GET' })
+  .inputValidator(
+    (data: { jobId: string; model: BytePlusVideoModelOrString }) => {
+      if (!data.jobId) throw new Error('Job id is required')
+      return data
+    },
+  )
+  .handler(async ({ data }) => {
+    const result = await getVideoJobStatus({
+      adapter: byteplusVideo(data.model),
+      jobId: data.jobId,
+    })
+    // `expiresAt` is a Date on the result; hand the browser an ISO string so
+    // the shape crossing the server-function boundary is unambiguous.
+    return {
+      jobId: result.jobId,
+      status: result.status,
+      ...(result.url !== undefined && { url: result.url }),
+      ...(result.error !== undefined && { error: result.error }),
+      ...(result.expiresAt && { expiresAt: result.expiresAt.toISOString() }),
+      ...(result.usage && { usage: result.usage }),
+    }
   })
