@@ -62,8 +62,18 @@ describe('parseRangeHeader', () => {
   it('reports unsatisfiable ranges so the route can answer 416', () => {
     expect(parseRangeHeader('bytes=1000-', 1000)).toBe('unsatisfiable')
     expect(parseRangeHeader('bytes=1500-1600', 1000)).toBe('unsatisfiable')
-    expect(parseRangeHeader('bytes=500-499', 1000)).toBe('unsatisfiable')
     expect(parseRangeHeader('bytes=-0', 1000)).toBe('unsatisfiable')
+  })
+
+  it('ignores an invalid byte-range-spec rather than rejecting it', () => {
+    // RFC 9110 §14.1.1: `last-byte-pos < first-byte-pos` is INVALID, not
+    // unsatisfiable, and an invalid spec is ignored — the request still
+    // succeeds with the whole representation. A 416 here would fail a request
+    // that is supposed to work.
+    expect(parseRangeHeader('bytes=500-499', 1000)).toBeUndefined()
+    // Invalid wins over unsatisfiable: the size must not turn an ignorable
+    // spec into a 416.
+    expect(parseRangeHeader('bytes=5000-499', 1000)).toBeUndefined()
   })
 
   it('serves the whole object for an absent or unimplemented header', () => {

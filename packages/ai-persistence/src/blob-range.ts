@@ -46,9 +46,11 @@ export function resolveBlobRange(
  * Returns the {@link BlobRange} to pass to `retrieveBlob` / `BlobStore.get`,
  * `'unsatisfiable'` when the request names bytes the object does not have — answer
  * `416`, whose `content-range` is the literal `bytes` `*` then a slash then the
- * size — or `undefined` when there is no range to honour: an absent header, and
- * equally the forms this does not implement (multiple ranges, units other than
- * `bytes`), which a server is always free to answer in full.
+ * size — or `undefined` when there is no range to honour and the whole object
+ * should be served: an absent header, an invalid byte-range-spec (`bytes=100-50`,
+ * which RFC 9110 says to ignore rather than reject), and the forms this does not
+ * implement (multiple ranges, units other than `bytes`), which a server is
+ * always free to answer in full.
  *
  * @example
  * ```ts
@@ -81,10 +83,15 @@ export function parseRangeHeader(
   }
 
   const start = Number(rawStart)
+  const end = rawEnd === '' ? undefined : Number(rawEnd)
+  // `bytes=100-50` is an INVALID byte-range-spec, not an unsatisfiable one
+  // (RFC 9110 §14.1.1). An invalid spec is ignored and the whole
+  // representation is served — answering 416 would fail a request that is
+  // supposed to succeed. Checked before satisfiability so the size cannot turn
+  // an ignorable spec into a 416.
+  if (end !== undefined && end < start) return undefined
   if (start >= size) return 'unsatisfiable'
-  if (rawEnd === '') return { offset: start }
-  const end = Number(rawEnd)
-  if (end < start) return 'unsatisfiable'
+  if (end === undefined) return { offset: start }
   // `end` is inclusive, and past the end of the object it simply clamps.
   return { offset: start, length: Math.min(end, size - 1) - start + 1 }
 }
