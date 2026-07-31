@@ -451,7 +451,7 @@ export default function SeedanceStudio({
     },
   ]
 
-  const modelCardsDisabled = isBusy || unknownMode
+  const modelSelectDisabled = isBusy || unknownMode
 
   const readyToGenerate =
     (prompt.trim().length > 0 || hasImageInput) &&
@@ -470,34 +470,40 @@ export default function SeedanceStudio({
             controls below follow the one you pick.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {SEEDANCE_MODELS.map((model) => {
-            const selected = !unknownMode && model.id === modelId
-            return (
-              <button
-                key={model.id}
-                onClick={() => setModelId(model.id)}
-                disabled={modelCardsDisabled}
-                className={`text-left p-4 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  selected
-                    ? 'bg-blue-600/15 border-blue-500'
-                    : 'bg-gray-800 border-gray-700 hover:border-gray-600'
-                }`}
-              >
-                <div className="font-medium text-white">{model.name}</div>
-                <div className="text-xs text-gray-500 font-mono mt-0.5">
-                  {model.id}
-                </div>
-                <div className="text-xs text-cyan-300 mt-2">
-                  {describeSeedanceModel(
-                    model,
-                    capabilities.find((c) => c.model === model.id),
-                  )}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">{model.blurb}</div>
-              </button>
-            )
-          })}
+        <div className="space-y-3">
+          <select
+            value={unknownMode ? '' : modelId}
+            onChange={(e) => {
+              const picked = SEEDANCE_MODELS.find(
+                (model) => model.id === e.target.value,
+              )
+              if (picked) setModelId(picked.id)
+            }}
+            disabled={modelSelectDisabled}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {unknownMode && (
+              <option value="">Custom model id: {activeModel}</option>
+            )}
+            {SEEDANCE_MODELS.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} ({model.id})
+              </option>
+            ))}
+          </select>
+          {catalogEntry && !unknownMode && (
+            <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg">
+              <div className="text-xs text-cyan-300">
+                {describeSeedanceModel(
+                  catalogEntry,
+                  capabilities.find((c) => c.model === catalogEntry.id),
+                )}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {catalogEntry.blurb}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="pt-2 border-t border-gray-700">
