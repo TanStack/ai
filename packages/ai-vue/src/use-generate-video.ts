@@ -15,8 +15,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -65,8 +63,6 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -190,9 +186,7 @@ export function useGenerateVideo<TTransformed = void>(
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
-  const runId = shallowRef<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const runId = shallowRef<string | null>(null)
   let disposed = false
 
   // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
@@ -206,9 +200,6 @@ export function useGenerateVideo<TTransformed = void>(
       : { id: options.id ?? hookId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -266,7 +257,7 @@ export function useGenerateVideo<TTransformed = void>(
       if (disposed) return
       videoStatus.value = s
     },
-    onResumeStateChange: (rs: GenerationResumeState | null) => {
+    onResumeStateChange: (rs: { runId: string } | null) => {
       if (disposed) return
       runId.value = rs?.runId ?? null
     },

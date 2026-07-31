@@ -803,5 +803,5 @@ against a stream the log never contained. See [Harnesses](./harnesses).
   offset ownership
 - [Locks](../advanced/locks): the distributed lock a durable run requires
 - [Persistence overview](../persistence/overview) and
-  [Build your own adapter](../persistence/build-your-own-adapter): the shared
+  [Store Reference](../persistence/store-reference): the shared
   `RunStore`

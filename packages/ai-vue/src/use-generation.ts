@@ -17,8 +17,6 @@ import type {
   GenerationFetcher,
   GenerationPersistenceOptions,
   GenerationRestoredResult,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
@@ -68,8 +66,6 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -189,9 +185,7 @@ export function useGeneration<
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
-  const runId = shallowRef<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const runId = shallowRef<string | null>(null)
   let disposed = false
 
   // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
@@ -204,9 +198,6 @@ export function useGeneration<
       : { id: options.id ?? hookId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -252,7 +243,7 @@ export function useGeneration<
       if (disposed) return
       status.value = s
     },
-    onResumeStateChange: (rs: GenerationResumeState | null) => {
+    onResumeStateChange: (rs) => {
       if (disposed) return
       runId.value = rs?.runId ?? null
     },

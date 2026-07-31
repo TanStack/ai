@@ -8,8 +8,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -55,8 +53,6 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -182,9 +178,7 @@ export function useGenerateVideo<TTransformed = void>(
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<GenerationClientState>('idle')
-  const [runId, setRunId] = useState<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const [runId, setRunId] = useState<string | null>(null)
 
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -205,9 +199,6 @@ export function useGenerateVideo<TTransformed = void>(
         ? { threadId: opts.threadId }
         : { id: opts.id ?? hookId }),
       ...(opts.persistence !== undefined && { persistence: opts.persistence }),
-      ...(opts.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: opts.initialResumeSnapshot,
-      }),
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
       }),
@@ -259,7 +250,7 @@ export function useGenerateVideo<TTransformed = void>(
       onVideoStatusChange: (s: VideoStatusInfo | null) => {
         if (!disposedRef.current) setVideoStatus(s)
       },
-      onResumeStateChange: (rs: GenerationResumeState | null) => {
+      onResumeStateChange: (rs: { runId: string } | null) => {
         if (!disposedRef.current) setRunId(rs?.runId ?? null)
       },
     }

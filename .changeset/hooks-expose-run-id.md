@@ -38,9 +38,8 @@ ordinary streaming turn. `runId` tracks every run: it is set when any run starts
 `injectChat` (Angular) exposed no equivalent field before and now returns `runId`
 alongside the other frameworks.
 
-`ChatResumeState` and `GenerationResumeState` remain exported — they still
-describe the persisted resume snapshot (and `resumeInterruptsUnsafe` still takes
-a `ChatResumeState`). They are simply no longer part of a hook's return shape.
+`ChatResumeState` remains exported, since `resumeInterruptsUnsafe` still takes
+one. It is simply no longer part of a hook's return shape.
 
 New docs page: [Id map](https://tanstack.com/ai/latest/docs/persistence/id-map)
 covers what each id means on chat versus generation, how to choose a `threadId`,

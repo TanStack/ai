@@ -44,7 +44,6 @@ describe('ChatPersistor combined record', () => {
 
     persistor.notifyMessagesChanged([createUIMessage('m1', 'hello')])
     const snapshot: ChatResumeSnapshot = {
-      schemaVersion: 2,
       resumeState: { threadId: 't1', runId: 'r1' },
     }
     persistor.persistResumeSnapshot(snapshot)
@@ -59,7 +58,6 @@ describe('ChatPersistor combined record', () => {
     const persistor = new ChatPersistor(adapter, 'chat-1', () => {})
     persistor.notifyMessagesChanged([createUIMessage('m1', 'hello')])
     persistor.persistResumeSnapshot({
-      schemaVersion: 2,
       resumeState: { threadId: 't1', runId: 'r1' },
     })
     persistor.persistResumeSnapshot(null)
@@ -99,7 +97,6 @@ describe('localStoragePersistence ergonomics', () => {
       const record: ChatPersistedState = {
         messages: [createUIMessage('m1', 'hi')],
         resume: {
-          schemaVersion: 2,
           resumeState: { threadId: 't1', runId: 'r1' },
         },
       }
@@ -182,7 +179,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     const { adapter } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],
       resume: {
-        schemaVersion: 2,
         resumeState: { threadId: 't1', runId: 'r1' },
       },
     })
@@ -480,7 +476,6 @@ describe('ChatClient auto-rejoin after reload', () => {
       // History the app fetched from the server (reconstructChat) and seeded.
       initialMessages: [createUIMessage('history-1', 'earlier turn', 'user')],
       initialResumeSnapshot: {
-        schemaVersion: 2,
         resumeState: { threadId: 't1', runId: 'r1' },
       },
       onMessagesChange: (messages) => {
@@ -505,7 +500,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     const record: ChatPersistedState = {
       messages: [],
       resume: {
-        schemaVersion: 2,
         resumeState: { threadId: 't1', runId: 'r1' },
       },
     }
@@ -548,7 +542,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     const { adapter, read } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],
       resume: {
-        schemaVersion: 2,
         resumeState: { threadId: 't1', runId: 'gone-run' },
       },
     })
@@ -649,7 +642,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     const { adapter } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],
       resume: {
-        schemaVersion: 2,
         resumeState: { threadId: 't1', runId: 'r1' },
       },
     })

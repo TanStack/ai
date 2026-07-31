@@ -65,7 +65,6 @@ describe('ChatClient interrupt error correlation', () => {
       connection,
       onChunk,
       initialResumeSnapshot: {
-        schemaVersion: 2,
         resumeState: { threadId: 'thread-1', runId: interruptedRunId },
         pendingInterrupts: [pendingInterrupt],
       },

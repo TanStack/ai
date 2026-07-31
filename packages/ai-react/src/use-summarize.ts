@@ -7,7 +7,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
   InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
@@ -53,8 +52,6 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /

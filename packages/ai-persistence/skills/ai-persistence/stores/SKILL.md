@@ -11,7 +11,7 @@ type: sub-skill
 library: tanstack-ai
 library_version: '0.0.0'
 sources:
-  - 'TanStack/ai:docs/persistence/build-your-own-adapter.md'
+  - 'TanStack/ai:docs/persistence/store-reference.md'
   - 'TanStack/ai:docs/persistence/controls.md'
   - 'TanStack/ai:packages/ai-persistence/src/types.ts'
 ---

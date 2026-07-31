@@ -669,7 +669,7 @@ set a provider-side idle timeout as the backstop.
   place, `sandboxRunDriver`, and the single-writer fencing the sweep reuses
 - [The Run Journal](./journal): the journal `probeRunExit` reads and
   `pruneJournals` bounds
-- [Build Your Own Adapter](../persistence/build-your-own-adapter):
+- [Store Reference](../persistence/store-reference):
   `listReclaimable`, and the run fields a reapable backend must round-trip
 - [Sandbox Instance Durability](./durability): the instance store
   `reclaimSandbox` deletes from

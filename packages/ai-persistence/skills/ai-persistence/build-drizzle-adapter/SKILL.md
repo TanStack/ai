@@ -13,8 +13,8 @@ through the app's existing `drizzle-kit` setup.
 Do not create a package, a second `db` instance, a migration runner, or a
 `drizzle.config.ts`. The app has those.
 
-Read the **Build Your Own Adapter** guide
-(`docs/persistence/build-your-own-adapter.md`) for the store contracts and
+Read the **Store Reference**
+(`docs/persistence/store-reference.md`) for the store contracts and
 invariants, and **ai-persistence/stores** for the shape rules. Every
 store below mirrors the reference in-memory backend in
 `@tanstack/ai-persistence` (`memory.ts`); the shared conformance testkit is the

@@ -800,9 +800,9 @@ export interface ConnectConnectionAdapter {
  * client never imports that package, so this is a structural contract, not a
  * shared type. Two deliberate widenings on this side: `schemaVersion` is
  * optional (the server always writes `1`, but a hand-written fixture need not),
- * and `status` also admits `'idle'`, which the server's mapper never emits —
- * only a client-local snapshot reaches it (a seeded `initialResumeSnapshot`, or
- * `stop()` retiring a cancelled run).
+ * and `status` also admits `'idle'`, which the server's mapper never emits.
+ * Only a client-local snapshot reaches it, when `stop()` retires a cancelled
+ * run.
  */
 export interface GenerationHydrationResult {
   resumeSnapshot: {

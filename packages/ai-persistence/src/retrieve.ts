@@ -9,9 +9,11 @@ import type {
  * The DEFAULT blob-store key a generation artifact's bytes are stored under,
  * used when `withGenerationPersistence` is given no `storageKey` mapper.
  *
- * Prefer {@link resolveArtifactBlobKey} for reads: a record written with a
- * custom `storageKey` carries its real key in `blobKey`, and recomputing the
+ * Reads go through {@link resolveArtifactBlobKey} instead: a record written with
+ * a custom `storageKey` carries its real key in `blobKey`, and recomputing the
  * default would look in the wrong place.
+ *
+ * @internal
  */
 export function artifactBlobKey(
   ref: Pick<ArtifactRecord, 'runId' | 'artifactId'>,

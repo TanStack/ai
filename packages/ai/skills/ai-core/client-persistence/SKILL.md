@@ -7,11 +7,10 @@ description: >
   client cache).
   Reload restore, pending interrupts, mid-stream rejoin with delivery
   durability. Use for SPA reload durability — NOT server history alone.
-  Also covers generation hooks (useGenerateImage etc.), same two modes as chat:
-  client-driven (adapter) persists a lightweight resume snapshot under
-  generation:<threadId> (threadId is REQUIRED with persistence); server-driven
-  (persistence: true) hydrates the last generation from the server on mount,
-  nothing cached.
+  Also covers generation hooks (useGenerateImage etc.), which take only the
+  server-driven mode: persistence: true hydrates the last generation for the
+  (REQUIRED) threadId from the server on mount and repaints status/result/error,
+  nothing is cached in the browser.
   No extra package: the adapters ship in the framework packages.
 type: sub-skill
 library: tanstack-ai

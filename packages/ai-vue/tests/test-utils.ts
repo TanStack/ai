@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { useChat } from '../src/use-chat'
 import type { UseChatOptions } from '../src/types'
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 // Re-export test utilities from ai-client
 export {
@@ -11,7 +10,7 @@ export {
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
 
-export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
+export function createInterruptResumeSnapshot() {
   const pendingInterrupts = [
     {
       id: 'staged-interrupt',
@@ -42,7 +41,6 @@ export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
   ]
 
   return {
-    schemaVersion: 2,
     resumeState: { threadId: 'thread-1', runId: 'run-1' },
     pendingInterrupts,
   }

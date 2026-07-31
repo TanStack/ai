@@ -1092,7 +1092,6 @@ describe('ChatClient native interrupts', () => {
       connection: { async *connect() {} },
       onInterruptStateChange,
       initialResumeSnapshot: {
-        schemaVersion: 2,
         resumeState: { threadId: 'thread-1', runId: 'run-1' },
         pendingInterrupts: [interrupt],
       },
@@ -1260,7 +1259,6 @@ describe('ChatClient native interrupts', () => {
     const fallback = genericDescriptor('fallback')
     const malformed = JSON.parse(
       JSON.stringify({
-        schemaVersion: 2,
         resumeState: { threadId: 'thread-1', runId: 'run-1' },
         pendingInterrupts: [fallback],
         interruptState: {
@@ -1311,7 +1309,6 @@ describe('ChatClient native interrupts', () => {
     (_label, interruptState) => {
       const malformed = JSON.parse(
         JSON.stringify({
-          schemaVersion: 2,
           resumeState: { threadId: 'thread-1', runId: 'run-1' },
           pendingInterrupts: [genericDescriptor('fallback')],
           interruptState,

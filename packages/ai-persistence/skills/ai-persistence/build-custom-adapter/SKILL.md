@@ -22,8 +22,9 @@ it has the driver-specific code:
 | Cloudflare Workers + D1   | ai-persistence/build-cloudflare-adapter |
 
 Everything else lands here. The full contracts and their invariants are in
-**ai-persistence/stores**; the complete worked `node:sqlite` walkthrough
-is `docs/persistence/build-your-own-adapter.md` and
+**ai-persistence/stores** and `docs/persistence/store-reference.md`; the
+complete worked `node:sqlite` walkthrough is
+`docs/persistence/build-your-own-chat-adapter.md` and
 `examples/ts-react-chat/src/lib/sqlite-persistence.ts`.
 
 ## 1. Read the app before writing anything

@@ -20,7 +20,6 @@ import {
   getInterrupts,
   getPersistence,
 } from '../src/capabilities'
-import { createInterruptController } from '../src/interrupts'
 import type { AIPersistence, InterruptStore } from '../src'
 
 function mockAdapter(chunks: Array<StreamChunk>) {
@@ -126,60 +125,5 @@ describe('persistence capabilities', () => {
     )
 
     expect(seen.locks).toBe(locks)
-  })
-})
-
-describe('createInterruptController', () => {
-  it('delegates request/resolve/cancel/list to the underlying store', async () => {
-    const persistence = memoryPersistence()
-    const interruptStore = persistence.stores.interrupts
-    expect(interruptStore).toBeDefined()
-    const controller = createInterruptController({
-      store: interruptStore,
-    })
-
-    await controller.request({
-      interruptId: 'c1',
-      runId: 'run-c',
-      threadId: 'thread-c',
-      requestedAt: 1,
-      payload: { kind: 'approval' },
-    })
-    expect(await controller.listPending('thread-c')).toHaveLength(1)
-    expect(await controller.listPendingByRun('run-c')).toHaveLength(1)
-
-    await controller.resolve('c1', { approved: true })
-    expect((await interruptStore.get('c1'))?.status).toBe('resolved')
-    expect((await interruptStore.get('c1'))?.response).toEqual({
-      approved: true,
-    })
-    expect(await controller.listPending('thread-c')).toHaveLength(0)
-
-    await controller.request({
-      interruptId: 'c2',
-      runId: 'run-c',
-      threadId: 'thread-c',
-      requestedAt: 2,
-      payload: {},
-    })
-    await controller.cancel('c2')
-    expect((await interruptStore.get('c2'))?.status).toBe('cancelled')
-  })
-
-  it('creates interrupts in the pending state', async () => {
-    const persistence = memoryPersistence()
-    const interruptStore = persistence.stores.interrupts
-    expect(interruptStore).toBeDefined()
-    const controller = createInterruptController({
-      store: interruptStore,
-    })
-    await controller.request({
-      interruptId: 'c1',
-      runId: 'run-c',
-      threadId: 'thread-c',
-      requestedAt: 1,
-      payload: {},
-    })
-    expect((await interruptStore.get('c1'))?.status).toBe('pending')
   })
 })

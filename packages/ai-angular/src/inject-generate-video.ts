@@ -18,8 +18,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -58,8 +56,6 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -130,9 +126,7 @@ export function injectGenerateVideo<TTransformed = void>(
   const isLoading = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<GenerationClientState>('idle')
-  const runId = signal<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const runId = signal<string | null>(null)
   let disposed = false
 
   const bodySource =
@@ -146,9 +140,6 @@ export function injectGenerateVideo<TTransformed = void>(
       : { id: options.id ?? `injectGenerateVideo-${nextId++}` }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -200,7 +191,7 @@ export function injectGenerateVideo<TTransformed = void>(
     onVideoStatusChange: (s: VideoStatusInfo | null) => {
       if (!disposed) videoStatus.set(s)
     },
-    onResumeStateChange: (rs: GenerationResumeState | null) => {
+    onResumeStateChange: (rs: { runId: string } | null) => {
       if (!disposed) runId.set(rs?.runId ?? null)
     },
   }

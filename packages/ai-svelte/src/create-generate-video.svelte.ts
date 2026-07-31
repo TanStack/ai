@@ -7,8 +7,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -56,8 +54,6 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -185,9 +181,7 @@ export function createGenerateVideo<TTransformed = void>(
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
-  let runId = $state<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  let runId = $state<string | null>(null)
   let disposed = false
 
   // `body` uses a conditional spread because `VideoGenerationClientOptions.body`
@@ -202,9 +196,6 @@ export function createGenerateVideo<TTransformed = void>(
       : { id: options.id ?? fallbackId }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -262,7 +253,7 @@ export function createGenerateVideo<TTransformed = void>(
       if (disposed) return
       videoStatus = s
     },
-    onResumeStateChange: (rs: GenerationResumeState | null) => {
+    onResumeStateChange: (rs: { runId: string } | null) => {
       if (disposed) return
       runId = rs?.runId ?? null
     },

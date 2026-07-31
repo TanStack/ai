@@ -43,9 +43,6 @@ export type {
   ToolApprovalInterrupt,
   ClientContextOptionFromTools,
   ChatResumeState,
-  ChatResumeSnapshot,
-  ChatResumeSnapshotV1,
-  ChatResumeSnapshotV2,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -70,14 +67,6 @@ export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
-  GenerationResumeState,
-  GenerationResumeStatus,
-  GenerationResumeSnapshot,
-  GenerationPendingArtifact,
-  GenerationResultSnapshot,
-  GenerationErrorSnapshot,
-  GenerationEventSnapshot,
-  GenerationPersistenceOption,
   GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
@@ -94,11 +83,7 @@ export type {
   VideoGenerateInput,
   GenerationRestoredResult,
 } from './generation-types'
-export {
-  GENERATION_EVENTS,
-  parseGenerationResumeSnapshot,
-  updateGenerationResumeSnapshot,
-} from './generation-types'
+export { GENERATION_EVENTS } from './generation-types'
 // Per-activity result reconstruction mappers (used by the framework hooks to
 // repaint a typed `result` on restore)
 export {

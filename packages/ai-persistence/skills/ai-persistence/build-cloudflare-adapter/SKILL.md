@@ -14,8 +14,8 @@ Tables go into the app's existing `migrations/` directory and are applied with
 Do not create a package or a migration runner. Wrangler already tracks applied
 migrations; a second bookkeeping table only creates drift.
 
-Read the **Build Your Own Adapter** guide
-(`docs/persistence/build-your-own-adapter.md`) for the store contracts, and
+Read the **Store Reference**
+(`docs/persistence/store-reference.md`) for the store contracts, and
 **ai-persistence/stores** for the shape rules. This skill covers only
 the Cloudflare-specific parts.
 

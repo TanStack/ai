@@ -49,7 +49,7 @@ the result to `withPersistence`. The core never inspects your tables.
 | `withPersistence` / `withGenerationPersistence`                             | Chat + generation middleware                                |
 | `memoryPersistence()`                                                       | In-process reference backend, all seven stores (dev, tests) |
 | `reconstructChat` / `reconstructGeneration`                                 | Server hydrate route helpers (chat / generation)            |
-| `retrieveArtifact` / `retrieveBlob` / `artifactBlobKey`                     | Serve persisted generation-media bytes back                 |
+| `retrieveArtifact` / `retrieveBlob` / `resolveArtifactBlobKey`              | Serve persisted generation-media bytes back                 |
 | `LockStore` / `withLocks` / `InMemoryLockStore` (from `@tanstack/ai/locks`) | Coordination, **not** this package — see ai-core/locks      |
 | `@tanstack/ai-persistence/testkit`                                          | `runPersistenceConformance` gate (chat state stores)        |
 
