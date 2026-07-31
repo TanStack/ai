@@ -621,19 +621,32 @@ export type BytePlusVideoModelSizeByName = {
  * A Seedance model id: one this package knows, or any other string.
  *
  * The open half is a deliberate escape hatch for models BytePlus ships between
- * releases of this package. **Seedance 2.5 is the live example**: it was
- * announced 2026-07-31 as a consumer product only, with the Ark API listed as
- * "available soon". No 2.5 model id resolves on the data plane yet (21
- * candidate ids all returned 404 `InvalidEndpointOrModel.NotFound` against
- * controls that returned 400 `MissingParameter`), so shipping a guessed id
- * would be shipping a broken one. Passing the real id the day BytePlus
- * publishes it works without upgrading.
+ * releases of this package. **Seedance 2.5 is the live example.** Its real id
+ * is `dreamina-seedance-2-5-260628` — note the June date suffix, which is why
+ * guessing ids around its 2026-07-31 announcement never landed. It is absent
+ * from the table below because its capability cells are unverified, not
+ * because it is unreachable: probing it returns 404 `ModelNotOpen` ("your
+ * account has not activated the model"), so no capability question can be
+ * answered until someone enables it in the Ark Console. Passing it through
+ * the escape hatch works today for an account that has.
  *
- * Watch surface: the ModelArk release notes
- * (https://docs.byteplus.com/en/docs/ModelArk/1159178) list new model ids
- * first. To re-probe, POST `/contents/generations/tasks` with only
- * `{"model": "<id>"}` — 404 `InvalidEndpointOrModel.NotFound` means the id is
- * not live, 400 `MissingParameter` (complaining about `content`) means it is.
+ * Adding a model here *narrows* it — the adapter's guards switch on and reject
+ * against this file's tables. For a model whose real limits are unknown that
+ * is strictly worse than the open path, which lets Ark judge. So an id lands
+ * here only once probed.
+ *
+ * Discovering ids: `GET /models` on the Ark data plane enumerates the catalog
+ * (id, `task_type`, `modalities`, `status`) and is how 2.5 was found. It is
+ * not exhaustive — `seedream-5-0-lite-260128` answers requests but is missing
+ * from the listing — so absence there is not evidence of absence. The ModelArk
+ * release notes (https://docs.byteplus.com/en/docs/ModelArk/1159178) are the
+ * other watch surface.
+ *
+ * To probe an id, POST `/contents/generations/tasks` with only
+ * `{"model": "<id>"}`. Three outcomes, all live-verified:
+ * - 400 `MissingParameter` (about `content`) — live and usable.
+ * - 404 `ModelNotOpen` — real, but not activated on this account.
+ * - 404 `InvalidEndpointOrModel.NotFound` — no such model.
  *
  * Unknown ids trade compile-time narrowing for reach: the full size surface is
  * accepted, provider options are ungated, and the adapter's model-specific

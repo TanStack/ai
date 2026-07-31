@@ -652,28 +652,23 @@ export function createBytePlusVideo<TModel extends BytePlusVideoModelOrString>(
  *
  * `model` also accepts any string, so a Seedance id BytePlus publishes after
  * this release works without upgrading. **Seedance 2.5 is the case this exists
- * for**: announced 2026-07-31 as a consumer product, with the Ark API listed
- * as "available soon". As of that date no 2.5 id resolves on the data plane —
- * 21 candidate ids were probed and every one returned 404
- * `InvalidEndpointOrModel.NotFound` while known controls returned 400
- * `MissingParameter` — so this package deliberately ships no guessed id.
- *
- * New ids land in the ModelArk release notes
- * (https://docs.byteplus.com/en/docs/ModelArk/1159178) first. To check whether
- * one is live, POST `/contents/generations/tasks` with only `{"model": id}`:
- * 404 `InvalidEndpointOrModel.NotFound` means not yet, 400 `MissingParameter`
- * (about `content`) means it is.
+ * for**: `dreamina-seedance-2-5-260628` is real and reachable, but its
+ * capability cells could not be probed from this repo's account (Ark answers
+ * 404 `ModelNotOpen` until the model is activated in the Ark Console), so it
+ * is deliberately absent from the narrowed model tables. Passing it here works
+ * for an account that has activated it.
  *
  * An unknown id relaxes both halves of the adapter: the `size` type widens to
  * any string, provider options are ungated, and the runtime guards that encode
  * per-model capabilities — resolution tiers, closing-frame and reference-media
  * support, frame cardinality and mode exclusivity, duration snapping — stand
- * down so Ark decides. Known ids are unaffected.
+ * down so Ark decides. Known ids are unaffected. See
+ * {@link BytePlusVideoModelOrString} for how to discover and probe an id.
  *
  * @example
  * ```typescript
- * // The day BytePlus publishes the id, before this package ships it:
- * const adapter = byteplusVideo('dreamina-seedance-2-5-XXXXXX')
+ * // Seedance 2.5, before this package ships probe-verified metadata for it:
+ * const adapter = byteplusVideo('dreamina-seedance-2-5-260628')
  * ```
  */
 export function byteplusVideo<TModel extends BytePlusVideoModelOrString>(
