@@ -15,6 +15,18 @@
  * so these tables are not cosmetic: sending a field to the wrong model is a
  * 400, not a no-op.
  *
+ * **Where the adapter guards, and where it doesn't** (deliberate, not an
+ * oversight). Scalar applicability — `service_tier`, `draft`, `priority`,
+ * `frames`, `camera_fixed` — is left to Ark, whose 400 names the offending
+ * field and the model precisely enough to act on, and whose per-model rules
+ * shift as BytePlus ships models. Duplicating that here would mean a table
+ * that silently goes stale and starts rejecting requests the API would have
+ * accepted. The adapter guards locally only where the API's own error is
+ * misleading or arrives too late to be actionable: prompt media shape (role
+ * vocabulary, frame-vs-reference exclusivity, frame cardinality) and the
+ * resolution tier, both of which are derived from a caller's `prompt` /
+ * `size` rather than passed through verbatim.
+ *
  * @experimental Video generation is an experimental feature and may change.
  */
 
@@ -261,6 +273,10 @@ export function supportsLastFrame(model: string): boolean {
  * `ratio_resolution` (`'16:9_720p'`), mirroring the grok video adapter.
  * Returns `undefined` when the string doesn't match the template at all.
  *
+ * The resolution half comes back lowercased. Ark itself matches the field
+ * case-insensitively, but this package standardizes on lowercase so callers
+ * can compare the result against {@link BytePlusVideoResolution} directly.
+ *
  * @experimental Video generation is an experimental feature and may change.
  */
 export function parseBytePlusVideoSize(
@@ -269,12 +285,40 @@ export function parseBytePlusVideoSize(
   const match = /^(\d+:\d+|adaptive)(?:_(.+))?$/.exec(size)
   const [, ratio, resolution] = match ?? []
   if (ratio === undefined) return undefined
-  return { ratio, ...(resolution !== undefined && { resolution }) }
+  return {
+    ratio,
+    ...(resolution !== undefined && { resolution: resolution.toLowerCase() }),
+  }
+}
+
+/**
+ * Validates a resolution against a model's tiers, returning it lowercased.
+ *
+ * Used for both halves of the request: the resolution parsed out of the
+ * generic `size`, and a `modelOptions.resolution` that overrides it.
+ *
+ * @throws Error when the model does not offer the tier.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function resolveBytePlusVideoResolution(
+  model: BytePlusVideoModel,
+  resolution: string,
+): BytePlusVideoResolution {
+  const normalized = resolution.toLowerCase() as BytePlusVideoResolution
+  const allowed = BYTEPLUS_VIDEO_RESOLUTIONS[model]
+  if (!allowed.includes(normalized)) {
+    throw new Error(
+      `byteplus: resolution "${resolution}" is not supported by model ` +
+        `"${model}". Supported resolutions: ${allowed.join(', ')}.`,
+    )
+  }
+  return normalized
 }
 
 /**
  * Validates a `size` template against a model and returns the request fields
- * it maps onto.
+ * it maps onto, with the resolution lowercased.
  *
  * @throws Error when the template is malformed, the ratio is unknown, or the
  * resolution is not offered by this model.
@@ -284,7 +328,7 @@ export function parseBytePlusVideoSize(
 export function resolveBytePlusVideoSize(
   model: BytePlusVideoModel,
   size: string,
-): { ratio: string; resolution?: string } {
+): { ratio: string; resolution?: BytePlusVideoResolution } {
   const parsed = parseBytePlusVideoSize(size)
   if (!parsed || !BYTEPLUS_VIDEO_RATIOS.includes(parsed.ratio)) {
     throw new Error(
@@ -294,18 +338,10 @@ export function resolveBytePlusVideoSize(
     )
   }
 
-  const allowed = BYTEPLUS_VIDEO_RESOLUTIONS[model]
-  if (
-    parsed.resolution !== undefined &&
-    !allowed.includes(
-      parsed.resolution.toLowerCase() as BytePlusVideoResolution,
-    )
-  ) {
-    throw new Error(
-      `byteplus: resolution "${parsed.resolution}" is not supported by model ` +
-        `"${model}". Supported resolutions: ${allowed.join(', ')}.`,
-    )
+  return {
+    ratio: parsed.ratio,
+    ...(parsed.resolution !== undefined && {
+      resolution: resolveBytePlusVideoResolution(model, parsed.resolution),
+    }),
   }
-
-  return parsed
 }

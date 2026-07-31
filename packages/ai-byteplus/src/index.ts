@@ -19,6 +19,7 @@ export {
 export type { BytePlusVideoConfig } from './adapters/video'
 export {
   parseBytePlusVideoSize,
+  resolveBytePlusVideoResolution,
   resolveBytePlusVideoSize,
   supportsLastFrame,
   supportsReferenceMedia,

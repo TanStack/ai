@@ -229,6 +229,67 @@ describe('createVideoJob', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('keeps Authorization when defaultHeaders tries to override it', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = createBytePlusVideo(
+      'seedance-1-0-pro-250528',
+      'ark-test-key',
+      {
+        fetch: fetchMock,
+        defaultHeaders: { Authorization: 'Bearer not-the-real-key' },
+      },
+    )
+
+    await adapter.createVideoJob(createOptions())
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      Authorization: 'Bearer ark-test-key',
+    })
+  })
+
+  // Live-probed 2026-07-31 and contradicting the BytePlus docs, which list
+  // this model as 480p/720p. Guards the cell most likely to be "corrected"
+  // back by someone reading the docs.
+  it('accepts 1080p on seedance-1-0-pro-fast-251015', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-fast-251015')
+
+    await adapter.createVideoJob(createOptions({ size: '16:9_1080p' }))
+
+    expect(sentRequest(fetchMock).resolution).toBe('1080p')
+  })
+
+  // No Seedance model has a 2K tier, including the 2.0 flagship whose docs
+  // advertise "up to 4K". The cast mimics a caller who trusted the docs.
+  it('rejects a 2k resolution on every model', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({ size: '16:9_2k' as '16:9_1080p' }),
+      ),
+    ).rejects.toThrow(/resolution "2k" is not supported/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('validates a resolution that modelOptions introduced', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    // 4k is exclusive to the 2.0 flagship; overriding a valid size with it
+    // must fail locally rather than reaching Ark.
+    const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          size: '16:9_720p',
+          modelOptions: { resolution: '4k' as '1080p' },
+        }),
+      ),
+    ).rejects.toThrow(/resolution "4k" is not supported.*480p, 720p, 1080p/s)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a malformed size template', async () => {
     const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-250528')
@@ -551,6 +612,68 @@ describe('createVideoJob content roles', () => {
         }),
       ),
     ).rejects.toThrow(/does not support a closing frame/)
+  })
+
+  // The per-model modality map makes these compile errors; the casts stand in
+  // for JS callers and for a prompt built from untyped data.
+  it('rejects video prompt parts on a 1.x model', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'seedance-1-5-pro-251215')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [
+            {
+              type: 'video',
+              source: { type: 'url', value: 'https://x/v.mp4' },
+            },
+          ] as Array<MediaPromptPart>,
+        }),
+      ),
+    ).rejects.toThrow(/does not accept video prompt parts/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects audio prompt parts on a 1.x model', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-250528')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({
+          prompt: [
+            {
+              type: 'audio',
+              source: { type: 'url', value: 'https://x/a.mp3' },
+            },
+          ] as Array<MediaPromptPart>,
+        }),
+      ),
+    ).rejects.toThrow(/does not accept audio prompt parts/)
+  })
+
+  // The create schema says maxItems: 5, but Ark accepted 7 live, so the
+  // adapter passes long prompts through rather than rejecting what the API
+  // would have taken.
+  it('does not cap the content array locally', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
+
+    await adapter.createVideoJob(
+      createOptions({
+        prompt: [
+          { type: 'text', content: 'blend these' },
+          imagePart('https://example.com/1.jpg', 'reference'),
+          imagePart('https://example.com/2.jpg', 'reference'),
+          imagePart('https://example.com/3.jpg', 'reference'),
+          imagePart('https://example.com/4.jpg', 'reference'),
+          imagePart('https://example.com/5.jpg', 'reference'),
+        ],
+      }),
+    )
+
+    expect(sentRequest(fetchMock).content).toHaveLength(6)
   })
 
   it('rejects mask and control roles Seedance has no channel for', async () => {

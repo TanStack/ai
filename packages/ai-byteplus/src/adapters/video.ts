@@ -11,6 +11,7 @@ import {
 } from '../utils/client'
 import { getBytePlusVideoDurationOptions } from '../model-meta'
 import {
+  resolveBytePlusVideoResolution,
   resolveBytePlusVideoSize,
   supportsLastFrame,
   supportsReferenceMedia,
@@ -395,7 +396,7 @@ export class BytePlusVideoAdapter<
       ...(parsedSize && {
         ratio: parsedSize.ratio,
         ...(parsedSize.resolution !== undefined && {
-          resolution: parsedSize.resolution.toLowerCase(),
+          resolution: parsedSize.resolution,
         }),
       }),
       ...(duration !== undefined && { duration }),
@@ -403,6 +404,16 @@ export class BytePlusVideoAdapter<
       ...modelOptions,
       model,
       content,
+    }
+
+    // Validate what actually ships, not just what `size` contributed: a
+    // `modelOptions.resolution` overriding an already-checked size would
+    // otherwise reach Ark unchecked.
+    if (request.resolution !== undefined) {
+      request.resolution = resolveBytePlusVideoResolution(
+        model,
+        request.resolution,
+      )
     }
 
     try {

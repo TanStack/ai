@@ -95,8 +95,12 @@ export interface BytePlusVideoAudioContent {
 }
 
 /**
- * One entry of the `content[]` array. The array is capped at 5 items
- * (`maxItems` on the create schema).
+ * One entry of the `content[]` array.
+ *
+ * The create schema declares `maxItems: 5`, but the live API does not enforce
+ * it — 7 entries (6 reference images plus text) were accepted on
+ * `dreamina-seedance-2-0-260128`. The adapter therefore does not cap the array
+ * locally; a genuinely over-long request gets whatever Ark decides to say.
  */
 export type BytePlusVideoContentPart =
   | BytePlusVideoTextContent
