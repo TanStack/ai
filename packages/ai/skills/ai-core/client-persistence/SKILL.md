@@ -164,7 +164,10 @@ import {
 const persistence = memoryPersistence()
 
 export async function POST(request: Request) {
-  const { input, threadId } = await generationParamsFromRequest('image', request)
+  const { input, threadId } = await generationParamsFromRequest(
+    'image',
+    request,
+  )
   if (typeof input.prompt !== 'string') {
     throw new Error('This endpoint accepts text image prompts only.')
   }
