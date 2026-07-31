@@ -72,42 +72,38 @@ The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on 
 
 All commands are run from the repo root. Nx handles affected detection and caching.
 
-| Goal                          | Command                     |
-| ----------------------------- | --------------------------- |
-| Run unit tests (affected)     | `pnpm test:lib`             |
-| Watch unit tests              | `pnpm test:lib:dev`         |
-| Coverage (affected)           | `pnpm test:coverage`        |
-| Coverage for every package    | `pnpm test:coverage:all`    |
-| Coverage + regression check   | `pnpm test:coverage:check`  |
-| Re-baseline coverage          | `pnpm test:coverage:update` |
-| Type-check (affected)         | `pnpm test:types`           |
-| Lint (affected)               | `pnpm test:eslint`          |
-| Verify build artifacts        | `pnpm test:build`           |
-| Format the repo               | `pnpm format`               |
-| Build (affected)              | `pnpm build`                |
-| Build everything              | `pnpm build:all`            |
-| Run the full CI suite locally | `pnpm test`                 |
-| Run the affected-PR check     | `pnpm test:pr`              |
-| E2E suite                     | `pnpm test:e2e`             |
-| E2E with Playwright UI        | `pnpm test:e2e:ui`          |
+| Goal                          | Command             |
+| ----------------------------- | ------------------- |
+| Run unit tests (affected)     | `pnpm test:lib`     |
+| Watch unit tests              | `pnpm test:lib:dev` |
+| Type-check (affected)         | `pnpm test:types`   |
+| Lint (affected)               | `pnpm test:eslint`  |
+| Verify build artifacts        | `pnpm test:build`   |
+| Format the repo               | `pnpm format`       |
+| Build (affected)              | `pnpm build`        |
+| Build everything              | `pnpm build:all`    |
+| Run the full CI suite locally | `pnpm test`         |
+| Run the affected-PR check     | `pnpm test:pr`      |
+| E2E suite                     | `pnpm test:e2e`     |
+| E2E with Playwright UI        | `pnpm test:e2e:ui`  |
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
 ## Coverage
 
-Every package has a `test:coverage` script (`vitest run --coverage`, measured over `src/**` with the v8 provider). Per-package percentages are committed to `coverage-baseline.json` at the repo root.
+**Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
 
-The `Coverage` job on every PR runs `pnpm test:coverage:check`, which measures the affected packages and fails if any metric (statements, branches, functions, lines) drops more than 0.5 percentage points below the baseline. Packages that weren't affected are skipped, not treated as 0%.
+The `Coverage` job on every PR runs `test:coverage:check`: it measures the affected packages with the v8 provider over `src/**` and fails if any metric (statements, branches, functions, lines) drops more than 0.5 percentage points below `coverage-baseline.json`. Packages your PR didn't affect are skipped, not treated as 0%.
 
-The job writes a per-package table with deltas to the workflow run summary, so you can read the numbers from the PR's Checks tab whether the job passed or failed — click the `Coverage` job and the table is at the top. It is not posted as a PR comment.
+There are no target percentages to hit. Each package's committed number is its own floor, so the gate only stops coverage getting _worse_ — it never blocks a PR for being below some repo-wide bar.
 
-When a drop is intentional — deleting well-tested code, for instance — re-baseline and commit the result:
+Read the numbers from the PR's Checks tab: open the `Coverage` job and its summary has a per-package table with deltas, on every run whether it passed or failed. It is not posted as a PR comment.
 
-```bash
-pnpm test:coverage:update
-```
+### If the job says coverage dropped
 
-**The baseline is Linux numbers, because CI is the thing enforcing it.** A few packages cover different amounts on different platforms — `ai-sandbox-local-process` reads ~20pp higher on Windows, since its process-spawn code branches on platform. If you re-baseline on macOS or Windows you will commit numbers CI can't reproduce and the gate will fail for everyone. Take the values from the `Coverage` job's table on a green run instead, or re-baseline in a Linux container.
+Add tests to cover what you changed. If the drop is genuinely intended — you deleted well-tested code, say — the job prints a paste-ready JSON block; copy those entries into `coverage-baseline.json` and push.
+
+**Don't regenerate the baseline on your own machine.** The committed numbers are Linux numbers because Linux is what enforces them, and a few packages genuinely measure differently per platform — `ai-sandbox-local-process` reads ~20pp higher on Windows, since its process-spawn code branches on platform. Re-baselining locally commits numbers CI can't reproduce, which breaks the gate for everyone. (`test:coverage:update` exists for maintainers running in a Linux container; it is not the normal path.)
 
 Three known limitations:
 

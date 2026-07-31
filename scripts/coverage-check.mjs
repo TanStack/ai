@@ -131,10 +131,20 @@ console.log(line(header))
 console.log(widths.map((width) => '-'.repeat(width)).join('  '))
 for (const row of rows) console.log(line(row))
 
+// Anything the baseline needs to absorb, rendered paste-ready. Coverage is a
+// CI-only job and a few packages measure differently per platform, so a
+// contributor must never regenerate the baseline on their own machine — they
+// copy these entries out of the run instead.
+const staleNames = [
+  ...new Set([...additions, ...regressions.map((r) => r.name)]),
+].sort()
+const pasteBlock = staleNames
+  .map((name) => `  ${JSON.stringify(name)}: ${JSON.stringify(current[name])},`)
+  .join('\n')
+
 if (additions.length > 0) {
   console.log(
-    `\n${additions.length} package(s) missing from ${BASELINE}: ${additions.join(', ')}` +
-      `\nRun \`pnpm test:coverage:update\` and commit the baseline.`,
+    `\n${additions.length} package(s) missing from ${BASELINE}: ${additions.join(', ')}`,
   )
 }
 
@@ -157,11 +167,18 @@ if (process.env.GITHUB_STEP_SUMMARY) {
     `| --- | ${METRICS.map(() => '---:').join(' | ')} | --- |`,
     ...rows.map((row) => `| ${row.join(' | ')} |`),
   ]
-  if (additions.length > 0) {
+  if (pasteBlock) {
     md.push(
       ``,
-      `> ${additions.length} package(s) are not in the baseline yet: ${additions.join(', ')}.`,
-      `> Run \`pnpm test:coverage:update\` and commit the baseline.`,
+      `### Updating the baseline`,
+      ``,
+      `Coverage runs in CI only, and some packages measure differently per platform —`,
+      `do not regenerate the baseline on your own machine. If these numbers are the`,
+      `intended ones, paste the entries below into \`${BASELINE}\` and push:`,
+      ``,
+      '```json',
+      pasteBlock,
+      '```',
     )
   }
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md.join('\n')}\n`)
@@ -177,8 +194,9 @@ if (regressions.length > 0) {
     }
   }
   console.error(
-    `\nAdd tests to restore coverage, or run \`pnpm test:coverage:update\` and commit` +
-      ` the new baseline if the drop is intentional.`,
+    `\nAdd tests to restore coverage. If the drop is intentional, paste these` +
+      ` entries into ${BASELINE} and push — do not regenerate the baseline` +
+      ` locally, some packages measure differently per platform:\n\n${pasteBlock}`,
   )
   process.exit(1)
 }
