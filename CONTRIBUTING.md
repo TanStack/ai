@@ -90,6 +90,8 @@ Every package has a `test:coverage` script (`vitest run --coverage`, measured ov
 
 The `Coverage` job on every PR runs `pnpm test:coverage:check`, which measures the affected packages and fails if any metric (statements, branches, functions, lines) drops more than 0.5 percentage points below the baseline. Packages that weren't affected are skipped, not treated as 0%.
 
+The job writes a per-package table with deltas to the workflow run summary, so you can read the numbers from the PR's Checks tab whether the job passed or failed — click the `Coverage` job and the table is at the top. It is not posted as a PR comment.
+
 When a drop is intentional — deleting well-tested code, for instance — re-baseline and commit the result:
 
 ```bash
