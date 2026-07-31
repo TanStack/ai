@@ -46,6 +46,12 @@ jobs:
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
         with:
           main-branch-name: main
+      # Stashed outside the working tree because checking out the merge base
+      # would otherwise remove it — the script may be added or changed by the
+      # very PR under test. Both runs and the comparison use this copy, so all
+      # three agree on the version.
+      - name: Stage the coverage script
+        run: cp scripts/coverage-check.mjs "$RUNNER_TEMP/coverage-check.mjs"
       # The set of packages to measure is decided once, here, so that the base
       # run measures exactly what the head run does. `--with-target` keeps out
       # projects that have no test:coverage script, so a docs-only PR resolves
@@ -60,7 +66,7 @@ jobs:
         if: steps.affected.outputs.list != ''
         run: |
           pnpm exec nx run-many --targets=test:coverage --projects="${{ steps.affected.outputs.list }}"
-          node scripts/coverage-check.mjs --collect "$RUNNER_TEMP/cov-head"
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
       # restores seeded by the Coverage workflow on main: the task hashes are
       # identical, and `test:coverage` declares its coverage dir as an output,
@@ -79,12 +85,11 @@ jobs:
             exit 0
           fi
           pnpm exec nx run-many --targets=test:coverage --projects="$base_list"
-          node scripts/coverage-check.mjs --collect "$RUNNER_TEMP/cov-base"
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base"
       - name: Compare
         if: steps.affected.outputs.list != ''
         run: |
-          git checkout --force "$GITHUB_SHA" -- scripts/coverage-check.mjs
-          node scripts/coverage-check.mjs \
+          node "$RUNNER_TEMP/coverage-check.mjs" \
             --base "$RUNNER_TEMP/cov-base" \
             --head "$RUNNER_TEMP/cov-head"
   preview:
