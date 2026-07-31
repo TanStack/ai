@@ -12,15 +12,16 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { useGenerateVideo } from '@tanstack/ai-react'
 import type {
   BytePlusVideoModel,
   BytePlusVideoModelOrString,
   BytePlusVideoRatio,
   BytePlusVideoResolution,
 } from '@tanstack/ai-byteplus'
-import type { TokenUsage } from '@tanstack/ai'
 import type { MediaPromptPart } from '@tanstack/ai/client'
 import type { AttachedMedia } from '@/lib/media'
+import type { VideoBilling } from '@/lib/billing'
 import type {
   SeedanceCapability,
   SeedanceInputMode,
@@ -28,8 +29,9 @@ import type {
   SeedanceModelEntry,
 } from '@/lib/seedance'
 
-import { createSeedanceJobFn, getSeedanceJobFn } from '@/lib/server-functions'
+import { generateSeedanceVideoFn } from '@/lib/server-functions'
 import { readMediaFile, toImagePart } from '@/lib/media'
+import { readVideoBilling } from '@/lib/billing'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import {
   SEEDANCE_CUSTOM_MODEL_PLACEHOLDER,
@@ -45,13 +47,6 @@ import {
   snapSeedanceFrames,
 } from '@/lib/seedance'
 
-const POLL_INTERVAL_MS = 5000
-/**
- * Consecutive failed polls tolerated before the job is called failed. A flex
- * task can sit queued for many minutes, so a single blip on the way to the
- * status endpoint should not throw away a job that is still running.
- */
-const MAX_POLL_FAILURES = 3
 /** How many reference images the studio offers on the 2.0 family. */
 const MAX_REFERENCE_IMAGES = 4
 /** Documented seed range; `-1` leaves generation unseeded. */
@@ -70,27 +65,6 @@ interface JobSettings {
   seed: number | null
   serviceTier: 'default' | 'flex' | null
 }
-
-type JobState =
-  | { status: 'idle' }
-  | { status: 'submitting' }
-  | {
-      status: 'pending' | 'processing'
-      jobId: string
-      startedAt: number
-      settings: JobSettings
-    }
-  | {
-      status: 'completed'
-      jobId: string
-      startedAt: number
-      finishedAt: number
-      settings: JobSettings
-      url: string
-      expiresAt?: string
-      usage?: TokenUsage
-    }
-  | { status: 'error'; message: string }
 
 function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
@@ -146,14 +120,27 @@ export default function SeedanceStudio({
   const [draft, setDraft] = useState(false)
   const [priority, setPriority] = useState(5)
 
-  const [job, setJob] = useState<JobState>({ status: 'idle' })
+  /** What the in-flight (or last) task was actually asked for. */
+  const [settings, setSettings] = useState<JobSettings | null>(null)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [finishedAt, setFinishedAt] = useState<number | null>(null)
+  const [billing, setBilling] = useState<VideoBilling | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
 
   const firstFrameInputRef = useRef<HTMLInputElement>(null)
   const lastFrameInputRef = useRef<HTMLInputElement>(null)
   const referenceInputRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<NodeJS.Timeout | null>(null)
-  const pollFailuresRef = useRef(0)
+  /**
+   * Model and provider options for the task on the wire. `useGenerateVideo`
+   * builds its client — and captures the fetcher — once, so a submission's
+   * settings are read from here at call time instead of being closed over,
+   * which is also what keeps a running task pinned to the model it was
+   * submitted with while the picker moves on.
+   */
+  const submissionRef = useRef<{
+    model: BytePlusVideoModelOrString
+    options: SeedanceJobOptions
+  } | null>(null)
 
   // A non-empty custom id switches the studio into unknown-model mode: the
   // adapter's per-model guards are off for an id it has no table for, so the
@@ -218,20 +205,42 @@ export default function SeedanceStudio({
   const effectiveRatio: BytePlusVideoRatio =
     ratio === 'adaptive' && !hasImageInput ? '16:9' : ratio
 
-  const isBusy =
-    job.status === 'submitting' ||
-    job.status === 'pending' ||
-    job.status === 'processing'
+  // The server holds the request open and polls Ark itself, streaming job id,
+  // status and the finished url back on the one connection — so the studio
+  // reads the task's whole lifecycle off the hook instead of running a timer.
+  const { generate, result, jobId, videoStatus, isLoading, error } =
+    useGenerateVideo({
+      threadId: 'seedance-studio',
+      // `options.signal` is the hook's abort signal; cancelling the response
+      // is what ends the server's polling loop instead of leaving it running
+      // to the 30-minute ceiling.
+      fetcher: (input, options) => {
+        const submission = submissionRef.current
+        if (!submission) throw new Error('No Seedance task in flight')
+        return generateSeedanceVideoFn({
+          data: {
+            prompt: input.prompt,
+            model: submission.model,
+            options: submission.options,
+          },
+          signal: options?.signal,
+        })
+      },
+      onResult: () => {
+        // Clearing the ref is what re-opens the form to the next task.
+        submissionRef.current = null
+        setFinishedAt(Date.now())
+      },
+      onError: () => {
+        submissionRef.current = null
+      },
+      onChunk: (chunk) => {
+        const usage = readVideoBilling(chunk)
+        if (usage) setBilling(usage)
+      },
+    })
 
-  const stopPolling = () => {
-    if (pollRef.current) {
-      clearTimeout(pollRef.current)
-      pollRef.current = null
-    }
-    pollFailuresRef.current = 0
-  }
-
-  useEffect(() => stopPolling, [])
+  const isBusy = isLoading
 
   // Drive the elapsed-time readout; flex tasks can sit queued for many
   // minutes, so the wait needs to look like progress.
@@ -255,79 +264,13 @@ export default function SeedanceStudio({
     }
   }
 
-  /** Queue the next poll. Self-scheduling, so a slow status call can never
-   *  stack up behind the previous one the way a fixed interval would. */
-  const schedulePoll = (jobId: string, model: BytePlusVideoModelOrString) => {
-    pollRef.current = setTimeout(() => {
-      pollJob(jobId, model)
-    }, POLL_INTERVAL_MS)
-  }
-
-  // The model is threaded through rather than read from state: a poll must
-  // keep asking about the model the job was submitted with, even if the picker
-  // or the custom id has moved on since.
-  const pollJob = async (jobId: string, model: BytePlusVideoModelOrString) => {
-    try {
-      const result = await getSeedanceJobFn({ data: { jobId, model } })
-      const { url, expiresAt, usage } = result
-      pollFailuresRef.current = 0
-      if (result.status === 'completed' && url) {
-        stopPolling()
-        setJob((prev) =>
-          prev.status === 'pending' || prev.status === 'processing'
-            ? {
-                status: 'completed',
-                jobId,
-                startedAt: prev.startedAt,
-                finishedAt: Date.now(),
-                settings: prev.settings,
-                url,
-                ...(expiresAt !== undefined && { expiresAt }),
-                ...(usage && { usage }),
-              }
-            : prev,
-        )
-      } else if (result.status === 'failed') {
-        // A terminal state from the provider, as opposed to a failed poll:
-        // this one is the job's own verdict and gets no retries.
-        stopPolling()
-        setJob({
-          status: 'error',
-          message: result.error ?? 'Video generation failed',
-        })
-      } else {
-        const status = result.status === 'pending' ? 'pending' : 'processing'
-        setJob((prev) =>
-          prev.status === 'pending' || prev.status === 'processing'
-            ? { ...prev, status }
-            : prev,
-        )
-        schedulePoll(jobId, model)
-      }
-    } catch (err) {
-      // The status call itself failed. The job is very likely still running —
-      // a flex task can be queued for many minutes — so ride out a few blips
-      // before declaring it dead.
-      pollFailuresRef.current += 1
-      if (pollFailuresRef.current < MAX_POLL_FAILURES) {
-        schedulePoll(jobId, model)
-        return
-      }
-      stopPolling()
-      setJob({
-        status: 'error',
-        message:
-          err instanceof Error
-            ? `${err.message} (after ${MAX_POLL_FAILURES} consecutive failed status checks)`
-            : 'Failed to get status',
-      })
-    }
-  }
-
   const handleGenerate = async () => {
     if (!prompt.trim() && !hasImageInput) return
-    stopPolling()
-    setJob({ status: 'submitting' })
+    // `isBusy` comes from React state, which hasn't re-rendered yet for a
+    // second click in the same tick; the ref is set synchronously below and
+    // cleared when the task settles, so it closes that window — without it a
+    // second submit would swap the model out from under the running task.
+    if (isBusy || submissionRef.current) return
 
     const parts: Array<MediaPromptPart> = []
     if (prompt.trim()) parts.push({ type: 'text', content: prompt })
@@ -356,7 +299,7 @@ export default function SeedanceStudio({
         ? Math.min(MAX_SEED, Math.max(MIN_SEED, Math.trunc(parsedSeed)))
         : null
 
-    const settings: JobSettings = {
+    const jobSettings: JobSettings = {
       model: activeModel,
       ratio: effectiveRatio,
       resolution: requestResolution,
@@ -396,28 +339,14 @@ export default function SeedanceStudio({
       ...(entry.extras.priority && { priority }),
     }
 
-    try {
-      const result = await createSeedanceJobFn({
-        data: {
-          prompt: parts.length === 1 && !hasImageInput ? prompt : parts,
-          model: activeModel,
-          options,
-        },
-      })
-      setJob({
-        status: 'pending',
-        jobId: result.jobId,
-        startedAt: Date.now(),
-        settings,
-      })
-      schedulePoll(result.jobId, activeModel)
-    } catch (err) {
-      setJob({
-        status: 'error',
-        message:
-          err instanceof Error ? err.message : 'Failed to create video job',
-      })
-    }
+    submissionRef.current = { model: activeModel, options }
+    setSettings(jobSettings)
+    setStartedAt(Date.now())
+    setFinishedAt(null)
+    setBilling(undefined)
+    await generate({
+      prompt: parts.length === 1 && !hasImageInput ? prompt : parts,
+    })
   }
 
   const modeOptions: Array<{
@@ -462,98 +391,6 @@ export default function SeedanceStudio({
 
   return (
     <div className="space-y-6">
-      <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
-        <div>
-          <h2 className="text-lg font-medium text-white">Model</h2>
-          <p className="text-sm text-gray-400">
-            Each model exposes a different slice of the Seedance request — the
-            controls below follow the one you pick.
-          </p>
-        </div>
-        <div className="space-y-3">
-          <select
-            value={unknownMode ? '' : modelId}
-            onChange={(e) => {
-              const picked = SEEDANCE_MODELS.find(
-                (model) => model.id === e.target.value,
-              )
-              if (picked) setModelId(picked.id)
-            }}
-            disabled={modelSelectDisabled}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {unknownMode && (
-              <option value="">Custom model id: {activeModel}</option>
-            )}
-            {SEEDANCE_MODELS.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name} ({model.id})
-              </option>
-            ))}
-          </select>
-          {catalogEntry && !unknownMode && (
-            <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg">
-              <div className="text-xs text-cyan-300">
-                {describeSeedanceModel(
-                  catalogEntry,
-                  capabilities.find((c) => c.model === catalogEntry.id),
-                )}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">
-                {catalogEntry.blurb}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="pt-2 border-t border-gray-700">
-          <button
-            onClick={() => setShowAdvanced((prev) => !prev)}
-            disabled={isBusy}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors disabled:opacity-50"
-          >
-            {showAdvanced ? (
-              <ChevronDown className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-            Advanced: custom model id
-          </button>
-
-          {showAdvanced && (
-            <div className="mt-3 space-y-3">
-              <input
-                type="text"
-                value={customModelId}
-                onChange={(e) => setCustomModelId(e.target.value)}
-                placeholder={SEEDANCE_CUSTOM_MODEL_PLACEHOLDER}
-                disabled={isBusy}
-                spellCheck={false}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm font-mono text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50"
-              />
-              <p className="text-xs text-gray-500">
-                For a Seedance model BytePlus ships between releases of{' '}
-                <code className="text-gray-400">@tanstack/ai-byteplus</code>.
-                Leave it empty to go back to the picker.
-              </p>
-              {unknownMode && (
-                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-200/90">
-                    Capabilities unverified — every option below is enabled and
-                    the API validates the request, because the adapter switches
-                    its per-model guards off for an id it has no table for.
-                    Seedance 2.5 additionally requires activation in the Ark
-                    Console; without it the task returns 404{' '}
-                    <code className="text-amber-300">ModelNotOpen</code>.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
       <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium text-white">Prompt</h2>
@@ -702,6 +539,99 @@ export default function SeedanceStudio({
             )
           }
         />
+      </section>
+
+      <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-medium text-white">Model</h2>
+          <p className="text-sm text-gray-400">
+            Each model exposes a different slice of the Seedance request — the
+            image-conditioning modes above and the output controls below both
+            follow the one you pick.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <select
+            value={unknownMode ? '' : modelId}
+            onChange={(e) => {
+              const picked = SEEDANCE_MODELS.find(
+                (model) => model.id === e.target.value,
+              )
+              if (picked) setModelId(picked.id)
+            }}
+            disabled={modelSelectDisabled}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {unknownMode && (
+              <option value="">Custom model id: {activeModel}</option>
+            )}
+            {SEEDANCE_MODELS.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} ({model.id})
+              </option>
+            ))}
+          </select>
+          {catalogEntry && !unknownMode && (
+            <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg">
+              <div className="text-xs text-cyan-300">
+                {describeSeedanceModel(
+                  catalogEntry,
+                  capabilities.find((c) => c.model === catalogEntry.id),
+                )}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {catalogEntry.blurb}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2 border-t border-gray-700">
+          <button
+            onClick={() => setShowAdvanced((prev) => !prev)}
+            disabled={isBusy}
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors disabled:opacity-50"
+          >
+            {showAdvanced ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+            Advanced: custom model id
+          </button>
+
+          {showAdvanced && (
+            <div className="mt-3 space-y-3">
+              <input
+                type="text"
+                value={customModelId}
+                onChange={(e) => setCustomModelId(e.target.value)}
+                placeholder={SEEDANCE_CUSTOM_MODEL_PLACEHOLDER}
+                disabled={isBusy}
+                spellCheck={false}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm font-mono text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50"
+              />
+              <p className="text-xs text-gray-500">
+                For a Seedance model BytePlus ships between releases of{' '}
+                <code className="text-gray-400">@tanstack/ai-byteplus</code>.
+                Leave it empty to go back to the picker.
+              </p>
+              {unknownMode && (
+                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-200/90">
+                    Capabilities unverified — every option below is enabled and
+                    the API validates the request, because the adapter switches
+                    its per-model guards off for an id it has no table for.
+                    Seedance 2.5 additionally requires activation in the Ark
+                    Console; without it the task returns 404{' '}
+                    <code className="text-amber-300">ModelNotOpen</code>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-5">
@@ -968,29 +898,31 @@ export default function SeedanceStudio({
         )}
       </button>
 
-      {job.status !== 'idle' && (
+      {(isBusy || error || result) && (
         <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
-          {job.status === 'submitting' && (
+          {isBusy && !jobId && (
             <div className="flex items-center gap-2 text-gray-400">
               <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
               Submitting the task...
             </div>
           )}
 
-          {(job.status === 'pending' || job.status === 'processing') && (
+          {isBusy && jobId && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-gray-300">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
                 <span className="font-medium">
-                  {job.status === 'pending' ? 'Queued' : 'Processing'}
+                  {videoStatus?.status === 'processing'
+                    ? 'Processing'
+                    : 'Queued'}
                 </span>
                 <span className="flex items-center gap-1 text-sm text-gray-500">
                   <Clock className="w-3.5 h-3.5" />
-                  {formatElapsed(now - job.startedAt)}
+                  {formatElapsed(now - (startedAt ?? now))}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 font-mono">{job.jobId}</p>
-              {job.settings.serviceTier === 'flex' && (
+              <p className="text-xs text-gray-500 font-mono">{jobId}</p>
+              {settings?.serviceTier === 'flex' && (
                 <p className="text-xs text-amber-400/80">
                   Flex is the offline batch queue — tasks routinely sit here for
                   many minutes before they start.
@@ -999,17 +931,19 @@ export default function SeedanceStudio({
             </div>
           )}
 
-          {job.status === 'error' && (
+          {error && !isBusy && (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-              {job.message}
+              {error.message}
             </div>
           )}
 
-          {job.status === 'completed' && (
+          {/* `!error`: a failed task keeps the previous result on the hook,
+              and it must not render underneath the new error. */}
+          {result && !isBusy && !error && settings && (
             <div className="space-y-3">
               <div className="rounded-lg overflow-hidden border border-gray-700">
                 <video
-                  src={job.url}
+                  src={result.url}
                   controls
                   autoPlay
                   loop
@@ -1017,46 +951,48 @@ export default function SeedanceStudio({
                 />
               </div>
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
-                <Meta label="Model" value={job.settings.model} />
+                <Meta label="Model" value={settings.model} />
                 <Meta
                   label="Output"
-                  value={`${job.settings.ratio} · ${job.settings.resolution}`}
+                  value={`${settings.ratio} · ${settings.resolution}`}
                 />
                 <Meta
                   label="Length"
                   value={
-                    job.settings.frames !== null
-                      ? `${job.settings.frames} frames @ ${SEEDANCE_FPS} fps`
-                      : job.settings.duration === -1
+                    settings.frames !== null
+                      ? `${settings.frames} frames @ ${SEEDANCE_FPS} fps`
+                      : settings.duration === -1
                         ? 'model-chosen'
-                        : `${job.settings.duration}s`
+                        : `${settings.duration}s`
                   }
                 />
                 <Meta
                   label="Seed"
                   value={
-                    job.settings.seed === null || job.settings.seed === -1
+                    settings.seed === null || settings.seed === -1
                       ? 'unseeded'
-                      : String(job.settings.seed)
+                      : String(settings.seed)
                   }
                 />
-                {job.settings.serviceTier && (
-                  <Meta label="Tier" value={job.settings.serviceTier} />
+                {settings.serviceTier && (
+                  <Meta label="Tier" value={settings.serviceTier} />
                 )}
-                <Meta
-                  label="Wall clock"
-                  value={formatElapsed(job.finishedAt - job.startedAt)}
-                />
-                {job.usage && (
+                {startedAt !== null && finishedAt !== null && (
+                  <Meta
+                    label="Wall clock"
+                    value={formatElapsed(finishedAt - startedAt)}
+                  />
+                )}
+                {billing && (
                   <Meta
                     label="Billed tokens"
-                    value={`${job.usage.unitsBilled ?? job.usage.totalTokens}`}
+                    value={`${billing.unitsBilled ?? billing.totalTokens}`}
                   />
                 )}
               </dl>
               <div className="flex items-center justify-between gap-4">
                 <a
-                  href={job.url}
+                  href={result.url}
                   download
                   target="_blank"
                   rel="noreferrer"
@@ -1067,8 +1003,10 @@ export default function SeedanceStudio({
                 </a>
                 <p className="text-xs text-amber-400/80 text-right">
                   BytePlus deletes this URL 24 hours after the task finishes
-                  {job.expiresAt
-                    ? ` — ${new Date(job.expiresAt).toLocaleString()}`
+                  {/* Typed `Date`, but it crosses the wire as an ISO string —
+                      `new Date` takes either. */}
+                  {result.expiresAt
+                    ? ` — ${new Date(result.expiresAt).toLocaleString()}`
                     : ''}
                   . Download anything you want to keep.
                 </p>
