@@ -42,6 +42,8 @@ export type {
   BlobObject,
   BlobListPage,
   BlobPutOptions,
+  BlobGetOptions,
+  BlobRange,
   BlobListOptions,
   BlobStore,
   AIPersistence,
@@ -94,6 +96,10 @@ export {
   artifactBlobKey,
   resolveArtifactBlobKey,
 } from './retrieve'
+
+// Byte-range helpers: parse a `Range` header (routes), clamp a range to an
+// object's real size (store authors)
+export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
 export { memoryPersistence } from './memory'

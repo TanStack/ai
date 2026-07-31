@@ -989,7 +989,7 @@ media.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
-import { defineBlobStore } from '@tanstack/ai-persistence'
+import { defineBlobStore, resolveBlobRange } from '@tanstack/ai-persistence'
 import type {
   BlobBody,
   BlobObject,
@@ -1040,9 +1040,15 @@ function mapBlobRecord(row: Record<string, unknown>): BlobRecord {
   }
 }
 
-function blobObject(record: BlobRecord, bytes: Uint8Array): BlobObject {
+function blobObject(
+  record: BlobRecord,
+  bytes: Uint8Array,
+  range?: { offset: number; length: number },
+): BlobObject {
   return {
     ...record,
+    // `size` keeps describing the whole object; `range` describes these bytes.
+    ...(range ? { range } : {}),
     body: new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(bytes.slice())
@@ -1071,6 +1077,16 @@ function createBlobStore(db: DatabaseSync) {
   )
   const selectCreated = db.prepare('SELECT created_at FROM blobs WHERE key = ?')
   const selectOne = db.prepare('SELECT * FROM blobs WHERE key = ?')
+  // Metadata without the bytes, and the bounded slice: a ranged read must not
+  // load the whole object to hand back a piece of it.
+  const selectMeta = db.prepare(
+    `SELECT key, size, etag, content_type, custom_metadata_json,
+            created_at, updated_at
+       FROM blobs WHERE key = ?`,
+  )
+  const selectSlice = db.prepare(
+    'SELECT substr(bytes, ?, ?) AS bytes FROM blobs WHERE key = ?',
+  )
   return defineBlobStore({
     async put(key, body, options) {
       const bytes = await toBytes(body)
@@ -1103,15 +1119,30 @@ function createBlobStore(db: DatabaseSync) {
           : {}),
       }
     },
-    async get(key) {
-      const row = selectOne.get(key)
-      if (!row) return null
+    async get(key, options) {
+      if (!options?.range) {
+        const row = selectOne.get(key)
+        if (!row) return null
+        const bytes =
+          row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
+        return blobObject(mapBlobRecord(row), bytes)
+      }
+      // Metadata first, WITHOUT the bytes, so the clamp costs no I/O...
+      const meta = selectMeta.get(key)
+      if (!meta) return null
+      const served = resolveBlobRange(Number(meta.size), options.range)
+      // ...then let SQLite cut the slice (`substr` is 1-based and byte-wise
+      // over a BLOB). Reading the row whole and slicing in JS would load the
+      // entire object on every video seek — the cost ranges exist to avoid.
+      const slice = selectSlice.get(served.offset + 1, served.length, key)
+      if (!slice) return null
       const bytes =
-        row.bytes instanceof Uint8Array ? row.bytes : new Uint8Array()
-      return blobObject(mapBlobRecord(row), bytes)
+        slice.bytes instanceof Uint8Array ? slice.bytes : new Uint8Array()
+      return blobObject(mapBlobRecord(meta), bytes, served)
     },
     async head(key) {
-      const row = selectOne.get(key)
+      // Metadata only: never pull the bytes to answer a question about them.
+      const row = selectMeta.get(key)
       return row ? mapBlobRecord(row) : null
     },
     async delete(key) {
@@ -1705,6 +1736,8 @@ interface BlobObject extends BlobRecord {
   arrayBuffer(): Promise<ArrayBuffer>
   text(): Promise<string>
   body?: ReadableStream<Uint8Array>
+  // The slice served, when a range was requested. Absent on a whole read.
+  range?: { offset: number; length: number }
 }
 
 interface BlobListPage {
@@ -1716,6 +1749,19 @@ interface BlobListPage {
 interface BlobPutOptions {
   contentType?: string
   customMetadata?: Record<string, string>
+  // Exact byte length of `body`, when the producer knows it. Advisory: use it
+  // to pick an upload strategy (single-shot vs multipart), never as a
+  // substitute for counting the bytes you actually store.
+  expectedLength?: number
+}
+
+interface BlobRange {
+  offset: number // from the start of the object; must be inside it
+  length?: number // defaults to "to the end"; clamped when it overshoots
+}
+
+interface BlobGetOptions {
+  range?: BlobRange
 }
 
 interface BlobListOptions {
@@ -1726,7 +1772,7 @@ interface BlobListOptions {
 
 interface BlobStore {
   put(key: string, body: BlobBody, options?: BlobPutOptions): Promise<BlobRecord>
-  get(key: string): Promise<BlobObject | null>
+  get(key: string, options?: BlobGetOptions): Promise<BlobObject | null>
   head(key: string): Promise<BlobRecord | null>
   delete(key: string): Promise<void>
   list(options?: BlobListOptions): Promise<BlobListPage>
@@ -1741,6 +1787,46 @@ Three contracts to hold for `list`:
   `cursor`. Passing that cursor back returns the strictly-following keys, so
   paging visits every key exactly once.
 - `limit: 0` yields an empty, untruncated page.
+
+And one for `put`: the body can be a `ReadableStream` with **no declared
+length**. That is how a URL-fetched artifact arrives whenever the origin does
+not declare one it can be held to — a chunked reply, or a compressed one whose
+`content-length` describes the compressed bytes. (When the origin *does* declare
+a usable length, the body reaches you exactly as `fetch` produced it, length
+intact, and `expectedLength` carries the same number.) Your store must drain a
+length-less stream, not require a length up front. Backends that need a declared
+length for a single-shot upload (Cloudflare R2 on workerd is one) can re-attach
+`expectedLength` when it is present and stream through a multipart upload when
+it is not — the `ai-persistence/build-cloudflare-artifact-store` skill ships that
+recipe. The conformance testkit exercises the length-less case, so a store that
+only handles byte bodies fails the suite.
+
+And one for `get`: honour `options.range` by returning **only that slice**.
+`size` keeps reporting the whole object, and the returned `range` reports what
+you actually served — together they are the `206` response a media player's
+seeking depends on. `resolveBlobRange(size, range)` does the clamping (a
+`length` past the end is legal and clamps; an `offset` past the end throws,
+because a serve route should have answered `416` from `record.size` first):
+
+```ts ignore
+import { resolveBlobRange } from '@tanstack/ai-persistence'
+
+async get(key: string, options?: BlobGetOptions) {
+  const row = await selectBlob(key)
+  if (!row) return null
+  if (!options?.range) return blobObject(row, row.body)
+  const served = resolveBlobRange(row.size, options.range)
+  // Slice at the storage layer, not after loading the whole object.
+  const bytes = await selectBlobSlice(key, served.offset, served.length)
+  return blobObject(row, bytes, served)
+}
+```
+
+This is not optional for a store that holds bytes — the conformance testkit
+asserts it. Ignoring `range` and returning the whole file is what makes
+`<video>` seeking (and Safari playback at all) fail, and it silently sends the
+entire artifact for every seek. A reference-only backend that stores no bytes
+skips `blobs` altogether instead.
 
 ## Where to go next
 

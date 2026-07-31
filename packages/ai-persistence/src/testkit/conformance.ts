@@ -64,6 +64,28 @@ function required<TValue>(
   return value
 }
 
+/** Read a `BlobObject.body` to completion as one contiguous buffer. */
+async function drainStream(
+  stream: ReadableStream<Uint8Array>,
+): Promise<Uint8Array> {
+  const chunks: Array<Uint8Array> = []
+  let total = 0
+  const reader = stream.getReader()
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    total += value.byteLength
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
+
 export interface PersistenceConformanceOptions {
   /**
    * Store keys this backend intentionally does not provide. Any store that is
@@ -1128,6 +1150,116 @@ export function runPersistenceConformance(
         expect(new Uint8Array(await buffered.arrayBuffer())).toEqual(
           new Uint8Array([9, 9]),
         )
+      })
+
+      it('accepts a stream body with no declared length', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        // A TransformStream's readable side carries no declared length —
+        // exactly what a fetch-based producer hands the store when the origin
+        // chunks its reply (or its length can't be trusted). Byte bodies take
+        // a different branch in most stores and prove nothing about the
+        // streaming path, so this case is the one that keeps a store honest:
+        // it must drain the stream, not require a length up front.
+        const bytes = new Uint8Array(64 * 1024).map((_, i) => i % 251)
+        const source = required(new Response(bytes).body, 'response body')
+        const lengthless = source.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>(),
+        )
+        const put = await store.put('blob/stream', lengthless, {
+          contentType: 'application/octet-stream',
+        })
+        expect(put.size).toBe(bytes.byteLength)
+
+        const object = required(await store.get('blob/stream'), 'blob/stream')
+        expect(new Uint8Array(await object.arrayBuffer())).toEqual(bytes)
+        expect(object.size).toBe(bytes.byteLength)
+      })
+
+      it('accepts expectedLength as an advisory hint for a stream body', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        // The real-world combination: a length-less stream PLUS the hint —
+        // which is what the artifact middleware sends when the origin declared
+        // a trustworthy `content-length`. The hint is advisory (a store may
+        // use it to pick an upload strategy); the drained bytes stay the
+        // record of truth, so `size` must still be the count of what arrived.
+        const bytes = new Uint8Array(9 * 1024).map((_, i) => i % 251)
+        const source = required(new Response(bytes).body, 'response body')
+        const lengthless = source.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>(),
+        )
+        const put = await store.put('blob/stream-hint', lengthless, {
+          expectedLength: bytes.byteLength,
+        })
+        expect(put.size).toBe(bytes.byteLength)
+
+        const object = required(
+          await store.get('blob/stream-hint'),
+          'blob/stream-hint',
+        )
+        expect(new Uint8Array(await object.arrayBuffer())).toEqual(bytes)
+        expect(object.size).toBe(bytes.byteLength)
+      })
+
+      it('serves a byte range and reports the slice it served', async () => {
+        const store = resolveStore('blobs')
+        if (!store) return
+
+        // Range reads are what a serve route turns into `206` +
+        // `Content-Range` — the shape `<video>` seeking is built on. `size`
+        // keeps reporting the WHOLE object so the route can finish the
+        // `Content-Range` header from the same result.
+        const bytes = new Uint8Array(1024).map((_, i) => i % 251)
+        await store.put('blob/range', bytes)
+
+        const middle = required(
+          await store.get('blob/range', { range: { offset: 100, length: 50 } }),
+          'blob/range',
+        )
+        expect(new Uint8Array(await middle.arrayBuffer())).toEqual(
+          bytes.slice(100, 150),
+        )
+        expect(middle.size).toBe(bytes.byteLength)
+        expect(middle.range).toEqual({ offset: 100, length: 50 })
+
+        // No `length`: from the offset to the end.
+        const tail = required(
+          await store.get('blob/range', { range: { offset: 1000 } }),
+          'blob/range',
+        )
+        expect(new Uint8Array(await tail.arrayBuffer())).toEqual(
+          bytes.slice(1000),
+        )
+        expect(tail.range).toEqual({ offset: 1000, length: 24 })
+
+        // A `length` past the end is clamped, not an error: `bytes=1000-2000`
+        // against a 1 KiB object is a legal request that serves 24 bytes.
+        const clamped = required(
+          await store.get('blob/range', {
+            range: { offset: 1000, length: 1000 },
+          }),
+          'blob/range',
+        )
+        expect(clamped.range).toEqual({ offset: 1000, length: 24 })
+        expect((await clamped.arrayBuffer()).byteLength).toBe(24)
+
+        // The streaming accessor carries the same slice as arrayBuffer().
+        const streamed = required(
+          await store.get('blob/range', { range: { offset: 10, length: 5 } }),
+          'blob/range',
+        )
+        const body = streamed.body
+        if (body) {
+          expect(await drainStream(body)).toEqual(bytes.slice(10, 15))
+        }
+
+        // A whole-object read reports no `range` — a caller that sees one
+        // takes the bytes for a slice and would answer `206` for all of them.
+        const whole = required(await store.get('blob/range'), 'blob/range')
+        expect(whole.range).toBeUndefined()
       })
 
       it('overwrites an existing key and deletes silently', async () => {

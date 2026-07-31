@@ -130,8 +130,25 @@ export interface ArtifactPersistenceOptions {
   }) => boolean | Promise<boolean>
   /** Abort an artifact fetch after this many ms. Default 30_000. */
   artifactFetchTimeoutMs?: number
-  /** Refuse an artifact body larger than this many bytes. Default 100 MiB. */
-  maxArtifactBytes?: number
+  /**
+   * Refuse an artifact body larger than this many bytes. Default 1 GiB.
+   *
+   * This is a bound on TRANSFER, not on memory: the URL path streams into the
+   * blob store and never buffers, so a 1 GiB artifact costs a streaming store
+   * (R2, S3, filesystem) flat memory. What the cap buys is a ceiling on what a
+   * broken or hostile origin can make you pull and store — `content-length` is
+   * advisory, so without it an artifact fetch is an unbounded transfer billed
+   * to you.
+   *
+   * Pass `false` to remove the ceiling entirely. That also removes the
+   * cap-enforcing `TransformStream` wrapper, so the fetched body reaches your
+   * store exactly as `fetch` produced it — on workerd that means it keeps its
+   * native declared length and `R2Bucket.put` can single-shot it with no hint,
+   * no multipart, and nothing buffered. Do that when you trust the origins you
+   * fetch from (your provider's CDN); keep the cap when `allowInputUrl` lets
+   * callers name the URL.
+   */
+  maxArtifactBytes?: number | false
   /**
    * `fetch` used to download artifact bytes. Defaults to the global. Inject to
    * route downloads through a proxy or an egress-restricted agent — the most
@@ -180,7 +197,15 @@ function generationScope(
 }
 
 const DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS = 30_000
-const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
+// 1 GiB, because generated video clips routinely run to a few hundred MB and
+// the old 100 MiB default silently failed them. The cap is a drain-time
+// counter, not a buffer: the URL path streams into the store, so raising it
+// costs a streaming store nothing in memory. It still earns its keep as the
+// only ceiling on what a runaway or hostile origin can make you transfer and
+// store (`content-length` is advisory, and on a compressed reply it measures
+// the compressed body). `maxArtifactBytes: false` removes it — and the wrapper
+// with it, which is the zero-copy path onto workerd + R2.
+const DEFAULT_MAX_ARTIFACT_BYTES = 1024 * 1024 * 1024
 
 export interface GenerationArtifactDescriptor {
   role: PersistedArtifactRole
@@ -762,8 +787,14 @@ function isBlockedInputHost(hostname: string): boolean {
 
 /**
  * Fail the stream once more than `maxBytes` have passed through, so an
- * unexpectedly huge artifact can't fill the blob store. Enforced during the
- * drain because `content-length` is advisory (and absent on chunked replies).
+ * unexpectedly huge artifact can't fill the blob store.
+ *
+ * Only used when the response does NOT already bound itself — a chunked reply,
+ * or a content-encoded one whose declared length describes the compressed
+ * bytes. When `content-length` describes the body the store will drain, HTTP
+ * framing is the bound and wrapping would only cost the caller the declared
+ * length: a `TransformStream`'s readable side carries none, which is what
+ * pushes a length-strict runtime (workerd + R2) onto a multipart upload.
  */
 function capBodySize(
   body: ReadableStream<Uint8Array>,
@@ -801,6 +832,12 @@ async function descriptorBody(
   | {
       body: BlobBody
       size: number
+      /**
+       * Exact byte length of a streamed body, when the origin declared one
+       * that survives decoding — forwarded to `BlobStore.put` as
+       * `BlobPutOptions.expectedLength`. Undefined when unknown.
+       */
+      expectedLength?: number
       mimeType: string
       sourceUrl?: string
     }
@@ -898,8 +935,19 @@ async function descriptorBody(
         `Failed to persist artifact from ${descriptor.url}: HTTP ${response.status}`,
       )
     }
-    const declaredLength = Number(response.headers.get('content-length'))
-    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    // `headers.get` returns null when the header is absent, and
+    // `Number(null) === 0` — parse only a present header, or a chunked reply
+    // would read as a declared length of 0 (harmless, but the early-reject
+    // below would silently never be reachable for it).
+    const contentLength = response.headers.get('content-length')
+    const declaredLength =
+      contentLength === null ? undefined : Number(contentLength)
+    if (
+      maxBytes !== false &&
+      declaredLength !== undefined &&
+      Number.isFinite(declaredLength) &&
+      declaredLength > maxBytes
+    ) {
       throw new Error(
         `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
       )
@@ -908,20 +956,46 @@ async function descriptorBody(
       descriptor.mimeType ??
       response.headers.get('content-type') ??
       'application/octet-stream'
+    // A declared length is the DECODED body's length only when the response is
+    // not content-encoded: fetch transparently decompresses, so on a gzipped
+    // reply `content-length` measures the compressed bytes and the decoded
+    // stream can be arbitrarily longer. Only trust it when it provably
+    // describes what the store will drain.
+    const encoding = response.headers.get('content-encoding')
+    const decodedLengthIsKnown =
+      declaredLength !== undefined &&
+      Number.isFinite(declaredLength) &&
+      (encoding === null || encoding === 'identity')
+    const expectedLength = decodedLengthIsKnown ? declaredLength : undefined
     // Stream the body straight into the blob store instead of buffering the
     // whole artifact in memory. `size` is left 0 (unknown up front); the store
     // records the actual byte length as it drains the stream. Fall back to
     // buffering only when the response has no body to stream.
     if (response.body) {
       return {
-        body: capBodySize(response.body, maxBytes, descriptor.url),
+        // Wrap ONLY when the response does not already bound itself. A
+        // trustworthy `content-length` was checked against the cap above, and
+        // HTTP framing holds the origin to it — a body cannot exceed a length
+        // it declared — so the counter would add nothing and cost everything:
+        // it is a TransformStream, whose readable side has no declared length,
+        // and that missing length is precisely what breaks `R2Bucket.put`.
+        // Unwrapped, the runtime's own length rides along and R2 single-shots
+        // the stream. What still needs the counter: a chunked reply (no
+        // declared length at all) and a content-encoded one (declared length
+        // measures the compressed bytes, so the decoded stream is a
+        // decompression bomb waiting to happen).
+        body:
+          maxBytes === false || decodedLengthIsKnown
+            ? response.body
+            : capBodySize(response.body, maxBytes, descriptor.url),
         size: 0,
+        expectedLength,
         mimeType,
         sourceUrl: descriptor.url,
       }
     }
     const body = await response.arrayBuffer()
-    if (body.byteLength > maxBytes) {
+    if (maxBytes !== false && body.byteLength > maxBytes) {
       throw new Error(
         `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
       )
@@ -987,7 +1061,7 @@ async function persistGenerationArtifacts(
     // Deliberately not persisted (an input URL with no `allowInputUrl` opt-in):
     // no blob, no record, no ref — the rest of the run is unaffected.
     if (!resolved) continue
-    const { body, size, mimeType, sourceUrl } = resolved
+    const { body, size, expectedLength, mimeType, sourceUrl } = resolved
     // Resolved before the blob write so `storageKey` can build a path from the
     // final filename (extensions, slugs) rather than guessing at one.
     const name =
@@ -1015,6 +1089,10 @@ async function persistGenerationArtifacts(
       }) ?? artifactBlobKey({ runId, artifactId })
     const stored = await persistence.stores.blobs.put(key, body, {
       contentType: mimeType,
+      // Exact decoded length when the origin declared one — lets a store
+      // single-shot the stream (e.g. R2 via FixedLengthStream) instead of
+      // buffering or going multipart. Absent when unknown.
+      ...(expectedLength !== undefined ? { expectedLength } : {}),
       customMetadata: {
         runId,
         threadId,
