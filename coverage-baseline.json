@@ -5,6 +5,12 @@
     "functions": 90.11,
     "lines": 89.92
   },
+  "ai-acp": {
+    "statements": 75.93,
+    "branches": 62.82,
+    "functions": 68.75,
+    "lines": 77.73
+  },
   "ai-angular": {
     "statements": 76.57,
     "branches": 60.81,
@@ -191,6 +197,12 @@
     "functions": 14.28,
     "lines": 11.42
   },
+  "ai-sandbox": {
+    "statements": 84.69,
+    "branches": 75.7,
+    "functions": 83.18,
+    "lines": 86.53
+  },
   "ai-sandbox-cloudflare": {
     "statements": 37.92,
     "branches": 32.13,
@@ -210,10 +222,10 @@
     "lines": 64.32
   },
   "ai-sandbox-local-process": {
-    "statements": 87.71,
-    "branches": 66.66,
-    "functions": 89.47,
-    "lines": 91.33
+    "statements": 68.42,
+    "branches": 50.57,
+    "functions": 82.45,
+    "lines": 71.33
   },
   "ai-sandbox-sprites": {
     "statements": 70.75,
