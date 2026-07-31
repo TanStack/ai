@@ -356,6 +356,8 @@ const { jobId } = await generateVideo({
 
 An unknown id relaxes both halves of the adapter: `size` widens to any string, provider options are ungated, and the local runtime guards that encode per-model capabilities — resolution tiers, closing-frame and reference-media support, frame cardinality and mode exclusivity, duration snapping — stand down so Ark validates the request instead. Known ids keep their probe-verified narrowing. Typed narrowing for 2.5 follows in a package update once its capabilities can be verified.
 
+The quickest way to try a newly-released id is the [Seedance Studio example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media): its **Advanced: custom model id** field (placeholder `dreamina-seedance-2-5-260628`) takes an arbitrary id, switches the studio into unknown-model mode with every option enabled, and spells the activation caveat out in the UI — so a `ModelNotOpen` response reads as expected rather than broken.
+
 ### Seedance here vs. Seedance via fal
 
 Seedance is also reachable through [`@tanstack/ai-fal`](./fal), which proxies it alongside hundreds of other hosted models. This adapter talks to BytePlus directly, which means BytePlus billing and rate limits, model ids in BytePlus's own naming, and the first-class Seedance request fields above (`camera_fixed`, `draft`, `priority`, reference-media roles) rather than fal's normalized subset. Pick whichever matches the account you already have; there is no reason to install both just for Seedance.
