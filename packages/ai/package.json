@@ -89,7 +89,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@ag-ui/core": "^0.0.57",
+    "@ag-ui/core": "0.1.1-canary.beta.0",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:*",
     "@tanstack/ai-utils": "workspace:*",
