@@ -5,10 +5,16 @@
 //   node scripts/coverage-check.mjs            # compare, exit 1 on a drop
 //   node scripts/coverage-check.mjs --update   # rewrite the baseline
 //
-// ponytail: a committed baseline file is the whole ratchet. No coverage
-// service, no PR comments, no historical database. If we ever want per-PR
-// annotations, upload the lcov files a CI step already produces.
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+// ponytail: a committed baseline file is the whole ratchet — no coverage
+// service and no historical database. Results surface on the PR via
+// $GITHUB_STEP_SUMMARY; for per-line annotations, upload the lcov files that
+// `test:coverage` already writes.
+import {
+  appendFileSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 const BASELINE = 'coverage-baseline.json'
@@ -130,6 +136,35 @@ if (additions.length > 0) {
     `\n${additions.length} package(s) missing from ${BASELINE}: ${additions.join(', ')}` +
       `\nRun \`pnpm test:coverage:update\` and commit the baseline.`,
   )
+}
+
+// ponytail: $GITHUB_STEP_SUMMARY renders on the run page with no token, no
+// permissions and no API call. A sticky PR comment needs `pull-requests:
+// write` — add that only if the summary tab turns out to be too easy to miss.
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const verdict =
+    regressions.length > 0
+      ? `❌ Coverage dropped in ${regressions.length} package(s).`
+      : `✅ Coverage held for ${names.length} measured package(s).`
+  const md = [
+    `## Coverage`,
+    ``,
+    verdict,
+    ``,
+    `Baseline: \`${BASELINE}\`. Fails on a drop of more than ${TOLERANCE}pp. Packages not affected by this PR are not measured and not listed.`,
+    ``,
+    `| package | ${METRICS.join(' | ')} | |`,
+    `| --- | ${METRICS.map(() => '---:').join(' | ')} | --- |`,
+    ...rows.map((row) => `| ${row.join(' | ')} |`),
+  ]
+  if (additions.length > 0) {
+    md.push(
+      ``,
+      `> ${additions.length} package(s) are not in the baseline yet: ${additions.join(', ')}.`,
+      `> Run \`pnpm test:coverage:update\` and commit the baseline.`,
+    )
+  }
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md.join('\n')}\n`)
 }
 
 if (regressions.length > 0) {
