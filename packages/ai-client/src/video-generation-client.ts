@@ -161,8 +161,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
-    this.resumeSnapshot = options.initialResumeSnapshot
-
     this.callbacksRef = {
       onResult: options.onResult,
       onError: options.onError,
@@ -190,8 +188,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     // React's render phase; hydrating here would re-fire the hydrate GET on
     // every discarded/speculative render, flooding the connection pool when
     // several clients mount together. It is kicked off once from
-    // `mountDevtools`, which the hooks call from a commit-phase mount effect. `initialResumeSnapshot` above still
-    // seeds SSR/first paint synchronously.
+    // `mountDevtools`, which the hooks call from a commit-phase mount effect.
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {

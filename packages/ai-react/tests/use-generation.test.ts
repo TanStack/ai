@@ -18,7 +18,6 @@ import type {
 import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
-  GenerationResumeSnapshot,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -82,12 +81,10 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   ]
 }
 
-const videoResumeSnapshot: GenerationResumeSnapshot = {
-  resumeState: {
-    threadId: 'thread-resume',
-    runId: 'run-resume',
-  },
-  status: 'running',
+const videoResumeSnapshot = {
+  schemaVersion: 1 as const,
+  resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+  status: 'running' as const,
 }
 
 const replayedVideoArtifact: PersistedArtifactRef = {
@@ -156,11 +153,6 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
     },
   }
   return { adapter, connect, runContexts }
-}
-
-async function flushPromises(): Promise<void> {
-  await Promise.resolve()
-  await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 // Helper to create error stream chunks.
@@ -367,36 +359,6 @@ describe('useGeneration', () => {
 
       // Resolve the promise after unmount — should not cause errors
       resolvePromise!({ id: '1' })
-    })
-
-    it('does not auto-fire a generation on mount from a persisted running snapshot', async () => {
-      // Regression guard for the removed generation resume surface: mounting a
-      // generation hook that has server persistence and a persisted `running`
-      // snapshot must NOT start a fresh empty-prompt generation (previously
-      // `maybeAutoResume()` -> `resume()` -> `generate({})` fired here).
-      const { adapter, connect } = createRunContextCaptureAdapter(
-        createGenerationChunks({ id: '1' }),
-      )
-      const { result } = renderHook(() =>
-        useGeneration({
-          threadId: 'no-auto-fire',
-          connection: adapter,
-          initialResumeSnapshot: {
-            resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-            status: 'running',
-          },
-        }),
-      )
-
-      await act(async () => {
-        await flushPromises()
-      })
-
-      expect(connect).not.toHaveBeenCalled()
-      expect(result.current.isLoading).toBe(false)
-      expect(result.current.status).toBe('idle')
-      // The persisted run id is still exposed as display state.
-      expect(result.current.runId).toBe('run-resume')
     })
   })
 
@@ -1059,28 +1021,32 @@ describe('useGenerateVideo', () => {
     expect(result.current.status).toBe('idle')
   })
 
-  it('does not auto-fire a video generation on mount from a persisted running snapshot', async () => {
-    // Regression guard for the removed generation resume surface (video).
+  it('does not auto-fire a video generation on mount from a hydrated running snapshot', async () => {
     const { adapter, connect } = createRunContextCaptureAdapter(
       createReplayVideoChunks(),
     )
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: videoResumeSnapshot,
+      activeRun: null,
+    }))
     const { result } = renderHook(() =>
       useGenerateVideo({
         threadId: 'video-no-auto-fire',
-        connection: adapter,
-        initialResumeSnapshot: videoResumeSnapshot,
+        // No `joinRun`, so the restored run cannot be tailed.
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
       }),
     )
 
-    await act(async () => {
-      await flushPromises()
+    await waitFor(() => {
+      expect(result.current.error?.message).toMatch(/interrupted/)
     })
 
+    // Hydration only surfaces state; it never restarts the run.
     expect(connect).not.toHaveBeenCalled()
+    expect(result.current.status).toBe('error')
     expect(result.current.isLoading).toBe(false)
-    expect(result.current.status).toBe('idle')
-    // The seeded in-flight identity is exposed as the read-only `runId`.
-    expect(result.current.runId).toBe(videoResumeSnapshot.resumeState?.runId)
+    expect(result.current.runId).toBeNull()
   })
 })
 

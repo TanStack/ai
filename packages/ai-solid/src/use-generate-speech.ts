@@ -23,11 +23,7 @@ import type { Accessor } from 'solid-js'
  */
 export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  | 'persistence'
-  | 'threadId'
-  | 'initialResumeSnapshot'
-  | 'hydrateGeneration'
-  | 'joinRun'
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

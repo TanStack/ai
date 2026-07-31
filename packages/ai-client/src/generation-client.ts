@@ -26,8 +26,8 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationResumeSnapshot,
   GenerationRestoredResult,
+  GenerationResumeSnapshot,
   GenerationResumeState,
 } from './generation-types'
 
@@ -171,8 +171,6 @@ export class GenerationClient<
         '[TanStack AI] `persistence` needs a stable `threadId` to key on. Without one nothing will be restored after a reload. Pass a `threadId` derived from your own domain (e.g. `product-123-hero`).',
       )
     }
-    this.resumeSnapshot = options.initialResumeSnapshot
-
     this.callbacksRef = {
       onResult: options.onResult,
       onError: options.onError,
@@ -197,8 +195,7 @@ export class GenerationClient<
     // React's render phase; hydrating here would re-fire the hydrate GET on
     // every discarded/speculative render, flooding the connection pool when
     // several clients mount together. It is kicked off once from
-    // `mountDevtools`, which the hooks call from a commit-phase mount effect. `initialResumeSnapshot` above still
-    // seeds SSR/first paint synchronously.
+    // `mountDevtools`, which the hooks call from a commit-phase mount effect.
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {

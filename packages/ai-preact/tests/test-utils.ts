@@ -4,9 +4,7 @@ import { useChat } from '../src/use-chat'
 import type { RenderHookResult } from '@testing-library/preact'
 import type { UseChatOptions, UseChatReturn } from '../src/types'
 
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
-
-export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
+export function createInterruptResumeSnapshot() {
   const pendingInterrupts = [
     {
       id: 'staged-interrupt',
@@ -36,7 +34,6 @@ export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
     },
   ]
   return {
-    schemaVersion: 2,
     resumeState: { threadId: 'thread-1', runId: 'run-1' },
     pendingInterrupts,
   }

@@ -345,8 +345,8 @@ export default {
 A GET route resolves an `artifactId` to its record and its stored bytes.
 `retrieveArtifact` returns the `ArtifactRecord` (or `null` → 404);
 `retrieveBlob` returns the `BlobObject` (metadata + a streamable `body`). Both
-key off `artifactBlobKey({ runId, artifactId })` internally, so you never build
-the key yourself.
+resolve the blob key from the record internally, so you never build the key
+yourself.
 
 ```ts ignore
 import { retrieveArtifact, retrieveBlob } from '@tanstack/ai-persistence'

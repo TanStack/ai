@@ -98,9 +98,4 @@ export {
   type VideoGenerateInput,
   type VideoGenerateResult,
   type VideoStatusInfo,
-  type GenerationResumeSnapshot,
-  type GenerationResumeState,
-  type GenerationResumeStatus,
-  type GenerationPendingArtifact,
 } from '@tanstack/ai-client'
-export type { PersistedArtifactRef } from '@tanstack/ai/client'

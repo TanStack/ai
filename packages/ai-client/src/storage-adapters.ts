@@ -1,15 +1,15 @@
 import type { ChatPersistedState, ChatStorageAdapter } from './types'
 
-export interface WebStoragePersistenceOptions<TValue> {
+export interface WebStoragePersistenceOptions {
   keyPrefix?: string
   /**
    * Defaults to `JSON.stringify`. Override only for values JSON can't
    * round-trip losslessly (a `Map`, a `bigint`, a `Date` you need back as a
    * `Date` rather than an ISO string).
    */
-  serialize?: (value: TValue) => string
+  serialize?: (value: ChatPersistedState) => string
   /** Defaults to `JSON.parse`. */
-  deserialize?: (value: string) => TValue
+  deserialize?: (value: string) => ChatPersistedState
 }
 
 export interface IndexedDBPersistenceOptions {
@@ -36,7 +36,7 @@ export class StorageUnavailableError extends Error {
   }
 }
 
-function stringifyJson<TValue>(value: TValue): string {
+function stringifyJson(value: ChatPersistedState): string {
   const stringify: (input: unknown) => unknown = JSON.stringify
   const serialized = stringify(value)
   if (typeof serialized !== 'string') {
@@ -45,10 +45,10 @@ function stringifyJson<TValue>(value: TValue): string {
   return serialized
 }
 
-function createWebStoragePersistence<TValue>(
+function createWebStoragePersistence(
   storageName: 'localStorage' | 'sessionStorage',
-  options: WebStoragePersistenceOptions<TValue>,
-): ChatStorageAdapter<TValue> {
+  options: WebStoragePersistenceOptions,
+): ChatStorageAdapter<ChatPersistedState> {
   const keyPrefix = options.keyPrefix ?? 'tanstack-ai:'
   const serialize = options.serialize ?? stringifyJson
   const deserialize = options.deserialize ?? JSON.parse
@@ -88,27 +88,24 @@ function createWebStoragePersistence<TValue>(
  * adapter can be constructed safely on the server.
  *
  * The `serialize` / `deserialize` codec defaults to `JSON.stringify` /
- * `JSON.parse`, so the common case needs no codec. `TValue` defaults to the
- * chat persisted-state shape — the only `persistence` option that takes an
- * adapter — so `localStoragePersistence()` needs no type argument. Pass an
- * explicit `TValue` for a standalone store holding something else.
+ * `JSON.parse`, so the common case needs no codec.
  */
-export function localStoragePersistence<TValue = ChatPersistedState>(
-  options: WebStoragePersistenceOptions<TValue> = {},
-): ChatStorageAdapter<TValue> {
+export function localStoragePersistence(
+  options: WebStoragePersistenceOptions = {},
+): ChatStorageAdapter<ChatPersistedState> {
   return createWebStoragePersistence('localStorage', options)
 }
 
 /**
  * A `ChatStorageAdapter` backed by `window.sessionStorage` (scoped to the tab
  * and cleared when it closes). Identical to {@link localStoragePersistence} in
- * every other respect: chat persisted-state default `TValue`, `tanstack-ai:`
- * default `keyPrefix`, lazy per-operation {@link StorageUnavailableError} on
- * SSR, and a JSON codec that defaults to `JSON.stringify` / `JSON.parse`.
+ * every other respect: the `tanstack-ai:` default `keyPrefix`, lazy
+ * per-operation {@link StorageUnavailableError} on SSR, and a JSON codec that
+ * defaults to `JSON.stringify` / `JSON.parse`.
  */
-export function sessionStoragePersistence<TValue = ChatPersistedState>(
-  options: WebStoragePersistenceOptions<TValue> = {},
-): ChatStorageAdapter<TValue> {
+export function sessionStoragePersistence(
+  options: WebStoragePersistenceOptions = {},
+): ChatStorageAdapter<ChatPersistedState> {
   return createWebStoragePersistence('sessionStorage', options)
 }
 
@@ -121,12 +118,11 @@ export function sessionStoragePersistence<TValue = ChatPersistedState>(
  *
  * No serialize/deserialize codec is needed or accepted — values are stored via
  * IndexedDB's native structured clone, so `Date`, `Map`, `ArrayBuffer`, etc.
- * round-trip without a JSON step. `TValue` defaults to the chat persisted-state
- * shape; pass an explicit one for a standalone store holding something else.
+ * round-trip without a JSON step.
  */
-export function indexedDBPersistence<TValue = ChatPersistedState>(
+export function indexedDBPersistence(
   options: IndexedDBPersistenceOptions = {},
-): ChatStorageAdapter<TValue> {
+): ChatStorageAdapter<ChatPersistedState> {
   const databaseName = options.databaseName ?? 'tanstack-ai'
   const objectStoreName = options.objectStoreName ?? 'persistence'
   const keyPrefix = options.keyPrefix ?? 'tanstack-ai:'

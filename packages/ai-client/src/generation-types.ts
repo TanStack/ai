@@ -66,9 +66,10 @@ export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
  * Status of a persisted/restored generation run.
  *
  * `running` / `complete` / `error` are the three the server-side mapper emits
- * over the wire. `idle` is client-local only: it seeds a hand-written
- * `initialResumeSnapshot`, and `stop()` rewrites a `running` snapshot to it so
- * a cancelled run is no longer resumable.
+ * over the wire. `idle` is client-local only: `stop()` rewrites a `running`
+ * snapshot to it so a cancelled run is no longer resumable.
+ *
+ * @internal
  */
 export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
 
@@ -133,6 +134,7 @@ export function clientStateFromResumeStatus(
   }
 }
 
+/** @internal */
 export interface GenerationResumeState {
   threadId: string
   runId: string
@@ -144,8 +146,7 @@ export interface GenerationResumeState {
   pendingArtifacts?: Array<PersistedArtifactRef>
 }
 
-export type GenerationPendingArtifact = PersistedArtifactRef
-
+/** @internal */
 export interface GenerationResultSnapshot {
   id?: string
   model?: string
@@ -169,48 +170,35 @@ export interface GenerationResultSnapshot {
   artifacts?: Array<PersistedArtifactRef>
 }
 
+/** @internal */
 export interface GenerationErrorSnapshot {
   message: string
   code?: string
 }
 
+/** @internal */
 export interface GenerationEventSnapshot {
   type: StreamChunk['type']
   name?: string
   timestamp?: number
 }
 
+/** @internal */
 export interface GenerationResumeSnapshot {
   /**
-   * Version of the persisted snapshot shape. Written on every persisted
-   * snapshot so future shape changes can migrate (or reject) old records.
-   * Optional so hand-written seeds don't need to set it; absent means `1`.
+   * Version of the snapshot shape. Written on every snapshot the client builds
+   * so future shape changes can migrate (or reject) an older record hydrated
+   * from the server. Absent means `1`.
    */
   schemaVersion?: 1
   resumeState: GenerationResumeState | null
   status: GenerationResumeStatus
   activity?: PersistedArtifactRef['source']['activity']
-  pendingArtifacts?: Array<GenerationPendingArtifact>
+  pendingArtifacts?: Array<PersistedArtifactRef>
   result?: GenerationResultSnapshot
   error?: GenerationErrorSnapshot
   lastEvent?: GenerationEventSnapshot
 }
-
-/**
- * The `persistence` option for a generation client.
- *
- * - `false` (default) / omitted: ephemeral. Nothing is recorded; a reload starts
- *   from empty.
- * - `true`: server-driven. On mount the client hydrates the last generation for
- *   its `threadId` from the server (via a `hydrateGeneration` handler, from the
- *   connection or supplied as an option) and repaints that snapshot. It never
- *   auto-starts a run.
- *
- * The record lives on the server, written by `withGenerationPersistence`. The
- * browser caches nothing, so a generation's history is never duplicated into
- * client storage.
- */
-export type GenerationPersistenceOption = boolean
 
 /**
  * The `persistence` / `threadId` / `id` identity shared by every generation hook.
@@ -385,27 +373,19 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   devtools?: Partial<AIDevtoolsClientMetadata>
 
   /**
-   * Explicit seed for the lightweight resume snapshot, for apps that manage
-   * storage themselves. When set, automatic hydration from `persistence` is
-   * skipped. It does not trigger any generation, but it is **not** inert: it
-   * seeds the client's live resume snapshot, which subsequent run events merge
-   * into and which `getResumeSnapshot()` returns and the client re-persists.
-   * Later reads therefore reflect this seed merged with observed activity, not
-   * the original value verbatim.
-   */
-  initialResumeSnapshot?: GenerationResumeSnapshot
-
-  /**
-   * How this generation persists across reloads. See
-   * {@link GenerationPersistenceOption}.
+   * How this generation persists across reloads.
    *
    * - Omit or `false`: ephemeral, in-memory only.
    * - `true`: server-driven. On mount the client hydrates the last generation
    *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
    *   from the connection or the option below) and repaints that snapshot. It
    *   never auto-starts a run.
+   *
+   * The record lives on the server, written by `withGenerationPersistence`. The
+   * browser caches nothing, so a generation's history is never duplicated into
+   * client storage.
    */
-  persistence?: GenerationPersistenceOption
+  persistence?: boolean
 
   /**
    * Server-driven hydration handler, for transports that don't carry one on
@@ -506,6 +486,8 @@ export interface GenerationRestoredResult {
  * A `RUN_STARTED` chunk begins a fresh run, so stale `result` / `error` /
  * `pendingArtifacts` from a previous run are dropped rather than carried into
  * the new run's snapshot.
+ *
+ * @internal
  */
 export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
@@ -575,15 +557,16 @@ export function updateGenerationResumeSnapshot(
 }
 
 /**
- * Validates an untrusted value (typically read back from a storage adapter)
- * into a {@link GenerationResumeSnapshot}, or returns `undefined` when the
- * value is not a usable snapshot.
+ * Validates an untrusted value (a hydration body resolved by the server) into a
+ * {@link GenerationResumeSnapshot}, or returns `undefined` when the value is
+ * not a usable snapshot.
  *
- * Storage contents are outside the type system — they may be stale, truncated,
- * hand-edited, or written by a future version. Every field is re-validated
- * with the same narrowing the live chunk reducer uses. `lastEvent` is not
- * restored: it describes a transient stream position that has no meaning
- * after a reload.
+ * A hydrated record is outside the type system: it may be stale, truncated, or
+ * written by a different version. Every field is re-validated with the same
+ * narrowing the live chunk reducer uses. `lastEvent` is not restored, since it
+ * describes a transient stream position with no meaning after a reload.
+ *
+ * @internal
  */
 export function parseGenerationResumeSnapshot(
   value: unknown,
