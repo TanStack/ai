@@ -424,6 +424,33 @@ describe('BytePlusTTSAdapter', () => {
       )
     })
 
+    it('rejects a 200 carrying a non-zero code even when audio is present', async () => {
+      const fetchMock = ttsFetch({
+        code: 45000010,
+        message: 'Invalid X-Api-Key',
+        audio: 'QUJD',
+        duration: 1.5,
+      })
+      await expect(
+        generateSpeech({
+          adapter: adapterWith(fetchMock),
+          text: 'hi',
+          debug: false,
+        }),
+      ).rejects.toThrow(
+        'BytePlus Seed Speech text-to-speech failed (200 45000010): Invalid X-Api-Key',
+      )
+    })
+
+    it('accepts a 200 that reports code 0', async () => {
+      const fetchMock = ttsFetch({ code: 0, audio: 'QUJD', duration: 1.5 })
+      const result = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
+      expect(result.audio).toBe('QUJD')
+    })
+
     it('fails when a 200 response carries no audio', async () => {
       const fetchMock = ttsFetch({ code: 45000151, message: 'Quota exceeded' })
       await expect(

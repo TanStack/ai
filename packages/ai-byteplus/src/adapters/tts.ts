@@ -156,9 +156,16 @@ export class BytePlusTTSAdapter<
 
       const data = payload as BytePlusTTSCreateResponse
 
-      // A 200 can still carry the numeric error envelope, so treat a missing
-      // audio payload as a failure and let `bytePlusVoiceError` surface
-      // whatever `code`/`message` came back.
+      // Seed Speech reports status in the body, not only in the HTTP status:
+      // a 200 can carry a non-zero `code`. Check it before looking at `audio`,
+      // because a failed call may still return a partial or placeholder
+      // payload that would otherwise be handed back as if it were valid.
+      if (typeof data.code === 'number' && data.code !== 0) {
+        throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
+      }
+
+      // Belt and braces for a 200 that reports success but carries nothing to
+      // play. `bytePlusVoiceError` surfaces whatever `message` came back.
       if (typeof data.audio !== 'string' || data.audio.length === 0) {
         throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
       }

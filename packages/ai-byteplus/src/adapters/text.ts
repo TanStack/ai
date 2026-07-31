@@ -76,9 +76,10 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  *    opaque signature over the reasoning trace. See
  *    {@link BytePlusTextAdapter.processStreamChunks} and
  *    {@link BytePlusTextAdapter.convertMessage}.
- * 3. **Per-model structured-output gating** — only 11 of the 18 shipped chat
- *    models accept `response_format: json_schema`, and Ark rejects
- *    `json_object` everywhere, so there is no JSON-mode fallback.
+ * 3. **Per-model structured-output gating** — only 10 of the 18 shipped chat
+ *    models honour `response_format: json_schema` (glm-4-7 accepts it and then
+ *    ignores the schema), and Ark rejects `json_object` everywhere, so there
+ *    is no JSON-mode fallback.
  */
 export class BytePlusTextAdapter<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
