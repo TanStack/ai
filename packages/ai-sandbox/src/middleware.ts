@@ -271,6 +271,36 @@ export function withSandbox<TOffset extends string = string>(
       const runtime = getSandboxRuntime(ctx, { optional: true })
       const logger = runtime?.logger
 
+      // REGISTER THE RUN STATE NOW, not at the end of `setup`.
+      //
+      // `onAbort` opens with `if (!state) return`, so until this map is populated
+      // an abort is a silent no-op — and everything below (git baseline capture,
+      // workspace projection, watcher start) is slow enough to be a real window.
+      // The most common disconnect of all lands inside it: a user starts a run
+      // and switches away while the UI still says "starting the sandbox".
+      //
+      // Leaving that window uncovered loses all three teardown behaviors at once:
+      // no `detachedSince`/`sandboxKey`, so `listReclaimable` can never surface
+      // the run and the reaper can never reclaim it; no `definition.destroy`, so
+      // the sandbox leaks; and no detach verdict, so core takes its `!detached`
+      // branch and CLOSES the delivery log — after which no attach can ever tail
+      // the run, which presents as "durability does nothing" while the agent is
+      // still working.
+      //
+      // Everything `onAbort` actually reads is already resolved above: the
+      // handle, the ensure context (for `definition.key`), the durability verdict,
+      // and the logger. The fields discovered later (`watcher`) are ASSIGNED onto
+      // this same object as they become available, so the abort path always sees
+      // the most complete state that exists at the moment it runs.
+      const state: SandboxRunState = {
+        handle,
+        ensureCtx,
+        pendingDiffs: [],
+        ...(logger ? { logger } : {}),
+        ...(durability ? { durability } : {}),
+      }
+      runState.set(ctx, state)
+
       // Deliberately placed AFTER `logger` is in scope rather than next to the
       // `provideSandboxDurability` call above — there is no logger to warn
       // through until the runtime has been read.
@@ -354,7 +384,11 @@ export function withSandbox<TOffset extends string = string>(
       await hooks?.onReady?.(handle)
 
       const fe = resolveFileEvents(definition.fileEvents)
-      const pendingDiffs: Array<Promise<void>> = []
+      // THE SAME array the run state already holds, not a fresh one. The watcher
+      // callback below closes over this reference, and `drainWatcher` awaits
+      // `state.pendingDiffs` — a second array would silently drop every in-flight
+      // diff from the teardown drain.
+      const pendingDiffs = state.pendingDiffs
       let watcher: SandboxWatchHandle | undefined
       if (fe.enabled) {
         watcher = await watchWorkspace(handle, {
@@ -399,14 +433,12 @@ export function withSandbox<TOffset extends string = string>(
         })
       }
 
-      runState.set(ctx, {
-        handle,
-        ensureCtx,
-        pendingDiffs,
-        ...(watcher ? { watcher } : {}),
-        ...(logger !== undefined ? { logger } : {}),
-        ...(durability !== undefined ? { durability } : {}),
-      })
+      // MUTATE the object registered above rather than `set`-ing a second one: an
+      // abort that landed mid-setup already captured a reference to it (and may
+      // already be draining `pendingDiffs`), so replacing the entry would hand the
+      // teardown path a different object than the watcher writes into.
+      // `pendingDiffs` needs no copying — it IS `state.pendingDiffs`.
+      if (watcher) state.watcher = watcher
     },
 
     async onFinish(ctx) {

@@ -402,4 +402,73 @@ describe('withSandbox detach — the persistence-side effect', () => {
     expect(record?.sandboxKey).toBeTruthy()
     expect(h.destroys()).toBe(0)
   })
+
+  // An abort that lands while `setup` is STILL RUNNING — the most common
+  // disconnect there is, because a user starts a run and switches tab while the
+  // UI still says "starting the sandbox". `setup` obtains the handle early but
+  // used to register its run state only at the very END, after the git baseline
+  // capture, workspace projection, and watcher start. `onAbort` opens with
+  // `if (!state) return`, so anything landing in that window was a silent no-op
+  // and lost ALL THREE teardown behaviors at once: no `detachedSince` (so
+  // `listReclaimable` can never surface the run and the reaper can never reclaim
+  // it), no `destroy` (so the sandbox leaks), and no detach verdict (so core takes
+  // its `!detached` branch and CLOSES the delivery log, after which no attach can
+  // ever tail the run — presenting as "durability does nothing" while the agent
+  // is still working).
+  it('detaches when the abort lands mid-setup, right after the handle exists', async () => {
+    const runs = await seededRuns('mid-setup')
+    const handle = makeFakeHandle('mid-setup-sbx', 'fake', FULL_CAPS)
+    let destroys = 0
+
+    const provider: SandboxProvider = {
+      name: 'fake',
+      capabilities: () => FULL_CAPS,
+      create: () => Promise.resolve(handle),
+      resume: () => Promise.resolve(handle),
+      destroy: () => {
+        destroys += 1
+        return Promise.resolve()
+      },
+    }
+
+    const sandbox = defineSandbox({
+      id: 's',
+      provider,
+      lifecycle: { snapshot: 'none' },
+      // The abort is dispatched from a hook that runs DURING setup, after the
+      // handle exists but well before setup returns — deterministically inside
+      // the old uncovered window rather than by racing a timer.
+      hooks: {
+        onReady: async () => {
+          await mw.onAbort!(ctx, { reason: 'client went away', duration: 0 })
+        },
+      },
+    })
+
+    const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'mid-setup' })
+    const { logger } = captureLogger()
+    provideSandboxRuntime(ctx, {
+      logger,
+      emit: () => undefined,
+      emitFileDiff: () => undefined,
+    })
+
+    const mw = withSandbox(sandbox, {
+      instances: new InMemorySandboxInstanceStore(),
+      locks: new InMemoryLockStore(),
+      runs,
+      durability: { adapter: adapterFor('mid-setup') },
+    })
+
+    await mw.setup!(ctx)
+
+    // Detached, not destroyed, and reclaimable.
+    const record = await runs.get('mid-setup')
+    expect(record?.status).toBe('running')
+    expect(typeof record?.detachedSince).toBe('number')
+    expect(record?.sandboxKey).toBeTruthy()
+    expect(destroys).toBe(0)
+    // And the verdict core reads to decide whether to close the delivery log.
+    expect(ctx.getOptional(RunDetachedCapability)).toBe(true)
+  })
 })
