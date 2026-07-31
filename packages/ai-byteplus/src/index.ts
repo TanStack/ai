@@ -64,6 +64,7 @@ export type { BytePlusTranscriptionProviderOptions } from './audio/transcription
 export {
   BYTEPLUS_ASR_RESOURCE_HEADER,
   BYTEPLUS_ASR_RESOURCE_ID,
+  BYTEPLUS_TTS_SAMPLE_RATES,
 } from './audio/wire-types'
 export type {
   BytePlusASRAudio,
@@ -76,6 +77,9 @@ export type {
   BytePlusTTSAudioFormat,
   BytePlusTTSCreateRequest,
   BytePlusTTSCreateResponse,
+  BytePlusTTSReference,
+  BytePlusTTSSampleRate,
+  BytePlusTTSSubtitle,
   BytePlusTTSSubtitleEntry,
   BytePlusVoiceErrorBody,
 } from './audio/wire-types'

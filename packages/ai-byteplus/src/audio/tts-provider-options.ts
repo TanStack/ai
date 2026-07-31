@@ -1,6 +1,8 @@
 import type {
   BytePlusTTSAudioFormat,
-  BytePlusTTSSubtitleEntry,
+  BytePlusTTSReference,
+  BytePlusTTSSampleRate,
+  BytePlusTTSSubtitle,
 } from './wire-types'
 import type { TTSResult } from '@tanstack/ai'
 
@@ -32,28 +34,38 @@ export type BytePlusTTSVoice = 'en_female_stokie_uranus_bigtts' | (string & {})
  */
 export interface BytePlusTTSProviderOptions {
   /**
-   * Voice id. Overrides `TTSOptions.voice` when both are set.
+   * Voice id. Overrides `TTSOptions.voice` when both are set. It is sent as
+   * the `speaker` of a single `references` entry.
    */
   speaker?: BytePlusTTSVoice
+  /**
+   * Full `references` array, for voice cloning or image-referenced delivery.
+   * When set this replaces the entry the adapter would otherwise build from
+   * `speaker` / `TTSOptions.voice`, so include a `speaker` entry yourself if
+   * you still want a stock voice. Address audio references from the text with
+   * `@Audio1`..`@Audio3`.
+   */
+  references?: Array<BytePlusTTSReference>
   /**
    * Output format. Overrides the mapping applied to `TTSOptions.format`,
    * which is useful for `ogg_opus` and for pinning `pcm` explicitly.
    */
   format?: BytePlusTTSAudioFormat
   /**
-   * Output sample rate in Hz. Commonly 8000, 16000, 24000 or 48000; left to
-   * the service default when omitted. For `pcm` output this value is also
-   * what the returned `contentType` (`audio/L16;rate=…`) reports.
+   * Output sample rate in Hz. Defaults to 24000 — the adapter always sends an
+   * explicit rate because the documented server default (40000) is not one of
+   * the values the endpoint accepts. For `pcm` output this is also what the
+   * returned `contentType` (`audio/L16;rate=…`) reports.
    */
-  sample_rate?: number
+  sample_rate?: BytePlusTTSSampleRate
   /**
    * Pitch adjustment in the range `-12`..`12`, where `0` is the voice's
    * natural pitch.
    */
   pitch_rate?: number
   /**
-   * Speaking rate in the range `-50`..`100` (`-50` ≈ 0.5×, `0` = 1×,
-   * `100` ≈ 2×). Overrides the value derived from `TTSOptions.speed`.
+   * Speaking rate in the range `-50`..`100` (`-50` = 0.5×, `0` = 1×,
+   * `100` = 2×). Overrides the value derived from `TTSOptions.speed`.
    */
   speech_rate?: number
   /**
@@ -62,10 +74,15 @@ export interface BytePlusTTSProviderOptions {
    */
   loudness_rate?: number
   /**
-   * Ask for word-level timings alongside the audio. They are surfaced on
-   * {@link BytePlusTTSResult.subtitle}.
+   * Ask for sentence- and word-level timings alongside the audio. They are
+   * surfaced on {@link BytePlusTTSResult.subtitle}.
    */
   enable_subtitle?: boolean
+  /**
+   * Watermark the generated audio. The field name is confirmed against the
+   * endpoint schema; the boolean type is assumed and unprobed.
+   */
+  watermark?: boolean
 }
 
 /**
@@ -83,10 +100,19 @@ export interface BytePlusTTSProviderOptions {
  */
 export interface BytePlusTTSResult extends TTSResult {
   /**
-   * Word timings, present only when `modelOptions.enable_subtitle` was set.
-   * `start_time` / `end_time` are milliseconds.
+   * Sentence and word timings, present only when
+   * `modelOptions.enable_subtitle` was set. Their `start_time` / `end_time`
+   * are **milliseconds**, even though `duration` and
+   * {@link BytePlusTTSResult.originalDuration} are seconds.
    */
-  subtitle?: Array<BytePlusTTSSubtitleEntry>
+  subtitle?: BytePlusTTSSubtitle
+  /**
+   * Length of the audio in seconds *before* `speech_rate` was applied. This
+   * is what BytePlus bills on and what the 120 s cap applies to, so it is the
+   * number to meter against — `duration` reflects the delivered clip and can
+   * exceed 120 s when the speech is slowed down.
+   */
+  originalDuration?: number
   /**
    * Temporary download URL for the same audio that `audio` carries as base64.
    * **Expires roughly 2 hours after generation** — persist the bytes, not the

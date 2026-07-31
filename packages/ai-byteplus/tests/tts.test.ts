@@ -88,12 +88,16 @@ describe('BytePlusTTSAdapter', () => {
     // Seed Speech uses X-Api-Key, never an Ark-style bearer token.
     expect(headers.get('authorization')).toBeNull()
 
+    // `text_prompt` (not `text`) and the voice inside `references` are both
+    // load-bearing: a top-level `speaker` is silently ignored by the server,
+    // and `text` belongs to the /tts/unidirectional endpoint.
     expect(body).toEqual({
       model: 'seed-audio-1.0',
       text_prompt: 'welcome to the guitar store',
-      speaker: 'en_female_stokie_uranus_bigtts',
-      audio_config: { format: 'mp3' },
+      references: [{ speaker: 'en_female_stokie_uranus_bigtts' }],
+      audio_config: { format: 'mp3', sample_rate: 24000 },
     })
+    expect(body.speaker).toBeUndefined()
 
     expect(result.model).toBe('seed-audio-1.0')
     expect(result.audio).toBe('QUJD')
@@ -101,6 +105,18 @@ describe('BytePlusTTSAdapter', () => {
     expect(result.contentType).toBe('audio/mpeg')
     expect(result.duration).toBe(1.5)
     expect(result.id).toMatch(/^byteplus-/)
+  })
+
+  it('sends a per-request X-Api-Request-Id', async () => {
+    const fetchMock = ttsFetch()
+    await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+    const first = lastRequest(fetchMock).headers.get('x-api-request-id')
+    expect(first).toBeTruthy()
+
+    await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+    expect(lastRequest(fetchMock).headers.get('x-api-request-id')).not.toBe(
+      first,
+    )
   })
 
   it('sends TTSOptions.voice as speaker and lets modelOptions.speaker win', async () => {
@@ -113,7 +129,9 @@ describe('BytePlusTTSAdapter', () => {
       text: 'hi',
       voice: 'test-voice-from-options',
     })
-    expect(lastRequest(fetchMock).body.speaker).toBe('test-voice-from-options')
+    expect(lastRequest(fetchMock).body.references).toEqual([
+      { speaker: 'test-voice-from-options' },
+    ])
 
     await generateSpeech({
       adapter: adapterWith(fetchMock),
@@ -121,9 +139,34 @@ describe('BytePlusTTSAdapter', () => {
       voice: 'test-voice-from-options',
       modelOptions: { speaker: 'test-voice-from-model-options' },
     })
-    expect(lastRequest(fetchMock).body.speaker).toBe(
-      'test-voice-from-model-options',
-    )
+    expect(lastRequest(fetchMock).body.references).toEqual([
+      { speaker: 'test-voice-from-model-options' },
+    ])
+  })
+
+  it('lets an explicit references array replace the speaker entry', async () => {
+    const fetchMock = ttsFetch()
+    await generateSpeech({
+      adapter: adapterWith(fetchMock),
+      text: 'say it like @Audio1',
+      voice: 'test-voice-from-options',
+      modelOptions: {
+        references: [{ audio_url: 'https://example.com/clip.wav' }],
+      },
+    })
+    expect(lastRequest(fetchMock).body.references).toEqual([
+      { audio_url: 'https://example.com/clip.wav' },
+    ])
+  })
+
+  it('forwards watermark when set', async () => {
+    const fetchMock = ttsFetch()
+    await generateSpeech({
+      adapter: adapterWith(fetchMock),
+      text: 'hi',
+      modelOptions: { watermark: true },
+    })
+    expect(lastRequest(fetchMock).body.watermark).toBe(true)
   })
 
   describe('format mapping', () => {
@@ -186,6 +229,14 @@ describe('BytePlusTTSAdapter', () => {
       })
       expect(lastRequest(fetchMock).body.audio_config.sample_rate).toBe(48000)
       expect(result.contentType).toBe('audio/L16;rate=48000')
+    })
+
+    it('always sends an explicit sample_rate rather than trusting the server default', async () => {
+      // The documented default (40000) is not a value the endpoint accepts,
+      // so omitting the field is never safe.
+      const fetchMock = ttsFetch()
+      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      expect(lastRequest(fetchMock).body.audio_config.sample_rate).toBe(24000)
     })
   })
 
@@ -258,12 +309,17 @@ describe('BytePlusTTSAdapter', () => {
     })
   })
 
-  it('forwards pitch, loudness and subtitle options', async () => {
+  it('forwards pitch, loudness and subtitle options inside audio_config', async () => {
+    const subtitle = {
+      sentences: [{ text: 'hi', start_time: 0, end_time: 200 }],
+      words: [{ text: 'hi', start_time: 0, end_time: 200 }],
+    }
     const fetchMock = ttsFetch({
       audio: 'QUJD',
       duration: 2,
+      original_duration: 2,
       url: 'https://voice.test/out.mp3',
-      subtitle: [{ text: 'hi', start_time: 0, end_time: 200 }],
+      subtitle,
     })
     const result: BytePlusTTSResult = await generateSpeech({
       adapter: adapterWith(fetchMock),
@@ -278,40 +334,52 @@ describe('BytePlusTTSAdapter', () => {
     const { body } = lastRequest(fetchMock)
     expect(body.audio_config.pitch_rate).toBe(-3)
     expect(body.audio_config.loudness_rate).toBe(20)
-    expect(body.enable_subtitle).toBe(true)
+    // enable_subtitle is the sixth member of audio_config, not a top-level
+    // field — at the top level the server ignores it.
+    expect(body.audio_config.enable_subtitle).toBe(true)
+    expect(body.enable_subtitle).toBeUndefined()
 
-    expect(result.subtitle).toEqual([
-      { text: 'hi', start_time: 0, end_time: 200 },
-    ])
+    // Subtitle timings stay in milliseconds while the durations are seconds.
+    expect(result.subtitle).toEqual(subtitle)
     expect(result.url).toBe('https://voice.test/out.mp3')
   })
 
-  describe('duration normalisation', () => {
-    it('passes through values within the 120s output cap as seconds', async () => {
-      const fetchMock = ttsFetch({ audio: 'QUJD', duration: 12 })
-      const result = await generateSpeech({
-        adapter: adapterWith(fetchMock),
-        text: 'hi',
-      })
-      expect(result.duration).toBe(12)
-    })
-
-    it('treats values above the cap as milliseconds', async () => {
+  describe('durations', () => {
+    it('reports duration and original_duration as seconds', async () => {
       const fetchMock = ttsFetch({
         audio: 'QUJD',
-        duration: BYTEPLUS_TTS_MAX_OUTPUT_SECONDS * 1000,
+        duration: 12.5,
+        original_duration: 10,
       })
-      const result = await generateSpeech({
+      const result: BytePlusTTSResult = await generateSpeech({
         adapter: adapterWith(fetchMock),
         text: 'hi',
       })
-      expect(result.duration).toBe(BYTEPLUS_TTS_MAX_OUTPUT_SECONDS)
+      expect(result.duration).toBe(12.5)
+      expect(result.originalDuration).toBe(10)
+    })
+
+    it('passes a slowed clip longer than the 120s cap straight through', async () => {
+      // A 120s (billed) clip at speech_rate -50 plays for 240s. Rescaling it
+      // as if it were milliseconds — which an earlier heuristic did — would
+      // corrupt it to 0.24s.
+      const fetchMock = ttsFetch({
+        audio: 'QUJD',
+        duration: BYTEPLUS_TTS_MAX_OUTPUT_SECONDS * 2,
+        original_duration: BYTEPLUS_TTS_MAX_OUTPUT_SECONDS,
+      })
+      const result: BytePlusTTSResult = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        speed: 0.5,
+      })
+      expect(result.duration).toBe(240)
+      expect(result.originalDuration).toBe(BYTEPLUS_TTS_MAX_OUTPUT_SECONDS)
     })
 
     it.each([
-      [BYTEPLUS_TTS_MAX_OUTPUT_SECONDS, BYTEPLUS_TTS_MAX_OUTPUT_SECONDS],
-      // Just over the cap flips to the millisecond reading, by design.
-      [BYTEPLUS_TTS_MAX_OUTPUT_SECONDS + 1, 0.121],
+      [12.5, 12.5],
+      [BYTEPLUS_TTS_MAX_OUTPUT_SECONDS + 1, 121],
       [0, undefined],
       [-5, undefined],
       [Number.NaN, undefined],
@@ -320,24 +388,8 @@ describe('BytePlusTTSAdapter', () => {
       expect(toDurationSeconds(raw)).toBe(expected)
     })
 
-    it('warns when the millisecond branch fires', async () => {
-      const logger = captureLogger()
-      await generateSpeech({
-        adapter: adapterWith(ttsFetch({ audio: 'QUJD', duration: 3200 })),
-        text: 'hi',
-        debug: { logger },
-      })
-      expect(
-        logger.warnings.some(
-          (w) =>
-            w.includes('duration=3200') &&
-            w.includes('reading it as milliseconds'),
-        ),
-      ).toBe(true)
-    })
-
     it('coerces string durations and drops unusable ones', async () => {
-      const stringDuration = ttsFetch({ audio: 'QUJD', duration: '3200' })
+      const stringDuration = ttsFetch({ audio: 'QUJD', duration: '3.2' })
       expect(
         (
           await generateSpeech({

@@ -29,15 +29,22 @@ const TTS_CREATE_PATH = '/api/v3/tts/create'
 /**
  * Name of the request field carrying the text to speak.
  *
- * **Open question — do not change without a doc citation or a live call.**
- * The Phase 0 research notes record this as `text_prompt`, but BytePlus'
- * published Seed Speech samples are inconsistent about whether the synthesis
- * endpoint takes `text_prompt` (the reference-audio-style naming) or a plain
- * `text`. No Seed Speech key was available to settle it. Isolating the name
- * here keeps the fix to a one-line change once the research agent lands a
- * citation.
+ * **`text_prompt` is correct — do not "fix" this to `text`.** The endpoint
+ * schema (docs.byteplus.com/en/docs/byteplusvoice/seedaudio-01) lists this
+ * body as exactly `model`, `text_prompt`, `references`, `audio_config`,
+ * `watermark`; there is no request-side `text`. The `text` spelling belongs
+ * to the *other* endpoint, `/tts/unidirectional` (TTS 2.0), where it sits
+ * under `req_params.text`. The name stays isolated here so the two spellings
+ * never get conflated.
  */
 const TTS_TEXT_FIELD = 'text_prompt' satisfies keyof BytePlusTTSCreateRequest
+
+/**
+ * Sample rate used when the caller doesn't pick one. The endpoint documents a
+ * default of 40000, which is not among the rates it accepts — so the adapter
+ * never relies on the server default and always sends this instead.
+ */
+const DEFAULT_SAMPLE_RATE = 24000
 
 /**
  * Voice used when neither `TTSOptions.voice` nor `modelOptions.speaker` is
@@ -46,8 +53,12 @@ const TTS_TEXT_FIELD = 'text_prompt' satisfies keyof BytePlusTTSCreateRequest
 export const BYTEPLUS_DEFAULT_TTS_SPEAKER = 'en_female_stokie_uranus_bigtts'
 
 /**
- * Hard cap on the length of a single Seed Speech synthesis, in seconds.
- * Longer scripts must be split across calls and stitched client-side.
+ * Hard cap on a single Seed Speech synthesis, in seconds. Longer scripts must
+ * be split across calls and stitched client-side.
+ *
+ * The cap applies to the *pre-rate* length the service bills on — the
+ * `original_duration` it returns. The delivered clip can run longer than this
+ * when `speech_rate` slows it down.
  */
 export const BYTEPLUS_TTS_MAX_OUTPUT_SECONDS = 120
 
@@ -61,11 +72,15 @@ export const BYTEPLUS_TTS_MAX_OUTPUT_SECONDS = 120
  *   own key (`BYTEPLUS_VOICE_API_KEY`). An `ARK_API_KEY` sent here is
  *   rejected with `45000010 Invalid X-Api-Key`.
  * - **120 s output cap.** A single call synthesises at most
- *   {@link BYTEPLUS_TTS_MAX_OUTPUT_SECONDS} seconds of audio; the service
- *   truncates or rejects longer scripts.
+ *   {@link BYTEPLUS_TTS_MAX_OUTPUT_SECONDS} seconds of audio; longer scripts
+ *   have to be split and stitched client-side. The cap is measured before
+ *   `speech_rate` is applied, so a slowed clip can play for longer than that
+ *   — `result.duration` is the delivered length and `result.originalDuration`
+ *   is the metered one.
  *
  * Streaming synthesis (`tts/unidirectional` and the WebSocket API) is not
- * covered by this adapter.
+ * covered by this adapter — note that endpoint spells the text field `text`,
+ * while this one uses `text_prompt`.
  *
  * @example
  * ```ts
@@ -107,7 +122,7 @@ export class BytePlusTTSAdapter<
       model,
     })
 
-    const { body, audioFormat } = buildTTSRequestBody({
+    const { body, audioFormat, sampleRate } = buildTTSRequestBody({
       model,
       text,
       voice,
@@ -122,7 +137,13 @@ export class BytePlusTTSAdapter<
         `${this.baseURL}${TTS_CREATE_PATH}`,
         {
           method: 'POST',
-          headers: bytePlusVoiceHeaders(this.apiKey, this.defaultHeaders),
+          headers: bytePlusVoiceHeaders(this.apiKey, {
+            ...this.defaultHeaders,
+            // Client-generated per-request id. BytePlus echoes it in their
+            // request logs, which is what support asks for when diagnosing a
+            // synthesis failure.
+            'X-Api-Request-Id': newRequestId(),
+          }),
           body: JSON.stringify(body),
         },
       )
@@ -142,15 +163,17 @@ export class BytePlusTTSAdapter<
         throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
       }
 
-      const duration = toDurationSeconds(data.duration, logger)
+      const duration = toDurationSeconds(data.duration)
+      const originalDuration = toDurationSeconds(data.original_duration)
 
       return {
         id: generateId(this.name),
         model,
         audio: data.audio,
         format: audioFormat,
-        contentType: getContentType(audioFormat, modelOptions?.sample_rate),
+        contentType: getContentType(audioFormat, sampleRate),
         ...(duration !== undefined && { duration }),
+        ...(originalDuration !== undefined && { originalDuration }),
         ...(data.subtitle !== undefined && { subtitle: data.subtitle }),
         ...(data.url !== undefined && { url: data.url }),
       }
@@ -165,11 +188,12 @@ export class BytePlusTTSAdapter<
 }
 
 /**
- * Build the JSON body for `POST /api/v3/tts/create`, resolving the speaker,
+ * Build the JSON body for `POST /api/v3/tts/create`, resolving the voice,
  * output format and rate fields in one place.
  *
- * Returns the request `body` plus the resolved `audioFormat`, which the caller
- * reports on the result and turns into a `contentType`.
+ * Returns the request `body`, the resolved `audioFormat` and the
+ * `sampleRate`, which the caller reports on the result and turns into a
+ * `contentType`.
  */
 export function buildTTSRequestBody(options: {
   model: string
@@ -179,20 +203,30 @@ export function buildTTSRequestBody(options: {
   speed: number | undefined
   modelOptions: BytePlusTTSProviderOptions | undefined
   logger: InternalLogger
-}): { body: BytePlusTTSCreateRequest; audioFormat: BytePlusTTSAudioFormat } {
+}): {
+  body: BytePlusTTSCreateRequest
+  audioFormat: BytePlusTTSAudioFormat
+  sampleRate: number
+} {
   const { model, text, voice, format, speed, modelOptions, logger } = options
 
   const audioFormat = pickAudioFormat(modelOptions?.format, format, logger)
+  // Always explicit: the documented server default (40000) is not one of the
+  // rates the endpoint accepts, so relying on it is a coin flip.
+  const sampleRate = modelOptions?.sample_rate ?? DEFAULT_SAMPLE_RATE
 
-  const audioConfig: BytePlusTTSAudioConfig = { format: audioFormat }
-  if (modelOptions?.sample_rate !== undefined) {
-    audioConfig.sample_rate = modelOptions.sample_rate
+  const audioConfig: BytePlusTTSAudioConfig = {
+    format: audioFormat,
+    sample_rate: sampleRate,
   }
   if (modelOptions?.pitch_rate !== undefined) {
     audioConfig.pitch_rate = modelOptions.pitch_rate
   }
   if (modelOptions?.loudness_rate !== undefined) {
     audioConfig.loudness_rate = modelOptions.loudness_rate
+  }
+  if (modelOptions?.enable_subtitle !== undefined) {
+    audioConfig.enable_subtitle = modelOptions.enable_subtitle
   }
 
   // An explicit `speech_rate` always wins over the derived one — it is the
@@ -207,14 +241,22 @@ export function buildTTSRequestBody(options: {
   const body: BytePlusTTSCreateRequest = {
     model,
     [TTS_TEXT_FIELD]: text,
-    speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
+    // The voice belongs inside `references`, not at the top level — a
+    // top-level `speaker` is silently ignored by the server. The flat member
+    // shape here is the best-supported reading of the docs; see
+    // `BytePlusTTSReference` for the unresolved part and the live-probe flag.
+    references: modelOptions?.references ?? [
+      {
+        speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
+      },
+    ],
     audio_config: audioConfig,
   }
-  if (modelOptions?.enable_subtitle !== undefined) {
-    body.enable_subtitle = modelOptions.enable_subtitle
+  if (modelOptions?.watermark !== undefined) {
+    body.watermark = modelOptions.watermark
   }
 
-  return { body, audioFormat }
+  return { body, audioFormat, sampleRate }
 }
 
 /**
@@ -227,19 +269,12 @@ export function buildTTSRequestBody(options: {
  *
  * so `0.5 → -50`, `1.0 → 0`, `1.5 → 50`, `2.0 → 100`.
  *
- * What is **documented** is only the numeric range, `-50`..`100`. The
- * multiplier anchors this formula reads into it — `-50` ≈ 0.5× and `100` ≈ 2×
- * — are **inferred** from that range and from how the same field behaves on
- * sibling Volcengine TTS endpoints; they have not been confirmed against a
- * live Seed Speech response. If the true curve turns out to be non-linear,
- * only this function changes.
+ * The range `-50`..`100` and both multiplier anchors (`-50` = 0.5×,
+ * `100` = 2×) are documented, and hold on both the `/tts/create` and
+ * `/tts/unidirectional` endpoints.
  *
- * The clamp is deliberately conservative. `TTSOptions.speed` spans a wider
- * 0.25×–4× than the documented range covers, so anything outside 0.5×–2×
- * clamps (and warns) rather than erroring. Note that at least one reseller
- * lists `speech_rate` on `seed-audio-1.0` as accepting `-50`..`1000`; until
- * that is confirmed in BytePlus' own docs this stays pinned to the documented
- * `100` ceiling, since over-sending is the failure mode that produces a 400.
+ * `TTSOptions.speed` spans a wider 0.25×–4× than the endpoint supports, so
+ * anything outside 0.5×–2× clamps (and warns) rather than erroring.
  */
 export function toSpeechRate(speed: number, logger?: InternalLogger): number {
   const rate = Math.round((speed - 1) * 100)
@@ -287,11 +322,19 @@ function pickAudioFormat(
 }
 
 /**
+ * Build a per-request id for the `X-Api-Request-Id` header. Falls back to the
+ * package's own id generator on runtimes without `crypto.randomUUID`.
+ */
+function newRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? generateId('byteplus-tts')
+}
+
+/**
  * MIME type for a Seed Speech output format.
  *
  * `pcm` is raw little-endian 16-bit samples, so its media type has to carry
- * the sample rate (RFC 3551/3555). When the caller didn't pin one we report
- * the service default of 24 kHz.
+ * the sample rate (RFC 3551/3555). The adapter always resolves a rate, so one
+ * is always available here.
  */
 export function getContentType(
   format: BytePlusTTSAudioFormat,
@@ -310,39 +353,28 @@ export function getContentType(
 }
 
 /**
- * Normalise the `duration` Seed Speech reports into seconds.
+ * Coerce a `duration` / `original_duration` field to a usable number of
+ * seconds.
  *
- * The published docs don't state the unit and no Seed Speech key was
- * available to settle it, but the endpoint's hard
- * {@link BYTEPLUS_TTS_MAX_OUTPUT_SECONDS} second output cap separates the two
- * candidates: a value above the cap cannot be seconds, so it is milliseconds.
+ * Both are documented as float **seconds**, so this only parses the string
+ * form and drops values that can't be a length (zero, negative, non-numeric).
+ * Note that `duration` may legitimately exceed
+ * {@link BYTEPLUS_TTS_MAX_OUTPUT_SECONDS} — a clip synthesised at
+ * `speech_rate: -50` runs at half speed, so up to 120 s of billed audio can
+ * be delivered as up to 240 s of playback. Do not "correct" a large value
+ * here; the cap applies to `original_duration`.
  *
- * Two edges worth knowing:
- * - A clip of 120 ms or shorter is genuinely ambiguous and is reported as
- *   seconds. In practice no synthesis is that short.
- * - A value just over the cap (say `121`) is read as milliseconds and becomes
- *   `0.121 s`. That is the right call if the unit is milliseconds and visibly
- *   wrong if it isn't — which is why the millisecond branch warns rather than
- *   converting silently. If the warning shows up in the field against a real
- *   key, the unit question is settled and this function collapses to one
- *   branch.
+ * The subtitle timings are the mixed-unit exception: those are milliseconds
+ * and are passed through untouched on {@link BytePlusTTSResult.subtitle}.
  */
 export function toDurationSeconds(
   raw: number | string | undefined,
-  logger?: InternalLogger,
 ): number | undefined {
   const value = typeof raw === 'string' ? Number(raw) : raw
   if (value === undefined || !Number.isFinite(value) || value <= 0) {
     return undefined
   }
-  if (value <= BYTEPLUS_TTS_MAX_OUTPUT_SECONDS) return value
-
-  const seconds = value / 1000
-  logger?.warn(
-    `BytePlus Seed Speech reported duration=${value}, which exceeds the ${BYTEPLUS_TTS_MAX_OUTPUT_SECONDS}s output cap — reading it as milliseconds (${seconds}s). The unit is undocumented; please report this so it can be pinned.`,
-    { provider: 'byteplus', rawDuration: raw, durationSeconds: seconds },
-  )
-  return seconds
+  return value
 }
 
 /**
