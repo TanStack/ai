@@ -164,12 +164,16 @@ export interface RunRecord {
 /**
  * Durable store for run lifecycle records.
  *
- * REQUIRED: `createOrResume`, `update`, `get`. Every backend must implement
- * all three — they are what the persistence middleware calls unconditionally.
+ * REQUIRED: `createOrResume`, `update`, `get`, `findActiveRun`. Every backend
+ * must implement all four — they are what the persistence middleware calls
+ * unconditionally. `findActiveRun` is required rather than feature-detected
+ * because a backend that has not implemented it is indistinguishable from one
+ * whose answer is legitimately `null`, so reconnect would silently do nothing
+ * instead of failing at build time. It was optional for exactly one release
+ * cycle and cost precisely that.
  *
- * OPTIONAL: `listByThread`, `listReclaimable`, `findActiveRun`. Each serves one
- * higher-level feature (thread history, reclaim reaping, reattach-by-thread)
- * and callers feature-detect them (`store.findActiveRun?.(threadId)`),
+ * OPTIONAL: `listByThread`, `listReclaimable`. Each serves one higher-level
+ * feature (thread history, reclaim reaping) and callers feature-detect them,
  * degrading gracefully when a backend omits them.
  */
 export interface RunStore {
@@ -237,16 +241,18 @@ export interface RunStore {
   /**
    * The most recent `'running'` run for `threadId`, or `null` if none is active.
    *
-   * OPTIONAL — callers feature-detect it (`store.findActiveRun?.(threadId)`) and
-   * degrade to "no active run" when a backend has not implemented it.
+   * REQUIRED. This resolves "does this thread have a live run to attach to?"
+   * from the STABLE thread id, which is the durable basis for reconnecting a
+   * client (a reload, or the same thread opened on another device) — independent
+   * of the ephemeral run id, which a single turn may mint several of. When more
+   * than one run is `'running'`, the one with the greatest `startedAt` wins.
    *
-   * This resolves "does this thread have a live run to attach to?" from the
-   * STABLE thread id, which is the durable basis for reconnecting a client (a
-   * reload, or the same thread opened on another device) — independent of the
-   * ephemeral run id, which a single turn may mint several of. When more than
-   * one run is `'running'`, the one with the greatest `startedAt` wins.
+   * A backend that stubs this to `null` turns reconnect off silently, because
+   * `null` is also the correct answer for an idle thread. A backend with no run
+   * lifecycle at all should omit the whole `runs` store instead — capability
+   * tiers belong at the store level, not the method level.
    */
-  findActiveRun?: (threadId: string) => Promise<RunRecord | null>
+  findActiveRun: (threadId: string) => Promise<RunRecord | null>
 }
 
 /**

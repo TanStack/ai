@@ -227,6 +227,7 @@ describe('resumeServerSentEventsResponse — driver', () => {
       createOrResume: (input) => runs.createOrResume(input),
       update: (runId, patch) => runs.update(runId, patch),
       get: () => Promise.resolve(malformed),
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
     }
     const driver = { ...baseDriver(corruptRuns, request), logger }
 
@@ -290,6 +291,7 @@ describe('resumeServerSentEventsResponse — driver', () => {
         if ('detachedSince' in patch) clearedInsideClaim.push(insideClaim)
         return runs.update(runId, patch)
       },
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
     }
     const driver = {
       ...baseDriver(observedRuns, request),
@@ -368,6 +370,7 @@ describe('resumeServerSentEventsResponse — driver', () => {
         'detachedSince' in patch
           ? Promise.reject(new Error('store down'))
           : runs.update(runId, patch),
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
     }
     const driver = { ...baseDriver(failingRuns, request), logger }
 
@@ -454,6 +457,7 @@ describe('resumeServerSentEventsResponse — driver', () => {
       createOrResume: (input) => runs.createOrResume(input),
       update: (runId, patch) => runs.update(runId, patch),
       get: () => Promise.reject(new Error('store down')),
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
     }
     const driver = { ...baseDriver(failingRuns, request), logger }
 

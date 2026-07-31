@@ -453,6 +453,54 @@ async function fetchThreadHydration(
   }
 }
 
+/**
+ * GET the hydration endpoint for a generation thread and parse its JSON
+ * `{ resumeSnapshot, activeRun }` body. Mirrors {@link fetchThreadHydration} for
+ * the generation clients: keyed on the stable thread id, it returns the last
+ * generation's resume snapshot (re-validated client-side before adoption) and —
+ * if a run is still generating — a cursor. Shared by every fetch/XHR adapter.
+ */
+async function fetchGenerationHydration(
+  fetchClient: typeof globalThis.fetch,
+  url: string,
+  headers: Record<string, string>,
+  credentials: RequestCredentials,
+  threadId: string,
+): Promise<GenerationHydrationResult> {
+  const response = await fetchClient(withSearchParams(url, { threadId }), {
+    method: 'GET',
+    headers: { Accept: 'application/json', ...headers },
+    credentials,
+  })
+  assertResponseOk(response)
+  const raw: unknown = await response.json()
+  // A 200 carrying `null` is a legitimate hydration miss — the server has no
+  // record for this thread — and reading `.activeRun` off `null` would throw.
+  if (raw === null) {
+    return { resumeSnapshot: null, activeRun: null }
+  }
+  // Any OTHER non-object body is a broken endpoint, not an empty thread.
+  // Reporting it as a miss would present a misconfigured route as a fresh
+  // thread; the client surfaces this through its own error channel instead.
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(
+      `Generation hydration expected a JSON object from ${url}, received ${Array.isArray(raw) ? 'an array' : typeof raw}.`,
+    )
+  }
+  const data = raw as {
+    resumeSnapshot?: GenerationHydrationResult['resumeSnapshot']
+    activeRun?: { runId?: unknown } | null
+  }
+  const activeRun =
+    data.activeRun && typeof data.activeRun.runId === 'string'
+      ? { runId: data.activeRun.runId }
+      : null
+  return {
+    resumeSnapshot: data.resumeSnapshot ?? null,
+    activeRun,
+  }
+}
+
 /** Yield SSE stream events (chunk + offset) from a fetch Response body. */
 async function* responseToSSEEvents(
   response: Response,
@@ -707,6 +755,65 @@ export interface ConnectConnectionAdapter {
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
+  /**
+   * Fetch server-driven hydration for a generation `threadId`: the last
+   * generation's resume snapshot, plus a cursor to a run still generating if
+   * one exists. The generation client calls this itself on mount when
+   * `persistence: true` (no loader/prop) and repaints the snapshot — it never
+   * auto-starts a run. Read-only JSON GET (`?threadId`), so it is
+   * transport-agnostic. Optional and feature-detected exactly like the chat
+   * `hydrate` handler.
+   */
+  hydrateGeneration?: (threadId: string) => Promise<GenerationHydrationResult>
+  /**
+   * Re-attach to a run that is still generating and replay it from the start
+   * (read-only `?offset=-1&runId` against the delivery-durability log). The
+   * generation client tails this on mount when hydration reports a run still in
+   * flight, so a dropped connection or a full reload finishes the generation in
+   * place — the same durability replay the chat client uses. Optional and
+   * feature-detected; present on `fetchServerSentEvents` / `fetchHttpStream`.
+   */
+  joinRun?: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
+  /**
+   * Fetch server-driven hydration for a chat `threadId`: the stored transcript
+   * plus a cursor to an in-flight run and any pending interrupts. The chat
+   * client calls this itself on mount when `persistence: true` (no loader/prop)
+   * and repaints it — it never auto-sends. Read-only JSON GET (`?threadId`), so
+   * it is transport-agnostic. Optional and feature-detected; present on
+   * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
+   * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
+   */
+  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+}
+
+/**
+ * Server-resolved hydration for a generation thread. `resumeSnapshot` is the
+ * last generation's lightweight snapshot (validated client-side before it is
+ * adopted); `activeRun` is a cursor to a run still generating for the thread
+ * (or `null`).
+ *
+ * Field-for-field compatible with `@tanstack/ai-persistence`'s
+ * `ReconstructedGeneration` (the body `reconstructGeneration` returns) — the
+ * client never imports that package, so this is a structural contract, not a
+ * shared type. Two deliberate widenings on this side: `schemaVersion` is
+ * optional (the server always writes `1`, but a hand-written fixture need not),
+ * and `status` also admits `'idle'`, which the server's mapper never emits —
+ * only a client-local snapshot reaches it (a seeded `initialResumeSnapshot`, or
+ * `stop()` retiring a cancelled run).
+ */
+export interface GenerationHydrationResult {
+  resumeSnapshot: {
+    schemaVersion?: 1
+    resumeState: { threadId: string; runId: string } | null
+    status: 'idle' | 'running' | 'complete' | 'error'
+    result?: unknown
+    error?: { message: string; code?: string }
+    activity?: string
+  } | null
+  activeRun: { runId: string } | null
 }
 
 /**
@@ -1197,6 +1304,18 @@ export function fetchServerSentEvents(
         threadId,
       )
     },
+    async hydrateGeneration(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+      return fetchGenerationHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
+      )
+    },
   }
 }
 
@@ -1333,6 +1452,18 @@ export function fetchHttpStream(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
       return fetchThreadHydration(
+        resolvedOptions.fetchClient ?? fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.credentials || 'same-origin',
+        threadId,
+      )
+    },
+    async hydrateGeneration(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+      return fetchGenerationHydration(
         resolvedOptions.fetchClient ?? fetch,
         resolvedUrl,
         mergeHeaders(resolvedOptions.headers),
@@ -1666,6 +1797,19 @@ export function xhrServerSentEvents(
         threadId,
       )
     },
+    async hydrateGeneration(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      // Hydration is a non-streaming JSON GET, so fetch is fine even for the
+      // XHR-backed streaming adapter.
+      return fetchGenerationHydration(
+        fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.withCredentials ? 'include' : 'same-origin',
+        threadId,
+      )
+    },
   }
 }
 
@@ -1736,13 +1880,62 @@ export function xhrHttpStream(
         threadId,
       )
     },
+    async hydrateGeneration(threadId) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions = await resolveXhrConnectionOptions(options)
+      // Hydration is a non-streaming JSON GET, so fetch is fine even for the
+      // XHR-backed streaming adapter.
+      return fetchGenerationHydration(
+        fetch,
+        resolvedUrl,
+        mergeHeaders(resolvedOptions.headers),
+        resolvedOptions.withCredentials ? 'include' : 'same-origin',
+        threadId,
+      )
+    },
   }
+}
+
+/**
+ * Optional persistence handlers for the lightweight adapters (`stream()`,
+ * `rpcStream()`). These are one-shot, request-scoped calls with no built-in
+ * GET endpoint or second channel, so hydration and run-rejoin only exist if
+ * the app supplies them — typically thin wrappers over TanStack Start server
+ * functions backed by `@tanstack/ai-persistence` (`getGenerationHydration`)
+ * and a delivery-durability log (`memoryStream` / `replayRunStream`).
+ *
+ * Each handler is spread onto the returned adapter only when defined, so
+ * feature detection (`connection.hydrateGeneration` etc.) keeps working.
+ */
+export interface StreamConnectionHandlers {
+  /**
+   * Server-driven chat hydration for `persistence: true`: the stored
+   * transcript for `threadId` plus a cursor to an in-flight run.
+   */
+  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  /**
+   * Server-driven generation hydration for `persistence: true`: the last
+   * generation's resume snapshot for `threadId` plus a cursor to a run still
+   * generating. See {@link ConnectConnectionAdapter.hydrateGeneration}.
+   */
+  hydrateGeneration?: (threadId: string) => Promise<GenerationHydrationResult>
+  /**
+   * Re-attach to a run still generating and replay it from the start. See
+   * {@link ConnectConnectionAdapter.joinRun}.
+   */
+  joinRun?: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
  * @param streamFactory - A function that returns an async iterable of StreamChunks
+ * @param handlers - Optional persistence handlers (`hydrate`,
+ * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
+ * without an HTTP endpoint — each is usually a one-line server-function call
  * @returns A connection adapter for direct streams
  *
  * @example
@@ -1751,6 +1944,15 @@ export function xhrHttpStream(
  * const connection = stream(() => serverFunction({ messages }));
  *
  * const client = new ChatClient({ connection });
+ *
+ * // With generation persistence over server functions
+ * const connection = stream(
+ *   () => generateImageFn({ data: input }),
+ *   {
+ *     hydrateGeneration: (threadId) => getImageHydrationFn({ data: threadId }),
+ *     joinRun: (runId) => joinImageRunFn({ data: runId }),
+ *   },
+ * );
  * ```
  */
 export function stream(
@@ -1759,6 +1961,7 @@ export function stream(
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
+  handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
@@ -1766,6 +1969,11 @@ export function stream(
       // Server-side chat() handles conversion to ModelMessages
       yield* streamFactory(messages, data, abortSignal)
     },
+    ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
+    ...(handlers?.hydrateGeneration
+      ? { hydrateGeneration: handlers.hydrateGeneration }
+      : {}),
+    ...(handlers?.joinRun ? { joinRun: handlers.joinRun } : {}),
   }
 }
 
@@ -1847,6 +2055,9 @@ async function* abortableIterable<T>(
  * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
  *
  * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @param handlers - Optional persistence handlers (`hydrate`,
+ * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
+ * without an HTTP endpoint — each is usually a one-line RPC call
  * @returns A connection adapter for RPC streams
  *
  * @example
@@ -1857,6 +2068,15 @@ async function* abortableIterable<T>(
  * );
  *
  * const client = new ChatClient({ connection });
+ *
+ * // With generation persistence over RPC
+ * const connection = rpcStream(
+ *   (messages, data) => api.streamMurfResponse(messages, data),
+ *   {
+ *     hydrateGeneration: (threadId) => api.getGenerationHydration(threadId),
+ *     joinRun: (runId) => api.replayRun(runId),
+ *   },
+ * );
  * ```
  */
 export function rpcStream(
@@ -1865,6 +2085,7 @@ export function rpcStream(
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
+  handlers?: StreamConnectionHandlers,
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
@@ -1872,5 +2093,10 @@ export function rpcStream(
       // Server-side chat() handles conversion to ModelMessages
       yield* rpcCall(messages, data, abortSignal)
     },
+    ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
+    ...(handlers?.hydrateGeneration
+      ? { hydrateGeneration: handlers.hydrateGeneration }
+      : {}),
+    ...(handlers?.joinRun ? { joinRun: handlers.joinRun } : {}),
   }
 }

@@ -88,6 +88,7 @@ describe('requestRunCancel / wasCancelRequested', () => {
         return Promise.resolve()
       },
       get: () => Promise.resolve(null),
+      findActiveRun: () => Promise.resolve(null),
     }
     await requestRunCancel(runs, 'r1')
     const [only, ...rest] = patches
@@ -112,6 +113,7 @@ describe('requestRunCancel / wasCancelRequested', () => {
       createOrResume: () => Promise.reject(new Error('unused')),
       update: () => Promise.resolve(),
       get: () => Promise.reject(new Error('store down')),
+      findActiveRun: () => Promise.resolve(null),
     }
     await expect(wasCancelRequested(runs, 'r1')).resolves.toBe(false)
   })
@@ -123,6 +125,7 @@ describe('requestRunCancel / wasCancelRequested', () => {
       get: () => {
         throw new Error('store down')
       },
+      findActiveRun: () => Promise.resolve(null),
     }
     await expect(wasCancelRequested(runs, 'r1')).resolves.toBe(false)
   })

@@ -309,6 +309,7 @@ describe('the fence must not become a never-terminal bug', () => {
           if (patch.status !== undefined) writes.push(`update:${patch.status}`)
           return runs.update(id, patch)
         },
+        findActiveRun: (threadId) => runs.findActiveRun(threadId),
       },
       claimAt(runId, 1),
     )
@@ -364,9 +365,10 @@ describe('non-terminal bookkeeping is deliberately NOT fenced', () => {
   })
 
   it("forwards the store's optional methods only when it has them", async () => {
-    // Consumers feature-detect (`store.findActiveRun?.(…)`), so materializing a
-    // method that delegates to a missing one turns a graceful degrade into a
-    // TypeError.
+    // Consumers feature-detect the OPTIONAL methods
+    // (`store.listReclaimable?.(…)`), so materializing one that delegates to a
+    // missing method turns a graceful degrade into a TypeError. `findActiveRun`
+    // is required on the contract, so it must forward unconditionally instead.
     const runId = 'fr-optional'
     const runs = await claimedRun(runId, 1)
     const claim = claimAt(runId, 1)
@@ -374,7 +376,7 @@ describe('non-terminal bookkeeping is deliberately NOT fenced', () => {
     // `InMemoryRunStore` is a CLASS: its methods live on the prototype, so a
     // wrapper built by spreading would have dropped every one of them.
     const rich = fenceRunStore(runs, claim)
-    expect(await rich.findActiveRun?.(`${runId}-t`)).not.toBeNull()
+    expect(await rich.findActiveRun(`${runId}-t`)).not.toBeNull()
     expect(await rich.listByThread?.(`${runId}-t`)).toHaveLength(1)
     expect(await rich.listReclaimable?.({ now: 10, ttlMs: 1 })).toHaveLength(0)
 
@@ -383,10 +385,14 @@ describe('non-terminal bookkeeping is deliberately NOT fenced', () => {
         createOrResume: (input) => runs.createOrResume(input),
         get: (id) => runs.get(id),
         update: (id, patch) => runs.update(id, patch),
+        findActiveRun: (threadId) => runs.findActiveRun(threadId),
       },
       claim,
     )
-    expect('findActiveRun' in minimal).toBe(false)
+    // Required, so present and actually wired through to the inner store.
+    expect('findActiveRun' in minimal).toBe(true)
+    expect(await minimal.findActiveRun(`${runId}-t`)).not.toBeNull()
+    // Optional and genuinely absent on the wrapped store, so NOT materialized.
     expect('listByThread' in minimal).toBe(false)
     expect('listReclaimable' in minimal).toBe(false)
   })

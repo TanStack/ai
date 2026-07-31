@@ -118,8 +118,9 @@ export {
 export type { RunDriverOptions } from './stream-to-response'
 
 // Delivery durability (transport layer)
-export { memoryStream } from './stream-durability'
+export { memoryStream, replayRunStream } from './stream-durability'
 export type {
+  MemoryStreamInit,
   MemoryStreamOptions,
   StreamDurability,
   UpsertableStreamDurability,
@@ -139,7 +140,6 @@ export { brandProviderTool } from './tools/provider-tool'
 // Agent loop strategies
 export {
   maxIterations,
-  maxToolCalls,
   untilFinishReason,
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
@@ -210,6 +210,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {

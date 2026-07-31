@@ -216,14 +216,14 @@ console.log(result.summary);
 
 ## Image Generation
 
-Generate images with DALL-E:
+Generate images:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
 import { openaiImage } from "@tanstack/ai-openai";
 
 const result = await generateImage({
-  adapter: openaiImage("gpt-image-1"),
+  adapter: openaiImage("gpt-image-2"),
   prompt: "A futuristic cityscape at sunset",
   numberOfImages: 1,
   size: "1024x1024",
@@ -239,7 +239,7 @@ import { generateImage } from "@tanstack/ai";
 import { openaiImage } from "@tanstack/ai-openai";
 
 const result = await generateImage({
-  adapter: openaiImage("gpt-image-1"),
+  adapter: openaiImage("gpt-image-2"),
   prompt: "...",
   modelOptions: {
     quality: "high", // "high" | "medium" | "low" | "auto"

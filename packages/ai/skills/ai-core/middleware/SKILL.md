@@ -58,6 +58,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 | `onStructuredOutputConfig` | Once at the structured-output boundary (only when `chat({ outputSchema })`)                        | `StructuredOutputMiddlewareConfig` (return partial) |
 | `onStart`                  | Once after initial `onConfig`                                                                      | none                                                |
 | `onIteration`              | Start of each agent loop iteration                                                                 | `IterationInfo`                                     |
+| `onShouldContinue`         | Whether to start another agent-loop iteration (AND with strategy; `false` stops)                   | `AgentLoopState`                                    |
 | `onChunk`                  | Every streamed chunk                                                                               | `StreamChunk` (return void/chunk/chunk[]/null)      |
 | `onBeforeToolCall`         | Before each tool executes                                                                          | `ToolCallHookContext` (return decision or void)     |
 | `onAfterToolCall`          | After each tool executes                                                                           | `AfterToolCallInfo`                                 |
@@ -362,6 +363,52 @@ const stream = chat({
 | `onUsage`                  | Sequential                                    | All run in order                           |
 | `onFinish/onAbort/onError` | Sequential                                    | All run in order                           |
 
+## Pattern: tool-call budget (app-owned)
+
+Not a built-in. Cap fan-out with `onBeforeToolCall` skip + `onShouldContinue`.
+See `docs/chat/agentic-cycle.md` ("Tool-call budgets").
+
+```typescript
+import { chat, maxIterations, type ChatMiddleware } from '@tanstack/ai'
+
+function toolCallBudget(opts: {
+  max?: number
+  maxPerTurn?: number
+}): ChatMiddleware {
+  let perTurn = 0
+  return {
+    onIteration: () => {
+      perTurn = 0
+    },
+    onToolPhaseComplete: () => {
+      perTurn = 0
+    },
+    onBeforeToolCall: () => {
+      if (opts.maxPerTurn == null) return undefined
+      if (++perTurn > opts.maxPerTurn) {
+        return {
+          type: 'skip',
+          result: {
+            error: `Skipped: exceeded maxToolCallsPerTurn (${opts.maxPerTurn})`,
+          },
+        }
+      }
+      return undefined
+    },
+    onShouldContinue: (_ctx, state) =>
+      opts.max != null && state.toolCallCount >= opts.max ? false : undefined,
+  }
+}
+
+chat({
+  adapter,
+  messages,
+  tools: [weatherTool],
+  agentLoopStrategy: maxIterations(20),
+  middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
+})
+```
+
 ## Built-in: toolCacheMiddleware
 
 Caches tool call results by name + arguments. Import from `@tanstack/ai/middlewares`:
@@ -470,10 +517,10 @@ driver, or nothing fences a dead host's writes.
 `error` is a structured `RunError` (`{ message: string, code?: string }`), not
 a bare string: `message` is the provider's prose, `code` is the stable,
 machine-branchable classification a consumer switches on. Only
-`createOrResume`, `update`, and `get` are required on a `RunStore`;
-`listByThread`, `listReclaimable`, and `findActiveRun` are optional, so a
-backend can leave any of them out and callers feature-detect
-(`store.findActiveRun?.(threadId)`). Shape your own store with
+`createOrResume`, `update`, `get`, and `findActiveRun` are required on a
+`RunStore`; `listByThread` and `listReclaimable` are optional, so a backend can
+leave either out and callers feature-detect
+(`store.listReclaimable?.(opts)`). Shape your own store with
 `defineRunStore` for autocomplete without a separate `: RunStore` annotation,
 matching `defineLock`; `defineRunStore<const T extends RunStore>(store: T): T`
 returns the argument's own type, so an optional method your store implements

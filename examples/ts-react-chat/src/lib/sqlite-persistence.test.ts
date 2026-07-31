@@ -8,17 +8,17 @@ import { describe, expect, it } from 'vitest'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { sqlitePersistence } from './sqlite-persistence'
 
-// All four state stores are provided, so no STORE is skipped. One OPTIONAL
-// `runs` method is genuinely missing here, and the suite requires the
+// All seven stores are provided — the four chat state stores plus
+// `generationRuns` + `artifacts` + `blobs` — so no STORE is skipped. One
+// OPTIONAL `runs` method is genuinely missing here, and the suite requires the
 // omission to be declared: `listByThread` (this example never renders a
 // thread's past runs). Declaring it is what makes vitest report that case as
-// SKIPPED; leaving it undeclared fails the suite, so a missing method can
-// never read as a pass.
-// `findActiveRun` and `listReclaimable` ARE implemented, so they stay under
-// test.
+// SKIPPED; leaving it undeclared fails the suite, so a missing method can never
+// read as a pass. `findActiveRun` and `listReclaimable` ARE implemented, so they
+// stay under test.
 //
-// (Locks are not a state store and the suite does not cover them: this backend
-// has no distributed lock primitive, which is a separate `withLocks` concern.)
+// (Locks are not a store and the suite does not cover them: this backend has no
+// distributed lock primitive, which is a separate `withLocks` concern.)
 runPersistenceConformance(
   'ts-react-chat example (node:sqlite)',
   () => sqlitePersistence({ url: ':memory:', migrate: true }),
@@ -50,9 +50,9 @@ describe('sqlitePersistence runs.listReclaimable — SQL NULL handling', () => {
           now: Date.now(),
           ttlMs,
         })
-        expect(
-          reclaimable.some((r) => r.runId === 'null-detached-run'),
-        ).toBe(false)
+        expect(reclaimable.some((r) => r.runId === 'null-detached-run')).toBe(
+          false,
+        )
       }
     } finally {
       persistence.close()

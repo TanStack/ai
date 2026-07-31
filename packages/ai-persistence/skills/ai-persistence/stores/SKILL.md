@@ -95,23 +95,24 @@ package name.
 `@tanstack/ai-persistence` barrel has no such export and the import fails to
 resolve.
 
-Three methods are required (`createOrResume` / `update` / `get`). Three are
-optional: implement only the ones your backend needs, and leave the rest off the
-object entirely (not `undefined`, just absent). A three-method `RunStore` is a
-fully valid backend.
+Four methods are required (`createOrResume` / `update` / `get` /
+`findActiveRun`). Two are optional: implement only the ones your backend needs,
+and leave the rest off the object entirely (not `undefined`, just absent). A
+four-method `RunStore` is a fully valid backend.
 
-`withPersistence` itself calls **none** of the three optional methods, so leaving
-all of them off costs nothing in the middleware. Their consumers are elsewhere,
-and each absence disables exactly one feature:
+`withPersistence` itself calls **none** of the three non-`createOrResume`/`update`
+query methods, so leaving both optional ones off costs nothing in the middleware.
+Their consumers are elsewhere, and each absence disables exactly one feature:
 
-| method            | consumer                                                    | absent ⇒                                           |
-| ----------------- | ----------------------------------------------------------- | -------------------------------------------------- |
-| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun?.(threadId)`) | no rejoin-by-thread; reconstruction answers `null` |
-| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`                | the store cannot be reaped at all                  |
-| `listByThread`    | application code — nothing in the framework calls it        | nothing framework-side breaks                      |
+| method            | consumer                                                  | absent ⇒                                                                 |
+| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun(threadId)`) | required — cannot be absent; stubbing it to `null` silently kills rejoin |
+| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`              | the store cannot be reaped at all                                        |
+| `listByThread`    | application code — nothing in the framework calls it      | nothing framework-side breaks                                            |
 
-Each consumer feature-detects with `store.method?.(...)` and degrades rather than
-throwing.
+Consumers of the two OPTIONAL methods feature-detect with `store.method?.(...)`
+and degrade rather than throwing. `findActiveRun` is required, so nothing
+feature-detects it.
 
 The conformance testkit does not feature-detect. An optional method that is
 missing and not declared in `skipMethods` fails the suite, so an omission is
@@ -151,6 +152,7 @@ interface RunStore {
     >,
   ): Promise<void>
   get(runId: string): Promise<RunRecord | null>
+  findActiveRun(threadId: string): Promise<RunRecord | null>
 
   // Optional
   listByThread?(threadId: string): Promise<Array<RunRecord>>
@@ -158,7 +160,6 @@ interface RunStore {
     now: number
     ttlMs: number
   }): Promise<Array<RunRecord>>
-  findActiveRun?(threadId: string): Promise<RunRecord | null>
 }
 ```
 
@@ -272,9 +273,17 @@ faithfully (previous section) for the durable path to work at all.
   nothing can reclaim the sandbox. `cancelRequested` is written by
   `requestRunCancel` and read by `wasCancelRequested`, and the reaper's expiry
   path goes through `requestRunCancel` to stop a run past its TTL.
-- **`findActiveRun`** (optional): the most recent `'running'` run for
+- **`findActiveRun`** (**required**): the most recent `'running'` run for
   `threadId` (max `startedAt`), or `null` if none is active. Enables reconnect
-  from a stable thread id without a client-held run id.
+  from a stable thread id without a client-held run id. Stub it out and
+  reconnect silently stops working — `null` is also the correct answer for an
+  idle thread, so nothing can detect the difference. It was optional for exactly
+  one release cycle and cost precisely that, which is why it is required now.
+
+Capability tiers belong at the STORE level (omit `runs` entirely and declare
+`ChatTranscriptStores`), not the method level — never ship a `RunStore` with a
+stubbed method. The two list queries above are the only method-level options,
+and each must be declared via `skipMethods` when absent.
 
 ### `InterruptStore`
 
@@ -396,10 +405,12 @@ import { myPersistence } from '../src/persistence'
 
 runPersistenceConformance('my-backend', () => myPersistence())
 
-// Declare intentional omissions — only the four state stores are valid keys:
-// runPersistenceConformance('msgs-only', () => p, {
-//   skip: ['runs', 'interrupts', 'metadata'],
+// Declare intentional omissions. The suite covers all seven stores, so a
+// chat-only backend skips the generation half:
+// runPersistenceConformance('chat-only', () => p, {
+//   skip: ['generationRuns', 'artifacts', 'blobs'],
 // })
+// `skip` never accepts 'locks' — locks are not a store.
 
 // Declare an intentionally-unimplemented OPTIONAL RunStore method with
 // skipMethods, so vitest reports it as a real SKIPPED case:
@@ -417,8 +428,9 @@ in `skip` fails loudly.
 pass `'locks'`** — it is not a state store and the suite does not cover it.
 
 **`skipMethods` (declare-or-fail for optional `RunStore` methods).** A backend
-that omits an OPTIONAL `RunStore` method (`findActiveRun`, `listByThread`,
-`listReclaimable`) must declare it in `skipMethods` as `'runs.<method>'`, e.g.
+that omits an OPTIONAL `RunStore` method (`listByThread`, `listReclaimable` —
+`findActiveRun` is required and cannot be declared away) must declare it in
+`skipMethods` as `'runs.<method>'`, e.g.
 `skipMethods: ['runs.listByThread', 'runs.listReclaimable']`. An omitted
 method that is NOT declared throws with an actionable message instead of
 silently reporting a pass; a declared one is reported as a SKIPPED vitest

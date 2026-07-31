@@ -351,6 +351,7 @@ describe('reapDetachedRuns — selection', () => {
       createOrResume: (input) => runs.createOrResume(input),
       get: (runId) => runs.get(runId),
       update: (runId, patch) => runs.update(runId, patch),
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
     }
     const h = makeHarness()
     const result = await reapDetachedRuns(

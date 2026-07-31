@@ -172,6 +172,7 @@ function faultyRunStore(faults: {
       if (faults.get === 'null') return Promise.resolve(null)
       return inner.get(runId)
     },
+    findActiveRun: (threadId) => inner.findActiveRun(threadId),
   }
 }
 

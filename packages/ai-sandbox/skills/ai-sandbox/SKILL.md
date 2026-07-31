@@ -641,7 +641,7 @@ export async function cancelRun(
   runs: RunStore,
   threadId: string,
 ): Promise<void> {
-  const active = await runs.findActiveRun?.(threadId)
+  const active = await runs.findActiveRun(threadId)
   if (!active) return
   // Band 1: durable, so a remote driver observes it on its next teardown.
   await requestRunCancel(runs, active.runId)

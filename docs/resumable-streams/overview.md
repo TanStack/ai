@@ -28,6 +28,10 @@ it survives a reload or reaches another device is a separate layer. For how the
 two fit together and when to pick each, see
 [Durability and Persistence](../persistence/overview).
 
+The log is kept per **run** — one `RUN_STARTED` → `RUN_FINISHED` execution, not
+a whole conversation. If the thread/run distinction is new, see
+[Threads and runs](../chat/streaming#threads-and-runs).
+
 Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
 
 ## 1. Pick an adapter

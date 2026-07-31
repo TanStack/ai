@@ -157,32 +157,6 @@ chunk received, and `logger.errors()` in catch blocks.
 
 ***
 
-### maxToolCallsPerTurn?
-
-```ts
-optional maxToolCallsPerTurn: number;
-```
-
-Defined in: [packages/ai/src/types.ts:919](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L919)
-
-Maximum number of tool calls to **execute** from a single model turn (or
-pending/resume batch). `0` skips all execution for that batch.
-
-Models can emit many parallel tool calls in one turn. `agentLoopStrategy`
-(including `maxIterations` / `maxToolCalls`) is only evaluated between
-turns, so without this cap a single runaway turn can still execute an
-unbounded fan-out.
-
-When set, only the first `maxToolCallsPerTurn` calls are executed; the
-remainder receive error tool results so the message history stays
-consistent. Unset means no per-turn execution cap. Must be a non-negative
-finite number when set.
-
-Pair with the `maxToolCalls(n)` strategy for a cumulative **emitted**-call
-budget across the run (skipped calls still count toward that budget).
-
-***
-
 ### messages
 
 ```ts

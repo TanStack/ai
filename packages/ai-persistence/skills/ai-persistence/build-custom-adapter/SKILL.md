@@ -103,10 +103,9 @@ history. They are engine-independent:
    `status === 'running' AND detachedSince <= now - ttlMs`. It is a query, not
    automatic reclamation: `reapDetachedRuns` from `@tanstack/ai-sandbox` is the
    sweep that consumes it, and the application schedules that sweep. A store
-   without this method cannot be reaped. `runs.listByThread` /
-   `runs.listReclaimable` /
-   `runs.findActiveRun` are all optional: implement only what the app needs
-   and leave the rest off the object.
+   without this method cannot be reaped. `runs.findActiveRun` is required;
+   `runs.listByThread` / `runs.listReclaimable` are optional: implement only
+   what the app needs and leave the rest off the object.
 
 Row mappers omit absent optionals
 (`...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {})`) so
@@ -190,7 +189,7 @@ function createRunStore(db: Pool): RunStore {
     // explicitly cleared; writes patch.error as two columns,
     // error = patch.error.message and error_code = patch.error.code ?? null,
     // together in the same call),
-    // findActiveRun (latest 'running', optional), listByThread (ascending
+    // findActiveRun (latest 'running', required), listByThread (ascending
     // by startedAt, optional), listReclaimable (status = 'running' AND
     // detachedSince <= now - ttlMs, inclusive cutoff, optional)
   }
@@ -311,16 +310,18 @@ idempotency bug and stuck approvals in production.
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
-runPersistenceConformance('app-custom', () => chatPersistence)
+runPersistenceConformance('app-custom', () => chatPersistence, {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
 ```
 
-Point it at a throwaway database and reset between runs. Declare intentional
-omissions with `skip: ['metadata']` — it accepts only
-`'messages' | 'runs' | 'interrupts' | 'metadata'`, never `'locks'`, which is not
-a state store.
+Point it at a throwaway database and reset between runs. The suite covers all
+seven stores, so declare every intentional omission — a chat adapter skips the
+generation half above, and adds e.g. `'metadata'` if it drops that too. `skip`
+never accepts `'locks'`, which is not a store.
 
-If your recipe leaves an optional `runs` method
-(`findActiveRun`/`listByThread`/`listReclaimable`) unimplemented, declare it
-separately with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`.
-An omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves an optional `runs` method (`listByThread`/
+`listReclaimable`) unimplemented, declare it separately with `skipMethods`, e.g.
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. `findActiveRun` is **not** in that
+set — it is required, so there is nothing to declare.

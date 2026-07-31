@@ -91,6 +91,7 @@ export type UseChatOptions<
   | 'onSessionGeneratingChange'
   | 'onQueueChange'
   | 'onResumeStateChange'
+  | 'onRunIdChange'
   | 'context'
   | 'devtools'
   // `id` is not a hook option: the hook's identity is its `threadId`, which is
@@ -190,7 +191,18 @@ interface BaseUseChatReturn<
     approved: boolean
   }) => Promise<void>
 
-  resumeState: DeepReadonly<ShallowRef<ChatResumeState | null>>
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  runId: DeepReadonly<ShallowRef<string | null>>
   interrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
   /** @deprecated Use `interrupts`. */
   pendingInterrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>

@@ -10,7 +10,7 @@ can span several runs via interrupts or tool continuations), so basing reconnect
 on a client-cached run id goes stale the moment a turn rolls to a new run. This
 moves the whole reconnect story onto the stable thread id, resolved by the server.
 
-- **`RunStore.findActiveRun(threadId)`** — new optional, feature-detected store
+- **`RunStore.findActiveRun(threadId)`** — required store
   method returning the most recent `'running'` run for a thread. Implemented by
   the in-memory reference backend and covered by the conformance testkit, so any
   adapter that provides it is held to the same invariants (most-recent-running

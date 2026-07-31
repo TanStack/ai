@@ -122,6 +122,7 @@ function toEncodedStream(
   abortController: AbortController | undefined,
   encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array,
   encodeError: (error: unknown) => Uint8Array,
+  detachOnCancel = false,
 ): ReadableStream<Uint8Array> {
   const cancellation = abortController ?? new AbortController()
   let iterator: AsyncIterator<StreamChunk> | undefined
@@ -161,7 +162,10 @@ function toEncodedStream(
               break
             }
             if (isAborted(cancellation.signal)) break
-            controller.enqueue(encodeChunk(result.value, index))
+            // After a detached cancel the reader is gone but we keep pulling to
+            // drain the producer into the durable log; skip enqueuing to the
+            // closed controller.
+            if (!cancelled) controller.enqueue(encodeChunk(result.value, index))
             index += 1
           }
         } catch (error) {
@@ -190,6 +194,15 @@ function toEncodedStream(
     },
     async cancel(reason) {
       cancelled = true
+      // Detached durable delivery: the client is gone (e.g. a page reload), but
+      // the run must finish into the durable log so a rejoining client can tail
+      // it to the real terminal. Do NOT abort the producer (that would kill the
+      // run and seal the log with RUN_ERROR) and do NOT await the pump — it
+      // keeps draining `stream` → the log in the background and terminates
+      // normally on its own. A genuine caller-driven stop aborts the producer's
+      // own AbortController instead, which this path never touches.
+      if (detachOnCancel) return
+
       if (!isAborted(cancellation.signal)) cancellation.abort(reason)
 
       let cancellationFailure: RecordedFailure | undefined
@@ -231,18 +244,31 @@ export function toServerSentEventsStream(
   abortController?: AbortController,
   getId?: (chunk: StreamChunk, index: number) => string | undefined,
 ): ReadableStream<Uint8Array> {
+  const { encodeChunk, encodeError } = sseEncoders(getId)
+  return toEncodedStream(stream, abortController, encodeChunk, encodeError)
+}
+
+/**
+ * SSE chunk/error encoders. Shared by the public {@link toServerSentEventsStream}
+ * and the internal durability branch (which additionally needs `toEncodedStream`'s
+ * private `detachOnCancel`), so the wire format stays identical for both.
+ */
+function sseEncoders(
+  getId?: (chunk: StreamChunk, index: number) => string | undefined,
+): {
+  encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array
+  encodeError: (error: unknown) => Uint8Array
+} {
   const encoder = new TextEncoder()
-  return toEncodedStream(
-    stream,
-    abortController,
-    (chunk, index) => {
+  return {
+    encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
       const idLine = id === undefined ? '' : `id: ${id}\n`
       return encoder.encode(`${idLine}data: ${JSON.stringify(chunk)}\n\n`)
     },
-    (error) =>
+    encodeError: (error) =>
       encoder.encode(`data: ${JSON.stringify(runErrorChunk(error))}\n\n`),
-  )
+  }
 }
 
 /** Default number of chunks buffered before a durability `append`. */
@@ -266,11 +292,20 @@ function resolveBatchSize(batch: number | undefined): number {
 
 /**
  * Boundaries at which the batching producer flushes early, regardless of the
- * batch size — terminal events and tool-call ends. Flushing here keeps the
- * durability log promptly consistent at semantically meaningful points.
+ * batch size — the run-start marker, terminal events, and tool-call ends.
+ * Flushing here keeps the durability log promptly consistent at semantically
+ * meaningful points.
+ *
+ * `RUN_STARTED` matters especially for one-shot activities (image, speech,
+ * transcription, summarize): they emit `RUN_STARTED`, then await the provider
+ * for seconds, then a terminal. Without flushing `RUN_STARTED` the log stays
+ * empty for the whole run, so a mount-time `joinRun` finds nothing and its
+ * empty-log deadline fast-fails as "run gone" — even though the run is alive.
+ * Flushing it immediately makes the run resumable from the instant it starts.
  */
 function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
   return (
+    chunk.type === 'RUN_STARTED' ||
     chunk.type === 'RUN_FINISHED' ||
     chunk.type === 'RUN_ERROR' ||
     chunk.type === 'TOOL_CALL_END'
@@ -637,16 +672,34 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
-    const deliveryAbortController = abortController ?? new AbortController()
+    // A fresh run (not a resume/replay) drains into the durable log under its
+    // OWN producer controller, decoupled from the HTTP response: a response
+    // cancel (page reload) detaches and keeps draining in the background so a
+    // rejoining client tails the log to the real terminal, rather than killing
+    // the run and sealing the log with RUN_ERROR. The producer is aborted only
+    // by a caller-supplied `abortController` (a genuine stop()). On the resume
+    // path the response IS a reader, so a cancel should stop the read normally.
+    const isFresh = durability.adapter.resumeFrom() === null
+    const producerAbortController = abortController ?? new AbortController()
+    const deliveryAbortController = isFresh
+      ? new AbortController()
+      : producerAbortController
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
-      abortController: deliveryAbortController,
+      abortController: producerAbortController,
       batch: durability.batch,
       // `errors` category is on by default even when `debug` is undefined, so
       // durability terminal-append / close failures always surface server-side —
       // including on the client-disconnect path where there is no live consumer.
       logger: resolveDebugOption(debug),
     })
-    body = toServerSentEventsStream(source, deliveryAbortController, getId)
+    const { encodeChunk, encodeError } = sseEncoders(getId)
+    body = toEncodedStream(
+      source,
+      deliveryAbortController,
+      encodeChunk,
+      encodeError,
+      isFresh,
+    )
   } else {
     body = toServerSentEventsStream(stream, abortController)
   }
@@ -935,18 +988,31 @@ export function toHttpStream(
   abortController?: AbortController,
   getId?: (chunk: StreamChunk, index: number) => string | undefined,
 ): ReadableStream<Uint8Array> {
+  const { encodeChunk, encodeError } = ndjsonEncoders(getId)
+  return toEncodedStream(stream, abortController, encodeChunk, encodeError)
+}
+
+/**
+ * NDJSON chunk/error encoders. Shared by {@link toHttpStream} and the internal
+ * durability branch (see {@link sseEncoders}).
+ */
+function ndjsonEncoders(
+  getId?: (chunk: StreamChunk, index: number) => string | undefined,
+): {
+  encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array
+  encodeError: (error: unknown) => Uint8Array
+} {
   const encoder = new TextEncoder()
-  return toEncodedStream(
-    stream,
-    abortController,
-    (chunk, index) => {
+  return {
+    encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
       const line =
         id === undefined ? JSON.stringify(chunk) : JSON.stringify({ id, chunk })
       return encoder.encode(`${line}\n`)
     },
-    (error) => encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
-  )
+    encodeError: (error) =>
+      encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
+  }
 }
 
 /**
@@ -1014,14 +1080,29 @@ export function toHttpResponse<TOffset extends string = string>(
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
-    const deliveryAbortController = abortController ?? new AbortController()
+    // See toServerSentEventsResponse: a fresh run drains into the durable log
+    // under its own producer controller, so a response cancel (reload) detaches
+    // and keeps draining in the background instead of killing the run; a resume
+    // response is a reader whose cancel stops the read normally.
+    const isFresh = durability.adapter.resumeFrom() === null
+    const producerAbortController = abortController ?? new AbortController()
+    const deliveryAbortController = isFresh
+      ? new AbortController()
+      : producerAbortController
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
-      abortController: deliveryAbortController,
+      abortController: producerAbortController,
       batch: durability.batch,
       // Errors-on-by-default logger (see toServerSentEventsResponse).
       logger: resolveDebugOption(debug),
     })
-    body = toHttpStream(source, deliveryAbortController, getId)
+    const { encodeChunk, encodeError } = ndjsonEncoders(getId)
+    body = toEncodedStream(
+      source,
+      deliveryAbortController,
+      encodeChunk,
+      encodeError,
+      isFresh,
+    )
   } else {
     body = toHttpStream(stream, abortController)
   }

@@ -56,9 +56,7 @@ export function useChat<
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
   const [queue, setQueue] = useState<Array<QueuedMessage>>([])
-  const [resumeState, setResumeState] = useState<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  const [runId, setRunId] = useState<string | null>(null)
   const [interruptState, setInterruptState] = useState<
     ChatInterruptState<TTools>
   >(() => ({
@@ -87,7 +85,7 @@ export function useChat<
 
   const syncResumeState = useCallback((target: ChatClient | null) => {
     if (!target) return
-    setResumeState(target.getResumeState())
+    setRunId(target.getCurrentRunId())
     setInterruptState(target.getInterruptState())
   }, [])
 
@@ -216,9 +214,12 @@ export function useChat<
         if (!getActiveInstance()) return
         setQueue(nextQueue)
       },
-      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
+      onRunIdChange: (nextRunId) => {
         if (!getActiveInstance()) return
-        setResumeState(nextResumeState)
+        setRunId(nextRunId)
+      },
+      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
+        if (!getActiveInstance()) return
         setInterruptState((current) => ({
           ...current,
           interrupts: nextPendingInterrupts,
@@ -461,7 +462,7 @@ export function useChat<
     addToolApprovalResponse,
     queue,
     cancelQueued,
-    resumeState,
+    runId,
     interrupts: interruptState.interrupts,
     pendingInterrupts: interruptState.pendingInterrupts,
     interruptErrors: interruptState.interruptErrors,

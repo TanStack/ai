@@ -859,13 +859,13 @@ export interface AgentLoopState {
   finishReason: string | null
   /**
    * Cumulative tool calls counted so far in this run (model-emitted during the
-   * agent loop, including ones skipped by `maxToolCallsPerTurn`, and pending
-   * tools from the inbound message list when resumed). Not a recount of full
-   * message history; not model turns.
+   * agent loop, including ones skipped by middleware, and pending tools from
+   * the inbound message list when resumed). Not a recount of full message
+   * history; not model turns.
    */
   toolCallCount: number
   /**
-   * Tool calls in the most recent budgeted batch — a live model turn or a
+   * Tool calls in the most recent batch — a live model turn or a
    * pending/resume batch (0 when the last phase produced no tool calls).
    */
   lastTurnToolCallCount: number
@@ -881,7 +881,7 @@ export interface AgentLoopState {
  * ```typescript
  * // Continue for up to 5 iterations (model turns, not tool calls)
  * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
- * // Cap total tool calls across the run
+ * // Cap total tool calls across the run (or use middleware onShouldContinue)
  * const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
  * ```
  */
@@ -919,24 +919,6 @@ export interface TextOptions<
    */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
-  /**
-   * Maximum number of tool calls to **execute** from a single model turn (or
-   * pending/resume batch). `0` skips all execution for that batch.
-   *
-   * Models can emit many parallel tool calls in one turn. `agentLoopStrategy`
-   * (including `maxIterations` / `maxToolCalls`) is only evaluated between
-   * turns, so without this cap a single runaway turn can still execute an
-   * unbounded fan-out.
-   *
-   * When set, only the first `maxToolCallsPerTurn` calls are executed; the
-   * remainder receive error tool results so the message history stays
-   * consistent. Unset means no per-turn execution cap. Must be a non-negative
-   * finite number when set.
-   *
-   * Pair with the `maxToolCalls(n)` strategy for a cumulative **emitted**-call
-   * budget across the run (skipped calls still count toward that budget).
-   */
-  maxToolCallsPerTurn?: number
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -1996,6 +1978,16 @@ export interface SummarizationOptions<
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
   /**
+   * Run identity forwarded from the summarize() activity. When set, the
+   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
+   * chat), so a delivery-durable route keys the run's log by the same id the
+   * client rejoins with — making a mid-run reload resumable, like the media
+   * activities. Optional and non-breaking: adapters that ignore it just mint
+   * their own.
+   */
+  runId?: string
+  threadId?: string
+  /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
@@ -2175,7 +2167,21 @@ export interface PersistedArtifactRef {
   mimeType: string
   size: number
   createdAt: string
-  externalUrl?: string
+  /**
+   * Where these bytes were fetched FROM — the provider's original result URL,
+   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
+   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
+   * instead.
+   */
+  sourceUrl?: string
+  /**
+   * Durable app-origin URL that serves this artifact's persisted bytes (your
+   * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by
+   * `withGenerationPersistence`'s `artifactUrl` option, so clients render and
+   * restore durable media from your own origin rather than the provider's
+   * expiring link.
+   */
+  url?: string
   source: {
     activity: PersistedArtifactActivity
     path: string
@@ -2317,6 +2323,12 @@ export interface VideoJobResult {
   jobId: string
   /** Model used for generation */
   model: string
+  /**
+   * Durable artifact references, when generation persistence with an artifact +
+   * blob store is wired. A submission has no video yet, so this only carries
+   * refs for persisted prompt INPUTS (e.g. a start frame).
+   */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

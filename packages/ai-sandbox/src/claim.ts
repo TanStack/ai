@@ -423,10 +423,11 @@ export function fenceDurability<TOffset extends string = string>(
  * - **Another run's record.** The fence knows about `claim.runId` only; a write
  *   aimed elsewhere is not this claim's to judge.
  *
- * The optional methods are forwarded only when the wrapped store actually has
- * them: consumers feature-detect (`store.findActiveRun?.(…)`), so materializing
- * one that delegates to a missing method would turn a graceful degrade into a
- * `TypeError`.
+ * The OPTIONAL methods (`listByThread`, `listReclaimable`) are forwarded only
+ * when the wrapped store actually has them: consumers feature-detect
+ * (`store.listReclaimable?.(…)`), so materializing one that delegates to a
+ * missing method would turn a graceful degrade into a `TypeError`.
+ * `findActiveRun` is required on the contract, so it forwards unconditionally.
  */
 export function fenceRunStore(
   runs: RunStore,
@@ -438,11 +439,11 @@ export function fenceRunStore(
   // (`InMemoryRunStore`), whose methods need their receiver.
   const listByThread = runs.listByThread?.bind(runs)
   const listReclaimable = runs.listReclaimable?.bind(runs)
-  const findActiveRun = runs.findActiveRun?.bind(runs)
 
   return {
     createOrResume: (input) => runs.createOrResume(input),
     get: (runId) => runs.get(runId),
+    findActiveRun: (threadId) => runs.findActiveRun(threadId),
     update: async (runId, patch) => {
       const status = patch.status
       if (
@@ -474,6 +475,5 @@ export function fenceRunStore(
     },
     ...(listByThread === undefined ? {} : { listByThread }),
     ...(listReclaimable === undefined ? {} : { listReclaimable }),
-    ...(findActiveRun === undefined ? {} : { findActiveRun }),
   }
 }

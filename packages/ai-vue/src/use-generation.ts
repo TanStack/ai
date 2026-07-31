@@ -15,6 +15,10 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
+  GenerationRestoredResult,
+  GenerationResumeSnapshot,
+  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
@@ -33,12 +37,53 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
+  persistence?: boolean
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations, where
+   * it falls back to `id` purely to satisfy the wire.
+   */
+  threadId?: string
+  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
+  initialResumeSnapshot?: GenerationResumeSnapshot
+  /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -53,16 +98,26 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   onProgress?: (progress: number, message?: string) => void
   /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
+  /**
+   * @internal Rebuild a typed result from a restored snapshot, injected by each
+   * specialized composable (image / speech / audio / transcription / summarize).
+   * Forwarded to the client so a server-hydrate restore repaints `result`.
+   */
+  reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
 
 /**
  * Return type for the useGeneration hook.
  *
  * @template TOutput - The output type (after optional transform)
+ * @template TInput - The input type accepted by `generate` (defaults to any object)
  */
-export interface UseGenerationReturn<TOutput> {
+export interface UseGenerationReturn<
+  TOutput,
+  TInput extends Record<string, any> = Record<string, any>,
+> {
   /** Trigger a generation request */
-  generate: (input: Record<string, any>) => Promise<void>
+  generate: (input: TInput) => Promise<void>
   /** The generation result, or null if not yet generated */
   result: DeepReadonly<ShallowRef<TOutput | null>>
   /** Whether a generation is currently in progress */
@@ -75,6 +130,13 @@ export interface UseGenerationReturn<TOutput> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: DeepReadonly<ShallowRef<string | null>>
 }
 
 /**
@@ -110,25 +172,49 @@ export function useGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
+  options: Omit<
+    UseGenerationOptions<TInput, TResult>,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
     onResult?: (result: TResult) => TTransformed
-  },
-): UseGenerationReturn<InferGenerationOutputFromReturn<TResult, TTransformed>> {
+  } & GenerationPersistenceOptions,
+): UseGenerationReturn<
+  InferGenerationOutputFromReturn<TResult, TTransformed>,
+  TInput
+> {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
-  const clientId = options.id || hookId
 
   const result = shallowRef<TOutput | null>(null)
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
+  const runId = shallowRef<string | null>(
+    options.initialResumeSnapshot?.resumeState?.runId ?? null,
+  )
+  let disposed = false
 
   // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
   // optional (`body?: Record<string, any>`), and under EOPT we must omit the
   // key when absent rather than assign `undefined`.
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-    id: clientId,
     body: options.body,
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? hookId }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(options.hydrateGeneration !== undefined && {
+      hydrateGeneration: options.hydrateGeneration,
+    }),
+    ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.reconstructResult
+      ? { reconstructResult: options.reconstructResult }
+      : {}),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -141,20 +227,34 @@ export function useGeneration<
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result.value = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading.value = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error.value = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status.value = s
+    },
+    onResumeStateChange: (rs: GenerationResumeState | null) => {
+      if (disposed) return
+      runId.value = rs?.runId ?? null
     },
   }
 
@@ -188,12 +288,15 @@ export function useGeneration<
     },
   )
 
+  // Mount devtools only. Generation runs are never auto-started on mount —
+  // persisted state is read-only for display.
   onMounted(() => {
     client.mountDevtools()
   })
 
   // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
+    disposed = true
     client.dispose()
   })
 
@@ -210,7 +313,7 @@ export function useGeneration<
   }
 
   return {
-    generate: generate as (input: Record<string, any>) => Promise<void>,
+    generate,
     // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
     // `TOutput` conditional, which TS can't prove equal to the declared
     // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
@@ -221,5 +324,6 @@ export function useGeneration<
     status: readonly(status),
     stop,
     reset,
+    runId: readonly(runId),
   }
 }

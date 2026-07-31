@@ -68,9 +68,7 @@ export function useChat<
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
-  const [resumeState, setResumeState] = createSignal<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
     ChatInterruptState<TTools>
   >({
@@ -81,7 +79,7 @@ export function useChat<
   })
 
   const syncResumeState = () => {
-    setResumeState(client().getResumeState())
+    setRunId(client().getCurrentRunId())
     setInterruptState(client().getInterruptState())
   }
 
@@ -172,8 +170,10 @@ export function useChat<
       onQueueChange: (nextQueue: Array<QueuedMessage>) => {
         setQueue(nextQueue)
       },
-      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
-        setResumeState(nextResumeState)
+      onRunIdChange: (nextRunId) => {
+        setRunId(nextRunId)
+      },
+      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
         setInterruptState((current) => ({
           ...current,
           interrupts: nextPendingInterrupts,
@@ -400,7 +400,7 @@ export function useChat<
     addToolResult,
     addToolApprovalResponse,
     cancelQueued,
-    resumeState,
+    runId,
     interrupts,
     pendingInterrupts,
     interruptErrors,

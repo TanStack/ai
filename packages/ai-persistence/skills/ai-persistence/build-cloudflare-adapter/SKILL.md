@@ -95,23 +95,23 @@ The invariants are the whole game, whichever route you take:
 | `messages`   | `saveThread` is a full replace (`INSERT … ON CONFLICT(thread_id) DO UPDATE`)                                                                                                                       |
 | `runs`       | `createOrResume` reads first, else `INSERT … ON CONFLICT DO NOTHING`, then re-reads                                                                                                                |
 | `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts                                                                                                                          |
-| `runs`       | `findActiveRun` (optional) returns the latest `'running'` run for the thread, else null                                                                                                            |
+| `runs`       | `findActiveRun` (required) returns the latest `'running'` run for the thread, else null                                                                                                            |
 | `runs`       | `listByThread` (optional) returns every run for the thread `ORDER BY started_at ASC`                                                                                                               |
 | `runs`       | `listReclaimable` (optional) returns runs where `status = 'running' AND detached_since IS NOT NULL AND detached_since <= now - ttlMs` (inclusive cutoff); it is a query, not automatic reclamation |
 | `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending                                                                                                                   |
 | `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                                                                                                                                     |
 | `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                                                                                                        |
 
-On `runs`, `findActiveRun`, `listByThread`, and `listReclaimable` are optional
-methods. Implement only the ones the app needs. `withPersistence` calls **none**
-of the three — the consumers are `reconstruct.ts` (`findActiveRun`, for
-rejoin-by-thread) and `@tanstack/ai-sandbox`'s `reapDetachedRuns`
+On `runs`, `findActiveRun` is required; `listByThread` and `listReclaimable` are
+optional, so implement those two only if the app needs them. `withPersistence`
+calls **none** of the three — the consumers are `reconstruct.ts`
+(`findActiveRun`, for rejoin-by-thread) and `@tanstack/ai-sandbox`'s `reapDetachedRuns`
 (`listReclaimable`, without which the store cannot be reaped); nothing in the
-framework calls `listByThread`. Each consumer feature-detects with
-`store.method?.(...)` and degrades to "not supported" when a method is absent.
-The conformance testkit does not. Any you leave out must be listed in
-`skipMethods` or the suite fails, so declare them and it reports the omission as
-a skip.
+framework calls `listByThread`. Consumers of the two OPTIONAL methods
+feature-detect with `store.method?.(...)` and degrade to "not supported" when one
+is absent. The conformance testkit does not: either of those you leave out must
+be listed in `skipMethods` or the suite fails, so declare them and it reports the
+omission as a skip.
 
 `RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
 so the table gets two columns rather than one JSON blob: `error` for the
@@ -278,15 +278,20 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { env } from 'cloudflare:test'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
-runPersistenceConformance('app-d1', () => chatPersistence(env.AI_STATE))
+runPersistenceConformance('app-d1', () => chatPersistence(env.AI_STATE), {
+  skip: ['generationRuns', 'artifacts', 'blobs'],
+})
 ```
 
 Run it against a Miniflare D1 binding with the migration applied, reset between
-runs. All four state stores are provided, so pass no `skip` — and `skip` never
-accepts `'locks'`: the suite covers state only.
+runs. All four state stores are provided; the suite also covers the three
+generation stores, so a chat-only adapter declares them skipped (drop the `skip`
+once you add the R2-backed set from
+**ai-persistence/build-cloudflare-artifact-store**). `skip` never accepts
+`'locks'`, which is not a store.
 
 If your recipe leaves an optional `runs` method
-(`findActiveRun`/`listByThread`/`listReclaimable`) unimplemented, declare it
+(`listByThread`/`listReclaimable`) unimplemented, declare it
 with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
 omitted method that is not declared fails the suite instead of silently
 passing.

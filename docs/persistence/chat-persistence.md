@@ -69,6 +69,28 @@ Creating tables on open is convenient for local development. In production, appl
 schema changes through your deployment workflow instead. See
 [Migrations](./migrations).
 
+## Threads, runs, and turns
+
+Threads and runs are protocol concepts, not persistence ones — a **thread**
+(`threadId`) is the stable conversation, a **run** (`runId`) one
+`RUN_STARTED` → `RUN_FINISHED` execution, and one user-visible turn can span
+several runs. [Threads and runs](../chat/streaming#threads-and-runs)
+in the streaming guide covers the anatomy. What persistence adds is the durable
+record of them, anchored on the thread:
+
+- The transcript is stored per `threadId` (the `messages` store).
+- Each run gets a `runs` record with status, timings, and usage — the id is
+  ephemeral, the record is not.
+- A reconnecting client (a reload, or the same thread on another device) never
+  has to present a run id it may no longer know: the store resolves the
+  thread's live run (`findActiveRun(threadId)`) and the client tails that.
+- Interrupt records carry both ids — the `runId` of the execution they paused
+  and the `threadId` of the conversation they live in.
+
+[Id map](./id-map) is the practical companion to this: how to choose a thread
+id, why both client and server must file under the same one, when to read
+`useChat`'s `runId`, and what the same two ids mean on the generation hooks.
+
 ## Send the full transcript, or none of it
 
 `withPersistence` follows one rule, the authoritative-history contract:
@@ -118,6 +140,24 @@ band, either as the run's own abort reason or as `RunRecord.cancelRequested`, an
 either one makes the abort terminal again. See
 [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
+The lifecycle a run record moves through. `completed`, `failed`, and `aborted`
+are terminal; `interrupted` is **parked**, not terminal, and a continuation
+after one is a new run with a fresh `runId`:
+
+```mermaid
+stateDiagram-v2
+    [*] --> running : run starts (idempotent createOrResume)
+    running --> completed : finish — transcript saved first
+    running --> failed : error
+    running --> aborted : abort — explicit cancel, or a non-detachable run
+    running --> interrupted : interrupt boundary
+    running --> running : plain disconnect on a DETACHABLE run — detachedSince set, taken over later
+    completed --> [*]
+    failed --> [*]
+    aborted --> [*]
+    interrupted --> [*] : continuation runs under a new runId
+```
+
 ## Interrupts survive a restart
 
 When a run pauses on an interrupt (a tool approval, a client-side tool, a
@@ -133,6 +173,18 @@ validates the resume batch against pending interrupts, builds
 needs client message history the persistence flow deliberately omits). Resumes
 are committed (resolved/cancelled in the store) only once the run reaches a
 successful interrupt or finish boundary.
+
+An interrupt record is born `pending` and only a commit moves it — which is why
+a failed continuation leaves it answerable again:
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : run pauses — interrupt recorded
+    pending --> resolved : resume answers it, committed at a success boundary
+    pending --> cancelled : resume cancels it
+    resolved --> [*]
+    cancelled --> [*]
+```
 
 ## Where to go next
 

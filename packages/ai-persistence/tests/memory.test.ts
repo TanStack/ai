@@ -13,6 +13,9 @@ describe('memoryPersistence', () => {
 
   it('exposes the complete state store set (no locks)', () => {
     expect(Object.keys(memoryPersistence().stores).sort()).toEqual([
+      'artifacts',
+      'blobs',
+      'generationRuns',
       'interrupts',
       'messages',
       'metadata',

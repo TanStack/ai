@@ -95,17 +95,31 @@ async function attach(runId: string) {
 All four HTTP adapters (`fetchServerSentEvents`, `fetchHttpStream`,
 `xhrServerSentEvents`, `xhrHttpStream`) expose `joinRun`.
 
-## Completion, stop, and errors
+## Disconnect, stop, and errors
 
-The producer awaits `close()` on every in-process exit: normal completion,
-`stop()` or response cancellation, provider iteration errors, and caught
-server-side durability failures.
+A durable run's producer is decoupled from the delivery socket. When the client
+disconnects (a page reload, a dropped connection), the response is cancelled but
+the run keeps draining into the log to its own terminal, so a reconnect or a
+mount-time `joinRun` tails it to completion. This is what makes a run resumable
+across a full reload, not just an in-session reconnect.
 
-Cancellation and provider failure also append a terminal `RUN_ERROR` before
-closing, so a reconnecting or joining client sees a terminal instead of hanging.
-If appending that terminal or closing fails, the cause is logged server-side by
-default (a joiner only ever sees a generic incomplete error, so the server log
-is where the real cause lives). Pass `debug` to route it to your own logger:
+A run ends early only on a genuine cancel or a failure:
+
+- **Cancel** — an `AbortController` you pass to the response as
+  `abortController` and then abort (from a user Stop button, or by forwarding
+  `request.signal`, which is an `AbortSignal`, onto a controller of your own).
+  This stops the producer and appends a terminal `RUN_ERROR`. A bare client
+  disconnect does not do this; pass a controller when you want a disconnect to
+  also stop the run.
+- **Provider failure** — the model stream throws; the error is appended as a
+  terminal `RUN_ERROR`.
+
+Either way the producer awaits `close()` on exit, and a terminal is written
+before closing so a reconnecting or joining client sees a terminal instead of
+hanging. If appending that terminal or closing fails, the cause is logged
+server-side by default (a joiner only ever sees a generic incomplete error, so
+the server log is where the real cause lives). Pass `debug` to route it to your
+own logger:
 
 ```ts
 import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'
@@ -127,21 +141,22 @@ always emits `RUN_FINISHED`, so this only affects hand-rolled streams.
 
 ## memoryStream in production
 
-`memoryStream` is for development and single-process deployments. Two reasons it
-does not fit production:
+Within a single live process `memoryStream` already survives a client
+disconnect: the producer outlives the socket and keeps draining into the log, so
+a later reconnect or `joinRun` resumes a still-running run. Two things still keep
+it to development and single-process deployments:
 
 1. The log lives in one process's memory, so a reconnect that lands on a
    different worker finds nothing.
-2. The producer and the delivery socket are the same process. A mid-stream
-   client disconnect aborts the producer and writes a terminal `RUN_ERROR` to
-   the log, so a later reconnect replays the partial content plus that error
-   rather than resuming a still-running response.
+2. If the process itself dies, the log dies with it, so an interrupted run can
+   neither resume nor terminalize on its own. A production backend adds a
+   lease/reaper (see [Process death](#process-death)) that an in-memory process
+   cannot.
 
 Completed runs are evicted after a grace window, so resuming an expired or
 unknown run fails loudly instead of hanging, and a from-start join to a run that
-never produces fails after `firstChunkDeadlineMs`. Live resume of a run that is
-still producing after a disconnect needs a backend whose producer outlives the
-socket (see [Process death](#process-death)).
+never produces fails after `firstChunkDeadlineMs`. Spanning processes (point 1)
+is what `durableStream` adds.
 
 ## Reconnection bounding
 

@@ -85,9 +85,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     >()
 
-    // AG-UI lifecycle tracking
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
+    // already does) so the emitted RUN_STARTED matches the id the caller keys
+    // durability by — e.g. a summarize run threading the client's runId through
+    // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
       threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,

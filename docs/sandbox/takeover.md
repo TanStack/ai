@@ -366,7 +366,7 @@ export async function GET(request: Request) {
   }
   // Optional on the RunStore contract, so a backend that omits it degrades to
   // "no active run" instead of throwing.
-  const active = await runs.findActiveRun?.(threadId)
+  const active = await runs.findActiveRun(threadId)
   return Response.json({ runId: active?.runId ?? null })
 }
 ```
@@ -421,7 +421,7 @@ export async function POST(request: Request) {
     return new Response('threadId must be a string', { status: 400 })
   }
 
-  const active = await runs.findActiveRun?.(threadId)
+  const active = await runs.findActiveRun(threadId)
   if (!active) return new Response(null, { status: 204 })
 
   // Band 1: durable, so a remote driver observes it on its next teardown.
@@ -775,9 +775,9 @@ reclaim the sandbox. Two invariants also hold: `createOrResume` returns an
 existing record **unchanged** (that is what makes resuming safe), and `update` on
 an unknown `runId` is a **no-op** that must not throw.
 
-`findActiveRun` and `listReclaimable` are optional, but you need the first to
-rejoin by thread and the second for `reapDetachedRuns` to have anything to sweep
-— a store without it cannot be reaped at all. Consumers feature-detect both.
+`findActiveRun` is required — it is how you rejoin by thread. `listReclaimable`
+is optional and feature-detected, but `reapDetachedRuns` needs it to have
+anything to sweep: a store without it cannot be reaped at all.
 
 ## Adapter authors
 

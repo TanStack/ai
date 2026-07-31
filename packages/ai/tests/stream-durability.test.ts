@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { memoryStream } from '../src/stream-durability'
+import { memoryStream, replayRunStream } from '../src/stream-durability'
 import { EventType } from '../src/types'
 import { ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
@@ -399,6 +399,68 @@ describe('memoryStream', () => {
         }),
       ),
     ).toThrow(/Invalid memory stream offset/)
+  })
+
+  it('attaches to a run by explicit init, without a Request (server-function join path)', async () => {
+    const producer = memoryStream({ runId: 'run-init' })
+    expect(producer.resumeFrom()).toBeNull()
+    const offsets = await producer.append([
+      ev.textContent('a'),
+      ev.textContent('b'),
+    ])
+    await producer.close()
+
+    const joiner = memoryStream({ runId: 'run-init' })
+    expect(await readLabels(joiner.read('-1'))).toEqual(['a', 'b'])
+
+    const resumer = memoryStream({ runId: 'run-init', offset: offsets[0] })
+    expect(resumer.resumeFrom()).toBe(offsets[0])
+    expect(await readLabels(resumer.read(offsets[0] ?? ''))).toEqual(['b'])
+  })
+
+  it('rejects an invalid explicit run id', () => {
+    expect(() => memoryStream({ runId: 'evil\ninjected' })).toThrow(
+      /Invalid runId/,
+    )
+    expect(() => memoryStream({ runId: '' })).toThrow(/Invalid runId/)
+  })
+})
+
+describe('replayRunStream', () => {
+  it('maps a durability read to a bare chunk stream from the start', async () => {
+    const producer = memoryStream({ runId: 'run-replay' })
+    await producer.append([
+      ev.textContent('a'),
+      ev.textContent('b'),
+      ev.textContent('c'),
+    ])
+    await producer.close()
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of replayRunStream(
+      memoryStream({ runId: 'run-replay' }),
+    )) {
+      chunks.push(chunk)
+    }
+    expect(chunks.map(label)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('honors an explicit resume offset', async () => {
+    const producer = memoryStream({ runId: 'run-replay-offset' })
+    const offsets = await producer.append([
+      ev.textContent('a'),
+      ev.textContent('b'),
+    ])
+    await producer.close()
+
+    const labels: Array<string> = []
+    for await (const chunk of replayRunStream(
+      memoryStream({ runId: 'run-replay-offset' }),
+      offsets[0],
+    )) {
+      labels.push(label(chunk))
+    }
+    expect(labels).toEqual(['b'])
   })
 })
 

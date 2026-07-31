@@ -682,6 +682,9 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       return false
     }
 
+    // Fixture routing: `hookId` wins when present (latest bridge for that
+    // registry key). `threadId` is the fallback for fixtures scoped only to a
+    // conversation / generation slot without a hook id.
     if (fixture.hookId) {
       return fixture.hookId === this.options.hookId
     }

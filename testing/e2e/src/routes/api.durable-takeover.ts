@@ -960,6 +960,7 @@ function runsScopedTo(runIds: Array<string>): typeof runs {
     createOrResume: (input) => runs.createOrResume(input),
     update: (runId, patch) => runs.update(runId, patch),
     get: (runId) => runs.get(runId),
+    findActiveRun: (threadId) => runs.findActiveRun(threadId),
     listReclaimable: async (opts) => {
       const listed = (await runs.listReclaimable?.(opts)) ?? []
       return listed.filter((record) => runIds.includes(record.runId))

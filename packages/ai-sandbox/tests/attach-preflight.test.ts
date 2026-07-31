@@ -160,6 +160,10 @@ describe('awaitAttachableJournal: an existing journal', () => {
         storeReads += 1
         return Promise.resolve(null)
       },
+      findActiveRun: () => {
+        storeReads += 1
+        return Promise.resolve(null)
+      },
     }
     await awaitAttachableJournal(probe.handle, {
       paths: journalPaths(runId),

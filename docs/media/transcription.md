@@ -232,7 +232,10 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-OpenAI accepts up to four known speaker references; `known_speaker_names` and `known_speaker_references` must be provided together with matching lengths. The diarization model does not support `prompt`, `include`, or `timestamp_granularities`; the adapter rejects those combinations before making the API request.
+Two constraints the adapter enforces before it calls the API:
+
+- Up to four known speaker references. `known_speaker_names` and `known_speaker_references` must be provided together, with matching lengths.
+- The diarization model does not support `prompt`, `include`, or `timestamp_granularities`. Those combinations are rejected.
 
 ## Response Format
 
@@ -396,6 +399,10 @@ export async function POST(request: Request) {
 ## Full-Stack Usage
 
 TanStack AI provides React hooks and server-side streaming helpers to build full-stack audio transcription with minimal boilerplate.
+
+> **Note:** Transcribing a big file can run long — keep its status and result
+> across a reload or a dropped connection with
+> [Generation Persistence](../persistence/generation-persistence).
 
 ### Streaming Mode (Server Route + Client Hook)
 
