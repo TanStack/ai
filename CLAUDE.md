@@ -50,10 +50,7 @@ pnpm test:lib:dev          # Watch mode for unit tests
 pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
-pnpm test:coverage         # Generate coverage reports (affected)
-pnpm test:coverage:all     # Generate coverage reports (every package)
-pnpm test:coverage:check   # Coverage + fail if it dropped vs coverage-baseline.json
-pnpm test:coverage:update  # Re-baseline coverage-baseline.json
+# Coverage is CI-only — see the Coverage section below. Don't run it locally.
 pnpm test:knip             # Check for unused dependencies
 pnpm test:sherif           # Check pnpm workspace consistency
 pnpm test:docs             # Verify documentation links
@@ -317,10 +314,16 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 
 - Unit tests in `*.test.ts` files alongside source
 - Uses Vitest with happy-dom for DOM testing
-- Test coverage via `pnpm test:coverage`; the `Coverage` CI job runs
-  `pnpm test:coverage:check`, which fails when any package drops more than
-  0.5pp below the percentages committed in `coverage-baseline.json`. Re-baseline
-  intentional drops with `pnpm test:coverage:update`. See CONTRIBUTING.md.
+- **Coverage is CI-only.** Don't run it locally and don't add it to local
+  gates — it is deliberately absent from `test`, `test:pr`, `test:ci` and the
+  git hooks. The `Coverage` job on each PR runs `test:coverage:check`, which
+  fails when a package drops more than 0.5pp below the numbers committed in
+  `coverage-baseline.json`. There are no target percentages; each package's
+  current number is its own floor. When a drop is intentional, copy the
+  paste-ready JSON block the job prints into `coverage-baseline.json` — never
+  regenerate the baseline on a dev machine, the committed numbers are Linux
+  numbers and some packages measure differently per platform. See
+  CONTRIBUTING.md.
 - **E2E tests are mandatory** — see E2E Testing section below
 
 ### E2E Testing (REQUIRED)
