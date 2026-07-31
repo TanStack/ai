@@ -1,6 +1,9 @@
 import {
   GENERATION_EVENTS,
+  GENERATION_STREAM_TRUNCATED_MESSAGE,
+  GENERATION_UNRESTORABLE_RESULT_MESSAGE,
   clientStateFromResumeStatus,
+  createGenerationHydrationError,
   createGenerationResultSnapshot,
   parseGenerationResumeSnapshot,
   updateGenerationResumeSnapshot,
@@ -324,6 +327,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   /**
    * Process a stream of AG-UI events from the streaming connection adapter.
    * The server handles the polling loop and streams status updates.
+   *
+   * Throws {@link GENERATION_STREAM_TRUNCATED_MESSAGE} when the iteration ends
+   * without a terminal chunk — see the note on
+   * `GenerationClient.processStream`. Video runs are long enough that a proxy
+   * idle timeout mid-poll is the likeliest way to hit it.
    */
   private async processStream(
     source: AsyncIterable<StreamChunk>,
@@ -331,6 +339,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     signal: AbortSignal,
   ): Promise<void> {
     let streamRunId: string | undefined
+    let sawTerminalChunk = false
 
     for await (const chunk of source) {
       if (signal.aborted) break
@@ -375,6 +384,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         }
         case 'RUN_FINISHED': {
           streamRunId = chunk.runId
+          sawTerminalChunk = true
           this.devtoolsBridge.ensureRunStarted(chunk.runId)
           this.setStatus('success')
           break
@@ -394,6 +404,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           break
       }
     }
+
+    // An aborted read is a deliberate stop/dispose, not a truncation.
+    if (!sawTerminalChunk && !signal.aborted) {
+      throw new Error(GENERATION_STREAM_TRUNCATED_MESSAGE)
+    }
   }
 
   /**
@@ -412,8 +427,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
-    // A stopped run is no longer resumable. Without this, storage keeps a
-    // `running` snapshot forever and a reload would chase a dead run.
+    // A stopped run is no longer resumable. Without this the in-memory
+    // snapshot stays `running`, and a remount's `maybeResumeInFlight` would
+    // rejoin a run the user just cancelled.
     if (this.resumeSnapshot && this.resumeSnapshot.status === 'running') {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
@@ -425,8 +441,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   /**
-   * Clear all state and return to idle. Also clears the resume snapshot,
-   * removing any persisted record for this client id.
+   * Clear all state and return to idle. Also drops the client's in-memory
+   * resume snapshot, so a remount restores nothing. The server-side record is
+   * untouched — this client no longer writes one — so a full page reload under
+   * `persistence: true` re-hydrates the last generation again.
    */
   reset(): void {
     this.stop()
@@ -707,6 +725,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * video in `result` / `status` / `error` / `jobId`, never a snapshot object.
    * `isLoading` stays false (no auto-tail). Not re-persisted (it came from
    * storage / the server).
+   *
+   * A `complete` snapshot with no durable video artifact cannot be rebuilt, so
+   * it repaints as an error rather than a `success` with a `null` result — see
+   * the note on `GenerationClient.repaintFromSnapshot`.
    */
   private repaintFromSnapshot(snapshot: GenerationResumeSnapshot): void {
     this.resumeSnapshot = snapshot
@@ -723,7 +745,23 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     if (snapshot.result?.providerJobId)
       this.setJobId(snapshot.result.providerJobId)
     const restored = this.reconstructVideoResult(snapshot)
-    if (restored !== null) this.setResult(restored)
+    if (restored !== null) {
+      this.setResult(restored)
+    } else if (snapshot.status === 'complete') {
+      this.reportUnrestorableResult()
+    }
+  }
+
+  /**
+   * Report a `complete` snapshot with no durable video artifact to rebuild
+   * from. Runs after the status/error repaint above, so it wins over the
+   * snapshot's own `complete` status.
+   */
+  private reportUnrestorableResult(): void {
+    const error = new Error(GENERATION_UNRESTORABLE_RESULT_MESSAGE)
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.onError?.(error)
   }
 
   /**
@@ -843,6 +881,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     this.notifyResumeSnapshotChanged()
   }
 
+  /**
+   * Drop the client's in-memory snapshot and re-emit. Purely local — this
+   * client writes no storage, so nothing persisted is removed.
+   */
   private clearResumeSnapshot(): void {
     this.resumeSnapshot = undefined
     this.notifyResumeSnapshotChanged()
@@ -872,9 +914,13 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * Server-driven mount hydration (`persistence: true`). The client holds no
    * local snapshot; on mount it asks the server — keyed by the stable threadId —
    * for the last generation's resume snapshot, validates it, and repaints it. It
-   * never auto-starts a run. Best-effort and non-blocking: a failure leaves the
-   * client empty rather than throwing, and a `generate()` that starts first owns
-   * the client (hydration then backs off, mirroring the chat client).
+   * never auto-starts a run, and never blocks: a `generate()` that starts first
+   * owns the client and hydration backs off, mirroring the chat client.
+   *
+   * A genuine **miss** (no record for the thread) is silent; a genuine
+   * **failure** (transport error, authorize rejection, malformed body, a record
+   * the validator rejects) surfaces through `status` / `error` / `onError` — see
+   * the note on `GenerationClient.hydrateFromServer`.
    */
   private hydrateFromServer(): void {
     const hydrate =
@@ -886,18 +932,43 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       let res: GenerationHydrationResult
       try {
         res = await hydrate(this.threadId)
-      } catch {
+      } catch (cause) {
+        this.failHydration(
+          createGenerationHydrationError(
+            'the request to the server did not succeed',
+            cause,
+          ),
+        )
         return
       }
+      // No record for this thread — a fresh thread, not a failure.
       if (!res.resumeSnapshot) return
       const snapshot = parseGenerationResumeSnapshot(res.resumeSnapshot)
-      if (!snapshot) return
+      if (!snapshot) {
+        this.failHydration(
+          createGenerationHydrationError(
+            'the server returned a record this client cannot read (unknown schema version, or a missing/invalid `status` or `resumeState`)',
+          ),
+        )
+        return
+      }
       // Re-check: a send may have started while the fetch was in flight.
       if (this.resumeSnapshot || this.isLoading || this.status !== 'idle')
         return
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
+  }
+
+  /**
+   * Surface a hydration failure on the observable fields. Skipped when a
+   * `generate()` took ownership while the hydrate GET was in flight.
+   */
+  private failHydration(error: Error): void {
+    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.onError?.(error)
   }
 
   /**
@@ -935,9 +1006,13 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         )
       } catch (error) {
         if (!controller.signal.aborted) {
-          this.recordResumeSnapshotError(
-            error instanceof Error ? error : new Error(String(error)),
-          )
+          const failure =
+            error instanceof Error ? error : new Error(String(error))
+          // Settles `status`/`error` AND rewrites the snapshot to a terminal
+          // `error` with a null `resumeState`, so the next mount does not
+          // rejoin this run again.
+          this.recordResumeSnapshotError(failure)
+          this.callbacksRef.onError?.(failure)
         }
       } finally {
         // Only reset if this rejoin still owns the client: a `stop()` +

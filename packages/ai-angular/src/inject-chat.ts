@@ -127,9 +127,10 @@ export function injectChat<
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
     onRunIdChange: (nextRunId) => runId.set(nextRunId),
-    onResumeStateChange: (resumeState, pendingInterrupts) => {
-      options.onResumeStateChange?.(resumeState, pendingInterrupts)
-    },
+    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
+    // signal (via `onRunIdChange`) and pending interrupts arrive through
+    // `onInterruptStateChange`, so there is nothing left for it to do — and it
+    // is not a public option here, matching the other framework packages.
     onInterruptStateChange: (nextInterruptState) => {
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState)

@@ -3,7 +3,9 @@ import {
   EventType,
   generateAudio,
   generateImage,
+  generateSpeech,
   generateTranscription,
+  generateVideo,
 } from '@tanstack/ai'
 import { composePersistence, defineAIPersistence } from '../src/types'
 import { memoryPersistence } from '../src/memory'
@@ -21,8 +23,10 @@ import type {
   ImageAdapter,
   PersistedArtifactRef,
   StreamChunk,
+  TTSAdapter,
   TranscriptionAdapter,
   TranscriptionResult,
+  VideoAdapter,
 } from '@tanstack/ai'
 
 void (undefined as unknown as GenerationArtifactDescriptor)
@@ -92,6 +96,50 @@ function audioAdapter(): AudioAdapter<string> {
         duration: 1,
       },
     })),
+  }
+}
+
+/** `audio` is base64 rather than a media object — the `tts` shape. */
+function speechAdapter(format?: string): TTSAdapter<string> {
+  return {
+    kind: 'tts',
+    name: 'test-speech-provider',
+    model: 'test-speech-model',
+    '~types': { providerOptions: {} },
+    generateSpeech: vi.fn(async () => ({
+      id: 'speech-result',
+      model: 'test-speech-model',
+      // 'spoken-words'
+      audio: 'c3Bva2VuLXdvcmRz',
+      format: format ?? 'mp3',
+    })),
+  }
+}
+
+/** A video job that is already finished the first time it is polled. */
+function videoAdapter(url: string, expiresAt?: Date): VideoAdapter<string> {
+  return {
+    kind: 'video',
+    name: 'test-video-provider',
+    model: 'test-video-model',
+    '~types': {
+      providerOptions: {},
+      modelProviderOptionsByName: {},
+      modelSizeByName: {},
+      modelInputModalitiesByName: {},
+      modelDurationByName: {},
+    },
+    createVideoJob: vi.fn(async () => ({
+      jobId: 'video-job-1',
+      model: 'test-video-model',
+    })),
+    getVideoStatus: vi.fn(async () => ({
+      jobId: 'video-job-1',
+      status: 'completed' as const,
+    })),
+    getVideoUrl: vi.fn(async () => ({ jobId: 'video-job-1', url, expiresAt })),
+    availableDurations: () => ({ kind: 'none' }),
+    snapDuration: () => undefined,
   }
 }
 
@@ -414,7 +462,7 @@ describe('withGenerationPersistence generation artifacts', () => {
         'thread-latest',
       )
     expect(latest?.runId).toBe('run-latest-1')
-    expect(latest?.status).toBe('complete')
+    expect(latest?.status).toBe('completed')
   })
 
   it('records an error job when generation throws', async () => {
@@ -706,6 +754,140 @@ describe('withGenerationPersistence generation artifacts', () => {
     )
     await expect(blob?.text()).resolves.toContain('"segments"')
   })
+
+  it('persists tts output and derives its mime type from the format', async () => {
+    const persistence = memoryPersistence()
+
+    const result = await generateSpeech({
+      adapter: speechAdapter('wav'),
+      text: 'hello there',
+      threadId: 'thread-tts',
+      runId: 'run-tts',
+      middleware: [
+        withGenerationPersistence(persistence, { threadId: 'thread-tts' }),
+      ],
+    })
+
+    expect(result.artifacts).toHaveLength(1)
+    const speech = result.artifacts![0]!
+    expect(speech).toMatchObject({
+      role: 'output',
+      // No `contentType` on the result, so the mime type comes from `format`.
+      mimeType: 'audio/wav',
+      size: 12,
+      source: { activity: 'tts', path: 'audio', mediaType: 'audio' },
+    })
+    const blob = await persistence.stores.blobs!.get(
+      `artifacts/run-tts/${speech.artifactId}`,
+    )
+    await expect(blob?.text()).resolves.toBe('spoken-words')
+
+    const job = await persistence.stores.generationRuns.get('run-tts')
+    expect(job).toMatchObject({ activity: 'tts', status: 'completed' })
+    expect(job?.artifacts?.[0]?.artifactId).toBe(speech.artifactId)
+  })
+
+  it('falls back to audio/mpeg when the tts result names no format', async () => {
+    const persistence = memoryPersistence()
+    const adapter = speechAdapter()
+    adapter.generateSpeech = vi.fn(async () => ({
+      id: 'speech-result',
+      model: 'test-speech-model',
+      audio: 'c3Bva2VuLXdvcmRz',
+      format: '',
+    }))
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'hello there',
+      threadId: 'thread-tts-default',
+      runId: 'run-tts-default',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-tts-default',
+        }),
+      ],
+    })
+
+    expect(result.artifacts?.[0]).toMatchObject({ mimeType: 'audio/mpeg' })
+  })
+
+  it('persists a video output by fetching the provider url', async () => {
+    const persistence = memoryPersistence()
+    const expiresAt = new Date('2030-01-01T00:00:00.000Z')
+    const artifactFetch = vi.fn(
+      async () => new Response('video-bytes', { status: 200 }),
+    )
+
+    const chunks = await collect(
+      generateVideo({
+        adapter: videoAdapter('https://cdn.example.com/out.mp4', expiresAt),
+        prompt: 'make a video',
+        stream: true,
+        pollingInterval: 0,
+        threadId: 'thread-video',
+        runId: 'run-video',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-video',
+            artifactFetch,
+          }),
+        ],
+      }),
+    )
+
+    const resultChunk = chunks.find(
+      (chunk) =>
+        chunk.type === EventType.CUSTOM && chunk.name === 'generation:result',
+    )
+    const value = (
+      resultChunk as { value: { artifacts?: Array<PersistedArtifactRef> } }
+    ).value
+    expect(value.artifacts).toHaveLength(1)
+    const video = value.artifacts![0]!
+    expect(video).toMatchObject({
+      role: 'output',
+      mimeType: 'video/mp4',
+      sourceUrl: 'https://cdn.example.com/out.mp4',
+      source: {
+        activity: 'video',
+        path: 'video',
+        mediaType: 'video',
+        // The provider job id and expiry ride along on the ref, so a restored
+        // result can still tell how long the original link was good for.
+        jobId: 'video-job-1',
+        expiresAt: expiresAt.toISOString(),
+      },
+    })
+
+    const blob = await persistence.stores.blobs!.get(
+      `artifacts/run-video/${video.artifactId}`,
+    )
+    await expect(blob?.text()).resolves.toBe('video-bytes')
+
+    const job = await persistence.stores.generationRuns.get('run-video')
+    expect(job).toMatchObject({ activity: 'video', status: 'completed' })
+    expect(job?.artifacts?.[0]?.artifactId).toBe(video.artifactId)
+  })
+
+  it('throws when no threadId is available', async () => {
+    const persistence = memoryPersistence()
+
+    await expect(
+      generateImage({
+        adapter: imageAdapter(),
+        prompt: 'make an image',
+        runId: 'run-unscoped',
+        // Neither the activity nor the options names a scope.
+        middleware: [withGenerationPersistence(persistence)],
+      }),
+    ).rejects.toThrow(/Generation persistence requires a `threadId`/)
+
+    // The run is refused outright rather than filed somewhere unhydratable.
+    expect(
+      await persistence.stores.generationRuns.get('run-unscoped'),
+    ).toBeNull()
+  })
 })
 
 describe('artifact URL fetching', () => {
@@ -915,5 +1097,109 @@ describe('artifact URL fetching', () => {
         ],
       }),
     ).rejects.toThrow(/exceeds maxArtifactBytes/)
+  })
+
+  it('caps a chunked body that declares no content-length', async () => {
+    const persistence = memoryPersistence()
+    const encoder = new TextEncoder()
+    // No `content-length`, so the advisory header check cannot catch this and
+    // the cap has to fire while the body drains. The first chunk is under the
+    // limit; the running total only crosses it on the second.
+    const artifactFetch = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(encoder.encode('x'.repeat(8)))
+              controller.enqueue(encoder.encode('y'.repeat(8)))
+              controller.close()
+            },
+          }),
+          { status: 200 },
+        ),
+    )
+
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/chunked.png'),
+        prompt: 'make an image',
+        threadId: 'thread-chunked',
+        runId: 'run-chunked',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-chunked',
+            artifactFetch,
+            maxArtifactBytes: 10,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/exceeds maxArtifactBytes/)
+
+    const job = await persistence.stores.generationRuns.get('run-chunked')
+    expect(job).toMatchObject({ status: 'failed' })
+    expect(job?.artifacts).toBeUndefined()
+  })
+
+  it('fails the run when the provider CDN 404s', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = vi.fn(
+      async () => new Response('gone', { status: 404 }),
+    )
+
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/missing.png'),
+        prompt: 'make an image',
+        threadId: 'thread-404',
+        runId: 'run-404',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-404',
+            artifactFetch,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/HTTP 404/)
+
+    const job = await persistence.stores.generationRuns.get('run-404')
+    expect(job).toMatchObject({ status: 'failed' })
+  })
+
+  it('refuses to follow a redirect on an approved input URL', async () => {
+    const persistence = memoryPersistence()
+    // `redirect: 'manual'` hands the 3xx back rather than chasing it, because
+    // the hop target is a host neither allowInputUrl nor the internal-host
+    // block ever saw.
+    let init: RequestInit | undefined
+    const artifactFetch = vi.fn(
+      async (_input: RequestInfo | URL, options?: RequestInit) => {
+        init = options
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+        })
+      },
+    )
+
+    await expect(
+      generateImage({
+        adapter: imageAdapter(),
+        prompt: urlPrompt('https://cdn.example.com/pixel.png'),
+        threadId: 'thread-redirect',
+        runId: 'run-redirect',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-redirect',
+            artifactFetch,
+            allowInputUrl: ({ url }) => url.hostname === 'cdn.example.com',
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/Refusing to follow a redirect for input artifact/)
+
+    expect(artifactFetch).toHaveBeenCalledTimes(1)
+    // Without this the redirect is chased before anything can inspect the hop
+    // target, and the 3xx check above never gets a 3xx to see.
+    expect(init?.redirect).toBe('manual')
   })
 })

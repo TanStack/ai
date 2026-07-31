@@ -4,7 +4,10 @@ import {
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { reconstructGeneration } from '@tanstack/ai-persistence'
+import {
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
 import { openaiSummarize } from '@tanstack/ai-openai'
 import { replayGenerationIfResuming } from '../lib/generation-durability'
 import { generationServerPersistence } from '../lib/generation-server-store'
@@ -46,10 +49,6 @@ export const Route = createFileRoute('/api/summarize')({
           )
         }
 
-        // Note: `summarize()` does not yet accept generation middleware, so
-        // completed-run records are not written here. Delivery durability below
-        // still covers mid-run rejoin; mount hydration restores only when a run
-        // record exists (e.g. once summarize gains middleware support).
         const stream = summarize({
           adapter: openaiSummarize(model ?? 'gpt-5.5'),
           text,
@@ -58,6 +57,12 @@ export const Route = createFileRoute('/api/summarize')({
           stream: true,
           ...(runId ? { runId } : {}),
           threadId,
+          // Writes the run record. Summarize has no media, so no artifact
+          // stores are needed — the record alone is what mount hydration
+          // repaints the last summary from.
+          middleware: [
+            withGenerationPersistence(generationServerPersistence()),
+          ],
         })
 
         // Delivery durability: chunks are logged and id-tagged, so a mount-time

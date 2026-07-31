@@ -258,6 +258,10 @@ function generationContext(requestId: string): GenerationMiddlewareContext {
     source: 'server',
     createId: (prefix) => `${prefix}-1`,
     context: undefined,
+    // Required on the context: middleware registers result transforms by
+    // pushing onto it, so a context without the array would silently no-op
+    // both the artifact capture and the run-record result write.
+    resultTransforms: [],
   }
 }
 
@@ -282,7 +286,7 @@ describe('generation persistence error/abort hooks', () => {
     ).rejects.toThrow('image boom')
 
     const job = await persistence.stores.generationRuns.get(requestId)
-    expect(job?.status).toBe('error')
+    expect(job?.status).toBe('failed')
     expect(job?.error).toEqual({ message: 'image boom' })
   })
 
@@ -306,7 +310,7 @@ describe('generation persistence error/abort hooks', () => {
     ).rejects.toBeDefined()
 
     const job = await persistence.stores.generationRuns.get(requestId)
-    expect(job?.status).toBe('error')
+    expect(job?.status).toBe('failed')
     expect(job?.error).toEqual({ message: 'image string failure' })
   })
 
@@ -358,7 +362,7 @@ describe('generation persistence error/abort hooks', () => {
     await middleware.onError?.(generationContext('req-err'), errorInfo)
 
     const job = await persistence.stores.generationRuns.get('req-err')
-    expect(job?.status).toBe('error')
+    expect(job?.status).toBe('failed')
     expect(job?.error).toEqual({ message: '[object Object]' })
   })
 })

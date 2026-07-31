@@ -1,4 +1,5 @@
 import { injectGeneration } from './inject-generation'
+import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { TTSResult } from '@tanstack/ai'
 import type {
@@ -53,6 +54,7 @@ export function injectGenerateSpeech<TTransformed = void>(
   >({
     ...options,
     devtools,
+    reconstructResult: reconstructSpeechResult,
   })
   return generation
 }

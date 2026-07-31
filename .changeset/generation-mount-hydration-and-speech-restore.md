@@ -1,6 +1,10 @@
 ---
 '@tanstack/ai-client': patch
 '@tanstack/ai-react': patch
+'@tanstack/ai-solid': patch
+'@tanstack/ai-vue': patch
+'@tanstack/ai-svelte': patch
+'@tanstack/ai-angular': patch
 ---
 
 Fix generation mount hydration to run in the commit phase, and restore TTS
@@ -18,7 +22,11 @@ results.
   `mountDevtools()` rather than the constructor, so call `mountDevtools()` (as
   every framework hook does on mount) to trigger a server/storage restore;
   `generate()` still triggers it too.
-- New `reconstructSpeechResult` mapper, wired into `useGenerateSpeech`. A
+- New `reconstructSpeechResult` mapper, wired into the speech hook of **every**
+  framework package — `useGenerateSpeech` (React, Solid, Vue),
+  `createGenerateSpeech` (Svelte) and `injectGenerateSpeech` (Angular). A
   restored `TTSResult` carries no base64 bytes (they live in the blob store), so
   it surfaces the durable serve URL through `result.artifacts`; the speech clip
-  now repaints after a reload instead of showing status only.
+  now repaints after a reload instead of showing status only. Previously only
+  React was wired, so a restored TTS run on the other four repainted
+  `status`/`error` but left `result` null.

@@ -62,7 +62,54 @@ export type InferGenerationOutput<TResult, TFn> = TFn extends (
  */
 export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
 
+/**
+ * Status of a persisted/restored generation run.
+ *
+ * `running` / `complete` / `error` are the three the server-side mapper emits
+ * over the wire. `idle` is client-local only: it seeds a hand-written
+ * `initialResumeSnapshot`, and `stop()` rewrites a `running` snapshot to it so
+ * a cancelled run is no longer resumable.
+ */
 export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
+
+/**
+ * Thrown when a generation stream ends without a terminal `RUN_FINISHED` /
+ * `RUN_ERROR` chunk — a proxy/load-balancer idle timeout, a server restart
+ * mid-run, or a durable log whose terminal append never landed. The run's
+ * outcome is unknowable from the client, so it settles as an error rather than
+ * leaving the client stuck on `generating` forever.
+ */
+export const GENERATION_STREAM_TRUNCATED_MESSAGE =
+  'The generation stream ended before the run finished (no RUN_FINISHED or RUN_ERROR was received) — the connection was interrupted. Generate again to retry.'
+
+/**
+ * Reported when a restored snapshot says the run completed but the activity's
+ * `reconstructResult` mapper cannot rebuild a result from it — typically an
+ * output artifact persisted without a serve `url`. Surfacing it beats a
+ * `success` status with a `null` result, which no consumer can render.
+ */
+export const GENERATION_UNRESTORABLE_RESULT_MESSAGE =
+  'The stored generation completed but its result could not be rebuilt from the persisted record (its output artifact carries no serve URL, or the fields this activity needs were not persisted). Generate again to produce a fresh result.'
+
+/**
+ * Wrap a mount-hydration failure with context. Genuine failures (transport
+ * error, a 403 from the authorize gate, an unparseable body, a record the
+ * client's validator rejects) must reach the app; only a genuine miss — the
+ * server reporting no record for the thread — stays silent.
+ */
+export function createGenerationHydrationError(
+  detail: string,
+  cause?: unknown,
+): Error {
+  const suffix = cause instanceof Error ? `: ${cause.message}` : ''
+  const error = new Error(
+    `[TanStack AI] Restoring the last generation for this thread failed — ${detail}${suffix}`,
+  )
+  if (cause !== undefined) {
+    error.cause = cause
+  }
+  return error
+}
 
 /**
  * Map a persisted resume status to the client's live state machine on restore:

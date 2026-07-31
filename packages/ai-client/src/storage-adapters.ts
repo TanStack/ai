@@ -1,4 +1,4 @@
-import type { ChatStorageAdapter } from './types'
+import type { ChatPersistedState, ChatStorageAdapter } from './types'
 
 export interface WebStoragePersistenceOptions<TValue> {
   keyPrefix?: string
@@ -88,12 +88,12 @@ function createWebStoragePersistence<TValue>(
  * adapter can be constructed safely on the server.
  *
  * The `serialize` / `deserialize` codec defaults to `JSON.stringify` /
- * `JSON.parse`, so the common case needs no codec. A bare call works for both
- * the chat and generation `persistence` options with no type argument; pass an
- * explicit `TValue` only when you want a standalone store's own read/write
- * typed to a specific shape.
+ * `JSON.parse`, so the common case needs no codec. `TValue` defaults to the
+ * chat persisted-state shape — the only `persistence` option that takes an
+ * adapter — so `localStoragePersistence()` needs no type argument. Pass an
+ * explicit `TValue` for a standalone store holding something else.
  */
-export function localStoragePersistence<TValue = any>(
+export function localStoragePersistence<TValue = ChatPersistedState>(
   options: WebStoragePersistenceOptions<TValue> = {},
 ): ChatStorageAdapter<TValue> {
   return createWebStoragePersistence('localStorage', options)
@@ -102,12 +102,11 @@ export function localStoragePersistence<TValue = any>(
 /**
  * A `ChatStorageAdapter` backed by `window.sessionStorage` (scoped to the tab
  * and cleared when it closes). Identical to {@link localStoragePersistence} in
- * every other respect: a bare call works for both chat and generation
- * `persistence` options with no type argument, `tanstack-ai:` default
- * `keyPrefix`, lazy per-operation {@link StorageUnavailableError} on SSR, and a
- * JSON codec that defaults to `JSON.stringify` / `JSON.parse`.
+ * every other respect: chat persisted-state default `TValue`, `tanstack-ai:`
+ * default `keyPrefix`, lazy per-operation {@link StorageUnavailableError} on
+ * SSR, and a JSON codec that defaults to `JSON.stringify` / `JSON.parse`.
  */
-export function sessionStoragePersistence<TValue = any>(
+export function sessionStoragePersistence<TValue = ChatPersistedState>(
   options: WebStoragePersistenceOptions<TValue> = {},
 ): ChatStorageAdapter<TValue> {
   return createWebStoragePersistence('sessionStorage', options)
@@ -122,10 +121,10 @@ export function sessionStoragePersistence<TValue = any>(
  *
  * No serialize/deserialize codec is needed or accepted — values are stored via
  * IndexedDB's native structured clone, so `Date`, `Map`, `ArrayBuffer`, etc.
- * round-trip without a JSON step. A bare call works for both chat and
- * generation `persistence` options with no type argument.
+ * round-trip without a JSON step. `TValue` defaults to the chat persisted-state
+ * shape; pass an explicit one for a standalone store holding something else.
  */
-export function indexedDBPersistence<TValue = any>(
+export function indexedDBPersistence<TValue = ChatPersistedState>(
   options: IndexedDBPersistenceOptions = {},
 ): ChatStorageAdapter<TValue> {
   const databaseName = options.databaseName ?? 'tanstack-ai'

@@ -1296,4 +1296,65 @@ describe('connection-adapters', () => {
       expect(adapter.joinRun).toBeUndefined()
     })
   })
+
+  describe('hydrateGeneration', () => {
+    function jsonFetch(body: unknown): ReturnType<typeof vi.fn> {
+      return vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => body,
+      }))
+    }
+
+    it('maps a populated body to the hydration result', async () => {
+      const fetchClient = jsonFetch({
+        resumeSnapshot: {
+          schemaVersion: 1,
+          resumeState: { threadId: 't1', runId: 'r1' },
+          status: 'running',
+        },
+        activeRun: { runId: 'r1' },
+      })
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: fetchClient as unknown as typeof fetch,
+      })
+
+      const result = await adapter.hydrateGeneration!('t1')
+
+      expect(result.activeRun).toEqual({ runId: 'r1' })
+      expect(result.resumeSnapshot).toMatchObject({ status: 'running' })
+      expect(fetchClient.mock.calls[0]![0]).toContain('threadId=t1')
+    })
+
+    it('treats a 200 carrying null as a genuine miss', async () => {
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch(null) as unknown as typeof fetch,
+      })
+
+      await expect(adapter.hydrateGeneration!('t1')).resolves.toEqual({
+        resumeSnapshot: null,
+        activeRun: null,
+      })
+    })
+
+    it('rejects a non-object body instead of reporting a fresh thread', async () => {
+      // A route returning a string/array is misconfigured, not empty. Mapping
+      // it to a miss would hide a broken endpoint behind an empty-looking UI.
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch('not json') as unknown as typeof fetch,
+      })
+
+      await expect(adapter.hydrateGeneration!('t1')).rejects.toThrow(
+        /expected a JSON object/,
+      )
+
+      const arrayAdapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch([]) as unknown as typeof fetch,
+      })
+
+      await expect(arrayAdapter.hydrateGeneration!('t1')).rejects.toThrow(
+        /an array/,
+      )
+    })
+  })
 })

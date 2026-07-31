@@ -250,6 +250,37 @@ describe('createGeneration', () => {
       // The persisted snapshot remains exposed as read-only state.
       expect(gen.runId).toBe(snapshot.resumeState?.runId)
     })
+
+    it('repaints a hydrated running snapshot with no joinRun as an interrupted error on setup', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter([])
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+          status: 'running' as const,
+        },
+        activeRun: null,
+      }))
+      const gen = createGeneration({
+        threadId: 'running-hydrate',
+        // No `joinRun`, so the restored run cannot be tailed.
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      })
+
+      await flushAsync()
+
+      expect(hydrateGeneration).toHaveBeenCalledWith('running-hydrate')
+      // Without a `joinRun` handler the restored run cannot be tailed, so it
+      // surfaces as an interrupted error instead of a `generating` status that
+      // would never settle.
+      expect(gen.error?.message).toMatch(/interrupted/)
+      expect(gen.status).toBe('error')
+      expect(gen.isLoading).toBe(false)
+      expect(gen.runId).toBeNull()
+      // Hydration only surfaces state; it never restarts the run.
+      expect(connect).not.toHaveBeenCalled()
+    })
   })
 
   describe('stop and reset', () => {
@@ -507,6 +538,63 @@ describe('createGenerateSpeech', () => {
     expect(gen.result).toBeNull()
     expect(gen.error).toBeUndefined()
     expect(gen.status).toBe('idle')
+  })
+
+  it('restores a completed TTS result from a durable artifact url', async () => {
+    // createGenerateSpeech injects `reconstructSpeechResult`. `TTSResult.audio`
+    // is a bare base64 string that persistence never stores, so the restored
+    // clip is served from `artifacts[0].url` and `audio` stays empty.
+    const artifact: PersistedArtifactRef = {
+      role: 'output',
+      artifactId: 'artifact-speech-1',
+      threadId: 'thread-tts',
+      runId: 'run-tts',
+      name: 'speech.mp3',
+      mimeType: 'audio/mpeg',
+      size: 4096,
+      createdAt: '2026-07-06T00:00:00.000Z',
+      url: '/api/artifacts/artifact-speech-1',
+      source: {
+        activity: 'tts',
+        path: 'runs/run-tts/speech.mp3',
+        provider: 'test',
+        model: 'test-tts',
+        mediaType: 'audio',
+      },
+    }
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
+        resumeState: null,
+        status: 'complete' as const,
+        activity: 'tts' as const,
+        result: {
+          id: 'tts-restored',
+          model: 'test-tts',
+          artifacts: [artifact],
+        },
+      },
+      activeRun: null,
+    }))
+
+    const gen = createGenerateSpeech({
+      threadId: 'tts-hydrate',
+      connection: { ...createMockConnectionAdapter(), hydrateGeneration },
+      persistence: true,
+    })
+
+    await flushAsync()
+
+    expect(gen.status).toBe('success')
+    expect(gen.result).toEqual({
+      id: 'tts-restored',
+      model: 'test-tts',
+      audio: '',
+      format: 'mpeg',
+      contentType: 'audio/mpeg',
+      artifacts: [artifact],
+    })
+    expect(gen.runId).toBeNull()
   })
 })
 

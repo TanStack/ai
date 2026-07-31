@@ -3,6 +3,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
   Code2,
+  Database,
   FileAudio,
   FileText,
   Github,
@@ -179,6 +180,13 @@ function Messages({
             >
               <Video size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Video</span>
+            </Link>
+            <Link
+              to="/generations/persistent-generation"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Database size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Persistence</span>
             </Link>
             <Link
               to="/generations/structured-output"

@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { injectGeneration } from '../src/inject-generation'
 import { injectGenerateVideo } from '../src/inject-generate-video'
 import { injectGenerateImage } from '../src/inject-generate-image'
+import { injectGenerateSpeech } from '../src/inject-generate-speech'
 import type { PersistedArtifactRef, StreamChunk } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
@@ -66,6 +67,22 @@ function renderInjectGenerateImage(options: any) {
   @Component({ standalone: true, template: '' })
   class Host {
     gen = injectGenerateImage(options)
+  }
+  const fixture = TestBed.createComponent(Host)
+  fixture.detectChanges()
+  return {
+    get result() {
+      return fixture.componentInstance.gen
+    },
+    flush: () => fixture.detectChanges(),
+    destroy: () => fixture.destroy(),
+  }
+}
+
+function renderInjectGenerateSpeech(options: any) {
+  @Component({ standalone: true, template: '' })
+  class Host {
+    gen = injectGenerateSpeech(options)
   }
   const fixture = TestBed.createComponent(Host)
   fixture.detectChanges()
@@ -273,6 +290,67 @@ describe('injectGenerateImage', () => {
       id: 'img-restored',
       model: 'test-image',
       images: [{ url: '/api/artifacts/artifact-image-1' }],
+      artifacts: [artifact],
+    })
+    expect(result.runId()).toBeNull()
+  })
+})
+
+describe('injectGenerateSpeech', () => {
+  it('restores a completed TTS result from a durable artifact url', async () => {
+    // injectGenerateSpeech injects `reconstructSpeechResult`. `TTSResult.audio`
+    // is a bare base64 string that persistence never stores, so the restored
+    // clip is served from `artifacts[0].url` and `audio` stays empty.
+    const artifact: PersistedArtifactRef = {
+      role: 'output',
+      artifactId: 'artifact-speech-1',
+      threadId: 'thread-tts',
+      runId: 'run-tts',
+      name: 'speech.mp3',
+      mimeType: 'audio/mpeg',
+      size: 4096,
+      createdAt: '2026-07-06T00:00:00.000Z',
+      url: '/api/artifacts/artifact-speech-1',
+      source: {
+        activity: 'tts',
+        path: 'runs/run-tts/speech.mp3',
+        provider: 'test',
+        model: 'test-tts',
+        mediaType: 'audio',
+      },
+    }
+    const { adapter, connect } = createRunContextCaptureAdapter([])
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
+        resumeState: null,
+        status: 'complete' as const,
+        activity: 'tts' as const,
+        result: {
+          id: 'tts-restored',
+          model: 'test-tts',
+          artifacts: [artifact],
+        },
+      },
+      activeRun: null,
+    }))
+    const { result } = renderInjectGenerateSpeech({
+      threadId: 'tts-hydrate',
+      connection: { ...adapter, hydrateGeneration },
+      persistence: true,
+    })
+
+    await flushPromises()
+
+    expect(hydrateGeneration).toHaveBeenCalledWith('tts-hydrate')
+    expect(result.status()).toBe('success')
+    expect(connect).not.toHaveBeenCalled()
+    expect(result.result()).toEqual({
+      id: 'tts-restored',
+      model: 'test-tts',
+      audio: '',
+      format: 'mpeg',
+      contentType: 'audio/mpeg',
       artifacts: [artifact],
     })
     expect(result.runId()).toBeNull()

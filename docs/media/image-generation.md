@@ -247,7 +247,7 @@ import { createOpenaiImage } from '@tanstack/ai-openai/adapters'
 
 // Opt into downloading + buffering HTTP(S) URL image inputs (server runtimes
 // with headroom). data: URIs always work without this flag.
-const adapter = createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
+const adapter = createOpenaiImage('gpt-image-2', apiKey, { allowUrlFetch: true })
 ```
 
 The same `allowUrlFetch` option exists on `createOpenaiVideo` and

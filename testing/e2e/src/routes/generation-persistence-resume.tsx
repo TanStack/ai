@@ -21,7 +21,6 @@ export const Route = createFileRoute('/generation-persistence-resume')({
 
 function GenerationPersistenceResumePage() {
   const image = useGenerateImage({
-    id: 'generation-resume',
     threadId: THREAD_ID,
     connection,
     persistence: true,

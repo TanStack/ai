@@ -266,19 +266,19 @@
           "label": "Generation Persistence",
           "to": "persistence/generation-persistence",
           "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Keep Generated Files",
           "to": "persistence/keep-generated-files",
           "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-07-25"
         },
         {
           "label": "Build Your Own Adapter",
@@ -453,7 +453,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-06-17"
+          "updatedAt": "2026-07-31"
         }
       ]
     },
@@ -636,7 +636,7 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Sampling \u2192 modelOptions",
+          "label": "Sampling → modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }

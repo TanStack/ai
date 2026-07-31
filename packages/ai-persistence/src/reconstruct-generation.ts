@@ -116,13 +116,18 @@ export interface GetGenerationHydrationOptions {
  * a client's `hydrateGeneration` handler without fabricating a `Request`:
  *
  * ```ts
- * export const getImageHydrationFn = createServerFn({ method: 'GET' })
- *   .inputValidator((threadId: string) => threadId)
- *   .handler(async ({ data: threadId }) => {
- *     // Do your own auth here — this helper does not enforce tenancy.
- *     return getGenerationHydration(persistence, threadId)
- *   })
+ * async function loadImageHydration({ data: threadId }: { data: string }) {
+ *   // Do your own auth here — this helper does not enforce tenancy.
+ *   return await getGenerationHydration(persistence, threadId)
+ * }
  * ```
+ *
+ * Wire that body up as the server function's handler — build it with
+ * `createServerFn({ method: 'GET' })`, add an `inputValidator` that returns
+ * the thread id, then hand it the function above. (The chained call is shown
+ * split apart on purpose: Start's server-fn plugin decides which modules to
+ * transform by scanning source text for that call, and a package whose shipped
+ * comments contain it gets pulled into the transform.)
  *
  * ⚠️ Unlike {@link reconstructGeneration} this helper takes **no** `authorize`
  * option — there is no `Request` to authorize against. Server-function callers
@@ -171,7 +176,7 @@ export async function getGenerationHydration(
  * ({@link ReconstructedGeneration}):
  *
  * - Resolves the run by `runId` via `stores.generationRuns.get`, else the
- *   latest run linked to `threadId` via the optional
+ *   latest run filed under `threadId` via the required
  *   `stores.generationRuns.findLatestForThread`.
  * - `resumeSnapshot` — the run mapped to a client snapshot (status, result,
  *   error, activity, and a `resumeState` cursor while still running), or `null`.

@@ -36,9 +36,6 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
    * - `true`: server-driven — on mount the client hydrates the last generation
    *   for its `threadId` from the server (needs a connection with a
    *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
-   * - a storage adapter: client-driven — the lightweight snapshot is cached under
-   *   `generation:<threadId>` as a run streams and read back on mount. Media bytes are
-   *   never stored.
    */
   persistence?: boolean
   /**
@@ -46,10 +43,10 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
    * slot successive runs fill — not a link to a chat conversation.
    *
    * The hook starts empty and produces many runs over its life; each gets its
-   * own `runId`, but all belong to one scope. Persistence keys on this in both
-   * modes, so derive it from your own domain and keep it identical across
-   * reloads (e.g. `` `video-${videoId}-start-frame` ``). It is also sent as the
-   * AG-UI thread id on the wire, which the protocol requires.
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
    * scope has nothing to restore to. Optional for ephemeral generations, where

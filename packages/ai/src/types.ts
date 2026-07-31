@@ -2323,6 +2323,12 @@ export interface VideoJobResult {
   jobId: string
   /** Model used for generation */
   model: string
+  /**
+   * Durable artifact references, when generation persistence with an artifact +
+   * blob store is wired. A submission has no video yet, so this only carries
+   * refs for persisted prompt INPUTS (e.g. a start frame).
+   */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

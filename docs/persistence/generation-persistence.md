@@ -146,7 +146,6 @@ const connection = fetchServerSentEvents('/api/generate/image')
 
 export function HeroImageGenerator({ threadId }: { threadId: string }) {
   const image = useGenerateImage({
-    id: 'hero-image',
     threadId,
     connection,
     persistence: true,
@@ -220,11 +219,14 @@ in-flight run — and pass them as options alongside the `fetcher` (or to
 
 Three server functions cover it: one runs the generation, one answers
 hydration with `getGenerationHydration`, and one replays the run's durability
-log with `replayRunStream`:
+log with `replayRunStream`. Both streaming functions return the same thing —
+an SSE `Response` from `toServerSentEventsResponse` — so the client decodes
+them the same way:
 
 ```ts group=generation-server-functions
 // server/image.ts
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 import {
   generateImage,
   memoryStream,
@@ -268,41 +270,105 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     })
   })
 
+/**
+ * The wire shape for mount hydration, parsed with Zod so that:
+ * - TanStack Start gets a JSON-serializable return type (the run record's
+ *   `result` is loosely typed, and Start's serializer rejects `unknown`)
+ * - the stored record is validated before it crosses the wire
+ */
+const hydrationSchema = z.object({
+  resumeSnapshot: z
+    .object({
+      schemaVersion: z.literal(1),
+      resumeState: z
+        .object({ threadId: z.string(), runId: z.string() })
+        .nullable(),
+      status: z.enum(['idle', 'running', 'complete', 'error']),
+      // `z.any()` (not `z.unknown()`) so Start's serializer accepts the values.
+      result: z.record(z.string(), z.any()).optional(),
+      error: z
+        .object({ message: z.string(), code: z.string().optional() })
+        .optional(),
+      activity: z.string().optional(),
+    })
+    .nullable(),
+  activeRun: z.object({ runId: z.string() }).nullable(),
+})
+
 export const getImageHydrationFn = createServerFn({ method: 'GET' })
-  .inputValidator((threadId: string) => threadId)
+  .inputValidator(z.string().min(1))
   .handler(async ({ data: threadId }) => {
     // `getGenerationHydration` does no auth — gate on your session here, the
-    // way you would pass `authorize` to `reconstructGeneration`. The hydration
-    // crosses the wire as JSON, so return it in a `Response`.
-    return Response.json(await getGenerationHydration(persistence, threadId))
+    // way you would pass `authorize` to `reconstructGeneration`.
+    return hydrationSchema.parse(
+      await getGenerationHydration(persistence, threadId),
+    )
   })
 
 export const joinImageRunFn = createServerFn({ method: 'GET' })
-  .inputValidator((runId: string) => runId)
-  .handler(({ data: runId }) => replayRunStream(memoryStream({ runId })))
+  .inputValidator(z.string().min(1))
+  .handler(({ data: runId }) =>
+    // Same SSE envelope `generateImageFn` returns, so one client-side decoder
+    // covers both.
+    toServerSentEventsResponse(replayRunStream(memoryStream({ runId }))),
+  )
 ```
 
 On the client, pass the two handlers next to the `fetcher`. A reload now
 hydrates the last run through `getImageHydrationFn`, and a run still
-generating is tailed to completion through `joinImageRunFn`:
+generating is tailed to completion through `joinImageRunFn`. `joinRun` yields
+`StreamChunk`s rather than a `Response`, so decode the SSE body yourself and
+apply the `signal` there — the server function itself takes only its `data`:
 
 ```tsx
 import { useGenerateImage } from '@tanstack/ai-react'
+import type { StreamChunk } from '@tanstack/ai'
 import {
   generateImageFn,
   getImageHydrationFn,
   joinImageRunFn,
 } from './server/image'
 
+/** Decode an SSE `Response` from a server function into `StreamChunk`s. */
+async function* chunksFromSseResponse(
+  response: Response,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  if (!response.ok) throw new Error(`Join failed: ${response.status}`)
+  const reader = response.body?.getReader()
+  if (!reader) return
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (!signal?.aborted) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trimStart()
+        // `JSON.parse` returns the chunk the server encoded.
+        if (data) yield JSON.parse(data)
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export function HeroImageGenerator({ threadId }: { threadId: string }) {
   const image = useGenerateImage({
-    id: 'hero-image',
     threadId,
     fetcher: (input) => generateImageFn({ data: { ...input, threadId } }),
-    hydrateGeneration: async (id) =>
-      (await getImageHydrationFn({ data: id })).json(),
+    hydrateGeneration: (id) => getImageHydrationFn({ data: id }),
     joinRun: async function* (runId, signal) {
-      yield* await joinImageRunFn({ data: runId, signal })
+      const response = await joinImageRunFn({ data: runId })
+      if (!(response instanceof Response)) {
+        throw new Error('joinImageRunFn should return an SSE Response')
+      }
+      yield* chunksFromSseResponse(response, signal)
     },
     persistence: true,
   })
@@ -310,6 +376,10 @@ export function HeroImageGenerator({ threadId }: { threadId: string }) {
   return <p>{image.status}</p>
 }
 ```
+
+A non-streaming `fetcher` (a plain `Promise<ImageGenerationResult>` rather than
+an SSE `Response`) has no in-flight stream to rejoin, so it needs only
+`hydrateGeneration` — drop `joinRun` and the decoder with it.
 
 A restored run that was still generating but has **no** `joinRun` handler to
 tail it surfaces as an interrupted error — it cannot be resumed, only re-run —
@@ -333,6 +403,49 @@ Two things to keep in mind, whichever wiring you used:
   `error` while `result` stays `null`. Add byte storage and `artifactUrl`
   ([Keep generated files](./keep-generated-files)) and the restored `result` is
   rebuilt, its media served from your own origin.
+
+## Non-streaming video is two calls
+
+`generateVideo({ stream: true })` runs the whole create → poll → complete
+lifecycle inside one call, so persistence sees one run and nothing here applies.
+
+Without `stream: true` it is two calls, and the video does not exist when the
+first one returns:
+
+```ts
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import {
+  memoryPersistence,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const persistence = memoryPersistence()
+const adapter = openaiVideo('sora-2')
+const middleware = [withGenerationPersistence(persistence)]
+const threadId = 'product-7-launch-clip'
+
+// Opens the run. Status `running` — there is no video yet.
+const { jobId } = await generateVideo({
+  adapter,
+  prompt: 'A cat chasing a dog in a sunny park',
+  threadId,
+  middleware,
+})
+
+// Completes that same run. This is what writes the video and its artifacts.
+const status = await getVideoJobStatus({ adapter, jobId, threadId, middleware })
+```
+
+Pass the same `threadId` and `middleware` to both. **The `jobId` is the whole
+correlation** — the run id is derived from it, so the poll finds the run the
+submit opened without you storing anything, even from a different request or
+process. There is no run id to thread.
+
+Until a poll observes a terminal job state the record stays `running`, which is
+the truth: a client hydrating that slot sees a generation still in flight. A
+submission that fails records a terminal `error` run instead, so a reload shows
+the failure rather than an empty slot.
 
 ## Going further
 

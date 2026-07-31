@@ -511,7 +511,7 @@ export function runPersistenceConformance(
           error: { message: 'boom', code: 'provider_error' },
         })
         const failed = await store.get('gen-1')
-        expect(failed?.status).toBe('error')
+        expect(failed?.status).toBe('failed')
         expect(failed?.error).toEqual({
           message: 'boom',
           code: 'provider_error',

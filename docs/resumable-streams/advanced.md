@@ -96,10 +96,12 @@ across a full reload, not just an in-session reconnect.
 
 A run ends early only on a genuine cancel or a failure:
 
-- **Cancel** — an `AbortController` you pass to the response and then abort (for
-  example `request.signal`, or a user Stop button). This stops the producer and
-  appends a terminal `RUN_ERROR`. A bare client disconnect does not do this; pass
-  a controller when you want a disconnect to also stop the run.
+- **Cancel** — an `AbortController` you pass to the response as
+  `abortController` and then abort (from a user Stop button, or by forwarding
+  `request.signal`, which is an `AbortSignal`, onto a controller of your own).
+  This stops the producer and appends a terminal `RUN_ERROR`. A bare client
+  disconnect does not do this; pass a controller when you want a disconnect to
+  also stop the run.
 - **Provider failure** — the model stream throws; the error is appended as a
   terminal `RUN_ERROR`.
 

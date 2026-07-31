@@ -202,7 +202,8 @@ and [Resumable streams](../resumable-streams/overview) for the log itself.
 
 Persistence only works when the client and the server file under the same string.
 On the client that is the hook's `threadId`. On the server it is the activity's
-`threadId` and, for generation, `withGenerationPersistence`'s `threadId` option:
+`threadId` — for generation the middleware reads it straight off the activity,
+so there is nothing to repeat on `withGenerationPersistence`:
 
 ```ts
 import {
@@ -255,9 +256,10 @@ purely to satisfy the protocol, which requires a thread id on the wire. The run
 works, it just cannot be found again, which is fine for a one-shot image you show
 and forget.
 
-Turn `persistence` on and `threadId` becomes required, on the hook and on
-`withGenerationPersistence`. An app that cannot name the slot has nothing to
-restore into.
+Turn `persistence` on and `threadId` becomes required, on the hook and on the
+activity the middleware wraps — `withGenerationPersistence` throws when neither
+the activity nor its own `threadId` **override** supplies one. An app that
+cannot name the slot has nothing to restore into.
 
 ## When restore does nothing
 

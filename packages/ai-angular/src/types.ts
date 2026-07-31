@@ -77,6 +77,7 @@ export type InjectChatOptions<
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
   | 'onQueueChange'
+  | 'onResumeStateChange'
   | 'onRunIdChange'
   | 'context'
   | 'devtools'

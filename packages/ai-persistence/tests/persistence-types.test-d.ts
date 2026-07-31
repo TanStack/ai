@@ -163,14 +163,15 @@ withGenerationPersistence(defineAIPersistence({ stores: { runs } }), {
   threadId: 'scope',
 })
 
-// Generation persistence requires the scope to be named, exactly as the client
-// hooks do: a run filed under no scope can never be hydrated by one, so this is
-// unrepresentable rather than a silent restore-nothing at runtime.
-// @ts-expect-error `threadId` is required on the options
+// The scope is resolved at call time, not in the type: the middleware takes
+// `opts.threadId ?? ctx.threadId`, so the usual case is an activity that
+// carries its own `threadId` and a middleware given no options at all. Both the
+// options object and its `threadId` are therefore optional, and options without
+// a `threadId` are legal too. Supplying neither is caught at `onStart` — see
+// "throws when no threadId is available" in tests/generation-artifacts.test.ts.
 withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }), {
   artifactUrl: () => undefined,
 })
-// @ts-expect-error the options object itself is required
 withGenerationPersistence(defineAIPersistence({ stores: { generationRuns } }))
 
 const chatWithRemovedRuns = composePersistence(base, {

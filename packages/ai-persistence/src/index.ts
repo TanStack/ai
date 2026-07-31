@@ -62,6 +62,7 @@ export { withPersistence, withGenerationPersistence } from './middleware'
 export type {
   WithPersistenceOptions,
   WithGenerationPersistenceOptions,
+  ArtifactPersistenceOptions,
   GenerationArtifactDescriptor,
   GenerationArtifactExtractionInput,
   GenerationArtifactNameInput,

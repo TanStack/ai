@@ -22,7 +22,6 @@ export const Route = createFileRoute('/generation-persistence-server')({
 
 function GenerationPersistenceServerPage() {
   const image = useGenerateImage({
-    id: 'generation-server',
     threadId: THREAD_ID,
     connection,
     persistence: true,

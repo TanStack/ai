@@ -731,6 +731,66 @@ describe('useGenerateSpeech', () => {
     expect(result.current.result).toEqual(mockResult)
     expect(result.current.status).toBe('success')
   })
+
+  it('restores a completed TTS result from a durable artifact url', async () => {
+    // useGenerateSpeech injects `reconstructSpeechResult`. `TTSResult.audio` is
+    // a bare base64 string that persistence never stores, so the restored clip
+    // is served from `artifacts[0].url` and `audio` stays empty.
+    const artifact: PersistedArtifactRef = {
+      role: 'output',
+      artifactId: 'artifact-speech-1',
+      threadId: 'thread-tts',
+      runId: 'run-tts',
+      name: 'speech.mp3',
+      mimeType: 'audio/mpeg',
+      size: 4096,
+      createdAt: '2026-07-06T00:00:00.000Z',
+      url: '/api/artifacts/artifact-speech-1',
+      source: {
+        activity: 'tts',
+        path: 'runs/run-tts/speech.mp3',
+        provider: 'test',
+        model: 'test-tts',
+        mediaType: 'audio',
+      },
+    }
+    const adapter = createMockConnectionAdapter()
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
+        resumeState: null,
+        status: 'complete' as const,
+        activity: 'tts' as const,
+        result: {
+          id: 'tts-restored',
+          model: 'test-tts',
+          artifacts: [artifact],
+        },
+      },
+      activeRun: null,
+    }))
+
+    const { result } = renderHook(() =>
+      useGenerateSpeech({
+        threadId: 'tts-hydrate',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success')
+    })
+    expect(result.current.result).toEqual({
+      id: 'tts-restored',
+      model: 'test-tts',
+      audio: '',
+      format: 'mpeg',
+      contentType: 'audio/mpeg',
+      artifacts: [artifact],
+    })
+    expect(result.current.runId).toBeNull()
+  })
 })
 
 describe('useGenerateAudio', () => {

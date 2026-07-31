@@ -18,8 +18,9 @@ tables.
 
 If you wrote a `GenerationRunStore` against the old names, update the two
 literals your store maps or validates. `running` and `interrupted` are
-unchanged. The conformance suite covers the new values, so re-running it against
-your adapter will catch anything missed.
+unchanged. The conformance suite round-trips both new literals — it writes
+`completed` and then `failed` through `update` and reads each back through
+`get` — so re-running it against your adapter will catch anything missed.
 
 The client-facing resume-snapshot status is **unchanged**
 (`idle | running | complete | error`). It is a separate vocabulary with its own
@@ -27,7 +28,9 @@ The client-facing resume-snapshot status is **unchanged**
 as chat maps `RunStatus` to `ChatClientState`. Nothing on the wire moves.
 
 Also corrected: `GenerationRunRecord.threadId` was documented as an "optional
-link to the chat conversation that triggered this generation". It is the slot the
-run fills, the stable app-chosen key `findLatestForThread` hydrates by, and
-`withGenerationPersistence` requires it. The field stays optional for records
-written by other means.
+link to the chat conversation that triggered this generation", and typed
+optional to match. It is the slot the run fills, the stable app-chosen key
+`findLatestForThread` hydrates by, and `withGenerationPersistence` refuses to
+start a run without one — so the field is now **required**. A record written
+without a scope could never be found again, which is not a shape worth keeping
+representable.

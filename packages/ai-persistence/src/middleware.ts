@@ -43,7 +43,16 @@ import type {
 } from './types'
 import { artifactBlobKey } from './retrieve'
 
-export interface WithPersistenceOptions {
+/**
+ * How generated media is turned into durable artifacts: which pieces of a
+ * result become artifacts, what they are named, where their bytes land, and how
+ * the bytes are fetched when the provider returns a URL rather than inline data.
+ *
+ * Consumed by {@link withGenerationPersistence} through
+ * {@link WithGenerationPersistenceOptions}. Chat persistence has no artifacts —
+ * its options are {@link WithPersistenceOptions}.
+ */
+export interface ArtifactPersistenceOptions {
   extractArtifacts?: (
     input: GenerationArtifactExtractionInput,
   ) =>
@@ -130,9 +139,9 @@ export interface WithPersistenceOptions {
 
 /**
  * Options for {@link withGenerationPersistence}: everything in
- * {@link WithPersistenceOptions}, plus an optional scope override.
+ * {@link ArtifactPersistenceOptions}, plus an optional scope override.
  */
-export interface WithGenerationPersistenceOptions extends WithPersistenceOptions {
+export interface WithGenerationPersistenceOptions extends ArtifactPersistenceOptions {
   /**
    * Override the scope runs are filed under. Defaults to the `threadId` you
    * passed the activity, which is normally what you want, so leave this unset
@@ -783,7 +792,7 @@ function capBodySize(
  */
 async function descriptorBody(
   descriptor: GenerationArtifactDescriptor,
-  opts: WithPersistenceOptions | undefined,
+  opts: ArtifactPersistenceOptions | undefined,
 ): Promise<
   | {
       body: BlobBody
@@ -1485,10 +1494,17 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
  * transcription activities.
  *
  * Requires `stores.generationRuns`. A generation activity has no conversation,
- * so the run is keyed on its own `runId` (`ctx.runId ?? ctx.requestId`).
- * `ctx.threadId` is carried through only as an OPTIONAL *link* to a chat when
- * the caller supplies one — it is never the run's primary identity and is never
- * faked from the request id.
+ * so the run is keyed on its own `runId` (`ctx.runId ?? ctx.requestId`), which
+ * is never faked from anything else.
+ *
+ * A `threadId` is REQUIRED alongside it — not as a link to a chat, but as the
+ * stable app-chosen slot successive runs of the same thing fill
+ * (`product-123-hero`, `video-9-start-frame`). It is what
+ * `stores.generationRuns.findLatestForThread` keys on, and therefore the only
+ * way a run is ever hydrated again. It comes from the `threadId` passed to the
+ * activity, or from {@link WithGenerationPersistenceOptions.threadId} when that
+ * overrides it; supplying neither throws at `onStart` rather than filing a run
+ * nothing can find.
  *
  * On success the terminal result metadata (ids, urls — never media bytes) and,
  * when artifact persistence is on, the persisted artifact refs are captured onto

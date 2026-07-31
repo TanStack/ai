@@ -1,4 +1,5 @@
 import { createGeneration } from './create-generation.svelte'
+import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type {
   CreateGenerationOptions,
   CreateGenerationReturn,
@@ -121,6 +122,7 @@ export function createGenerateSpeech<TTransformed = void>(
   const gen = createGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
     ...options,
     devtools,
+    reconstructResult: reconstructSpeechResult,
   })
 
   return {

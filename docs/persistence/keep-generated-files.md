@@ -39,6 +39,7 @@ add a `GET` route that reads the artifact back with the `retrieveArtifact` /
 `retrieveBlob` helpers and streams it from your own origin:
 
 ```ts group=generation-bytes
+// routes/api.generate.image.ts — runs the generation.
 import {
   generateImage,
   generationParamsFromRequest,
@@ -76,20 +77,31 @@ export async function POST(request: Request) {
     stream: true,
     middleware: [
       withGenerationPersistence(persistence, {
-        // Stamp the durable serve URL (the GET route below) onto every
+        // Stamp the durable serve URL (the artifact route below) onto every
         // persisted artifact ref, and rewrite the live result's media field to
         // it. Both the live and the restored result then render from your own
         // origin instead of the provider's expiring link.
-        artifactUrl: (ref) => `/api/generate/image?id=${ref.artifactId}`,
+        artifactUrl: (ref) =>
+          `/api/generate/image/artifact?id=${ref.artifactId}`,
       }),
     ],
   })
 
   return toServerSentEventsResponse(stream)
 }
+```
 
-// Serve a stored artifact's bytes by id. This is a plain file endpoint: it
-// serves one stored file, it does not resume a run or rebuild a conversation.
+The serve route is a **separate** route from the generation endpoint. A `GET` on
+the generation route is already spoken for by
+[Generation persistence](./generation-persistence) — that is where a reloading
+client hydrates and where an in-flight run resumes — so the bytes get their own
+path, the one `artifactUrl` stamps above:
+
+```ts group=generation-bytes
+// routes/api.generate.image.artifact.ts — serves stored bytes by id.
+//
+// This is a plain file endpoint: it serves one stored file, it does not resume
+// a run or rebuild a conversation.
 //
 // Security: the id comes from the caller, so this route MUST authorize before
 // it serves. `ArtifactRecord` carries the `threadId` / `runId` the file was
@@ -139,7 +151,6 @@ by the run that produced it:
 
 ```ts group=generation-bytes
 const storageKeyOptions = withGenerationPersistence(persistence, {
-  threadId: 'product-123-hero',
   storageKey: ({ runId, artifactId, role, name }) =>
     `products/${role}/${runId}-${artifactId}-${name}`,
 })
@@ -185,7 +196,6 @@ flag precisely so the check is not optional:
 
 ```ts group=generation-bytes
 const inputUrlOptions = withGenerationPersistence(persistence, {
-  threadId: 'product-123-hero',
   allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com'),
 })
 ```
@@ -229,7 +239,7 @@ restored.
 
 ## Where to go next
 
-- [Generation persistence](./generation-persistence): the two-mode record that
+- [Generation persistence](./generation-persistence): the run record that
   survives a reload or a dropped connection, and the `generationRuns` store that
   byte storage builds on.
 - [Build your own adapter](./build-your-own-adapter#generation--media-stores): a

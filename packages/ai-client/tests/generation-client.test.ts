@@ -34,6 +34,27 @@ const restoredImageArtifact: PersistedArtifactRef = {
   },
 }
 
+// The video equivalent: a durable output video artifact served from the app's
+// own origin, used to verify the video client's restore-path repaint.
+const restoredVideoArtifact: PersistedArtifactRef = {
+  role: 'output',
+  artifactId: 'artifact-video-1',
+  threadId: 'thread-video',
+  runId: 'run-video',
+  name: 'clip.mp4',
+  mimeType: 'video/mp4',
+  size: 40960,
+  createdAt: '2026-07-06T00:00:00.000Z',
+  url: '/api/artifacts/artifact-video-1',
+  source: {
+    activity: 'video',
+    path: 'runs/run-video/clip.mp4',
+    provider: 'test',
+    model: 'test-video',
+    mediaType: 'video',
+  },
+}
+
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
   chunks: Array<StreamChunk>,
@@ -1626,8 +1647,21 @@ describe('GenerationClient', () => {
     })
 
     it('adopts the server snapshot for the video client too', async () => {
-      const { connection, hydrateGeneration } =
-        createHydratingConnection(completedHydration)
+      const { connection, hydrateGeneration } = createHydratingConnection({
+        resumeSnapshot: {
+          schemaVersion: 1,
+          resumeState: null,
+          status: 'complete',
+          activity: 'video',
+          result: {
+            id: 'srv-video',
+            model: 'test-video',
+            providerJobId: 'job-7',
+            artifacts: [restoredVideoArtifact],
+          },
+        },
+        activeRun: null,
+      })
       const client = new VideoGenerationClient({
         threadId: 'thread-video',
         connection,
@@ -1639,6 +1673,15 @@ describe('GenerationClient', () => {
         expect(client.getResumeSnapshot()).toMatchObject({ status: 'complete' })
       })
       expect(hydrateGeneration).toHaveBeenCalledWith('thread-video')
+      // The video restores from its durable artifact URL, not the provider's
+      // expired link.
+      expect(client.getStatus()).toBe('success')
+      expect(client.getResult()).toMatchObject({
+        jobId: 'job-7',
+        status: 'completed',
+        url: '/api/artifacts/artifact-video-1',
+      })
+      expect(client.getJobId()).toBe('job-7')
     })
 
     it('hydrates via the hydrateGeneration option in fetcher mode (no connection)', async () => {
@@ -1764,6 +1807,395 @@ describe('GenerationClient', () => {
         status: 'error',
         resumeState: null,
       })
+    })
+
+    it('surfaces a hydration transport failure instead of looking like a fresh thread', async () => {
+      // A 403 from the authorize gate, a network drop, a 500 — all reach the
+      // client as a rejected `hydrateGeneration`. Swallowing it would leave the
+      // app unable to tell a broken server from an empty thread.
+      const onError = vi.fn()
+      const hydrateGeneration = vi.fn(async (): Promise<never> => {
+        throw new Error('403 Forbidden')
+      })
+      const client = new GenerationClient({
+        threadId: 'thread-denied',
+        connection: { async *connect() {}, hydrateGeneration },
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getError()?.message).toContain('403 Forbidden')
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('stays silent for a genuine hydration miss (no record for the thread)', async () => {
+      const onError = vi.fn()
+      const { connection } = createHydratingConnection({
+        resumeSnapshot: null,
+        activeRun: null,
+      })
+      const client = new GenerationClient({
+        threadId: 'thread-fresh',
+        connection,
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getError()).toBeUndefined()
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('surfaces a hydration failure for the video client too', async () => {
+      const onError = vi.fn()
+      const hydrateGeneration = vi.fn(async (): Promise<never> => {
+        throw new Error('503 Service Unavailable')
+      })
+      const client = new VideoGenerationClient({
+        threadId: 'thread-video-denied',
+        connection: { async *connect() {}, hydrateGeneration },
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getError()?.message).toContain('503')
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+    })
+  })
+
+  describe('truncated stream (no terminal chunk)', () => {
+    // A stream that simply ENDS — proxy/LB idle timeout, server restart
+    // mid-run, or a durable log whose terminal append failed — returns normally
+    // from `for await`. Without an explicit check the client would sit on
+    // `status: 'generating'` forever with a `running` snapshot that every
+    // reload rejoins again.
+    const truncatedChunks = (
+      runId: string,
+      threadId: string,
+    ): Array<StreamChunk> => [
+      {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.CUSTOM,
+        name: 'generation:progress',
+        value: { progress: 40 },
+        timestamp: Date.now(),
+      },
+    ]
+
+    it('settles generate() to an error when the stream ends without RUN_FINISHED', async () => {
+      const onError = vi.fn()
+      const client = new GenerationClient({
+        threadId: 'thread-trunc',
+        connection: createMockConnection(
+          truncatedChunks('run-trunc', 'thread-trunc'),
+        ),
+        onError,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('error')
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(
+        /ended before the run finished/,
+      )
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      // The snapshot must not stay `running`, or the next mount rejoins a run
+      // that is already gone.
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
+    })
+
+    it('settles a rejoin to an error when the replayed stream ends without RUN_FINISHED', async () => {
+      const runId = 'run-trunc-rejoin'
+      const onError = vi.fn()
+      const joinRun = vi.fn(async function* () {
+        for (const chunk of truncatedChunks(runId, 'thread-trunc-rejoin')) {
+          yield chunk
+        }
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-trunc-rejoin', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-trunc-rejoin',
+        connection: { async *connect() {}, hydrateGeneration, joinRun },
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(
+        /ended before the run finished/,
+      )
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
+    })
+
+    it('settles a video generate() to an error when the stream ends without RUN_FINISHED', async () => {
+      const onError = vi.fn()
+      const client = new VideoGenerationClient({
+        threadId: 'thread-video-trunc',
+        connection: createMockConnection(
+          truncatedChunks('run-video-trunc', 'thread-video-trunc'),
+        ),
+        onError,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('error')
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(
+        /ended before the run finished/,
+      )
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
+    })
+
+    it('settles a video rejoin to an error when the replayed stream ends without RUN_FINISHED', async () => {
+      const runId = 'run-video-trunc-rejoin'
+      const onError = vi.fn()
+      const joinRun = vi.fn(async function* () {
+        for (const chunk of truncatedChunks(runId, 'thread-video-rejoin')) {
+          yield chunk
+        }
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-video-rejoin', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new VideoGenerationClient({
+        threadId: 'thread-video-rejoin',
+        connection: { async *connect() {}, hydrateGeneration, joinRun },
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getError()?.message).toMatch(
+        /ended before the run finished/,
+      )
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getResumeSnapshot()).toMatchObject({
+        status: 'error',
+        resumeState: null,
+      })
+    })
+
+    it('does not report a truncation when the stream was stopped by the caller', async () => {
+      // `stop()` aborts the reader mid-stream. That is a deliberate cancel, not
+      // a dropped connection, so it must stay `idle` with no error.
+      const onError = vi.fn()
+      const client = new GenerationClient({
+        connection: {
+          async *connect(_messages, _data, signal) {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: 'run-stop',
+              threadId: 'thread-stop',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            if (signal?.aborted) return
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: 'run-stop',
+              threadId: 'thread-stop',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+          },
+        },
+        onError,
+      })
+
+      const generating = client.generate({ prompt: 'test' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      client.stop()
+      await generating
+
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getError()).toBeUndefined()
+      expect(onError).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('declined result reconstruction on restore', () => {
+    /** A `complete` snapshot carrying result metadata but no artifacts. */
+    function createResultOnlyHydratingConnection(): ConnectConnectionAdapter {
+      return {
+        async *connect() {},
+        hydrateGeneration: vi.fn(
+          async (): Promise<GenerationHydrationResult> => ({
+            resumeSnapshot: {
+              schemaVersion: 1,
+              resumeState: null,
+              status: 'complete',
+              result: { id: 'result-1', model: 'image-model' },
+            },
+            activeRun: null,
+          }),
+        ),
+      }
+    }
+
+    it('reports a complete snapshot the activity mapper cannot rebuild', async () => {
+      // The persisted record says the run completed, but its output artifact
+      // carries no serve `url` — so `reconstructImageResult` declines. A
+      // `success` status with a `null` result is unrenderable and hides the
+      // cause, so the restore settles as an error instead.
+      const onError = vi.fn()
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          activity: 'image',
+          result: { id: 'srv-img', model: 'test-image', artifacts: [] },
+        },
+        activeRun: null,
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-unrestorable',
+        connection: { async *connect() {}, hydrateGeneration },
+        persistence: true,
+        reconstructResult: reconstructImageResult,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getResult()).toBeNull()
+      expect(client.getError()?.message).toMatch(/could not be rebuilt/)
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+    })
+
+    it('stays a plain success when no reconstructResult mapper is configured', async () => {
+      // Nothing declined — there is simply nothing to rebuild. The generic
+      // client with no mapper must keep restoring as it always has.
+      const onError = vi.fn()
+      const connection = createResultOnlyHydratingConnection()
+      const client = new GenerationClient({
+        threadId: 'thread-no-mapper',
+        connection,
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getResumeSnapshot()).toMatchObject({
+          status: 'complete',
+        })
+      })
+      expect(client.getStatus()).toBe('success')
+      expect(client.getResult()).toBeNull()
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('does not report a decline while a restored run is still in flight', async () => {
+      // A `running` snapshot has no result yet by definition; the rejoin
+      // delivers it. Reporting the decline here would error out every resume.
+      const runId = 'run-still-live'
+      const onError = vi.fn()
+      const joinRun = vi.fn(async function* () {
+        yield {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { id: 'late-img', model: 'm', images: [{ url: '/x.png' }] },
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId: 'thread-live-decline',
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+      })
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-live-decline', runId },
+          status: 'running' as const,
+        },
+        activeRun: { runId },
+      }))
+      const client = new GenerationClient({
+        threadId: 'thread-live-decline',
+        connection: { async *connect() {}, hydrateGeneration, joinRun },
+        persistence: true,
+        reconstructResult: reconstructImageResult,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('success')
+      })
+      expect(client.getResult()).toMatchObject({ id: 'late-img' })
+      expect(onError).not.toHaveBeenCalled()
+    })
+
+    it('reports a complete video snapshot with no durable artifact', async () => {
+      const onError = vi.fn()
+      const connection = createResultOnlyHydratingConnection()
+      const client = new VideoGenerationClient({
+        threadId: 'thread-video-unrestorable',
+        connection,
+        persistence: true,
+        onError,
+      })
+      client.mountDevtools()
+
+      await waitForCondition(() => {
+        expect(client.getStatus()).toBe('error')
+      })
+      expect(client.getResult()).toBeNull()
+      expect(client.getError()?.message).toMatch(/could not be rebuilt/)
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
     })
   })
 })

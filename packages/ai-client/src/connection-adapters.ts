@@ -474,10 +474,18 @@ async function fetchGenerationHydration(
   })
   assertResponseOk(response)
   const raw: unknown = await response.json()
-  // A 200 carrying `null` (or any non-object body) is a hydration miss, not a
-  // crash: reading `.activeRun` off `null` would throw here.
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+  // A 200 carrying `null` is a legitimate hydration miss — the server has no
+  // record for this thread — and reading `.activeRun` off `null` would throw.
+  if (raw === null) {
     return { resumeSnapshot: null, activeRun: null }
+  }
+  // Any OTHER non-object body is a broken endpoint, not an empty thread.
+  // Reporting it as a miss would present a misconfigured route as a fresh
+  // thread; the client surfaces this through its own error channel instead.
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(
+      `Generation hydration expected a JSON object from ${url}, received ${Array.isArray(raw) ? 'an array' : typeof raw}.`,
+    )
   }
   const data = raw as {
     resumeSnapshot?: GenerationHydrationResult['resumeSnapshot']
@@ -785,8 +793,16 @@ export interface ConnectConnectionAdapter {
  * Server-resolved hydration for a generation thread. `resumeSnapshot` is the
  * last generation's lightweight snapshot (validated client-side before it is
  * adopted); `activeRun` is a cursor to a run still generating for the thread
- * (or `null`). Structurally matches `@tanstack/ai-persistence`'s
- * `reconstructGeneration` response — the client never imports that package.
+ * (or `null`).
+ *
+ * Field-for-field compatible with `@tanstack/ai-persistence`'s
+ * `ReconstructedGeneration` (the body `reconstructGeneration` returns) — the
+ * client never imports that package, so this is a structural contract, not a
+ * shared type. Two deliberate widenings on this side: `schemaVersion` is
+ * optional (the server always writes `1`, but a hand-written fixture need not),
+ * and `status` also admits `'idle'`, which the server's mapper never emits —
+ * only a client-local snapshot reaches it (a seeded `initialResumeSnapshot`, or
+ * `stop()` retiring a cancelled run).
  */
 export interface GenerationHydrationResult {
   resumeSnapshot: {

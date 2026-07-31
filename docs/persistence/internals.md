@@ -63,10 +63,16 @@ media and merges the durable refs onto both the result and the run record.
 
 Generation uses its own `generationRuns` store (`GenerationRunStore`), never chat's
 `runs` / `messages`. A generation has no conversation, so the run is keyed on
-its own `runId` (`ctx.runId ?? ctx.requestId`) and `threadId` is **optional** —
-carried through only when the caller supplies one, as a link to a chat or as
-the stable hydration key a server-driven client reloads by. It is never faked
-from the request id, and `threadId` never becomes the job's primary identity.
+its own `runId` (`ctx.runId ?? ctx.requestId`), and `threadId` never becomes the
+job's primary identity.
+
+`threadId` is nonetheless **required**: it is the slot the run is filed under,
+and `GenerationRunRecord.threadId` is a required field. The middleware resolves
+it as `opts.threadId ?? ctx.threadId` — normally the `threadId` the caller
+passed the activity, with the option as an override — and **throws** when
+neither supplies one. It is never faked from the request id: a run filed under
+an invented scope can never be hydrated by one, so restoring would silently
+return nothing forever.
 
 ## Composition semantics
 
