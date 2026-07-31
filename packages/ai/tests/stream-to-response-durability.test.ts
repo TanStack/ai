@@ -762,12 +762,18 @@ describe('a failing middleware onFinish surfaces past the transport', () => {
     expect(field(last, 'message')).toBe('messages.append failed')
   })
 
-  it('reaches the durability sink, which records it server-side rather than double-terminalizing the wire', async () => {
-    // The sink deliberately does not append a contradictory RUN_ERROR after a
-    // RUN_FINISHED it already forwarded (see `terminalForwarded` in
-    // stream-to-response.ts). What matters for this fix is that the failure
-    // ARRIVES there at all: while `runOnFinish` swallowed, the sink never saw it
-    // and the only trace anywhere was a middleware log line.
+  it('reaches the durability sink, which RECORDS it server-side and does NOT terminalize the run', async () => {
+    // The weaker assertion below is deliberate, not an oversight. On the durable
+    // path the failure does NOT become a RUN_ERROR: `runOnFinish` is awaited
+    // after the RUN_FINISHED was already persisted and forwarded, so
+    // `needsTerminalPersistence` is false (nothing extra is appended to the log)
+    // and `terminalForwarded` suppresses the rethrow to the live consumer (both
+    // in stream-to-response.ts) — the RUN_FINISHED stands. That is correct: the
+    // SAVE failed, not the run, and the consumer did receive the whole stream.
+    // What this fix buys is that the failure ARRIVES at the sink at all, which is
+    // why the only assertion available is the server-side record: while
+    // `runOnFinish` swallowed, the sink never saw it and the only trace anywhere
+    // was a middleware log line.
     const errorLog = vi.fn()
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=finish-hook-failure', {

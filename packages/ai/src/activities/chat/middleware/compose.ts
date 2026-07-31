@@ -513,8 +513,7 @@ export class MiddlewareRunner<TContext = unknown> {
    * Run onFinish on all middleware in order.
    *
    * ISOLATED **and** REPORTED. `onFinish` is the only terminal fan-out on the
-   * SUCCESS path — `chat()` awaits it inside its `try`, before the run is
-   * declared successful — and it is where `withPersistence.onFinish` writes the
+   * SUCCESS path, and it is where `withPersistence.onFinish` writes the
    * assistant turn through the store. So the two properties are needed together
    * and neither may be traded for the other:
    *
@@ -522,14 +521,38 @@ export class MiddlewareRunner<TContext = unknown> {
    *   transient store error cannot skip a later middleware's own bookkeeping.
    *   Each failure is captured by {@link captureTerminalHook}, not propagated
    *   mid-loop.
-   * - REPORTING: after the loop, the failures are rethrown. Swallowing them
-   *   would make a failed `messages.append` produce `RUN_FINISHED` with
-   *   `outcome: success` and a `completed` run record while the assistant turn
-   *   is missing from storage — the client then sends a history the server has
-   *   no record of, with a log line as the only signal. `chat()`'s catch treats
-   *   what we throw as a genuine error (it is not a `MiddlewareAbortError`, and
-   *   `structuralInterruptFailure` does not match it), rethrows it, and the
-   *   durability sink sees `hasTerminalCause` and terminalizes the run.
+   * - REPORTING: after the loop, the failures are rethrown. `chat()`'s catch
+   *   treats what we throw as a genuine error (it is not a
+   *   `MiddlewareAbortError`, and `structuralInterruptFailure` does not match
+   *   it) and rethrows it out of the generator.
+   *
+   * What that rethrow can and cannot achieve depends on the transport, because
+   * this fan-out is awaited AFTER the adapter's `RUN_FINISHED` has already been
+   * yielded (`chat()` yields terminal chunks while streaming, then awaits this
+   * hook on its way out). The success terminal is therefore already gone; the
+   * rethrow can only append to what the consumer saw, never retract it:
+   *
+   * - NON-DURABLE transport: the throw escapes the generator mid-response, and
+   *   the SSE / HTTP-stream encoder turns it into a TRAILING `RUN_ERROR` on the
+   *   wire carrying the store's own message and `code`. `ai-client` surfaces
+   *   that as an error status, so the user is not told the turn was saved when
+   *   it was not.
+   * - DURABLE transport: the throw reaches the durability sink instead. The
+   *   terminal was already persisted AND forwarded, so the sink deliberately
+   *   does NOT append a second, contradictory terminal, and `terminalForwarded`
+   *   (see `stream-to-response.ts`) suppresses the rethrow to the live consumer.
+   *   The `RUN_FINISHED` stands and the failure is RECORDED SERVER-SIDE on the
+   *   sink's `errors` channel. That is the intended outcome, not a gap: the save
+   *   failed, not the run — the consumer did receive the complete stream, so
+   *   telling it the run errored would be the lie. What the rethrow buys here is
+   *   that the sink sees the failure at all; while this loop swallowed, the only
+   *   trace anywhere was {@link captureTerminalHook}'s log line.
+   *
+   * Either way, swallowing is the one option ruled out: a failed
+   * `messages.append` would otherwise leave a `completed` run record with the
+   * assistant turn missing from storage and nothing beyond a middleware log
+   * line, and the client would go on to send a history the server has no record
+   * of.
    *
    * A single failure is rethrown AS-IS so the store's own error — its message,
    * `cause`, `code` and `instanceof` identity — is what reaches the caller and
