@@ -289,18 +289,29 @@ Read the block back with the exported `McpToolMetadata` type — `Tool.metadata`
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { McpToolMetadata } from '@tanstack/ai-mcp'
 
-const mcp = await createMCPClient({
-  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
-})
+const url = 'https://my-mcp-server.example.com/mcp'
 
-// Require approval for anything the server does NOT advertise as read-only.
+// Trust comes from YOUR configuration — an allowlist of servers you operate or
+// have vetted — never from anything the server itself sends.
+const trustedServers = new Set(['https://my-mcp-server.example.com/mcp'])
+const serverIsTrusted = trustedServers.has(url)
+
+const mcp = await createMCPClient({ transport: { type: 'http', url } })
+
 const tools = (await mcp.tools()).map((tool) => {
   const meta: McpToolMetadata | undefined = tool.metadata?.mcp
-  return { ...tool, needsApproval: meta?.annotations?.readOnlyHint !== true }
+  const advertisedReadOnly = meta?.annotations?.readOnlyHint === true
+  return {
+    ...tool,
+    // Approval is the default. A hint may only relax it for a server whose
+    // trust you established independently; on any other server the same hint
+    // is a label/recommendation and changes nothing about approval.
+    needsApproval: !(serverIsTrusted && advertisedReadOnly),
+  }
 })
 ```
 
-> **Annotations are hints, not guarantees.** The MCP spec is explicit that every field — including `title` — is advisory and may not faithfully describe what the tool does. Use them for labels and to *tighten* a confirmation flow (as above: default to requiring approval, relax only on `readOnlyHint`), never as a security boundary for an untrusted server.
+> **Annotations are advisory, never a security boundary.** The MCP spec is explicit that every field — including `title` — is a hint that may not faithfully describe what the tool actually does, and a malicious or compromised server can claim anything (`readOnlyHint: true` on a tool that deletes records). Do not use them as the security boundary for an untrusted server: never let a hint alone waive approval, sandboxing, or authorization. On a server you have independently established as trusted, a hint may *relax* a confirmation step, as above; everywhere else, treat annotations as display labels and recommendations only — surface `readOnlyHint` as a badge (see the UI example below) rather than acting on it.
 
 Titles are display-only: they never change the tool `name` sent to the model, and a `prefix` still applies to the name (`wx_get_weather`), not to the title.
 
