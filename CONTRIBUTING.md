@@ -93,23 +93,24 @@ Working on a single package? `cd packages/<pkg>` and use its scripts directly (`
 
 **Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
 
-The `Coverage` job on every PR runs `test:coverage:check`: it measures the affected packages with the v8 provider over `src/**` and fails if any metric (statements, branches, functions, lines) drops more than 0.5 percentage points below `coverage-baseline.json`. Packages your PR didn't affect are skipped, not treated as 0%.
+The `Coverage` job on every PR measures each affected package **twice** — once on your branch and once on its merge-base with `main` — and compares the two. A drop of more than 0.5 percentage points in any metric (statements, branches, functions, lines) fails the job. Packages your PR didn't affect are never measured.
 
-There are no target percentages to hit. Each package's committed number is its own floor, so the gate only stops coverage getting _worse_ — it never blocks a PR for being below some repo-wide bar.
+There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from the same job on the same runner. There are also no target percentages to hit — the gate only catches coverage getting _worse_ in what you touched, and never blocks a PR for being below some repo-wide bar.
 
 Read the numbers from the PR's Checks tab: open the `Coverage` job and its summary has a per-package table with deltas, on every run whether it passed or failed. It is not posted as a PR comment.
 
+Re-measuring the merge-base is usually close to free. A separate `Coverage` workflow runs `test:coverage:all` on every push to `main`, which populates the Nx Cloud cache; because `test:coverage` declares its `coverage/` directory as a task output, the base-side run generally restores cached summaries rather than re-running any tests.
+
 ### If the job says coverage dropped
 
-Add tests to cover what you changed. If the drop is genuinely intended — you deleted well-tested code, say — the job prints a paste-ready JSON block; copy those entries into `coverage-baseline.json` and push.
+Add tests covering the code you changed. That's the whole remedy — there is no number to override. If you genuinely deleted well-tested code and the drop is expected, say so in the PR and a maintainer can merge past the failing check.
 
-**Don't regenerate the baseline on your own machine.** The committed numbers are Linux numbers because Linux is what enforces them, and a few packages genuinely measure differently per platform — `ai-sandbox-local-process` reads ~20pp higher on Windows, since its process-spawn code branches on platform. Re-baselining locally commits numbers CI can't reproduce, which breaks the gate for everyone. (`test:coverage:update` exists for maintainers running in a Linux container; it is not the normal path.)
-
-Three known limitations:
+Two known limitations:
 
 - Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
 - `preact-ai-devtools`, `react-ai-devtools`, and `solid-ai-devtools` have no tests and sit at 0%.
-- `ai-acp` and `ai-sandbox` have tests that fail on Windows for unrelated reasons (`EBUSY` on temp-dir unlink; a POSIX-vs-Windows path assertion), so they can't be measured there at all.
+
+A package your PR adds shows as `new` and can't fail the job — there is no base-commit coverage to compare it against. The same is true for a package whose suite can't run on the base commit.
 
 ## TypeScript configuration
 

@@ -46,8 +46,47 @@ jobs:
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
         with:
           main-branch-name: main
-      - name: Check Coverage
-        run: pnpm run test:coverage:check
+      # The set of packages to measure is decided once, here, so that the base
+      # run measures exactly what the head run does. `--with-target` keeps out
+      # projects that have no test:coverage script, so a docs-only PR resolves
+      # to an empty list rather than erroring in run-many.
+      - name: Resolve affected packages
+        id: affected
+        run: |
+          list=$(pnpm exec nx show projects --affected --with-target=test:coverage --exclude='examples/**,testing/**' --json | jq -r 'sort | join(",")')
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "Measuring: ${list:-<none>}"
+      - name: Coverage for this PR
+        if: steps.affected.outputs.list != ''
+        run: |
+          pnpm exec nx run-many --targets=test:coverage --projects="${{ steps.affected.outputs.list }}"
+          node scripts/coverage-check.mjs --collect "$RUNNER_TEMP/cov-head"
+      # Re-measuring the merge-base is normally a set of Nx Cloud cache
+      # restores seeded by the Coverage workflow on main: the task hashes are
+      # identical, and `test:coverage` declares its coverage dir as an output,
+      # so the summaries come back without the tests re-running.
+      - name: Coverage for the merge base
+        if: steps.affected.outputs.list != ''
+        run: |
+          git checkout --force --detach "$NX_BASE"
+          pnpm install --frozen-lockfile
+          # Packages added by this PR do not exist on the base commit.
+          printf '%s\n' "${{ steps.affected.outputs.list }}" | tr ',' '\n' | sort > /tmp/wanted
+          pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
+          base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
+          if [ -z "$base_list" ]; then
+            echo "No affected package exists on the base commit; nothing to compare against."
+            exit 0
+          fi
+          pnpm exec nx run-many --targets=test:coverage --projects="$base_list"
+          node scripts/coverage-check.mjs --collect "$RUNNER_TEMP/cov-base"
+      - name: Compare
+        if: steps.affected.outputs.list != ''
+        run: |
+          git checkout --force "$GITHUB_SHA" -- scripts/coverage-check.mjs
+          node scripts/coverage-check.mjs \
+            --base "$RUNNER_TEMP/cov-base" \
+            --head "$RUNNER_TEMP/cov-head"
   preview:
     name: Preview
     runs-on: ubuntu-latest

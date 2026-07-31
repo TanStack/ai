@@ -321,13 +321,13 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 - Uses Vitest with happy-dom for DOM testing
 - **Coverage is CI-only.** Don't run it locally and don't add it to local
   gates — it is deliberately absent from `test`, `test:pr`, `test:ci` and the
-  git hooks. The `Coverage` job on each PR runs `test:coverage:check`, which
-  fails when a package drops more than 0.5pp below the numbers committed in
-  `coverage-baseline.json`. There are no target percentages; each package's
-  current number is its own floor. When a drop is intentional, copy the
-  paste-ready JSON block the job prints into `coverage-baseline.json` — never
-  regenerate the baseline on a dev machine, the committed numbers are Linux
-  numbers and some packages measure differently per platform. See
+  git hooks. The `Coverage` job on each PR measures every affected package
+  twice, on the PR head and on its merge-base with `main`, and fails when a
+  metric drops more than 0.5pp between them. There is **no baseline file** —
+  don't reintroduce one, it was removed precisely because it needed manual
+  syncing and was platform-sensitive. The only remedy for a drop is tests.
+  `.github/workflows/coverage.yml` runs coverage on pushes to `main` purely to
+  warm the Nx Cloud cache so the base-side run is mostly cache restores. See
   CONTRIBUTING.md.
 - **E2E tests are mandatory** — see E2E Testing section below
 

@@ -22,8 +22,6 @@
     "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
     "test:coverage": "nx affected --targets=test:coverage --exclude=examples/**,testing/**",
     "test:coverage:all": "nx run-many --targets=test:coverage --exclude=examples/**,testing/**",
-    "test:coverage:check": "pnpm run test:coverage && node scripts/coverage-check.mjs",
-    "test:coverage:update": "pnpm run test:coverage:all && node scripts/coverage-check.mjs --update",
     "test:build": "nx affected --target=test:build --exclude=examples/**,testing/**",
     "test:types": "nx affected --targets=test:types --exclude=examples/**,testing/**",
     "test:knip": "knip",
