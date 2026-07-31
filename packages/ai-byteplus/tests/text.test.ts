@@ -7,7 +7,7 @@ import {
   vi,
   type Mock,
 } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   createBytePlusText as _realCreateBytePlusText,
@@ -282,10 +282,14 @@ describe('BytePlus text adapter', () => {
         (c) => c.type === EventType.STEP_FINISHED,
       )
       expect(stepFinished).toHaveLength(1)
-      expect(
-        stepFinished[0]?.type === EventType.STEP_FINISHED &&
-          stepFinished[0].signature,
-      ).toBe(ENCRYPTED_BLOB)
+      const step = stepFinished[0]
+      if (step?.type !== EventType.STEP_FINISHED) throw new Error('no step')
+      expect(step.signature).toBe(ENCRYPTED_BLOB)
+      // `delta` must carry the reasoning text too. chat()'s agent loop
+      // accumulates thinking only from STEP_FINISHED.delta and discards the
+      // whole step — signature included — when that accumulation is empty, so
+      // a signature without a delta never reaches the continuation message.
+      expect(step.delta).toBe('The user wants a greeting.')
     })
 
     it('does not treat the encrypted chunk as reasoning text', async () => {
@@ -325,6 +329,15 @@ describe('BytePlus text adapter', () => {
       expect(
         chunks.some((c) => c.type === EventType.REASONING_MESSAGE_CONTENT),
       ).toBe(false)
+
+      // Pinning the consequence, not endorsing it: with no reasoning deltas
+      // the base never opens a reasoning lifecycle, so there is no
+      // STEP_FINISHED to stamp and the blob is silently dropped. Live Ark
+      // always sends the encrypted chunk *after* reasoning deltas, but that
+      // ordering is observed behaviour rather than a documented contract — if
+      // this assertion ever fails because a STEP_FINISHED appeared, the
+      // capture path needs revisiting, not this expectation.
+      expect(chunks.some((c) => c.type === EventType.STEP_FINISHED)).toBe(false)
     })
 
     it('emits AG-UI tool-call events with the OpenAI tool shape', async () => {
@@ -558,6 +571,40 @@ describe('BytePlus text adapter', () => {
       })
     })
 
+    it('wraps inline base64 image data in a data: URI', async () => {
+      const content = await contentPartsFor([
+        { type: 'text', content: 'What is this?' },
+        {
+          type: 'image',
+          source: { type: 'data', value: 'QUJD', mimeType: 'image/png' },
+        },
+      ])
+
+      expect(content).toContainEqual({
+        type: 'image_url',
+        image_url: { url: 'data:image/png;base64,QUJD', detail: 'auto' },
+      })
+    })
+
+    it('passes an already-encoded image data URI through untouched', async () => {
+      const content = await contentPartsFor([
+        { type: 'text', content: 'What is this?' },
+        {
+          type: 'image',
+          source: {
+            type: 'data',
+            value: 'data:image/png;base64,QUJD',
+            mimeType: 'image/png',
+          },
+        },
+      ])
+
+      expect(content).toContainEqual({
+        type: 'image_url',
+        image_url: { url: 'data:image/png;base64,QUJD', detail: 'auto' },
+      })
+    })
+
     it('sends video parts as video_url', async () => {
       const content = await contentPartsFor([
         { type: 'text', content: 'Describe this' },
@@ -597,6 +644,45 @@ describe('BytePlus text adapter', () => {
       expect(dataContent).toContainEqual({
         type: 'input_audio',
         input_audio: { data: 'QUJD', format: 'mp3' },
+      })
+    })
+
+    it('strips a data: prefix from inline audio — Ark takes bare base64', async () => {
+      const content = await contentPartsFor([
+        { type: 'text', content: 'Transcribe' },
+        {
+          type: 'audio',
+          source: {
+            type: 'data',
+            value: 'data:audio/wav;base64,QUJD',
+            mimeType: 'audio/wav',
+          },
+        },
+      ])
+
+      expect(content).toContainEqual({
+        type: 'input_audio',
+        input_audio: { data: 'QUJD', format: 'wav' },
+      })
+    })
+
+    it('honours an explicit metadata.format over the mimeType', async () => {
+      const content = await contentPartsFor([
+        { type: 'text', content: 'Transcribe' },
+        {
+          type: 'audio',
+          source: {
+            type: 'data',
+            value: 'QUJD',
+            mimeType: 'application/octet-stream',
+          },
+          metadata: { format: 'flac' },
+        },
+      ])
+
+      expect(content).toContainEqual({
+        type: 'input_audio',
+        input_audio: { data: 'QUJD', format: 'flac' },
       })
     })
 
@@ -708,5 +794,221 @@ describe('BytePlus text adapter', () => {
         response_format: { type: 'json_schema' },
       })
     })
+
+    it('streams structured output on a supported model', async () => {
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-sos',
+          model: STRUCTURED_MODEL,
+          choices: [{ index: 0, delta: { content: '{"city":' } }],
+        },
+        {
+          id: 'chatcmpl-sos',
+          model: STRUCTURED_MODEL,
+          choices: [
+            {
+              index: 0,
+              delta: { content: '"Paris"}' },
+              finish_reason: 'stop',
+            },
+          ],
+        },
+      ])
+      const adapter = createBytePlusText(STRUCTURED_MODEL, 'ark-test-key')
+
+      const chunks = await collect(
+        adapter.structuredOutputStream({
+          chatOptions: {
+            model: STRUCTURED_MODEL,
+            messages: [{ role: 'user', content: 'Where is the Eiffel tower?' }],
+            logger: testLogger,
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { city: { type: 'string' } },
+            required: ['city'],
+          },
+        }),
+      )
+
+      expect(chunks.some((c) => c.type === EventType.RUN_ERROR)).toBe(false)
+      const complete = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          c.name === 'structured-output.complete',
+      )
+      expect(
+        complete?.type === EventType.CUSTOM &&
+          (complete.value as { object: unknown }).object,
+      ).toEqual({ city: 'Paris' })
+    })
+  })
+})
+
+/**
+ * The blob is only useful if it survives the whole round-trip through the
+ * chat engine, not just the adapter's own event stream: the server agent loop
+ * builds the continuation message itself, and it reads thinking from a
+ * different field than the client StreamProcessor does. These tests drive the
+ * real `chat()` agent loop so a regression in that hand-off is caught here
+ * rather than against live Ark.
+ */
+describe('encrypted_content through the chat() agent loop', () => {
+  beforeEach(() => {
+    pendingMockCreate = undefined
+  })
+
+  const lookupWeather: Tool = {
+    name: 'lookup_weather',
+    description: 'Look up the weather for a city',
+    inputSchema: {
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    },
+    execute: async () => ({ conditions: 'sunny' }),
+  }
+
+  /**
+   * Turn 1: reasoning deltas → the dedicated encrypted chunk → a tool call.
+   * `text` controls whether the assistant also produces content, which selects
+   * between the finish_reason path and the drain path in the base.
+   */
+  function toolCallTurn(
+    model: string,
+    options: { text: boolean },
+  ): Array<Record<string, unknown>> {
+    return [
+      {
+        id: 'chatcmpl-loop',
+        model,
+        choices: [{ index: 0, delta: { reasoning_content: 'Need the tool.' } }],
+      },
+      {
+        id: 'chatcmpl-loop',
+        model,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: '',
+              reasoning_content: '',
+              encrypted_content: ENCRYPTED_BLOB,
+            },
+          },
+        ],
+      },
+      ...(options.text
+        ? [
+            {
+              id: 'chatcmpl-loop',
+              model,
+              choices: [{ index: 0, delta: { content: 'Checking.' } }],
+            },
+          ]
+        : []),
+      {
+        id: 'chatcmpl-loop',
+        model,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_loop_1',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"city":"Berlin"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+      },
+    ]
+  }
+
+  function finalTurn(model: string): Array<Record<string, unknown>> {
+    return [
+      {
+        id: 'chatcmpl-loop-2',
+        model,
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'It is sunny in Berlin.' },
+            finish_reason: 'stop',
+          },
+        ],
+      },
+    ]
+  }
+
+  /**
+   * Runs a two-request agent loop and returns the request body of the
+   * continuation call.
+   */
+  async function continuationRequest(options: { text: boolean }): Promise<any> {
+    const model = THINKING_SUMMARY_MODEL
+    const turns = [
+      toolCallTurn(model, { text: options.text }),
+      finalTurn(model),
+    ]
+    let call = 0
+    const mockCreate = vi.fn().mockImplementation(() => {
+      const chunks = turns[Math.min(call++, turns.length - 1)]!
+      return Promise.resolve(createAsyncIterable(chunks))
+    })
+
+    const adapter = _realCreateBytePlusText(model, 'ark-test-key')
+    ;(adapter as any).client = {
+      chat: { completions: { create: mockCreate } },
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [lookupWeather],
+    })) {
+      // consume the stream
+    }
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    return mockCreate.mock.calls[1]?.[0]
+  }
+
+  it('echoes encrypted_content on the continuation request', async () => {
+    const body = await continuationRequest({ text: true })
+
+    const assistant = body.messages.find(
+      (m: any) => m.role === 'assistant' && m.tool_calls,
+    )
+    expect(assistant).toBeDefined()
+    expect(assistant.encrypted_content).toBe(ENCRYPTED_BLOB)
+    expect(assistant.tool_calls[0].function.name).toBe('lookup_weather')
+    // The tool result must be there too — otherwise the loop didn't actually
+    // continue and the assertion above proves nothing about a real 2nd turn.
+    expect(
+      body.messages.some(
+        (m: any) => m.role === 'tool' && m.tool_call_id === 'call_loop_1',
+      ),
+    ).toBe(true)
+  })
+
+  it('echoes it on the drain path too (thinking + tool call, no text)', async () => {
+    const body = await continuationRequest({ text: false })
+
+    const assistant = body.messages.find(
+      (m: any) => m.role === 'assistant' && m.tool_calls,
+    )
+    expect(assistant.encrypted_content).toBe(ENCRYPTED_BLOB)
+    // An assistant turn with only tool calls sends `content: null`, per the
+    // Chat Completions contract the base implements.
+    expect(assistant.content).toBeNull()
   })
 })
