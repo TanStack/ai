@@ -206,7 +206,7 @@ threads per user, add `created_at`/`updated_at` audit columns, add a tenant id.
 Keep added columns nullable or defaulted so the store's inserts still succeed. The
 TanStack AI stores never read or write columns they do not know about.
 
-**Adopt part of it.** You rarely need all four stores in the same database. Put
+**Adopt part of it.** You rarely need every store in the same database. Put
 `messages` and `runs` in your primary database and nothing else, then fill the
 rest from another source with `composePersistence`:
 
@@ -226,7 +226,6 @@ must touch both is two writes; design retries and idempotency for that yourself.
 The store invariants (idempotent `createOrResume`, insert-if-absent `create`) are
 what make those retries safe, which is exactly why they are invariants.
 
-
 ## Verify with the conformance suite
 
 Do not eyeball it. `@tanstack/ai-persistence` ships the same conformance test
@@ -244,7 +243,8 @@ runPersistenceConformance('my sqlite adapter', () =>
 ```
 
 The suite covers all seven stores, the four chat state stores and the three
-generation stores, so an adapter lists whatever it deliberately omits. A chat-only adapter skips the generation half:
+generation stores, so an adapter lists whatever it deliberately omits. A
+chat-only adapter skips the generation half:
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -283,10 +283,9 @@ green, your adapter is a drop-in for `withPersistence` (and, with the generation
 stores, `withGenerationPersistence`). The `examples/ts-react-chat` app runs
 exactly this test against its SQLite backend, which provides all seven.
 
-
 ## Let your coding agent write it
 
-You do not have to type this page out. `@tanstack/ai-persistence` ships
+You do not have to write any of this by hand. `@tanstack/ai-persistence` ships
 [Agent Skills](../getting-started/agent-skills) that turn it into a recipe your
 assistant follows against **your** stack: it reads your existing ORM config,
 schema file, and database handle, appends the four tables to the schema you

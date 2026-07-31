@@ -333,7 +333,6 @@ asserts it. Ignoring `range` and returning the whole file is what makes
 entire artifact for every seek. A reference-only backend that stores no bytes
 skips `blobs` altogether instead.
 
-
 ## Where to go next
 
 - [Build a chat adapter](./build-your-own-chat-adapter): these contracts implemented against SQLite.
