@@ -524,6 +524,11 @@
           "updatedAt": "2026-07-29"
         },
         {
+          "label": "Durable Runs Explained",
+          "to": "sandbox/durable-runs",
+          "addedAt": "2026-07-31"
+        },
+        {
           "label": "The Run Journal",
           "to": "sandbox/journal",
           "addedAt": "2026-07-29"
@@ -537,11 +542,6 @@
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
           "addedAt": "2026-07-29"
-        },
-        {
-          "label": "Instance Durability",
-          "to": "sandbox/durability",
-          "addedAt": "2026-07-27"
         },
         {
           "label": "Events",

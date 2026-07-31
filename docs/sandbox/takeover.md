@@ -790,6 +790,8 @@ against a stream the log never contained. See [Harnesses](./harnesses).
 
 ## See also
 
+- [Durable Runs Explained](./durable-runs): the mental model behind this page, in
+  plain language and with no code — start there if any of the above felt abrupt
 - [The Run Journal](./journal): where the agent's output lives, `runId`
   uniqueness, and `alignToStoredLog`
 - [Sandbox Instance Durability](./durability): keeping the sandbox itself

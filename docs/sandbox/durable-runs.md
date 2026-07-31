@@ -1,0 +1,123 @@
+---
+title: Durable Runs Explained
+id: sandbox-durable-runs
+order: 11
+description: "Why a sandboxed agent run needs to survive a page refresh, and how detach, the journal, takeover, and the reaper fit together. No code — read this before the wiring pages."
+keywords:
+  - durable runs
+  - detach on disconnect
+  - agent survives refresh
+  - resume agent run
+  - sandbox billing
+---
+
+# Durable Runs Explained
+
+This page is the mental model, in plain language, with no code. Read it before
+[The Run Journal](./journal), [Takeover & Detached Runs](./takeover), and
+[Reaping & Retention](./reaping) — those three are the wiring, and they make far
+more sense once you know why each exists.
+
+## The problem
+
+You are building something like ChatGPT, except the assistant is a coding agent
+that works inside a sandbox and can take ten minutes to finish a task.
+
+Ten minutes is a long time for a browser tab. The user refreshes. Closes the
+laptop. Loses wifi. Or their next request lands on a different replica than the
+one running the job.
+
+## What happens without durability
+
+The connection dropping kills everything. The sandbox is destroyed, the work is
+thrown away, and the user comes back to nothing.
+
+That is not a bug — it is the least-bad option available by default. When you
+close the pipe to an agent running in a sandbox, **the agent does not stop.** It
+keeps working and keeps spending money on tokens. So destroying the sandbox is
+the only reliable way to be sure a disconnected job stops burning cash.
+
+Which is exactly right if the user pressed **Stop**. And completely wrong if
+they just refreshed the page.
+
+## What durability changes
+
+Durable runs teach the system to tell those two situations apart, and to handle
+the refresh case properly. Four pieces:
+
+### 1. A disconnect no longer kills anything
+
+It **detaches**: the agent keeps working, the sandbox stays up, and the run
+record notes *"nobody is watching this, as of 3:42pm."*
+
+### 2. The agent writes its output to a file instead of down the wire
+
+This is the key trick. If the agent talks directly to the browser, its words
+vanish the moment the browser leaves. If it writes to a file inside the sandbox,
+the words are still sitting there when someone comes back. That file is the
+[journal](./journal).
+
+### 3. Someone comes back, and we pick up mid-sentence
+
+A new request — possibly on a different replica — reads that file, works out how
+much the user already saw, and streams only the part they missed. No repeated
+paragraphs, no gaps. That is [takeover](./takeover).
+
+### 4. Something has to clean up after the people who never come back
+
+Otherwise a sandbox runs forever on a job nobody will ever read. So there is a
+sweeper: it finds abandoned runs, checks whether the agent finished on its own,
+and either wraps them up or shuts them down. That is the
+[reaper](./reaping).
+
+## The two parts that sound over-engineered but are not
+
+### Making sure two replicas never both drive one run
+
+If a user opens the same thread in two tabs, or a load balancer sends a retry
+elsewhere, two replicas could both try to continue one run — and the user would
+see doubled text and contradictory "finished" messages.
+
+So a replica has to take a numbered ticket to drive a run. If a newer replica
+takes a higher number, the older one is locked out of writing anything at all —
+not merely discouraged, but unable to append to the log or mark the run
+finished.
+
+### Making "the agent finished" impossible to fake
+
+The way we know a run ended is that a special line appears at the end of the
+journal file. But the *agent itself* writes that file, and agents write whatever
+the model says.
+
+If a model happened to print that line, the reaper would believe a running job
+had ended and would shut down a live sandbox. So the line includes a secret
+value derived from the run's own id. The agent cannot produce it, so it cannot
+get its own sandbox destroyed.
+
+## What you have to do to use it
+
+Two things, and the second is easy to forget:
+
+1. **Turn it on** — give `withSandbox` both a run store and a durability
+   backend. Passing only one leaves you with exactly the default
+   destroy-on-disconnect behavior, silently, because you have not asked for
+   durability. See [Takeover & Detached Runs](./takeover).
+2. **Actually schedule the sweeper** — a cron job, a queue, a Durable Object
+   `alarm()`, whatever your platform offers. See
+   [Reaping & Retention](./reaping).
+
+Do the first and not the second and everything *looks* fine, then sandboxes bill
+indefinitely and disconnected readers wait forever on logs nothing will ever
+close. Nothing warns you, which is why the reaping page leads with that warning.
+
+You also need a real distributed lock (`LockStore`). The in-memory one cannot
+coordinate across hosts, so it cannot stop two replicas racing — `withSandbox`
+warns when it sees that combination.
+
+## See also
+
+- [The Run Journal](./journal) — the file, and why it is a file
+- [Takeover & Detached Runs](./takeover) — the wiring, both routes
+- [Reaping & Retention](./reaping) — the sweeper, and how to schedule it
+- [Instance Durability](./durability) — keeping the *sandbox* findable across
+  replicas, which is a separate concern from keeping its *output* readable

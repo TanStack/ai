@@ -463,6 +463,8 @@ they are what the driver gives you. See
 
 ## See also
 
+- [Durable Runs Explained](./durable-runs): why the output goes to a file at all,
+  in plain language and with no code
 - [Takeover & Detached Runs](./takeover): `sandboxRunDriver`, detach-on-disconnect,
   and single-writer fencing — the wiring that drives everything on this page
 - [Providers](./providers): the `killableProcesses` capability and the read

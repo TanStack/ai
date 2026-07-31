@@ -663,6 +663,8 @@ set a provider-side idle timeout as the backstop.
 
 ## See also
 
+- [Durable Runs Explained](./durable-runs): where this sweep fits in the whole
+  picture, in plain language and with no code
 - [Takeover & Detached Runs](./takeover): how a run becomes detached in the first
   place, `sandboxRunDriver`, and the single-writer fencing the sweep reuses
 - [The Run Journal](./journal): the journal `probeRunExit` reads and
