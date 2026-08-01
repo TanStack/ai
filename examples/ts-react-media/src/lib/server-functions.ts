@@ -612,7 +612,11 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
     // id every one of those guards is off by design: the duration goes
     // through verbatim and Ark is the authority.
     adapter: byteplusVideo(data.model),
-    prompt: asImagePrompt(data.prompt),
+    // Passed through un-narrowed, unlike the other generators: Seedance's
+    // reference mode takes video and audio parts as well as images (the
+    // template presets send both), and which of them a given model allows is
+    // the adapter's call — its error names the model and the part.
+    prompt: data.prompt,
     ...(options.size !== undefined && { size: options.size }),
     ...(duration !== undefined && { duration }),
     modelOptions,

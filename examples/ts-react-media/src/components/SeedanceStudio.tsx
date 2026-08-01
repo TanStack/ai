@@ -8,6 +8,8 @@ import {
   Download,
   Film,
   Loader2,
+  Music,
+  Play,
   Shuffle,
   Upload,
   X,
@@ -21,6 +23,10 @@ import type {
 } from '@tanstack/ai-byteplus'
 import type { MediaPromptPart } from '@tanstack/ai/client'
 import type { AttachedMedia } from '@/lib/media'
+import type {
+  SeedanceTemplate,
+  SeedanceTemplateMedia,
+} from '@/lib/seedance-templates'
 import type { VideoBilling } from '@/lib/billing'
 import type {
   SeedanceCapability,
@@ -30,7 +36,7 @@ import type {
 } from '@/lib/seedance'
 
 import { generateSeedanceVideoFn } from '@/lib/server-functions'
-import { readMediaFile, toImagePart } from '@/lib/media'
+import { mediaUrlToPart, readMediaFile, toImagePart } from '@/lib/media'
 import { readVideoBilling } from '@/lib/billing'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import {
@@ -46,6 +52,11 @@ import {
   seedanceModel,
   snapSeedanceFrames,
 } from '@/lib/seedance'
+import {
+  SEEDANCE_TEMPLATES,
+  SEEDANCE_TEMPLATE_MODEL,
+  SEEDANCE_TEMPLATE_RESOLUTION,
+} from '@/lib/seedance-templates'
 
 /** How many reference images the studio offers on the 2.0 family. */
 const MAX_REFERENCE_IMAGES = 4
@@ -99,6 +110,17 @@ export default function SeedanceStudio({
   const [firstFrame, setFirstFrame] = useState<AttachedMedia | null>(null)
   const [lastFrame, setLastFrame] = useState<AttachedMedia | null>(null)
   const [references, setReferences] = useState<Array<AttachedMedia>>([])
+  /**
+   * Template media, kept apart from the uploads: these are remote URLs the app
+   * never holds bytes for, and their order carries the prompt's `@Video1` /
+   * `@Image1` ordinals.
+   */
+  const [templateMedia, setTemplateMedia] = useState<
+    Array<SeedanceTemplateMedia>
+  >([])
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(
+    null,
+  )
 
   const [ratio, setRatio] = useState<BytePlusVideoRatio>('16:9')
   const [resolution, setResolution] = useState<BytePlusVideoResolution>('720p')
@@ -264,6 +286,58 @@ export default function SeedanceStudio({
     }
   }
 
+  /**
+   * Load a playground template. It sets four things and nothing else:
+   *
+   * 1. the model — Seedance 2.0, since templates need multimodal reference
+   *    media, clearing any custom id that would otherwise override it;
+   * 2. the prompt, verbatim from the console;
+   * 3. reference mode and the template's media (replacing any uploads);
+   * 4. the console's generation defaults for templates — smart length, sound
+   *    on, 720p, and a ratio that follows the reference media.
+   *
+   * The seed is reset because a leftover one silently changes the output.
+   * Watermark, priority, fixed camera, draft and flex tier are deliberately
+   * left as you had them: none of them contradicts a template, and the
+   * console has no opinion about them.
+   */
+  const applyTemplate = (template: SeedanceTemplate) => {
+    if (isBusy) return
+    setModelId(SEEDANCE_TEMPLATE_MODEL)
+    setCustomModelId('')
+    setShowAdvanced(false)
+    setPrompt(template.prompt)
+    setInputMode('reference')
+    setTemplateMedia(template.media)
+    setReferences([])
+    setAppliedTemplateId(template.id)
+    setSeed('')
+    setAutoDuration(true)
+    setGenerateAudio(true)
+    setResolution(SEEDANCE_TEMPLATE_RESOLUTION)
+    setRatio('adaptive')
+  }
+
+  /**
+   * Edit the prompt and the card stops claiming to be applied — what's on
+   * screen is no longer the template the console would have sent.
+   */
+  const handlePromptChange = (value: string) => {
+    setPrompt(value)
+    if (appliedTemplateId !== null) setAppliedTemplateId(null)
+  }
+
+  /** Dropping any of a template's media diverges it the same way. */
+  const removeTemplateMedia = (url: string) => {
+    setTemplateMedia((prev) => prev.filter((m) => m.url !== url))
+    setAppliedTemplateId(null)
+  }
+
+  const clearTemplate = () => {
+    setTemplateMedia([])
+    setAppliedTemplateId(null)
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim() && !hasImageInput) return
     // `isBusy` comes from React state, which hasn't re-rendered yet for a
@@ -285,6 +359,12 @@ export default function SeedanceStudio({
       }
     }
     if (effectiveMode === 'reference') {
+      // Template media first and in declared order: the adapter keeps the
+      // relative order of the parts within each modality, which is what the
+      // prompt's `@Video1` / `@Image1` ordinals are counting.
+      for (const media of templateMedia) {
+        parts.push(mediaUrlToPart(media.kind, media.url, { role: 'reference' }))
+      }
       for (const reference of references) {
         parts.push(toImagePart(reference, { role: 'reference' }))
       }
@@ -382,15 +462,102 @@ export default function SeedanceStudio({
 
   const modelSelectDisabled = isBusy || unknownMode
 
+  // Reference images are capped across both sources: a template can bring one
+  // (templates 1 and 5 do), and it counts against the same budget as uploads.
+  const templateImageCount = templateMedia.filter(
+    (m) => m.kind === 'image',
+  ).length
+  const referenceImagesLeft = Math.max(
+    0,
+    MAX_REFERENCE_IMAGES - templateImageCount - references.length,
+  )
+  // Seedance rejects a reference audio that is the only reference — it needs
+  // something visual to attach to. Gating it here keeps the studio's promise
+  // that what the form lets you build is what the API accepts.
+  const referenceVisuals =
+    templateMedia.filter((m) => m.kind !== 'audio').length + references.length
+  const audioOnlyReferences =
+    effectiveMode === 'reference' &&
+    templateMedia.some((m) => m.kind === 'audio') &&
+    referenceVisuals === 0
+
   const readyToGenerate =
     (prompt.trim().length > 0 || hasImageInput) &&
     (effectiveMode !== 'first-frame' || firstFrame !== null) &&
     (effectiveMode !== 'first-last-frame' ||
       (firstFrame !== null && lastFrame !== null)) &&
-    (effectiveMode !== 'reference' || references.length > 0)
+    (effectiveMode !== 'reference' ||
+      references.length + templateMedia.length > 0) &&
+    !audioOnlyReferences
 
   return (
     <div className="space-y-6">
+      <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-medium text-white">Templates</h2>
+          <p className="text-sm text-gray-400">
+            The Ark playground's own presets — prompt, reference media and
+            settings in one click. All five need multimodal reference media, so
+            applying one switches the model to Seedance 2.0.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {SEEDANCE_TEMPLATES.map((template) => {
+            const applied = appliedTemplateId === template.id
+            return (
+              <button
+                key={template.id}
+                onClick={() => applyTemplate(template)}
+                disabled={isBusy}
+                className={`text-left rounded-lg border overflow-hidden transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  applied
+                    ? 'bg-blue-600/15 border-blue-500'
+                    : 'bg-gray-800 border-gray-700 hover:border-gray-600'
+                }`}
+              >
+                {/* Hotlinked from Ark's public presets bucket — hovering plays
+                    the sample rather than autoplaying five clips at once. The
+                    bucket is in cn-beijing and slow to reach, so the label
+                    below sits behind the video and shows through until the
+                    `#t=0.1` seek paints its first frame. */}
+                <div className="relative w-full aspect-video bg-gray-900">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-gray-600">
+                    <Play className="w-6 h-6" />
+                    <span className="text-[10px]">hover to preview</span>
+                  </div>
+                  <video
+                    src={`${template.previewUrl}#t=0.1`}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    onMouseEnter={(e) => {
+                      void e.currentTarget.play().catch(() => {})
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.pause()
+                      e.currentTarget.currentTime = 0
+                    }}
+                    className="relative w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-3">
+                  <div className="text-sm font-medium text-white">
+                    {template.name}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    {template.blurb}
+                  </div>
+                  <div className="text-xs text-cyan-300 mt-1.5">
+                    {template.media.map((m) => m.label).join(' · ')}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
       <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium text-white">Prompt</h2>
@@ -411,7 +578,7 @@ export default function SeedanceStudio({
         </div>
         <textarea
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => handlePromptChange(e.target.value)}
           placeholder="Describe the shot — quote any dialogue you want in the audio track..."
           rows={3}
           disabled={isBusy}
@@ -439,8 +606,8 @@ export default function SeedanceStudio({
               </button>
             ))}
           </div>
-          {/* Images only: the Seedance 2.0 family also takes reference video
-              and audio, which this studio deliberately leaves out of scope. */}
+          {/* Uploads are images only; reference video and audio reach the
+              request through the templates above, which carry remote URLs. */}
           <p className="text-xs text-gray-500 mt-2">
             Frame roles and reference roles are mutually exclusive modes on
             Seedance, so the studio sends one or the other — never a mix.
@@ -469,12 +636,70 @@ export default function SeedanceStudio({
           </div>
         )}
 
+        {effectiveMode === 'reference' && templateMedia.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-300">
+                Template media{' '}
+                <span className="text-gray-500 font-normal">
+                  (sent in this order — the prompt's @-tokens count them)
+                </span>
+              </label>
+              <button
+                onClick={clearTemplate}
+                disabled={isBusy}
+                className="text-xs text-gray-400 hover:text-white underline disabled:opacity-50"
+              >
+                Remove all
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {templateMedia.map((media) => (
+                <div
+                  key={media.url}
+                  className="flex items-center gap-2 pl-1.5 pr-2 py-1.5 bg-gray-800 border border-gray-600 rounded-lg"
+                >
+                  {media.kind === 'image' ? (
+                    <img
+                      src={media.url}
+                      alt={media.label}
+                      className="w-10 h-10 object-cover rounded"
+                    />
+                  ) : media.kind === 'video' ? (
+                    <video
+                      src={media.url}
+                      muted
+                      preload="metadata"
+                      className="w-10 h-10 object-cover rounded bg-gray-900"
+                    />
+                  ) : (
+                    <span className="flex items-center justify-center w-10 h-10 rounded bg-gray-900">
+                      <Music className="w-4 h-4 text-gray-400" />
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-300 font-mono">
+                    {media.label}
+                  </span>
+                  <button
+                    onClick={() => removeTemplateMedia(media.url)}
+                    disabled={isBusy}
+                    className="p-0.5 text-gray-500 hover:text-white disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {effectiveMode === 'reference' && (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Reference images{' '}
               <span className="text-gray-500 font-normal">
-                (subject and style, up to {MAX_REFERENCE_IMAGES})
+                (subject and style, {referenceImagesLeft} of{' '}
+                {MAX_REFERENCE_IMAGES} slots left)
               </span>
             </label>
             <div className="flex flex-wrap gap-2">
@@ -498,7 +723,7 @@ export default function SeedanceStudio({
                   </button>
                 </div>
               ))}
-              {references.length < MAX_REFERENCE_IMAGES && (
+              {referenceImagesLeft > 0 && (
                 <button
                   onClick={() => referenceInputRef.current?.click()}
                   disabled={isBusy}
@@ -534,7 +759,11 @@ export default function SeedanceStudio({
           onChange={(e) =>
             attachFile(e, (media) =>
               setReferences((prev) =>
-                [...prev, media].slice(0, MAX_REFERENCE_IMAGES),
+                // The template's own reference images share this budget.
+                [...prev, media].slice(
+                  0,
+                  MAX_REFERENCE_IMAGES - templateImageCount,
+                ),
               ),
             )
           }
@@ -880,23 +1109,31 @@ export default function SeedanceStudio({
         )}
       </section>
 
-      <button
-        onClick={handleGenerate}
-        disabled={isBusy || !readyToGenerate}
-        className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-      >
-        {isBusy ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Film className="w-5 h-5" />
-            Generate with {entry.name}
-          </>
+      <div className="space-y-2">
+        <button
+          onClick={handleGenerate}
+          disabled={isBusy || !readyToGenerate}
+          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          {isBusy ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Film className="w-5 h-5" />
+              Generate with {entry.name}
+            </>
+          )}
+        </button>
+        {audioOnlyReferences && (
+          <p className="text-xs text-amber-400/80 text-center">
+            Reference audio can't be the only reference — pair it with a
+            reference image or video.
+          </p>
         )}
-      </button>
+      </div>
 
       {(isBusy || error || result) && (
         <section className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 space-y-4">
