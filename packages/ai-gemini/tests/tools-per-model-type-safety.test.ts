@@ -99,4 +99,40 @@ describe('Gemini per-model tool gating', () => {
       googleSearchRetrievalTool(),
     ])
   })
+
+  it('gemini-3.6-flash accepts code_execution, file_search, google_search, google_maps, url_context, computer_use', () => {
+    const adapter = geminiText('gemini-3.6-flash')
+    typedTools(adapter, [
+      userTool,
+      codeExecutionTool(),
+      fileSearchTool({ fileSearchStoreNames: [] }),
+      googleSearchTool(),
+      googleMapsTool(),
+      urlContextTool(),
+      computerUseTool({
+        environment: Environment.ENVIRONMENT_BROWSER,
+        excludedPredefinedFunctions: [],
+      }),
+      // @ts-expect-error - gemini-3.6-flash does not support google_search_retrieval
+      googleSearchRetrievalTool(),
+    ])
+  })
+
+  it('gemini-3.5-flash-lite accepts code_execution, file_search, google_search, google_maps, url_context, computer_use', () => {
+    const adapter = geminiText('gemini-3.5-flash-lite')
+    typedTools(adapter, [
+      userTool,
+      codeExecutionTool(),
+      fileSearchTool({ fileSearchStoreNames: [] }),
+      googleSearchTool(),
+      googleMapsTool(),
+      urlContextTool(),
+      computerUseTool({
+        environment: Environment.ENVIRONMENT_BROWSER,
+        excludedPredefinedFunctions: [],
+      }),
+      // @ts-expect-error - gemini-3.5-flash-lite does not support google_search_retrieval
+      googleSearchRetrievalTool(),
+    ])
+  })
 })
