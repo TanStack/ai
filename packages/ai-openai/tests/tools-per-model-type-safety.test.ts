@@ -45,8 +45,11 @@ const userTool = toolDefinition({
 }).server(async ({ msg }) => msg)
 
 describe('OpenAI per-model tool gating', () => {
-  it('gpt-5.2 accepts the full tool superset', () => {
-    const adapter = openaiText('gpt-5.2')
+  // One literal `it` per model so `openaiText('<id>')` is checked against that
+  // model's tool capabilities alone — not a union of every row in a table.
+  function assertFullToolSuperset<TAdapter extends ReturnType<typeof openaiText>>(
+    adapter: TAdapter,
+  ) {
     typedTools(adapter, [
       userTool,
       webSearchTool({ type: 'web_search' }),
@@ -71,41 +74,34 @@ describe('OpenAI per-model tool gating', () => {
       shellTool(),
       applyPatchTool(),
     ])
+  }
+
+  it('gpt-5.2 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.2'))
   })
 
-  it.each([
-    'gpt-5.6',
-    'gpt-5.6-sol',
-    'gpt-5.6-terra',
-    'gpt-5.6-luna',
-    'gpt-5.5',
-    'gpt-5.5-pro',
-  ] as const)('%s accepts the full tool superset', (model) => {
-    const adapter = openaiText(model)
-    typedTools(adapter, [
-      userTool,
-      webSearchTool({ type: 'web_search' }),
-      webSearchPreviewTool({ type: 'web_search_preview' }),
-      fileSearchTool({ type: 'file_search', vector_store_ids: ['vs_123'] }),
-      imageGenerationTool({}),
-      codeInterpreterTool({
-        type: 'code_interpreter',
-        container: { type: 'auto' },
-      }),
-      mcpTool({
-        server_label: 'my-server',
-        server_url: 'https://example.com/mcp',
-      }),
-      computerUseTool({
-        type: 'computer_use_preview',
-        display_height: 768,
-        display_width: 1024,
-        environment: 'linux',
-      }),
-      localShellTool(),
-      shellTool(),
-      applyPatchTool(),
-    ])
+  it('gpt-5.6 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6'))
+  })
+
+  it('gpt-5.6-sol accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-sol'))
+  })
+
+  it('gpt-5.6-terra accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-terra'))
+  })
+
+  it('gpt-5.6-luna accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-luna'))
+  })
+
+  it('gpt-5.5 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.5'))
+  })
+
+  it('gpt-5.5-pro accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.5-pro'))
   })
 
   it('gpt-3.5-turbo rejects every provider tool; user-defined tool is still accepted', () => {
