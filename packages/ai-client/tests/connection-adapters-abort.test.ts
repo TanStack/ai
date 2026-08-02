@@ -3,7 +3,7 @@ import {
   fetchHttpStream,
   fetchServerSentEvents,
 } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 
 describe('Connection Adapters - Abort Signal Handling', () => {
   let originalFetch: typeof fetch

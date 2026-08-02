@@ -60,7 +60,7 @@ Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/
 After defining metadata, group models by supported functionality using exported arrays. These arrays allow TanStack AI to automatically select compatible models for a given task.
 
 Example:
-```typescript
+```typescript ignore
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
   GPT5_2.name,
@@ -91,7 +91,7 @@ Each array should only include models that fully support the associated function
 Each model exposes a different set of configurable options. These options must be typed per model name so that users only see valid configuration options.
 
 Example:
-```typescript
+```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
@@ -116,7 +116,7 @@ This ensures strict type safety and feature correctness at compile time.
 Models typically support different input modalities (e.g. text, images, audio). These must be defined per model to prevent invalid usage.
 
 Example:
-```typescript
+```typescript ignore
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
@@ -159,7 +159,7 @@ export interface OpenAIStructuredOutputOptions {
 
 Models can then opt into only the features they support:
 
-```typescript
+```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &

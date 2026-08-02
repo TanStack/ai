@@ -51,6 +51,14 @@ for (const provider of providersFor('structured-output-stream')) {
       expect(parsed.name).toContain('Fender Stratocaster')
       expect(parsed.price).toBe(1299)
 
+      // `condition` is `.optional()`, so strict-mode widening made the provider
+      // return `null` for it (see the fixture). The engine must un-widen that
+      // synthesized null before the streamed `structured-output.complete` event
+      // reaches the consumer, so the field reads back as ABSENT — not `null`.
+      // Pre-fix, null-preserving adapters (e.g. openrouter) leaked the `null`
+      // straight through on the streaming path.
+      expect('condition' in parsed).toBe(false)
+
       // Verify the response actually streamed (more than one content delta).
       // A regression that silently fell back to the synthetic single-delta
       // path would still pass the substring assertion above but fail here.

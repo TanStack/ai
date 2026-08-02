@@ -15,6 +15,19 @@ interface FeatureConfig {
   systemPrompt?: string
 }
 
+/**
+ * The byteplus model every structured-output feature overrides to.
+ *
+ * The default e2e chat model (`seed-2-0-lite-260428`, in `providers.ts`)
+ * rejects both `response_format: json_schema` and `json_object` — live-probed,
+ * and the adapter throws rather than silently degrading, so any feature that
+ * asks for a schema has to move off it. `seed-2-0-lite-260228` is the nearest
+ * sibling that accepts json_schema *and* honours it (glm-4-7 accepts it and
+ * returns prose, so acceptance alone isn't enough), and it keeps image input,
+ * which `multimodal-structured` needs.
+ */
+const BYTEPLUS_STRUCTURED_MODEL = 'seed-2-0-lite-260228'
+
 export const featureConfigs: Record<Feature, FeatureConfig> = {
   chat: {
     tools: [],
@@ -30,6 +43,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOverrides: {
       openai: 'o3',
       anthropic: 'claude-sonnet-4-5',
+      mistral: 'magistral-medium-latest',
     },
   },
   'multi-turn': {
@@ -55,20 +69,24 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'structured-output': {
     tools: [],
     modelOptions: {},
+    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
   },
   'structured-output-stream': {
     tools: [],
     modelOptions: {},
+    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
   },
   'multi-turn-structured': {
     tools: [],
     modelOptions: {},
+    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
     systemPrompt:
       'You are a chef assistant that always responds with a single recipe matching the provided JSON schema. When the user asks for modifications, produce a new recipe in the same shape that reflects the change. Stay terse — short titles, short steps.',
   },
   'agentic-structured': {
     tools: [getGuitars],
     modelOptions: {},
+    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
   },
   // Pins #605 native-combined-mode: `outputSchema` + `tools` + `stream: true`
   // in a single chat call. Default openai (gpt-4o) and anthropic
@@ -80,7 +98,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     modelOverrides: {
       gemini: 'gemini-3-flash-preview',
-      grok: 'grok-4-1-fast-non-reasoning',
+      grok: 'grok-build-0.1',
+      // Reports combined tools+schema support, so the engine takes the
+      // native path here too.
+      byteplus: BYTEPLUS_STRUCTURED_MODEL,
     },
   },
   'multimodal-image': {
@@ -90,6 +111,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'multimodal-structured': {
     tools: [],
     modelOptions: {},
+    modelOverrides: { byteplus: BYTEPLUS_STRUCTURED_MODEL },
   },
   summarize: {
     tools: [],
@@ -100,6 +122,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'image-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'image-to-image': {
     tools: [],
     modelOptions: {},
   },
@@ -119,7 +145,19 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'transcription-diarization': {
+    tools: [],
+    modelOptions: {},
+  },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'image-to-video': {
+    tools: [],
+    modelOptions: {},
+  },
+  'interactions-video': {
     tools: [],
     modelOptions: {},
   },

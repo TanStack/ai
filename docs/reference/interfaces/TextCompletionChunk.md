@@ -5,7 +5,7 @@ title: TextCompletionChunk
 
 # Interface: TextCompletionChunk
 
-Defined in: [packages/ai/src/types.ts:1384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1384)
+Defined in: [packages/ai/src/types.ts:1671](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1671)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/ai/src/types.ts:1384](https://github.com/TanStack/ai/blob/
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1387)
+Defined in: [packages/ai/src/types.ts:1674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1674)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/
 optional finishReason: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
+Defined in: [packages/ai/src/types.ts:1676](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1676)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1385)
+Defined in: [packages/ai/src/types.ts:1672](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1672)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1386)
+Defined in: [packages/ai/src/types.ts:1673](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1673)
 
 ***
 
@@ -55,32 +55,14 @@ Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/
 optional role: "assistant";
 ```
 
-Defined in: [packages/ai/src/types.ts:1388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1388)
+Defined in: [packages/ai/src/types.ts:1675](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1675)
 
 ***
 
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Defined in: [packages/ai/src/types.ts:1677](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1677)

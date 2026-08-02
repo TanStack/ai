@@ -1,5 +1,5 @@
 import { createReactPanel } from '@tanstack/devtools-utils/react'
-import { AiDevtoolsCore } from '@tanstack/ai-devtools-core'
+import { AiDevtoolsCore } from '@tanstack/ai-devtools-core/production'
 import type { DevtoolsPanelProps } from '@tanstack/devtools-utils/react'
 
 export interface AiDevtoolsReactInit extends DevtoolsPanelProps {}

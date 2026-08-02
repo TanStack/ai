@@ -2,7 +2,7 @@
 title: Text-to-Speech
 id: text-to-speech
 order: 3
-description: "Convert text to spoken audio with OpenAI TTS and Gemini voice models via TanStack AI's generateSpeech() API."
+description: "Convert text to spoken audio with OpenAI TTS, Gemini voice models, and BytePlus Seed Speech via TanStack AI's generateSpeech() API."
 keywords:
   - tanstack ai
   - text-to-speech
@@ -23,6 +23,7 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 
 - **OpenAI**: TTS-1, TTS-1-HD, and audio-capable GPT-4o models
 - **Gemini**: Gemini 2.5 Flash TTS (experimental)
+- **BytePlus**: Seed Speech (`seed-audio-1.0`)
 - **fal.ai**: Kokoro, ElevenLabs, MiniMax, Chatterbox, Dia, Orpheus, F5-TTS, VibeVoice, and more
 
 ## Basic Usage
@@ -53,7 +54,7 @@ import { geminiSpeech } from '@tanstack/ai-gemini'
 
 // Generate speech from text (uses GOOGLE_API_KEY or GEMINI_API_KEY from environment)
 const result = await generateSpeech({
-  adapter: geminiSpeech('gemini-2.5-flash-preview-tts'),
+  adapter: geminiSpeech('gemini-3.1-flash-tts-preview'),
   text: 'Hello from Gemini TTS!',
 })
 
@@ -77,6 +78,9 @@ const result = await generateSpeech({
 ```
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { falSpeech } from '@tanstack/ai-fal'
+
 // Kokoro multilingual
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/kokoro/american-english'),
@@ -90,16 +94,43 @@ console.log(result.format) // e.g. "wav"
 ```
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { falSpeech } from '@tanstack/ai-fal'
+
 // ElevenLabs v3 with model-specific options
 const result = await generateSpeech({
   adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
   text: 'Welcome to TanStack AI.',
+  // The fal adapter maps top-level `voice`/`speed` into the model input;
+  // `modelOptions` is reserved for model-specific keys.
+  voice: 'Rachel',
   modelOptions: {
-    voice: 'Rachel',
     stability: 0.5,
   },
 })
 ```
+
+### BytePlus Seed Speech
+
+Seed Speech is a **separate BytePlus product from ModelArk**, so it uses its own key (`BYTEPLUS_VOICE_API_KEY`) rather than the `ARK_API_KEY` the chat, image and video adapters read. Voice ids go on the wire as Seed Speech's `speaker`:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'Welcome to TanStack AI!',
+  voice: 'en_female_stokie_uranus_bigtts',
+  format: 'mp3',
+})
+
+console.log(result.contentType) // "audio/mpeg"
+```
+
+Formats are `wav`, `mp3`, `pcm` and `ogg_opus`, and synthesis is **capped at 120 seconds of output**. Set `modelOptions.enable_subtitle` for sentence- and word-level timings — note those timings are in milliseconds while `duration` is in seconds.
+
+Seed Speech has no top-level `speaker` field: the adapter sends `voice` as `references: [{ speaker }]`. Because `modelOptions.references` **replaces** that array rather than merging into it, passing `references` for voice cloning silently drops `voice` — include a `speaker` member yourself if you still want a stock voice. See the [BytePlus adapter](../adapters/byteplus#text-to-speech-seed-speech) for the voice-id naming conventions.
 
 ## Options
 
@@ -147,29 +178,34 @@ OpenAI provides several distinct voices:
 ### OpenAI Model Options
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
 const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
   text: 'High quality speech synthesis',
   voice: 'nova',
   format: 'mp3',
+  speed: 1.0, // top-level option, 0.25 to 4.0
   modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
+    instructions: 'Speak in a calm, measured tone', // GPT-4o audio models only
   },
 })
 ```
 
+> **Note:** `voice`, `format`, and `speed` are top-level `generateSpeech` options, not `modelOptions` keys.
+
 | Option | Type | Description |
 |--------|------|-------------|
-| `speed` | `number` | Playback speed (0.25 to 4.0, default 1.0) |
 | `instructions` | `string` | Voice style instructions (GPT-4o audio models only) |
 
-> **Note:** The `instructions` and `stream_format` options are only available with `gpt-4o-audio-preview` and `gpt-4o-mini-audio-preview` models, not with `tts-1` or `tts-1-hd`.
+> **Note:** The `instructions` and `stream_format` options are only available with the `gpt-4o-audio-preview` model, not with `tts-1` or `tts-1-hd`.
 
 ## Response Format
 
 The TTS result includes:
 
-```typescript
+```typescript ignore
 interface TTSResult {
   id: string        // Unique identifier for this generation
   model: string     // The model used
@@ -182,7 +218,7 @@ interface TTSResult {
 
 ## Playing Audio in the Browser
 
-```typescript
+```typescript ignore
 // Convert base64 to audio and play
 function playAudio(result: TTSResult) {
   const audioData = atob(result.audio)
@@ -204,7 +240,9 @@ function playAudio(result: TTSResult) {
 
 ## Saving Audio to File (Node.js)
 
-```typescript
+```typescript ignore
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
 import { writeFile } from 'fs/promises'
 
 async function saveAudio(result: TTSResult, filename: string) {
@@ -230,7 +268,7 @@ TanStack AI provides React hooks and server-side streaming helpers to build full
 
 **Server** — Create an API route that wraps `generateSpeech` as a streaming response:
 
-```typescript
+```typescript ignore
 // routes/api/generate/speech.ts
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
@@ -301,7 +339,7 @@ function SpeechGenerator() {
 
 For non-streaming usage with TanStack Start server functions:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateSpeech } from '@tanstack/ai'
@@ -334,7 +372,7 @@ function SpeechGenerator() {
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
 
-```typescript
+```typescript ignore
 // lib/server-functions.ts
 import { createServerFn } from '@tanstack/react-start'
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
@@ -403,11 +441,12 @@ The `onResult` callback can optionally return a transformed value that replaces 
 
 ```tsx
 import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { TTSResult } from '@tanstack/ai'
 
 function SpeechPlayer() {
   const { generate, result, isLoading } = useGenerateSpeech({
     connection: fetchServerSentEvents('/api/generate/speech'),
-    onResult: (raw) => {
+    onResult: (raw: TTSResult) => {
       const audioData = atob(raw.audio)
       const bytes = new Uint8Array(audioData.length)
       for (let i = 0; i < audioData.length; i++) {
@@ -451,7 +490,6 @@ TypeScript automatically infers the result type from your `onResult` return valu
 | `tts-1` | Standard | Fast | Real-time applications |
 | `tts-1-hd` | High | Slower | Production audio |
 | `gpt-4o-audio-preview` | Highest | Variable | Advanced voice control |
-| `gpt-4o-mini-audio-preview` | High | Fast | Balanced quality/speed |
 
 ### Gemini Models
 
@@ -462,18 +500,23 @@ TypeScript automatically infers the result type from your `onResult` return valu
 ## Error Handling
 
 ```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
 try {
   const result = await generateSpeech({
     adapter: openaiSpeech('tts-1'),
     text: 'Hello!',
   })
 } catch (error) {
-  if (error.message.includes('exceeds maximum length')) {
-    console.error('Text is too long (max 4096 characters)')
-  } else if (error.message.includes('Speed must be between')) {
-    console.error('Invalid speed value')
-  } else {
-    console.error('TTS error:', error.message)
+  if (error instanceof Error) {
+    if (error.message.includes('exceeds maximum length')) {
+      console.error('Text is too long (max 4096 characters)')
+    } else if (error.message.includes('Speed must be between')) {
+      console.error('Invalid speed value')
+    } else {
+      console.error('TTS error:', error.message)
+    }
   }
 }
 ```
@@ -488,6 +531,7 @@ The TTS adapters use the same environment variables as other adapters:
 
 - **OpenAI**: `OPENAI_API_KEY`
 - **Gemini**: `GOOGLE_API_KEY` or `GEMINI_API_KEY`
+- **BytePlus**: `BYTEPLUS_VOICE_API_KEY` (Seed Speech is a different product from ModelArk — the `ARK_API_KEY` used by the chat/image/video adapters is not accepted here)
 
 ## Explicit API Keys
 
@@ -501,7 +545,7 @@ import { createGeminiSpeech } from '@tanstack/ai-gemini'
 const openaiAdapter = createOpenaiSpeech('tts-1', 'your-openai-api-key')
 
 // Gemini
-const geminiAdapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'your-google-api-key')
+const geminiAdapter = createGeminiSpeech('gemini-3.1-flash-tts-preview', 'your-google-api-key')
 ```
 
 ## Best Practices

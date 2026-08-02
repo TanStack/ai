@@ -4,53 +4,74 @@ import {
   ToolCallManager,
   executeToolCalls,
 } from '../src/activities/chat/tools/tool-calls'
+import { EventType } from '../src/types'
 import type {
   RunFinishedEvent,
   Tool,
   ToolCall,
-  ToolCallStartEvent,
   ToolCallArgsEvent,
   ToolCallEndEvent,
+  ToolCallStartEvent,
+  ToolOutputState,
 } from '../src/types'
 
 /** Helper to create a ToolCallStartEvent from plain fields (avoids EventType enum issues). */
-function toolCallStart(
-  fields: Omit<ToolCallStartEvent, 'type' | 'timestamp'>,
-): ToolCallStartEvent {
+function toolCallStart(fields: {
+  toolCallId: string
+  toolCallName: string
+  toolName?: string
+  index?: number
+  metadata?: Record<string, unknown>
+  model?: string
+}): ToolCallStartEvent {
   return {
-    type: 'TOOL_CALL_START' as any,
+    type: EventType.TOOL_CALL_START,
     timestamp: Date.now(),
     ...fields,
-  } as ToolCallStartEvent
+    // `toolName` is the deprecated alias of `toolCallName`; mirror it
+    // so tests don't have to write both.
+    toolName: fields.toolName ?? fields.toolCallName,
+  }
 }
 
 /** Helper to create a ToolCallArgsEvent from plain fields. */
-function toolCallArgs(
-  fields: Omit<ToolCallArgsEvent, 'type' | 'timestamp'>,
-): ToolCallArgsEvent {
+function toolCallArgs(fields: {
+  toolCallId: string
+  delta: string
+  args?: string
+  model?: string
+}): ToolCallArgsEvent {
   return {
-    type: 'TOOL_CALL_ARGS' as any,
+    type: EventType.TOOL_CALL_ARGS,
     timestamp: Date.now(),
     ...fields,
-  } as ToolCallArgsEvent
+  }
 }
 
 /** Helper to create a ToolCallEndEvent from plain fields. */
-function toolCallEnd(
-  fields: Omit<ToolCallEndEvent, 'type' | 'timestamp'>,
-): ToolCallEndEvent {
+function toolCallEnd(fields: {
+  toolCallId: string
+  toolCallName?: string
+  toolName?: string
+  input?: unknown
+  result?: string
+  state?: ToolOutputState
+  model?: string
+}): ToolCallEndEvent {
   return {
-    type: 'TOOL_CALL_END' as any,
+    type: EventType.TOOL_CALL_END,
     timestamp: Date.now(),
     ...fields,
-  } as ToolCallEndEvent
+    // `toolName` is required on the merged event type; mirror the alias.
+    toolName: fields.toolName ?? fields.toolCallName ?? '',
+  }
 }
 
 describe('ToolCallManager', () => {
   const mockFinishedEvent = {
     type: 'RUN_FINISHED',
     runId: 'test-run-id',
-    model: 'gpt-4',
+    model: 'gpt-5.5',
     timestamp: Date.now(),
     finishReason: 'tool_calls',
   } as unknown as RunFinishedEvent
@@ -217,11 +238,55 @@ describe('ToolCallManager', () => {
     // Should still emit chunk with error message
     expect(chunks).toHaveLength(1)
     expect(chunks[0]?.type).toBe('TOOL_CALL_END')
+    expect(chunks[0]?.state).toBe('output-error')
     expect(chunks[0]?.result).toContain('Error executing tool: Tool failed')
 
     // Should still return tool result message
     expect(toolResults).toHaveLength(1)
     expect(toolResults[0]?.content).toContain('Error executing tool')
+  })
+
+  it('should preserve output-error state when output validation fails', async () => {
+    const invalidOutputTool: Tool = {
+      name: 'invalid_output_tool',
+      description: 'Returns invalid output',
+      inputSchema: z.object({}),
+      outputSchema: z.object({ count: z.number() }),
+      execute: vi.fn(() => ({ count: 'not-a-number' })),
+    }
+
+    const manager = new ToolCallManager([invalidOutputTool])
+
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'invalid_output_tool',
+        index: 0,
+      }),
+    )
+
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{}',
+      }),
+    )
+
+    const { chunks, result: toolResults } = await collectGeneratorOutput(
+      manager.executeTools(mockFinishedEvent),
+    )
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.type).toBe('TOOL_CALL_END')
+    expect(chunks[0]?.state).toBe('output-error')
+    expect(chunks[0]?.result).toContain(
+      'Output validation failed for tool invalid_output_tool',
+    )
+
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0]?.content).toContain(
+      'Output validation failed for tool invalid_output_tool',
+    )
   })
 
   it('should handle tools without execute function', async () => {
@@ -483,6 +548,8 @@ describe('executeToolCalls', () => {
 
       expect(result.needsApproval).toHaveLength(1)
       expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsApproval[0]?.toolName).toBe('delete_local_data')
+      expect(result.needsApproval[0]?.input).toEqual({ key: 'myKey' })
       expect(result.needsApproval[0]?.approvalId).toBe('approval_call_1')
       expect(result.results).toHaveLength(0)
       expect(result.needsClientExecution).toHaveLength(0)
@@ -628,6 +695,99 @@ describe('executeToolCalls', () => {
       expect(result.results[0]?.result).toEqual({ value: 'stored_data' })
       expect(result.needsClientExecution).toHaveLength(0)
     })
+
+    it('validates client tool results against outputSchema', async () => {
+      const tool: Tool = {
+        name: 'get_count',
+        description: 'Get a count',
+        inputSchema: z.object({}),
+        outputSchema: z.object({ count: z.number() }),
+      }
+      const toolCalls = [makeToolCall('call_1', 'get_count')]
+      const clientResults = new Map([['call_1', { count: 'not-a-number' }]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        clientResults,
+      )
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.result).toMatchObject({
+        error: expect.stringContaining('Validation failed'),
+      })
+    })
+
+    it('validates null client tool results against outputSchema', async () => {
+      const tool: Tool = {
+        name: 'get_count',
+        description: 'Get a count',
+        inputSchema: z.object({}),
+        outputSchema: z.object({ count: z.number() }),
+      }
+      const toolCalls = [makeToolCall('call_1', 'get_count')]
+      const clientResults = new Map([['call_1', null]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        clientResults,
+      )
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.result).toMatchObject({
+        error: expect.stringContaining('Validation failed'),
+      })
+    })
+
+    it('validates undefined client tool results against outputSchema', async () => {
+      const tool: Tool = {
+        name: 'get_count',
+        description: 'Get a count',
+        inputSchema: z.object({}),
+        outputSchema: z.object({ count: z.number() }),
+      }
+      const toolCalls = [makeToolCall('call_1', 'get_count')]
+      const clientResults = new Map([['call_1', undefined]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        clientResults,
+      )
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.result).toMatchObject({
+        error: expect.stringContaining('Validation failed'),
+      })
+    })
+
+    it('preserves falsy client tool results', async () => {
+      const tool: Tool = {
+        name: 'is_enabled',
+        description: 'Check enabled state',
+        inputSchema: z.object({}),
+        outputSchema: z.boolean(),
+      }
+      const toolCalls = [makeToolCall('call_1', 'is_enabled')]
+      const clientResults = new Map([['call_1', false]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        clientResults,
+      )
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.result).toBe(false)
+    })
   })
 
   describe('server tool with approval', () => {
@@ -645,6 +805,9 @@ describe('executeToolCalls', () => {
 
       expect(result.needsApproval).toHaveLength(1)
       expect(result.needsApproval[0]?.approvalId).toBe('approval_call_1')
+      expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsApproval[0]?.toolName).toBe('delete_record')
+      expect(result.needsApproval[0]?.input).toEqual({ id: 'rec_123' })
       expect(result.results).toHaveLength(0)
     })
 
@@ -671,6 +834,39 @@ describe('executeToolCalls', () => {
   })
 
   describe('mixed approval batch gating', () => {
+    it('should batch plain client execution requests with pending approvals', async () => {
+      vi.mocked(serverToolWithApproval.execute!).mockClear()
+      const plainClientTool: Tool = {
+        name: 'show_notification',
+        description: 'Show a notification in the client',
+        inputSchema: z.object({ message: z.string() }),
+      }
+
+      const toolCalls = [
+        makeToolCall('call_1', 'delete_record', '{"id":"rec_123"}'),
+        makeToolCall('call_2', 'show_notification', '{"message":"done"}'),
+      ]
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [serverToolWithApproval, plainClientTool],
+        new Map(),
+        new Map(),
+      )
+
+      expect(result.needsApproval).toHaveLength(1)
+      expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+      expect(result.needsClientExecution).toEqual([
+        {
+          toolCallId: 'call_2',
+          toolName: 'show_notification',
+          input: { message: 'done' },
+        },
+      ])
+      expect(result.results).toHaveLength(0)
+      expect(serverToolWithApproval.execute).not.toHaveBeenCalled()
+    })
+
     it('should not execute non-approval tools when the same batch contains unapproved tools', async () => {
       // Non-approval tools should wait until all approvals in the batch are resolved,
       // otherwise side effects happen before the user has a chance to deny.

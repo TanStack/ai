@@ -11,9 +11,11 @@ import { z } from 'zod'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { TextActivityResult } from '../src/activities/chat'
 import type {
+  ChatStream,
   InferSchemaType,
   StreamChunk,
   StructuredOutputStream,
+  TypedStreamChunk,
 } from '../src/types'
 
 type Person = { name: string }
@@ -81,15 +83,23 @@ describe('chat() return type', () => {
 
   describe('StructuredOutputStream assignability', () => {
     it('is assignable to AsyncIterable<StreamChunk> (toServerSentEventsResponse input)', () => {
-      expectTypeOf<StructuredOutputStream<Person>>().toMatchTypeOf<
+      expectTypeOf<StructuredOutputStream<Person>>().toExtend<
         AsyncIterable<StreamChunk>
       >()
     })
   })
 
   describe('without outputSchema', () => {
-    it('stream: true → AsyncIterable<StreamChunk>', () => {
+    it('stream: true → AsyncIterable<TypedStreamChunk> (equals ChatStream; assignable to StreamChunk)', () => {
+      // Default (untyped tools) TypedStreamChunk matches ChatStream: StreamChunk
+      // with bare CUSTOM replaced by KnownCustomEvent so name narrows work.
       expectTypeOf<TextActivityResult<undefined, true>>().toEqualTypeOf<
+        AsyncIterable<TypedStreamChunk>
+      >()
+      expectTypeOf<
+        TextActivityResult<undefined, true>
+      >().toEqualTypeOf<ChatStream>()
+      expectTypeOf<TextActivityResult<undefined, true>>().toExtend<
         AsyncIterable<StreamChunk>
       >()
     })
@@ -100,10 +110,11 @@ describe('chat() return type', () => {
       >()
     })
 
-    it('default stream (boolean) → AsyncIterable<StreamChunk>', () => {
+    it('default stream (boolean) → AsyncIterable<TypedStreamChunk> / ChatStream', () => {
       expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<
-        AsyncIterable<StreamChunk>
+        AsyncIterable<TypedStreamChunk>
       >()
+      expectTypeOf<TextActivityResult<undefined>>().toEqualTypeOf<ChatStream>()
     })
   })
 })

@@ -5,23 +5,13 @@ title: ChatMiddlewareConfig
 
 # Interface: ChatMiddlewareConfig
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:126](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L126)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L207)
 
 Chat configuration that middleware can observe or transform.
 This is a subset of the chat engine's effective configuration
 that middleware is allowed to modify.
 
 ## Properties
-
-### maxTokens?
-
-```ts
-optional maxTokens: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L132)
-
-***
 
 ### messages
 
@@ -32,7 +22,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:127](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L127)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L208)
 
 ***
 
@@ -42,7 +32,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:127](https://gi
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L133)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:211](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L211)
 
 ***
 
@@ -52,7 +42,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:133](https://gi
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L134)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L212)
 
 ***
 
@@ -62,34 +52,14 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:134](https://gi
 systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L128)
-
-***
-
-### temperature?
-
-```ts
-optional temperature: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L130)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L209)
 
 ***
 
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L129)
-
-***
-
-### topP?
-
-```ts
-optional topP: number;
-```
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L131)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:210](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L210)

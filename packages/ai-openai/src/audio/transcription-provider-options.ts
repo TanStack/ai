@@ -1,4 +1,9 @@
 import type OpenAI from 'openai'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
+
+export type OpenAITranscriptionResponseFormat =
+  | TranscriptionResponseFormat
+  | 'diarized_json'
 
 /**
  * Provider-specific options for OpenAI Transcription
@@ -31,11 +36,40 @@ export interface OpenAITranscriptionProviderOptions {
    */
   timestamp_granularities?: Array<'word' | 'segment'>
   /**
+   * Raw OpenAI response_format option. Prefer the top-level responseFormat
+   * argument for common transcription formats when using
+   * generateTranscription(). Use `diarized_json` here for OpenAI diarization
+   * output. Setting both this and the top-level responseFormat to different
+   * values throws.
+   */
+  response_format?: OpenAITranscriptionResponseFormat
+  /**
+   * Raw OpenAI prompt option. Prefer the top-level prompt argument when using
+   * generateTranscription().
+   */
+  prompt?: string
+  /**
    * Optional list of speaker names that correspond to the audio samples provided in known_speaker_references[]. Each entry should be a short identifier (for example customer or agent). Up to 4 speakers are supported.
+   * Must be provided together with known_speaker_references, with matching lengths.
+   * Only supported with gpt-4o-transcribe-diarize.
    */
   known_speaker_names?: Array<string>
   /**
    * Optional list of audio samples (as data URLs) that contain known speaker references matching known_speaker_names[]. Each sample must be between 2 and 10 seconds, and can use any of the same input audio formats supported by file.
+   * Must be provided together with known_speaker_names, with matching lengths.
+   * Only supported with gpt-4o-transcribe-diarize.
    */
   known_speaker_references?: Array<string>
+  /**
+   * Controls how the audio is cut into chunks. If unset, the audio is
+   * transcribed as a single block. Required by OpenAI when
+   * `gpt-4o-transcribe-diarize` input is longer than 30 seconds (this adapter
+   * defaults it to `"auto"` for that model). Use `"auto"` for the
+   * service-managed VAD strategy, or pass a `server_vad` config to tune
+   * segmentation.
+   */
+  chunking_strategy?:
+    | 'auto'
+    | OpenAI.Audio.TranscriptionCreateParams.VadConfig
+    | null
 }

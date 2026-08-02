@@ -1,4 +1,8 @@
-import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+} from '@tanstack/ai'
 import type { ToolExecutionContext } from '@tanstack/ai'
 import type { CodeModeTool, ToolBinding } from '../types'
 
@@ -43,29 +47,43 @@ export function toolToBinding(
     ? convertSchemaToJsonSchema(tool.outputSchema)
     : undefined
 
-  // Get execute function
-  // ServerTool has execute, ToolDefinition (without .server()) does not
-  let execute: (
-    args: unknown,
-    context?: ToolExecutionContext,
-  ) => Promise<unknown>
-
-  if ('execute' in tool && typeof tool.execute === 'function') {
-    const toolExecute = tool.execute
-    execute = (args: unknown, context?: ToolExecutionContext) => {
-      // Pass context to the underlying tool so it can emit custom events
-      return Promise.resolve(toolExecute(args, context))
-    }
-  } else if ('__toolSide' in tool && tool.__toolSide === 'definition') {
-    throw new Error(
-      `Tool "${tool.name}" is a ToolDefinition without an execute function. ` +
-        `Call .server(fn) to provide an implementation before using with Code Mode.`,
-    )
-  } else {
+  if (typeof tool.execute !== 'function') {
     throw new Error(
       `Tool "${tool.name}" does not have an execute function. ` +
-        `Code Mode requires tools with implementations.`,
+        `Code Mode requires server tools with implementations.`,
     )
+  }
+
+  const toolExecute = tool.execute
+  const execute = async (args: unknown, context?: ToolExecutionContext) => {
+    let input = args
+    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
+      try {
+        input = parseWithStandardSchema(tool.inputSchema, args)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Validation failed'
+        throw new Error(
+          `Input validation failed for tool ${tool.name}: ${message}`,
+        )
+      }
+    }
+
+    let result = await Promise.resolve(toolExecute(input, context))
+
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+      try {
+        result = parseWithStandardSchema(tool.outputSchema, result)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Validation failed'
+        throw new Error(
+          `Output validation failed for tool ${tool.name}: ${message}`,
+        )
+      }
+    }
+
+    return result
   }
 
   return {
@@ -86,7 +104,7 @@ export function toolToBinding(
  */
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
-  emitCustomEvent: (eventName: string, data: Record<string, any>) => void,
+  emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
 ): Record<string, ToolBinding> {
   const wrapped: Record<string, ToolBinding> = {}
 

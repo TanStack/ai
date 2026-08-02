@@ -1,0 +1,59 @@
+[
+  {
+    "match": "openai.gpt-oss",
+    "converse": true,
+    "chat": true,
+    "responses": true
+  },
+  {
+    "match": "anthropic.claude",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  {
+    "match": "amazon.nova",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  {
+    "match": "meta.llama",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  {
+    "match": "ai21.jamba",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  {
+    "match": "cohere.command",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  {
+    "match": "deepseek.r1",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  { "match": "deepseek", "converse": true, "chat": true, "responses": false },
+  {
+    "match": "mistral.pixtral",
+    "converse": true,
+    "chat": false,
+    "responses": false
+  },
+  { "match": "mistral", "converse": true, "chat": true, "responses": false },
+  { "match": "qwen", "converse": true, "chat": true, "responses": false },
+  {
+    "match": "google.gemma",
+    "converse": true,
+    "chat": true,
+    "responses": false
+  }
+]

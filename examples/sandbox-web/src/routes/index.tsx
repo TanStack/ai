@@ -1,0 +1,561 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { AlertTriangle, ExternalLink, Send, Server, Square } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import remarkGfm from 'remark-gfm'
+import { EventType } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  GROK_MODEL_OPTIONS,
+  GROK_PROTOCOL_OPTIONS,
+  GROK_TRANSPORT_OPTIONS,
+  HARNESS_OPTIONS,
+  HARNESS_SESSION_ID_EVENT,
+  PROVIDER_OPTIONS,
+  isGrokModel,
+  isGrokProtocol,
+  isGrokTransport,
+  isHarness,
+  isProvider,
+} from '../sandbox-options'
+import type {
+  GrokBuildModel,
+  GrokBuildProtocol,
+  GrokTransport,
+  HarnessName,
+  ProviderName,
+} from '../sandbox-options'
+import type { StreamChunk } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai-react'
+
+function readHarnessSessionId(
+  chunk: StreamChunk,
+  harness: HarnessName,
+): string | undefined {
+  if (chunk.type !== EventType.CUSTOM) return undefined
+  if (chunk.name !== HARNESS_SESSION_ID_EVENT[harness]) return undefined
+  const value = chunk.value
+  if (value === null || typeof value !== 'object' || !('sessionId' in value)) {
+    return undefined
+  }
+  const sessionId = value.sessionId
+  return typeof sessionId === 'string' && sessionId !== ''
+    ? sessionId
+    : undefined
+}
+
+export const Route = createFileRoute('/')({
+  component: SandboxAgentPage,
+})
+
+const PROMPT_SUGGESTIONS = [
+  'Build a self-contained TanStack Start app — a polished kanban board with drag-and-drop and localStorage (no APIs or env). Scaffold it, install deps, start the dev server, and give me the preview URL.',
+  'Build a TanStack Start dashboard with a sortable/filterable table over bundled sample data — no keys needed — and give me the preview URL.',
+  'Add a dark-mode toggle and a second route with a detail view.',
+]
+
+/** One tool-call invocation from the in-sandbox coding agent (bash, edit, …). */
+function ToolCall({
+  name,
+  args,
+  output,
+}: {
+  name: string
+  args: string
+  output?: unknown
+}) {
+  let parsedArgs: unknown = args
+  try {
+    parsedArgs = JSON.parse(args)
+  } catch {
+    // leave as the raw string
+  }
+  const running = output === undefined
+  return (
+    <div className="mt-3 rounded-lg border border-indigo-500/30 bg-indigo-900/10 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-indigo-900/20 text-indigo-300 text-sm">
+        {running ? (
+          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <div className="w-4 h-4 rounded-full bg-indigo-500/50" />
+        )}
+        <span className="font-mono font-medium">{name}</span>
+      </div>
+      <pre className="px-3 py-2 text-xs text-gray-300 overflow-x-auto max-h-40 overflow-y-auto">
+        {typeof parsedArgs === 'string'
+          ? parsedArgs
+          : JSON.stringify(parsedArgs, null, 2)}
+      </pre>
+      {output !== undefined && (
+        <pre className="px-3 pb-3 text-xs text-gray-400 border-t border-indigo-500/20 overflow-x-auto max-h-40 overflow-y-auto">
+          {typeof output === 'string'
+            ? output
+            : JSON.stringify(output, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
+/** Pull the preview URL out of an `exposePreview` tool result (object or JSON string). */
+function previewUrlFrom(output: unknown): string | null {
+  let value: unknown = output
+  if (typeof output === 'string') {
+    try {
+      value = JSON.parse(output)
+    } catch {
+      return /^https?:\/\//.test(output) ? output : null
+    }
+  }
+  if (value !== null && typeof value === 'object' && 'url' in value) {
+    const url = value.url
+    return typeof url === 'string' ? url : null
+  }
+  return null
+}
+
+/** The headline result of the demo: a clickable link to the app the agent built. */
+function PreviewLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-linear-to-r from-pink-500 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-pink-500/30 transition-transform hover:scale-[1.02] hover:from-pink-400 hover:to-fuchsia-400"
+    >
+      <ExternalLink className="w-4 h-4" />
+      Open preview
+      <span className="font-mono text-xs text-pink-50/90">
+        {url.replace(/^https?:\/\//, '')}
+      </span>
+    </a>
+  )
+}
+
+type SandboxWaitKind = 'boot' | 'continue'
+
+/**
+ * Shown while a request is in flight but no stream chunk has arrived yet.
+ * First message: cold boot (create sandbox + agent). Follow-ups: resume the
+ * same thread's sandbox via `withSandbox` → `ensure()` → `provider.resume()`.
+ */
+function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
+  const headline = kind === 'boot' ? 'Starting sandbox…' : 'Agent is working…'
+  const detail =
+    kind === 'boot'
+      ? 'creating the sandbox and coding agent. The first message takes a moment (longer on a cloud provider).'
+      : 'resuming the sandbox and continuing the conversation.'
+  return (
+    <div className="p-4">
+      <div className="flex items-start gap-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-linear-to-r from-indigo-500 to-violet-600 shrink-0">
+          <Server className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-indigo-900/10 px-4 py-3">
+          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm">
+            <span className="font-medium text-indigo-200">{headline}</span>{' '}
+            <span className="text-gray-400">{detail}</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** First message in a thread vs follow-up while waiting for the first chunk. */
+function sandboxWaitKind(
+  isLoading: boolean,
+  messages: Array<UIMessage>,
+): SandboxWaitKind | false {
+  if (
+    !isLoading ||
+    messages.length === 0 ||
+    messages[messages.length - 1].role !== 'user'
+  ) {
+    return false
+  }
+  return messages.some((m) => m.role === 'assistant') ? 'continue' : 'boot'
+}
+
+function Messages({
+  messages,
+  waiting,
+}: {
+  messages: Array<UIMessage>
+  waiting: SandboxWaitKind | false
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
+    }
+  }, [messages, waiting])
+
+  if (!messages.length) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-6 text-center text-gray-500">
+        <p className="max-w-md">
+          Pick a harness and provider, then ask the agent to build a
+          self-contained TanStack Start app — it scaffolds it, runs it in the
+          sandbox, and hands back a live preview URL. No API keys needed for the
+          app it builds.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto px-4 py-4"
+      style={{ scrollbarWidth: 'thin' }}
+    >
+      {messages.map((message) => {
+        const results = new Map<string, string>()
+        for (const part of message.parts) {
+          if (part.type === 'tool-result') {
+            results.set(
+              part.toolCallId,
+              typeof part.content === 'string'
+                ? part.content
+                : JSON.stringify(part.content),
+            )
+          }
+        }
+        return (
+          <div
+            key={message.id}
+            className={`p-4 rounded-lg mb-2 ${
+              message.role === 'assistant'
+                ? 'bg-linear-to-r from-indigo-500/5 to-violet-600/5'
+                : 'bg-transparent'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium text-white shrink-0 ${
+                  message.role === 'assistant'
+                    ? 'bg-linear-to-r from-indigo-500 to-violet-600'
+                    : 'bg-gray-700'
+                }`}
+              >
+                {message.role === 'assistant' ? 'AI' : 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                {message.parts.map((part, index) => {
+                  if (part.type === 'text' && part.content) {
+                    return (
+                      <div key={`text-${index}`} className="markdown-content">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[
+                            rehypeRaw,
+                            rehypeSanitize,
+                            rehypeHighlight,
+                          ]}
+                        >
+                          {part.content}
+                        </ReactMarkdown>
+                      </div>
+                    )
+                  }
+                  if (part.type === 'tool-call') {
+                    const resultContent = results.get(part.id)
+                    const output = part.output ?? resultContent
+                    // The preview-URL result gets its own clickable card.
+                    if (part.name === 'exposePreview') {
+                      const url = previewUrlFrom(output)
+                      if (url) return <PreviewLink key={part.id} url={url} />
+                    }
+                    return (
+                      <ToolCall
+                        key={part.id}
+                        name={part.name}
+                        args={part.arguments}
+                        output={output}
+                      />
+                    )
+                  }
+                  return null
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+      {waiting && <SandboxWaiting kind={waiting} />}
+    </div>
+  )
+}
+
+function SandboxAgentPage() {
+  // One sandbox per thread. Switching either picker starts a FRESH thread (a new
+  // sandbox is needed for a different harness/provider) and clears the chat.
+  const [threadId, setThreadId] = useState(() => crypto.randomUUID())
+  const [harness, setHarness] = useState<HarnessName>('grok')
+  const [provider, setProvider] = useState<ProviderName>('docker')
+  const [grokModel, setGrokModel] = useState<GrokBuildModel>('composer-2.5')
+  const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
+  const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
+  const [harnessSessionId, setHarnessSessionId] = useState<string | undefined>()
+  const [input, setInput] = useState('')
+
+  // Memoized so the body identity only changes on a real thread/picker switch.
+  const body = useMemo(
+    () => ({
+      threadId,
+      harness,
+      provider,
+      ...(harnessSessionId ? { sessionId: harnessSessionId } : {}),
+      ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
+    }),
+    [
+      threadId,
+      harness,
+      provider,
+      harnessSessionId,
+      grokModel,
+      grokProtocol,
+      grokTransport,
+    ],
+  )
+
+  const { messages, sendMessage, isLoading, stop, error, clear } = useChat({
+    connection: fetchServerSentEvents('/api/run', {
+      // Surface the server's JSON `{ error }` on 4xx instead of a bare status code.
+      fetchClient: async (url, init) => {
+        const response = await fetch(url, init)
+        if (!response.ok) {
+          const text = await response.text()
+          try {
+            const parsed = JSON.parse(text) as { error?: unknown }
+            if (typeof parsed.error === 'string' && parsed.error !== '') {
+              throw new Error(parsed.error)
+            }
+          } catch (error) {
+            if (error instanceof Error && error.message !== text) throw error
+          }
+          throw new Error(
+            text.trim() ||
+              `HTTP error! status: ${response.status} ${response.statusText}`,
+          )
+        }
+        return response
+      },
+    }),
+    body,
+    onChunk: (chunk) => {
+      const sessionId = readHarnessSessionId(chunk, harness)
+      if (sessionId !== undefined) setHarnessSessionId(sessionId)
+    },
+  })
+
+  function changeHarness(next: HarnessName) {
+    if (next === harness || isLoading) return
+    clear()
+    setHarnessSessionId(undefined)
+    setHarness(next)
+    setThreadId(crypto.randomUUID())
+  }
+
+  function changeProvider(next: ProviderName) {
+    if (next === provider || isLoading) return
+    clear()
+    setHarnessSessionId(undefined)
+    setProvider(next)
+    setThreadId(crypto.randomUUID())
+  }
+
+  const waiting = sandboxWaitKind(isLoading, messages)
+
+  function send(text: string) {
+    const content = text.trim()
+    if (!content || isLoading) return
+    sendMessage(content)
+    setInput('')
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-900">
+      <header className="flex flex-wrap items-center gap-3 border-b border-indigo-500/10 bg-gray-900/80 px-4 py-3 backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-white">
+          <Server className="w-5 h-5 text-indigo-400" />
+          <span className="font-semibold">Sandbox Web</span>
+          <span className="text-xs text-gray-500">
+            agent builds an app → live preview
+          </span>
+        </div>
+        <div className="ml-auto flex items-center gap-2 text-sm">
+          <select
+            value={harness}
+            onChange={(e) => {
+              if (isHarness(e.target.value)) changeHarness(e.target.value)
+            }}
+            disabled={isLoading}
+            title="Which coding agent runs in the sandbox"
+            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+          >
+            {HARNESS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={provider}
+            onChange={(e) => {
+              if (isProvider(e.target.value)) changeProvider(e.target.value)
+            }}
+            disabled={isLoading}
+            title="Where the sandbox runs"
+            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+          >
+            {PROVIDER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {harness === 'grok' && (
+            <>
+              <select
+                value={grokModel}
+                onChange={(e) => {
+                  if (isGrokModel(e.target.value)) {
+                    setGrokModel(e.target.value)
+                  }
+                }}
+                disabled={isLoading}
+                title="Grok Build model"
+                className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+              >
+                {GROK_MODEL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={grokProtocol}
+                onChange={(e) => {
+                  if (isGrokProtocol(e.target.value)) {
+                    setGrokProtocol(e.target.value)
+                  }
+                }}
+                disabled={isLoading}
+                title="Grok Build wire protocol"
+                className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+              >
+                {GROK_PROTOCOL_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {grokProtocol === 'acp' && (
+                <select
+                  value={grokTransport}
+                  onChange={(e) => {
+                    if (isGrokTransport(e.target.value)) {
+                      setGrokTransport(e.target.value)
+                    }
+                  }}
+                  disabled={isLoading}
+                  title="ACP transport (auto picks stdio vs WebSocket)"
+                  className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+                >
+                  {GROK_TRANSPORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+          <span className="font-mono text-indigo-300">
+            thread {threadId.slice(0, 8)}
+          </span>
+        </div>
+      </header>
+
+      {error && (
+        <div className="mx-auto mt-3 flex w-full max-w-4xl items-start gap-2 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+          <pre className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs text-red-200/90">
+            {error.message}
+          </pre>
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full overflow-hidden">
+          <Messages messages={messages} waiting={waiting} />
+        </div>
+
+        <div className="border-t border-indigo-500/10 bg-gray-900/80 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto px-4 py-3 space-y-3">
+            {isLoading && (
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={stop}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  Stop
+                </button>
+              </div>
+            )}
+            <div className="relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask the sandbox agent to build an app…"
+                className="w-full rounded-lg border border-indigo-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none overflow-hidden shadow-lg"
+                rows={1}
+                style={{ minHeight: '44px', maxHeight: '200px' }}
+                disabled={isLoading}
+                onInput={(e) => {
+                  const target = e.currentTarget
+                  target.style.height = 'auto'
+                  target.style.height =
+                    Math.min(target.scrollHeight, 200) + 'px'
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    send(input)
+                  }
+                }}
+              />
+              <button
+                onClick={() => send(input)}
+                disabled={!input.trim() || isLoading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-400 hover:text-indigo-300 disabled:text-gray-500 transition-colors focus:outline-none"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {PROMPT_SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => send(suggestion)}
+                  disabled={isLoading}
+                  className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-indigo-500/20 hover:border-indigo-500/40 text-gray-300 hover:text-white rounded-full transition-all disabled:opacity-50"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

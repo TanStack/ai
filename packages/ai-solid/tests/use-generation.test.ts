@@ -1,5 +1,5 @@
 import { renderHook } from '@solidjs/testing-library'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -8,8 +8,17 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type { StreamChunk } from '@tanstack/ai'
+import type {
+  PersistedArtifactRef,
+  StreamChunk,
+  TTSResult,
+  TranscriptionResult,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
+import type {
+  ConnectConnectionAdapter,
+  RunAgentInputContext,
+} from '@tanstack/ai-client'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
@@ -71,6 +80,58 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   ]
 }
 
+const videoResumeSnapshot = {
+  schemaVersion: 1 as const,
+  resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+  status: 'running' as const,
+}
+
+function createReplayVideoChunks(): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
+      name: 'generation:result',
+      value: {
+        jobId: 'job-replay',
+        status: 'completed',
+        url: 'https://example.com/video.mp4',
+      },
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      timestamp: Date.now(),
+    },
+  ]
+}
+
+function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
+  adapter: ConnectConnectionAdapter
+  connect: ReturnType<typeof vi.fn>
+  runContexts: Array<RunAgentInputContext | undefined>
+} {
+  const runContexts: Array<RunAgentInputContext | undefined> = []
+  const connect = vi.fn()
+  const adapter: ConnectConnectionAdapter = {
+    async *connect(_messages, _data, _signal, runContext) {
+      connect(runContext)
+      runContexts.push(runContext)
+      for (const chunk of chunks) {
+        yield chunk
+      }
+    },
+  }
+  return { adapter, connect, runContexts }
+}
+
 // Helper to create error stream chunks.
 // NOTE: The AG-UI spec for RUN_ERROR carries `message` directly on the event
 // (not nested under `error`). We emit BOTH shapes here because GenerationClient
@@ -94,6 +155,51 @@ function createErrorChunks(message: string): Array<StreamChunk> {
       error: { message },
     } as StreamChunk,
   ]
+}
+
+// Hydration runs through an awaited promise chain kicked off at mount, so drain
+// the microtask queue AND a macrotask before asserting on the repaint.
+async function flushPromises(): Promise<void> {
+  await Promise.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+const restoredImageArtifact: PersistedArtifactRef = {
+  role: 'output',
+  artifactId: 'artifact-image-1',
+  threadId: 'thread-img',
+  runId: 'run-img',
+  name: 'image.png',
+  mimeType: 'image/png',
+  size: 2048,
+  createdAt: '2026-07-06T00:00:00.000Z',
+  url: '/api/artifacts/artifact-image-1',
+  source: {
+    activity: 'image',
+    path: 'runs/run-img/image.png',
+    provider: 'test',
+    model: 'test-image',
+    mediaType: 'image',
+  },
+}
+
+const restoredSpeechArtifact: PersistedArtifactRef = {
+  role: 'output',
+  artifactId: 'artifact-speech-1',
+  threadId: 'thread-tts',
+  runId: 'run-tts',
+  name: 'speech.mp3',
+  mimeType: 'audio/mpeg',
+  size: 4096,
+  createdAt: '2026-07-06T00:00:00.000Z',
+  url: '/api/artifacts/artifact-speech-1',
+  source: {
+    activity: 'tts',
+    path: 'runs/run-tts/speech.mp3',
+    provider: 'test',
+    model: 'test-tts',
+    mediaType: 'audio',
+  },
 }
 
 describe('useGeneration', () => {
@@ -352,6 +458,120 @@ describe('useGeneration', () => {
     })
   })
 
+  describe('persistence', () => {
+    it('repaints status from a hydrated complete snapshot on mount without starting a run', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          result: { id: 'result-1', model: 'image-model' },
+        },
+        activeRun: null,
+      }))
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'hydrated',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      // A completed snapshot repaints the normal `status` field to `success`.
+      expect(result.status()).toBe('success')
+      expect(hydrateGeneration).toHaveBeenCalledWith('hydrated')
+      expect(connect).not.toHaveBeenCalled()
+      // The base hook injects no reconstructResult, so `result` stays null.
+      expect(result.result()).toBeNull()
+      expect(result.runId()).toBeNull()
+    })
+
+    it('repaints a hydrated running snapshot with no joinRun as an interrupted error on mount', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+          status: 'running' as const,
+        },
+        activeRun: null,
+      }))
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'running-hydrate',
+          // No `joinRun`, so the restored run cannot be tailed.
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      // Without a `joinRun` handler the restored run cannot be tailed, so it
+      // surfaces as an interrupted error instead of a `generating` status that
+      // would never settle.
+      expect(result.error()?.message).toMatch(/interrupted/)
+      expect(result.runId()).toBeNull()
+      expect(result.status()).toBe('error')
+      expect(result.isLoading()).toBe(false)
+      expect(connect).not.toHaveBeenCalled()
+    })
+
+    it('server-driven (persistence: true) hydrates from the connection by threadId without a local store', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          result: { id: 'server-result', model: 'image-model' },
+        },
+        activeRun: null,
+      }))
+
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'thread-server',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      // The server snapshot repaints `status` to `success`.
+      expect(result.status()).toBe('success')
+      expect(hydrateGeneration).toHaveBeenCalledWith('thread-server')
+      expect(connect).not.toHaveBeenCalled()
+    })
+
+    it('clears resumeState once a streamed run finishes', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createGenerationChunks({ id: '1' }),
+      })
+
+      const { result } = renderHook(() =>
+        useGeneration({ connection: adapter }),
+      )
+
+      await result.generate({ prompt: 'replay' })
+      await flushPromises()
+
+      expect(result.status()).toBe('success')
+      // Once the run ends the in-flight identity is gone.
+      expect(result.runId()).toBeNull()
+    })
+  })
+
   describe('error handling', () => {
     it('should require either connection or fetcher', () => {
       // Empty options is structurally valid (both connection and fetcher are
@@ -479,6 +699,49 @@ describe('useGenerateImage', () => {
       expect(result.status()).toBe('idle')
     })
   })
+
+  describe('persistence', () => {
+    it('restores a completed image result from a durable artifact url', async () => {
+      // useGenerateImage injects `reconstructImageResult`, so a restored
+      // complete snapshot repaints `result` with the durable serve url — as if
+      // the run had just finished.
+      const { adapter, connect } = createRunContextCaptureAdapter([])
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          activity: 'image' as const,
+          result: {
+            id: 'img-restored',
+            model: 'test-image',
+            artifacts: [restoredImageArtifact],
+          },
+        },
+        activeRun: null,
+      }))
+
+      const { result } = renderHook(() =>
+        useGenerateImage({
+          threadId: 'img-hydrate',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      expect(result.status()).toBe('success')
+      expect(connect).not.toHaveBeenCalled()
+      expect(result.result()).toEqual({
+        id: 'img-restored',
+        model: 'test-image',
+        images: [{ url: '/api/artifacts/artifact-image-1' }],
+        artifacts: [restoredImageArtifact],
+      })
+      expect(result.runId()).toBeNull()
+    })
+  })
 })
 
 describe('useGenerateSpeech', () => {
@@ -585,6 +848,51 @@ describe('useGenerateSpeech', () => {
       expect(result.result()).toBeNull()
       expect(result.error()).toBeUndefined()
       expect(result.status()).toBe('idle')
+    })
+  })
+
+  describe('persistence', () => {
+    it('restores a completed TTS result from a durable artifact url', async () => {
+      // useGenerateSpeech injects `reconstructSpeechResult`. `TTSResult.audio`
+      // is a bare base64 string that persistence never stores, so the restored
+      // clip is served from `artifacts[0].url` and `audio` stays empty.
+      const { adapter, connect } = createRunContextCaptureAdapter([])
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          activity: 'tts' as const,
+          result: {
+            id: 'tts-restored',
+            model: 'test-tts',
+            artifacts: [restoredSpeechArtifact],
+          },
+        },
+        activeRun: null,
+      }))
+
+      const { result } = renderHook(() =>
+        useGenerateSpeech({
+          threadId: 'tts-hydrate',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      expect(result.status()).toBe('success')
+      expect(connect).not.toHaveBeenCalled()
+      expect(result.result()).toEqual({
+        id: 'tts-restored',
+        model: 'test-tts',
+        audio: '',
+        format: 'mpeg',
+        contentType: 'audio/mpeg',
+        artifacts: [restoredSpeechArtifact],
+      })
+      expect(result.runId()).toBeNull()
     })
   })
 })
@@ -809,7 +1117,7 @@ describe('useSummarize', () => {
       const mockResult = {
         id: 'sum-1',
         summary: 'A brief summary',
-        model: 'gpt-4',
+        model: 'gpt-5.5',
         usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
       }
       const onResult = vi.fn()
@@ -851,7 +1159,7 @@ describe('useSummarize', () => {
 
   describe('connection mode', () => {
     it('should summarize text using connection', async () => {
-      const mockResult = { summary: 'A brief summary', model: 'gpt-4' }
+      const mockResult = { summary: 'A brief summary', model: 'gpt-5.5' }
       const chunks = createGenerationChunks(mockResult)
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -869,7 +1177,7 @@ describe('useSummarize', () => {
       const mockResult = {
         id: 'sum-1',
         summary: 'A brief summary',
-        model: 'gpt-4',
+        model: 'gpt-5.5',
         usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
       }
 
@@ -1074,6 +1382,33 @@ describe('useGenerateVideo', () => {
       expect(result.isLoading()).toBe(false)
       expect(result.status()).toBe('idle')
     })
+
+    it('does not auto-fire a video generation on mount from a hydrated running snapshot', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createReplayVideoChunks(),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: videoResumeSnapshot,
+        activeRun: null,
+      }))
+      const { result } = renderHook(() =>
+        useGenerateVideo({
+          threadId: 'video-no-auto-fire',
+          // No `joinRun`, so the restored run cannot be tailed.
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await flushPromises()
+
+      // Hydration only surfaces state; it never restarts the run.
+      expect(connect).not.toHaveBeenCalled()
+      expect(result.error()?.message).toMatch(/interrupted/)
+      expect(result.status()).toBe('error')
+      expect(result.isLoading()).toBe(false)
+      expect(result.runId()).toBeNull()
+    })
   })
 
   describe('error handling', () => {
@@ -1087,5 +1422,133 @@ describe('useGenerateVideo', () => {
         'useGenerateVideo requires either a connection or fetcher option',
       )
     })
+  })
+})
+
+describe('onResult transform', () => {
+  it('should transform result when onResult returns a value (fetcher)', async () => {
+    // Inference (issue #848): `onResult`'s parameter is contextually typed from
+    // the fetcher's return, and `result` narrows to the transform's return —
+    // no explicit type arguments needed.
+    const { result } = renderHook(() =>
+      useGeneration({
+        fetcher: async () => ({ id: '1', audio: 'base64data' }),
+        onResult: (raw) => ({ playable: raw.audio.length > 0 }),
+      }),
+    )
+    expectTypeOf(result.result()).toEqualTypeOf<{
+      playable: boolean
+    } | null>()
+
+    await result.generate({ prompt: 'test' })
+
+    expect(result.result()).toEqual({ playable: true })
+    expect(result.status()).toBe('success')
+  })
+
+  it('should use raw result when onResult returns void', async () => {
+    const onResult = vi.fn()
+
+    const { result } = renderHook(() =>
+      useGeneration({
+        fetcher: async () => ({ id: '1', data: 'test' }),
+        onResult,
+      }),
+    )
+
+    await result.generate({ prompt: 'test' })
+
+    expect(onResult).toHaveBeenCalledWith({ id: '1', data: 'test' })
+    expect(result.result()).toEqual({ id: '1', data: 'test' })
+  })
+
+  it('should keep previous result when onResult returns null', async () => {
+    const { result } = renderHook(() =>
+      useGeneration({
+        fetcher: async () => ({ id: '1' }),
+        onResult: () => null,
+      }),
+    )
+
+    await result.generate({ prompt: 'test' })
+
+    // null return → keep previous (which was null initially)
+    expect(result.result()).toBeNull()
+    expect(result.status()).toBe('success')
+  })
+
+  it('should transform result from connection stream', async () => {
+    type StreamResult = { id: string; images: Array<string> }
+    const mockResult: StreamResult = { id: '1', images: ['img1', 'img2'] }
+    const chunks = createGenerationChunks(mockResult)
+    const adapter = createMockConnectionAdapter({ chunks })
+
+    // `connection` is untyped, but annotating the `onResult` parameter gives the
+    // base hook a site to infer `TResult` from (it appears directly in the
+    // callback parameter position) — no explicit type arguments needed.
+    const { result } = renderHook(() =>
+      useGeneration({
+        connection: adapter,
+        onResult: (raw: StreamResult) => ({ count: raw.images.length }),
+      }),
+    )
+    expectTypeOf(result.result()).toEqualTypeOf<{
+      count: number
+    } | null>()
+
+    await result.generate({ prompt: 'test' })
+
+    expect(result.result()).toEqual({ count: 2 })
+  })
+
+  it('should work with useGenerateSpeech transform', async () => {
+    const mockTTSResult: TTSResult = {
+      id: '1',
+      model: 'tts-1',
+      audio: 'base64audio',
+      format: 'mp3',
+      contentType: 'audio/mpeg',
+    }
+
+    // Inference (issue #848): the wrapper hooks infer the output type from
+    // `onResult` with no explicit type argument. `raw` is contextually typed
+    // as `TTSResult`.
+    const { result } = renderHook(() =>
+      useGenerateSpeech({
+        fetcher: async () => mockTTSResult,
+        onResult: (raw) => ({
+          audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
+        }),
+      }),
+    )
+    expectTypeOf(result.result()).toEqualTypeOf<{
+      audioUrl: string
+    } | null>()
+
+    await result.generate({ text: 'Hello' })
+
+    expect(result.result()).toEqual({
+      audioUrl: 'data:audio/mpeg;base64,base64audio',
+    })
+  })
+
+  it('infers the raw result type when no onResult is provided', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+      }),
+    )
+    // Without a transform, `result` stays the raw TranscriptionResult.
+    expectTypeOf(result.result()).toEqualTypeOf<TranscriptionResult | null>()
+  })
+
+  it('narrows the wrapper result type to the transform return', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+        onResult: (res) => res.text,
+      }),
+    )
+    expectTypeOf(result.result()).toEqualTypeOf<string | null>()
   })
 })

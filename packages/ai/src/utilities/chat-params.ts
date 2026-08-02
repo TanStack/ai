@@ -1,6 +1,12 @@
 import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
 import type { Context as AGUIContext } from '@ag-ui/core'
-import type { JSONSchema, ModelMessage, Tool, UIMessage } from '../types'
+import type {
+  AnyTool,
+  JSONSchema,
+  ModelMessage,
+  RunAgentResumeItem,
+  UIMessage,
+} from '../types'
 
 const KNOWN_PART_TYPES = new Set([
   'text',
@@ -32,7 +38,7 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
  * reasoning/activity/developer-role normalization internally.
  *
  * @throws An error with a migration-pointing message when the body does
- *   not conform to AG-UI 0.0.52 `RunAgentInputSchema`. Surface this as a
+ *   not conform to AG-UI `RunAgentInputSchema`. Surface this as a
  *   400 Bad Request to the client.
  */
 export function chatParamsFromRequestBody(body: unknown): Promise<{
@@ -43,7 +49,13 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
+  resume?: Array<RunAgentResumeItem>
+  /**
+   * @deprecated Use `aguiContext` instead. This alias will be removed in a
+   * future release.
+   */
   context: Array<AGUIContext>
+  aguiContext: Array<AGUIContext>
 }> {
   const parseResult = RunAgentInputSchema.safeParse(body)
   if (!parseResult.success) {
@@ -58,6 +70,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   }
 
   const parsed = parseResult.data
+  const aguiContext = parsed.context
 
   // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
   // dropped during parse. We re-attach them from the original body so the
@@ -89,7 +102,9 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
     }>,
     forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
     state: parsed.state,
-    context: parsed.context,
+    resume: parsed.resume,
+    context: aguiContext,
+    aguiContext,
   })
 }
 
@@ -151,6 +166,20 @@ export async function chatParamsFromRequest(
 }
 
 /**
+ * Client-declared tool stub (no execute). `name` is `string`, so arrays that
+ * include these stubs intentionally widen `TypedStreamChunk` tool-name
+ * discrimination — pass server tools alone when you need a closed name union.
+ */
+export type ClientToolDeclaration = {
+  name: string
+  description: string
+  inputSchema: JSONSchema
+}
+
+export type MergedAgentTools<TServerTools extends ReadonlyArray<AnyTool>> =
+  ReadonlyArray<TServerTools[number] | ClientToolDeclaration>
+
+/**
  * Merge a server-side tool array with the AG-UI client-declared tools
  * received in the request body.
  *
@@ -165,22 +194,48 @@ export async function chatParamsFromRequest(
  *   them — server emits a tool-call request, client executes via its
  *   registered handler, client posts back the result.
  *
+ * Typing:
+ * - Empty `clientTools` preserves the server tuple (closed name union).
+ * - Non-empty `clientTools` returns a widened array that honestly includes
+ *   client stubs, so `TypedStreamChunk` does not claim a closed server-only
+ *   name union.
+ *
  * @param serverTools - The server's tool array (e.g. from
  *   `[myToolDef.server(...)]`). Pass directly to `chat({ tools })`.
  * @param clientTools - The `tools` array received from
  *   `chatParamsFromRequest(...)` / `chatParamsFromRequestBody(...)`.
  * @returns A merged array suitable for `chat({ tools })`.
  */
-export function mergeAgentTools(
-  serverTools: ReadonlyArray<Tool>,
+export function mergeAgentTools<
+  const TServerTools extends ReadonlyArray<AnyTool>,
+>(serverTools: TServerTools, clientTools: readonly []): TServerTools
+export function mergeAgentTools<
+  const TServerTools extends ReadonlyArray<AnyTool>,
+>(
+  serverTools: TServerTools,
   clientTools: ReadonlyArray<{
     name: string
     description: string
     parameters: JSONSchema
   }>,
-): Array<Tool> {
+): MergedAgentTools<TServerTools>
+export function mergeAgentTools<
+  const TServerTools extends ReadonlyArray<AnyTool>,
+>(
+  serverTools: TServerTools,
+  clientTools: ReadonlyArray<{
+    name: string
+    description: string
+    parameters: JSONSchema
+  }>,
+): TServerTools | MergedAgentTools<TServerTools> {
+  if (clientTools.length === 0) {
+    return serverTools
+  }
   const seen = new Set(serverTools.map((t) => t.name))
-  const merged: Array<Tool> = [...serverTools]
+  const merged: Array<TServerTools[number] | ClientToolDeclaration> = [
+    ...serverTools,
+  ]
   for (const ct of clientTools) {
     if (seen.has(ct.name)) {
       // Server wins on name collision.
@@ -193,7 +248,7 @@ export function mergeAgentTools(
       inputSchema: ct.parameters,
       // No `execute` — runtime treats this as a client-side tool and
       // emits ClientToolRequest events.
-    } as Tool)
+    })
   }
   return merged
 }

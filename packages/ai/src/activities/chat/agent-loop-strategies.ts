@@ -1,9 +1,15 @@
 import type { AgentLoopStrategy } from '../../types'
 
 /**
- * Creates a strategy that continues for a maximum number of iterations
+ * Creates a strategy that continues for a maximum number of **model turns**
+ * (iterations), not tool calls.
  *
- * @param max - Maximum number of iterations to allow
+ * One iteration can still emit many parallel tool calls. For a tool-call
+ * budget, use middleware with `onBeforeToolCall` (per-turn cap) and
+ * `onShouldContinue` (cumulative run budget) — see the docs recipe under
+ * Agentic Cycle.
+ *
+ * @param max - Maximum number of model turns to allow
  * @returns AgentLoopStrategy that stops after max iterations
  *
  * @example
@@ -13,7 +19,7 @@ import type { AgentLoopStrategy } from '../../types'
  *   model: "gpt-4o",
  *   messages: [...],
  *   tools: [weatherTool],
- *   agentLoopStrategy: maxIterations(3), // Max 3 iterations
+ *   agentLoopStrategy: maxIterations(3), // Max 3 model turns
  * });
  * ```
  */
@@ -60,7 +66,7 @@ export function untilFinishReason(
  * All strategies must return true to continue
  *
  * @param strategies - Array of strategies to combine
- * @returns AgentLoopStrategy that continues only if all strategies return true
+ * @returns AgentLoopStrategy that continues only if all strategies agree
  *
  * @example
  * ```typescript

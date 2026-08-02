@@ -85,9 +85,9 @@ export function createMemorySkillStorage(
 
   function search(
     query: string,
-    options: SkillSearchOptions = {},
+    searchOptions: SkillSearchOptions = {},
   ): Promise<Array<SkillIndexEntry>> {
-    const { limit = 5 } = options
+    const { limit = 5 } = searchOptions
 
     // Simple text matching
     const queryLower = query.toLowerCase()

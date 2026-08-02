@@ -6,10 +6,10 @@ title: mergeAgentTools
 # Function: mergeAgentTools()
 
 ```ts
-function mergeAgentTools(serverTools, clientTools): Tool<SchemaInput, SchemaInput, string>[];
+function mergeAgentTools<TContext>(serverTools, clientTools): Tool<SchemaInput, SchemaInput, string, TContext>[];
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L174)
+Defined in: [packages/ai/src/utilities/chat-params.ts:187](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L187)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.
@@ -25,11 +25,17 @@ Rules:
   them — server emits a tool-call request, client executes via its
   registered handler, client posts back the result.
 
+## Type Parameters
+
+### TContext
+
+`TContext` = `unknown`
+
 ## Parameters
 
 ### serverTools
 
-readonly [`Tool`](../interfaces/Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`\>[]
+readonly [`Tool`](../interfaces/Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`, `TContext`\>[]
 
 The server's tool array (e.g. from
   `[myToolDef.server(...)]`). Pass directly to `chat({ tools })`.
@@ -43,6 +49,6 @@ The `tools` array received from
 
 ## Returns
 
-[`Tool`](../interfaces/Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`\>[]
+[`Tool`](../interfaces/Tool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`, `TContext`\>[]
 
 A merged array suitable for `chat({ tools })`.

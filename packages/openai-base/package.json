@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/openai-base",
-  "version": "0.4.0",
+  "version": "0.9.9",
   "description": "Shared OpenAI SDK base adapters for TanStack AI providers using Chat Completions and Responses APIs.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/openai-base"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -25,9 +33,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -46,7 +54,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
-    "openai": "^6.9.1"
+    "openai": "^6.41.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
@@ -54,7 +62,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3",
+    "vite": "^8.1.4",
     "zod": "^4.2.0"
   }
 }

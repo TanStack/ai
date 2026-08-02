@@ -318,4 +318,35 @@ describe('OpenAI provider options shape assertions', () => {
       expectTypeOf<Options>().not.toHaveProperty('text')
     })
   })
+
+  describe('sampling options are available on every model regardless of feature set', () => {
+    it('exposes temperature/top_p/max_output_tokens on a base model (gpt-4o)', () => {
+      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o']
+      expectTypeOf<Options>().toHaveProperty('temperature')
+      expectTypeOf<Options>().toHaveProperty('top_p')
+      expectTypeOf<Options>().toHaveProperty('max_output_tokens')
+    })
+
+    it('exposes sampling options on a reasoning model (o3)', () => {
+      // Reasoning models reject temperature/top_p at the API, but the type
+      // surface still carries them (documented caveat) so callers tuning a
+      // single backend get a uniform sampling shape.
+      type Options = OpenAIChatModelProviderOptionsByName['o3']
+      expectTypeOf<Options>().toHaveProperty('temperature')
+      expectTypeOf<Options>().toHaveProperty('top_p')
+      expectTypeOf<Options>().toHaveProperty('max_output_tokens')
+    })
+
+    it('accepts sampling options through chat() modelOptions', () => {
+      chat({
+        adapter: openaiText('gpt-4o'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          temperature: 0.3,
+          top_p: 0.9,
+          max_output_tokens: 256,
+        },
+      })
+    })
+  })
 })

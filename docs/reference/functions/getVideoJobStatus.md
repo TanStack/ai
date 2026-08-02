@@ -11,10 +11,11 @@ function getVideoJobStatus<TAdapter>(options): Promise<{
   progress?: number;
   status: "pending" | "processing" | "completed" | "failed";
   url?: string;
+  usage?: TokenUsage<ProviderUsageDetails>;
 }>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L447)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:598](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L598)
 
 **`Experimental`**
 
@@ -29,7 +30,7 @@ it will automatically fetch and include the video URL.
 
 ### TAdapter
 
-`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, `any`, `any`\>
 
 ## Parameters
 
@@ -50,6 +51,7 @@ it will automatically fetch and include the video URL.
   `progress?`: `number`;
   `status`: `"pending"` \| `"processing"` \| `"completed"` \| `"failed"`;
   `url?`: `string`;
+  `usage?`: `TokenUsage`\<`ProviderUsageDetails`\>;
 \}\>
 
 ## Example

@@ -113,8 +113,13 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
+    // Sampling options now live exclusively in `modelOptions` (provider-native
+    // camelCase wire names) rather than the root temperature/topP/maxTokens.
     const modelOptions: OpenRouterTextModelOptions = {
       toolChoice: 'auto',
+      temperature: 0.25,
+      topP: 0.6,
+      maxCompletionTokens: 1024,
     }
 
     const chunks: Array<StreamChunk> = []
@@ -137,9 +142,6 @@ describe('OpenRouter adapter option mapping', () => {
         { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
       ],
       tools: [weatherTool],
-      temperature: 0.25,
-      topP: 0.6,
-      maxTokens: 1024,
       modelOptions,
     })) {
       chunks.push(chunk)
@@ -197,12 +199,11 @@ describe('OpenRouter adapter option mapping', () => {
       systemPrompts: [
         'plain',
         { content: 'object-form' },
-        // `metadata` is `never` for OpenRouter at the type level; the cast
-        // simulates a stale JS / `as any` caller. The adapter must still
-        // produce the joined system message and never leak the foreign
-        // field to the wire.
+        // A foreign metadata field (anything other than `cache_control`) must
+        // still be dropped and the system message kept as a plain joined
+        // string. The cast simulates a stale JS / `as any` caller.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { content: 'with-meta', metadata: { cache_control: {} } } as any,
+        { content: 'with-meta', metadata: { foreign: 'x' } } as any,
       ],
     })) {
       /* consume */
@@ -219,7 +220,107 @@ describe('OpenRouter adapter option mapping', () => {
       content: 'plain\nobject-form\nwith-meta',
     })
     expect(messages[1]).toMatchObject({ role: 'user' })
-    expect(JSON.stringify(params)).not.toContain('cache_control')
+    expect(JSON.stringify(params)).not.toContain('foreign')
+  })
+
+  it('forwards a system-prompt cache_control breakpoint as a content-array part', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-cache',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+
+    const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        {
+          content: 'Stable cached instructions.',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
+      ],
+    })) {
+      /* consume */
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+
+    // The system message becomes a content array carrying the directive
+    // (camelCase pre-serialization).
+    expect(params.messages[0]).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Stable cached instructions.',
+          cacheControl: { type: 'ephemeral' },
+        },
+      ],
+    })
+
+    // And it survives the SDK's outbound (snake_case wire) serialization.
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    const wireSystem = (
+      serialized.messages as Array<Record<string, unknown>>
+    )[0]
+    expect(wireSystem).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Stable cached instructions.',
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+    })
+  })
+
+  it('puts the cache_control breakpoint only on the prompt that declared it; others are plain text parts in the same array', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-mixed',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+
+    const adapter = createOpenRouterText('anthropic/claude-sonnet-4.5', 'k')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        {
+          content: 'Cached prefix.',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
+        'Volatile suffix.',
+      ],
+    })) {
+      /* consume */
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+
+    expect(params.messages[0]).toEqual({
+      role: 'system',
+      content: [
+        {
+          type: 'text',
+          text: 'Cached prefix.',
+          cacheControl: { type: 'ephemeral' },
+        },
+        { type: 'text', text: 'Volatile suffix.' },
+      ],
+    })
   })
 
   it('streams chat chunks with content and usage', async () => {
@@ -377,6 +478,73 @@ describe('OpenRouter adapter option mapping', () => {
     if (toolCallEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolCallEndChunk.toolName).toBe('lookup_weather')
       expect(toolCallEndChunk.input).toEqual({ location: 'Berlin' })
+    }
+  })
+
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // Tool call streams before any text content. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    const streamChunks = [
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_tf',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location":"Berlin"}',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'It is sunny.' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-tf',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 7, totalTokens: 17 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+
+    const adapter = createAdapter()
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
     }
   })
 
@@ -898,6 +1066,43 @@ describe('OpenRouter AG-UI event emission', () => {
     }
   })
 
+  it('forwards the inline error body as RUN_ERROR.rawEvent', async () => {
+    // The mid-stream rethrow attaches the parsed `chunk.error` to the thrown
+    // error so the catch can surface it as `rawEvent`. Note: the real SDK
+    // strips unknown keys from in-band stream errors to `{ code, message }`;
+    // richer provider `metadata` survives only on pre-stream HTTP errors.
+    const errorBody = {
+      message: 'Provider returned error',
+      code: 502,
+      metadata: { provider_name: 'anthropic', raw: 'upstream overloaded' },
+    }
+    const streamChunks = [
+      {
+        id: 'chatcmpl-err',
+        model: 'anthropic/claude-sonnet-4.6',
+        choices: [] as Array<unknown>,
+        error: errorBody,
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'anthropic/claude-sonnet-4.6',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErrorChunk).toBeDefined()
+    if (runErrorChunk?.type === 'RUN_ERROR') {
+      expect(runErrorChunk.rawEvent).toEqual(errorBody)
+    }
+  })
+
   it('drops object-shaped error.code rather than shipping "[object Object]"', async () => {
     // A misbehaving upstream sending an object as `error.code` previously
     // surfaced as `code: "[object Object]"` in RUN_ERROR because the chunk
@@ -1210,7 +1415,13 @@ describe('OpenRouter structured output', () => {
       outputSchema,
     })
 
-    expect(result).toEqual({ name: 'Alice', age: 30, nickname: null })
+    // `nickname` was optional, so strict-mode widening made it `required` +
+    // nullable and the provider returned `null` for the absent value. The
+    // engine un-widens that synthesized null before returning, so the optional
+    // field reads back as absent — matching `.optional()` semantics — rather
+    // than leaking the synthetic `null` through.
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    expect('nickname' in (result as object)).toBe(false)
 
     // The structured-output streaming call carries the strict-transformed schema.
     const structuredCall = mockSend.mock.calls.find(
@@ -1383,6 +1594,58 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.responseFormat).toEqual({ type: 'json_object' })
   })
 
+  it('forwards temperature/topP/maxCompletionTokens from modelOptions', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    // Sampling now flows exclusively through `modelOptions` using the SDK's
+    // camelCase wire names — the root temperature/topP/maxTokens fields are no
+    // longer read by the adapter.
+    const modelOptions: OpenRouterTextModelOptions = {
+      temperature: 0.1,
+      topP: 0.5,
+      maxCompletionTokens: 64,
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.temperature).toBe(0.1)
+    expect(params.topP).toBe(0.5)
+    expect(params.maxCompletionTokens).toBe(64)
+  })
+
+  it('uses variant only for the model suffix and never sends it in the request body', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions: {
+        variant: 'free',
+        temperature: 0.2,
+      } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    // `variant` is OpenRouter metadata used purely to build the model suffix;
+    // it must not leak into the request body alongside the real sampling field.
+    expect(params.model).toBe('openai/gpt-4o-mini:free')
+    expect(params).not.toHaveProperty('variant')
+    expect(params.temperature).toBe(0.2)
+  })
+
   it('forwards common options (provider, plugins, etc.) to the SDK request', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
@@ -1417,16 +1680,15 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.sessionId).toBe('session-abc')
   })
 
-  it('does not allow modelOptions to override top-level temperature/topP/maxTokens', async () => {
+  it('reads sampling from modelOptions; modelOptions is the sole sampling source', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      temperature: 0.5,
-      topP: 0.8,
-      maxTokens: 500,
+      // Root sampling fields no longer exist on TextOptions — only the
+      // provider-native modelOptions values reach the request.
       modelOptions: {
         temperature: 0.9,
         topP: 0.1,
@@ -1438,10 +1700,51 @@ describe('OpenRouter modelOptions pass-through', () => {
 
     const [rawParams] = mockSend.mock.calls[0]!
     const params = rawParams.chatRequest
-    // Top-level values should win because modelOptions has those keys Omitted
-    expect(params.temperature).toBe(0.5)
-    expect(params.topP).toBe(0.8)
-    expect(params.maxCompletionTokens).toBe(500)
+    expect(params.temperature).toBe(0.9)
+    expect(params.topP).toBe(0.1)
+    expect(params.maxCompletionTokens).toBe(9999)
+  })
+
+  it('does not forward root observability metadata to the request (#735)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      // Root `metadata` is observability-only (middleware, devtools, event
+      // client) and may carry structured values; the SDK validates wire
+      // `chatRequest.metadata` as `Record<string, string>`, so forwarding it
+      // fails client-side Zod validation on every call.
+      metadata: { tags: ['a', 'b'], prompt: { name: 'p', version: 1 } },
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params).not.toHaveProperty('metadata')
+  })
+
+  it('root metadata does not clobber modelOptions.metadata (#735)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      metadata: { observationName: 'my-call' },
+      // `modelOptions.metadata` is the typed home for OpenRouter wire
+      // metadata; it must reach the request untouched even when root
+      // observability metadata is also present.
+      modelOptions: { metadata: { env: 'test' } } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.metadata).toEqual({ env: 'test' })
   })
 
   it('appends variant to model name instead of passing it as a separate property', async () => {
@@ -2273,5 +2576,112 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     // for tool-call-only assistant messages, and the SDK's Zod schema may
     // strip `undefined` entirely.
     expect(assistantMsg.content).toBeNull()
+  })
+})
+
+describe('OpenRouter cost tracking', () => {
+  // OpenRouter sends final token usage (and cost) on a trailing chunk whose
+  // `choices` is empty, arriving AFTER the finishReason chunk. The adapter
+  // defers RUN_FINISHED until the stream drains so this chunk is captured.
+  const baseStream = (
+    usage: Record<string, unknown>,
+  ): Array<Record<string, unknown>> => [
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+    },
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: {}, finishReason: 'stop' }],
+    },
+    {
+      id: 'chatcmpl-cost',
+      model: 'openai/gpt-4o-mini',
+      choices: [],
+      usage,
+    },
+  ]
+
+  const runFinished = async (usage: Record<string, unknown>) => {
+    setupMockSdkClient(baseStream(usage))
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_FINISHED')
+  }
+
+  it('forwards cost and costDetails from the trailing usage chunk', async () => {
+    // The cost details mirror the full shape the @openrouter/sdk parser emits
+    // (camelCased), not a partial one the real parser would reject.
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 0.0042,
+      costDetails: {
+        upstreamInferenceCompletionsCost: 0.0026,
+        upstreamInferenceCost: 0.0038,
+        upstreamInferencePromptCost: 0.0012,
+      },
+    })
+    expect(runFinishedChunk).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 2,
+        totalTokens: 7,
+        cost: 0.0042,
+        costDetails: {
+          upstreamCost: 0.0038,
+          upstreamInputCost: 0.0012,
+          upstreamOutputCost: 0.0026,
+        },
+      },
+    })
+  })
+
+  it('preserves cost === 0', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 0,
+    })
+    expect(
+      runFinishedChunk?.type === 'RUN_FINISHED' && runFinishedChunk.usage,
+    ).toMatchObject({ cost: 0 })
+  })
+
+  it('omits cost when the provider does not report it', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+    })
+    expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.usage).toMatchObject({ totalTokens: 7 })
+      expect(runFinishedChunk.usage).not.toHaveProperty('cost')
+      expect(runFinishedChunk.usage).not.toHaveProperty('costDetails')
+    }
+  })
+
+  it('does not break streaming on a malformed cost (cost omitted)', async () => {
+    const runFinishedChunk = await runFinished({
+      promptTokens: 5,
+      completionTokens: 2,
+      totalTokens: 7,
+      cost: 'not-a-number',
+    })
+    expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.usage).not.toHaveProperty('cost')
+    }
   })
 })

@@ -4,13 +4,14 @@ import {
   configureFalClient,
   deriveAudioContentType,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
+import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils'
+import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -133,6 +134,8 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
       throw new Error('Audio URL not found in fal audio generation response')
     }
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
@@ -140,6 +143,7 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
         url: audioUrl,
         contentType: deriveAudioContentType(contentType, audioUrl),
       },
+      ...(usage ? { usage } : {}),
     }
   }
 }

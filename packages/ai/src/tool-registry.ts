@@ -1,4 +1,4 @@
-import type { Tool } from './types'
+import type { AnyTool } from './types'
 
 /**
  * A registry that holds tools and allows dynamic tool management.
@@ -6,12 +6,12 @@ import type { Tool } from './types'
  * The registry can be either mutable (allowing additions/removals during execution)
  * or frozen (static tool list, for backward compatibility with tools arrays).
  */
-export interface ToolRegistry {
+export interface ToolRegistry<TTool extends AnyTool = AnyTool> {
   /**
    * Get all current tools in the registry.
    * Called each agent loop iteration to get the latest tool list.
    */
-  getTools: () => ReadonlyArray<Tool>
+  getTools: () => Array<TTool>
 
   /**
    * Add a tool to the registry dynamically.
@@ -19,7 +19,7 @@ export interface ToolRegistry {
    *
    * @param tool - The tool to add
    */
-  add: (tool: Tool) => void
+  add: (tool: TTool) => void
 
   /**
    * Remove a tool from the registry by name.
@@ -43,7 +43,7 @@ export interface ToolRegistry {
    * @param name - The name of the tool to get
    * @returns The tool if found, undefined otherwise
    */
-  get: (name: string) => Tool | undefined
+  get: (name: string) => TTool | undefined
 
   /**
    * Whether this registry is frozen (immutable).
@@ -75,10 +75,10 @@ export interface ToolRegistry {
  * registry.add(newTool)  // Immediately available to LLM
  * ```
  */
-export function createToolRegistry(
-  initialTools: Array<Tool> = [],
-): ToolRegistry {
-  const tools = new Map<string, Tool>()
+export function createToolRegistry<TTool extends AnyTool = AnyTool>(
+  initialTools: Array<TTool> = [],
+): ToolRegistry<TTool> {
+  const tools = new Map<string, TTool>()
 
   for (const tool of initialTools) {
     tools.set(tool.name, tool)
@@ -87,7 +87,7 @@ export function createToolRegistry(
   return {
     getTools: () => Array.from(tools.values()),
 
-    add: (tool: Tool) => {
+    add: (tool: TTool) => {
       tools.set(tool.name, tool)
     },
 
@@ -116,8 +116,10 @@ export function createToolRegistry(
  * @param tools - The static array of tools
  * @returns A frozen ToolRegistry
  */
-export function createFrozenRegistry(tools: Array<Tool> = []): ToolRegistry {
-  const toolMap = new Map<string, Tool>()
+export function createFrozenRegistry<TTool extends AnyTool = AnyTool>(
+  tools: Array<TTool> = [],
+): ToolRegistry<TTool> {
+  const toolMap = new Map<string, TTool>()
 
   for (const tool of tools) {
     toolMap.set(tool.name, tool)
@@ -126,9 +128,9 @@ export function createFrozenRegistry(tools: Array<Tool> = []): ToolRegistry {
   const frozenTools = Object.freeze([...tools])
 
   return {
-    getTools: () => frozenTools,
+    getTools: () => [...frozenTools],
 
-    add: (_tool: Tool) => {
+    add: (_tool: TTool) => {
       // No-op for frozen registry
     },
 

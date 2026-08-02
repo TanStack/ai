@@ -1,13 +1,22 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import { onMount } from 'svelte'
 import type {
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
   ConnectionStatus,
+  InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
@@ -18,6 +27,9 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -50,16 +62,12 @@ import type {
  * ```
  */
 export function createChat<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
 >(
-  options: CreateChatOptions<TTools, TSchema>,
-): CreateChatReturn<TTools, TSchema> {
-  // Generate a unique ID for this chat instance
-  const clientId =
-    options.id ||
-    `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
+  options: CreateChatOptions<TTools, TSchema, TContext>,
+): CreateChatReturn<TTools, TSchema, TContext> {
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
@@ -68,6 +76,14 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
+  let queue = $state<Array<QueuedMessage>>([])
+  let runId = $state<string | null>(null)
+  let interruptState = $state.raw<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -90,16 +106,33 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient({
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
+  const client = new ChatClient<TTools, TContext>({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
     ...(options.body !== undefined && { body: options.body }),
+    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.context !== undefined && { context: options.context }),
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
     ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
@@ -122,6 +155,7 @@ export function createChat<
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
+      syncResumeState()
     },
     onStatusChange: (newStatus: ChatClientState) => {
       status = newStatus
@@ -138,10 +172,44 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+      queue = nextQueue
+    },
+    onRunIdChange: (nextRunId) => {
+      runId = nextRunId
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState = nextInterruptState
+      options.onInterruptStateChange?.(nextInterruptState)
+    },
   })
+
+  function syncResumeState() {
+    runId = client.getCurrentRunId()
+    interruptState = client.getInterruptState()
+  }
+
+  messages = client.getMessages()
+  interruptState = client.getInterruptState()
 
   if (options.live) {
     client.subscribe()
+  }
+
+  client.mountDevtools()
+
+  if (typeof window !== 'undefined') {
+    try {
+      onMount(() => {
+        // Delivery-durability resume is transparent: the resumable SSE
+        // connection adapter reattaches via the browser's native
+        // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
+        syncResumeState()
+      })
+    } catch {
+      // Svelte lifecycle hooks are only valid during component initialization.
+    }
   }
 
   // Note: Cleanup is handled by calling stop() directly when needed.
@@ -150,24 +218,46 @@ export function createChat<
   // Users should call chat.stop() in their component's cleanup if needed.
 
   // Define methods
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    try {
+      await client.sendMessage(content, undefined, sendOptions)
+    } finally {
+      syncResumeState()
+    }
   }
 
+  const cancelQueued = (id: string) => client.cancelQueued(id)
+
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.append(message)
+    try {
+      await client.append(message)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const reload = async () => {
-    await client.reload()
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState()
+    }
   }
 
   const stop = () => {
     client.stop()
   }
 
+  const dispose = () => {
+    client.dispose()
+  }
+
   const clear = () => {
     client.clear()
+    syncResumeState()
   }
 
   const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
@@ -189,7 +279,40 @@ export function createChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
+    syncResumeState()
   }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client.resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
+  }
+
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client.cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client.retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
   /**
    * @deprecated Use `updateForwardedProps` instead.
@@ -201,6 +324,10 @@ export function createChat<
 
   const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
     client.updateOptions({ forwardedProps: newForwardedProps })
+  }
+
+  const updateContext = (newContext: TContext) => {
+    client.updateOptions({ context: newContext })
   }
 
   // The "active" structured-output part is the one on the assistant message
@@ -243,7 +370,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
-  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema> due to TSchema conditional partial/final fields; TS can't structurally narrow.
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages
@@ -266,6 +393,24 @@ export function createChat<
     get sessionGenerating() {
       return sessionGenerating
     },
+    get queue() {
+      return queue
+    },
+    get runId() {
+      return runId
+    },
+    get interrupts() {
+      return interruptState.interrupts
+    },
+    get pendingInterrupts() {
+      return interruptState.interrupts
+    },
+    get interruptErrors() {
+      return interruptState.interruptErrors
+    },
+    get resuming() {
+      return interruptState.resuming
+    },
     get partial() {
       return partial
     },
@@ -273,14 +418,22 @@ export function createChat<
       return final
     },
     sendMessage,
+    cancelQueued,
     append,
     reload,
     stop,
+    dispose,
     setMessages,
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
+    resumeInterrupts,
     updateBody,
     updateForwardedProps,
-  } as unknown as CreateChatReturn<TTools, TSchema>
+    updateContext,
+  } as unknown as CreateChatReturn<TTools, TSchema, TContext>
 }

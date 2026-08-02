@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import type { RealtimeConnection } from '@tanstack/ai-client'
-import type { AnyClientTool, JSONSchema, RealtimeMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  JSONSchema,
+  RealtimeConnection,
+  RealtimeMessage,
+} from '@tanstack/ai'
 
 /**
  * Captured `startSession` argument shape. Only the fields the realtime

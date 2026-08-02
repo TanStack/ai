@@ -1,10 +1,17 @@
 import { useGeneration } from './use-generation'
+import { reconstructSpeechResult } from '@tanstack/ai-client'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
@@ -14,15 +21,22 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  *
  * @template TOutput - The output type after optional transform (defaults to TTSResult)
  */
-export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
+export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
+  UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when speech is generated. Can optionally return a transformed value.
    *
@@ -44,7 +58,10 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
+export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
+  UseGenerationReturn<TOutput>,
+  'generate'
+> {
   /** Trigger speech generation */
   generate: (input: SpeechGenerateInput) => Promise<void>
   /** The TTS result containing audio data, or null */
@@ -55,10 +72,6 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
   error: DeepReadonly<ShallowRef<Error | undefined>>
   /** Current state of the generation */
   status: DeepReadonly<ShallowRef<GenerationClientState>>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -89,23 +102,31 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  * </template>
  * ```
  */
-export function useGenerateSpeech<
-  TOnResult extends ((result: TTSResult) => any) | undefined = undefined,
->(
-  options: Omit<UseGenerateSpeechOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
-): UseGenerateSpeechReturn<InferGenerationOutput<TTSResult, TOnResult>> {
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TOnResult>(options)
-
-  return {
-    generate: generate as (input: SpeechGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+export function useGenerateSpeech<TTransformed = void>(
+  options: Omit<
+    UseGenerateSpeechOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: TTSResult) => TTransformed
+  } & GenerationPersistenceOptions,
+): UseGenerateSpeechReturn<
+  InferGenerationOutputFromReturn<TTSResult, TTransformed>
+> {
+  const devtools = {
+    ...options.devtools,
+    framework: 'vue',
+    hookName: 'useGenerateSpeech',
+    outputKind: 'audio' as const,
   }
+  const generation = useGeneration<
+    SpeechGenerateInput,
+    TTSResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructSpeechResult,
+  })
+
+  return generation
 }

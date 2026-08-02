@@ -4,14 +4,15 @@ import {
   configureFalClient,
   dataUrlToBlob,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
+import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type {
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
 } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils'
+import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -151,12 +152,15 @@ export class FalTranscriptionAdapter<
       (data.inferred_languages as Array<string> | undefined)?.[0] ||
       (data.languages as Array<string> | undefined)?.[0]
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       text,
       ...(language !== undefined ? { language } : {}),
       ...(segments !== undefined ? { segments } : {}),
+      ...(usage ? { usage } : {}),
     }
   }
 }

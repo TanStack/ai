@@ -31,7 +31,7 @@ Called for chunk-level diagnostic output (raw provider chunks, per-chunk output,
 
 `Record`\<`string`, `unknown`\>
 
-Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
 
 #### Returns
 
@@ -59,7 +59,7 @@ Called for caught exceptions throughout the pipeline.
 
 `Record`\<`string`, `unknown`\>
 
-Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
 
 #### Returns
 
@@ -87,7 +87,7 @@ Called for notable informational events (outgoing requests, tool invocations, mi
 
 `Record`\<`string`, `unknown`\>
 
-Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
 
 #### Returns
 
@@ -115,7 +115,7 @@ Called for notable warnings that don't halt execution (deprecations, recoverable
 
 `Record`\<`string`, `unknown`\>
 
-Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; console-based loggers pass it as the second argument to `console.<level>`.
+Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
 
 #### Returns
 

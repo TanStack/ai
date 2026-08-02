@@ -67,6 +67,17 @@ export type OpenAIVideoModelSizeByName = {
 }
 
 /**
+ * Per-model prompt input modalities. Sora models accept a single image part
+ * in the prompt, mapped to the API's `input_reference` field.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type OpenAIVideoModelInputModalitiesByName = {
+  'sora-2': readonly ['image']
+  'sora-2-pro': readonly ['image']
+}
+
+/**
  * Validate video size for a given model.
  *
  * @experimental Video generation is an experimental feature and may change.

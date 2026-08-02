@@ -63,7 +63,7 @@ export async function judgeReports(params: {
     ],
     systemPrompts: [JUDGE_SYSTEM_PROMPT],
     outputSchema: judgeSchema,
-    maxTokens: 512,
+    modelOptions: { max_tokens: 512 },
   })
 
   return result as JudgeResult

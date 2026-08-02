@@ -1,10 +1,17 @@
 import { useGeneration } from './use-generation'
+import { reconstructSummarizeResult } from '@tanstack/ai-client'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
@@ -14,15 +21,24 @@ import type { Accessor } from 'solid-js'
  *
  * @template TOutput - The transformed output type (defaults to SummarizationResult)
  */
-export interface UseSummarizeOptions<TOutput = SummarizationResult> {
+export interface UseSummarizeOptions<
+  TOutput = SummarizationResult,
+> extends Pick<
+  UseGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when summarization is complete. Can optionally return a transformed value.
    *
@@ -44,7 +60,10 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
  *
  * @template TOutput - The transformed output type (defaults to SummarizationResult)
  */
-export interface UseSummarizeReturn<TOutput = SummarizationResult> {
+export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
+  UseGenerationReturn<TOutput>,
+  'generate'
+> {
   /** Trigger summarization */
   generate: (input: SummarizeGenerateInput) => Promise<void>
   /** The summarization result, or null */
@@ -55,10 +74,6 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> {
   error: Accessor<Error | undefined>
   /** Current state of the generation */
   status: Accessor<GenerationClientState>
-  /** Abort the current summarization */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -90,26 +105,31 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> {
  * }
  * ```
  */
-export function useSummarize<
-  TOnResult extends ((result: SummarizationResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<UseSummarizeOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
-): UseSummarizeReturn<InferGenerationOutput<SummarizationResult, TOnResult>> {
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SummarizeGenerateInput, SummarizationResult, TOnResult>(
-      options,
-    )
-
-  return {
-    generate: generate as (input: SummarizeGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+export function useSummarize<TTransformed = void>(
+  options: Omit<
+    UseSummarizeOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: SummarizationResult) => TTransformed
+  } & GenerationPersistenceOptions,
+): UseSummarizeReturn<
+  InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
+> {
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useSummarize',
+    outputKind: 'text' as const,
   }
+  const generation = useGeneration<
+    SummarizeGenerateInput,
+    SummarizationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructSummarizeResult,
+  })
+
+  return generation
 }

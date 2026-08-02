@@ -1,11 +1,21 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  useId,
+  watch,
+} from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoStatusInfo,
@@ -22,10 +32,51 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for creating a video job */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
+  /**
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
+  persistence?: boolean
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations, where
+   * it falls back to `id` purely to satisfy the wire.
+   */
+  threadId?: string
+  /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
    *
@@ -70,6 +121,13 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: DeepReadonly<ShallowRef<string | null>>
 }
 
 /**
@@ -103,19 +161,24 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </template>
  * ```
  */
-export function useGenerateVideo<
-  TOnResult extends ((result: VideoGenerateResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<UseGenerateVideoOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function useGenerateVideo<TTransformed = void>(
+  options: Omit<
+    UseGenerateVideoOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: VideoGenerateResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): UseGenerateVideoReturn<
-  InferGenerationOutput<VideoGenerateResult, TOnResult>
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
 > {
-  type TOutput = InferGenerationOutput<VideoGenerateResult, TOnResult>
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
   const hookId = useId()
-  const clientId = options.id || hookId
 
   const result = shallowRef<TOutput | null>(null)
   const jobId = shallowRef<string | null>(null)
@@ -123,36 +186,80 @@ export function useGenerateVideo<
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<GenerationClientState>('idle')
+  const runId = shallowRef<string | null>(null)
+  let disposed = false
 
   // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
   // strict optional and under EOPT we must omit the key when absent rather
   // than assign `undefined`.
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
-    id: clientId,
     body: options.body,
-    onResult: (r: VideoGenerateResult) => options.onResult?.(r),
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
-    onJobCreated: (id: string) => options.onJobCreated?.(id),
-    onStatusUpdate: (s: VideoStatusInfo) => options.onStatusUpdate?.(s),
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? hookId }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.hydrateGeneration !== undefined && {
+      hydrateGeneration: options.hydrateGeneration,
+    }),
+    ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    devtoolsBridgeFactory: createVideoDevtoolsBridge,
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useGenerateVideo',
+      outputKind: 'video' as const,
+    },
+    // The transform's raw return type (`TTransformed`) and the stored output
+    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+    // the cast bridges the relationship that the conditional type hides.
+    onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+      result: VideoGenerateResult,
+    ) => TOutput | null | void,
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
+    onJobCreated: (id: string) => {
+      if (!disposed) options.onJobCreated?.(id)
+    },
+    onStatusUpdate: (s: VideoStatusInfo) => {
+      if (!disposed) options.onStatusUpdate?.(s)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result.value = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading.value = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error.value = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status.value = s
     },
     onJobIdChange: (id: string | null) => {
+      if (disposed) return
       jobId.value = id
     },
     onVideoStatusChange: (s: VideoStatusInfo | null) => {
+      if (disposed) return
       videoStatus.value = s
+    },
+    onResumeStateChange: (rs: { runId: string } | null) => {
+      if (disposed) return
+      runId.value = rs?.runId ?? null
     },
   }
 
@@ -186,9 +293,16 @@ export function useGenerateVideo<
     },
   )
 
-  // Cleanup on scope dispose: stop any in-flight requests or polling
+  // Mount devtools only. Generation runs are never auto-started on mount —
+  // persisted state is read-only for display.
+  onMounted(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on scope dispose: stop any in-flight requests and unregister devtools
   onScopeDispose(() => {
-    client.stop()
+    disposed = true
+    client.dispose()
   })
 
   const generate = async (input: VideoGenerateInput) => {
@@ -205,7 +319,11 @@ export function useGenerateVideo<
 
   return {
     generate,
-    result: readonly(result),
+    // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
+    // `TOutput` conditional, which TS can't prove equal to the declared
+    // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
+    // They are identical at runtime; the cast restores the declared shape.
+    result: readonly(result) as UseGenerateVideoReturn<TOutput>['result'],
     jobId: readonly(jobId),
     videoStatus: readonly(videoStatus),
     isLoading: readonly(isLoading),
@@ -213,5 +331,6 @@ export function useGenerateVideo<
     status: readonly(status),
     stop,
     reset,
+    runId: readonly(runId),
   }
 }

@@ -1,5 +1,6 @@
+import { StrictMode } from 'react'
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
 import { useGenerateAudio } from '../src/use-generate-audio'
@@ -8,8 +9,17 @@ import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
-import type { StreamChunk, TTSResult } from '@tanstack/ai'
+import type {
+  PersistedArtifactRef,
+  StreamChunk,
+  TTSResult,
+  TranscriptionResult,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
+import type {
+  ConnectConnectionAdapter,
+  RunAgentInputContext,
+} from '@tanstack/ai-client'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
@@ -69,6 +79,80 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
       timestamp: Date.now(),
     },
   ]
+}
+
+const videoResumeSnapshot = {
+  schemaVersion: 1 as const,
+  resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+  status: 'running' as const,
+}
+
+const replayedVideoArtifact: PersistedArtifactRef = {
+  role: 'output',
+  artifactId: 'artifact-video-1',
+  threadId: 'thread-resume',
+  runId: 'run-resume',
+  name: 'video.mp4',
+  mimeType: 'video/mp4',
+  size: 1234,
+  createdAt: '2026-07-06T00:00:00.000Z',
+  sourceUrl: 'https://example.com/video.mp4',
+  source: {
+    activity: 'video',
+    path: 'runs/run-resume/video.mp4',
+    provider: 'test',
+    model: 'test-video',
+    mediaType: 'video',
+    jobId: 'job-replay',
+    expiresAt: '2026-07-07T00:00:00.000Z',
+  },
+}
+
+function createReplayVideoChunks(): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
+      name: 'generation:result',
+      value: {
+        jobId: 'job-replay',
+        status: 'completed',
+        url: 'https://example.com/video.mp4',
+        artifacts: [replayedVideoArtifact],
+      },
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'run-resume',
+      threadId: 'thread-resume',
+      timestamp: Date.now(),
+    },
+  ]
+}
+
+function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
+  adapter: ConnectConnectionAdapter
+  connect: ReturnType<typeof vi.fn>
+  runContexts: Array<RunAgentInputContext | undefined>
+} {
+  const runContexts: Array<RunAgentInputContext | undefined> = []
+  const connect = vi.fn()
+  const adapter: ConnectConnectionAdapter = {
+    async *connect(_messages, _data, _signal, runContext) {
+      connect(runContext)
+      runContexts.push(runContext)
+      for (const chunk of chunks) {
+        yield chunk
+      }
+    },
+  }
+  return { adapter, connect, runContexts }
 }
 
 // Helper to create error stream chunks.
@@ -277,6 +361,143 @@ describe('useGeneration', () => {
       resolvePromise!({ id: '1' })
     })
   })
+
+  describe('persistence', () => {
+    it('repaints status from a hydrated complete snapshot on mount without starting a run', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          result: { id: 'result-1', model: 'image-model' },
+        },
+        activeRun: null,
+      }))
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'hydrated',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      // A completed snapshot repaints the normal `status` field to `success`.
+      await waitFor(() => {
+        expect(result.current.status).toBe('success')
+      })
+      expect(connect).not.toHaveBeenCalled()
+      // The base hook injects no reconstructResult, so `result` stays null.
+      expect(result.current.result).toBeNull()
+      expect(result.current.runId).toBeNull()
+    })
+
+    it('repaints a hydrated running snapshot with no joinRun as an interrupted error on mount', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+          status: 'running' as const,
+        },
+        activeRun: null,
+      }))
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'running-hydrate',
+          // No `joinRun`, so the restored run cannot be tailed.
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      await waitFor(() => {
+        expect(result.current.error?.message).toMatch(/interrupted/)
+      })
+      // Without a `joinRun` handler the restored run cannot be tailed, so it
+      // surfaces as an interrupted error instead of a `generating` status
+      // that would never settle.
+      expect(result.current.runId).toBeNull()
+      expect(result.current.status).toBe('error')
+      expect(result.current.isLoading).toBe(false)
+      expect(connect).not.toHaveBeenCalled()
+    })
+
+    it('server-driven (persistence: true) hydrates from the connection by threadId without a local store', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: '1' }),
+      )
+      const hydrateGeneration = vi.fn(async () => ({
+        resumeSnapshot: {
+          schemaVersion: 1 as const,
+          resumeState: null,
+          status: 'complete' as const,
+          result: { id: 'server-result', model: 'image-model' },
+        },
+        activeRun: null,
+      }))
+
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'thread-server',
+          connection: { ...adapter, hydrateGeneration },
+          persistence: true,
+        }),
+      )
+
+      // The server snapshot repaints `status` to `success`.
+      await waitFor(() => {
+        expect(result.current.status).toBe('success')
+      })
+      expect(hydrateGeneration).toHaveBeenCalledWith('thread-server')
+      expect(connect).not.toHaveBeenCalled()
+    })
+
+    it('generates normally under React StrictMode (dispose → remount replay)', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter(
+        createGenerationChunks({ id: 'strict-1' }),
+      )
+
+      const { result } = renderHook(
+        () => useGeneration({ connection: adapter }),
+        { wrapper: StrictMode },
+      )
+
+      await act(async () => {
+        await result.current.generate({ prompt: 'test' })
+      })
+
+      expect(connect).toHaveBeenCalledTimes(1)
+      await waitFor(() => {
+        expect(result.current.status).toBe('success')
+        expect(result.current.result).toEqual({ id: 'strict-1' })
+      })
+    })
+
+    it('clears resumeState once a streamed run finishes', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createReplayVideoChunks(),
+      })
+
+      const { result } = renderHook(() =>
+        useGeneration({ connection: adapter }),
+      )
+
+      await act(async () => {
+        await result.current.generate({ prompt: 'replay' })
+      })
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('success')
+      })
+      // Once the run ends the in-flight identity is gone.
+      expect(result.current.runId).toBeNull()
+    })
+  })
 })
 
 describe('useGenerateImage', () => {
@@ -362,6 +583,64 @@ describe('useGenerateImage', () => {
     expect(typeof result.current.stop).toBe('function')
     expect(typeof result.current.reset).toBe('function')
   })
+
+  it('restores a completed image result from a durable artifact url', async () => {
+    // useGenerateImage injects `reconstructImageResult`, so a restored complete
+    // snapshot repaints `result` with the durable serve url — as if the run had
+    // just finished.
+    const artifact: PersistedArtifactRef = {
+      role: 'output',
+      artifactId: 'artifact-image-1',
+      threadId: 'thread-img',
+      runId: 'run-img',
+      name: 'image.png',
+      mimeType: 'image/png',
+      size: 2048,
+      createdAt: '2026-07-06T00:00:00.000Z',
+      url: '/api/artifacts/artifact-image-1',
+      source: {
+        activity: 'image',
+        path: 'runs/run-img/image.png',
+        provider: 'test',
+        model: 'test-image',
+        mediaType: 'image',
+      },
+    }
+    const adapter = createMockConnectionAdapter()
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
+        resumeState: null,
+        status: 'complete' as const,
+        activity: 'image' as const,
+        result: {
+          id: 'img-restored',
+          model: 'test-image',
+          artifacts: [artifact],
+        },
+      },
+      activeRun: null,
+    }))
+
+    const { result } = renderHook(() =>
+      useGenerateImage({
+        threadId: 'img-hydrate',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success')
+    })
+    expect(result.current.result).toEqual({
+      id: 'img-restored',
+      model: 'test-image',
+      images: [{ url: '/api/artifacts/artifact-image-1' }],
+      artifacts: [artifact],
+    })
+    expect(result.current.runId).toBeNull()
+  })
 })
 
 describe('useGenerateSpeech', () => {
@@ -413,6 +692,66 @@ describe('useGenerateSpeech', () => {
 
     expect(result.current.result).toEqual(mockResult)
     expect(result.current.status).toBe('success')
+  })
+
+  it('restores a completed TTS result from a durable artifact url', async () => {
+    // useGenerateSpeech injects `reconstructSpeechResult`. `TTSResult.audio` is
+    // a bare base64 string that persistence never stores, so the restored clip
+    // is served from `artifacts[0].url` and `audio` stays empty.
+    const artifact: PersistedArtifactRef = {
+      role: 'output',
+      artifactId: 'artifact-speech-1',
+      threadId: 'thread-tts',
+      runId: 'run-tts',
+      name: 'speech.mp3',
+      mimeType: 'audio/mpeg',
+      size: 4096,
+      createdAt: '2026-07-06T00:00:00.000Z',
+      url: '/api/artifacts/artifact-speech-1',
+      source: {
+        activity: 'tts',
+        path: 'runs/run-tts/speech.mp3',
+        provider: 'test',
+        model: 'test-tts',
+        mediaType: 'audio',
+      },
+    }
+    const adapter = createMockConnectionAdapter()
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: {
+        schemaVersion: 1 as const,
+        resumeState: null,
+        status: 'complete' as const,
+        activity: 'tts' as const,
+        result: {
+          id: 'tts-restored',
+          model: 'test-tts',
+          artifacts: [artifact],
+        },
+      },
+      activeRun: null,
+    }))
+
+    const { result } = renderHook(() =>
+      useGenerateSpeech({
+        threadId: 'tts-hydrate',
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success')
+    })
+    expect(result.current.result).toEqual({
+      id: 'tts-restored',
+      model: 'test-tts',
+      audio: '',
+      format: 'mpeg',
+      contentType: 'audio/mpeg',
+      artifacts: [artifact],
+    })
+    expect(result.current.runId).toBeNull()
   })
 })
 
@@ -535,7 +874,7 @@ describe('useSummarize', () => {
     const mockResult = {
       id: 'sum-1',
       summary: 'A brief summary',
-      model: 'gpt-4',
+      model: 'gpt-5.5',
       usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
     }
 
@@ -554,7 +893,7 @@ describe('useSummarize', () => {
   })
 
   it('should summarize text using connection', async () => {
-    const mockResult = { summary: 'A brief summary', model: 'gpt-4' }
+    const mockResult = { summary: 'A brief summary', model: 'gpt-5.5' }
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
@@ -681,24 +1020,50 @@ describe('useGenerateVideo', () => {
     expect(result.current.videoStatus).toBeNull()
     expect(result.current.status).toBe('idle')
   })
+
+  it('does not auto-fire a video generation on mount from a hydrated running snapshot', async () => {
+    const { adapter, connect } = createRunContextCaptureAdapter(
+      createReplayVideoChunks(),
+    )
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: videoResumeSnapshot,
+      activeRun: null,
+    }))
+    const { result } = renderHook(() =>
+      useGenerateVideo({
+        threadId: 'video-no-auto-fire',
+        // No `joinRun`, so the restored run cannot be tailed.
+        connection: { ...adapter, hydrateGeneration },
+        persistence: true,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.error?.message).toMatch(/interrupted/)
+    })
+
+    // Hydration only surfaces state; it never restarts the run.
+    expect(connect).not.toHaveBeenCalled()
+    expect(result.current.status).toBe('error')
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.runId).toBeNull()
+  })
 })
 
 describe('onResult transform', () => {
   it('should transform result when onResult returns a value (fetcher)', async () => {
-    // useGeneration's TOnResult generic defaults to `undefined` if not pinned
-    // (the standard Omit-plus-callback inference pattern doesn't recover it),
-    // so the callback parameter type can't infer from the fetcher's return.
-    // Pin TResult and TOnResult explicitly — no cast needed.
-    type FetcherResult = { id: string; audio: string }
-    const onResult = (raw: FetcherResult) => ({
-      playable: raw.audio.length > 0,
-    })
+    // Inference (issue #848): `onResult`'s parameter is contextually typed from
+    // the fetcher's return, and `result` narrows to the transform's return —
+    // no explicit type arguments needed.
     const { result } = renderHook(() =>
-      useGeneration<Record<string, any>, FetcherResult, typeof onResult>({
+      useGeneration({
         fetcher: async () => ({ id: '1', audio: 'base64data' }),
-        onResult,
+        onResult: (raw) => ({ playable: raw.audio.length > 0 }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      playable: boolean
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ prompt: 'test' })
@@ -749,16 +1114,18 @@ describe('onResult transform', () => {
     const chunks = createGenerationChunks(mockResult)
     const adapter = createMockConnectionAdapter({ chunks })
 
-    // The stream chunk's `value` payload is `unknown` at the type level
-    // (CUSTOM events are opaque), so TResult cannot infer from `adapter`. Pin
-    // TResult and TOnResult explicitly via the generics — no cast needed.
-    const onResult = (raw: StreamResult) => ({ count: raw.images.length })
+    // `connection` is untyped, but annotating the `onResult` parameter gives the
+    // base hook a site to infer `TResult` from (it appears directly in the
+    // callback parameter position) — no explicit type arguments needed.
     const { result } = renderHook(() =>
-      useGeneration<Record<string, any>, StreamResult, typeof onResult>({
+      useGeneration({
         connection: adapter,
-        onResult,
+        onResult: (raw: StreamResult) => ({ count: raw.images.length }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      count: number
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ prompt: 'test' })
@@ -776,17 +1143,20 @@ describe('onResult transform', () => {
       contentType: 'audio/mpeg',
     }
 
-    // The hook's TOnResult generic defaults to undefined, so let's pin the
-    // callback type explicitly. TResult here is the concrete TTSResult.
-    const onResult = (raw: TTSResult) => ({
-      audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
-    })
+    // Inference (issue #848): the wrapper hooks infer the output type from
+    // `onResult` with no explicit type argument. `raw` is contextually typed
+    // as `TTSResult`.
     const { result } = renderHook(() =>
-      useGenerateSpeech<typeof onResult>({
+      useGenerateSpeech({
         fetcher: async () => mockTTSResult,
-        onResult,
+        onResult: (raw) => ({
+          audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
+        }),
       }),
     )
+    expectTypeOf(result.current.result).toEqualTypeOf<{
+      audioUrl: string
+    } | null>()
 
     await act(async () => {
       await result.current.generate({ text: 'Hello' })
@@ -795,5 +1165,27 @@ describe('onResult transform', () => {
     expect(result.current.result).toEqual({
       audioUrl: 'data:audio/mpeg;base64,base64audio',
     })
+  })
+
+  it('infers the raw result type when no onResult is provided', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+      }),
+    )
+    // Without a transform, `result` stays the raw TranscriptionResult.
+    expectTypeOf(
+      result.current.result,
+    ).toEqualTypeOf<TranscriptionResult | null>()
+  })
+
+  it('narrows the wrapper result type to the transform return', () => {
+    const { result } = renderHook(() =>
+      useTranscription({
+        fetcher: async () => ({ id: '1', text: 'hi', model: 'whisper-1' }),
+        onResult: (res) => res.text,
+      }),
+    )
+    expectTypeOf(result.current.result).toEqualTypeOf<string | null>()
   })
 })

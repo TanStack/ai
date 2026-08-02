@@ -247,6 +247,8 @@ Use this driver when you want Code Mode execution in a full Daytona sandbox inst
 All provided drivers satisfy this interface, exported from `@tanstack/ai-code-mode`:
 
 ```typescript
+import type { ToolBinding, NormalizedError } from "@tanstack/ai-code-mode";
+
 interface IsolateDriver {
   createContext(config: IsolateConfig): Promise<IsolateContext>
 }

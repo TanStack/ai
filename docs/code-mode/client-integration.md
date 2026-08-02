@@ -35,7 +35,7 @@ Every event includes a `toolCallId` that ties it to the specific `execute_typesc
 
 Pass an `onCustomEvent` callback to `useChat`. The callback receives the event type, payload, and a context object with the `toolCallId`:
 
-```typescript
+```tsx group=code-mode-client
 import { useCallback, useRef, useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
@@ -93,7 +93,7 @@ Events are keyed by `toolCallId` so each `execute_typescript` call gets its own 
 
 When rendering messages, check for `execute_typescript` tool calls and display their events:
 
-```typescript
+```tsx group=code-mode-client
 function MessageList({
   messages,
   toolCallEvents,
@@ -142,7 +142,7 @@ function MessageList({
 
 Here's a complete `CodeExecutionPanel` component that shows the generated code, live event stream, and final result:
 
-```typescript
+```tsx group=code-mode-client
 function CodeExecutionPanel({
   code,
   events,
@@ -211,8 +211,13 @@ function CodeExecutionPanel({
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function EventLine({ event }: { event: VMEvent }) {
-  const data = event.data as Record<string, unknown>;
+  if (!isRecord(event.data)) return null;
+  const data = event.data;
 
   switch (event.eventType) {
     case "code_mode:console":
@@ -241,7 +246,7 @@ function EventLine({ event }: { event: VMEvent }) {
     case "code_mode:external_result":
       return (
         <div className="text-green-600">
-          ← {String(data.function)} ({data.duration}ms)
+          ← {String(data.function)} ({String(data.duration)}ms)
         </div>
       );
 
@@ -274,7 +279,7 @@ This gives you:
 
 The `onCustomEvent` callback is available through `ChatClient` from `@tanstack/ai-client`, which all framework integrations use under the hood. In Solid, Vue, or Svelte, pass `onCustomEvent` in the same way you pass it to `useChat` in React — the callback signature is identical:
 
-```typescript
+```typescript ignore
 (eventType: string, data: unknown, context: { toolCallId?: string }) => void
 ```
 

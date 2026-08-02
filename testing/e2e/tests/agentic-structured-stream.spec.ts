@@ -36,6 +36,11 @@ for (const provider of providersFor('agentic-structured-stream')) {
       testId,
       aimockPort,
     }) => {
+      // Raise the per-test cap (config default 30s) so the generous
+      // `structured-output-part` wait below isn't cut short by the test-level
+      // timeout under parallel-worker dev-server contention.
+      test.setTimeout(60_000)
+
       await page.goto(
         featureUrl(provider, 'agentic-structured-stream', testId, aimockPort),
       )
@@ -62,11 +67,14 @@ for (const provider of providersFor('agentic-structured-stream')) {
 
       // Use a longer timeout — under parallel-worker dev-server contention
       // the final React commit landing the structured-output part can lag
-      // 10s behind the `structured-output.complete` testid attachment.
+      // well behind the `structured-output.complete` testid attachment (the
+      // `structured-output.complete` event has already arrived; only the React
+      // commit that swaps the streaming text part for the completed
+      // StructuredOutputPart is outstanding, so a generous wait is safe).
       const assistantMessage = page.getByTestId('assistant-message').last()
       await expect(
         assistantMessage.getByTestId('structured-output-part'),
-      ).toHaveCount(1, { timeout: 15_000 })
+      ).toHaveCount(1, { timeout: 30_000 })
 
       const structuredAttr = await completeEl.getAttribute(
         'data-structured-output',

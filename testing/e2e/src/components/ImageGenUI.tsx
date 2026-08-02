@@ -5,7 +5,7 @@ import {
   fetchHttpStream,
 } from '@tanstack/ai-react'
 import { generateImageFn } from '@/lib/server-functions'
-import type { ImageGenerationResult } from '@tanstack/ai'
+import type { ImageGenerationResult, MediaPrompt } from '@tanstack/ai'
 import type { Mode, Provider } from '@/lib/types'
 
 interface ImageGenUIProps {
@@ -13,6 +13,24 @@ interface ImageGenUIProps {
   mode: Mode
   testId?: string
   aimockPort?: number
+  /** Show a file input and send the prompt as multimodal parts (image-to-image). */
+  withImageInput?: boolean
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Unexpected FileReader result'))
+        return
+      }
+      resolve(result.split(',')[1] ?? '')
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
 }
 
 export function ImageGenUI({
@@ -20,8 +38,10 @@ export function ImageGenUI({
   mode,
   testId,
   aimockPort,
+  withImageInput,
 }: ImageGenUIProps) {
   const [prompt, setPrompt] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   const connectionOptions = () => {
     const body = { provider, numberOfImages: 1, testId, aimockPort }
@@ -33,7 +53,7 @@ export function ImageGenUI({
       return { connection: fetchHttpStream('/api/image/stream'), body }
     }
     return {
-      fetcher: async (input: { prompt: string }) => {
+      fetcher: async (input: { prompt: MediaPrompt }) => {
         return generateImageFn({
           data: {
             prompt: input.prompt,
@@ -50,6 +70,23 @@ export function ImageGenUI({
   const { generate, result, isLoading, error, status } =
     useGenerateImage(connectionOptions())
 
+  const handleGenerate = async () => {
+    if (!imageFile) {
+      await generate({ prompt })
+      return
+    }
+    const base64 = await fileToBase64(imageFile)
+    await generate({
+      prompt: [
+        { type: 'text', content: prompt },
+        {
+          type: 'image',
+          source: { type: 'data', value: base64, mimeType: imageFile.type },
+        },
+      ],
+    })
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex gap-2">
@@ -63,13 +100,22 @@ export function ImageGenUI({
         />
         <button
           data-testid="generate-button"
-          onClick={() => generate({ prompt })}
+          onClick={handleGenerate}
           disabled={!prompt.trim() || isLoading}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >
           Generate
         </button>
       </div>
+      {withImageInput && (
+        <input
+          data-testid="image-input"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+          className="text-sm text-gray-400"
+        />
+      )}
       <div data-testid="generation-status">
         {status === 'idle'
           ? 'idle'

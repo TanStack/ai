@@ -606,7 +606,7 @@ program
 
       try {
         const { geminiText } = await import('@tanstack/ai-gemini')
-        const modelName = model || 'gemini-2.0-flash'
+        const modelName = model || 'gemini-2.5-flash'
         adapter = geminiText(modelName, { apiKey })
         logInfo(`Using Gemini adapter with model: ${modelName}`)
       } catch (error) {
@@ -721,7 +721,7 @@ program
 
       try {
         const { geminiText } = await import('@tanstack/ai-gemini')
-        const modelName = model || 'gemini-2.0-flash'
+        const modelName = model || 'gemini-2.5-flash'
         adapter = geminiText(modelName, { apiKey })
         logInfo(`Using Gemini adapter with model: ${modelName}`)
       } catch (error) {

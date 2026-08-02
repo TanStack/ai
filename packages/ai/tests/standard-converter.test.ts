@@ -1,4 +1,5 @@
-﻿import { describe, expect, it } from 'vitest'
+﻿import { type } from 'arktype'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   convertSchemaToJsonSchema,
@@ -570,6 +571,58 @@ describe('convertSchemaToJsonSchema', () => {
     })
   })
 
+  // Regression guard for #276: ArkType `type()` returns a *callable function*
+  // (with `~standard` attached as a property), not a plain object. The
+  // detection guards previously required `typeof schema === 'object'`, so
+  // ArkType schemas matched neither branch and fell through the JSONSchema
+  // pass-through, returning the raw validator function instead of a converted
+  // JSON Schema object.
+  describe('ArkType (callable Standard JSON Schema)', () => {
+    it('returns a JSON Schema object, not the validator function', () => {
+      const schema = type({ foo: 'boolean' })
+      const result = convertSchemaToJsonSchema(schema)
+
+      expect(typeof result).toBe('object')
+      expect(result?.type).toBe('object')
+      expect(result?.properties?.['foo']?.type).toBe('boolean')
+      expect(result?.required).toContain('foo')
+    })
+
+    it('drops the $schema key', () => {
+      const schema = type({ foo: 'boolean' })
+      const result = convertSchemaToJsonSchema(schema)
+
+      expect('$schema' in (result || {})).toBe(false)
+    })
+
+    it('handles optional fields', () => {
+      const schema = type({
+        name: 'string',
+        'age?': 'number',
+      })
+      const result = convertSchemaToJsonSchema(schema)
+
+      expect(result?.type).toBe('object')
+      expect(result?.required).toContain('name')
+      expect(result?.required).not.toContain('age')
+    })
+
+    it('applies structured-output transformation', () => {
+      const schema = type({
+        name: 'string',
+        'age?': 'number',
+      })
+      const result = convertSchemaToJsonSchema(schema, {
+        forStructuredOutput: true,
+      })
+
+      expect(result?.additionalProperties).toBe(false)
+      // All properties required for structured output
+      expect(result?.required).toContain('name')
+      expect(result?.required).toContain('age')
+    })
+  })
+
   describe('Standard Schema validator without jsonSchema converter', () => {
     // Regression guard for #562: widening `SchemaInput` to also accept
     // `StandardSchemaV1<any, any>` means a validator-only schema (no
@@ -599,9 +652,18 @@ describe('isStandardJSONSchema', () => {
     expect(isStandardJSONSchema(schema)).toBe(true)
   })
 
+  it('should return true for ArkType schemas (callable Standard JSON Schema)', () => {
+    const schema = type({ foo: 'boolean' })
+    expect(isStandardJSONSchema(schema)).toBe(true)
+  })
+
   it('should return false for plain objects', () => {
     const plainObject = { type: 'object', properties: {} }
     expect(isStandardJSONSchema(plainObject)).toBe(false)
+  })
+
+  it('should return false for plain (non-schema) functions', () => {
+    expect(isStandardJSONSchema(() => {})).toBe(false)
   })
 
   it('should return false for null', () => {
@@ -625,9 +687,18 @@ describe('isStandardSchema', () => {
     expect(isStandardSchema(schema)).toBe(true)
   })
 
+  it('should return true for ArkType schemas (callable validators)', () => {
+    const schema = type({ foo: 'boolean' })
+    expect(isStandardSchema(schema)).toBe(true)
+  })
+
   it('should return false for plain objects', () => {
     const plainObject = { type: 'object', properties: {} }
     expect(isStandardSchema(plainObject)).toBe(false)
+  })
+
+  it('should return false for plain (non-schema) functions', () => {
+    expect(isStandardSchema(() => {})).toBe(false)
   })
 
   it('should return false for null', () => {
@@ -659,6 +730,24 @@ describe('parseWithStandardSchema', () => {
       name: z.string(),
       age: z.number(),
     })
+
+    expect(() =>
+      parseWithStandardSchema(schema, { name: 'John', age: 'not a number' }),
+    ).toThrow()
+  })
+
+  // #276: ArkType validators are callable functions; the `isStandardSchema`
+  // guard used by tool input/output validation must recognize them so data is
+  // actually validated instead of silently passed through.
+  it('should parse and throw with ArkType schema', () => {
+    const schema = type({ name: 'string', age: 'number' })
+
+    expect(
+      parseWithStandardSchema<{ name: string; age: number }>(schema, {
+        name: 'John',
+        age: 30,
+      }),
+    ).toEqual({ name: 'John', age: 30 })
 
     expect(() =>
       parseWithStandardSchema(schema, { name: 'John', age: 'not a number' }),
@@ -707,6 +796,27 @@ describe('validateWithStandardSchema', () => {
     if (!result.success) {
       expect(result.issues).toBeDefined()
       expect(result.issues.length).toBeGreaterThan(0)
+    }
+  })
+
+  // #276: ArkType validators are callable functions — verify they are
+  // recognized and produce issues on failure rather than passing through.
+  it('should validate ArkType schema (success and failure)', async () => {
+    const schema = type({ name: 'string', age: 'number' })
+
+    const ok = await validateWithStandardSchema(schema, {
+      name: 'John',
+      age: 30,
+    })
+    expect(ok.success).toBe(true)
+
+    const bad = await validateWithStandardSchema(schema, {
+      name: 'John',
+      age: 'not a number',
+    })
+    expect(bad.success).toBe(false)
+    if (!bad.success) {
+      expect(bad.issues.length).toBeGreaterThan(0)
     }
   })
 

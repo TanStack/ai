@@ -15,7 +15,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -24,9 +29,18 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini']),
+  // BytePlus streams its reasoning trace as `delta.reasoning_content`, which is
+  // exactly the field aimock's OpenAI-compatible chunk builder emits for a
+  // fixture's `reasoning` channel — so the adapter's `extractReasoning`
+  // override is exercised end-to-end against the shared fixture.
+  reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral', 'byteplus']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -34,7 +48,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -43,7 +62,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -51,7 +75,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -60,7 +89,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -69,7 +103,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   'structured-output': new Set([
     'openai',
@@ -78,13 +117,27 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
   // activity-layer `fallbackStructuredOutputStream` (which wraps the
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
-  'structured-output-stream': new Set(['openai', 'groq', 'grok', 'openrouter']),
+  'structured-output-stream': new Set([
+    'openai',
+    'groq',
+    'grok',
+    'bedrock',
+    'bedrock-responses',
+    'openrouter',
+    'openai-compatible',
+    'byteplus',
+  ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
   // turns stay renderable. Works for every provider that supports both
@@ -109,7 +162,11 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'byteplus',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -118,7 +175,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'groq',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'openai-compatible',
+    'mistral',
+    'byteplus',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -129,28 +191,43 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'anthropic',
     'gemini',
     'grok',
+    'byteplus',
   ]),
+  // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only
+  // (input: ['text'], no vision) — image input isn't supported, so the
+  // multimodal request never carries the image and the description comes back empty.
+  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
   'multimodal-image': new Set([
     'openai',
     'anthropic',
     'gemini',
     'grok',
     'openrouter',
+    'byteplus',
   ]),
+  // Bedrock excluded: same text-only default e2e model as multimodal-image above.
   'multimodal-structured': new Set([
     'openai',
     'anthropic',
     'gemini',
     'grok',
     'openrouter',
+    'byteplus',
   ]),
+  // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
+  // Ark has no summarization endpoint, and api.summarize.ts builds a
+  // dedicated `create*Summarize` adapter per provider rather than reusing the
+  // chat adapter. Add both entries here if a Seed summarize adapter lands.
   summarize: new Set([
     'openai',
     'anthropic',
     'gemini',
     'ollama',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'mistral',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -158,17 +235,69 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'ollama',
     'grok',
+    'bedrock',
+    'bedrock-responses',
     'openrouter',
+    'mistral',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
-  'image-gen': new Set(['openai', 'grok']),
+  'image-gen': new Set(['openai', 'grok', 'byteplus']),
+  // image-to-image (image parts in the generateImage prompt). aimock 1.29
+  // mocks OpenAI's multipart `/v1/images/edits` (matches on the `prompt` form
+  // field, ignores the binary image/mask fields), so the OpenAI route runs
+  // end-to-end. Other providers route to endpoints aimock doesn't mock yet
+  // (Gemini multimodal `generateContent`, xAI's JSON `/v1/images/edits`,
+  // OpenRouter multimodal chat content parts, fal endpoint-specific input
+  // fields) — their mapping is covered by unit tests. Add them here when
+  // aimock support lands.
+  // byteplus excluded: Seedream edits through the same /images/generations
+  // endpoint (reference images ride an `image` array in the JSON body), so
+  // there is no `/v1/images/edits` request for this spec's journal assertion
+  // to find. The reference-image mapping is unit-tested instead.
+  'image-to-image': new Set(['openai']),
+  // byteplus excluded: BytePlus has no music/audio generation product —
+  // Seed Speech is TTS + ASR only.
   'audio-gen': new Set(['gemini', 'elevenlabs']),
+  // byteplus excluded: no sound-effects endpoint (see audio-gen above).
   'sound-effects': new Set(['elevenlabs']),
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
-  transcription: new Set(['openai', 'grok', 'elevenlabs']),
-  'video-gen': new Set(['openai']),
+  tts: new Set(['openai', 'gemini', 'grok', 'elevenlabs', 'byteplus']),
+  transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs', 'byteplus']),
+  // byteplus excluded: this spec asserts named-speaker segments
+  // (`agent`/`customer`), which is OpenAI's `diarized_json` shape. Seed ASR's
+  // nearest equivalent is `enable_speaker_info`, whose response shape is
+  // unverified — it couldn't be probed live without the Seed Speech voice key
+  // — and the adapter reads speaker labels defensively out of an utterance's
+  // `additions` for that reason. Revisit once the shape is confirmed.
+  'transcription-diarization': new Set(['openai']),
+  // Gemini Veo runs through a custom aimock mount (see geminiVeoMount in
+  // global-setup.ts) — aimock 1.29 doesn't model the long-running
+  // `:predictLongRunning` + operations-polling pair natively.
+  // BytePlus Seedance uses its own create→poll task API
+  // (POST/GET /api/v3/contents/generations/tasks), mounted as
+  // byteplusSeedanceMount in global-setup.ts for the same reason.
+  'video-gen': new Set(['openai', 'gemini', 'byteplus']),
+  // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
+  // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to
+  // multipart when `input_reference` carries a File) and matches on the
+  // `prompt` form field, so the OpenAI/Sora route runs end-to-end. fal's
+  // endpoint-specific fields and Gemini Veo's image/lastFrame/referenceImages
+  // routing remain unit-test-only (the spec's journal assertion is tied to
+  // aimock's /v1/videos pipeline, which custom mounts bypass).
+  // byteplus excluded: Seedance takes its opening frame as a `first_frame`
+  // role inside the task body's `content[]`, so the spec's assertion that a
+  // multipart POST /v1/videos carried the prompt can't hold. The role mapping
+  // is unit-tested instead.
+  'image-to-video': new Set(['openai']),
+  // Gemini Omni Flash video generation over the Interactions API. Runs
+  // through a dedicated aimock mount (see geminiOmniVideoMount in
+  // global-setup.ts) — aimock handles synchronous text interactions natively
+  // but not background video jobs (create → poll → inline base64 mp4).
+  // byteplus excluded: Ark has no Interactions-style API — Seedance video is
+  // the task API covered by video-gen above.
+  'interactions-video': new Set(['gemini']),
   // Only Gemini currently surfaces a first-class stateful conversation API via
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
+  // byteplus excluded for the same reason: Ark's chat endpoint is stateless.
   'stateful-interactions': new Set(['gemini']),
 }
 

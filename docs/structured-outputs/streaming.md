@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     outputSchema: PersonSchema,
     stream: true,
@@ -111,7 +111,7 @@ What the hook does for you:
 
 So render reasoning and tool calls the same way you'd render them in a normal chat UI:
 
-```tsx
+```tsx ignore
 const last = messages.at(-1);
 
 return (
@@ -139,7 +139,7 @@ return (
 
 `chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`:
 
-```typescript
+```typescript ignore
 {
   type: "CUSTOM",
   name: "structured-output.complete",
@@ -172,7 +172,7 @@ The fallback path keeps the consumer code identical across providers — you alw
 
 When you don't need the SSE-over-HTTP boundary — Node scripts, CLIs, server endpoints that respond with a final JSON object instead of a stream, or tests — consume `chat({ outputSchema, stream: true })` as a plain async iterable:
 
-```typescript
+```typescript ignore
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
@@ -184,7 +184,7 @@ const PersonSchema = z.object({
 });
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Extract: John Doe is 30, john@example.com" }],
   outputSchema: PersonSchema,
   stream: true,

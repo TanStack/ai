@@ -1,15 +1,21 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { buildOpenRouterUsage } from '../usage'
+import { extractUsageCost } from './cost'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   ChatContentItems,
+  ChatContentText,
   ChatMessages,
   ChatRequest,
   ChatStreamChoice,
@@ -31,7 +37,10 @@ import type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
 } from '../model-meta'
-import type { ExternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions,
+  OpenRouterSystemPromptMetadata,
+} from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
@@ -89,7 +98,12 @@ export class OpenRouterTextAdapter<
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  // TToolCallMetadata — OpenRouter has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cache_control` autocomplete.
+  OpenRouterSystemPromptMetadata
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
@@ -149,6 +163,7 @@ export class OpenRouterTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -163,13 +178,16 @@ export class OpenRouterTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. a pre-stream typed error's `.error` with provider
+      // metadata) when present; omitted otherwise.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -537,6 +555,8 @@ export class OpenRouterTextAdapter<
         timestamp,
       }
 
+      const finalUsage = buildOpenRouterUsage(lastUsage)
+
       yield {
         type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
@@ -544,12 +564,8 @@ export class OpenRouterTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp,
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.promptTokens,
-            completionTokens: lastUsage.completionTokens,
-            totalTokens: lastUsage.totalTokens,
-          },
+        ...(finalUsage && {
+          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
         }),
       }
     } catch (error: unknown) {
@@ -581,6 +597,7 @@ export class OpenRouterTextAdapter<
       )
 
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -588,6 +605,7 @@ export class OpenRouterTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -615,14 +633,12 @@ export class OpenRouterTextAdapter<
    * Final shaping pass applied to parsed structured-output JSON before it is
    * returned to the caller. OpenRouter routes through a wide variety of
    * upstream providers; some return `null` as a distinct sentinel ("the field
-   * exists, the value is null") rather than collapsing it to absent. Stripping
-   * nulls would erase that distinction, so we passthrough.
-   *
-   * `transformNullsToUndefined` is imported for parity with the other
-   * provider adapters but intentionally not invoked here.
+   * exists, the value is null") rather than collapsing it to absent, so we
+   * passthrough and let the engine un-widen strict-mode nulls precisely. This
+   * now matches the base adapters' default — kept as an explicit override
+   * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    void transformNullsToUndefined
     return parsed
   }
 
@@ -693,9 +709,16 @@ export class OpenRouterTextAdapter<
         // chunks may carry an `error` field (provider-side failures that
         // happen mid-stream rather than as an SDK throw).
         if (chunk.error) {
+          // Preserve the provider's structured error body on the thrown error
+          // so the RUN_ERROR catch can forward it as `rawEvent`. NOTE: the
+          // OpenRouter SDK parses each stream chunk's `error` through a strict
+          // schema (`{ code, message }`), so any `error.metadata` the gateway
+          // sent in-band is already stripped here — only pre-stream HTTP errors
+          // (caught in the outer catch) retain `error.metadata` via their typed
+          // error class's `.error` body.
           throw Object.assign(
             new Error(chunk.error.message || 'OpenRouter stream error'),
-            { code: chunk.error.code },
+            { code: chunk.error.code, rawEvent: chunk.error },
           )
         }
 
@@ -867,6 +890,7 @@ export class OpenRouterTextAdapter<
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
+                parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
@@ -1065,18 +1089,16 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.promptTokens || 0,
-              completionTokens: lastUsage.completionTokens || 0,
-              totalTokens: lastUsage.totalTokens || 0,
-            },
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
           }),
           finishReason,
         }
@@ -1088,18 +1110,22 @@ export class OpenRouterTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. the mid-stream `chunk.error` rethrown above) when
+      // present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1116,19 +1142,38 @@ export class OpenRouterTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ChatRequest, 'stream'> {
-    const modelOptions = options.modelOptions as
-      | (Record<string, any> & { variant?: string })
-      | undefined
-    const variantSuffix = modelOptions?.variant
-      ? `:${modelOptions.variant}`
-      : ''
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it must NOT be spread into the request body. Destructure it out
+    // so the remaining sampling/provider options flow through `...restModelOptions`.
+    const { variant, ...restModelOptions } = options.modelOptions ?? {}
+    const variantSuffix = variant ? `:${variant}` : ''
 
     const messages: Array<ChatMessages> = []
-    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+    const systemPrompts =
+      normalizeSystemPrompts<OpenRouterSystemPromptMetadata>(
+        options.systemPrompts,
+      )
     if (systemPrompts.length > 0) {
+      // When any system prompt carries a `cache_control` breakpoint, emit the
+      // system message as a structured content array so the directive rides on
+      // the wire (honoured by Anthropic-family routes). Otherwise keep the
+      // plain joined string — unchanged behaviour for every other caller.
+      const hasCacheControl = systemPrompts.some(
+        (p) => p.metadata?.cache_control,
+      )
       messages.push({
         role: 'system',
-        content: systemPrompts.map((p) => p.content).join('\n'),
+        content: hasCacheControl
+          ? systemPrompts.map(
+              (p): ChatContentText => ({
+                type: 'text',
+                text: p.content,
+                ...(p.metadata?.cache_control && {
+                  cacheControl: p.metadata.cache_control,
+                }),
+              }),
+            )
+          : systemPrompts.map((p) => p.content).join('\n'),
       })
     }
     for (const m of options.messages) {
@@ -1139,20 +1184,16 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Spread modelOptions first so explicit top-level options (set below) win
-    // when defined but `undefined` doesn't clobber values the caller set in
-    // modelOptions.
+    // `modelOptions` is the sole wire surface: callers set provider-native
+    // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
+    // there and they flow through the spread below. Root `metadata` is
+    // observability-only (middleware, devtools, event client) and must NOT be
+    // forwarded here — it may carry arbitrarily structured values while the
+    // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
-      ...modelOptions,
+      ...restModelOptions,
       model: options.model + variantSuffix,
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxCompletionTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
       ...(tools && tools.length > 0 && { tools }),
     }
     return request

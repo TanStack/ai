@@ -4,13 +4,14 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { buildGeminiUsage } from '../usage'
 import type { GEMINI_AUDIO_MODELS } from '../model-meta'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Provider options for Gemini Lyria music generation.
@@ -122,6 +123,11 @@ export class GeminiAudioAdapter<
           b64Json: audioPart.inlineData.data,
           ...(contentType !== undefined && { contentType }),
         },
+        // Surface token usage (with per-modality breakdown) when Gemini reports
+        // it. Spread conditionally for exactOptionalPropertyTypes.
+        ...(response.usageMetadata
+          ? { usage: buildGeminiUsage(response.usageMetadata) }
+          : {}),
       }
     } catch (error) {
       logger.errors('gemini.generateAudio fatal', {

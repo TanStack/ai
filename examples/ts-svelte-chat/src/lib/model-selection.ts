@@ -32,11 +32,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash',
-    label: 'Gemini - 2.0 Flash',
-  },
-  {
-    provider: 'gemini',
     model: 'gemini-2.5-flash',
     label: 'Gemini - 2.5 Flash',
   },

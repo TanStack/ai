@@ -22,11 +22,18 @@ By the end of this guide you'll have a chat UI that walks `messages` directly, r
 
 > **Note:** If you only need a single round-trip (one prompt → one object), use [One-Shot Extraction](./one-shot). If you have one turn that streams progressively but no history, use [Streaming UIs](./streaming) — its `partial` / `final` sugar is the right surface. This page is for the case where history matters.
 
+> **React Native recipe app:** The Expo example streams this same multi-turn
+> recipe pattern into native cards with an XHR transport selector. See
+> [Quick Start: React Native](../getting-started/quick-start-react-native) to
+> run it on Expo Go.
+
 ## How it lands on the message
 
 When `useChat({ outputSchema })` receives the server's `structured-output.complete` for an assistant turn, the runtime attaches a typed `structured-output` `MessagePart` to that assistant's `UIMessage`. The part looks like this:
 
 ```typescript
+import type { DeepPartial } from "@tanstack/ai";
+
 type StructuredOutputPart<TData> = {
   type: "structured-output";
   status: "streaming" | "complete" | "error";
@@ -78,7 +85,7 @@ const SYSTEM_PROMPT = `You are a chef assistant. Always respond with a single re
 export async function POST(request: Request) {
   const { messages } = await request.json();
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     systemPrompts: [SYSTEM_PROMPT],
     outputSchema: RecipeSchema,
@@ -94,11 +101,12 @@ Behind the scenes, when the client sends turn N, the previous N-1 assistant turn
 
 Here's the shape you want. `useChat` exposes `messages` (typed, schema-aware), `sendMessage`, and the hook-level `partial` / `final` sugar for the latest turn. To render history, walk `messages` directly:
 
-```tsx
+```tsx ignore
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import type { StructuredOutputPart } from "@tanstack/ai-client";
 import { RecipeSchema, type Recipe } from "./api/structured-chat";
+import { UserBubble } from "./components";
 
 // The schema-typed structured-output part. Pulled out so the find()
 // predicate below stays readable.
@@ -156,13 +164,13 @@ function RecipeCard({ part }: { part: RecipePart }) {
   // `data` is `Recipe` once status === 'complete'. `partial` is
   // DeepPartial<Recipe> while the model is still streaming the JSON.
   // Read whichever is freshest — they converge on complete.
-  const recipe = part.data ?? part.partial ?? ({} as Partial<Recipe>);
+  const recipe = part.data ?? part.partial;
 
   return (
     <article>
-      <h3>{recipe.title ?? "Plating up…"}</h3>
-      {recipe.cuisine && <p>{recipe.cuisine}</p>}
-      {recipe.ingredients?.map((ing, i) => (
+      <h3>{recipe?.title ?? "Plating up…"}</h3>
+      {recipe?.cuisine && <p>{recipe?.cuisine}</p>}
+      {recipe?.ingredients?.map((ing, i) => (
         <li key={i}>
           {ing?.amount} {ing?.item}
         </li>
@@ -189,13 +197,23 @@ The hook-level `partial` and `final` are still available. They're derived from t
 
 The example above pulls `type RecipePart = StructuredOutputPart<Recipe>` out for readability. If you'd rather not name it, you can narrow inline with `Extract`:
 
-```tsx
-const recipePart = m.parts.find(
-  (p): p is Extract<typeof p, { type: "structured-output" }> =>
-    p.type === "structured-output",
-);
-// `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
-// `recipePart.data` is `Recipe | undefined`.
+```tsx ignore
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { RecipeSchema, type Recipe } from "./api/structured-chat";
+
+const { messages } = useChat({
+  outputSchema: RecipeSchema,
+  connection: fetchServerSentEvents("/api/structured-chat"),
+});
+
+for (const m of messages) {
+  const recipePart = m.parts.find(
+    (p): p is Extract<typeof p, { type: "structured-output" }> =>
+      p.type === "structured-output",
+  );
+  // `recipePart` is `StructuredOutputPart<Recipe> | undefined`.
+  // `recipePart.data` is `Recipe | undefined`.
+}
 ```
 
 Both forms produce the same typed result. Pick whichever you find more readable.

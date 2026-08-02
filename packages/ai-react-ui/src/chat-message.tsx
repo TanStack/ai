@@ -1,4 +1,5 @@
 import { ThinkingPart } from './thinking-part'
+import { toolResultContentToString } from './tool-result-content'
 import type { ReactNode } from 'react'
 import type { UIMessage } from '@tanstack/ai-react'
 
@@ -144,8 +145,7 @@ function MessagePart({
   defaultToolRenderer,
   toolResultRenderer,
 }: {
-  // TODO Fix me
-  part: any
+  part: UIMessage['parts'][number]
   isThinkingComplete?: boolean
   textPartRenderer?: ChatMessageProps['textPartRenderer']
   thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
@@ -240,12 +240,14 @@ function MessagePart({
 
   // Tool result part
   if (part.type === 'tool-result') {
+    const toolResultContent = toolResultContentToString(part.content)
+
     if (toolResultRenderer) {
       return (
         <>
           {toolResultRenderer({
             toolCallId: part.toolCallId,
-            content: part.content,
+            content: toolResultContent,
             state: part.state,
           })}
         </>
@@ -258,7 +260,7 @@ function MessagePart({
         data-tool-call-id={part.toolCallId}
         data-tool-result-state={part.state}
       >
-        <div data-tool-result-content>{part.content}</div>
+        <div data-tool-result-content>{toolResultContent}</div>
       </div>
     )
   }

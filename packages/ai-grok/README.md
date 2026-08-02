@@ -28,11 +28,10 @@ export XAI_API_KEY="xai-..."
 import { grokText } from '@tanstack/ai-grok'
 import { generate } from '@tanstack/ai'
 
-const adapter = grokText()
+const adapter = grokText('grok-build-0.1')
 
 const result = await generate({
   adapter,
-  model: 'grok-3',
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],
@@ -47,11 +46,10 @@ console.log(result.text)
 import { grokSummarize } from '@tanstack/ai-grok'
 import { summarize } from '@tanstack/ai'
 
-const adapter = grokSummarize()
+const adapter = grokSummarize('grok-build-0.1')
 
 const result = await summarize({
   adapter,
-  model: 'grok-3',
   text: 'Long article text...',
   style: 'bullet-points',
 })
@@ -83,27 +81,17 @@ console.log(result.images[0].url)
 ```typescript
 import { createGrokText } from '@tanstack/ai-grok'
 
-const adapter = createGrokText('xai-your-api-key-here')
+const adapter = createGrokText('grok-build-0.1', 'xai-your-api-key-here')
 ```
 
-## Supported Models
+## Supported Chat Models
 
-### Chat Models
-
-- `grok-4` - Latest flagship model
-- `grok-3` - Previous generation model
-- `grok-3-mini` - Smaller, faster model
-- `grok-4-fast` - Fast inference model
-- `grok-4.1-fast` - Production-focused fast model
-- `grok-2-vision-1212` - Vision-capable model (text + image input)
-
-### Image Models
-
-- `grok-2-image-1212` - Image generation model
+- `grok-build-0.1` - Build-focused reasoning model with text + image input
+- `grok-4.3` - Reasoning, structured outputs, tool calling, text + image input
 
 ## Features
 
-- ✅ Streaming chat completions
+- ✅ Streaming chat via xAI Responses API
 - ✅ Structured output (JSON Schema)
 - ✅ Function/tool calling
 - ✅ Multimodal input (text + images for vision models)

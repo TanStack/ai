@@ -18,6 +18,7 @@ import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { VMEvent } from '@/components'
 import { CodeBlock, ExecutionResult, JavaScriptVM, Header } from '@/components'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_home/')({
   component: ProductDemoPage,
@@ -699,7 +700,7 @@ function CodeModePanel({
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
-    id: 'product-codemode',
+    threadId: 'product-codemode',
     connection: fetchServerSentEvents('/api/product-codemode'),
     body,
     onCustomEvent: handleCustomEvent,
@@ -792,7 +793,7 @@ function CodeModePanel({
             for (const p of message.parts) {
               if (p.type === 'tool-result') {
                 toolResults.set(p.toolCallId, {
-                  content: p.content,
+                  content: toolResultContentToString(p.content),
                   state: p.state,
                   error: p.error,
                 })
@@ -997,7 +998,7 @@ function RegularToolsPanel({
   }, [])
 
   const { messages, sendMessage, isLoading, stop } = useChat({
-    id: 'product-regular',
+    threadId: 'product-regular',
     connection: fetchServerSentEvents('/api/product-regular'),
     body,
     onCustomEvent: handleCustomEvent,
@@ -1088,7 +1089,7 @@ function RegularToolsPanel({
             for (const part of message.parts) {
               if (part.type === 'tool-result') {
                 toolResults.set(part.toolCallId, {
-                  content: part.content,
+                  content: toolResultContentToString(part.content),
                   state: part.state,
                   error: part.error,
                 })

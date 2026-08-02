@@ -3,17 +3,38 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { DefaultChatClientEventEmitter } from '../src/events'
 import type { UIMessage } from '../src/types'
 
-// Mock the event client
 vi.mock('@tanstack/ai-event-client', () => ({
   aiEventClient: {
     emit: vi.fn(),
   },
+  createAIDevtoolsEventEnvelope: (input: {
+    eventType: string
+    timestamp: number
+  }) => ({
+    ...input,
+    eventId: `event:${input.eventType}:${input.timestamp}`,
+  }),
 }))
 
 describe('events', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  function expectedEnvelope(
+    eventType: string,
+    visibility: 'client-state' | 'user-visible' = 'client-state',
+  ) {
+    return {
+      clientId: 'test-client-id',
+      hookId: 'test-client-id',
+      eventId: expect.any(String),
+      eventType,
+      source: 'client',
+      visibility,
+      timestamp: expect.any(Number),
+    }
+  }
 
   describe('DefaultChatClientEventEmitter', () => {
     let emitter: DefaultChatClientEventEmitter
@@ -22,67 +43,79 @@ describe('events', () => {
       emitter = new DefaultChatClientEventEmitter('test-client-id')
     })
 
-    it('should emit client:created event with clientId and timestamp', () => {
+    it('emits client:created with client-state envelope fields', () => {
       emitter.clientCreated(5)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:created', {
         initialMessageCount: 5,
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('client:created'),
       })
     })
 
-    it('should emit client:loading:changed event', () => {
+    it('emits client:loading:changed with client-state envelope fields', () => {
       emitter.loadingChanged(true)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
         'client:loading:changed',
         {
           isLoading: true,
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          ...expectedEnvelope('client:loading:changed'),
         },
       )
     })
 
-    it('should emit client:error:changed event with null', () => {
+    it('emits client:error:changed with null', () => {
       emitter.errorChanged(null)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:error:changed', {
         error: null,
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('client:error:changed'),
       })
     })
 
-    it('should emit client:error:changed event with error string', () => {
+    it('emits client:error:changed with an error string', () => {
       emitter.errorChanged('Something went wrong')
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:error:changed', {
         error: 'Something went wrong',
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('client:error:changed'),
       })
     })
 
-    it('should emit text:chunk:content event for text updates', () => {
-      emitter.textUpdated('stream-1', 'msg-1', 'Hello world')
+    it('emits text:chunk:content with user-visible envelope and run context', () => {
+      emitter.textUpdated('stream-1', 'msg-1', 'Hello world', {
+        threadId: 'thread-1',
+        runId: 'run-1',
+      })
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('text:chunk:content', {
         streamId: 'stream-1',
         messageId: 'msg-1',
         content: 'Hello world',
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        threadId: 'thread-1',
+        runId: 'run-1',
+        ...expectedEnvelope('text:chunk:content', 'user-visible'),
       })
     })
 
-    it('should emit tools:call:updated event', () => {
+    it('emits text:chunk:thinking with user-visible envelope and run context', () => {
+      emitter.thinkingUpdated('stream-1', 'msg-1', 'reasoning', 'ing', {
+        threadId: 'thread-1',
+        runId: 'run-1',
+      })
+
+      expect(aiEventClient.emit).toHaveBeenCalledWith('text:chunk:thinking', {
+        streamId: 'stream-1',
+        messageId: 'msg-1',
+        content: 'reasoning',
+        delta: 'ing',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        ...expectedEnvelope('text:chunk:thinking', 'user-visible'),
+      })
+    })
+
+    it('emits tools:call:updated with user-visible envelope and run context', () => {
       emitter.toolCallStateChanged(
         'stream-1',
         'msg-1',
@@ -90,6 +123,7 @@ describe('events', () => {
         'get_weather',
         'input-complete',
         '{"city": "NYC"}',
+        { threadId: 'thread-1', runId: 'run-1' },
       )
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('tools:call:updated', {
@@ -99,13 +133,13 @@ describe('events', () => {
         toolName: 'get_weather',
         state: 'input-complete',
         arguments: '{"city": "NYC"}',
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        threadId: 'thread-1',
+        runId: 'run-1',
+        ...expectedEnvelope('tools:call:updated', 'user-visible'),
       })
     })
 
-    it('should emit tools:approval:requested event', () => {
+    it('emits tools:approval:requested with user-visible envelope and run context', () => {
       emitter.approvalRequested(
         'stream-1',
         'msg-1',
@@ -113,6 +147,7 @@ describe('events', () => {
         'get_weather',
         { city: 'NYC' },
         'approval-1',
+        { threadId: 'thread-1', runId: 'run-1' },
       )
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
@@ -124,14 +159,14 @@ describe('events', () => {
           toolName: 'get_weather',
           input: { city: 'NYC' },
           approvalId: 'approval-1',
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          threadId: 'thread-1',
+          runId: 'run-1',
+          ...expectedEnvelope('tools:approval:requested', 'user-visible'),
         },
       )
     })
 
-    it('should emit text:message:created with full content', () => {
+    it('emits text:message:created with full content and run context', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
         role: 'user',
@@ -142,21 +177,24 @@ describe('events', () => {
         createdAt: new Date(),
       }
 
-      emitter.messageAppended(uiMessage)
+      emitter.messageAppended(uiMessage, 'stream-1', {
+        threadId: 'thread-1',
+        runId: 'run-1',
+      })
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('text:message:created', {
-        streamId: undefined,
+        streamId: 'stream-1',
         messageId: 'msg-1',
         role: 'user',
         content: 'Hello World',
         parts: uiMessage.parts,
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        threadId: 'thread-1',
+        runId: 'run-1',
+        ...expectedEnvelope('text:message:created', 'user-visible'),
       })
     })
 
-    it('should handle message with no text parts', () => {
+    it('handles a message with no text parts', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -180,13 +218,11 @@ describe('events', () => {
         role: 'assistant',
         content: '',
         parts: uiMessage.parts,
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('text:message:created', 'user-visible'),
       })
     })
 
-    it('should emit text:message:created and text:message:user for sent messages', () => {
+    it('emits text:message:created and text:message:user for sent messages', () => {
       emitter.messageSent('msg-1', 'Hello world')
 
       expect(aiEventClient.emit).toHaveBeenCalledTimes(2)
@@ -197,9 +233,7 @@ describe('events', () => {
           messageId: 'msg-1',
           role: 'user',
           content: 'Hello world',
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          ...expectedEnvelope('text:message:created', 'user-visible'),
         },
       )
       expect(aiEventClient.emit).toHaveBeenNthCalledWith(
@@ -209,53 +243,46 @@ describe('events', () => {
           messageId: 'msg-1',
           role: 'user',
           content: 'Hello world',
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          ...expectedEnvelope('text:message:user', 'user-visible'),
         },
       )
     })
 
-    it('should emit client:reloaded event', () => {
+    it('emits client:reloaded with client-state envelope fields', () => {
       emitter.reloaded(3)
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:reloaded', {
         fromMessageIndex: 3,
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('client:reloaded'),
       })
     })
 
-    it('should emit client:stopped event', () => {
+    it('emits client:stopped with client-state envelope fields', () => {
       emitter.stopped()
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('client:stopped', {
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        ...expectedEnvelope('client:stopped'),
       })
     })
 
-    it('should emit client:messages:cleared event', () => {
+    it('emits client:messages:cleared with client-state envelope fields', () => {
       emitter.messagesCleared()
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
         'client:messages:cleared',
         {
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          ...expectedEnvelope('client:messages:cleared'),
         },
       )
     })
 
-    it('should emit tools:result:added event', () => {
+    it('emits tools:result:added with user-visible envelope and run context', () => {
       emitter.toolResultAdded(
         'call-1',
         'get_weather',
         { temp: 72 },
         'output-available',
+        { threadId: 'thread-1', runId: 'run-1' },
       )
 
       expect(aiEventClient.emit).toHaveBeenCalledWith('tools:result:added', {
@@ -263,14 +290,17 @@ describe('events', () => {
         toolName: 'get_weather',
         output: { temp: 72 },
         state: 'output-available',
-        clientId: 'test-client-id',
-        source: 'client',
-        timestamp: expect.any(Number),
+        threadId: 'thread-1',
+        runId: 'run-1',
+        ...expectedEnvelope('tools:result:added', 'user-visible'),
       })
     })
 
-    it('should emit tools:approval:responded event', () => {
-      emitter.toolApprovalResponded('approval-1', 'call-1', true)
+    it('emits tools:approval:responded with user-visible envelope and run context', () => {
+      emitter.toolApprovalResponded('approval-1', 'call-1', true, {
+        threadId: 'thread-1',
+        runId: 'run-1',
+      })
 
       expect(aiEventClient.emit).toHaveBeenCalledWith(
         'tools:approval:responded',
@@ -278,9 +308,36 @@ describe('events', () => {
           approvalId: 'approval-1',
           toolCallId: 'call-1',
           approved: true,
-          clientId: 'test-client-id',
-          source: 'client',
-          timestamp: expect.any(Number),
+          threadId: 'thread-1',
+          runId: 'run-1',
+          ...expectedEnvelope('tools:approval:responded', 'user-visible'),
+        },
+      )
+    })
+
+    it('emits devtools:tool-fixture:applied with a user-visible envelope', () => {
+      emitter.toolFixtureApplied({
+        hookId: 'test-client-id',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolName: 'get_weather',
+        input: { city: 'NYC' },
+        output: { temp: 72 },
+        messageId: 'msg-fixture',
+        toolCallId: 'call-fixture',
+      })
+
+      expect(aiEventClient.emit).toHaveBeenCalledWith(
+        'devtools:tool-fixture:applied',
+        {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          toolName: 'get_weather',
+          input: { city: 'NYC' },
+          output: { temp: 72 },
+          messageId: 'msg-fixture',
+          toolCallId: 'call-fixture',
+          ...expectedEnvelope('devtools:tool-fixture:applied', 'user-visible'),
         },
       )
     })

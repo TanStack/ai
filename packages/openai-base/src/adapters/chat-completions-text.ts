@@ -1,9 +1,13 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
@@ -96,6 +100,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         error,
         `${this.name}.chatStream failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -120,6 +125,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
+        // Forward the provider's structured error body so consumers can recover
+        // the upstream detail the `{ message, code }` payload drops. Omitted
+        // when the error carried no provider body (see toRunErrorRawEvent).
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           code: errorPayload.code,
@@ -204,10 +213,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         )
       }
 
-      // Transform null values to undefined to match original Zod schema expectations
-      // Provider returns null for optional fields we made nullable in the schema.
-      // Subclasses can override `transformStructuredOutput` to skip this — e.g.
-      // OpenRouter historically passed nulls through unchanged.
+      // Final provider-specific shaping pass (default passthrough). Null-widening
+      // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
       return {
@@ -498,11 +505,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: {
-            promptTokens: lastUsage.prompt_tokens,
-            completionTokens: lastUsage.completion_tokens,
-            totalTokens: lastUsage.total_tokens,
-          },
+          usage: buildChatCompletionsUsage(lastUsage),
         }),
       }
     } catch (error: unknown) {
@@ -528,6 +531,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // `exactOptionalPropertyTypes`: AG-UI's `RunErrorEvent.code` is `string?`
       // (absent vs explicit `undefined` matter).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
@@ -535,6 +539,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp,
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
@@ -588,13 +593,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
   /**
    * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default converts `null` values to `undefined` so
-   * the result aligns with the original Zod schema's optional-field
-   * semantics. Subclasses with different conventions (OpenRouter historically
-   * preserves nulls) can override.
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
-    return transformNullsToUndefined(parsed)
+    return parsed
   }
 
   /**
@@ -831,6 +840,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
+                parentMessageId: aguiState.messageId,
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
@@ -1053,11 +1063,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: {
-              promptTokens: lastUsage.prompt_tokens || 0,
-              completionTokens: lastUsage.completion_tokens || 0,
-              totalTokens: lastUsage.total_tokens || 0,
-            },
+            usage: buildChatCompletionsUsage(lastUsage),
           }),
           finishReason,
         }
@@ -1069,19 +1075,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
+      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
 
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream's
-      // catch block for the rationale).
+      // catch block for the rationale). `rawEvent` carries the provider's
+      // structured error body when present.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
@@ -1151,22 +1160,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       : undefined
 
-    // Build the request so explicit top-level options win over modelOptions
-    // when set, but `undefined` top-level options do NOT clobber values the
-    // caller put in modelOptions. Keeping the merge nullish-aware fixes the
-    // silent regression where a `modelOptions: { temperature: 0.7 }` setting
-    // was overwritten with `temperature: undefined`.
+    // `modelOptions` is the sole sampling surface: callers set provider-native
+    // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
+    // there and they flow through the spread below. The root
+    // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
     return {
       ...modelOptions,
       model: options.model,
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        max_tokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { top_p: options.topP }),
       // Conditional spread: `tools: undefined` would clobber any
       // modelOptions.tools the caller set above.
       ...(tools &&
@@ -1196,6 +1197,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
+      // The Chat Completions API has no multimodal `tool` message support
+      // (unlike the Responses API's `function_call_output`). A tool that
+      // returns an `Array<ContentPart>` is therefore stringified here — the
+      // documented fallback for providers on the chat-completions path
+      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
+      // only delivered structurally via the Responses adapter.
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',

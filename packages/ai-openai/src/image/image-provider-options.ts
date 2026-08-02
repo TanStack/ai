@@ -200,6 +200,19 @@ export type OpenAIImageModelSizeByName = {
 }
 
 /**
+ * Per-model prompt input modalities. Models with `images.edit()` support
+ * (gpt-image family, dall-e-2) accept image parts in the prompt;
+ * dall-e-3 has no edit endpoint, so its prompt is text-only at compile time.
+ */
+export type OpenAIImageModelInputModalitiesByName = {
+  'gpt-image-2': readonly ['image']
+  'gpt-image-1': readonly ['image']
+  'gpt-image-1-mini': readonly ['image']
+  'dall-e-3': readonly []
+  'dall-e-2': readonly ['image']
+}
+
+/**
  * Internal options interface for validation
  */
 interface ImageValidationOptions {

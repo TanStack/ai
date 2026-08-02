@@ -11,7 +11,7 @@ import { providersFor } from './test-matrix'
 //
 // Two-turn flow:
 //   1. Issue a first chat call. The aimock fixture returns a server-assigned
-//      interactionId in interaction.start. The adapter surfaces it via the
+//      interactionId in interaction.created. The adapter surfaces it via the
 //      `gemini.interactionId` CUSTOM event, which the route stores in state
 //      and renders into a hidden `gemini-interaction-id` element so this
 //      spec can read it.

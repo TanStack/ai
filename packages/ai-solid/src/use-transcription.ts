@@ -1,10 +1,17 @@
 import { useGeneration } from './use-generation'
+import { reconstructTranscriptionResult } from '@tanstack/ai-client'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
@@ -14,15 +21,28 @@ import type { Accessor } from 'solid-js'
  *
  * @template TOutput - The transformed output type (defaults to TranscriptionResult)
  */
-export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
+export interface UseTranscriptionOptions<
+  TOutput = TranscriptionResult,
+> extends Pick<
+  UseGenerationOptions<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TOutput
+  >,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when transcription is complete. Can optionally return a transformed value.
    *
@@ -44,7 +64,9 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
  *
  * @template TOutput - The transformed output type (defaults to TranscriptionResult)
  */
-export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
+export interface UseTranscriptionReturn<
+  TOutput = TranscriptionResult,
+> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
   /** Trigger transcription */
   generate: (input: TranscriptionGenerateInput) => Promise<void>
   /** The transcription result, or null */
@@ -55,10 +77,6 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
   error: Accessor<Error | undefined>
   /** Current state of the generation */
   status: Accessor<GenerationClientState>
-  /** Abort the current transcription */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -96,28 +114,27 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
  * }
  * ```
  */
-export function useTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<UseTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+export function useTranscription<TTransformed = void>(
+  options: Omit<
+    UseTranscriptionOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: TranscriptionResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): UseTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<TranscriptionGenerateInput, TranscriptionResult, TOnResult>(
-      options,
-    )
-
-  return {
-    generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useTranscription',
+    outputKind: 'text' as const,
   }
+  const generation = useGeneration<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TTransformed
+  >({ ...options, devtools, reconstructResult: reconstructTranscriptionResult })
+
+  return generation
 }

@@ -4,6 +4,8 @@
  * These types give you full autocomplete and type safety for any model.
  */
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
+import type { MediaPromptModality } from '@tanstack/ai'
+import type { FalImageFieldName } from './image/generated/image-field-overrides'
 
 export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
@@ -71,6 +73,32 @@ export type FalModelImageSizeInput<TModel extends string> =
     : { image_size: string }
 
 /**
+ * Input fields the prompt-part mappers can populate: image conditioning via
+ * the generated `FalImageFieldName` set, video conditioning via
+ * `video_url` / `video_urls` / `reference_video_urls`, audio via `audio_url`.
+ */
+type FalMediaInputFieldName =
+  | FalImageFieldName
+  | 'video_url'
+  | 'video_urls'
+  | 'reference_video_urls'
+  | 'audio_url'
+
+/**
+ * Demote an endpoint input's media-conditioning fields from required to
+ * optional. Image-to-video endpoints declare e.g. `image_url` as a required
+ * input, but with a multimodal `prompt` the start frame usually arrives as a
+ * prompt part — requiring it in `modelOptions` too would force redundancy.
+ * The fields stay passable via `modelOptions` as the documented escape hatch
+ * (and override-wise the mapped prompt-part fields win on conflict).
+ */
+type WithOptionalMediaInputFields<TInput> = Omit<
+  TInput,
+  Extract<keyof TInput, FalMediaInputFieldName>
+> &
+  Partial<Pick<TInput, Extract<keyof TInput, FalMediaInputFieldName>>>
+
+/**
  * Provider options for image generation, excluding fields TanStack AI handles.
  * Use this for the `modelOptions` parameter in image generation.
  *
@@ -78,10 +106,8 @@ export type FalModelImageSizeInput<TModel extends string> =
  * type FluxOptions = FalImageProviderOptions<'fal-ai/flux/dev'>
  * // { num_inference_steps?: number; guidance_scale?: number; seed?: number; ... }
  */
-export type FalImageProviderOptions<TModel extends string> = Omit<
-  FalModelInput<TModel>,
-  'prompt'
->
+export type FalImageProviderOptions<TModel extends string> =
+  WithOptionalMediaInputFields<Omit<FalModelInput<TModel>, 'prompt'>>
 
 /**
  * Extract the video size type supported by a specific fal model.
@@ -119,12 +145,56 @@ export type FalModelVideoSizeInput<TModel extends string> =
     : { aspect_ratio?: string; resolution?: string }
 
 /**
+ * Prompt input modalities for a fal image endpoint, derived from the SDK's
+ * endpoint input type: an endpoint accepts image prompt parts exactly when
+ * its input declares one of the known image-conditioning fields
+ * (`image_url`, `image_urls`, `mask_url`, …). Endpoints unknown to the
+ * installed SDK are unconstrained.
+ */
+export type FalImagePromptModalitiesFor<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? ReadonlyArray<
+        Extract<keyof FalModelInput<TModel>, FalImageFieldName> extends never
+          ? never
+          : 'image'
+      >
+    : ReadonlyArray<MediaPromptModality>
+
+/**
+ * Prompt input modalities for a fal video endpoint. Image conditioning is
+ * detected via the same field set as image endpoints; video conditioning via
+ * `video_url` / `video_urls` / `reference_video_urls`; audio conditioning
+ * via `audio_url`. Endpoints unknown to the installed SDK are unconstrained.
+ */
+export type FalVideoPromptModalitiesFor<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? ReadonlyArray<
+        | (Extract<keyof FalModelInput<TModel>, FalImageFieldName> extends never
+            ? never
+            : 'image')
+        | (Extract<
+            keyof FalModelInput<TModel>,
+            'video_url' | 'video_urls' | 'reference_video_urls'
+          > extends never
+            ? never
+            : 'video')
+        | (Extract<keyof FalModelInput<TModel>, 'audio_url'> extends never
+            ? never
+            : 'audio')
+      >
+    : ReadonlyArray<MediaPromptModality>
+
+/**
  * Provider options for video generation, excluding fields TanStack AI handles.
  * Use this for the `modelOptions` parameter in video generation.
+ *
+ * Media-conditioning fields (start/end frame, reference images, source
+ * video/audio) are optional here even when the endpoint requires them —
+ * they're usually supplied as prompt parts instead.
  */
 export type FalVideoProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? Omit<FalModelInput<TModel>, 'prompt'>
+    ? WithOptionalMediaInputFields<Omit<FalModelInput<TModel>, 'prompt'>>
     : Record<string, unknown>
 
 /**

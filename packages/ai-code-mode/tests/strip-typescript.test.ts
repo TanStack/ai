@@ -72,8 +72,13 @@ describe('stripTypeScript', () => {
 
   it('strips as type assertions', async () => {
     const result = await stripTypeScript('const x = (value as string).length')
-    expect(result).toContain('value.length')
+    // The `as` cast is removed (the behavior we care about). We don't assert
+    // esbuild-specific paren-dropping here: sucrase blanks the cast in place
+    // and leaves the (harmless) parens, e.g. `(value ).length`.
     expect(result).not.toContain(' as ')
+    expect(result).not.toContain('string')
+    expect(result).toContain('value')
+    expect(result).toContain('.length')
   })
 
   it('throws on syntax errors', async () => {

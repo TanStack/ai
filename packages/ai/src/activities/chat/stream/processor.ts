@@ -17,7 +17,13 @@
  * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
-import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import {
+  aguiSnapshotMessageToUIMessage,
+  generateMessageId,
+  uiMessageToModelMessages,
+} from '../messages.js'
+import { normalizeToolResult } from '../../../utilities/tool-result'
+import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -44,6 +50,7 @@ import type {
 } from './types'
 import type {
   ContentPart,
+  Interrupt,
   MessagePart,
   ModelMessage,
   StreamChunk,
@@ -51,6 +58,8 @@ import type {
   ToolCallPart,
   ToolResultPart,
   UIMessage,
+  UIResourceEvent,
+  UIResourcePart,
 } from '../../../types'
 
 /**
@@ -98,6 +107,17 @@ export interface StreamProcessorEvents {
     stepId: string,
     content: string,
   ) => void
+  onStructuredOutputChange?: (args: {
+    phase: 'start' | 'update' | 'complete' | 'error'
+    messageId: string
+    status: 'streaming' | 'complete' | 'error'
+    raw: string
+    partial?: unknown
+    data?: unknown
+    reasoning?: string
+    errorMessage?: string
+    delta?: string
+  }) => void
 }
 
 /**
@@ -115,6 +135,8 @@ export interface StreamProcessorOptions {
   /** Initial messages to populate the processor */
   initialMessages?: Array<UIMessage>
 }
+
+const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
 
 /**
  * StreamProcessor - State machine for processing AI response streams
@@ -149,6 +171,13 @@ export class StreamProcessor {
   private pendingThinkingStepId: string | null = null
 
   private readonly structuredMessageIds: Set<string> = new Set()
+  private readonly structuredOutputUpdateBatches = new Map<
+    string,
+    {
+      delta: string
+      chunkCount: number
+    }
+  >()
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
@@ -296,12 +325,12 @@ export class StreamProcessor {
       this.messages,
       toolCallId,
       output,
-      error ? 'input-complete' : undefined,
+      error ? 'error' : undefined,
       error,
     )
 
     // Step 2: Create a tool-result part (for LLM conversation history)
-    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
     updatedMessages = updateToolResultPart(
@@ -376,12 +405,15 @@ export class StreamProcessor {
     // 1. It was approved/denied (approval-responded state)
     // 2. It has an output field set (client tool completed via addToolResult)
     // 3. It has a corresponding tool-result part (server tool completed)
+    // 4. It is provider-executed (e.g. Anthropic web_search) — already run by
+    //    the provider, so there is no client result to wait for.
     return toolParts.every(
       (part) =>
         part.state === 'complete' ||
         part.state === 'approval-responded' ||
         (part.output !== undefined && !part.approval) ||
-        toolResultIds.has(part.id),
+        toolResultIds.has(part.id) ||
+        isProviderExecutedToolCall(part),
     )
   }
 
@@ -400,6 +432,9 @@ export class StreamProcessor {
     // iteration targets — must not include phantoms).
     for (const id of this.structuredMessageIds) {
       if (!keptIds.has(id)) this.structuredMessageIds.delete(id)
+    }
+    for (const id of this.structuredOutputUpdateBatches.keys()) {
+      if (!keptIds.has(id)) this.structuredOutputUpdateBatches.delete(id)
     }
     for (const id of this.messageStates.keys()) {
       if (!keptIds.has(id)) this.messageStates.delete(id)
@@ -423,6 +458,7 @@ export class StreamProcessor {
     this.activeMessageIds.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
@@ -845,9 +881,229 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.resetStreamState()
-    // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as Array<UIMessage>
+    // Normalize AG-UI snapshot messages to UIMessage[] so every message has a
+    // `parts` array. AG-UI messages carry `content` but no `parts`, so casting
+    // them directly to UIMessage[] is unsafe and causes "Cannot read properties
+    // of undefined (reading 'find')" when code later reads message.parts (e.g.
+    // the onToolCallStateChange devtools handler).
+    //
+    // The AG-UI `MESSAGES_SNAPSHOT` wire shape cannot reconstruct client-side
+    // tool-call metadata a server may omit: a `role: 'tool'` message only carries
+    // `toolCallId` + `content`, and an assistant message in the snapshot may
+    // drop `toolCalls` the client already observed via `TOOL_CALL_*` events.
+    // Without the matching `tool-call` part, later `addToolResult(toolCallId)`
+    // calls cannot locate the call and warn + no-op (see #859). To keep the
+    // UI representation consistent with the streaming fan-out and preserve the
+    // unreconstructable metadata, reconcile the normalized snapshot against
+    // the pre-snapshot state; see `reconcileSnapshotToolCalls`.
+    const prevMessages = this.messages
+    const normalized = chunk.messages.map(aguiSnapshotMessageToUIMessage)
+    this.messages = this.reconcileSnapshotToolCalls(normalized, prevMessages)
     this.emitMessagesChange()
+  }
+
+  /**
+   * Reconcile a freshly normalized snapshot with the pre-snapshot message
+   * state so unreconstructable tool-call metadata is preserved.
+   *
+   * Post-pass (a): anchor `tool-result`-only assistant messages (the shape
+   * `aguiSnapshotMessageToUIMessage` emits for AG-UI `role: 'tool'` wire
+   * messages) into the message containing the matching `tool-call` part, or —
+   * when the snapshot supplies no such part — the nearest earlier anchorable
+   * assistant message, matching the in-stream fan-out shape
+   * `assistant: [text, tool-call, tool-result, ...]`. Detached messages with
+   * no earlier anchorable assistant are kept verbatim.
+   *
+   * Post-pass (b): when a `tool-result` part references a `toolCallId` whose
+   * `tool-call` part is absent from the snapshot, carry the `tool-call` part
+   * forward from the pre-snapshot state (state and output untouched) so a
+   * subsequent `addToolResult(toolCallId)` can still locate the call.
+   *
+   * Post-pass (c): AG-UI wire snapshots rebuild `tool-call` parts as
+   * `input-complete` without `output` (ModelMessage has no result field on
+   * the call). After anchoring results, copy each `tool-result` onto its
+   * matching `tool-call` (and prefer pre-snapshot complete/output when the
+   * snapshot is poorer) so server tools keep the same UI shape as client tools.
+   */
+  private reconcileSnapshotToolCalls(
+    snapshot: Array<UIMessage>,
+    prevMessages: Array<UIMessage>,
+  ): Array<UIMessage> {
+    // Index tool-call parts observed before the snapshot by id so we can
+    // restore metadata the snapshot cannot re-emit. Duplicate ids resolve
+    // last-write-wins: the same tool call can appear in multiple messages
+    // across reconnects, and the most recent part carries the freshest state.
+    const prevToolCalls = new Map<string, ToolCallPart>()
+    for (const msg of prevMessages) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-call') {
+          prevToolCalls.set(part.id, part)
+        }
+      }
+    }
+    // Index tool-call parts already present in the snapshot so (b) only fills
+    // genuine gaps rather than duplicating a tool-call the snapshot supplies.
+    const snapshotToolCallIds = new Set<string>()
+    for (const msg of snapshot) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-call') {
+          snapshotToolCallIds.add(part.id)
+        }
+      }
+    }
+
+    const reconciled: Array<UIMessage> = []
+    for (const msg of snapshot) {
+      const toolResultPart =
+        msg.role === 'assistant' && msg.parts.length === 1
+          ? msg.parts.find((p): p is ToolResultPart => p.type === 'tool-result')
+          : undefined
+
+      if (!toolResultPart) {
+        reconciled.push(msg)
+        continue
+      }
+
+      // Prefer the message that actually contains the matching tool-call
+      // part. AG-UI `reasoning`/`activity` messages also normalize to
+      // `role: 'assistant'`, so anchoring into the nearest assistant alone
+      // could separate a result from its call (and a later
+      // `addToolResult(toolCallId)` would then append a duplicate result
+      // next to the call).
+      const target =
+        reconciled.findLast((m) =>
+          m.parts.some(
+            (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
+          ),
+        ) ??
+        reconciled.findLast(
+          (m) =>
+            m.role === 'assistant' &&
+            !(m.parts.length === 1 && m.parts[0]?.type === 'tool-result'),
+        )
+
+      if (!target) {
+        // No assistant to anchor into — keep the detached message intact.
+        if (!snapshotToolCallIds.has(toolResultPart.toolCallId)) {
+          console.warn(
+            `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot, and there is no assistant message to anchor into; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
+          )
+        }
+        reconciled.push(msg)
+        continue
+      }
+
+      const parts = [...target.parts]
+      // (b) Fill in a missing tool-call part from the pre-snapshot state when
+      // the snapshot references its id via a tool-result but supplies no
+      // tool-call metadata of its own.
+      if (
+        !snapshotToolCallIds.has(toolResultPart.toolCallId) &&
+        !parts.some(
+          (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
+        )
+      ) {
+        const prev = prevToolCalls.get(toolResultPart.toolCallId)
+        if (prev) {
+          // Insert the carried-over tool-call before its tool-result (pushed
+          // below) so call→result ordering matches the streaming fan-out.
+          parts.push({ ...prev })
+          snapshotToolCallIds.add(prev.id)
+        } else {
+          console.warn(
+            `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot or the pre-snapshot state; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
+          )
+        }
+      }
+      parts.push(toolResultPart)
+      // Replace rather than push into `target.parts`: a snapshot message that
+      // arrived already carrying `parts` (TanStack server echoing UIMessages)
+      // shares its array with the incoming chunk, and mutating it in place
+      // would corrupt the caller's event object.
+      target.parts = parts
+    }
+
+    return this.enrichSnapshotToolCallsFromResults(reconciled, prevToolCalls)
+  }
+
+  /**
+   * Post-pass (c): fold `tool-result` content into sibling `tool-call` parts
+   * and prefer pre-snapshot complete/output when the snapshot rebuilt a
+   * poorer `input-complete` call (AG-UI ModelMessage has no result on calls).
+   */
+  private enrichSnapshotToolCallsFromResults(
+    messages: Array<UIMessage>,
+    prevToolCalls: Map<string, ToolCallPart>,
+  ): Array<UIMessage> {
+    const resultsByCallId = new Map<string, ToolResultPart>()
+    for (const msg of messages) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-result') {
+          resultsByCallId.set(part.toolCallId, part)
+        }
+      }
+    }
+
+    return messages.map((msg) => {
+      const parts = msg.parts.map((part) => {
+        if (part.type !== 'tool-call') return part
+
+        const prev = prevToolCalls.get(part.id)
+        const result = resultsByCallId.get(part.id)
+        let next: ToolCallPart = part
+
+        // Prefer a pre-snapshot call that already carried output/complete —
+        // the client observed TOOL_CALL_END/RESULT before the snapshot wipe.
+        if (
+          prev &&
+          (prev.output !== undefined ||
+            prev.state === 'complete' ||
+            prev.state === 'error') &&
+          (part.output === undefined ||
+            part.state === 'input-complete' ||
+            part.state === 'input-streaming' ||
+            part.state === 'awaiting-input')
+        ) {
+          next = {
+            ...part,
+            ...(prev.output !== undefined ? { output: prev.output } : {}),
+            state: prev.state,
+            ...(prev.approval !== undefined ? { approval: prev.approval } : {}),
+            ...(prev.metadata !== undefined ? { metadata: prev.metadata } : {}),
+          }
+        }
+
+        // Apply sibling tool-result when the call still has no output.
+        if (result && next.output === undefined) {
+          let output: unknown
+          if (Array.isArray(result.content)) {
+            output = result.content
+          } else {
+            try {
+              output = JSON.parse(result.content)
+            } catch {
+              output = result.content
+            }
+          }
+          const errorText =
+            result.state === 'error'
+              ? this.extractToolResultError(output)
+              : undefined
+          next = {
+            ...next,
+            output: errorText ? { error: errorText } : output,
+            state: result.state === 'error' ? 'error' : 'complete',
+          }
+        }
+
+        return next
+      })
+      // Rebuild only when a part object identity changed.
+      const partsChanged = parts.some(
+        (part, index) => part !== msg.parts[index],
+      )
+      return partsChanged ? { ...msg, parts } : msg
+    })
   }
 
   /**
@@ -899,6 +1155,7 @@ export class StreamProcessor {
           delta,
         )
         state.totalTextContent += delta
+        this.queueStructuredOutputUpdate(messageId, delta)
         this.emitMessagesChange()
       }
       return
@@ -1128,15 +1385,35 @@ export class StreamProcessor {
       // received, back-fill the arguments string so the UIMessage ToolCallPart
       // carries the correct value (defensive against adapters that skip ARGS).
       if (chunk.input !== undefined && !existingToolCall.arguments) {
-        existingToolCall.arguments = JSON.stringify(chunk.input)
+        try {
+          existingToolCall.arguments = JSON.stringify(chunk.input)
+        } catch {
+          // circular refs, BigInt, etc. — leave arguments empty rather than
+          // aborting stream processing
+        }
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
       this.completeToolCall(messageId, index, existingToolCall)
       // If TOOL_CALL_END provides parsed input, use it as the canonical parsed
       // arguments (overrides the accumulated string parse from completeToolCall)
+      // and refresh the rendered part's `input` so it reflects the canonical
+      // value rather than the possibly-divergent accumulated-args parse that
+      // completeToolCall wrote (e.g. an adapter that coerces values differently
+      // between the streamed args and the final structured input).
       if (chunk.input !== undefined) {
         existingToolCall.parsedArguments = chunk.input
+        this.messages = updateToolCallPart(this.messages, messageId, {
+          id: existingToolCall.id,
+          name: existingToolCall.name,
+          arguments: existingToolCall.arguments,
+          state: 'input-complete',
+          input: chunk.input,
+          ...(existingToolCall.metadata !== undefined && {
+            metadata: existingToolCall.metadata,
+          }),
+        })
+        this.emitMessagesChange()
       }
     }
 
@@ -1145,28 +1422,49 @@ export class StreamProcessor {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
       let output: unknown
-      try {
-        output = JSON.parse(chunk.result)
-      } catch {
+      if (Array.isArray(chunk.result)) {
         output = chunk.result
+      } else {
+        try {
+          output = JSON.parse(chunk.result)
+        } catch {
+          output = chunk.result
+        }
       }
       this.messages = updateToolCallWithOutput(
         this.messages,
         chunk.toolCallId,
         output,
+        chunk.state === 'output-error' ? 'error' : undefined,
       )
 
       // Step 2: Create/update the tool-result part (for LLM conversation history)
-      const resultState: ToolResultState = 'complete'
+      const resultState: ToolResultState =
+        chunk.state === 'output-error' ? 'error' : 'complete'
       this.messages = updateToolResultPart(
         this.messages,
         messageId,
         chunk.toolCallId,
         chunk.result,
         resultState,
+        resultState === 'error'
+          ? this.extractToolResultError(output)
+          : undefined,
       )
       this.emitMessagesChange()
     }
+  }
+
+  private extractToolResultError(output: unknown): string {
+    if (
+      output &&
+      typeof output === 'object' &&
+      'error' in output &&
+      typeof output.error === 'string'
+    ) {
+      return output.error
+    }
+    return typeof output === 'string' ? output : 'Tool execution failed'
   }
 
   /**
@@ -1193,16 +1491,19 @@ export class StreamProcessor {
       this.messages,
       chunk.toolCallId,
       output,
+      chunk.state === 'output-error' ? 'error' : undefined,
     )
 
     // Step 2: Create/update the tool-result part
-    const resultState: ToolResultState = 'complete'
+    const resultState: ToolResultState =
+      chunk.state === 'output-error' ? 'error' : 'complete'
     this.messages = updateToolResultPart(
       this.messages,
       messageId,
       chunk.toolCallId,
       chunk.content,
       resultState,
+      resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
     this.emitMessagesChange()
   }
@@ -1235,11 +1536,83 @@ export class StreamProcessor {
     this.finishReason = chunk.finishReason ?? null
     this.activeRuns.delete(chunk.runId)
 
+    if (chunk.outcome?.type === 'interrupt') {
+      this.handleInterrupts(chunk.outcome.interrupts)
+    }
+
     if (this.activeRuns.size === 0) {
       this.isDone = true
       this.completeAllToolCalls()
       this.finalizeStream()
     }
+  }
+
+  private handleInterrupts(interrupts: Array<Interrupt>): void {
+    for (const interrupt of interrupts) {
+      const metadata =
+        interrupt.metadata && typeof interrupt.metadata === 'object'
+          ? interrupt.metadata
+          : {}
+      const kind = typeof metadata.kind === 'string' ? metadata.kind : undefined
+      const toolCallId = interrupt.toolCallId
+      if (!toolCallId) continue
+
+      const toolName =
+        typeof metadata.toolName === 'string'
+          ? metadata.toolName
+          : this.findToolCallName(toolCallId)
+      const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
+
+      if (kind === 'approval' || interrupt.reason === 'approval_required') {
+        // An interrupt terminal arrives after MESSAGES_SNAPSHOT, which may have
+        // rebuilt the message list without the live active-message/tool-call
+        // maps. Fall back to locating the assistant message that actually owns
+        // the tool-call part so the approval UI (part.state) still updates.
+        const resolvedMessageId =
+          this.getActiveAssistantMessageId() ??
+          this.toolCallToMessage.get(toolCallId) ??
+          this.messages.find(
+            (m) =>
+              m.role === 'assistant' &&
+              m.parts.some(
+                (p) => p.type === 'tool-call' && p.id === toolCallId,
+              ),
+          )?.id
+        if (resolvedMessageId) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            resolvedMessageId,
+            toolCallId,
+            interrupt.id,
+          )
+          this.emitMessagesChange()
+        }
+
+        this.events.onApprovalRequest?.({
+          toolCallId,
+          toolName,
+          input,
+          approvalId: interrupt.id,
+        })
+        continue
+      }
+
+      if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
+        this.events.onToolCall?.({
+          toolCallId,
+          toolName,
+          input,
+        })
+      }
+    }
+  }
+
+  private findToolCallName(toolCallId: string): string {
+    for (const state of this.messageStates.values()) {
+      const toolCall = state.toolCalls.get(toolCallId)
+      if (toolCall) return toolCall.name
+    }
+    return ''
   }
 
   /**
@@ -1249,7 +1622,10 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    const runId = (chunk as any).runId as string | undefined
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
@@ -1269,16 +1645,30 @@ export class StreamProcessor {
     }
 
     if (this.structuredMessageIds.has(messageId)) {
+      this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
         messageId,
         errorMessage,
       )
       this.structuredMessageIds.delete(messageId)
+      this.emitStructuredOutputChange(messageId, 'error')
       this.emitMessagesChange()
     }
 
-    this.events.onError?.(new Error(errorMessage))
+    // Attach the provider's structured error body (`rawEvent`) and `code` to
+    // the surfaced Error so consumers can recover the upstream detail that the
+    // RUN_ERROR's `message` alone discards. Both are optional and added only
+    // when present, keeping the Error backward compatible.
+    const error = new Error(errorMessage)
+    const code = chunk.code ?? chunk.error?.code
+    if (code !== undefined) {
+      Object.assign(error, { code })
+    }
+    if (chunk.rawEvent !== undefined) {
+      Object.assign(error, { rawEvent: chunk.rawEvent })
+    }
+    this.events.onError?.(error)
   }
 
   /**
@@ -1445,10 +1835,15 @@ export class StreamProcessor {
   /**
    * Handle CUSTOM event.
    *
-   * Handles special custom events emitted by the TextEngine (not adapters):
-   * - 'tool-input-available': Client tool needs execution. Fires onToolCall.
-   * - 'approval-requested': Tool needs user approval. Updates tool-call part
-   *   state and fires onApprovalRequest.
+   * Handles custom events consumed by the processor:
+   * - 'tool-input-available': Legacy/replay-compatible input for client tool
+   *   execution. Fires onToolCall.
+   * - 'approval-requested': Legacy/replay-compatible input for tool approval.
+   *   Updates tool-call part state and fires onApprovalRequest.
+   *
+   * Current core streams represent user-actionable waits through
+   * RUN_FINISHED.outcome.type === 'interrupt'; these custom events are not the
+   * source of truth for new emissions.
    *
    * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
    */
@@ -1463,6 +1858,13 @@ export class StreamProcessor {
       if (targetId) {
         this.ensureAssistantMessage(targetId)
         this.structuredMessageIds.add(targetId)
+        this.structuredOutputUpdateBatches.delete(targetId)
+        this.events.onStructuredOutputChange?.({
+          phase: 'start',
+          messageId: targetId,
+          status: 'streaming',
+          raw: '',
+        })
       }
       return
     }
@@ -1476,6 +1878,7 @@ export class StreamProcessor {
       }
       const targetId = v.messageId ?? messageId
       if (targetId) {
+        this.flushStructuredOutputUpdate(targetId)
         this.messages = completeStructuredOutputPart(
           this.messages,
           targetId,
@@ -1484,6 +1887,7 @@ export class StreamProcessor {
           v.reasoning,
         )
         this.structuredMessageIds.delete(targetId)
+        this.emitStructuredOutputChange(targetId, 'complete')
         this.emitMessagesChange()
       }
       // Fall through so user `onCustomEvent` callbacks still observe the event.
@@ -1537,6 +1941,46 @@ export class StreamProcessor {
         input,
         approvalId: approval.id,
       })
+      return
+    }
+
+    // Handle MCP Apps ui-resource events — materialize a UIResourcePart on the
+    // active assistant message. Never falls through to onCustomEvent because
+    // ui-resource is a system event, not a user-defined custom event.
+    if (chunk.name === 'ui-resource' && chunk.value) {
+      const v: UIResourceEvent['value'] = chunk.value
+      // Resolve the target assistant message. When a toolCallId is present, the
+      // tool call's OWNER message is authoritative, so prefer it first; fall
+      // back to the active assistant id only if the tool call isn't mapped.
+      // This avoids misattaching the widget to a different active message in a
+      // multi-message session.
+      const resolvedMessageId =
+        this.toolCallToMessage.get(v.toolCallId) ?? messageId
+      if (resolvedMessageId) {
+        const part: UIResourcePart = {
+          type: 'ui-resource',
+          resource: v.resource,
+          toolCallId: v.toolCallId,
+          toolName: v.toolName,
+          ...(v.serverId !== undefined && { serverId: v.serverId }),
+          ...(v.meta !== undefined && { meta: v.meta }),
+        }
+        this.messages = this.messages.map((msg) =>
+          msg.id === resolvedMessageId
+            ? { ...msg, parts: [...msg.parts, part] }
+            : msg,
+        )
+        this.emitMessagesChange()
+      } else {
+        // No owner message and no active assistant id — the server read and
+        // streamed a widget that has nowhere to attach (e.g. a toolCallId never
+        // registered, or the event arrived after the run cleared its active
+        // ids). Drop fail-soft, but warn: a vanished widget is otherwise
+        // undebuggable from the client.
+        console.warn(
+          `[mcp-apps] dropped ui-resource: no target message for toolCallId "${v.toolCallId}" (toolName "${v.toolName}")`,
+        )
+      }
       return
     }
 
@@ -1614,17 +2058,43 @@ export class StreamProcessor {
     _index: number,
     toolCall: InternalToolCallState,
   ): void {
+    // Finalize the internal bookkeeping: the call's input arguments ARE
+    // complete regardless of whether execution later failed, so the call still
+    // counts as a completed tool call in getCompletedToolCalls()/getState().
     toolCall.state = 'input-complete'
 
     // Try final parse
     toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
 
-    // Update UIMessage
+    // Don't downgrade the rendered part of a call that already reached the
+    // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
+    // without a preceding TOOL_CALL_END). The RUN_FINISHED / finalizeStream
+    // safety net must not clobber a failed call back to 'input-complete'.
+    if (this.isToolCallPartErrored(toolCall.id)) {
+      return
+    }
+
+    // RUN_FINISHED interrupt handling can mark the rendered part as waiting on
+    // user action before the completion safety net runs. Keep the parsed
+    // argument bookkeeping above, but do not downgrade that visible state.
+    if (this.isToolCallPartAwaitingUserAction(toolCall.id)) {
+      return
+    }
+
+    // Update UIMessage. The arguments are complete now, so surface the parsed
+    // input on the part. For adapters that skip TOOL_CALL_ARGS the arguments
+    // string was back-filled from TOOL_CALL_END.input, so this parse matches
+    // the canonical input. If a TOOL_CALL_END.input diverges from the
+    // accumulated args, handleToolCallEndEvent re-updates the part with the
+    // canonical value after this call.
     this.messages = updateToolCallPart(this.messages, messageId, {
       id: toolCall.id,
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
+      ...(toolCall.parsedArguments !== undefined && {
+        input: toolCall.parsedArguments,
+      }),
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()
@@ -1635,6 +2105,39 @@ export class StreamProcessor {
       toolCall.id,
       'input-complete',
       toolCall.arguments,
+    )
+  }
+
+  private isToolCallPartAwaitingUserAction(toolCallId: string): boolean {
+    return this.messages.some((msg) =>
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      msg.parts?.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          part.id === toolCallId &&
+          (part.state === 'approval-requested' ||
+            part.state === 'approval-responded'),
+      ),
+    )
+  }
+
+  /**
+   * Whether the rendered tool-call part for the given id has reached the
+   * terminal 'error' state. Used to prevent the completion safety net from
+   * downgrading a failed call back to 'input-complete'.
+   */
+  private isToolCallPartErrored(toolCallId: string): boolean {
+    // `initialMessages` may be ModelMessage-shaped (no `parts`) — e.g. the
+    // common pattern of seeding a processor with the same messages passed to
+    // `chat()`. Guard the access so iterating them never throws.
+    return this.messages.some((msg) =>
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      msg.parts?.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          part.id === toolCallId &&
+          part.state === 'error',
+      ),
     )
   }
 
@@ -1663,6 +2166,58 @@ export class StreamProcessor {
 
     // Emit granular event
     this.events.onTextUpdate?.(messageId, state.currentSegmentText)
+  }
+
+  private queueStructuredOutputUpdate(messageId: string, delta: string): void {
+    const existing = this.structuredOutputUpdateBatches.get(messageId)
+    const next = {
+      delta: `${existing?.delta ?? ''}${delta}`,
+      chunkCount: (existing?.chunkCount ?? 0) + 1,
+    }
+
+    this.structuredOutputUpdateBatches.set(messageId, next)
+
+    if (next.chunkCount >= STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE) {
+      this.flushStructuredOutputUpdate(messageId)
+    }
+  }
+
+  private flushStructuredOutputUpdate(messageId: string): void {
+    const batch = this.structuredOutputUpdateBatches.get(messageId)
+    if (!batch || batch.chunkCount === 0) return
+
+    this.structuredOutputUpdateBatches.delete(messageId)
+    this.emitStructuredOutputChange(messageId, 'update', batch.delta)
+  }
+
+  private emitStructuredOutputChange(
+    messageId: string,
+    phase: 'update' | 'complete' | 'error',
+    delta?: string,
+  ): void {
+    const part = this.messages
+      .find((message) => message.id === messageId)
+      ?.parts.find(
+        (
+          messagePart,
+        ): messagePart is Extract<MessagePart, { type: 'structured-output' }> =>
+          messagePart.type === 'structured-output',
+      )
+    if (!part) return
+
+    this.events.onStructuredOutputChange?.({
+      phase,
+      messageId,
+      status: part.status,
+      raw: part.raw,
+      ...(part.partial !== undefined ? { partial: part.partial } : {}),
+      ...(part.data !== undefined ? { data: part.data } : {}),
+      ...(part.reasoning !== undefined ? { reasoning: part.reasoning } : {}),
+      ...(part.errorMessage !== undefined
+        ? { errorMessage: part.errorMessage }
+        : {}),
+      ...(delta !== undefined ? { delta } : {}),
+    })
   }
 
   /**
@@ -1718,13 +2273,16 @@ export class StreamProcessor {
     // definition a non-errored, never-completed run (the multi-run case:
     // run-A errors, run-B is still streaming when finalize fires).
     for (const messageId of this.structuredMessageIds) {
+      this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
         messageId,
         'Stream ended without structured-output.complete',
       )
+      this.emitStructuredOutputChange(messageId, 'error')
     }
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
 
     this.activeMessageIds.clear()
 
@@ -1855,6 +2413,7 @@ export class StreamProcessor {
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
+    this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
     this.pendingThinkingStepId = null
     this.finishReason = null

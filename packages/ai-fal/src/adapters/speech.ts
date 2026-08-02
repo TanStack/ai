@@ -5,10 +5,11 @@ import {
   configureFalClient,
   extractUrlExtension,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
+import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { FalClientConfig } from '../utils'
+import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -133,12 +134,15 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       safeUrlExtension || contentTypeMime?.split('/')[1] || 'wav'
     const format = rawFormat === 'mpeg' ? 'mp3' : rawFormat
 
+    const usage = buildFalUsage(takeBillableUnits(response.requestId))
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       audio: base64,
       format,
       contentType: contentTypeMime || `audio/${format}`,
+      ...(usage ? { usage } : {}),
     }
   }
 }

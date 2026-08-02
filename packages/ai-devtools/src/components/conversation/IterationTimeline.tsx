@@ -1,8 +1,14 @@
 import { For, Index, Show, createMemo, createSignal } from 'solid-js'
 import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
+import {
+  createHoverTarget,
+  getHoverDataAttributes,
+  isMessageHighlighted,
+} from '../hooks/preview-model'
 import { formatDuration } from '../utils'
 import { IterationCard } from './IterationCard'
+import type { HoverTarget } from '../hooks/preview-model'
 import type { Iteration, Message } from '../../store/ai-store'
 import type { Component } from 'solid-js'
 
@@ -15,6 +21,8 @@ interface UserMessageGroup {
 interface IterationTimelineProps {
   iterations: Array<Iteration>
   messages: Array<Message>
+  hoverTarget?: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
 }
 
 export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
@@ -79,6 +87,8 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
               <UserMessageGroupCard
                 group={group()}
                 allMessages={props.messages}
+                hoverTarget={props.hoverTarget ?? null}
+                onHoverTarget={props.onHoverTarget}
               />
             )}
           </Index>
@@ -127,6 +137,8 @@ export const SystemPromptItem: Component<{ prompt: string; index: number }> = (
 const UserMessageGroupCard: Component<{
   group: UserMessageGroup
   allMessages: Array<Message>
+  hoverTarget: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
@@ -135,6 +147,7 @@ const UserMessageGroupCard: Component<{
 
   const group = () => props.group
   const userMsg = () => group().userMessage
+  const userMessageId = () => userMsg()?.id
   const iters = () => group().iterations
 
   const totalDuration = createMemo(() => {
@@ -170,42 +183,42 @@ const UserMessageGroupCard: Component<{
     return count
   })
 
-  /**
-   * Total usage across this group.
-   * Iterations store CUMULATIVE usage per request, so we take the MAX
-   * cumulative from each request group (the last iteration's value
-   * represents the total for that request).
-   */
+  // Iterations store CUMULATIVE usage per request, so keep the MAX totalTokens
+  // reading per requestId. Comparing on totalTokens directly (not prompt +
+  // completion) is necessary because some providers — Anthropic, OpenAI o-series
+  // — bundle reasoning tokens into totalTokens that are not summed into
+  // prompt + completion, and a later reading with fewer reasoning tokens would
+  // otherwise overwrite a larger earlier one.
   const totalUsage = createMemo(() => {
     const maxByRequest = new Map<
       string,
-      { prompt: number; completion: number }
+      { prompt: number; completion: number; total: number }
     >()
     for (const it of iters()) {
       if (!it.usage) continue
       const key = it.requestId || '__default__'
       const existing = maxByRequest.get(key)
-      if (
-        !existing ||
-        it.usage.totalTokens > existing.prompt + existing.completion
-      ) {
+      if (!existing || it.usage.totalTokens > existing.total) {
         maxByRequest.set(key, {
           prompt: it.usage.promptTokens,
           completion: it.usage.completionTokens,
+          total: it.usage.totalTokens,
         })
       }
     }
     let prompt = 0
     let completion = 0
+    let total = 0
     for (const v of maxByRequest.values()) {
       prompt += v.prompt
       completion += v.completion
+      total += v.total
     }
-    if (prompt + completion === 0) return undefined
+    if (total === 0) return undefined
     return {
       promptTokens: prompt,
       completionTokens: completion,
-      totalTokens: prompt + completion,
+      totalTokens: total,
     }
   })
 
@@ -226,6 +239,29 @@ const UserMessageGroupCard: Component<{
     if (!msg) return '(no user message)'
     const text = msg.content || ''
     return text.length > 120 ? text.slice(0, 120) + '...' : text
+  }
+
+  const handleUserMouseEnter = () => {
+    const messageId = userMessageId()
+    if (messageId) {
+      props.onHoverTarget?.(
+        createHoverTarget({
+          messageIds: [messageId],
+          origin: 'timeline',
+        }),
+      )
+    }
+  }
+
+  const handleUserMouseLeave = () => {
+    props.onHoverTarget?.(null)
+  }
+
+  const isUserMessageHighlighted = () => {
+    const messageId = userMessageId()
+    return messageId
+      ? isMessageHighlighted(messageId, props.hoverTarget)
+      : false
   }
 
   // Config from the first iteration of this group
@@ -262,9 +298,21 @@ const UserMessageGroupCard: Component<{
     toolNames().length > 0 || systemPrompts().length > 0 || hasModelOptions()
 
   return (
-    <div class={`${s().card} ${groupAccentClass()}`}>
+    <div
+      {...getHoverDataAttributes({
+        messageIds: userMessageId() ? [userMessageId() ?? ''] : [],
+      })}
+      class={`${s().card} ${groupAccentClass()} ${
+        isUserMessageHighlighted() ? s().cardHighlighted : ''
+      }`}
+    >
       {/* User message header */}
-      <div class={s().cardHeader} onClick={() => setIsOpen(!isOpen())}>
+      <div
+        class={s().cardHeader}
+        onClick={() => setIsOpen(!isOpen())}
+        onMouseEnter={handleUserMouseEnter}
+        onMouseLeave={handleUserMouseLeave}
+      >
         <div class={s().userBubble}>U</div>
         <div class={s().cardHeaderContent}>
           <span class={s().cardHeaderLabel}>{userContent()}</span>
@@ -390,7 +438,7 @@ const UserMessageGroupCard: Component<{
                 <span class={s().configPanelLabel}>Model Options</span>
                 <div class={s().configJsonTreeContainer}>
                   <JsonTree
-                    value={modelOptions() as Record<string, unknown>}
+                    value={modelOptions()}
                     defaultExpansionDepth={2}
                     copyable
                   />
@@ -415,6 +463,8 @@ const UserMessageGroupCard: Component<{
                   messages={props.allMessages}
                   index={index()}
                   isLast={index() === iters().length - 1}
+                  hoverTarget={props.hoverTarget}
+                  onHoverTarget={props.onHoverTarget}
                 />
               )}
             </For>

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ChatClient } from '../src/chat-client'
+import { ChatClient, UnsupportedResponseStreamError } from '../src'
 import { createTextChunks } from './test-utils'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 import type { ChatFetcher, UIMessage } from '../src/types'
 
 /**
@@ -230,6 +230,30 @@ describe('ChatClient — fetcher transport', () => {
 
     expect(observedError).toBeDefined()
     expect(observedError!.message).toMatch(/HTTP error.*500/)
+    expect(client.getStatus()).toBe('error')
+  })
+
+  it('surfaces unsupported streaming from a fetcher-returned Response as a ChatClient error', async () => {
+    const response = new Response(null, { status: 200 })
+    Object.defineProperty(response, 'body', {
+      value: {},
+    })
+    const fetcher: ChatFetcher = async () => response
+
+    let observedError: Error | undefined
+    const client = new ChatClient({
+      fetcher,
+      onError: (err) => {
+        observedError = err
+      },
+    })
+
+    await client.sendMessage('hi')
+
+    expect(observedError).toBeInstanceOf(UnsupportedResponseStreamError)
+    expect(observedError).toMatchObject({
+      missingFeature: 'Response.body.getReader',
+    })
     expect(client.getStatus()).toBe('error')
   })
 

@@ -37,11 +37,31 @@ export async function sendMessageWithImage(
   imagePath: string,
 ) {
   const input = page.getByTestId('chat-input')
-  await input.click()
-  await input.pressSequentially(text, { delay: 30 })
-  // Wait for React state to settle before attaching file
-  await page.waitForTimeout(200)
-  await page.getByTestId('image-attachment-input').setInputFiles(imagePath)
+  const fileInput = page.getByTestId('image-attachment-input')
+  const userMessages = page.getByTestId('user-message')
+
+  // Attaching the image auto-sends, using the prompt currently in the chat
+  // input, and the matched aimock fixture keys on the exact user text. A
+  // *controlled* React input is fragile here under CPU load (CI, parallel
+  // workers) in two ways: typing char-by-char can drop characters, leaving a
+  // truncated value like "cribe this image" (which 404s as "No fixture
+  // matched" → empty `chatStream fatal`); and the attach's onChange can land
+  // before the typed value is committed, dispatching nothing at all. So drive
+  // the interaction to its observable outcome — the user bubble rendering —
+  // retrying both the typing and the attach until the send actually fires with
+  // the full prompt. A redundant re-attach is harmless: the client ignores a
+  // second send while the first is still streaming.
+  await expect(async () => {
+    await input.click()
+    await input.fill('')
+    await input.pressSequentially(text, { delay: 15 })
+    // Confirm the full prompt is committed before attaching.
+    expect(await input.inputValue()).toBe(text)
+    // Reset the selection so re-attaching the same path re-fires onChange.
+    await fileInput.setInputFiles([])
+    await fileInput.setInputFiles(imagePath)
+    await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
 }
 
 export async function waitForResponse(page: Page, timeout = 15_000) {

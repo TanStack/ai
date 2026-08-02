@@ -1,11 +1,19 @@
 export { useChat } from './use-chat'
 export { useRealtimeChat } from './use-realtime-chat'
+export { useMcpAppBridge } from './use-mcp-app-bridge'
+export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
 export type {
   DeepPartial,
   UseChatOptions,
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 export type {
   UseRealtimeChatOptions,
@@ -52,13 +60,34 @@ export type {
   UseGenerateVideoReturn,
 } from './use-generate-video'
 
+export { useAudioRecorder } from './use-audio-recorder'
+export type {
+  UseAudioRecorderOptions,
+  UseAudioRecorderReturn,
+} from './use-audio-recorder'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
   type ChatFetcher,
   type ChatFetcherInput,
   type ChatFetcherOptions,
@@ -67,6 +96,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

@@ -15,8 +15,13 @@ export {
 } from './bash-tool'
 export {
   codeExecutionTool,
+  convertCodeExecutionToolToAdapterFormat,
+  readCodeExecutionConfig,
+  readCodeExecutionSkills,
   type AnthropicCodeExecutionTool,
+  type AnthropicContainerSkill,
   type CodeExecutionToolConfig,
+  type CodeExecutionToolOptions,
   type CodeExecutionTool,
 } from './code-execution-tool'
 export {

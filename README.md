@@ -186,7 +186,7 @@ Official adapters include:
 
 | Package                                                                              | Use it for                                                                     |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API                                         |
+| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking         |
 | [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools |
 | [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, and structured outputs                 |
 | [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                        |
@@ -194,6 +194,7 @@ Official adapters include:
 | [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                            |
 | [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                     |
 | [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects     |
+| [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR    |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                   |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,

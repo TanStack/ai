@@ -1,10 +1,17 @@
 import { createGeneration } from './create-generation.svelte'
+import { reconstructSummarizeResult } from '@tanstack/ai-client'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -13,15 +20,24 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to SummarizationResult)
  */
-export interface CreateSummarizeOptions<TOutput = SummarizationResult> {
+export interface CreateSummarizeOptions<
+  TOutput = SummarizationResult,
+> extends Pick<
+  CreateGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when summarization is complete. Can optionally return a transformed value.
    *
@@ -43,7 +59,9 @@ export interface CreateSummarizeOptions<TOutput = SummarizationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateSummarizeReturn<TOutput = SummarizationResult> {
+export interface CreateSummarizeReturn<
+  TOutput = SummarizationResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The summarization result, or null */
   readonly result: TOutput | null
   /** Whether summarization is in progress */
@@ -54,12 +72,6 @@ export interface CreateSummarizeReturn<TOutput = SummarizationResult> {
   readonly status: GenerationClientState
   /** Trigger summarization */
   generate: (input: SummarizeGenerateInput) => Promise<void>
-  /** Abort the current summarization */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -92,21 +104,31 @@ export interface CreateSummarizeReturn<TOutput = SummarizationResult> {
  * </div>
  * ```
  */
-export function createSummarize<
-  TOnResult extends ((result: SummarizationResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<CreateSummarizeOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+export function createSummarize<TTransformed = void>(
+  options: Omit<
+    CreateSummarizeOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: SummarizationResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): CreateSummarizeReturn<
-  InferGenerationOutput<SummarizationResult, TOnResult>
+  InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createSummarize',
+    outputKind: 'text' as const,
+  }
   const gen = createGeneration<
     SummarizeGenerateInput,
     SummarizationResult,
-    TOnResult
-  >(options)
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructSummarizeResult,
+  })
 
   return {
     get result() {
@@ -121,9 +143,13 @@ export function createSummarize<
     get status() {
       return gen.status
     },
-    generate: gen.generate as (input: SummarizeGenerateInput) => Promise<void>,
+    generate: gen.generate,
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get runId() {
+      return gen.runId
+    },
   }
 }

@@ -40,6 +40,9 @@ Models must be pulled first: `ollama pull llama3.3`
 
 Ollama models use a generic options type. Provider options vary by the
 underlying model. The adapter passes options through to the Ollama API.
+Sampling options are **nested** under `modelOptions.options` (this matches
+Ollama's own request shape) — `temperature`, `top_p`, and `num_predict`
+(max output tokens) all live there.
 
 ```typescript
 import { chat } from '@tanstack/ai'
@@ -48,7 +51,13 @@ import { ollamaText } from '@tanstack/ai-ollama'
 const stream = chat({
   adapter: ollamaText('llama3.3'),
   messages,
-  temperature: 0.7,
+  modelOptions: {
+    options: {
+      temperature: 0.7,
+      top_p: 0.9,
+      num_predict: 1000, // max output tokens
+    },
+  },
   // Ollama-specific options are limited compared to cloud providers
 })
 ```

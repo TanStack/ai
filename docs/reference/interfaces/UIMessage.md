@@ -5,7 +5,7 @@ title: UIMessage
 
 # Interface: UIMessage\<TData\>
 
-Defined in: [packages/ai/src/types.ts:424](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L424)
+Defined in: [packages/ai/src/types.ts:487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L487)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results. Generic over
@@ -27,7 +27,7 @@ consumer side without manual casts.
 optional createdAt: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L428)
+Defined in: [packages/ai/src/types.ts:491](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L491)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/types.ts:428](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:425](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L425)
+Defined in: [packages/ai/src/types.ts:488](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L488)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [packages/ai/src/types.ts:425](https://github.com/TanStack/ai/blob/m
 parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:427](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L427)
+Defined in: [packages/ai/src/types.ts:490](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L490)
 
 ***
 
@@ -57,4 +57,4 @@ Defined in: [packages/ai/src/types.ts:427](https://github.com/TanStack/ai/blob/m
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [packages/ai/src/types.ts:426](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L426)
+Defined in: [packages/ai/src/types.ts:489](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L489)

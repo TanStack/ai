@@ -1,5 +1,7 @@
 import type { RealtimeToken, RealtimeTokenOptions } from './types'
 
+export { createRealtimeEventEmitter } from './event-emitter'
+
 // Re-export all types
 export type * from './types'
 
@@ -17,17 +19,11 @@ export type * from './types'
  * import { realtimeToken } from '@tanstack/ai'
  * import { openaiRealtimeToken } from '@tanstack/ai-openai'
  *
- * // Server function (TanStack Start example)
- * export const getRealtimeToken = createServerFn()
- *   .handler(async () => {
- *     return realtimeToken({
- *       adapter: openaiRealtimeToken({
- *         model: 'gpt-4o-realtime-preview',
- *         voice: 'alloy',
- *         instructions: 'You are a helpful assistant...',
- *       }),
- *     })
- *   })
+ * // On the server (e.g. inside a server route or framework server
+ * // function), mint an ephemeral token for the client:
+ * const token = await realtimeToken({
+ *   adapter: openaiRealtimeToken({ model: 'gpt-realtime' }),
+ * })
  * ```
  */
 export async function realtimeToken(

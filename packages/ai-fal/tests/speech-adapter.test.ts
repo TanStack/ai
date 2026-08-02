@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateSpeech } from '@tanstack/ai'
 
 import { falSpeech } from '../src/adapters/speech'
+import { recordBillableUnitsFromResponse } from '../src/utils/billing'
+
+function seedBillableUnits(requestId: string, units: string) {
+  recordBillableUnitsFromResponse(
+    new Response(null, {
+      headers: {
+        'x-fal-request-id': requestId,
+        'x-fal-billable-units': units,
+      },
+    }),
+  )
+}
 
 // Declare mocks at module level
 let mockSubscribe: any
@@ -214,6 +226,7 @@ describe('Fal Speech Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
     })
   })
 
@@ -225,6 +238,7 @@ describe('Fal Speech Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })
@@ -300,5 +314,51 @@ describe('Fal Speech Adapter', () => {
 
     // URL has no extension and no content-type — default to wav.
     expect(result.format).toBe('wav')
+  })
+
+  it('surfaces fal billable units as usage', async () => {
+    seedBillableUnits('req-billed-speech', '3')
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio: {
+          url: 'https://fal.media/files/billed.wav',
+          content_type: 'audio/wav',
+        },
+      },
+      requestId: 'req-billed-speech',
+    })
+
+    const result = await generateSpeech({
+      adapter: createAdapter(),
+      text: 'billed speech',
+      modelOptions: { audio_url: REFERENCE_AUDIO },
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 3,
+    })
+  })
+
+  it('omits usage when fal does not report billable units', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio: {
+          url: 'https://fal.media/files/unbilled.wav',
+          content_type: 'audio/wav',
+        },
+      },
+      requestId: 'req-unbilled-speech',
+    })
+
+    const result = await generateSpeech({
+      adapter: createAdapter(),
+      text: 'unbilled speech',
+      modelOptions: { audio_url: REFERENCE_AUDIO },
+    })
+
+    expect(result.usage).toBeUndefined()
   })
 })

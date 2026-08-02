@@ -1,11 +1,18 @@
 import { createGeneration } from './create-generation.svelte'
+import { reconstructAudioResult } from '@tanstack/ai-client'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   AudioGenerateInput,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
 /**
@@ -13,15 +20,24 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to AudioGenerationResult)
  */
-export interface CreateGenerateAudioOptions<TOutput = AudioGenerationResult> {
+export interface CreateGenerateAudioOptions<
+  TOutput = AudioGenerationResult,
+> extends Pick<
+  CreateGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -43,7 +59,9 @@ export interface CreateGenerateAudioOptions<TOutput = AudioGenerationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
+export interface CreateGenerateAudioReturn<
+  TOutput = AudioGenerationResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The generation result containing audio, or null */
   readonly result: TOutput | null
   /** Whether generation is in progress */
@@ -54,12 +72,6 @@ export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
   readonly status: GenerationClientState
   /** Trigger audio generation */
   generate: (input: AudioGenerateInput) => Promise<void>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -88,21 +100,31 @@ export interface CreateGenerateAudioReturn<TOutput = AudioGenerationResult> {
  * </div>
  * ```
  */
-export function createGenerateAudio<
-  TOnResult extends ((result: AudioGenerationResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<CreateGenerateAudioOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+export function createGenerateAudio<TTransformed = void>(
+  options: Omit<
+    CreateGenerateAudioOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: AudioGenerationResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): CreateGenerateAudioReturn<
-  InferGenerationOutput<AudioGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createGenerateAudio',
+    outputKind: 'audio' as const,
+  }
   const gen = createGeneration<
     AudioGenerateInput,
     AudioGenerationResult,
-    TOnResult
-  >(options)
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructAudioResult,
+  })
 
   return {
     get result() {
@@ -117,9 +139,13 @@ export function createGenerateAudio<
     get status() {
       return gen.status
     },
-    generate: gen.generate as (input: AudioGenerateInput) => Promise<void>,
+    generate: gen.generate,
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get runId() {
+      return gen.runId
+    },
   }
 }

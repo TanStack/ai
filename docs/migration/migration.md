@@ -33,7 +33,7 @@ Adapters have been split into activity-specific functions to enable optimal tree
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -114,7 +114,7 @@ Here's a complete example of migrating adapter usage:
 
 #### Before
 
-```typescript
+```typescript ignore
 import { chat } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { anthropic } from '@tanstack/ai-anthropic'
@@ -146,10 +146,14 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 type Provider = 'openai' | 'anthropic'
 
+const messages = [{ role: 'user' as const, content: 'Hello!' }]
+
 const adapters = {
   openai: () => openaiText('gpt-5.2'),
   anthropic: () => anthropicText('claude-sonnet-4-5'),
 }
+
+const provider: Provider = 'openai'
 
 const stream = chat({
   adapter: adapters[provider](),
@@ -163,7 +167,7 @@ Common options that were previously nested in an `options` object are now flatte
 
 ### Before
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openai(),
   model: 'gpt-5.2',
@@ -178,7 +182,7 @@ const stream = chat({
 
 ### After
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
@@ -197,13 +201,15 @@ These options are now available at the top level:
 - `maxTokens` - Maximum tokens to generate
 - `metadata` - Additional metadata to attach
 
+> **Heads up — sampling has since moved (breaking).** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) were removed from the root of `chat()` and now live in provider-native `modelOptions`. Passing them at the root no longer type-checks or takes effect. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
+
 ## 3. `providerOptions` → `modelOptions`
 
 The `providerOptions` parameter has been renamed to `modelOptions` for clarity. This parameter contains model-specific options that vary by provider and model.
 
 ### Before
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openai(),
   model: 'gpt-5.2',
@@ -218,7 +224,7 @@ const stream = chat({
 
 ### After
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
@@ -234,7 +240,7 @@ const stream = chat({
 
 `modelOptions` is fully typed based on the adapter and model you're using:
 
-```typescript
+```typescript ignore
 import { openaiText } from '@tanstack/ai-openai'
 
 const adapter = openaiText('gpt-5.2')
@@ -256,7 +262,7 @@ The `toResponseStream` function has been renamed to `toServerSentEventsStream` t
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -313,7 +319,7 @@ export async function POST(request: Request) {
 
 If you need HTTP stream format (newline-delimited JSON) instead of SSE, use `toHttpStream`:
 
-```typescript
+```typescript ignore
 import { toHttpStream } from '@tanstack/ai'
 
 const readableStream = toHttpStream(stream, abortController)
@@ -330,7 +336,7 @@ Embeddings support has been removed from TanStack AI. Most vector database servi
 
 ### Before
 
-```typescript
+```typescript ignore
 import { embedding } from '@tanstack/ai'
 import { openaiEmbed } from '@tanstack/ai-openai'
 
@@ -378,7 +384,7 @@ import breaks.
 
 ### Before
 
-```typescript
+```typescript ignore
 import { createWebSearchTool } from '@tanstack/ai-openrouter'
 
 const tools = [
@@ -420,7 +426,7 @@ Here's a complete example showing all the changes together:
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -448,7 +454,7 @@ export async function POST(request: Request) {
 
 ### After
 
-```typescript
+```typescript ignore
 import { chat, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -459,9 +465,11 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
-    temperature: 0.7,
-    maxTokens: 1000,
+    // Sampling now lives in provider-native `modelOptions` (OpenAI Responses
+    // keys: `temperature`, `max_output_tokens`). `metadata` stays at the root.
     modelOptions: {
+      temperature: 0.7,
+      max_output_tokens: 1000,
       responseFormat: { type: 'json_object' },
     },
     abortController,

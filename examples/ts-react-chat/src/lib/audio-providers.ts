@@ -6,12 +6,15 @@
  * and audio generation flows.
  */
 
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
+
 export type SpeechProviderId =
   | 'openai'
   | 'gemini'
   | 'fal'
   | 'grok'
   | 'elevenlabs'
+  | 'byteplus'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -85,15 +88,38 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     ],
     placeholder: 'Enter text to synthesize with ElevenLabs…',
   },
+  {
+    id: 'byteplus',
+    label: 'BytePlus Seed Speech',
+    model: 'seed-audio-1.0',
+    // Voice ids ("speakers") encode language, gender, character and TTS
+    // generation. The full roster lives at
+    // https://docs.byteplus.com/en/docs/byteplusvoice/voicelist; this is the
+    // adapter's default. Output formats: wav | mp3 | pcm | ogg_opus.
+    voices: [
+      { id: 'en_female_stokie_uranus_bigtts', label: 'Stokie (EN female)' },
+    ],
+    placeholder: 'Enter text for BytePlus Seed Speech…',
+  },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'fal' | 'grok' | 'elevenlabs'
+export type TranscriptionProviderId =
+  | 'openai'
+  | 'openai-diarize'
+  | 'fal'
+  | 'grok'
+  | 'elevenlabs'
+  | 'byteplus'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
   label: string
   model: string
   description: string
+  transcriptionOptions?: Pick<
+    TranscriptionGenerateInput,
+    'responseFormat' | 'modelOptions'
+  >
 }
 
 export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig> =
@@ -103,6 +129,19 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       label: 'OpenAI Whisper',
       model: 'whisper-1',
       description: 'OpenAI Whisper transcription with optional streaming.',
+    },
+    {
+      id: 'openai-diarize',
+      label: 'OpenAI Diarize',
+      model: 'gpt-4o-transcribe-diarize',
+      description:
+        'OpenAI diarized transcription with speaker-labeled segments.',
+      transcriptionOptions: {
+        modelOptions: {
+          response_format: 'diarized_json',
+          chunking_strategy: 'auto',
+        },
+      },
     },
     {
       id: 'fal',
@@ -122,6 +161,13 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       model: 'scribe_v1',
       description:
         'ElevenLabs Scribe with diarization, keyterm biasing, and PII redaction.',
+    },
+    {
+      id: 'byteplus',
+      label: 'BytePlus Seed ASR',
+      model: 'seed-asr',
+      description:
+        'BytePlus Seed Speech ASR with utterance and word-level timestamps.',
     },
   ]
 

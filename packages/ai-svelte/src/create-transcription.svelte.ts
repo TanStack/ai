@@ -1,10 +1,17 @@
 import { createGeneration } from './create-generation.svelte'
+import { reconstructTranscriptionResult } from '@tanstack/ai-client'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
 
@@ -13,15 +20,28 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to TranscriptionResult)
  */
-export interface CreateTranscriptionOptions<TOutput = TranscriptionResult> {
+export interface CreateTranscriptionOptions<
+  TOutput = TranscriptionResult,
+> extends Pick<
+  CreateGenerationOptions<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TOutput
+  >,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when transcription is complete. Can optionally return a transformed value.
    *
@@ -43,7 +63,9 @@ export interface CreateTranscriptionOptions<TOutput = TranscriptionResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateTranscriptionReturn<TOutput = TranscriptionResult> {
+export interface CreateTranscriptionReturn<
+  TOutput = TranscriptionResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The transcription result, or null */
   readonly result: TOutput | null
   /** Whether transcription is in progress */
@@ -54,12 +76,6 @@ export interface CreateTranscriptionReturn<TOutput = TranscriptionResult> {
   readonly status: GenerationClientState
   /** Trigger transcription */
   generate: (input: TranscriptionGenerateInput) => Promise<void>
-  /** Abort the current transcription */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -97,21 +113,31 @@ export interface CreateTranscriptionReturn<TOutput = TranscriptionResult> {
  * </div>
  * ```
  */
-export function createTranscription<
-  TOnResult extends ((result: TranscriptionResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<CreateTranscriptionOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+export function createTranscription<TTransformed = void>(
+  options: Omit<
+    CreateTranscriptionOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: TranscriptionResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): CreateTranscriptionReturn<
-  InferGenerationOutput<TranscriptionResult, TOnResult>
+  InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
+  const devtools = {
+    ...options.devtools,
+    framework: 'svelte',
+    hookName: 'createTranscription',
+    outputKind: 'text' as const,
+  }
   const gen = createGeneration<
     TranscriptionGenerateInput,
     TranscriptionResult,
-    TOnResult
-  >(options)
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructTranscriptionResult,
+  })
 
   return {
     get result() {
@@ -126,11 +152,13 @@ export function createTranscription<
     get status() {
       return gen.status
     },
-    generate: gen.generate as (
-      input: TranscriptionGenerateInput,
-    ) => Promise<void>,
+    generate: gen.generate,
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get runId() {
+      return gen.runId
+    },
   }
 }

@@ -5,6 +5,12 @@ export type {
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
@@ -47,10 +53,28 @@ export type {
   UseGenerateVideoReturn,
 } from './use-generate-video'
 
+export { useAudioRecorder } from './use-audio-recorder'
+export type {
+  UseAudioRecorderOptions,
+  UseAudioRecorderReturn,
+} from './use-audio-recorder'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
@@ -59,6 +83,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

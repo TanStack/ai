@@ -258,7 +258,7 @@ describe('chat() middleware', () => {
       const mw1: ChatMiddleware = {
         name: 'first',
         onConfig: () => ({
-          maxTokens: 100,
+          modelOptions: { maxTokens: 100 },
         }),
       }
 
@@ -266,7 +266,10 @@ describe('chat() middleware', () => {
         name: 'second',
         onConfig: (_ctx, config) => ({
           // Can see what first middleware set
-          maxTokens: (config.maxTokens ?? 0) + 50,
+          modelOptions: {
+            ...config.modelOptions,
+            maxTokens: ((config.modelOptions?.maxTokens as number) ?? 0) + 50,
+          },
         }),
       }
 
@@ -278,7 +281,7 @@ describe('chat() middleware', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // Adapter should get maxTokens = 150 (100 + 50)
-      expect(calls[0]!.maxTokens).toBe(150)
+      expect((calls[0]!.modelOptions as any).maxTokens).toBe(150)
     })
   })
 
@@ -1065,6 +1068,66 @@ describe('chat() middleware', () => {
       expect(onAbort.mock.calls[0]![1].reason).toBe('seen enough')
       expect(onFinish).not.toHaveBeenCalled()
     })
+
+    it('propagates ctx.abort() into a running tool via ctx.abortSignal', async () => {
+      let seenSignal: AbortSignal | undefined
+
+      // Tool resolves only when its abort signal fires — without middleware
+      // abort propagation this would hang and the test would time out.
+      const tool = {
+        name: 'slowTool',
+        description: 'waits for abort',
+        execute: (_args: unknown, toolCtx?: { abortSignal?: AbortSignal }) =>
+          new Promise((resolve) => {
+            seenSignal = toolCtx?.abortSignal
+            if (!toolCtx?.abortSignal) {
+              resolve({ done: 'no-signal' })
+              return
+            }
+            if (toolCtx.abortSignal.aborted) {
+              resolve({ done: 'aborted' })
+              return
+            }
+            toolCtx.abortSignal.addEventListener(
+              'abort',
+              () => resolve({ done: 'aborted' }),
+              { once: true },
+            )
+          }),
+      }
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'slowTool'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'slowTool', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'tool-aborter',
+        onBeforeToolCall: (ctx) => {
+          // Abort shortly after the tool has started executing.
+          setTimeout(() => ctx.abort('mid-tool abort'), 10)
+          return undefined
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [tool],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(seenSignal).toBeDefined()
+      expect(seenSignal!.aborted).toBe(true)
+    })
   })
 
   // ==========================================================================
@@ -1446,8 +1509,7 @@ describe('chat() middleware', () => {
         // Tool execution phase
         'onBeforeToolCall:myTool',
         'onAfterToolCall:myTool:true',
-        // Tool result events (piped through middleware)
-        'onChunk:TOOL_CALL_END',
+        // Only the result — the adapter already streamed END above (#519)
         'onChunk:TOOL_CALL_RESULT',
         // Second model call (beforeModel phase)
         'onConfig:beforeModel',
@@ -1586,10 +1648,10 @@ describe('chat() middleware', () => {
   })
 
   // ==========================================================================
-  // onConfig transforms temperature/topP/maxTokens
+  // onConfig transforms sampling options via modelOptions
   // ==========================================================================
   describe('onConfig parameter transforms', () => {
-    it('should allow middleware to transform temperature, topP, and maxTokens', async () => {
+    it('should allow middleware to transform sampling options via modelOptions', async () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [
           [ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')],
@@ -1599,23 +1661,27 @@ describe('chat() middleware', () => {
       const middleware: ChatMiddleware = {
         name: 'param-override',
         onConfig: () => ({
-          temperature: 0.9,
-          topP: 0.8,
-          maxTokens: 500,
+          modelOptions: {
+            temperature: 0.9,
+            topP: 0.8,
+            maxTokens: 500,
+          },
         }),
       }
 
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
-        temperature: 0.1,
+        modelOptions: { temperature: 0.1 },
         middleware: [middleware],
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0]!.temperature).toBe(0.9)
-      expect(calls[0]!.topP).toBe(0.8)
-      expect(calls[0]!.maxTokens).toBe(500)
+      expect(calls[0]!.modelOptions).toMatchObject({
+        temperature: 0.9,
+        topP: 0.8,
+        maxTokens: 500,
+      })
     })
   })
 
@@ -1989,14 +2055,14 @@ describe('chat() middleware', () => {
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         systemPrompts: ['Be helpful'],
-        temperature: 0.5,
+        modelOptions: { temperature: 0.5 },
         middleware: [middleware],
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // Original config should reach the adapter untouched
       expect(calls[0]!.systemPrompts).toEqual(['Be helpful'])
-      expect(calls[0]!.temperature).toBe(0.5)
+      expect((calls[0]!.modelOptions as any).temperature).toBe(0.5)
     })
   })
 
@@ -2525,21 +2591,19 @@ describe('chat() middleware', () => {
           if (ctx.phase === 'init') {
             return {
               systemPrompts: ['init-prompt'],
-              temperature: 0.1,
+              modelOptions: { temperature: 0.1 },
             }
           }
           if (ctx.phase === 'beforeModel' && ctx.iteration === 0) {
             return {
               systemPrompts: ['iter-0-prompt'],
-              temperature: 0.5,
-              maxTokens: 100,
+              modelOptions: { temperature: 0.5, maxTokens: 100 },
             }
           }
           if (ctx.phase === 'beforeModel' && ctx.iteration === 1) {
             return {
               systemPrompts: ['iter-1-prompt'],
-              temperature: 0.9,
-              maxTokens: 200,
+              modelOptions: { temperature: 0.9, maxTokens: 200 },
             }
           }
           return undefined
@@ -2556,13 +2620,17 @@ describe('chat() middleware', () => {
 
       // Iteration 0: adapter receives iter-0 config (overrides init)
       expect(calls[0]!.systemPrompts).toEqual(['iter-0-prompt'])
-      expect(calls[0]!.temperature).toBe(0.5)
-      expect(calls[0]!.maxTokens).toBe(100)
+      expect(calls[0]!.modelOptions).toMatchObject({
+        temperature: 0.5,
+        maxTokens: 100,
+      })
 
       // Iteration 1: adapter receives iter-1 config
       expect(calls[1]!.systemPrompts).toEqual(['iter-1-prompt'])
-      expect(calls[1]!.temperature).toBe(0.9)
-      expect(calls[1]!.maxTokens).toBe(200)
+      expect(calls[1]!.modelOptions).toMatchObject({
+        temperature: 0.9,
+        maxTokens: 200,
+      })
     })
 
     it('should accumulate config changes across multiple middleware per iteration', async () => {
@@ -2603,7 +2671,11 @@ describe('chat() middleware', () => {
         onConfig: (ctx, config) => {
           if (ctx.phase === 'beforeModel' && ctx.iteration === 1) {
             return {
-              maxTokens: (config.maxTokens ?? 100) * 2,
+              modelOptions: {
+                ...config.modelOptions,
+                maxTokens:
+                  ((config.modelOptions?.maxTokens as number) ?? 100) * 2,
+              },
             }
           }
           return undefined
@@ -2615,19 +2687,19 @@ describe('chat() middleware', () => {
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
         systemPrompts: ['base'],
-        maxTokens: 100,
+        modelOptions: { maxTokens: 100 },
         middleware: [mw1, mw2],
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // Iteration 0: mw1 adds prompt, mw2 does nothing
       expect(calls[0]!.systemPrompts).toEqual(['base', 'added-by-mw1-iter-0'])
-      expect(calls[0]!.maxTokens).toBe(100)
+      expect((calls[0]!.modelOptions as any).maxTokens).toBe(100)
 
       // Iteration 1: mw1 adds prompt, mw2 doubles maxTokens
       // Note: mw1's change from iter-0 persists since applyMiddlewareConfig updates the engine
       expect(calls[1]!.systemPrompts).toContain('added-by-mw1-iter-1')
-      expect(calls[1]!.maxTokens).toBe(200)
+      expect((calls[1]!.modelOptions as any).maxTokens).toBe(200)
     })
 
     it('should let middleware observe config changes from the previous iteration', async () => {
@@ -2660,14 +2732,18 @@ describe('chat() middleware', () => {
           configSnapshots.push({
             phase: ctx.phase,
             iteration: ctx.iteration,
-            maxTokens: config.maxTokens,
+            maxTokens: config.modelOptions?.maxTokens as number | undefined,
             systemPrompts: [...config.systemPrompts],
           })
 
           // On each beforeModel call, bump maxTokens by 50
           if (ctx.phase === 'beforeModel') {
             return {
-              maxTokens: (config.maxTokens ?? 0) + 50,
+              modelOptions: {
+                ...config.modelOptions,
+                maxTokens:
+                  ((config.modelOptions?.maxTokens as number) ?? 0) + 50,
+              },
             }
           }
           return undefined
@@ -2678,7 +2754,7 @@ describe('chat() middleware', () => {
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [tool],
-        maxTokens: 100,
+        modelOptions: { maxTokens: 100 },
         middleware: [middleware],
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)

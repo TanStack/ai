@@ -44,6 +44,10 @@ chat({
   adapter: openaiText('gpt-5.4'),
   messages,
   modelOptions: {
+    // Sampling
+    temperature: 0.7,
+    top_p: 0.9,
+    max_output_tokens: 1000,
     // Reasoning (effort levels: none, minimal, low, medium, high)
     reasoning: {
       effort: 'high',
@@ -60,9 +64,7 @@ chat({
     parallel_tool_calls: true,
     tool_choice: 'auto', // 'auto' | 'none' | 'required'
     // Structured output
-    text: {
-      /* ResponseTextConfig */
-    },
+    text: {/* ResponseTextConfig */},
     // Metadata (max 16 key-value pairs)
     metadata: { session_id: 'abc' },
     // Streaming

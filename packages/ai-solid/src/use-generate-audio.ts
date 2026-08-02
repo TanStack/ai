@@ -1,11 +1,18 @@
 import { useGeneration } from './use-generation'
+import { reconstructAudioResult } from '@tanstack/ai-client'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { AudioGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsDisplayOptions,
   AudioGenerateInput,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
-  InferGenerationOutput,
+  GenerationPersistenceOptions,
+  InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
@@ -14,15 +21,24 @@ import type { Accessor } from 'solid-js'
  *
  * @template TOutput - The transformed output type (defaults to AudioGenerationResult)
  */
-export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
+export interface UseGenerateAudioOptions<
+  TOutput = AudioGenerationResult,
+> extends Pick<
+  UseGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
   /**
    * Callback when audio is generated. Can optionally return a transformed value.
    *
@@ -44,7 +60,9 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
  *
  * @template TOutput - The transformed output type (defaults to AudioGenerationResult)
  */
-export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
+export interface UseGenerateAudioReturn<
+  TOutput = AudioGenerationResult,
+> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
   /** Trigger audio generation */
   generate: (input: AudioGenerateInput) => Promise<void>
   /** The generation result containing audio, or null */
@@ -55,10 +73,6 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
   error: Accessor<Error | undefined>
   /** Current state of the generation */
   status: Accessor<GenerationClientState>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -85,26 +99,31 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
  * }
  * ```
  */
-export function useGenerateAudio<
-  TOnResult extends ((result: AudioGenerationResult) => any) | undefined =
-    undefined,
->(
-  options: Omit<UseGenerateAudioOptions, 'onResult'> & {
-    onResult?: TOnResult
-  },
+export function useGenerateAudio<TTransformed = void>(
+  options: Omit<
+    UseGenerateAudioOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
+    onResult?: (result: AudioGenerationResult) => TTransformed
+  } & GenerationPersistenceOptions,
 ): UseGenerateAudioReturn<
-  InferGenerationOutput<AudioGenerationResult, TOnResult>
+  InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<AudioGenerateInput, AudioGenerationResult, TOnResult>(options)
-
-  return {
-    generate: generate as (input: AudioGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
+  const devtools = {
+    ...options.devtools,
+    framework: 'solid',
+    hookName: 'useGenerateAudio',
+    outputKind: 'audio' as const,
   }
+  const generation = useGeneration<
+    AudioGenerateInput,
+    AudioGenerationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructAudioResult,
+  })
+
+  return generation
 }

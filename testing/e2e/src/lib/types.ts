@@ -7,8 +7,13 @@ export type Provider =
   | 'ollama'
   | 'grok'
   | 'groq'
+  | 'bedrock'
+  | 'bedrock-responses'
   | 'openrouter'
   | 'openrouter-responses'
+  | 'openai-compatible'
+  | 'mistral'
+  | 'byteplus'
   | 'elevenlabs'
 
 export type Feature =
@@ -30,11 +35,15 @@ export type Feature =
   | 'summarize'
   | 'summarize-stream'
   | 'image-gen'
+  | 'image-to-image'
   | 'audio-gen'
   | 'sound-effects'
   | 'tts'
   | 'transcription'
+  | 'transcription-diarization'
   | 'video-gen'
+  | 'image-to-video'
+  | 'interactions-video'
   | 'stateful-interactions'
 
 export const ALL_PROVIDERS: Provider[] = [
@@ -44,8 +53,13 @@ export const ALL_PROVIDERS: Provider[] = [
   'ollama',
   'grok',
   'groq',
+  'bedrock',
+  'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'openai-compatible',
+  'mistral',
+  'byteplus',
   'elevenlabs',
 ]
 
@@ -68,10 +82,14 @@ export const ALL_FEATURES: Feature[] = [
   'summarize',
   'summarize-stream',
   'image-gen',
+  'image-to-image',
   'audio-gen',
   'sound-effects',
   'tts',
   'transcription',
+  'transcription-diarization',
   'video-gen',
+  'image-to-video',
+  'interactions-video',
   'stateful-interactions',
 ]

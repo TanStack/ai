@@ -5,6 +5,12 @@ export type {
   DeepPartial,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
@@ -50,10 +56,28 @@ export type {
   CreateGenerateVideoReturn,
 } from './create-generate-video.svelte'
 
+export { createAudioRecorder } from './create-audio-recorder.svelte'
+export type {
+  CreateAudioRecorderOptions,
+  CreateAudioRecorderReturn,
+} from './create-audio-recorder.svelte'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
   fetchHttpStream,
+  xhrServerSentEvents,
+  xhrHttpStream,
   stream,
   rpcStream,
   createChatClientOptions,
@@ -63,6 +87,7 @@ export {
   type SubscribeConnectionAdapter,
   type RunAgentInputContext,
   type FetchConnectionOptions,
+  type XhrConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

@@ -43,6 +43,7 @@ describe('configureFalClient', () => {
 
     expect(configSpy).toHaveBeenCalledWith({
       credentials: 'test-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })
@@ -53,7 +54,10 @@ describe('configureFalClient', () => {
 
     configureFalClient({ apiKey: 'test-key' })
 
-    expect(configSpy).toHaveBeenCalledWith({ credentials: 'test-key' })
+    expect(configSpy).toHaveBeenCalledWith({
+      credentials: 'test-key',
+      fetch: expect.any(Function),
+    })
   })
 })
 

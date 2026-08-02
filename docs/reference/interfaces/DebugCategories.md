@@ -99,6 +99,19 @@ Outgoing call metadata (provider, model, message/tool counts) emitted before eac
 
 ***
 
+### sandbox?
+
+```ts
+optional sandbox: boolean;
+```
+
+Defined in: [packages/ai/src/logger/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L67)
+
+Sandbox internals: watcher start/stop + mechanism, file events, sandbox
+hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
+
+***
+
 ### tools?
 
 ```ts

@@ -3,6 +3,7 @@ import {
   selectScenario,
   runTest,
   waitForTestComplete,
+  waitForExecutionComplete,
   waitForApproval,
   getMetadata,
   getEventLog,
@@ -160,6 +161,7 @@ test.describe('Approval Flow E2E Tests', () => {
 
     // Wait for the test to complete
     await waitForTestComplete(page)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify results
     const metadata = await getMetadata(page)
@@ -187,6 +189,7 @@ test.describe('Approval Flow E2E Tests', () => {
 
     // Wait for the test to complete
     await waitForTestComplete(page)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify results
     const metadata = await getMetadata(page)

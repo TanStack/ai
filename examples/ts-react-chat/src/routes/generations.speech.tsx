@@ -14,6 +14,8 @@ type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
+// Persist each variant's lightweight resume snapshot across reloads.
+
 function toSpeechOutput(raw: {
   audio: string
   contentType?: string
@@ -48,25 +50,31 @@ function SpeechGenerationForm({
   const hookOptions = useMemo(() => {
     if (mode === 'streaming') {
       return {
+        threadId: `speech:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/speech'),
         body: { provider: config.id },
+        persistence: true,
         onResult: toSpeechOutput,
       }
     }
     if (mode === 'direct') {
       return {
+        threadId: `speech:${mode}:${config.id}`,
         fetcher: (input: { text: string; voice?: string }) =>
           generateSpeechFn({
             data: { ...input, provider: config.id },
           }),
+        persistence: true,
         onResult: toSpeechOutput,
       }
     }
     return {
+      threadId: `speech:${mode}:${config.id}`,
       fetcher: (input: { text: string; voice?: string }) =>
         generateSpeechStreamFn({
           data: { ...input, provider: config.id },
         }),
+      persistence: true,
       onResult: toSpeechOutput,
     }
   }, [mode, config.id])

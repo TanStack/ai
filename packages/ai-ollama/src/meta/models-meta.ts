@@ -29,6 +29,8 @@ interface OllamaOptions {
   num_keep: number
   seed: number
   num_predict: number
+  temperature: number
+  top_p: number
   top_k: number
   tfs_z: number
   typical_p: number

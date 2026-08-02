@@ -96,7 +96,7 @@ Lower-level functions if you need only the tool or only the prompt. `createCodeM
 
 These utilities are used internally and exported for custom pipelines:
 
-- **`stripTypeScript(code)`** — Strips TypeScript syntax using esbuild.
+- **`stripTypeScript(code)`** — Strips TypeScript syntax using sucrase (edge-safe, no native binary).
 - **`toolsToBindings(tools, prefix?)`** — Converts tools to `ToolBinding` records for sandbox injection.
 - **`generateTypeStubs(bindings, options?)`** — Generates TypeScript type declarations from tool bindings.
 

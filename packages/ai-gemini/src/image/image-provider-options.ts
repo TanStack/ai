@@ -176,9 +176,9 @@ export type GeminiNativeImageSize =
  */
 export type GeminiNativeImageModels =
   | 'gemini-3.1-flash-image-preview'
+  | 'gemini-3.1-flash-lite-image'
   | 'gemini-3-pro-image-preview'
   | 'gemini-2.5-flash-image'
-  | 'gemini-2.0-flash-preview-image-generation'
 
 /**
  * Model-specific size options mapping.
@@ -188,6 +188,18 @@ export type GeminiImageModelSizeByName = {
   [K in GeminiNativeImageModels]: GeminiNativeImageSize
 } & {
   [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
+}
+
+/**
+ * Per-model prompt input modalities. Gemini-native image models accept image
+ * parts in the multimodal prompt (image-conditioned generation via
+ * generateContent); Imagen models are strictly text-to-image, so their
+ * `prompt` is constrained to text at compile time.
+ */
+export type GeminiImageModelInputModalitiesByName = {
+  [K in GeminiNativeImageModels]: readonly ['image']
+} & {
+  [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: readonly []
 }
 
 /**
@@ -245,15 +257,14 @@ export function validateImageSize(
 
 /**
  * Per-model caps on images per request.
- * Imagen 3 and the Imagen 4 family all support up to 4 images per request
- * via the Gemini API (the rumored 8-image tier is Vertex-only and isn't
- * reachable through @google/genai today). Unknown models fall through to
- * the shared cap defined below.
+ * The Imagen 4 family all support up to 4 images per request via the Gemini
+ * API (the rumored 8-image tier is Vertex-only and isn't reachable through
+ * @google/genai today). Unknown models fall through to the shared cap
+ * defined below.
  *
  * @see https://ai.google.dev/gemini-api/docs/imagen
  */
 const IMAGEN_MAX_IMAGES_BY_MODEL: Record<string, number> = {
-  'imagen-3.0-generate-002': 4,
   'imagen-4.0-generate-001': 4,
   'imagen-4.0-ultra-generate-001': 4,
   'imagen-4.0-fast-generate-001': 4,

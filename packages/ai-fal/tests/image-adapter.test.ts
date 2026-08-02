@@ -2,6 +2,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateImage } from '@tanstack/ai'
 
 import { falImage } from '../src/adapters/image'
+import { recordBillableUnitsFromResponse } from '../src/utils/billing'
+
+/**
+ * Seed the billing registry the way the wrapped `config.fetch` would after a
+ * real fal result fetch: the result response carries both the request id and the
+ * billable-units header. The adapter then looks the units up by `requestId`.
+ */
+function seedBillableUnits(requestId: string, units: string) {
+  recordBillableUnitsFromResponse(
+    new Response(null, {
+      headers: {
+        'x-fal-request-id': requestId,
+        'x-fal-billable-units': units,
+      },
+    }),
+  )
+}
 
 // Declare mocks at module level
 let mockSubscribe: any
@@ -219,6 +236,7 @@ describe('Fal Image Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
     })
   })
 
@@ -230,6 +248,7 @@ describe('Fal Image Adapter', () => {
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
+      fetch: expect.any(Function),
       proxyUrl: '/api/fal/proxy',
     })
   })
@@ -298,5 +317,40 @@ describe('Fal Image Adapter', () => {
     expect(result.images[0]!.url).toBe(
       'https://fal.media/files/direct-string.png',
     )
+  })
+
+  it('surfaces fal billable units as usage', async () => {
+    seedBillableUnits('req-billed-img', '4')
+    mockSubscribe.mockResolvedValueOnce({
+      data: { images: [{ url: 'https://fal.media/files/billed.png' }] },
+      requestId: 'req-billed-img',
+    })
+
+    const result = await generateImage({
+      adapter: createAdapter(),
+      prompt: 'billed image',
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 4,
+    })
+  })
+
+  it('omits usage when fal does not report billable units', async () => {
+    mockSubscribe.mockResolvedValueOnce(
+      createMockImageResponse([
+        { url: 'https://fal.media/files/unbilled.png' },
+      ]),
+    )
+
+    const result = await generateImage({
+      adapter: createAdapter(),
+      prompt: 'unbilled image',
+    })
+
+    expect(result.usage).toBeUndefined()
   })
 })

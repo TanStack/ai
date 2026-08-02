@@ -147,6 +147,44 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
+      // Mirror of the non-streaming `transformStructuredOutput` passthrough test
+      // (`chat-completions-text.test.ts`) for the STREAMING path: the adapter no
+      // longer strips nulls — strict-mode null-widening is undone precisely by
+      // the engine, so a blind adapter-level strip would also destroy genuine
+      // `.nullable()` nulls. Guards against the stream path regressing to a strip
+      // while the non-stream path doesn't.
+      const json = '{"name":"Alice","nickname":null}'
+      setupStreamingMock([deltaChunk(json), finishChunk()])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              nickname: { type: 'string' },
+            },
+            required: ['name'],
+            additionalProperties: false,
+          },
+        }),
+      )
+
+      const complete = chunks.find(
+        (c) =>
+          c.type === 'CUSTOM' &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { object: unknown } } | undefined
+      expect(complete!.value.object).toEqual({ name: 'Alice', nickname: null })
+    })
+
     it('sends response_format: { type: "json_schema", strict: true } in the request', async () => {
       setupStreamingMock([deltaChunk('{"name":"X","age":1}'), finishChunk()])
       const adapter = new TestAdapter()

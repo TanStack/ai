@@ -4,7 +4,9 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter
+**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, openrouter-responses, bedrock, bedrock-responses, openai-compatible, mistral, byteplus, elevenlabs
+
+> **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
 ## What's tested
 
@@ -30,6 +32,8 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | summarize                | 6         | `tests/summarize.spec.ts`                |
 | summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
 | image-gen                | 7         | `tests/image-gen.spec.ts`                |
+| image-to-image           | 1         | `tests/image-to-image.spec.ts`           |
+| image-to-video           | 1         | `tests/image-to-video.spec.ts`           |
 | tts                      | 3         | `tests/tts.spec.ts`                      |
 | transcription            | 3         | `tests/transcription.spec.ts`            |
 | audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
@@ -45,6 +49,31 @@ Deterministic scenarios covering tool execution flows:
 | `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client      |
 | `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows           |
 | `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                 |
+
+### Interrupt playground
+
+Deterministic coverage of every AG-UI interrupt shape, ported from the
+`ts-react-chat` wildlife example (route `/interrupts-test`, scenarios in
+`src/lib/interrupt-scenario-tools.ts`). Each scenario isolates one interrupt
+behavior — server/client × boolean, shared payload, branch payload, edited
+args, plus a generic (non-tool) interrupt and batch sets — and is exercised
+across allow / deny / cancel via both per-item (`interrupt.resolveInterrupt` /
+`interrupt.cancel`) and root batch (`resolveInterrupts` / `cancelInterrupts`)
+resolution.
+
+| Spec file                                | Tests | What it covers                                                         |
+| ---------------------------------------- | ----- | ---------------------------------------------------------------------- |
+| `tests/interrupts-test/per-item.spec.ts` | 24    | Approve / deny / cancel each single scenario via the bound interrupt   |
+| `tests/interrupts-test/generic.spec.ts`  | 2     | Generic interrupt resolve-with-payload and cancel                      |
+| `tests/interrupts-test/batch.spec.ts`    | 5     | Root approve-all / deny-all / cancel-all, per-item, and mixed resolver |
+
+Notes:
+
+- Server tool results are **not** surfaced to the client as message parts, so
+  server execution is asserted via the `approval-responded` state; server
+  edited-args are verified through a `emitCustomEvent` echo.
+- A shared `approvalSchema` requires a payload on the **deny** decision too, so
+  those scenarios carry a `denyPayload`.
 
 ### Advanced feature tests
 
@@ -184,6 +213,33 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
 
+### Bedrock Converse coverage gap
+
+The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
+
+The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-bedrock-runtime` and speaks AWS's **binary event-stream (`vnd.amazon.eventstream`) Converse protocol**, which `@copilotkit/aimock` does not currently mock. Adding `bedrock-converse` to the live matrix would fail without a Converse-capable aimock provider.
+
+**Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
+
+**Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
+
+### BytePlus (Ark) path handling and record-mode gap
+
+BytePlus splits across two products, and the E2E wiring reflects that split:
+
+- **Ark** (chat, Seedream image, Seedance video) serves everything under `/api/v3`, so the chat, image and video adapters get `baseURL: <mock>/api/v3`.
+- **Seed Speech** (TTS, ASR) is a separate host with a separate key, and its adapters append `/api/v3/...` themselves — so they get the bare `<mock>` base.
+
+Chat and image need **no mock changes**. aimock's compat-path normalizer rewrites any non-`/v1/`, non-`/v2/` path ending in a known OpenAI suffix to `/v1/<suffix>`, so `/api/v3/chat/completions` and `/api/v3/images/generations` land on the native handlers and the provider-agnostic fixtures apply unchanged. Seedream's request body differs from OpenAI's (`size` as a `1K`/`2K` token, no `n`, `watermark`), but aimock's image handler only reads `model` and `prompt` and answers with the `{ created, data: [...] }` envelope Seedream also returns.
+
+Three endpoints have no aimock equivalent and are mounted in `global-setup.ts`, all on the `/api/v3` prefix — each returns `false` for paths it doesn't own so chat and image still fall through:
+
+- `byteplusSeedanceMount()` — `POST`/`GET /contents/generations/tasks[/{id}]`
+- `byteplusTTSMount()` — `POST /tts/create`
+- `byteplusASRMount()` — `POST /auc/bigmodel/recognize/flash`
+
+**Record-mode gap:** aimock's `RecordProviderKey` union has no `byteplus` entry, so `pnpm record` can't proxy `ark.ap-southeast.bytepluses.com` or the Seed Speech host to capture real fixtures — the same situation as the Bedrock Converse gap above. Chat features reuse the existing provider-agnostic fixtures (aimock matches on message content, not provider); the media endpoints are served by the hand-written mounts listed above. Update those mounts by hand if the wire shapes change, and cross-check against the adapter unit tests in `packages/ai-byteplus/tests/`.
+
 **SDK baseURL notes:**
 
 - OpenAI, Grok: `LLMOCK_OPENAI` (with `/v1`) + `defaultHeaders`
@@ -192,6 +248,7 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 - Gemini: `httpOptions: { baseUrl: LLMOCK_BASE, headers }`
 - Ollama: `{ host: LLMOCK_BASE, headers }` (config object)
 - OpenRouter: `serverURL` with `?testId=` query param (SDK doesn't support headers)
+- BytePlus: `LLMOCK_BASE + /api/v3` + `defaultHeaders` for Ark (chat, image, video); bare `LLMOCK_BASE` + `defaultHeaders` for Seed Speech (TTS, ASR)
 
 ## 7. Adding a Tool Test Scenario
 

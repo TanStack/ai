@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
   createApprovalToolCallChunks,
@@ -13,10 +13,48 @@ import type {
   ConnectConnectionAdapter,
   ConnectionAdapter,
 } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
-import type { UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '../src/types'
 
 describe('ChatClient', () => {
+  const persistedMessage: UIMessage = {
+    id: 'persisted-1',
+    role: 'user',
+    parts: [{ type: 'text', content: 'Persisted hello' }],
+    createdAt: new Date('2024-01-01T00:00:00.000Z'),
+  }
+
+  const initialMessage: UIMessage = {
+    id: 'initial-1',
+    role: 'user',
+    parts: [{ type: 'text', content: 'Initial hello' }],
+    createdAt: new Date('2024-01-02T00:00:00.000Z'),
+  }
+
+  function createPersistence(
+    storedMessages?: Array<UIMessage> | null,
+  ): ChatClientPersistence {
+    return {
+      getItem: vi.fn(() => storedMessages),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+  }
+
+  function createDeferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason?: unknown) => void
+    const promise = new Promise<T>((promiseResolve, promiseReject) => {
+      resolve = promiseResolve
+      reject = promiseReject
+    })
+    return { promise, resolve, reject }
+  }
+
   describe('constructor', () => {
     it('should create a client with default options', () => {
       const adapter = createMockConnectionAdapter()
@@ -46,6 +84,165 @@ describe('ChatClient', () => {
       })
 
       expect(client.getMessages()).toEqual(initialMessages)
+    })
+
+    it('should hydrate messages from persistence', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should hydrate messages from persistence.client', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should prefer persisted messages over initial messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should fall back to initial messages when persistence returns null', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence(null)
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+    })
+
+    it('should fall back to initial messages when persistence returns undefined', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence(undefined)
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+    })
+
+    it('should let persisted empty arrays override initial messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([])
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([])
+    })
+
+    it('should hydrate from async persistence and notify message listeners', async () => {
+      const adapter = createMockConnectionAdapter()
+      const onMessagesChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => Promise.resolve([persistedMessage])),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        onMessagesChange,
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+
+      await vi.waitFor(() => {
+        expect(client.getMessages()).toEqual([persistedMessage])
+      })
+
+      expect(onMessagesChange).toHaveBeenCalledWith([persistedMessage])
+    })
+
+    it('should ignore async persistence hydration after local message changes', async () => {
+      const adapter = createMockConnectionAdapter()
+      const deferred = createDeferred<Array<UIMessage>>()
+      const persistence = {
+        getItem: vi.fn(() => deferred.promise),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([
+        {
+          id: 'local-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Local change' }],
+          createdAt: new Date('2024-01-03T00:00:00.000Z'),
+        },
+      ])
+
+      deferred.resolve([persistedMessage])
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getMessages()).toEqual([
+        {
+          id: 'local-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Local change' }],
+          createdAt: new Date('2024-01-03T00:00:00.000Z'),
+        },
+      ])
+    })
+
+    it('should keep current constructor behavior when persistence is omitted', () => {
+      const adapter = createMockConnectionAdapter()
+
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages: [initialMessage],
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
     })
 
     it('should use provided id or generate one', async () => {
@@ -146,6 +343,1131 @@ describe('ChatClient', () => {
 
       expect(adapter.subscribe).toHaveBeenCalled()
       expect(adapter.send).toHaveBeenCalled()
+    })
+
+    it('should ignore native subscribe/send chunks from a cleared persisted request without runId', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseFirstResponse = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn((_signal?: AbortSignal) => {
+          return (async function* () {
+            while (true) {
+              if (queuedChunks.length === 0) {
+                await new Promise<void>((resolve) => {
+                  wakeSubscriber = resolve
+                })
+              }
+              const next = queuedChunks.shift()
+              if (!next) continue
+              if (next.prompt === 'A') {
+                const [started, ...remainingChunks] = next.chunks
+                if (started) {
+                  yield started
+                }
+                await releaseFirstResponse.promise
+                yield* remainingChunks
+                continue
+              }
+              yield* next.chunks
+            }
+          })()
+        }),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId: runContext?.runId ?? 'run-1',
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                ...createTextChunks(
+                  prompt === 'A' ? 'stale A' : 'fresh B',
+                  prompt === 'A' ? 'msg-a' : 'msg-b',
+                ).map((chunk) => {
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+                    const { runId: _runId, ...withoutRunId } = chunk
+                    return withoutRunId as StreamChunk
+                  }
+                  if (chunk.type === 'RUN_FINISHED') {
+                    return {
+                      ...chunk,
+                      threadId: runContext?.threadId ?? chunk.threadId,
+                      runId: runContext?.runId ?? chunk.runId,
+                    } as StreamChunk
+                  }
+                  return chunk
+                }),
+              ],
+            })
+            wakeSubscriber?.()
+            wakeSubscriber = null
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      releaseFirstResponse.resolve()
+      await firstSend
+      await secondSend
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ignore already-started runless chunks from a cleared persisted request', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleChunks = createDeferred<void>()
+      const staleChunksAttempted = createDeferred<void>()
+      let wakeSubscriber: (() => void) | null = null
+      let queued = false
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseStaleChunks.promise
+                yield {
+                  type: EventType.TEXT_MESSAGE_CONTENT,
+                  messageId: 'stale-message',
+                  timestamp: Date.now(),
+                  delta: 'stale content',
+                  content: 'stale content',
+                } as StreamChunk
+                staleChunksAttempted.resolve()
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
+              }
+            })()
+          },
+        ),
+        send: vi.fn(async () => {
+          queued = true
+          wakeSubscriber?.()
+          wakeSubscriber = null
+        }),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseStaleChunks.resolve()
+      await staleChunksAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+      expect(client.getSessionGenerating()).toBe(false)
+      expect(client.getError()).toBeUndefined()
+    })
+
+    it('should keep fresh runless chunks after a clear when a fresh run starts before stale chunks drain', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleChunks = createDeferred<void>()
+      const staleChunksAttempted = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let staleReleased = false
+      let wakeSubscriber: (() => void) | null = null
+      const wakeQueuedSubscriber = () => {
+        const wake = wakeSubscriber
+        wakeSubscriber = null
+        wake?.()
+      }
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const freshIndex = queuedChunks.findIndex(
+                  (queued) => queued.prompt === 'B',
+                )
+                const next =
+                  freshIndex >= 0
+                    ? queuedChunks.splice(freshIndex, 1)[0]
+                    : queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A' && !staleReleased) {
+                  queuedChunks.push({
+                    prompt: 'A-after-start',
+                    chunks: next.chunks.slice(1),
+                  })
+                  continue
+                }
+                if (next.prompt === 'A-after-start' && !staleReleased) {
+                  queuedChunks.push(next)
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                  continue
+                }
+                for (const chunk of next.chunks.slice(1)) {
+                  yield chunk
+                }
+                if (next.prompt === 'A-after-start') {
+                  staleChunksAttempted.resolve()
+                }
+              }
+            })()
+          },
+        ),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+            const messageId = prompt === 'A' ? 'stale-message' : 'fresh-message'
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId:
+                    prompt === 'A'
+                      ? 'run-cleared'
+                      : (runContext?.runId ?? 'run-fresh'),
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                {
+                  type: EventType.TEXT_MESSAGE_CONTENT,
+                  messageId,
+                  timestamp: Date.now(),
+                  delta: prompt === 'A' ? 'stale content' : 'fresh content',
+                  content: prompt === 'A' ? 'stale content' : 'fresh content',
+                } as StreamChunk,
+                {
+                  type: EventType.RUN_FINISHED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId:
+                    prompt === 'A'
+                      ? 'run-cleared'
+                      : (runContext?.runId ?? 'run-fresh'),
+                  timestamp: Date.now(),
+                } as StreamChunk,
+              ],
+            })
+            wakeQueuedSubscriber()
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      await secondSend
+      staleReleased = true
+      releaseStaleChunks.resolve()
+      wakeQueuedSubscriber()
+      await staleChunksAttempted.promise
+      firstSend.catch(() => {
+        // The stale request may have been superseded by the fresh send.
+      })
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh content')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale content')
+      expect(storedMessages).toEqual(client.getMessages())
+    })
+
+    it('should keep fresh runless chunks after server-only clear drains an ignored terminal chunk', async () => {
+      const releaseStaleTerminal = createDeferred<void>()
+      const staleTerminalAttempted = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const wakeQueuedSubscriber = () => {
+        const wake = wakeSubscriber
+        wakeSubscriber = null
+        wake?.()
+      }
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const next = queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A') {
+                  await releaseStaleTerminal.promise
+                  yield* next.chunks.slice(1)
+                  staleTerminalAttempted.resolve()
+                  continue
+                }
+                yield* next.chunks.slice(1)
+              }
+            })()
+          },
+        ),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks:
+                prompt === 'A'
+                  ? [
+                      {
+                        type: EventType.RUN_STARTED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                      {
+                        type: EventType.RUN_FINISHED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                    ]
+                  : createTextChunks(
+                      'fresh server-only response',
+                      'fresh-msg',
+                    ).map((chunk) => {
+                      if (
+                        chunk.type === 'TEXT_MESSAGE_START' ||
+                        chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+                        chunk.type === 'TEXT_MESSAGE_END' ||
+                        chunk.type === 'RUN_FINISHED'
+                      ) {
+                        const { runId: _runId, ...withoutRunId } = chunk
+                        return withoutRunId as StreamChunk
+                      }
+                      return chunk
+                    }),
+            })
+            wakeQueuedSubscriber()
+          },
+        ),
+      }
+      // Clear-during-stream suppression is owned by ChatPersistor; enable it
+      // with a no-op message adapter (no durable resume storage on this branch).
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: {
+          getItem: vi.fn(() => undefined),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseStaleTerminal.resolve()
+      await staleTerminalAttempted.promise
+      await firstSend
+
+      const secondSend = client.sendMessage('B')
+
+      const getFinalText = () =>
+        client
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join('')
+
+      await vi.waitFor(() => {
+        expect(getFinalText()).toContain('fresh server-only response')
+      })
+      await secondSend
+
+      const finalText = getFinalText()
+      expect(finalText).toContain('B')
+      expect(finalText).not.toContain('A')
+    })
+    it('should ignore stale messages snapshot after persisted clear', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseSnapshot = createDeferred<void>()
+      const snapshotAttempted = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseSnapshot.promise
+          yield {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              {
+                id: 'stale-assistant',
+                role: 'assistant',
+                content: 'stale snapshot',
+              },
+            ],
+          } as StreamChunk
+          snapshotAttempted.resolve()
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseSnapshot.resolve()
+      await snapshotAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should ignore stale runless run error after persisted clear', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const onError = vi.fn()
+      const releaseError = createDeferred<void>()
+      const errorAttempted = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseError.promise
+          yield {
+            type: EventType.RUN_ERROR,
+            threadId: runContext?.threadId ?? 'thread-1',
+            timestamp: Date.now(),
+            message: 'stale failure',
+            error: { message: 'stale failure' },
+          } as StreamChunk
+          errorAttempted.resolve()
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+        onError,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseError.resolve()
+      await errorAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(client.getError()).toBeUndefined()
+      expect(client.getStatus()).toBe('ready')
+      expect(onError).not.toHaveBeenCalled()
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should keep fresh native subscribe/send chunks when they arrive before stale cleared chunks', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleResponse = createDeferred<void>()
+      let staleReleased = false
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn((_signal?: AbortSignal) => {
+          return (async function* () {
+            while (true) {
+              if (queuedChunks.length === 0) {
+                await new Promise<void>((resolve) => {
+                  wakeSubscriber = resolve
+                })
+              }
+              const freshIndex = queuedChunks.findIndex(
+                (queued) => queued.prompt !== 'A',
+              )
+              const next =
+                !staleReleased && freshIndex > 0
+                  ? queuedChunks.splice(freshIndex, 1)[0]
+                  : queuedChunks.shift()
+              if (!next) continue
+              if (next.prompt === 'A') {
+                if (!staleReleased) {
+                  queuedChunks.push(next)
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                  continue
+                }
+                await releaseStaleResponse.promise
+              }
+              yield* next.chunks
+            }
+          })()
+        }),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+            const messageId = prompt === 'A' ? 'msg-a' : 'msg-b'
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId: runContext?.runId ?? `run-${messageId}`,
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                ...createTextChunks(
+                  prompt === 'A' ? 'stale A' : 'fresh B',
+                  messageId,
+                ).map((chunk) => {
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+                    const { runId: _runId, ...withoutRunId } = chunk
+                    return withoutRunId as StreamChunk
+                  }
+                  if (chunk.type === 'RUN_FINISHED') {
+                    return {
+                      ...chunk,
+                      threadId: runContext?.threadId ?? chunk.threadId,
+                      runId: runContext?.runId ?? chunk.runId,
+                    } as StreamChunk
+                  }
+                  return chunk
+                }),
+              ],
+            })
+            wakeSubscriber?.()
+            wakeSubscriber = null
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      await secondSend
+      staleReleased = true
+      releaseStaleResponse.resolve()
+      const wake = wakeSubscriber as (() => void) | null
+      wake?.()
+      wakeSubscriber = null
+      await vi.waitFor(() => {
+        expect(adapter.send).toHaveBeenCalledTimes(2)
+      })
+      firstSend.catch(() => {
+        // The stale request may already have been cancelled by clear().
+      })
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).toContain('fresh B')
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ignore stale tool chunks by cleared parentMessageId after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          yield {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'assistant-a',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '',
+            content: '',
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-tool',
+            toolCallName: 'staleTool',
+            toolName: 'staleTool',
+            parentMessageId: 'assistant-a',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-tool',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'assistant-a'),
+        ).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'assistant-a',
+            parts: expect.arrayContaining([
+              expect.objectContaining({ type: 'tool-call' }),
+            ]),
+          }),
+        ]),
+      )
+    })
+
+    it('should remember ignored stale runless message ids so child tool chunks are ignored after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'stale-runless-message',
+            timestamp: Date.now(),
+            delta: 'stale text',
+            content: 'stale text',
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-child-tool',
+            toolCallName: 'staleTool',
+            toolName: 'staleTool',
+            parentMessageId: 'stale-runless-message',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-child-tool',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'stale-runless-message',
+          }),
+        ]),
+      )
+    })
+
+    it('should ignore stale runless tool starts without parentMessageId after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-parentless-tool',
+            toolCallName: 'staleTool',
+            toolName: 'staleTool',
+            model: 'test',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-parentless-tool',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({ type: 'tool-call' }),
+            ]),
+          }),
+        ]),
+      )
+    })
+
+    it('should reset session generation when a persisted clear ignores terminal chunks', async () => {
+      const releaseResponse = createDeferred<void>()
+      let wakeSubscriber: (() => void) | null = null
+      let queued = false
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseResponse.promise
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  model: 'test',
+                  timestamp: Date.now(),
+                  finishReason: 'stop',
+                } as StreamChunk
+              }
+            })()
+          },
+        ),
+        send: vi.fn(async () => {
+          queued = true
+          wakeSubscriber?.()
+          wakeSubscriber = null
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: createPersistence(),
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseResponse.resolve()
+      await sendPromise
+
+      expect(client.getSessionGenerating()).toBe(false)
+    })
+
+    it('should ignore live-only active run chunks after persisted clear and clean up session generation', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseAfterClear = createDeferred<void>()
+      const subscriberReady = createDeferred<() => void>()
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              await new Promise<void>((resolve) => {
+                subscriberReady.resolve(resolve)
+              })
+              yield {
+                type: EventType.RUN_STARTED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                timestamp: Date.now(),
+              } as StreamChunk
+              await releaseAfterClear.promise
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: 'live-message-1',
+                role: 'assistant',
+              } as StreamChunk
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: 'live-message-1',
+                delta: 'stale live content',
+              } as StreamChunk
+              yield {
+                type: EventType.RUN_FINISHED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                model: 'test',
+                timestamp: Date.now(),
+                finishReason: 'stop',
+              } as StreamChunk
+            })()
+          },
+        ),
+        send: vi.fn(),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.subscribe()
+      const wakeSubscriber = await subscriberReady.promise
+      wakeSubscriber()
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseAfterClear.resolve()
+
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should not expose request generation metadata on public chunks or run context', async () => {
+      const onChunk = vi.fn()
+      const runContextSpy = vi.fn()
+      const client = new ChatClient({
+        connection: {
+          async *connect(_messages, _data, _abortSignal, runContext) {
+            runContextSpy(runContext)
+            yield* createTextChunks('Hello')
+          },
+        },
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(runContextSpy).toHaveBeenCalled()
+      expect(runContextSpy.mock.calls[0]![0]).not.toHaveProperty(
+        'requestGeneration',
+      )
+      expect(onChunk).toHaveBeenCalled()
+      for (const [chunk] of onChunk.mock.calls) {
+        expect(Object.keys(chunk)).not.toContain('requestGeneration')
+        expect(chunk).not.toHaveProperty('requestGeneration')
+      }
+    })
+
+    it('should not add internal threadId or runId to public connect chunks', async () => {
+      const onChunk = vi.fn()
+      const client = new ChatClient({
+        connection: {
+          async *connect() {
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'public-message',
+              timestamp: Date.now(),
+              delta: 'Hello',
+              content: 'Hello',
+            } as StreamChunk
+          },
+        },
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onChunk).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'public-message',
+        }),
+      )
+      for (const [chunk] of onChunk.mock.calls) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          expect(chunk).not.toHaveProperty('threadId')
+          expect(chunk).not.toHaveProperty('runId')
+        }
+      }
     })
 
     it('stop should not unsubscribe an active subscription', async () => {
@@ -736,6 +2058,60 @@ describe('ChatClient', () => {
         client.unsubscribe()
       })
 
+      it('should process future live subscription chunks after persistence clear', async () => {
+        const wake = { fn: null as (() => void) | null }
+        const chunks: Array<StreamChunk> = []
+        const connection = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (chunks.length > 0) {
+                const batch = chunks.splice(0)
+                for (const chunk of batch) {
+                  yield chunk
+                }
+              }
+              await new Promise<void>((resolve) => {
+                wake.fn = resolve
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {
+            wake.fn?.()
+          },
+        }
+        const persistence = createPersistence()
+        const client = new ChatClient({
+          connection,
+          id: 'chat-1',
+          persistence: persistence,
+        })
+
+        client.subscribe()
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
+
+        client.clear()
+        chunks.push(...createTextChunks('future live', 'future-live'))
+        wake.fn?.()
+
+        await vi.waitFor(() => {
+          expect(
+            client
+              .getMessages()
+              .flatMap((message) => message.parts)
+              .some(
+                (part) =>
+                  part.type === 'text' && part.content.includes('future live'),
+              ),
+          ).toBe(true)
+        })
+
+        client.unsubscribe()
+      })
+
       it('should clear all runs on RUN_ERROR without runId', async () => {
         const wake = { fn: null as (() => void) | null }
         const chunks: Array<StreamChunk> = []
@@ -906,7 +2282,7 @@ describe('ChatClient', () => {
       expect(client.getMessages().length).toBe(0)
     })
 
-    it('should not send message while loading', async () => {
+    it('should queue (not send immediately) a message sent while loading, then auto-send it once the stream settles', async () => {
       const adapter = createMockConnectionAdapter({
         chunks: createTextChunks('Response'),
         chunkDelay: 100,
@@ -918,9 +2294,14 @@ describe('ChatClient', () => {
 
       await Promise.all([promise1, promise2])
 
-      // Should only have one user message since second was blocked
+      // The second send is queued (default `whenBusy: 'queue'`) rather than
+      // started concurrently, then auto-drains once the first stream settles
+      // — both end up sent, in order.
       const userMessages = client.getMessages().filter((m) => m.role === 'user')
-      expect(userMessages.length).toBe(1)
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+        { type: 'text', content: 'Second' },
+      ])
     })
   })
 
@@ -1069,6 +2450,275 @@ describe('ChatClient', () => {
       expect(client.getMessages().length).toBe(0)
       expect(client.getError()).toBeUndefined()
     })
+
+    it('should remove persisted messages without saving an empty snapshot', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+      vi.mocked(persistence.setItem).mockClear()
+
+      client.clear()
+
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      expect(persistence.setItem).not.toHaveBeenCalled()
+    })
+
+    it('should abort an in-flight stream when persistence is omitted', async () => {
+      let abortSignal: AbortSignal | undefined
+      // Gate the chunks on a deferred (instead of a fixed timer) so they are
+      // released strictly after clear() runs — otherwise the assertion races
+      // the stream and is flaky on faster machines/CI.
+      const releaseChunks = createDeferred<void>()
+
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, signal) {
+          abortSignal = signal
+          await releaseChunks.promise
+          yield* createTextChunks('Delayed')
+        },
+      }
+      const client = new ChatClient({ connection: adapter })
+
+      const sendPromise = client.sendMessage('Hello')
+      await vi.waitFor(() => {
+        expect(abortSignal).toBeDefined()
+      })
+
+      client.clear()
+      expect(abortSignal?.aborted).toBe(true)
+
+      // Clear invalidates in-flight stream work even when message persistence
+      // is omitted, so delayed chunks cannot repopulate messages.
+      releaseChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+    })
+
+    it('should prevent delayed stream chunks from recreating messages after clear', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Delayed'),
+        chunkDelay: 20,
+      })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 5))
+
+      client.clear()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'assistant' }),
+        ]),
+      )
+    })
+
+    it('should not persist non-cooperative delayed chunks after clear removes storage', async () => {
+      const persistenceEvents: Array<string> = []
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(() => {
+          persistenceEvents.push('set')
+        }),
+        removeItem: vi.fn(() => {
+          persistenceEvents.push('remove')
+        }),
+      }
+      const adapter: ConnectConnectionAdapter = {
+        async *connect() {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          yield* createTextChunks('Delayed')
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      client.clear()
+      await sendPromise
+
+      const removeIndex = persistenceEvents.indexOf('remove')
+      expect(removeIndex).toBeGreaterThanOrEqual(0)
+      expect(persistenceEvents.slice(removeIndex + 1)).not.toContain('set')
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+    })
+
+    it('should ignore cleared request chunks after persistence resumes for a new send', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseFirstResponse = createDeferred<void>()
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages) {
+          const userText = messages
+            .flatMap((message) => ('parts' in message ? message.parts : []))
+            .find((part) => part.type === 'text')?.content
+
+          if (userText === 'A') {
+            await releaseFirstResponse.promise
+            yield* createTextChunks('stale A', 'msg-a')
+            return
+          }
+
+          yield* createTextChunks('fresh B', 'msg-b')
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      await client.sendMessage('B')
+      releaseFirstResponse.resolve()
+      await firstSend
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ensure async setItem scheduled before clear cannot win after removeItem', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseSet = createDeferred<void>()
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(async (_key: string, state: ChatPersistedState) => {
+          await releaseSet.promise
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([initialMessage])
+      client.clear()
+
+      releaseSet.resolve()
+      await vi.waitFor(() => {
+        expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      })
+
+      expect(storedMessages).toBeUndefined()
+    })
+  })
+
+  describe('persistence', () => {
+    it('should save message snapshots after sendMessage changes messages', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(persistence.setItem).toHaveBeenCalled()
+      expect(persistence.setItem).toHaveBeenLastCalledWith('chat-1', {
+        messages: client.getMessages(),
+      })
+    })
+
+    it('should save message snapshots when messages are set manually', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([initialMessage])
+
+      expect(persistence.setItem).toHaveBeenCalledWith('chat-1', {
+        messages: [initialMessage],
+      })
+    })
+
+    it('should swallow async persistence write and remove failures', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Hi'),
+      })
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(() => Promise.reject(new Error('set failed'))),
+        removeItem: vi.fn(() => Promise.reject(new Error('remove failed'))),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+      client.clear()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).toHaveBeenCalled()
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+    })
   })
 
   describe('callbacks', () => {
@@ -1086,6 +2736,40 @@ describe('ChatClient', () => {
 
       expect(onMessagesChange).toHaveBeenCalled()
       expect(onMessagesChange.mock.calls.length).toBeGreaterThan(0)
+    })
+
+    it('should preserve state updates and onMessagesChange when persistence throws', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onMessagesChange = vi.fn()
+      const persistence: ChatClientPersistence = {
+        getItem: vi.fn(() => {
+          throw new Error('get failed')
+        }),
+        setItem: vi.fn(() => {
+          throw new Error('set failed')
+        }),
+        removeItem: vi.fn(() => {
+          throw new Error('remove failed')
+        }),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        id: 'chat-1',
+        initialMessages: [initialMessage],
+        onMessagesChange,
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+
+      await client.sendMessage('Hello')
+      expect(client.getMessages().length).toBeGreaterThan(1)
+      expect(onMessagesChange).toHaveBeenCalled()
+
+      expect(() => client.clear()).not.toThrow()
+      expect(client.getMessages()).toEqual([])
     })
 
     it('should call onLoadingChange when loading state changes', async () => {
@@ -1699,16 +3383,16 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        body: { model: 'gpt-4', temperature: 0.7 },
+        body: { model: 'gpt-5.5', temperature: 0.7 },
       })
 
       await client.sendMessage('Hello', {
-        model: 'gpt-4-turbo',
+        model: 'gpt-5.5',
         maxTokens: 100,
       })
 
       // Per-message body should override base body
-      expect(capturedData?.['model']).toBe('gpt-4-turbo')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
       expect(capturedData?.['temperature']).toBe(0.7) // From base body
       expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
     })
@@ -1725,13 +3409,13 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        forwardedProps: { provider: 'openai', model: 'gpt-4o' },
+        forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
       })
 
       await client.sendMessage('Hello')
 
       expect(capturedData?.['provider']).toBe('openai')
-      expect(capturedData?.['model']).toBe('gpt-4o')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
     })
 
     it('updateOptions({ forwardedProps }) leaves a previously-set body intact', async () => {
@@ -1747,15 +3431,15 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-4' },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       // Replace only `forwardedProps` — `body` must survive.
-      client.updateOptions({ forwardedProps: { model: 'gpt-4o' } })
+      client.updateOptions({ forwardedProps: { model: 'gpt-5.5' } })
 
       await client.sendMessage('Hi')
       expect(captures[0]?.['provider']).toBe('openai')
-      expect(captures[0]?.['model']).toBe('gpt-4o')
+      expect(captures[0]?.['model']).toBe('gpt-5.5')
     })
 
     it('updateOptions({ body }) leaves a previously-set forwardedProps intact', async () => {
@@ -1771,14 +3455,14 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: adapter,
         body: { provider: 'openai' },
-        forwardedProps: { model: 'gpt-4' },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       client.updateOptions({ body: { provider: 'anthropic' } })
 
       await client.sendMessage('Hi')
       expect(captures[0]?.['provider']).toBe('anthropic')
-      expect(captures[0]?.['model']).toBe('gpt-4')
+      expect(captures[0]?.['model']).toBe('gpt-5.5')
     })
 
     it('should merge body and forwardedProps with forwardedProps winning', async () => {
@@ -1795,14 +3479,14 @@ describe('ChatClient', () => {
         connection: adapter,
         // Legacy `body` and new `forwardedProps` declared together —
         // simulates a mid-migration codebase.
-        body: { model: 'gpt-4', temperature: 0.7 },
-        forwardedProps: { model: 'gpt-4o' },
+        body: { model: 'gpt-5.5', temperature: 0.7 },
+        forwardedProps: { model: 'gpt-5.5' },
       })
 
       await client.sendMessage('Hello')
 
       // forwardedProps wins on key collision so partial migrations are sane.
-      expect(capturedData?.['model']).toBe('gpt-4o')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
       // Non-conflicting keys from `body` are still forwarded.
       expect(capturedData?.['temperature']).toBe(0.7)
     })
@@ -1865,7 +3549,7 @@ describe('ChatClient', () => {
 
       const client = new ChatClient({
         connection: adapter,
-        body: { model: 'gpt-4' },
+        body: { model: 'gpt-5.5' },
       })
 
       // First message with per-message body
@@ -1875,7 +3559,7 @@ describe('ChatClient', () => {
       // Second message without per-message body should not have temperature
       await client.sendMessage('Second')
       expect(capturedData?.['temperature']).toBeUndefined()
-      expect(capturedData?.['model']).toBe('gpt-4')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
     })
 
     it('should emit events with multimodal content', async () => {

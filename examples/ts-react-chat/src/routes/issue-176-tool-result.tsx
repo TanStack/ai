@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { modelMessagesToUIMessages, type ModelMessage } from '@tanstack/ai'
-import { recommendGuitarToolDef } from '@/lib/guitar-tools'
+import { getGuitarsToolDef, recommendGuitarToolDef } from '@/lib/guitar-tools'
 
 const modelMessages: Array<ModelMessage> = [
   {
@@ -38,6 +38,7 @@ function Issue176ToolResultRepro() {
   const liveTools = useMemo(
     () =>
       clientTools(
+        getGuitarsToolDef,
         recommendGuitarToolDef.client(({ id }) => ({
           id: Number(id),
         })),
@@ -46,7 +47,7 @@ function Issue176ToolResultRepro() {
   )
 
   const { messages: fixtureMessages } = useChat({
-    id: 'issue-176-tool-result-repro',
+    threadId: 'issue-176-tool-result-repro',
     connection: fetchServerSentEvents('/api/tanchat'),
     initialMessages,
   })
@@ -56,12 +57,12 @@ function Issue176ToolResultRepro() {
     isLoading,
     error,
   } = useChat({
-    id: 'issue-176-live-tool-result-repro',
+    threadId: 'issue-176-live-tool-result-repro',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools: liveTools,
     body: {
       provider: 'openai',
-      model: 'gpt-4o',
+      model: 'gpt-5.5',
     },
   })
 

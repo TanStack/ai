@@ -14,8 +14,28 @@ import type { ToolChoice } from '../tools/tool-choice'
 import type { WebSearchPreviewTool } from '../tools/web-search-preview-tool'
 import type { WebSearchTool } from '../tools/web-search-tool'
 
+/** Sampling controls shared by all Responses-API models. */
+export interface OpenAISamplingOptions {
+  /**
+   * Sampling temperature, 0–2. Higher = more random. Recommend altering this or top_p, not both.
+   * Note: OpenAI reasoning models (o-series, GPT-5 reasoning) reject temperature/top_p.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
+   */
+  temperature?: number
+  /**
+   * Nucleus sampling. 0.1 = only the top 10% probability mass is considered.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
+   */
+  top_p?: number
+  /**
+   * Upper bound on generated tokens (visible output + reasoning tokens).
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
+   */
+  max_output_tokens?: number
+}
+
 // Core, always-available options for Responses API
-export interface OpenAIBaseOptions {
+export interface OpenAIBaseOptions extends OpenAISamplingOptions {
   /**
 
 Whether to run the model response in the background. Learn more here:
@@ -255,12 +275,6 @@ When using along with previous_response_id, the instructions from a previous res
 https://platform.openai.com/docs/api-reference/responses/create#responses_create-instructions
    */
   instructions?: string
-  /**
-   * An upper bound for the number of tokens that can be generated for a response, including visible output tokens and reasoning tokens.
-   * (Responses API name: max_output_tokens)
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
-   */
-  max_output_tokens?: number
 
   /**
    * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
@@ -275,16 +289,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    */
   stream?: boolean
 
-  /**
-   *  What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
-   */
-  temperature?: number
-  /**
-   * An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
-   */
-  top_p?: number
   /**
    * Tools the model may call (functions, web_search, etc).
    * Function tool example:

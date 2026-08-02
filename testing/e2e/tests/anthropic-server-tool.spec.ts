@@ -34,39 +34,53 @@ test.describe('anthropic — webFetchTool() streaming (#604)', () => {
     expect(error).toBeNull()
 
     const toolCallStarts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
-    // `TOOL_CALL_END` is emitted twice per call: once by the adapter with
-    // the parsed `input`, and once by the tool runner with the execution
-    // `result`. The bug shape lived in the first one — that's where the
+    // The adapter's `TOOL_CALL_END` carries the parsed `input` — where the
     // pre-fix `JSON.parse(concatenatedArgs)` blew up.
     const toolCallArgEnds = chunks.filter(
       (c) =>
         c.type === 'TOOL_CALL_END' &&
         (c as { input?: unknown }).input !== undefined,
     )
+    const byId = (
+      list: Array<Record<string, unknown>>,
+      id: string,
+    ): Record<string, unknown> | undefined =>
+      list.find((c) => (c as { toolCallId?: string }).toolCallId === id)
 
-    // Exactly one client tool call. `web_fetch` is executed by Anthropic
-    // server-side, not surfaced as a client tool call.
-    expect(toolCallStarts).toHaveLength(1)
-    expect(toolCallArgEnds).toHaveLength(1)
-    expect(toolCallStarts[0]).toMatchObject({
+    // Two tool calls surface: the client `lookup_weather` and the
+    // Anthropic-executed `web_fetch`. The latter now streams as a
+    // provider-executed tool call (#839) so its result can be replayed into
+    // later turns — it is NOT routed to client-side execution.
+    expect(toolCallStarts).toHaveLength(2)
+    expect(byId(toolCallStarts, 'toolu_client_weather')).toMatchObject({
       toolCallId: 'toolu_client_weather',
       toolName: 'lookup_weather',
     })
 
-    // Client tool args must be the clean Berlin payload — not the pre-fix
-    // concatenated `{"location":"Berlin"}{"url":"..."}`.
-    expect(toolCallArgEnds[0]).toMatchObject({
+    // The web_fetch start is flagged provider-executed (in metadata) and
+    // carries the raw server tool result the adapter replays verbatim.
+    expect(byId(toolCallStarts, 'srvtoolu_web_fetch')).toMatchObject({
+      toolCallId: 'srvtoolu_web_fetch',
+      toolName: 'web_fetch',
+      metadata: {
+        providerExecuted: true,
+        anthropic: { resultBlockType: 'web_fetch_tool_result' },
+      },
+    })
+
+    // Both tools surface a clean parsed `input` on TOOL_CALL_END. The client
+    // tool's args must still be the Berlin payload — not the pre-fix
+    // concatenated `{"location":"Berlin"}{"url":"..."}` — which is the
+    // regression this suite guards.
+    expect(toolCallArgEnds).toHaveLength(2)
+    expect(byId(toolCallArgEnds, 'toolu_client_weather')).toMatchObject({
       toolCallId: 'toolu_client_weather',
       input: { location: 'Berlin' },
     })
-
-    // No phantom client tool call for the server-side web_fetch.
-    expect(
-      toolCallStarts.some(
-        (c) =>
-          (c as { toolCallId?: string }).toolCallId === 'srvtoolu_web_fetch',
-      ),
-    ).toBe(false)
+    expect(byId(toolCallArgEnds, 'srvtoolu_web_fetch')).toMatchObject({
+      toolCallId: 'srvtoolu_web_fetch',
+      input: { url: 'https://example.com' },
+    })
 
     // Run completes cleanly through the agent loop's follow-up turn.
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)

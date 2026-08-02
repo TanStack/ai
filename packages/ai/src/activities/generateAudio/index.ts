@@ -8,8 +8,17 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import {
+  applyGenerationResultTransforms,
+  createGenerationContext,
+  runGenerationError,
+  runGenerationFinish,
+  runGenerationStart,
+  runGenerationUsage,
+} from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { AudioAdapter } from './adapter'
 import type { AudioGenerationResult, StreamChunk } from '../../types'
 
@@ -70,6 +79,16 @@ export interface AudioActivityOptions<
    * control and/or a custom `Logger`.
    */
   debug?: DebugOption
+  /**
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
+  middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 }
 
 // ===========================
@@ -120,8 +139,14 @@ export function generateAudio<
   options: AudioActivityOptions<TAdapter, TStream>,
 ): AudioActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateAudio(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) => runGenerateAudio({ ...options, runId: resolved.runId }),
+      options,
     ) as AudioActivityResult<TStream>
   }
   return runGenerateAudio(options) as AudioActivityResult<TStream>
@@ -135,7 +160,15 @@ async function runGenerateAudio<
 >(
   options: AudioActivityOptions<TAdapter, boolean>,
 ): Promise<AudioGenerationResult> {
-  const { adapter, stream: _stream, debug: _debug, ...rest } = options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    threadId,
+    runId,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('audio')
   const startTime = Date.now()
@@ -144,6 +177,20 @@ async function runGenerateAudio<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
+
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'audio',
+    provider: adapter.name,
+    model,
+    modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    artifactInputs: { prompt: rest.prompt, duration: rest.duration },
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
 
   aiEventClient.emit('audio:request:started', {
     requestId,
@@ -161,7 +208,8 @@ async function runGenerateAudio<
   })
 
   try {
-    const result = await adapter.generateAudio({ ...rest, model, logger })
+    const rawResult = await adapter.generateAudio({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const elapsedMs = Date.now() - startTime
 
     aiEventClient.emit('audio:request:completed', {
@@ -174,9 +222,25 @@ async function runGenerateAudio<
       timestamp: Date.now(),
     })
 
+    if (result.usage) {
+      aiEventClient.emit('audio:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+    }
+
     logger.output(`activity=generateAudio provider=${providerName}`, {
       contentType: result.audio.contentType,
       audioDuration: result.audio.duration,
+    })
+
+    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    await runGenerationFinish(middleware, mwCtx, {
+      duration: elapsedMs,
+      usage: result.usage,
     })
 
     return result
@@ -191,6 +255,10 @@ async function runGenerateAudio<
       duration: elapsedMs,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
+    })
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration: elapsedMs,
     })
     logger.errors('generateAudio activity failed', {
       error,

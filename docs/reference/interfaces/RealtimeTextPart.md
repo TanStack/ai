@@ -5,7 +5,7 @@ title: RealtimeTextPart
 
 # Interface: RealtimeTextPart
 
-Defined in: [packages/ai/src/realtime/types.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L94)
+Defined in: [packages/ai/src/realtime/types.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L99)
 
 Text content part in a realtime message
 
@@ -17,7 +17,7 @@ Text content part in a realtime message
 content: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L96)
+Defined in: [packages/ai/src/realtime/types.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L101)
 
 ***
 
@@ -27,4 +27,4 @@ Defined in: [packages/ai/src/realtime/types.ts:96](https://github.com/TanStack/a
 type: "text";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:95](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L95)
+Defined in: [packages/ai/src/realtime/types.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L100)

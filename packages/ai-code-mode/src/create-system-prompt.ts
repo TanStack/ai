@@ -1,3 +1,4 @@
+import { renderLazyCatalogEntry } from '@tanstack/ai'
 import { toolsToBindings } from './bindings/tool-to-binding'
 import { generateTypeStubs } from './type-generator/json-schema-to-ts'
 import type { CodeModeToolConfig } from './types'
@@ -26,20 +27,34 @@ import type { CodeModeToolConfig } from './types'
  */
 export function createCodeModeSystemPrompt(config: CodeModeToolConfig): string {
   const { tools } = config
+  const include = config.lazyToolsConfig?.includeDescription ?? 'none'
 
-  // Transform tools to bindings with external_ prefix to generate correct type stubs
-  const bindings = toolsToBindings(tools, 'external_')
+  const eagerTools = tools.filter((t) => !t.lazy)
+  const lazyTools = tools.filter((t) => t.lazy)
 
-  // Generate TypeScript type stubs for the external functions
+  // Only eager tools get full type stubs + doc lines.
+  const bindings = toolsToBindings(eagerTools, 'external_')
   const typeStubs = generateTypeStubs(bindings)
 
-  // Build function documentation
   const functionDocs = Object.entries(bindings)
-    .map(([name, binding]) => {
-      const doc = `- \`${name}(input)\`: ${binding.description}`
-      return doc
-    })
+    .map(([name, binding]) => `- \`${name}(input)\`: ${binding.description}`)
     .join('\n')
+
+  const discoverableSection =
+    lazyTools.length > 0
+      ? `
+
+### Discoverable APIs
+
+These additional functions are available but not yet documented. Before calling \`external_<name>\` for any of them inside \`execute_typescript\`, call the \`discover_tools\` tool with their names to get full TypeScript signatures:
+
+${lazyTools
+  .map(
+    (t) =>
+      `- ${renderLazyCatalogEntry(`external_${t.name}`, t.description, include)}`,
+  )
+  .join('\n')}`
+      : ''
 
   return `## Code Execution Tool
 
@@ -65,7 +80,7 @@ ${functionDocs}
 
 \`\`\`typescript
 ${typeStubs}
-\`\`\`
+\`\`\`${discoverableSection}
 
 ### Example
 
@@ -77,7 +92,7 @@ const results = await Promise.all(
 );
 
 // Find the warmest city
-const warmest = results.reduce((prev, curr) => 
+const warmest = results.reduce((prev, curr) =>
   curr.temperature > prev.temperature ? curr : prev
 );
 

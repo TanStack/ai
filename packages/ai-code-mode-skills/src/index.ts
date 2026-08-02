@@ -37,7 +37,13 @@ export { createSkillsSystemPrompt } from './create-skills-system-prompt'
 export { generateSkillTypes } from './generate-skill-types'
 
 // Storage implementations
-export * from './storage'
+//
+// Only the worker/browser-safe in-memory storage is re-exported from the root
+// entry. The Node-only file storage (`createFileSkillStorage`) imports
+// `node:fs` / `node:path`, so it lives behind the `@tanstack/ai-code-mode-skills/storage`
+// subpath to keep this root export safe for Cloudflare Workers and browser bundlers.
+export { createMemorySkillStorage } from './storage/memory-storage'
+export type { MemorySkillStorageOptions } from './storage/memory-storage'
 
 // All types
 export type {

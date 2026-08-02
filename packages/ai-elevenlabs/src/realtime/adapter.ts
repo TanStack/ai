@@ -3,6 +3,8 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
   AudioVisualization,
+  RealtimeAdapter,
+  RealtimeConnection,
   RealtimeEvent,
   RealtimeEventHandler,
   RealtimeMessage,
@@ -11,7 +13,6 @@ import type {
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { ElevenLabsRealtimeOptions } from './types'
 
 /**

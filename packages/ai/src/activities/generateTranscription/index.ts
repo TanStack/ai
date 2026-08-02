@@ -8,10 +8,23 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import {
+  applyGenerationResultTransforms,
+  createGenerationContext,
+  runGenerationError,
+  runGenerationFinish,
+  runGenerationStart,
+  runGenerationUsage,
+} from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { TranscriptionAdapter } from './adapter'
-import type { StreamChunk, TranscriptionResult } from '../../types'
+import type {
+  StreamChunk,
+  TranscriptionResponseFormat,
+  TranscriptionResult,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -59,7 +72,7 @@ export interface TranscriptionActivityOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?: TranscriptionResponseFormat
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
   /**
@@ -76,6 +89,16 @@ export interface TranscriptionActivityOptions<
    * control and/or a custom `Logger`.
    */
   debug?: DebugOption
+  /**
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
+  middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 }
 
 // ===========================
@@ -153,8 +176,15 @@ export function generateTranscription<
   options: TranscriptionActivityOptions<TAdapter, TStream>,
 ): TranscriptionActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateTranscription(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) =>
+        runGenerateTranscription({ ...options, runId: resolved.runId }),
+      options,
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -174,7 +204,15 @@ async function runGenerateTranscription<
 >(
   options: TranscriptionActivityOptions<TAdapter, boolean>,
 ): Promise<TranscriptionResult> {
-  const { adapter, stream: _stream, debug: _debug, ...rest } = options
+  const {
+    adapter,
+    stream: _stream,
+    debug: _debug,
+    middleware,
+    threadId,
+    runId,
+    ...rest
+  } = options
   const model = adapter.model
   const requestId = createId('transcription')
   const startTime = Date.now()
@@ -183,6 +221,25 @@ async function runGenerateTranscription<
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
     'unknown'
+
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'transcription',
+    provider: adapter.name,
+    model,
+    modelOptions: rest.modelOptions,
+    artifactInputs: {
+      audio: rest.audio,
+      language: rest.language,
+      prompt: rest.prompt,
+      responseFormat: rest.responseFormat,
+    },
+    threadId,
+    runId,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
 
   aiEventClient.emit('transcription:request:started', {
     requestId,
@@ -201,7 +258,8 @@ async function runGenerateTranscription<
   })
 
   try {
-    const result = await adapter.transcribe({ ...rest, model, logger })
+    const rawResult = await adapter.transcribe({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('transcription:request:completed', {
@@ -220,6 +278,12 @@ async function runGenerateTranscription<
       { hasText: !!result.text },
     )
 
+    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    await runGenerationFinish(middleware, mwCtx, {
+      duration,
+      usage: result.usage,
+    })
+
     return result
   } catch (error) {
     const duration = Date.now() - startTime
@@ -232,6 +296,10 @@ async function runGenerateTranscription<
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
+    })
+    await runGenerationError(middleware, mwCtx, {
+      error,
+      duration,
     })
     logger.errors('generateTranscription activity failed', {
       error,

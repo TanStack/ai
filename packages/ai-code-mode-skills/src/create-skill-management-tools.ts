@@ -3,7 +3,7 @@ import { toolsToBindings } from '@tanstack/ai-code-mode'
 import { z } from 'zod'
 import { createDefaultTrustStrategy } from './trust-strategies'
 import { skillToTool } from './skills-to-tools'
-import type { ServerTool, ToolRegistry } from '@tanstack/ai'
+import type { SchemaInput, ServerTool, ToolRegistry } from '@tanstack/ai'
 import type { CodeModeToolConfig, ToolBinding } from '@tanstack/ai-code-mode'
 import type { SkillStorage } from './types'
 import type { TrustStrategy } from './trust-strategies'
@@ -53,7 +53,9 @@ export function createSkillManagementTools({
   registry,
   config,
   baseBindings,
-}: CreateSkillManagementToolsOptions): Array<ServerTool<any, any, any>> {
+}: CreateSkillManagementToolsOptions): Array<
+  ServerTool<SchemaInput, SchemaInput, string>
+> {
   // Use provided strategy, or storage's strategy, or default
   const strategy =
     trustStrategy ?? storage.trustStrategy ?? createDefaultTrustStrategy()

@@ -9,7 +9,6 @@ export {
   ollamaText,
   type OllamaTextAdapterOptions,
   type OllamaTextModel,
-  type OllamaTextProviderOptions,
 } from './adapters/text'
 export { OLLAMA_TEXT_MODELS as OllamaTextModels } from './model-meta'
 
@@ -26,7 +25,7 @@ export { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from './model-meta'
 export {
   convertFunctionToolToAdapterFormat,
   convertToolsToProviderFormat,
-} from './tools'
+} from './tools/index'
 
 // ===========================
 // Type Exports
@@ -44,3 +43,6 @@ export type {
   OllamaChatModelOptionsByName,
   OllamaModelInputModalitiesByName,
 } from './model-meta'
+
+// Export provider usage types
+export type { OllamaProviderUsageDetails } from './usage'

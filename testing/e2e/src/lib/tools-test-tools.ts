@@ -1,10 +1,33 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
+export type TestRuntimeContext = {
+  userId: string
+  tenantId: string
+  source: string
+}
+
 /**
  * Server-side tool definitions (for tools that execute on the server)
  */
 export const serverTools = {
+  read_server_context: toolDefinition({
+    name: 'read_server_context',
+    description: 'Read the typed runtime context provided by the server',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).server<TestRuntimeContext>(async (_args, context) => {
+    return {
+      userId: context.context.userId,
+      tenantId: context.context.tenantId,
+      source: context.context.source,
+    }
+  }),
+
   check_status: toolDefinition({
     name: 'check_status',
     description: 'Check system status (no required input)',
@@ -79,6 +102,17 @@ export const serverTools = {
  * These use .client() without an execute function - execution happens on client side
  */
 export const clientToolDefinitions = {
+  read_client_context: toolDefinition({
+    name: 'read_client_context',
+    description: 'Read the typed runtime context provided by the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).client(),
+
   show_notification: toolDefinition({
     name: 'show_notification',
     description: 'Show a notification to the user',
@@ -166,6 +200,21 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
+  {
+    id: 'server-context',
+    label: 'Server Runtime Context',
+    category: 'basic',
+  },
+  {
+    id: 'client-context',
+    label: 'Client Runtime Context',
+    category: 'basic',
+  },
+  {
+    id: 'client-server-context',
+    label: 'Forwarded Props to Server Context',
+    category: 'basic',
+  },
   { id: 'error', label: 'Error Response', category: 'basic' },
   {
     id: 'tool-error',
@@ -229,6 +278,15 @@ export function getToolsForScenario(scenario: string) {
 
     case 'client-tool-single':
       return [clientToolDefinitions.show_notification]
+
+    case 'server-context':
+      return [serverTools.read_server_context]
+
+    case 'client-context':
+      return [clientToolDefinitions.read_client_context]
+
+    case 'client-server-context':
+      return [serverTools.read_server_context]
 
     case 'approval-tool':
       return [serverTools.delete_file]

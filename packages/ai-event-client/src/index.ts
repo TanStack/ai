@@ -1,4 +1,20 @@
 import { EventClient } from '@tanstack/devtools-event-client'
+import type {
+  AIDevtoolsEventSource,
+  AIDevtoolsEventVisibility,
+} from './envelope.js'
+
+export type {
+  AIDevtoolsEventEnvelope,
+  AIDevtoolsEventEnvelopeInput,
+  AIDevtoolsEventSource,
+  AIDevtoolsEventVisibility,
+} from './envelope.js'
+export {
+  createAIDevtoolsEventEnvelope,
+  getAIDevtoolsDedupeKey,
+  getAIDevtoolsRuntimeId,
+} from './envelope.js'
 
 // ===========================
 // Types (locally defined to avoid circular dependency with @tanstack/ai)
@@ -79,6 +95,16 @@ export interface ThinkingPart {
   content: string
 }
 
+export interface StructuredOutputPart {
+  type: 'structured-output'
+  status: 'streaming' | 'complete' | 'error'
+  partial?: unknown
+  data?: unknown
+  raw: string
+  reasoning?: string
+  errorMessage?: string
+}
+
 export type MessagePart =
   | TextPart
   | ImagePart
@@ -88,6 +114,7 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart
 
 export interface ToolCall<TMetadata = unknown> {
   id: string
@@ -103,6 +130,120 @@ export interface ToolCall<TMetadata = unknown> {
 }
 
 /**
+ * Detailed breakdown of prompt/input token usage.
+ * Fields are populated based on provider support.
+ */
+export interface PromptTokensDetails {
+  /** Tokens read from cache */
+  cachedTokens?: number
+  /** Tokens written to cache */
+  cacheWriteTokens?: number
+  /** Audio input tokens */
+  audioTokens?: number
+  /** Video input tokens */
+  videoTokens?: number
+  /** Image input tokens */
+  imageTokens?: number
+  /** Text input tokens */
+  textTokens?: number
+  /** Document input tokens (e.g. PDF inputs on Gemini) */
+  documentTokens?: number
+}
+
+/**
+ * Detailed breakdown of completion/output token usage.
+ * Fields are populated based on provider support.
+ */
+export interface CompletionTokensDetails {
+  /** Reasoning/thinking tokens */
+  reasoningTokens?: number
+  /** Audio output tokens */
+  audioTokens?: number
+  /** Video output tokens */
+  videoTokens?: number
+  /** Image output tokens */
+  imageTokens?: number
+  /** Text output tokens */
+  textTokens?: number
+  /** Document output tokens */
+  documentTokens?: number
+}
+
+/**
+ * Provider-reported cost breakdown for a single request, normalized onto a
+ * canonical shape so consumer code is portable across gateways. Each adapter's
+ * extractor maps its provider-specific wire keys (e.g. OpenRouter's
+ * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
+ * fields at runtime.
+ */
+export interface UsageCostBreakdown {
+  /** Total cost the gateway paid the upstream provider. */
+  upstreamCost?: number
+  /** Upstream cost for input (prompt) tokens. */
+  upstreamInputCost?: number
+  /** Upstream cost for output (completion) tokens. */
+  upstreamOutputCost?: number
+}
+
+/**
+ * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
+ * does not supply a specific shape. Values are constrained to non-nullish
+ * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
+ * stays assignable across JSON-serialization boundaries — e.g. TanStack Start's
+ * server-fn return types model serializable values as `{}` and reject `unknown`,
+ * which permits `null`/`undefined`.
+ */
+export type ProviderUsageDetails = Record<string, NonNullable<unknown>>
+
+/**
+ * Canonical token usage for a run, with optional detailed breakdowns and
+ * provider-reported cost. This is the single source of truth re-exported by
+ * `@tanstack/ai`.
+ *
+ * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
+ * present. Detail fields are provider-dependent and absent when not reported,
+ * so consumers must treat them as optional.
+ *
+ * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
+ * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
+ * it defaults to {@link ProviderUsageDetails} (an open, serializable record) for
+ * generic consumers.
+ */
+export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
+  /** Total input/prompt tokens */
+  promptTokens: number
+  /** Total output/completion tokens */
+  completionTokens: number
+  /** Total tokens as reported by the provider; may exceed promptTokens +
+   * completionTokens when reasoning/cache/tool tokens are billed separately. */
+  totalTokens: number
+  /** Detailed breakdown of prompt tokens by category */
+  promptTokensDetails?: PromptTokensDetails
+  /** Detailed breakdown of completion tokens by category */
+  completionTokensDetails?: CompletionTokensDetails
+  /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
+  durationSeconds?: number
+  /**
+   * Number of priced units actually billed, for usage-based (non-token) billing.
+   * This is a bare count, not a cost and not a unit name — the unit itself
+   * (megapixels, seconds, images, …) is provider-defined and not carried here;
+   * providers typically expose it via a separate pricing API. Surfaced for media
+   * generation, where there are no tokens: fal returns this count in its
+   * `x-fal-billable-units` response header. Multiply by the unit price to get the
+   * exact cost (`unitsBilled * unitPrice`). The unit-priced analogue of
+   * `durationSeconds` (the time-priced case); both are quantities, distinct from
+   * the monetary `cost` / `costDetails`.
+   */
+  unitsBilled?: number
+  /** Provider-specific usage details not covered by standard fields */
+  providerUsageDetails?: TProviderDetails
+  /** Provider-reported cost for the request, when available. */
+  cost?: number
+  /** Provider-reported cost breakdown, when available. */
+  costDetails?: UsageCostBreakdown
+}
+
+/**
  * Tool call states - track the lifecycle of a tool call
  * Must match @tanstack/ai-client ToolCallState
  */
@@ -113,6 +254,7 @@ export type ToolCallState =
   | 'approval-requested' // Waiting for user approval
   | 'approval-responded' // User has approved/denied
   | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
 
 /**
  * Tool result states - track the lifecycle of a tool result
@@ -123,17 +265,12 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
-
-export interface ImageUsage {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-}
+/**
+ * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
+ * shape. Kept as an alias for backward compatibility; will be removed in a
+ * future release.
+ */
+export type ImageUsage = TokenUsage
 
 // All optional fields explicitly allow `| undefined` so that callers
 // can spread shared-context builders (which set every field to a
@@ -141,11 +278,21 @@ export interface ImageUsage {
 // rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
+  eventId?: string
   requestId?: string
   streamId?: string
+  hookId?: string
+  threadId?: string
+  runId?: string
   messageId?: string
+  toolCallId?: string
   clientId?: string
-  source?: 'client' | 'server'
+  runtimeId?: string
+  source?: AIDevtoolsEventSource
+  visibility?: AIDevtoolsEventVisibility
+  sequence?: number
+  correlationId?: string
+  relatedEventId?: string
   provider?: string
   model?: string
   systemPrompts?: Array<string>
@@ -266,6 +413,49 @@ export interface TextUsageEvent extends BaseEventContext {
   messageId?: string
   model: string
   usage: TokenUsage
+}
+
+// ===========================
+// Structured Output Events
+// ===========================
+
+export interface StructuredOutputStartedEvent extends BaseEventContext {
+  requestId?: string
+  streamId: string
+  messageId: string
+  status: 'streaming'
+  raw?: string
+}
+
+export interface StructuredOutputUpdatedEvent extends BaseEventContext {
+  requestId?: string
+  streamId: string
+  messageId: string
+  status: 'streaming'
+  raw: string
+  partial?: unknown
+  delta?: string
+}
+
+export interface StructuredOutputCompletedEvent extends BaseEventContext {
+  requestId?: string
+  streamId: string
+  messageId: string
+  status: 'complete'
+  raw: string
+  partial?: unknown
+  data: unknown
+  reasoning?: string
+}
+
+export interface StructuredOutputErroredEvent extends BaseEventContext {
+  requestId?: string
+  streamId: string
+  messageId: string
+  status: 'error'
+  raw: string
+  partial?: unknown
+  errorMessage: string
 }
 
 // ===========================
@@ -424,16 +614,26 @@ export interface SummarizeUsageEvent extends BaseEventContext {
 /** Emitted when an image request starts. */
 export interface ImageRequestStartedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   prompt: string
   numberOfImages?: number
   size?: string
+  /** Count of image conditioning inputs (image-to-image, mask, reference). */
+  imageInputCount?: number
+  /** Count of video conditioning inputs (video-to-video). */
+  videoInputCount?: number
+  /** Count of audio conditioning inputs (lipsync, voice reference). */
+  audioInputCount?: number
 }
 
 /** Emitted when an image request completes. */
 export interface ImageRequestCompletedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   images: Array<{ url?: string; b64Json?: string }>
@@ -443,8 +643,10 @@ export interface ImageRequestCompletedEvent extends BaseEventContext {
 /** Emitted when image usage metrics are available. */
 export interface ImageUsageEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================
@@ -454,6 +656,8 @@ export interface ImageUsageEvent extends BaseEventContext {
 /** Emitted when a speech request starts. */
 export interface SpeechRequestStartedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   text: string
@@ -465,6 +669,8 @@ export interface SpeechRequestStartedEvent extends BaseEventContext {
 /** Emitted when a speech request completes. */
 export interface SpeechRequestCompletedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   audio: string
@@ -477,6 +683,8 @@ export interface SpeechRequestCompletedEvent extends BaseEventContext {
 /** Emitted when speech usage metrics are available. */
 export interface SpeechUsageEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   model: string
   usage: TokenUsage
 }
@@ -488,6 +696,8 @@ export interface SpeechUsageEvent extends BaseEventContext {
 /** Emitted when a transcription request starts. */
 export interface TranscriptionRequestStartedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   language?: string
@@ -498,6 +708,8 @@ export interface TranscriptionRequestStartedEvent extends BaseEventContext {
 /** Emitted when a transcription request completes. */
 export interface TranscriptionRequestCompletedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   text: string
@@ -508,6 +720,8 @@ export interface TranscriptionRequestCompletedEvent extends BaseEventContext {
 /** Emitted when transcription usage metrics are available. */
 export interface TranscriptionUsageEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   model: string
   usage: TokenUsage
 }
@@ -519,6 +733,8 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
 /** Emitted when an audio generation request starts. */
 export interface AudioRequestStartedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   prompt: string
@@ -547,6 +763,8 @@ export type AudioRequestCompletedAudio =
 /** Emitted when an audio generation request completes. */
 export interface AudioRequestCompletedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   audio: AudioRequestCompletedAudio
@@ -556,6 +774,8 @@ export interface AudioRequestCompletedEvent extends BaseEventContext {
 /** Emitted when an audio generation request fails. */
 export interface AudioRequestErrorEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -565,6 +785,8 @@ export interface AudioRequestErrorEvent extends BaseEventContext {
 /** Emitted when a speech generation request fails. */
 export interface SpeechRequestErrorEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -574,6 +796,8 @@ export interface SpeechRequestErrorEvent extends BaseEventContext {
 /** Emitted when a transcription request fails. */
 export interface TranscriptionRequestErrorEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   error: { message: string; name?: string }
@@ -583,8 +807,10 @@ export interface TranscriptionRequestErrorEvent extends BaseEventContext {
 /** Emitted when audio usage metrics are available. */
 export interface AudioUsageEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   model: string
-  usage: ImageUsage
+  usage: TokenUsage
 }
 
 // ===========================
@@ -594,6 +820,8 @@ export interface AudioUsageEvent extends BaseEventContext {
 /** Emitted when a video request starts. */
 export interface VideoRequestStartedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
@@ -606,6 +834,8 @@ export interface VideoRequestStartedEvent extends BaseEventContext {
 /** Emitted when a video request completes. */
 export interface VideoRequestCompletedEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
@@ -620,8 +850,111 @@ export interface VideoRequestCompletedEvent extends BaseEventContext {
 /** Emitted when video usage metrics are available. */
 export interface VideoUsageEvent extends BaseEventContext {
   requestId: string
+  threadId?: string
+  runId?: string
   model: string
   usage: TokenUsage
+}
+
+// ---------------------------------------------------------------------------
+// Memory events
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire/devtools payload for a **known** memory scope.
+ *
+ * Structural mirror of `Scope` from `@tanstack/ai` (`threadId` required when
+ * present). Not an isolation authority — adapters use real `MemoryScope` /
+ * `Scope`. Lives here so `@tanstack/ai-event-client` does not import
+ * `@tanstack/ai` (dependency cycle).
+ *
+ * When identity is unknown (e.g. the scope resolver threw before producing a
+ * scope), omit the field entirely on {@link MemoryErrorEvent} — do not send a
+ * partial or empty-string scope.
+ */
+export type MemoryScopeLite = {
+  threadId: string
+  userId?: string
+  tenantId?: string
+  /** Reserved on `Scope`; carried for display/identity parity. */
+  namespace?: string
+}
+
+/** Emitted when the middleware begins a `recall` for the current turn. */
+export interface MemoryRetrieveStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  /** Adapter id (e.g. 'in-memory', 'hindsight'). */
+  adapter: string
+  /** Recall query text (typically the last user message). */
+  query: string
+}
+
+/** Emitted when `recall` returns, before the result is injected into the prompt. */
+export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** Number of discrete fragments returned (0 when the adapter synthesizes). */
+  fragmentCount: number
+  /** Whether the recall result injected any tools this turn. */
+  hasTools: boolean
+  /** Length (chars) of the rendered system-prompt block. */
+  systemPromptChars: number
+  durationMs: number
+}
+
+/** Emitted when the middleware begins a deferred `save` for the finished turn. */
+export interface MemoryPersistStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+}
+
+/** Emitted when a deferred `save` completes. */
+export interface MemoryPersistCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** Total receipts returned by `save`. */
+  receiptCount: number
+  /** Receipts with `ok: true`. */
+  okCount: number
+  durationMs: number
+}
+
+/** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
+export interface MemoryErrorEvent extends BaseEventContext {
+  /**
+   * Scope when it was already resolved before the failure. Omitted when the
+   * resolver itself failed or never ran — there is no fake empty scope.
+   */
+  scope?: MemoryScopeLite
+  adapter: string
+  phase: 'recall' | 'save'
+  error: { name: string; message: string }
+}
+
+/** A flat fact row, mirroring `MemoryFact` from `@tanstack/ai-memory`. */
+export interface MemoryFactLite {
+  id: string
+  text: string
+  source?: string
+  createdAt?: string
+}
+
+/**
+ * Emitted after a successful `save` when the adapter supports introspection
+ * (`inspect`/`listFacts`), carrying the current stored state for the scope so
+ * DevTools can render "what's in memory". Adapters without introspection never
+ * emit this — DevTools then falls back to the metrics-only timeline. Structurally
+ * decoupled from `@tanstack/ai-memory` (mirrors `MemorySnapshot` + `MemoryFact`).
+ */
+export interface MemorySnapshotEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  adapter: string
+  /** ISO timestamp the snapshot was taken (from `MemorySnapshot.takenAt`). */
+  takenAt: string
+  /** Adapter-defined `inspect()` payload (e.g. `{ records: [...] }`). */
+  data: unknown
+  /** Flat fact list from `listFacts()`; `[]` when the adapter lacks it. */
+  facts: Array<MemoryFactLite>
 }
 
 // ===========================
@@ -629,46 +962,152 @@ export interface VideoUsageEvent extends BaseEventContext {
 // ===========================
 
 /** Emitted when a client is created. */
-export interface ClientCreatedEvent {
+export interface ClientCreatedEvent extends BaseEventContext {
   clientId: string
   initialMessageCount: number
-  timestamp: number
 }
 
 /** Emitted when client loading state changes. */
-export interface ClientLoadingChangedEvent {
+export interface ClientLoadingChangedEvent extends BaseEventContext {
   clientId: string
   isLoading: boolean
-  timestamp: number
 }
 
 /** Emitted when client error state changes. */
-export interface ClientErrorChangedEvent {
+export interface ClientErrorChangedEvent extends BaseEventContext {
   clientId: string
   error: string | null
-  timestamp: number
 }
 
 /** Emitted when client messages are cleared. */
-export interface ClientMessagesClearedEvent {
+export interface ClientMessagesClearedEvent extends BaseEventContext {
   clientId: string
-  timestamp: number
 }
 
 /** Emitted when client is reloaded. */
-export interface ClientReloadedEvent {
+export interface ClientReloadedEvent extends BaseEventContext {
   clientId: string
   fromMessageIndex: number
-  timestamp: number
 }
 
 /** Emitted when client stops. */
-export interface ClientStoppedEvent {
+export interface ClientStoppedEvent extends BaseEventContext {
   clientId: string
-  timestamp: number
+}
+
+export interface DevtoolsOpenedEvent extends BaseEventContext {}
+
+export interface DevtoolsClosedEvent extends BaseEventContext {}
+
+export interface DevtoolsRequestStateEvent extends BaseEventContext {
+  targetHookId?: string
+}
+
+export interface HookRegisteredEvent extends BaseEventContext {
+  hookId: string
+  hookName: string
+  displayName?: string
+  framework?: string
+  outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
+  lifecycle: 'mounted' | 'active' | 'streaming' | 'errored' | 'stale'
+}
+
+export interface HookUpdatedEvent extends HookRegisteredEvent {}
+
+export interface HookUnregisteredEvent extends BaseEventContext {
+  hookId: string
+  hookName?: string
+  displayName?: string
+  framework?: string
+  outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
+  reason?: 'disposed' | 'unmounted'
+}
+
+export interface HookStateSnapshotEvent extends BaseEventContext {
+  hookId: string
+  hookName: string
+  displayName?: string
+  framework?: string
+  outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
+  state: Record<string, unknown>
+}
+
+export interface RunLifecycleEvent extends BaseEventContext {
+  hookId?: string
+  threadId?: string
+  runId: string
+  status:
+    | 'created'
+    | 'started'
+    | 'updated'
+    | 'completed'
+    | 'errored'
+    | 'cancelled'
+  error?: string
+}
+
+export interface ToolsRegisteredEvent extends BaseEventContext {
+  hookId: string
+  hookName?: string
+  displayName?: string
+  framework?: string
+  outputKind?: 'chat' | 'text' | 'structured' | 'image' | 'video' | 'audio'
+  tools: Array<{
+    name: string
+    description?: string
+    inputSchema?: unknown
+    outputSchema?: unknown
+    needsApproval?: boolean
+    metadata?: unknown
+  }>
+}
+
+export interface DevtoolsToolFixtureApplyEvent extends BaseEventContext {
+  fixtureId?: string
+  hookId?: string
+  threadId?: string
+  runId?: string
+  toolName: string
+  input: unknown
+  output: unknown
+  execute?: boolean
+  message?: {
+    id: string
+    role: 'system' | 'user' | 'assistant'
+    parts: Array<unknown>
+    createdAt?: number | string
+  }
+  toolCallId?: string
+  messageId?: string
+  errorText?: string
+}
+
+export interface DevtoolsToolFixtureAppliedEvent extends DevtoolsToolFixtureApplyEvent {
+  hookId: string
+  messageId: string
+  toolCallId: string
 }
 
 export interface AIDevtoolsEventMap {
+  // Devtools lifecycle
+  'devtools:opened': DevtoolsOpenedEvent
+  'devtools:closed': DevtoolsClosedEvent
+  'devtools:request-state': DevtoolsRequestStateEvent
+
+  // Hook registry
+  'hook:registered': HookRegisteredEvent
+  'hook:updated': HookUpdatedEvent
+  'hook:unregistered': HookUnregisteredEvent
+  'hook:state-snapshot': HookStateSnapshotEvent
+
+  // Run lifecycle
+  'run:created': RunLifecycleEvent
+  'run:started': RunLifecycleEvent
+  'run:updated': RunLifecycleEvent
+  'run:completed': RunLifecycleEvent
+  'run:errored': RunLifecycleEvent
+  'run:cancelled': RunLifecycleEvent
+
   // Text events
   'text:request:started': TextRequestStartedEvent
   'text:request:completed': TextRequestCompletedEvent
@@ -681,6 +1120,12 @@ export interface AIDevtoolsEventMap {
   'text:chunk:done': TextChunkDoneEvent
   'text:chunk:error': TextChunkErrorEvent
   'text:usage': TextUsageEvent
+
+  // Structured output events
+  'structured-output:started': StructuredOutputStartedEvent
+  'structured-output:updated': StructuredOutputUpdatedEvent
+  'structured-output:completed': StructuredOutputCompletedEvent
+  'structured-output:errored': StructuredOutputErroredEvent
 
   // Iteration events
   'text:iteration:started': TextIterationStartedEvent
@@ -698,6 +1143,9 @@ export interface AIDevtoolsEventMap {
   'tools:call:completed': ToolsCallCompletedEvent
   'tools:result:added': ToolsResultAddedEvent
   'tools:call:updated': ToolsCallUpdatedEvent
+  'tools:registered': ToolsRegisteredEvent
+  'devtools:tool-fixture:apply': DevtoolsToolFixtureApplyEvent
+  'devtools:tool-fixture:applied': DevtoolsToolFixtureAppliedEvent
 
   // Summarize events
   'summarize:request:started': SummarizeRequestStartedEvent
@@ -739,6 +1187,14 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+
+  // Memory events
+  'memory:retrieve:started': MemoryRetrieveStartedEvent
+  'memory:retrieve:completed': MemoryRetrieveCompletedEvent
+  'memory:persist:started': MemoryPersistStartedEvent
+  'memory:persist:completed': MemoryPersistCompletedEvent
+  'memory:error': MemoryErrorEvent
+  'memory:snapshot': MemorySnapshotEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {
@@ -749,9 +1205,47 @@ class AiEventClient extends EventClient<AIDevtoolsEventMap> {
   }
 }
 
-const aiEventClient = new AiEventClient()
+const aiEventClientKey = Symbol.for('tanstack.ai.devtools.eventClient')
+
+function getAiEventClient(): AiEventClient {
+  const global = globalThis as typeof globalThis & {
+    [aiEventClientKey]?: AiEventClient
+  }
+  const existing = global[aiEventClientKey]
+  if (existing) return existing
+
+  const eventClient = new AiEventClient()
+  global[aiEventClientKey] = eventClient
+  return eventClient
+}
+
+const aiEventClient = getAiEventClient()
 
 export { aiEventClient }
+
+export function emitAIDevtoolsEvent<
+  TEvent extends keyof AIDevtoolsEventMap & string,
+>(eventName: TEvent, payload: AIDevtoolsEventMap[TEvent]): void {
+  aiEventClient.emit(eventName, payload)
+}
+
+export function dispatchAIDevtoolsEvent<
+  TEvent extends keyof AIDevtoolsEventMap & string,
+>(eventName: TEvent, payload: AIDevtoolsEventMap[TEvent]): void {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.dispatchEvent !== 'function' ||
+    typeof CustomEvent === 'undefined'
+  ) {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('tanstack-dispatch-event', {
+      detail: aiEventClient.createEventPayload(eventName, payload),
+    }),
+  )
+}
 
 // Devtools middleware
 export {

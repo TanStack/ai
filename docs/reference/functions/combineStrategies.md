@@ -9,7 +9,7 @@ title: combineStrategies
 function combineStrategies(strategies): AgentLoopStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L79)
+Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L119)
 
 Creates a strategy that combines multiple strategies with AND logic
 All strategies must return true to continue

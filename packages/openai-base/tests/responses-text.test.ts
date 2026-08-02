@@ -773,6 +773,84 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
+    it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+      // Tool call arrives before any text. parentMessageId must bind the tool
+      // call to the same assistant message id the eventual TEXT_MESSAGE_START
+      // uses, so consumers don't see the message id change mid-stream (#477).
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_tf',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_tf',
+          delta: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_tf',
+          arguments: '{"location":"Berlin"}',
+        },
+        { type: 'response.output_text.delta', delta: 'It is sunny.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_tf',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 10, output_tokens: 7, total_tokens: 17 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+      expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+      expect(toolStart?.type).toBe('TOOL_CALL_START')
+      if (
+        textStart?.type === 'TEXT_MESSAGE_START' &&
+        toolStart?.type === 'TOOL_CALL_START'
+      ) {
+        expect(toolStart.parentMessageId).toBe(textStart.messageId)
+      }
+    })
+
     it('handles multiple parallel tool calls', async () => {
       const streamChunks = [
         {
@@ -1613,6 +1691,56 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect(errorChunk.error!.code).toBe('rate_limit')
       }
     })
+
+    it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+      const providerBody = {
+        type: 'insufficient_quota',
+        message: 'You exceeded your current quota',
+        code: 'insufficient_quota',
+      }
+      mockResponsesCreate = vi.fn().mockRejectedValue(
+        Object.assign(new Error('429 You exceeded your current quota'), {
+          status: 429,
+          error: providerBody,
+        }),
+      )
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError.rawEvent).toEqual(providerBody)
+      }
+    })
+
+    it('omits rawEvent when the error carries no provider body', async () => {
+      mockResponsesCreate = vi.fn().mockRejectedValue(new Error('network down'))
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError).not.toHaveProperty('rawEvent')
+      }
+    })
   })
 
   describe('structured output', () => {
@@ -1670,7 +1798,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
-    it('transforms null values to undefined', async () => {
+    it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         output: [
           {
@@ -1705,9 +1833,11 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         },
       })
 
-      // null should be transformed to undefined
+      // The adapter no longer strips nulls — strict-mode null-widening is undone
+      // precisely by the engine, which holds the schema's widening map. A blind
+      // adapter-level strip would also destroy genuine `.nullable()` nulls.
       expect((result.data as any).name).toBe('Alice')
-      expect((result.data as any).nickname).toBeUndefined()
+      expect((result.data as any).nickname).toBeNull()
     })
 
     it('throws on invalid JSON response', async () => {
@@ -1867,9 +1997,13 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
-        temperature: 0.5,
-        topP: 0.9,
-        maxTokens: 1024,
+        // Sampling options now flow through modelOptions with provider-native
+        // wire names; the base no longer reads root temperature/topP/maxTokens.
+        modelOptions: {
+          temperature: 0.5,
+          top_p: 0.9,
+          max_output_tokens: 1024,
+        },
         systemPrompts: ['Be helpful'],
         tools: [weatherTool],
       })) {
@@ -2029,6 +2163,79 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           }),
         ]),
       )
+    })
+
+    it('converts a multimodal tool result to a structured function_call_output', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              total_tokens: 11,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'look' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'shot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_1',
+            content: [
+              { type: 'text', content: 'screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://x/y.png' },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(Array.isArray(out.output)).toBe(true)
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'screenshot' },
+        { type: 'input_image', image_url: 'https://x/y.png', detail: 'auto' },
+      ])
     })
   })
 

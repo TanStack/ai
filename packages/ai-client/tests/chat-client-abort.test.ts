@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import type { ConnectionAdapter } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai/client'
 
 describe('ChatClient - Abort Signal Handling', () => {
   let mockAdapter: ConnectionAdapter

@@ -1,35 +1,45 @@
 import { createCodeModeTool } from './create-code-mode-tool'
 import { createCodeModeSystemPrompt } from './create-system-prompt'
-import type { CodeModeToolConfig } from './types'
+import { createDiscoveryTool } from './create-discovery-tool'
+import type { CodeModeToolConfig, CreateCodeModeResult } from './types'
 
 /**
- * Create both the `execute_typescript` tool and its matching system prompt
- * from a single config object.
- *
- * This is the recommended way to set up Code Mode — it ensures the tool and
- * system prompt always stay in sync.
+ * Create the `execute_typescript` tool, its matching system prompt, and (when
+ * any tools are marked `lazy: true`) a `discover_tools` companion tool.
  *
  * @example
  * ```typescript
  * import { createCodeMode } from '@tanstack/ai-code-mode'
  * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
  *
- * const { tool, systemPrompt } = createCodeMode({
+ * const { tools, systemPrompt } = createCodeMode({
  *   driver: createNodeIsolateDriver(),
- *   tools: [weatherTool, dbTool],
- *   timeout: 30000,
+ *   tools: [weatherTool, rarelyUsedTool], // mark rarelyUsedTool lazy: true
  * })
  *
  * chat({
  *   systemPrompts: [myPrompt, systemPrompt],
- *   tools: [tool, ...otherTools],
+ *   tools: [...tools, ...otherTools],
  *   messages,
  * })
  * ```
  */
-export function createCodeMode(config: CodeModeToolConfig) {
+export function createCodeMode(
+  config: CodeModeToolConfig,
+): CreateCodeModeResult {
+  const tool = createCodeModeTool(config)
+  const systemPrompt = createCodeModeSystemPrompt(config)
+
+  const lazyTools = config.tools.filter((t) => t.lazy)
+  const discoveryTool =
+    lazyTools.length > 0
+      ? createDiscoveryTool(lazyTools, config.lazyToolsConfig)
+      : null
+
   return {
-    tool: createCodeModeTool(config),
-    systemPrompt: createCodeModeSystemPrompt(config),
+    tool,
+    discoveryTool,
+    tools: discoveryTool ? [tool, discoveryTool] : [tool],
+    systemPrompt,
   }
 }

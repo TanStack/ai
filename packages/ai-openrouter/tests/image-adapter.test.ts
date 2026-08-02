@@ -84,6 +84,72 @@ describe('OpenRouter Image Adapter', () => {
     expect(result.model).toBe('google/gemini-2.5-flash-image')
   })
 
+  it('surfaces token usage from the chat response', async () => {
+    const mockResponse = {
+      ...createMockImageResponse([{ url: 'https://example.com/image1.png' }]),
+      usage: {
+        promptTokens: 7,
+        completionTokens: 13,
+        totalTokens: 20,
+      },
+    }
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A futuristic city at sunset',
+      logger: testLogger,
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 7,
+      completionTokens: 13,
+      totalTokens: 20,
+    })
+  })
+
+  it('surfaces provider-reported cost from OpenRouter image usage', async () => {
+    const mockResponse = {
+      ...createMockImageResponse([{ url: 'https://example.com/image1.png' }]),
+      usage: {
+        completionTokens: 1291,
+        cost: 0.0387076,
+        cost_details: {
+          upstream_inference_completions_cost: 0.0387025,
+          upstream_inference_cost: 0.0387076,
+          upstream_inference_prompt_cost: 0.0000051,
+        },
+        promptTokens: 17,
+        totalTokens: 1308,
+      },
+    }
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A futuristic city at sunset',
+      logger: testLogger,
+    })
+
+    expect(result.usage).toMatchObject({
+      promptTokens: 17,
+      completionTokens: 1291,
+      totalTokens: 1308,
+      cost: 0.0387076,
+      costDetails: {
+        upstreamOutputCost: 0.0387025,
+        upstreamCost: 0.0387076,
+        upstreamInputCost: 0.0000051,
+      },
+    })
+  })
+
   it('generates multiple images', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image1.png' },
@@ -213,6 +279,88 @@ describe('OpenRouter Image Adapter', () => {
     ).rejects.toThrowError(
       new Error('Image generation failed: Content policy violation'),
     )
+  })
+
+  it('maps image prompt parts onto content parts preserving interleaved order', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/edited.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    const result = await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: [
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/source.png' },
+        },
+        { type: 'text', content: 'Turn this into a cinematic product photo' },
+        {
+          type: 'image',
+          source: { type: 'data', value: 'c3R5bGU=', mimeType: 'image/png' },
+          metadata: { role: 'reference' },
+        },
+      ],
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            imageUrl: { url: 'https://example.com/source.png' },
+          },
+          { type: 'text', text: 'Turn this into a cinematic product photo' },
+          {
+            type: 'image_url',
+            imageUrl: { url: 'data:image/png;base64,c3R5bGU=' },
+          },
+        ],
+      },
+    ])
+    expect(result.images).toHaveLength(1)
+  })
+
+  it('keeps a plain string prompt when no image parts are given', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/image.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+    await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A plain prompt',
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.messages[0].content).toBe('A plain prompt')
+  })
+
+  it('throws for video / audio prompt parts', async () => {
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: [
+          { type: 'text', content: 'Test' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/v.mp4' },
+          },
+        ],
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/does not support video \/ audio prompt parts/)
   })
 
   it('passes imageConfig correctly', async () => {

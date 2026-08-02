@@ -1,13 +1,21 @@
 {
   "name": "@tanstack/ai-isolate-cloudflare",
-  "version": "0.2.12",
+  "version": "0.2.38",
   "description": "Cloudflare Workers sandbox driver for TanStack AI Code Mode TypeScript execution at the edge.",
-  "author": "",
+  "author": "Tanner Linsley",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/ai-isolate-cloudflare"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -37,9 +45,9 @@
     "clean": "premove ./build ./dist",
     "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -61,8 +69,8 @@
     "@tanstack/ai-code-mode": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
+    "@cloudflare/workers-types": "^4.20260317.1",
     "@vitest/coverage-v8": "4.0.14",
-    "wrangler": "^4.88.0"
+    "wrangler": "^4.103.0"
   }
 }

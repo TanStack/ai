@@ -171,9 +171,9 @@ export function createFileSkillStorage(
 
   async function search(
     query: string,
-    options: SkillSearchOptions = {},
+    searchOptions: SkillSearchOptions = {},
   ): Promise<Array<SkillIndexEntry>> {
-    const { limit = 5 } = options
+    const { limit = 5 } = searchOptions
     const index = await loadIndex()
 
     // Simple text matching - can be replaced with embeddings

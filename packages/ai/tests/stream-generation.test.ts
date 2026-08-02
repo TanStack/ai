@@ -170,6 +170,9 @@ describe('generateVideo({ stream: true })', () => {
       model: 'test-model',
       '~types': {} as any,
 
+      availableDurations: () => ({ kind: 'none' as const }),
+      snapDuration: () => undefined,
+
       createVideoJob: vi.fn(async () => ({
         jobId: 'job-123',
         model: 'test-model',
