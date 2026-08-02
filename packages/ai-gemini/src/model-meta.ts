@@ -747,7 +747,7 @@ const GEMINI_3_6_FLASH = {
   name: 'gemini-3.6-flash',
   max_input_tokens: 1_048_576,
   max_output_tokens: 65_536,
-  knowledge_cutoff: '2025-01-01',
+  knowledge_cutoff: '2026-03-01',
   supports: {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
